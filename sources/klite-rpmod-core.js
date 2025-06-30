@@ -1,6 +1,6 @@
 // =============================================
 // KLITE RP mod - KoboldAI Lite conversion
-// Copyrights Peter Hauer
+// Creator Peter Hauer
 // under GPL-3.0 license
 // see https://github.com/PeterPeet/
 // =============================================
@@ -66,50 +66,226 @@ const KLITE_RPMod = {
         abortAnimation: null
     },
 
-    // Initialize the mod
-    init() {
-        console.log('🎭 KLITE RP Mod initializing...');
+    // State persistence using IndexedDB
+    async saveUIState() {
+        const stateToSave = {
+            version: 1,
+            timestamp: Date.now(),
+            panels: {
+                activeTabs: this.state.activeTabs,
+                panelsCollapsed: this.state.panelsCollapsed
+            },
+            preferences: {
+                fullscreenMode: document.querySelector('.klite-rpmod-main-content')?.classList.contains('fullscreen') || false
+            }
+        };
         
-        // Initialize state manager first
-        const restoredState = window.KLITE_RPMod_StateManager.init();
+        try {
+            // Use KoboldAI's indexeddb_save function if available
+            if (typeof indexeddb_save === 'function') {
+                await indexeddb_save('KLITE_RPMod_UIState', JSON.stringify(stateToSave));
+                console.log('✅ UI state saved to IndexedDB');
+            } else {
+                // Fallback to direct IndexedDB access
+                await this.directIndexedDBSave('KLITE_RPMod_UIState', stateToSave);
+            }
+        } catch (error) {
+            console.error('Failed to save UI state:', error);
+            // Fallback to localStorage
+            localStorage.setItem('KLITE_RPMod_UIState_Backup', JSON.stringify(stateToSave));
+        }
+    },
+
+    async loadUIState() {
+        try {
+            let savedState = null;
+            
+            // Try to load from IndexedDB first
+            if (typeof indexeddb_load === 'function') {
+                const stateString = await indexeddb_load('KLITE_RPMod_UIState', null);
+                if (stateString) {
+                    savedState = JSON.parse(stateString);
+                }
+            } else {
+                // Fallback to direct IndexedDB access
+                savedState = await this.directIndexedDBLoad('KLITE_RPMod_UIState');
+            }
+            
+            // If not in IndexedDB, check localStorage backup
+            if (!savedState) {
+                const backupState = localStorage.getItem('KLITE_RPMod_UIState_Backup');
+                if (backupState) {
+                    savedState = JSON.parse(backupState);
+                    // Migrate to IndexedDB
+                    this.saveUIState();
+                }
+            }
+            
+            return savedState;
+        } catch (error) {
+            console.error('Failed to load UI state:', error);
+            return null;
+        }
+    },
+
+    // Direct IndexedDB access methods (fallback)
+    async directIndexedDBSave(key, value) {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open('KoboldAI_Lite_DB', 1);
+            
+            request.onerror = () => reject(request.error);
+            
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains('settings')) {
+                    db.createObjectStore('settings');
+                }
+            };
+            
+            request.onsuccess = (event) => {
+                const db = event.target.result;
+                const transaction = db.transaction(['settings'], 'readwrite');
+                const store = transaction.objectStore('settings');
+                const putRequest = store.put(value, key);
+                
+                putRequest.onsuccess = () => {
+                    db.close();
+                    resolve();
+                };
+                
+                putRequest.onerror = () => {
+                    db.close();
+                    reject(putRequest.error);
+                };
+            };
+        });
+    },
+
+    async directIndexedDBLoad(key) {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open('KoboldAI_Lite_DB', 1);
+            
+            request.onerror = () => reject(request.error);
+            
+            request.onsuccess = (event) => {
+                const db = event.target.result;
+                
+                if (!db.objectStoreNames.contains('settings')) {
+                    db.close();
+                    resolve(null);
+                    return;
+                }
+                
+                const transaction = db.transaction(['settings'], 'readonly');
+                const store = transaction.objectStore('settings');
+                const getRequest = store.get(key);
+                
+                getRequest.onsuccess = () => {
+                    db.close();
+                    resolve(getRequest.result);
+                };
+                
+                getRequest.onerror = () => {
+                    db.close();
+                    reject(getRequest.error);
+                };
+            };
+        });
+    },
+
+    // Set up automatic state persistence
+    setupStatePersistence() {
+        // Save state whenever panels are toggled
+        const originalTogglePanel = this.togglePanel.bind(this);
+        this.togglePanel = (side) => {
+            originalTogglePanel(side);
+            // Debounce save to avoid too many writes
+            if (this.saveStateTimer) {
+                clearTimeout(this.saveStateTimer);
+            }
+            this.saveStateTimer = setTimeout(() => {
+                this.saveUIState();
+            }, 500);
+        };
+        
+        // Save state when switching tabs
+        const originalSwitchTab = this.switchTab.bind(this);
+        this.switchTab = (panel, tab) => {
+            originalSwitchTab(panel, tab);
+            // Debounce save
+            if (this.saveStateTimer) {
+                clearTimeout(this.saveStateTimer);
+            }
+            this.saveStateTimer = setTimeout(() => {
+                this.saveUIState();
+            }, 500);
+        };
+        
+        // Save state before page unload
+        window.addEventListener('beforeunload', () => {
+            this.saveUIState();
+        });
+    },
+
+    // Initialize the mod
+    async init() {
+        console.log('🎭 KLITE RP Mod initializing...');
         
         // Check if we're in KoboldAI Lite environment
         if (!this.checkEnvironment()) {
             console.error('❌ KLITE RP Mod: KoboldAI Lite environment not detected!');
             return;
         }
+
+        // Check if this is the first time running
+        const isFirstRun = !localStorage.getItem('klite-rpmod-initialized');
         
-        // Restore or load saved state
-        if (restoredState) {
+        // Load saved UI state from IndexedDB
+        const savedState = await this.loadUIState();
+        
+        if (isFirstRun) {
+            console.log('🎉 First time running RPMod!');
+            // Show all panels on first run
+            this.state.panelsCollapsed.left = false;
+            this.state.panelsCollapsed.right = false;
+            this.state.panelsCollapsed.top = false;
+        } else if (savedState && savedState.panels) {
+            console.log('♻️ Restoring saved UI state');
+            // Restore saved state
+            this.state.activeTabs = savedState.panels.activeTabs || this.state.activeTabs;
+            this.state.panelsCollapsed = savedState.panels.panelsCollapsed || this.state.panelsCollapsed;
+        }
+        
+        // Initialize state manager for compatibility
+        const restoredState = window.KLITE_RPMod_StateManager?.init();
+        
+        // Merge with any existing state manager data
+        if (restoredState && !savedState) {
             this.state = {
                 ...this.state,
                 ...restoredState.panels
             };
-        } else {
-            this.loadState();
         }
         
         // Initialize event integration
-        window.KLITE_RPMod_EventIntegration.init();
+        window.KLITE_RPMod_EventIntegration?.init();
         
         // Inject styles
         this.injectStyles();
         
         // Build UI structure - THIS CREATES THE CONTAINERS
         this.buildUI();
+
+        this.updateMainContentPosition();
     
         // Initialize hot-swap feature AFTER UI is built
         setTimeout(() => {
-            window.KLITE_RPMod_HotSwap.init();
+            window.KLITE_RPMod_HotSwap?.init();
         }, 100);
         
-        // If we had a saved state, restore UI visibility
-        if (restoredState?.ui?.isVisible) {
-            const container = document.getElementById('klite-rpmod-container');
-            if (container) {
-                container.style.display = 'block';
-                document.body.classList.add('klite-rpmod-active');
-            }
+        // If we had a saved state, apply it to the UI
+        if (savedState) {
+            this.applyRestoredState();
         }
         
         // Connect buttons to KoboldAI functions
@@ -118,13 +294,11 @@ const KLITE_RPMod = {
         // Set up event listeners
         this.setupEventListeners();
         
-        // Initialize all panels (combine both methods)
+        // Initialize all panels
         this.initializeAllPanels();
         
-        // Restore additional UI state
-        if (restoredState) {
-            this.restoreUIState(restoredState);
-        }
+        // Set up automatic state persistence
+        this.setupStatePersistence();
 
         // =============================================
         // KLITE RPMod - Author's Note Boundary Injection Patch
@@ -322,23 +496,88 @@ const KLITE_RPMod = {
             } catch (e) {
                 console.error('Error updating status:', e);
             }
-        }, 500);
+        }, 1000);
         
-        // Auto-collapse panels after 3 seconds
-        setTimeout(() => {
-            try {
+        // Auto-collapse panels after 2.5 seconds on first run
+        if (isFirstRun) {
+            setTimeout(() => {
                 console.log('Auto-collapsing panels...');
                 ['left', 'right', 'top'].forEach(panel => {
                     if (!this.state.panelsCollapsed[panel]) {
                         this.togglePanel(panel);
                     }
                 });
-            } catch (error) {
-                console.error('Error auto-collapsing panels:', error);
-            }
-        }, 2500);
+                localStorage.setItem('klite-rpmod-initialized', 'true');
+                // Save the collapsed state
+                this.saveUIState();
+            }, 2500);
+        }
     
         console.log('✅ KLITE RP Mod initialized successfully!');
+    },
+
+    // Apply restored state to the UI
+    applyRestoredState() {
+        Object.entries(this.state.panelsCollapsed).forEach(([panel, collapsed]) => {
+            const panelEl = document.getElementById(`klite-rpmod-panel-${panel}`);
+            if (panelEl) {
+                if (collapsed) {
+                    panelEl.classList.add('collapsed');
+                } else {
+                    panelEl.classList.remove('collapsed');
+                }
+                
+                // Update collapse handle arrows
+                const handle = panelEl.querySelector('.klite-rpmod-collapse-handle');
+                if (handle) {
+                    if (panel === 'left') {
+                        handle.innerHTML = collapsed ? '▶' : '◀';
+                    } else if (panel === 'right') {
+                        handle.innerHTML = collapsed ? '◀' : '▶';
+                    } else if (panel === 'top') {
+                        handle.innerHTML = collapsed ? '▼' : '▲';
+                    }
+                }
+            }
+        });
+        
+        // Update main content position
+        this.updateMainContentPosition();
+    },
+
+    // Update main content position based on panel states
+    updateMainContentPosition() {
+        const mainContent = document.querySelector('.klite-rpmod-main-content');
+        if (!mainContent) return;
+        
+        const width = window.innerWidth;
+        const isMobile = width <= 768;
+        const isTablet = width > 768 && width <= 1400;
+        const isDesktop = width > 1400;
+        const isFullscreen = mainContent.classList.contains('fullscreen');
+        
+        // Remove any existing responsive classes
+        mainContent.classList.remove('mobile-mode', 'tablet-mode', 'desktop-mode');
+        
+        if (isMobile) {
+            // Mobile: Full width with overlay panels
+            mainContent.classList.add('mobile-mode');
+            mainContent.style.left = '15px';
+            mainContent.style.right = '15px';
+            mainContent.style.maxWidth = '100%';
+        } else if (isTablet || (isDesktop && isFullscreen)) {
+            // Tablet OR Desktop+Fullscreen: Full width with overlay panels
+            mainContent.classList.add(isTablet ? 'tablet-mode' : 'desktop-mode');
+            mainContent.style.left = '15px';
+            mainContent.style.right = '15px';
+            mainContent.style.maxWidth = '100%';
+        } else {
+            // Desktop without fullscreen: Always reserve panel space
+            mainContent.classList.add('desktop-mode');
+            mainContent.style.left = '365px';
+            mainContent.style.right = '365px';
+            mainContent.style.maxWidth = '';
+        }
     },
 
     // Check if we're in the right environment
@@ -348,7 +587,7 @@ const KLITE_RPMod = {
                document.getElementById('gametext') !== null;
     },
 
-    // Load saved state from storage
+    // Load saved state from storage (legacy method for compatibility)
     loadState() {
         const savedState = localStorage.getItem('KLITE_RPMod_State');
         if (savedState) {
@@ -363,7 +602,7 @@ const KLITE_RPMod = {
         }
     },
 
-    // Save state to storage
+    // Save state to storage (legacy method for compatibility)
     saveState() {
         const stateToSave = {
             activeTabs: this.state.activeTabs
@@ -376,18 +615,9 @@ const KLITE_RPMod = {
         const styleId = 'klite-rpmod-styles';
         if (document.getElementById(styleId)) return;
 
-        // Combine all style modules
-        const styles = `
-            ${window.KLITE_RPMod_CoreStyles || ''}
-            ${window.KLITE_RPMod_PanelSystemStyles || ''}
-            ${window.KLITE_RPMod_UIStyles || ''}
-            ${window.KLITE_RPMod_AnimationStyles || ''}
-            ${window.KLITE_CharacterManager_CSS || ''}
-        `;
-
         const styleSheet = document.createElement('style');
         styleSheet.id = styleId;
-        styleSheet.textContent = styles;
+        styleSheet.textContent = window.KLITE_RPMod_CoreStylesCSS || '';
         document.head.appendChild(styleSheet);
     },
 
@@ -493,6 +723,7 @@ const KLITE_RPMod = {
         textInput.className = 'klite-rpmod-text-input';
         textInput.id = 'klite-rpmod-input';
         textInput.placeholder = 'Enter your text here...';
+        textInput.style.resize = 'none';
 
         // Add Enter key handling for submit
         textInput.addEventListener('keydown', (e) => {
@@ -518,10 +749,22 @@ const KLITE_RPMod = {
         // Info line below input
         const inputInfo = document.createElement('div');
         inputInfo.className = 'klite-rpmod-input-info';
-        inputInfo.innerHTML = `
-            <span>prompt: <span id="klite-prompt-token">0</span> | chat: <span id="klite-story-token">0</span></span>
-            <span>API: <span id="klite-connection-text">Loading...</span> | 💤 <span id="klite-queue-position">#0</span> | ⏱️ <span id="klite-wait-time">0s</span></span>
-        `;
+        
+        // Check if we're in mobile mode
+        const isMobile = window.innerWidth <= 767;
+        
+        if (isMobile) {
+            // Simplified mobile version
+            inputInfo.innerHTML = `
+                <span>🗒️ <span id="klite-story-token">0</span> | <span id="klite-connection-text">Loading...</span> | 💤 <span id="klite-queue-position">#0</span> | ⏱️ <span id="klite-wait-time">0s</span></span>
+            `;
+        } else {
+            // Full desktop version with all icons
+            inputInfo.innerHTML = `
+                <span>✍️ <span id="klite-prompt-token">0</span> | 🗒️ <span id="klite-story-token">0</span></span>
+                <span>🔌 <span id="klite-connection-text">Loading...</span> | 💤 <span id="klite-queue-position">#0</span> | ⏱️ <span id="klite-wait-time">0s</span></span>
+            `;
+        }
 
 
         inputWrapper.appendChild(textInput);
@@ -569,9 +812,9 @@ const KLITE_RPMod = {
         editingButton.style.cssText = `
             position: absolute;
             bottom: 118px;
-            right: 136px;
+            right: 15px;
             z-index: 2;
-            width: 26px;
+            width: 120px;
             height: 26px;
             background-color: rgb(45, 107, 160);
             border: 1px solid #2e6da4;
@@ -591,7 +834,7 @@ const KLITE_RPMod = {
         quickButtonsLeft.style.cssText = `
             position: absolute;
             bottom: 118px;
-            left: 96px;
+            left: 15px;
             z-index: 2;
             display: flex;
             gap: 4px;
@@ -695,32 +938,50 @@ const KLITE_RPMod = {
 
         if (paletteButton) {
             paletteButton.onclick = () => {
-                console.log('Palette clicked - opening embedded Stable UI');
-                
-                // Check if embedded UI class exists
-                if (window.KLITEEmbeddedStableUI) {
-                    // Create or reuse embedded UI instance
-                    if (!window.KLITE_RPMod.embeddedStableUI) {
-                        window.KLITE_RPMod.embeddedStableUI = new window.KLITEEmbeddedStableUI();
-                    }
-                    window.KLITE_RPMod.embeddedStableUI.open();
+                console.log('Palette clicked - opening Lite\'s Image Generation Panel');
+                // Try to open image generation
+                if (typeof add_img_btn_menu === 'function') {
+                    add_img_btn_menu();
                 } else {
-                    console.error('Embedded Stable UI not loaded');
-                    alert('Stable UI is not available, yet. The general implementation is done, but doesn\'t connect to the API, so that needs some more bugfixing.');
+                    console.warn('Image generation functions not found in Lite');
                 }
             };
         };
 
         if (imagesButton) {
             imagesButton.onclick = () => {
-                console.log('IMAGES clicked');
-                // Try to open image generation
-                if (typeof add_img_btn_menu === 'function') {
-                    add_img_btn_menu();
-                } else if (window.KLITE_RPMod_Panels && window.KLITE_RPMod_Panels.SCENE) {
-                    window.KLITE_RPMod_Panels.SCENE.openStableUI();
-                } else {
-                    console.warn('Image generation functions not found');
+                console.log('Fullscreen Button clicked');
+                const mainContent = document.querySelector('.klite-rpmod-main-content');
+                const topPanel = document.querySelector('.klite-rpmod-panel-top');
+                
+                if (mainContent) {
+                    if (mainContent.classList.contains('fullscreen')) {
+                        // Exit fullscreen
+                        mainContent.classList.remove('fullscreen');
+                        
+                        // Restore top panel
+                        if (topPanel) {
+                            topPanel.classList.remove('fullscreen');
+                        }
+                        
+                        // Update positioning based on screen size
+                        this.updateMainContentPosition();
+                        
+                        console.log('Exited fullscreen mode');
+                    } else {
+                        // Enter fullscreen
+                        mainContent.classList.add('fullscreen');
+                        
+                        // Expand top panel in fullscreen
+                        if (topPanel) {
+                            topPanel.classList.add('fullscreen');
+                        }
+                        
+                        // Update positioning for fullscreen
+                        this.updateMainContentPosition();
+                        
+                        console.log('Entered fullscreen mode');
+                    }
                 }
             };
         };
@@ -735,7 +996,7 @@ const KLITE_RPMod = {
         quickButtonsRight.style.cssText = `
             position: absolute;
             bottom: 118px;
-            right: 166px;
+            right: 146px;
             z-index: 2;
             display: flex;
             gap: 4px;
@@ -2283,11 +2544,31 @@ const KLITE_RPMod = {
     // Toggle panel collapse
     togglePanel(side) {
         const panel = document.getElementById(`klite-rpmod-panel-${side}`);
+        const width = window.innerWidth;
+        const isMobile = width <= 767;
+        const isTablet = width > 767 && width <= 1400;
+        const mainContent = document.querySelector('.klite-rpmod-main-content');
+        const isFullscreen = mainContent && mainContent.classList.contains('fullscreen');
+        const isDesktop = width > 1400;
+        
         panel.classList.toggle('collapsed');
         
         this.state.panelsCollapsed[side] = panel.classList.contains('collapsed');
         this.saveState();
-
+        
+        // Handle overlay mode for panels WITHOUT backdrop
+        if (isMobile || isTablet || (isDesktop && isFullscreen)) {
+            // In overlay mode, panels slide over content
+            if (!panel.classList.contains('collapsed')) {
+                panel.classList.add('overlay-mode');
+            } else {
+                panel.classList.remove('overlay-mode');
+            }
+        } else {
+            // Desktop mode without fullscreen - no overlay
+            panel.classList.remove('overlay-mode');
+        }
+        
         if (side === 'top') {
             const mainContent = document.querySelector('.klite-rpmod-main-content');
             mainContent.classList.toggle('top-expanded', !this.state.panelsCollapsed[side]);
@@ -2300,7 +2581,7 @@ const KLITE_RPMod = {
                 }, 300);
             }
         }
-
+        
         // Update collapse handle arrow
         const handle = panel.querySelector('.klite-rpmod-collapse-handle');
         if (handle) {
@@ -2311,6 +2592,11 @@ const KLITE_RPMod = {
             } else if (side === 'top') {
                 handle.innerHTML = this.state.panelsCollapsed[side] ? '▼' : '▲';
             }
+        }
+        
+        // No need to update main content position in overlay modes
+        if (!isMobile && !isTablet && !(isDesktop && isFullscreen)) {
+            this.updateMainContentPosition();
         }
     },
 
@@ -2337,7 +2623,7 @@ const KLITE_RPMod = {
 
     // Store the current AI avatar base64
     aiAvatarCurrent: null,
-    aiAvatarDefault: 'data:image/png;base64,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', // The robot emoji
+    aiAvatarDefault: 'data:image/png;base64,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', // The robot emoji
 
     // Method to update AI avatar with character image
     updateAIAvatar(imageUrl) {
@@ -2360,7 +2646,7 @@ const KLITE_RPMod = {
         const AI_AVATAR_ORIGINAL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAAXNSR0IB2cksfwAAAAlwSFlzAAALEwAACxMBAJqcGAAAADxQTFRFS2Si+X5+pmBfHyApLjZSS2SjP057Vzw5EA4Sf1ZT+9Sv1WpqnYx/7qaYw7vUAAAAS2Sj9PPzgnrLS2SjAzrF9gAAABR0Uk5T///////w////////////AKj//yMlHqVpAAAD3klEQVR4nKWXi7KjIAyGFSgxEjhV3/9d90+8onZPd810prWSDwi50fyoTNP7/X79g2D4NJlqo+rvV/Mf8npPM2B6/4+6ihKaB/pGaH4e6IPw00y3+48xhBC3J32Id+NeUzN9UPfer4RoD/eIqbnuwLS7zncLAfqdPvvDmvY9XAE6vuuImEAw8fNT1/kr4Qqw+YhdIocfJl0glxyTvyG8m7MNY1B9diAkmgGUODnH7Km7AF53AGEjUJtWYdUPzn0LyC6AQO0qCUCi1PKXAM5tCwXeAC0ROf36AqA2VACmbQ8yP9DVimeA6lPKkLaW3EPylXAARBXV701OhOVPI6hcAXH1mTyP7e8AMyEc4mQDzP7XrfOfl5D7ndAdfXID6NwMyXACEpEbgPTCLJn1hEGoAep/OKheQiCEEhj1HgBQX1ZxQMPLlyVsABwejkp8EGEQAkxRA4RgIRYhTxme1fkKoBZwAHjLA+b/cgLQ8gZ4gZ+tVtgAnboaa+Lg0IwRhBqAmX0cI0WFqHN3FUAXAOPpzIWhPzZYQgUAu4ljiaKTaKwtZtwAIdv8XkocR9+UYM5/BMTRxzJKsWEu+RPAAsBxKSWWgTHS18cofiwhlCJD4cApUb0CNWKA/5dhwAqKD2UIXAEoFgUMkIJTCCcjzkGE890BQhXA685WQNqD6ujKWDRhhI7EdKUCtKSGxd8ASEr+6sqNApKPeD/iFEpT6nAUcAMgMmBzqwVPgJCd80X3AIlDDcjSzH8PJbD7AGiT020WjfcCN0jI5WwJGk5axP4eikeyvQd4HE5i7I4xEpWANKg0m2p0OUIcQKJnd7uCaABMRebOSOoB1WUVYACzaGSs012NaI5gAC0GcPWD9iLI6/qVdGeXY7R6xu1M0FAhG7s865ctw97Zoz85kuXi5T2EbaZatLileQA+VifrYGrT7ruL+lbZ0orYcXQJpry/tl+26l1s8sOy+BxMqKjr23nf7mhFnktbOgJOGQmnVG0ZVve06VvDUFmEztGIhHAy2YHA+qsCuFNS1T0Edf41AOZ1b7uwH1tYYFA4p3U1owiOOu+AsyxrQ3AIXwrLXtryL4BPpW0rrvMaPgHSx+K6l3cj3Oin1lH6S3nfd+KDa51lAjJhE6ddz7XRu29xUH51O95SgNOahDTB3PPvLc7cZPWYEVlVlp5AkGtJK/63XZoq0jBsvUrPeNDvr/tE1SnD3qxIEVuNfAsY0J9w4Ux2ZKizHPLHFdw127r7HIS2ZpvFTHHbbN+3+2Qm29p9NvXv2v3twkHHCwd9vnA8vvI8vnQ9vvY9v3g+vvo+v3w/u/7/AZoAPJwrbZ1IAAAAAElFTkSuQmCC';
         
         // Your new avatars
-        const NEW_USER_AVATAR = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAYAAACM/rhtAAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAKKADAAQAAAABAAAAKAAAAAB65masAAAFoElEQVRYCc1ZPWwcRRT+Znbv/2KfCY5tCRNb/HSIIgQaCpoI5PSpQFQpQEgBIoWGwgUNSEDSQOEyVPS2QGkjJAiRQNCAhBLjSIfy5zvf+W5vb3eG92Z379bru2T3cEzG2pvdN2/e+/bNvDdvnwUmaKe/2pzRffmKhj4ptHgB0MskZgkCVSNOo039TUDc0EL/JiCuiZz6cf3d49tmPMOPyMCLNy5tviq1PE2ATtG8E1nmEu91AnxFCbX+3bnjV9POTQVw5Yu/X4Il3oTWZ0jwQlrhY/jqEOJb+PqbjQ+f/nkMz4D8QICrq1r+NL31DnGfpeV7cTDrIG40fiUxay83F79eXRVqnMixAF//8s6CLboXNPD+uMkHQScAFz1d+uz7D2bro+SNBLjy+V/PQ9of01K8NWrSgdO0vgzlfbJx/pk/k7JlksCWO1RwDIANQQYxuhOA9gDkPcfLemiWi4MhkKybMcTJex7YIR71nosrT96z7tApB0MDgCaUsLf+/+1siMUgGQA0ce6gQ8kkL8sYOOaGzXhxcEJQ8JwgCEuSUKsKzD8BVPN9I7bbt/HPtsD9loY/NsJFEEb2dSX0GT5xbB4Oj6/MJ4QlNRamPcyVd6B223CavtFmSwvHK2VUc1O4tZ1H3x8ZzUYiC4kLASZcFebgd8UVGsh6tmKm5GKxeg/a7ZDjU0oQSte02zX9yHwRdecobreLDwIzbuy6yOtTkrOSScCx1FqOLNfrGDBaaSgCpahncPznu13UrCaBJ8TZ2wnGZpuUKftk2MJH3m9BIVhWIyIyIT+EmCzRQl7U0NOFzFoYmx3mc5knS+1Cew4Ue4lBE6GLW0uQNX1YyiGe7AAZGzmJSTYzA7SkouX0CUAC3whJ7Exk6gmaXmYvXppgJqpWG8G+CzVHBowLY/DkPEfsNlpuLT6S9n7JNml6fFVSTu20mihR3CP90XYzMxlnJM5gJobddgMoPZVScoyNPiFMHIyRUt92xCxKzjZKBctYUocWpF1Hyx48CNqf/b6HHcynlptktEkef+BkDlS6UMPuTgE5yzFhZY/ZzNLS6iqJdo9UTM0l9aZ7Jmx8Ft9Mx53kEnCsWXS6LhSdZ77vB5cX9Exzuj105JOEdHjkJ6U85PkmzRQ3HsI0dlgVZ9H0Z9Dt9QmcB88LLgbbc/toeFNQpcwnaEyfuCH5uzVGyXQrrDzUkWV0VZXADa3IQLt+Eaq6BGFnj38RCMZm80f10O+iofS9zFfA+9HrkKcOThUBVTgCkQ++49NL28vJ2CR/8ROZPqonaxyw8xbvOw8+7z9zebCJZltRwJlI9nXGJoNyhMlmUkuxLKBSljh2VGO+ehd2rw6/78YcxYPl3sUcZTrMU6lI8JxsTVxhbCYOcjmCNuPbJGDsjpaUkZRyDip2C3DuoX+viVZrB932Lu0QSq0k+xtJCENMp9lA55cfUKhWUJyapheahijNYNefRqdfoMzngZ5NCata5xcKwyuwcmnrIik6x8Rk4+Bb1HeB5h/o3r8NjzyUm8kBLWn6CJjpzSBh5dRLqSBOEs3K2SjPzELUnkNXzhHrGJBCXNo4t2gKBsOThGolBPc1uvaVOIS3Sxb7HU7jDqumsDYUbEAMUJnhvT+cyPJ5SI33587tOoqOC3GsBG2POJ+5JKIIS9gGmsJCzlo0EO/91i1K5+8MLGESUk5KM16RzF7rPvzGZvSY7NfiRaWhBYmNCznXalvP0jYy5o1mOj0KvGqKjEuW+E+OGUjkF8u7QDlSEPYk/eJJwrARowe2jxG4/GCh8ymty+HUZSLdVJ/xUf4oWUQaLHHEZxiokEPrdzmiPfI+LB4lwbHefRaMwDwu5bd9FowA8tucbCyepz33Hl1cbDzYxjJJNusYZblI2VgLRgzcP7Yl4DhIvn9si+hJoIf5b4h/AQQEqIODkoUZAAAAAElFTkSuQmCC';
+        const NEW_USER_AVATAR = 'data:image/png;base64,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';
         const NEW_AI_AVATAR = this.aiAvatarCurrent || this.aiAvatarDefault;
         
         // Get all images in the chat area
@@ -2538,21 +2824,70 @@ const KLITE_RPMod = {
         const isMobile = width <= 767;
         const isTablet = width > 767 && width <= 1400;
         
-        if (isMobile) {
-            // Mobile mode - hide side panels
-            ['left', 'right'].forEach(panel => {
-                const panelEl = document.getElementById(`klite-rpmod-panel-${panel}`);
-                if (panelEl && !panelEl.classList.contains('collapsed')) {
-                    panelEl.classList.add('collapsed');
-                    this.state.panelsCollapsed[panel] = true;
-                }
-            });
-        } else if (isTablet) {
-            // Tablet mode - panels should overlay when opened
-            // No automatic collapsing in tablet mode
-        } else {
-            // Desktop mode - normal behavior
+        // Update main content positioning
+        this.updateMainContentPosition();
+        
+        // Update info line based on screen size
+        const inputInfo = document.querySelector('.klite-rpmod-input-info');
+        if (inputInfo) {
+            if (isMobile) {
+                // Simplified mobile version
+                const storyToken = document.getElementById('klite-story-token')?.textContent || '0';
+                const connectionText = document.getElementById('klite-connection-text')?.textContent || 'Loading...';
+                const queuePosition = document.getElementById('klite-queue-position')?.textContent || '#0';
+                const waitTime = document.getElementById('klite-wait-time')?.textContent || '0s';
+                
+                inputInfo.innerHTML = `
+                    <span>🗒️ <span id="klite-story-token">${storyToken}</span> | <span id="klite-connection-text">${connectionText}</span> | 💤 <span id="klite-queue-position">${queuePosition}</span> | ⏱️ <span id="klite-wait-time">${waitTime}</span></span>
+                `;
+            } else {
+                // Full desktop version
+                const promptToken = document.getElementById('klite-prompt-token')?.textContent || '0';
+                const storyToken = document.getElementById('klite-story-token')?.textContent || '0';
+                const connectionText = document.getElementById('klite-connection-text')?.textContent || 'Loading...';
+                const queuePosition = document.getElementById('klite-queue-position')?.textContent || '#0';
+                const waitTime = document.getElementById('klite-wait-time')?.textContent || '0s';
+                
+                inputInfo.innerHTML = `
+                    <span>✍️ <span id="klite-prompt-token">${promptToken}</span> | 🗒️ <span id="klite-story-token">${storyToken}</span></span>
+                    <span>🔌 <span id="klite-connection-text">${connectionText}</span> | 💤 <span id="klite-queue-position">${queuePosition}</span> | ⏱️ <span id="klite-wait-time">${waitTime}</span></span>
+                `;
+            }
         }
+        
+        // Mobile specific adjustments
+        if (isMobile) {
+            // Show mobile toggle button
+            const mobileToggle = document.querySelector('.klite-rpmod-mobile-toggle');
+            if (mobileToggle) {
+                mobileToggle.style.display = 'block';
+            }
+            
+            // Enable top panel toggle
+            const topPanel = document.getElementById('klite-rpmod-panel-top');
+            if (topPanel) {
+                topPanel.classList.add('mobile-enabled');
+            }
+        } else {
+            // Hide mobile toggle on larger screens
+            const mobileToggle = document.querySelector('.klite-rpmod-mobile-toggle');
+            if (mobileToggle) {
+                mobileToggle.style.display = 'none';
+            }
+        }
+
+        // Force recalculation of collapse handle positions
+        const topPanel = document.getElementById('klite-rpmod-panel-top');
+        if (topPanel) {
+            const handle = topPanel.querySelector('.klite-rpmod-collapse-handle');
+            if (handle) {
+                // Force a reflow to ensure proper positioning
+                handle.style.display = 'none';
+                handle.offsetHeight; // Trigger reflow
+                handle.style.display = '';
+            }
+        }
+
     },
 
     // Sync with KoboldAI elements
@@ -2702,6 +3037,20 @@ const KLITE_RPMod = {
         });
         
         return temp.innerHTML;
+    },
+
+    // Public API
+    api: {
+        toggle: () => {
+            const container = document.getElementById('klite-rpmod-container');
+            if (container) {
+                container.style.display = container.style.display === 'none' ? 'block' : 'none';
+            }
+        },
+        switchTab: (panel, tab) => KLITE_RPMod.switchTab(panel, tab),
+        updateAIAvatar: (imageUrl) => KLITE_RPMod.updateAIAvatar(imageUrl),
+        refreshPanel: (panel, tab) => KLITE_RPMod.forceRefreshPanel(panel, tab),
+        saveState: () => KLITE_RPMod.saveUIState()
     }
 };
 
@@ -2766,3 +3115,711 @@ const initWhenReady = () => {
 };
 
 initWhenReady();
+
+// =============================================
+// KLITE RP Mod - UI Components and Styles
+// Provides reusable UI components and styling
+// =============================================
+
+    window.KLITE_RPMod_UI = {
+        // Button styles from mockup
+        buttonStyles: {
+            primary: `
+                padding: 10px 20px;
+                background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+                border: 2px solid #5a9fee;
+                border-radius: 8px;
+                color: white;
+                font-size: 14px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                box-shadow: 0 2px 8px rgba(74, 144, 226, 0.3);
+            `,
+            secondary: `
+                padding: 10px 20px;
+                background: #3a3a3a;
+                border: 2px solid #4a4a4a;
+                border-radius: 8px;
+                color: #ccc;
+                font-size: 14px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+            `,
+            danger: `
+                padding: 10px 20px;
+                background: linear-gradient(135deg, #e24a4a 0%, #bd3535 100%);
+                border: 2px solid #ee5a5a;
+                border-radius: 8px;
+                color: white;
+                font-size: 14px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                box-shadow: 0 2px 8px rgba(226, 74, 74, 0.3);
+            `,
+            text: `
+                padding: 10px 20px;
+                background: transparent;
+                border: none;
+                color: #4a90e2;
+                font-size: 14px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                text-decoration: underline;
+            `
+        },
+
+        // Create a styled button
+        createButton(text, type = 'primary', onClick) {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.style.cssText = this.buttonStyles[type] || this.buttonStyles.primary;
+            
+            // Add hover effect
+            button.onmouseover = () => {
+                button.style.transform = 'translateY(-1px)';
+                button.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2)';
+            };
+            
+            button.onmouseout = () => {
+                button.style.transform = 'translateY(0)';
+                button.style.boxShadow = type === 'primary' || type === 'danger' ? 
+                    '0 2px 8px rgba(74, 144, 226, 0.3)' : 'none';
+            };
+            
+            if (onClick) {
+                button.onclick = onClick;
+            }
+            
+            return button;
+        },
+
+        // Create an input field
+        createInput(placeholder, type = 'text') {
+            const input = document.createElement('input');
+            input.type = type;
+            input.placeholder = placeholder;
+            input.style.cssText = `
+                width: 100%;
+                padding: 10px 15px;
+                background: #1a1a1a;
+                border: 2px solid #3a3a3a;
+                border-radius: 8px;
+                color: #ddd;
+                font-size: 14px;
+                transition: all 0.2s ease;
+                box-sizing: border-box;
+            `;
+            
+            input.onfocus = () => {
+                input.style.borderColor = '#4a90e2';
+                input.style.boxShadow = '0 0 0 3px rgba(74, 144, 226, 0.1)';
+            };
+            
+            input.onblur = () => {
+                input.style.borderColor = '#3a3a3a';
+                input.style.boxShadow = 'none';
+            };
+            
+            return input;
+        },
+
+        // Create a textarea
+        createTextarea(placeholder, rows = 4) {
+            const textarea = document.createElement('textarea');
+            textarea.placeholder = placeholder;
+            textarea.rows = rows;
+            textarea.style.cssText = `
+                width: 100%;
+                padding: 10px 15px;
+                background: #1a1a1a;
+                border: 2px solid #3a3a3a;
+                border-radius: 8px;
+                color: #ddd;
+                font-size: 14px;
+                font-family: inherit;
+                resize: vertical;
+                transition: all 0.2s ease;
+                box-sizing: border-box;
+            `;
+            
+            textarea.onfocus = () => {
+                textarea.style.borderColor = '#4a90e2';
+                textarea.style.boxShadow = '0 0 0 3px rgba(74, 144, 226, 0.1)';
+            };
+            
+            textarea.onblur = () => {
+                textarea.style.borderColor = '#3a3a3a';
+                textarea.style.boxShadow = 'none';
+            };
+            
+            return textarea;
+        },
+
+        // Create a section container
+        createSection(title, content) {
+            const section = document.createElement('div');
+            section.style.cssText = `
+                margin-bottom: 20px;
+                padding: 20px;
+                background: #222;
+                border: 2px solid #333;
+                border-radius: 10px;
+            `;
+            
+            if (title) {
+                const header = document.createElement('h3');
+                header.textContent = title;
+                header.style.cssText = `
+                    margin: 0 0 15px 0;
+                    color: #ddd;
+                    font-size: 16px;
+                    font-weight: 600;
+                    padding-bottom: 10px;
+                    border-bottom: 2px solid #333;
+                `;
+                section.appendChild(header);
+            }
+            
+            if (content) {
+                if (typeof content === 'string') {
+                    const contentDiv = document.createElement('div');
+                    contentDiv.innerHTML = content;
+                    section.appendChild(contentDiv);
+                } else {
+                    section.appendChild(content);
+                }
+            }
+            
+            return section;
+        },
+
+        // Create a select dropdown
+        createSelect(options, selected) {
+            const select = document.createElement('select');
+            select.style.cssText = `
+                width: 100%;
+                padding: 10px 15px;
+                background: #1a1a1a;
+                border: 2px solid #3a3a3a;
+                border-radius: 8px;
+                color: #ddd;
+                font-size: 14px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                box-sizing: border-box;
+            `;
+            
+            options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value || opt;
+                option.textContent = opt.label || opt;
+                if (selected === option.value) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+            
+            select.onfocus = () => {
+                select.style.borderColor = '#4a90e2';
+            };
+            
+            select.onblur = () => {
+                select.style.borderColor = '#3a3a3a';
+            };
+            
+            return select;
+        },
+
+        // Create a checkbox with label
+        createCheckbox(label, checked = false) {
+            const container = document.createElement('label');
+            container.style.cssText = `
+                display: flex;
+                align-items: center;
+                cursor: pointer;
+                user-select: none;
+                margin-bottom: 10px;
+            `;
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = checked;
+            checkbox.style.cssText = `
+                width: 20px;
+                height: 20px;
+                margin-right: 10px;
+                cursor: pointer;
+            `;
+            
+            const labelText = document.createElement('span');
+            labelText.textContent = label;
+            labelText.style.cssText = `
+                color: #ccc;
+                font-size: 14px;
+            `;
+            
+            container.appendChild(checkbox);
+            container.appendChild(labelText);
+            
+            return { container, checkbox };
+        },
+
+        // Create a slider with label
+        createSlider(label, min, max, value, step = 1) {
+            const container = document.createElement('div');
+            container.style.cssText = `margin-bottom: 15px;`;
+            
+            const labelDiv = document.createElement('div');
+            labelDiv.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 5px;
+            `;
+            
+            const labelText = document.createElement('span');
+            labelText.textContent = label;
+            labelText.style.cssText = `color: #ccc; font-size: 14px;`;
+            
+            const valueText = document.createElement('span');
+            valueText.textContent = value;
+            valueText.style.cssText = `color: #4a90e2; font-size: 14px;`;
+            
+            labelDiv.appendChild(labelText);
+            labelDiv.appendChild(valueText);
+            
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.min = min;
+            slider.max = max;
+            slider.value = value;
+            slider.step = step;
+            slider.style.cssText = `
+                width: 100%;
+                height: 6px;
+                background: #333;
+                border-radius: 3px;
+                outline: none;
+                -webkit-appearance: none;
+            `;
+            
+            // Update value display
+            slider.oninput = () => {
+                valueText.textContent = slider.value;
+            };
+            
+            container.appendChild(labelDiv);
+            container.appendChild(slider);
+            
+            return { container, slider };
+        },
+
+        // Create a divider
+        createDivider() {
+            const divider = document.createElement('hr');
+            divider.style.cssText = `
+                border: none;
+                border-top: 2px solid #333;
+                margin: 20px 0;
+            `;
+            return divider;
+        },
+
+        // Create an info box
+        createInfoBox(text, type = 'info') {
+            const colors = {
+                info: { bg: '#1a3a52', border: '#2a5a82', text: '#6ab7ff' },
+                success: { bg: '#1a4a2a', border: '#2a7a4a', text: '#6aff8a' },
+                warning: { bg: '#4a3a1a', border: '#7a5a2a', text: '#ffb76a' },
+                error: { bg: '#4a1a1a', border: '#7a2a2a', text: '#ff6a6a' }
+            };
+            
+            const color = colors[type] || colors.info;
+            
+            const box = document.createElement('div');
+            box.style.cssText = `
+                padding: 15px;
+                background: ${color.bg};
+                border: 2px solid ${color.border};
+                border-radius: 8px;
+                color: ${color.text};
+                font-size: 14px;
+                margin-bottom: 15px;
+            `;
+            box.textContent = text;
+            
+            return box;
+        },
+
+        // Show a notification
+        showNotification(message, type = 'info', duration = 3000) {
+            const notification = this.createInfoBox(message, type);
+            notification.style.cssText += `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                max-width: 400px;
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+            `;
+            
+            document.body.appendChild(notification);
+            
+            window.setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                window.setTimeout(() => notification.remove(), 300);
+            }, duration);
+        }
+    };
+
+
+// =============================================
+// KLITE RP Mod - Shared Helper Functions
+// Reusable utilities for all panels
+// =============================================
+
+    window.KLITE_RPMod_Helpers = {
+        // =============================================
+        // SECURITY & SANITIZATION UTILITIES
+        // =============================================
+        Security: {
+            // HTML sanitization
+            sanitizeHTML(text) {
+                if (typeof text !== 'string') return text;
+                
+                // Create a temporary div to safely escape HTML
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            },
+
+            sanitizeCharacterDataPreserveFormat(characterData) {
+                const sanitized = {
+                    ...characterData,
+                    name: this.sanitizeCharacterName(characterData.name),
+                    creator: this.sanitizeCreatorName(characterData.creator),
+                    tags: this.sanitizeTags(characterData.tags)
+                };
+
+                // Sanitize text fields while preserving formatting
+                const textFields = ['description', 'scenario', 'personality', 'first_mes', 'mes_example', 
+                                'creator_notes', 'system_prompt', 'post_history_instructions'];
+                textFields.forEach(field => {
+                    if (sanitized[field]) {
+                        sanitized[field] = this.sanitizeTextPreserveFormat(sanitized[field]);
+                    }
+                });
+
+                // Handle nested character book data
+                if (sanitized.character_book && sanitized.character_book.entries) {
+                    sanitized.character_book.entries = sanitized.character_book.entries.map(entry => ({
+                        ...entry,
+                        content: this.sanitizeTextPreserveFormat(entry.content || ''),
+                        comment: this.sanitizeTextPreserveFormat(entry.comment || ''),
+                        key: this.sanitizeTextPreserveFormat(entry.key || ''),
+                        keysecondary: this.sanitizeTextPreserveFormat(entry.keysecondary || ''),
+                        keyanti: this.sanitizeTextPreserveFormat(entry.keyanti || '')
+                    }));
+                }
+
+                // Handle alternate greetings
+                if (Array.isArray(sanitized.alternate_greetings)) {
+                    sanitized.alternate_greetings = sanitized.alternate_greetings
+                        .map(greeting => this.sanitizeTextPreserveFormat(greeting));
+                }
+
+                return sanitized;
+            },
+
+            // Remove potentially dangerous content
+            sanitizeTextPreserveFormat(text) {
+                if (typeof text !== 'string') return text;
+                
+                return text
+                    // Remove script tags and their content
+                    .replace(/<script[\s\S]*?<\/script>/gi, '')
+                    // Remove javascript: URLs
+                    .replace(/javascript:/gi, '')
+                    // Remove on* event handlers
+                    .replace(/\s*on\w+\s*=\s*[^>]*/gi, '')
+                    // Remove data: URLs (except safe image types)
+                    .replace(/data:(?!image\/(png|jpg|jpeg|gif|svg\+xml))[^;]*/gi, '');
+                    // DO NOT escape HTML entities - preserve formatting
+            },
+
+            // Validate and sanitize character name
+            sanitizeCharacterName(name) {
+                if (!name || typeof name !== 'string') {
+                    return 'Unknown Character';
+                }
+                
+                // Remove control characters and limit length
+                const cleaned = name
+                    .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+                    .trim()
+                    .substring(0, 100); // Limit to 100 characters
+                    
+                return cleaned || 'Unknown Character';
+            },
+
+            // Validate and sanitize creator name
+            sanitizeCreatorName(creator) {
+                if (!creator || typeof creator !== 'string') {
+                    return 'Unknown';
+                }
+                
+                const cleaned = creator
+                    .replace(/[\x00-\x1F\x7F]/g, '')
+                    .trim()
+                    .substring(0, 50); // Limit creator name length
+                    
+                return cleaned || 'Unknown';
+            },
+
+            // Sanitize tags array
+            sanitizeTags(tags) {
+                if (!Array.isArray(tags)) {
+                    return [];
+                }
+                
+                return tags
+                    .filter(tag => typeof tag === 'string')
+                    .map(tag => tag
+                        .replace(/[\x00-\x1F\x7F]/g, '')
+                        .trim()
+                        .substring(0, 30) // Limit tag length
+                    )
+                    .filter(tag => tag.length > 0)
+                    .slice(0, 20); // Limit number of tags
+            }
+        },
+
+        // =============================================
+        // TEXT ENCODING CLEANUP
+        // =============================================
+        TextEncoding: {
+            cleanTextEncoding(characterData) {
+                // PRESERVE binary data before JSON serialization
+                const preservedBlob = characterData._imageBlob;
+                const preservedImageData = characterData._imageData;
+                
+                console.log('Before cleaning - has blob:', !!preservedBlob);
+                console.log('Before cleaning - blob type:', preservedBlob?.constructor.name);
+                
+                // Create deep copy for text cleaning (this removes blobs)
+                const cleaned = JSON.parse(JSON.stringify(characterData));
+                
+                // Function to clean text in any string value
+                const cleanText = (text) => {
+                    if (typeof text !== 'string') return text;
+                    
+                    return text
+                        // Fix common UTF-8 encoding artifacts
+                        .replace(/â€™/g, "'")           // Smart apostrophe artifacts
+                        .replace(/â€œ/g, '"')          // Smart quote artifacts  
+                        .replace(/â€/g, '"')          // Smart quote artifacts
+                        .replace(/â€"/g, '—')          // Em dash artifacts
+                        .replace(/â€"/g, '–')          // En dash artifacts
+                        .replace(/Â /g, ' ')           // Non-breaking space artifacts
+                        .replace(/â€¦/g, '…')         // Ellipsis artifacts
+                        .replace(/â€¢/g, '•')         // Bullet point artifacts
+
+                        // Fix specific Unicode apostrophe and quote characters by char code
+                        .replace(/\u2019/g, "'")     // Right single quotation mark (8217) → standard apostrophe
+                        .replace(/\u2018/g, "'")     // Left single quotation mark (8216) → standard apostrophe  
+                        .replace(/\u201C/g, '"')     // Left double quotation mark (8220) → standard quote
+                        .replace(/\u201D/g, '"')     // Right double quotation mark (8221) → standard quote
+                        
+                        // Fix various quote and apostrophe characters (iPad/Mac/device specific)
+                        .replace(/['']/g, "'")       // Smart apostrophes/single quotes → standard apostrophe
+                        .replace(/[""]/g, '"')       // Smart double quotes → standard double quotes
+                        .replace(/[´`]/g, "'")       // Acute accent & grave accent → standard apostrophe
+                        .replace(/[‚„]/g, '"')       // Bottom quotes → standard double quotes
+                        .replace(/[‹›]/g, "'")       // Single angle quotes → standard apostrophe
+                        .replace(/[«»]/g, '"')       // Double angle quotes → standard double quotes
+                        
+                        // Fix accented characters
+                        .replace(/Ã¡/g, 'á')         // á character
+                        .replace(/Ã©/g, 'é')         // é character
+                        .replace(/Ã­/g, 'í')         // í character
+                        .replace(/Ã³/g, 'ó')         // ó character
+                        .replace(/Ãº/g, 'ú')         // ú character
+                        .replace(/Ã±/g, 'ñ')         // ñ character
+                        .replace(/Ã¼/g, 'ü')         // ü character
+                        .replace(/Ã¶/g, 'ö')         // ö character
+                        .replace(/Ã¤/g, 'ä')         // ä character
+                        .replace(/Ã /g, 'à')         // à character
+                        .replace(/Ã¨/g, 'è')         // è character
+                        .replace(/Ã¬/g, 'ì')         // ì character
+                        .replace(/Ã²/g, 'ò')         // ò character
+                        .replace(/Ã¹/g, 'ù')         // ù character
+                        .replace(/Ã‡/g, 'Ç')         // Ç character
+                        
+                        // Additional common patterns
+                        .replace(/â€™\s/g, "' ")       // Apostrophe with space
+                        .replace(/â€™([a-zA-Z])/g, "'$1") // Apostrophe before letters
+                        .replace(/â€œ\s/g, '" ')       // Quote with space
+                        .replace(/â€œ([a-zA-Z])/g, '"$1') // Quote before letters
+                        
+                        // DO NOT collapse multiple spaces or trim - preserve formatting!
+                        // .replace(/\s+/g, ' ')        // REMOVED - this was destroying formatting
+                        // .trim();                     // REMOVED - preserve leading/trailing whitespace
+                        ;
+                };
+                
+                // Recursively clean all string properties
+                const cleanObject = (obj) => {
+                    if (typeof obj === 'string') {
+                        return cleanText(obj);
+                    } else if (Array.isArray(obj)) {
+                        return obj.map(cleanObject);
+                    } else if (obj && typeof obj === 'object') {
+                        const result = {};
+                        for (const [key, value] of Object.entries(obj)) {
+                            result[key] = cleanObject(value);
+                        }
+                        return result;
+                    }
+                    return obj;
+                };
+
+                const encodingCleaned = cleanObject(cleaned);
+                
+                // Sanitize the import for security with formatting preservation
+                const sanitized = KLITE_RPMod_Helpers.Security.sanitizeCharacterDataPreserveFormat(encodingCleaned);
+                
+                // RESTORE binary data after cleaning and sanitization
+                if (preservedBlob) {
+                    sanitized._imageBlob = preservedBlob;
+                    console.log('Restored blob to cleaned data');
+                }
+                
+                if (preservedImageData) {
+                    sanitized._imageData = preservedImageData;
+                    console.log('Restored image data to cleaned data');
+                }
+                
+                console.log('After cleaning - has blob:', !!sanitized._imageBlob);
+                
+                return sanitized;
+            }
+        },
+
+        // =============================================
+        // SECTION HANDLERS
+        // =============================================
+        UI: {
+            handleSectionHeader(e) {
+                const sectionHeader = e.target.closest('.KLITECharacterManager-section-header');
+                if (sectionHeader) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    const section = sectionHeader.closest('.KLITECharacterManager-section');
+                    section.classList.toggle('collapsed');
+                    const arrow = sectionHeader.querySelector('span:last-child');
+                    arrow.textContent = section.classList.contains('collapsed') ? '▶' : '▼';
+                    return true;
+                }
+                return false;
+            },
+
+            showSuccessMessage(message, elementId = 'char-success-message') {
+                const successMsg = document.getElementById(elementId);
+                if (successMsg) {
+                    successMsg.textContent = message;
+                    successMsg.classList.add('show');
+                    window.setTimeout(() => {
+                        successMsg.classList.remove('show');
+                    }, 3000);
+                }
+            }
+        },
+
+        // =============================================
+        // INDEXEDDB MANAGER
+        // =============================================
+        IndexedDB: {
+            db: null,
+            dbName: 'KLITECharacterManagerDB',
+            dbVersion: 1,
+            storeName: 'characters',
+
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, this.dbVersion);
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => {
+                        this.db = request.result;
+                        resolve(this.db);
+                    };
+                    
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        if (!db.objectStoreNames.contains(this.storeName)) {
+                            const store = db.createObjectStore(this.storeName, { keyPath: 'id' });
+                            store.createIndex('name', 'name', { unique: false });
+                            store.createIndex('creator', 'creator', { unique: false });
+                            store.createIndex('tags', 'tags', { unique: false, multiEntry: true });
+                            store.createIndex('rating', 'rating', { unique: false });
+                        }
+                    };
+                });
+            },
+
+            async saveCharacter(character) {
+                if (!this.db) await this.init();
+                
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction([this.storeName], 'readwrite');
+                    const store = transaction.objectStore(this.storeName);
+                    const request = store.put(character);
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result);
+                });
+            },
+
+            async getAllCharacters() {
+                if (!this.db) await this.init();
+                
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction([this.storeName], 'readonly');
+                    const store = transaction.objectStore(this.storeName);
+                    const request = store.getAll();
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result);
+                });
+            },
+
+            async deleteCharacter(id) {
+                if (!this.db) await this.init();
+                
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction([this.storeName], 'readwrite');
+                    const store = transaction.objectStore(this.storeName);
+                    const request = store.delete(id);
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result);
+                });
+            },
+
+            async clearAllCharacters() {
+                if (!this.db) await this.init();
+                
+                return new Promise((resolve, reject) => {
+                    const transaction = this.db.transaction([this.storeName], 'readwrite');
+                    const store = transaction.objectStore(this.storeName);
+                    const request = store.clear();
+                    
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => resolve(request.result);
+                });
+            }
+        }
+    };

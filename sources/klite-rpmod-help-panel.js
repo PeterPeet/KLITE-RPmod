@@ -1,6 +1,6 @@
 // =============================================
 // KLITE RP mod - KoboldAI Lite conversion
-// Copyrights Peter Hauer
+// Creator Peter Hauer
 // under GPL-3.0 license
 // see https://github.com/PeterPeet/
 // =============================================
@@ -22,7 +22,7 @@ window.KLITE_RPMod_Panels.HELP = {
         container.innerHTML = `
         <!-- HELP Panel -->
         <div class="klite-rpmod-panel-wrapper">
-            <div class="klite-rpmod-panel-content">
+            <div class="klite-rpmod-panel-content klite-rpmod-scrollable">
                 <div class="klite-rpmod-section-header">
                     <span>RPMod Role-Playing Features</span>
                 </div>
@@ -37,6 +37,88 @@ window.KLITE_RPMod_Panels.HELP = {
                     </div>
                 </div>
                 
+                <div class="klite-rpmod-horizontal-divider"></div>
+
+                <div class="klite-rpmod-section-header">
+                    <span>Quick Reference Icons</span>
+                </div>
+                <div class="klite-rpmod-section-content">
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <!-- Game Modes -->
+                        <div style="padding: 12px; background: #1a1a1a; border-radius: 6px; border: 1px solid #333;">
+                            <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Game Modes</div>
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">✏️</span>
+                                    <span>Edit Mode</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">💬</span>
+                                    <span>RP Mode (Instruct)</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">⚔️</span>
+                                    <span>Adventure Mode</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">📖</span>
+                                    <span>Storywriter Mode</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tools & Features -->
+                        <div style="padding: 12px; background: #1a1a1a; border-radius: 6px; border: 1px solid #333;">
+                            <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Tools & Features</div>
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">🖼️</span>
+                                    <span>Toggle Fullscreen</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">🎨</span>
+                                    <span>Image Menu</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">🧠</span>
+                                    <span>Smart Memory Writer</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">📊</span>
+                                    <span>Context Analysis</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Status Indicators -->
+                        <div style="padding: 12px; background: #1a1a1a; border-radius: 6px; border: 1px solid #333;">
+                            <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Status Indicators</div>
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">✍️</span>
+                                    <span>Prompt tokens</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">🗒️</span>
+                                    <span>Chat/story tokens</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">🔌</span>
+                                    <span>API connection</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">💤</span>
+                                    <span>Queue position</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 10px; color: #e0e0e0; font-size: 13px;">
+                                    <span style="width: 24px; text-align: center; font-size: 16px;">⏱️</span>
+                                    <span>Estimated wait time</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="klite-rpmod-horizontal-divider"></div>
             
                 <div class="klite-rpmod-section-header">
@@ -519,6 +601,93 @@ window.KLITE_RPMod_Panels.HELP = {
         }
     },
 
+    showEntryModal(title, content, category) {
+        // Create modal if it doesn't exist
+        let modal = document.getElementById('klite-rpmod-help-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'klite-rpmod-help-modal';
+            modal.className = 'klite-rpmod-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+                opacity: 0;
+                visibility: hidden;
+                transition: all 0.3s ease;
+            `;
+            
+            modal.innerHTML = `
+                <div class="klite-rpmod-modal-content" style="
+                    background: #2a2a2a;
+                    border: 1px solid #555;
+                    border-radius: 8px;
+                    padding: 20px;
+                    max-width: 600px;
+                    max-height: 80vh;
+                    overflow-y: auto;
+                    margin: 20px;
+                    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                        <div>
+                            <h3 id="klite-rpmod-help-modal-title" style="margin: 0; color: #fff; font-size: 18px;"></h3>
+                            <div id="klite-rpmod-help-modal-category" style="color: #4a90e2; font-size: 12px; margin-top: 4px;"></div>
+                        </div>
+                        <button class="klite-rpmod-button" onclick="this.closest('.klite-rpmod-modal').style.opacity='0'; this.closest('.klite-rpmod-modal').style.visibility='hidden';" style="
+                            background: #666;
+                            border: none;
+                            color: #fff;
+                            width: 30px;
+                            height: 30px;
+                            border-radius: 4px;
+                            cursor: pointer;
+                            font-size: 16px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            margin-left: 15px;
+                        ">×</button>
+                    </div>
+                    <div id="klite-rpmod-help-modal-content" style="color: #e0e0e0; line-height: 1.6; font-size: 14px;"></div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Close modal when clicking outside
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.style.opacity = '0';
+                    modal.style.visibility = 'hidden';
+                }
+            });
+            
+            // Close modal with Escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && modal.style.visibility === 'visible') {
+                    modal.style.opacity = '0';
+                    modal.style.visibility = 'hidden';
+                }
+            });
+        }
+        
+        // Update content
+        document.getElementById('klite-rpmod-help-modal-title').textContent = title;
+        document.getElementById('klite-rpmod-help-modal-category').textContent = category;
+        document.getElementById('klite-rpmod-help-modal-content').innerHTML = content;
+        
+        // Show modal
+        modal.style.opacity = '1';
+        modal.style.visibility = 'visible';
+    },
+
     performSearch(query, indexType, resultsContainer) {
         if (!query.trim()) return;
         
@@ -591,7 +760,7 @@ window.KLITE_RPMod_Panels.HELP = {
                 
                 items.forEach((result, idx) => {
                     html += `
-                        <div style="margin-bottom: 10px; padding: 8px; background: #1a1a1a; border-radius: 4px; cursor: pointer;" 
+                        <div class="search-result-item" data-title="${this.escapeHtml(result.title)}" data-content="${this.escapeHtml(result.content)}" data-category="${this.escapeHtml(result.category)}" style="margin-bottom: 10px; padding: 8px; background: #1a1a1a; border-radius: 4px; cursor: pointer; transition: background 0.2s;" 
                              onmouseover="this.style.background='#252525'" 
                              onmouseout="this.style.background='#1a1a1a'">
                             <h4 style="margin: 0 0 5px 0; color: #fff; font-size: 13px;">
@@ -608,6 +777,17 @@ window.KLITE_RPMod_Panels.HELP = {
             });
             
             container.innerHTML = html;
+            
+            // Add click handlers to search results
+            const resultItems = container.querySelectorAll('.search-result-item');
+            resultItems.forEach(item => {
+                item.addEventListener('click', () => {
+                    const title = item.getAttribute('data-title');
+                    const content = item.getAttribute('data-content');
+                    const category = item.getAttribute('data-category');
+                    this.showEntryModal(title, content, category);
+                });
+            });
         }
         
         container.style.display = 'block';

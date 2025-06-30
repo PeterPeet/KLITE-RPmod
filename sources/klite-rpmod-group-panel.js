@@ -1,6 +1,6 @@
 // =============================================
 // KLITE RP mod - KoboldAI Lite conversion
-// Copyrights Peter Hauer
+// Creator Peter Hauer
 // under GPL-3.0 license
 // see https://github.com/PeterPeet/
 // =============================================
@@ -53,257 +53,257 @@ window.KLITE_RPMod_Panels.GROUP = {
         const styleEl = document.getElementById('klite-rpmod-group-styles') || document.createElement('style');
         styleEl.id = 'klite-rpmod-group-styles';
         container.innerHTML = `
-            <div class="klite-rpmod-panel klite-rpmod-panel-group" id="klite-rpmod-panel-group">
-                <div class="klite-rpmod-panel-content klite-rpmod-scrollable">
-                    <!-- Group Chat Toggle -->
-                    <div class="klite-rpmod-control-group">
-                        <div class="klite-rpmod-control-group-background"></div>
-                        <h3>Group Chat & Initiative</h3>
-                        <div class="klite-rpmod-control-row">
-                            <label>
-                                <input type="checkbox" id="klite-rpmod-group-chat-toggle"> Enable Group Mode
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Participant Management -->
-                    <div class="klite-rpmod-control-group" id="klite-rpmod-participant-management" style="display: none;">
-                        <div class="klite-rpmod-control-group-background"></div>
-                        <h3>Party & Encounter Management</h3>
-                        
-                        <!-- Current Status -->
-                        <div class="klite-rpmod-status-display" style="margin-bottom: 15px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                <span style="color: #999; font-size: 12px;">Current Speaker:</span>
-                                <span id="klite-rpmod-current-speaker" style="color: #4CAF50; font-weight: bold;">—</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="color: #999; font-size: 12px;">Next Speaker:</span>
-                                <span id="klite-rpmod-next-speaker" style="color: #4a9eff;">—</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
-                                <span style="color: #999; font-size: 12px;">Round:</span>
-                                <span id="klite-rpmod-combat-round" style="color: #e0e0e0;">1</span>
-                            </div>
-                        </div>
-                        
-                        <!-- Participant List -->
-                        <div id="klite-rpmod-participant-list" class="klite-rpmod-group-character-list" style="max-height: 300px; overflow-y: auto; margin-bottom: 15px;">
-                            <!-- Participants will be dynamically added here -->
-                        </div>
-                        
-                        <!-- Add Buttons -->
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
-                            <button class="klite-rpmod-button" id="klite-rpmod-add-character">
-                                Add Character
-                            </button>
-                            <button class="klite-rpmod-button" id="klite-rpmod-add-custom">
-                                Add NPC/Monster
-                            </button>
-                        </div>
-                        
-                        <!-- Control Buttons -->
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
-                            <button class="klite-rpmod-button" id="klite-rpmod-advance-turn" style="background: #5cb85c;">
-                                Advance Turn
-                            </button>
-                            <button class="klite-rpmod-button" id="klite-rpmod-roll-initiative" style="background: #f0ad4e;">
-                                Roll Initiative
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Turn Management -->
-                    <div class="klite-rpmod-control-group" id="klite-rpmod-turn-management" style="display: none;">
-                        <div class="klite-rpmod-control-group-background"></div>
-                        <h3>Turn & Response Settings</h3>
-                        <div class="klite-rpmod-control-row">
-                            <label>Response Mode</label>
-                            <select id="klite-rpmod-response-mode">
-                                <option value="individual">Individual Responses</option>
-                                <option value="simultaneous">Simultaneous Actions</option>
-                                <option value="random">Random Order</option>
-                            </select>
-                        </div>
-                        <div class="klite-rpmod-control-row">
-                            <label>Advance Mode</label>
-                            <select id="klite-rpmod-advance-mode">
-                                <option value="random">Random</option>
-                                <option value="round-robin">Round Robin</option>
-                                <option value="initiative">Initiative Order</option>
-                                <option value="name-triggered">Name Triggered (else Random)</option>
-                            </select>
-                        </div>
-                        <div class="klite-rpmod-control-row">
-                            <label>
-                                <input type="checkbox" id="klite-rpmod-auto-advance"> Auto-advance turns after generation
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Group Context -->
-                    <div class="klite-rpmod-control-group" id="klite-rpmod-group-context" style="display: none;">
-                        <div class="klite-rpmod-control-group-background"></div>
-                        <h3>Encounter Context</h3>
-                        <textarea 
-                            id="klite-rpmod-group-context-text"
-                            placeholder="Describe the current scene, encounter, or situation..."
-                            style="width: 100%; height: 80px; resize: vertical;"
-                        ></textarea>
-                        <div class="klite-rpmod-status-bar">
-                            <span id="klite-rpmod-context-status">Ready</span>
-                            <span id="klite-rpmod-context-tokens">0 tokens</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Character Selection Modal -->
-            <div class="klite-rpmod-modal hidden" id="klite-rpmod-character-select-modal">
-                <div class="klite-rpmod-modal-content" style="max-width: 700px; max-height: 80vh;">
-                    <h3>Select Characters</h3>
-                    
-                    <!-- Search and Filters -->
-                    <div style="margin-bottom: 15px;">
-                        <input type="text" id="klite-rpmod-char-search" placeholder="Search characters by name, creator, or tags..." 
-                               style="width: 100%; margin-bottom: 10px;">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                            <select id="klite-rpmod-tag-filter">
-                                <option value="">All Tags</option>
-                            </select>
-                            <select id="klite-rpmod-star-filter">
-                                <option value="0">All Ratings</option>
-                                <option value="5">★★★★★</option>
-                                <option value="4">★★★★☆+</option>
-                                <option value="3">★★★☆☆+</option>
-                                <option value="2">★★☆☆☆+</option>
-                                <option value="1">★☆☆☆☆+</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <!-- Character List -->
-                    <div id="klite-rpmod-character-select-list" style="max-height: 400px; overflow-y: auto; border: 1px solid #333; border-radius: 4px; padding: 5px; background: rgba(0,0,0,0.2);">
-                        <!-- Character items will be populated here -->
-                    </div>
-                    
-                    <!-- Selected count -->
-                    <div style="margin-top: 10px; color: #999; font-size: 12px;">
-                        <span id="klite-rpmod-selected-count">0</span> characters selected
-                    </div>
-                    
-                    <div style="display: flex; gap: 10px; margin-top: 15px;">
-                        <button class="klite-rpmod-button" id="klite-rpmod-confirm-characters" style="flex: 1;">
-                            Add Selected Characters
-                        </button>
-                        <button class="klite-rpmod-button klite-rpmod-button-secondary" id="klite-rpmod-cancel-characters" style="flex: 1;">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Add Custom Character Modal -->
-            <div class="klite-rpmod-modal hidden" id="klite-rpmod-custom-character-modal">
-                <div class="klite-rpmod-modal-content" style="max-width: 400px;">
-                    <h3>Add NPC/Monster</h3>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Name</label>
-                        <input type="text" id="klite-rpmod-custom-name" placeholder="e.g., Borin, Goblin Chief" 
-                               style="width: 100%;">
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Type</label>
-                        <select id="klite-rpmod-custom-type" style="width: 100%;">
-                            <option value="npc">NPC (Non-Player Character)</option>
-                            <option value="monster">Monster/Enemy</option>
-                            <option value="pc">PC (Player Character)</option>
-                        </select>
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Role/Occupation</label>
-                        <input type="text" id="klite-rpmod-custom-role" placeholder="e.g., Barkeeper, Ambushing the party" 
-                               style="width: 100%;">
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Hit Points</label>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                            <input type="number" id="klite-rpmod-custom-hp" placeholder="Current HP" min="0">
-                            <input type="number" id="klite-rpmod-custom-max-hp" placeholder="Max HP" min="1">
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; gap: 10px;">
-                        <button class="klite-rpmod-button" id="klite-rpmod-add-custom-confirm" style="flex: 1;">
-                            Add to Encounter
-                        </button>
-                        <button class="klite-rpmod-button klite-rpmod-button-secondary" id="klite-rpmod-add-custom-cancel" style="flex: 1;">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Edit Character Modal -->
-            <div class="klite-rpmod-modal hidden" id="klite-rpmod-edit-character-modal">
-                <div class="klite-rpmod-modal-content" style="max-width: 500px;">
-                    <h3>Edit Character</h3>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Name</label>
-                        <input type="text" id="klite-rpmod-edit-name" style="width: 100%;">
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Type</label>
-                        <select id="klite-rpmod-edit-type" style="width: 100%;">
-                            <option value="pc">PC (Player Character)</option>
-                            <option value="npc">NPC (Non-Player Character)</option>
-                            <option value="monster">Monster/Enemy</option>
-                        </select>
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Hit Points</label>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                            <input type="number" id="klite-rpmod-edit-hp" placeholder="Current HP" min="0">
-                            <input type="number" id="klite-rpmod-edit-max-hp" placeholder="Max HP" min="1">
-                        </div>
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Initiative</label>
-                        <input type="number" id="klite-rpmod-edit-initiative" min="1" max="40" style="width: 100%;">
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: flex; align-items: center; gap: 5px;">
-                            <input type="checkbox" id="klite-rpmod-edit-active">
-                            <span style="color: #999; font-size: 12px;">Active (participates in turns)</span>
+        <div class="klite-rpmod-panel-wrapper">
+            <div class="klite-rpmod-panel-content klite-rpmod-scrollable">
+                <!-- Group Chat Toggle -->
+                <div class="klite-rpmod-control-group">
+                    <div class="klite-rpmod-control-group-background"></div>
+                    <h3>Group Chat & Initiative</h3>
+                    <div class="klite-rpmod-control-row">
+                        <label>
+                            <input type="checkbox" id="klite-rpmod-group-chat-toggle"> Enable Group Mode
                         </label>
                     </div>
+                </div>
+
+                <!-- Participant Management -->
+                <div class="klite-rpmod-control-group" id="klite-rpmod-participant-management" style="display: none;">
+                    <div class="klite-rpmod-control-group-background"></div>
+                    <h3>Party & Encounter Management</h3>
                     
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Status Conditions</label>
-                        <div id="klite-rpmod-edit-statuses" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; max-height: 150px; overflow-y: auto; padding: 5px; background: rgba(0,0,0,0.2); border-radius: 4px;">
-                            <!-- Status checkboxes will be populated here -->
+                    <!-- Current Status -->
+                    <div class="klite-rpmod-status-display" style="margin-bottom: 15px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <span style="color: #999; font-size: 12px;">Current Speaker:</span>
+                            <span id="klite-rpmod-current-speaker" style="color: #4CAF50; font-weight: bold;">—</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: #999; font-size: 12px;">Next Speaker:</span>
+                            <span id="klite-rpmod-next-speaker" style="color: #4a9eff;">—</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+                            <span style="color: #999; font-size: 12px;">Round:</span>
+                            <span id="klite-rpmod-combat-round" style="color: #e0e0e0;">1</span>
                         </div>
                     </div>
                     
-                    <div style="display: flex; gap: 10px;">
-                        <button class="klite-rpmod-button" id="klite-rpmod-edit-save" style="flex: 1;">
-                            Save Changes
+                    <!-- Participant List -->
+                    <div id="klite-rpmod-participant-list" class="klite-rpmod-group-character-list" style="max-height: 300px; overflow-y: auto; margin-bottom: 15px;">
+                        <!-- Participants will be dynamically added here -->
+                    </div>
+                    
+                    <!-- Add Buttons -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
+                        <button class="klite-rpmod-button" id="klite-rpmod-add-character">
+                            Add Character
                         </button>
-                        <button class="klite-rpmod-button klite-rpmod-button-secondary" id="klite-rpmod-edit-cancel" style="flex: 1;">
-                            Cancel
+                        <button class="klite-rpmod-button" id="klite-rpmod-add-custom">
+                            Add NPC/Monster
+                        </button>
+                    </div>
+                    
+                    <!-- Control Buttons -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
+                        <button class="klite-rpmod-button" id="klite-rpmod-advance-turn" style="background: #5cb85c;">
+                            Advance Turn
+                        </button>
+                        <button class="klite-rpmod-button" id="klite-rpmod-roll-initiative" style="background: #f0ad4e;">
+                            Roll Initiative
                         </button>
                     </div>
                 </div>
+
+                <!-- Turn Management -->
+                <div class="klite-rpmod-control-group" id="klite-rpmod-turn-management" style="display: none;">
+                    <div class="klite-rpmod-control-group-background"></div>
+                    <h3>Turn & Response Settings</h3>
+                    <div class="klite-rpmod-control-row">
+                        <label>Response Mode</label>
+                        <select id="klite-rpmod-response-mode">
+                            <option value="individual">Individual Responses</option>
+                            <option value="simultaneous">Simultaneous Actions</option>
+                            <option value="random">Random Order</option>
+                        </select>
+                    </div>
+                    <div class="klite-rpmod-control-row">
+                        <label>Advance Mode</label>
+                        <select id="klite-rpmod-advance-mode">
+                            <option value="random">Random</option>
+                            <option value="round-robin">Round Robin</option>
+                            <option value="initiative">Initiative Order</option>
+                            <option value="name-triggered">Name Triggered</option>
+                        </select>
+                    </div>
+                    <div class="klite-rpmod-control-row">
+                        <label>
+                            <input type="checkbox" id="klite-rpmod-auto-advance"> Auto-advance turns after generation
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Group Context -->
+                <div class="klite-rpmod-control-group" id="klite-rpmod-group-context" style="display: none;">
+                    <div class="klite-rpmod-control-group-background"></div>
+                    <h3>Encounter Context</h3>
+                    <textarea 
+                        id="klite-rpmod-group-context-text"
+                        placeholder="Describe the current scene, encounter, or situation..."
+                        style="width: 100%; height: 80px; resize: vertical;"
+                    ></textarea>
+                    <div class="klite-rpmod-status-bar">
+                        <span id="klite-rpmod-context-status">Ready</span>
+                        <span id="klite-rpmod-context-tokens">0 tokens</span>
+                    </div>
+                </div>
             </div>
+        </div>
+
+        <!-- Character Selection Modal -->
+        <div class="klite-rpmod-modal hidden" id="klite-rpmod-character-select-modal">
+            <div class="klite-rpmod-modal-content" style="max-width: 700px; max-height: 80vh;">
+                <h3>Select Characters</h3>
+                
+                <!-- Search and Filters -->
+                <div style="margin-bottom: 15px;">
+                    <input type="text" id="klite-rpmod-char-search" placeholder="Search characters by name, creator, or tags..." 
+                        style="width: 100%; margin-bottom: 10px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <select id="klite-rpmod-tag-filter">
+                            <option value="">All Tags</option>
+                        </select>
+                        <select id="klite-rpmod-star-filter">
+                            <option value="0">All Ratings</option>
+                            <option value="5">★★★★★</option>
+                            <option value="4">★★★★☆+</option>
+                            <option value="3">★★★☆☆+</option>
+                            <option value="2">★★☆☆☆+</option>
+                            <option value="1">★☆☆☆☆+</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Character List -->
+                <div id="klite-rpmod-character-select-list" style="max-height: 400px; overflow-y: auto; border: 1px solid #333; border-radius: 4px; padding: 5px; background: rgba(0,0,0,0.2);">
+                    <!-- Character items will be populated here -->
+                </div>
+                
+                <!-- Selected count -->
+                <div style="margin-top: 10px; color: #999; font-size: 12px;">
+                    <span id="klite-rpmod-selected-count">0</span> characters selected
+                </div>
+                
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button class="klite-rpmod-button" id="klite-rpmod-confirm-characters" style="flex: 1;">
+                        Add Selected Characters
+                    </button>
+                    <button class="klite-rpmod-button klite-rpmod-button-secondary" id="klite-rpmod-cancel-characters" style="flex: 1;">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Custom Character Modal -->
+        <div class="klite-rpmod-modal hidden" id="klite-rpmod-custom-character-modal">
+            <div class="klite-rpmod-modal-content" style="max-width: 400px;">
+                <h3>Add NPC/Monster</h3>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Name</label>
+                    <input type="text" id="klite-rpmod-custom-name" placeholder="e.g., Borin, Goblin Chief" 
+                        style="width: 100%;">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Type</label>
+                    <select id="klite-rpmod-custom-type" style="width: 100%;">
+                        <option value="npc">NPC (Non-Player Character)</option>
+                        <option value="monster">Monster/Enemy</option>
+                        <option value="pc">PC (Player Character)</option>
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Role/Occupation</label>
+                    <input type="text" id="klite-rpmod-custom-role" placeholder="e.g., Barkeeper, Ambushing the party" 
+                        style="width: 100%;">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Hit Points</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <input type="number" id="klite-rpmod-custom-hp" placeholder="Current HP" min="0">
+                        <input type="number" id="klite-rpmod-custom-max-hp" placeholder="Max HP" min="1">
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button class="klite-rpmod-button" id="klite-rpmod-add-custom-confirm" style="flex: 1;">
+                        Add to Encounter
+                    </button>
+                    <button class="klite-rpmod-button klite-rpmod-button-secondary" id="klite-rpmod-add-custom-cancel" style="flex: 1;">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Character Modal -->
+        <div class="klite-rpmod-modal hidden" id="klite-rpmod-edit-character-modal">
+            <div class="klite-rpmod-modal-content" style="max-width: 500px;">
+                <h3>Edit Character</h3>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Name</label>
+                    <input type="text" id="klite-rpmod-edit-name" style="width: 100%;">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Type</label>
+                    <select id="klite-rpmod-edit-type" style="width: 100%;">
+                        <option value="pc">PC (Player Character)</option>
+                        <option value="npc">NPC (Non-Player Character)</option>
+                        <option value="monster">Monster/Enemy</option>
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Hit Points</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <input type="number" id="klite-rpmod-edit-hp" placeholder="Current HP" min="0">
+                        <input type="number" id="klite-rpmod-edit-max-hp" placeholder="Max HP" min="1">
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Initiative</label>
+                    <input type="number" id="klite-rpmod-edit-initiative" min="1" max="40" style="width: 100%;">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: flex; align-items: center; gap: 5px;">
+                        <input type="checkbox" id="klite-rpmod-edit-active">
+                        <span style="color: #999; font-size: 12px;">Active (participates in turns)</span>
+                    </label>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px; color: #999; font-size: 12px;">Status Conditions</label>
+                    <div id="klite-rpmod-edit-statuses" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; max-height: 150px; overflow-y: auto; padding: 5px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                        <!-- Status checkboxes will be populated here -->
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button class="klite-rpmod-button" id="klite-rpmod-edit-save" style="flex: 1;">
+                        Save Changes
+                    </button>
+                    <button class="klite-rpmod-button klite-rpmod-button-secondary" id="klite-rpmod-edit-cancel" style="flex: 1;">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
         `;
 
         styleEl.textContent = `
@@ -468,7 +468,7 @@ window.KLITE_RPMod_Panels.GROUP = {
         // Turn advancement
         const advanceBtn = document.getElementById('klite-rpmod-advance-turn');
         advanceBtn?.addEventListener('click', () => {
-            this.advanceTurn();
+            this.advanceToNextSpeaker();
         });
 
         // Roll/Remove initiative toggle
@@ -1449,15 +1449,15 @@ window.KLITE_RPMod_Panels.GROUP = {
         }
     },
 
-    advanceTurn() {
+    advanceToNextSpeaker() {
         if (this.activeCharacters.length === 0) return;
         
         // Store the current speaker as last speaker
         this.lastSpeakerIndex = this.currentTurn;
         
+        // Advance based on mode
         switch(this.advanceMode) {
             case 'random':
-                // Random selection from active participants
                 const activeIndices = this.activeCharacters
                     .map((char, idx) => char.active ? idx : -1)
                     .filter(idx => idx !== -1);
@@ -1467,7 +1467,7 @@ window.KLITE_RPMod_Panels.GROUP = {
                 break;
                 
             case 'round-robin':
-                // Sequential order, skipping inactive
+            case 'initiative':
                 let attempts = 0;
                 do {
                     this.currentTurn = (this.currentTurn + 1) % this.activeCharacters.length;
@@ -1481,51 +1481,76 @@ window.KLITE_RPMod_Panels.GROUP = {
                     }
                 } while (!this.activeCharacters[this.currentTurn].active);
                 break;
-                
-            case 'initiative':
-                // Use initiative order if available
-                if (this.initiativeMode) {
-                    let attempts = 0;
-                    do {
-                        this.currentTurn = (this.currentTurn + 1) % this.activeCharacters.length;
-                        attempts++;
-                        if (attempts >= this.activeCharacters.length) {
-                            if (this.currentTurn === 0) {
-                                this.combatRound++;
-                                document.getElementById('klite-rpmod-combat-round').textContent = this.combatRound;
-                            }
-                            break;
-                        }
-                    } while (!this.activeCharacters[this.currentTurn].active);
-                } else {
-                    // Fall back to round-robin if no initiative
-                    this.advanceMode = 'round-robin';
-                    this.advanceTurn();
-                    return;
-                }
-                break;
-                
-            case 'name-triggered':
-                // This would need to parse the last message for character names
-                // For now, fall back to random
-                const activeChars = this.activeCharacters
-                    .map((char, idx) => char.active ? idx : -1)
-                    .filter(idx => idx !== -1);
-                if (activeChars.length > 0) {
-                    this.currentTurn = activeChars[Math.floor(Math.random() * activeChars.length)];
-                }
-                break;
         }
         
         this.updateCurrentSpeaker();
         this.updateParticipantList();
         this.saveGroupState();
         
-        // Update context with speaker change
-        this.updateSpeakerContext(this.lastSpeakerIndex, this.currentTurn);
+        // Check if next speaker is NPC/Monster and trigger their response
+        const nextSpeaker = this.activeCharacters[this.currentTurn];
+        if (nextSpeaker && (nextSpeaker.type === 'npc' || nextSpeaker.type === 'monster')) {
+            setTimeout(() => {
+                this.handleNPCResponse(nextSpeaker, this.currentTurn);
+            }, 500);
+        }
+    },
+
+    handleNPCResponse(participant, index) {
+        console.log('Handling NPC response for:', participant.name);
         
-        if (this.autoAdvanceTurns) {
-            this.triggerAIGeneration();
+        // Build the prompt for the NPC
+        let npcPrompt = '';
+        
+        // Add character context
+        if (participant.type === 'npc') {
+            npcPrompt = `\n[${participant.name}`;
+            if (participant.role) {
+                npcPrompt += ` (${participant.role})`;
+            }
+            npcPrompt += ' speaks next]\n';
+            npcPrompt += `${participant.name}: `;
+        } else if (participant.type === 'monster') {
+            npcPrompt = `\n[${participant.name}`;
+            if (participant.role) {
+                npcPrompt += ` (${participant.role})`;
+            }
+            if (participant.hp !== undefined) {
+                npcPrompt += ` HP: ${participant.hp}/${participant.maxHp}`;
+            }
+            if (participant.statuses && participant.statuses.length > 0) {
+                npcPrompt += `, ${participant.statuses.join(', ')}`;
+            }
+            npcPrompt += ' acts]\n';
+            npcPrompt += `${participant.name}: `;
+        }
+        
+        // Get the input field
+        const inputField = document.getElementById('input_text');
+        const rpmodInput = document.getElementById('klite-rpmod-input');
+        
+        if (inputField || rpmodInput) {
+            // Save current input
+            const currentInput = (inputField ? inputField.value : '') || (rpmodInput ? rpmodInput.value : '');
+            
+            // Set NPC prompt in both fields
+            if (inputField) inputField.value = npcPrompt;
+            if (rpmodInput) rpmodInput.value = npcPrompt;
+            
+            // Trigger generation after a short delay
+            setTimeout(() => {
+                if (typeof button_send === 'function') {
+                    button_send();
+                } else if (window.KLITE_RPMod && typeof window.KLITE_RPMod.handleSend === 'function') {
+                    window.KLITE_RPMod.handleSend();
+                }
+                
+                // Clear the input fields after triggering
+                setTimeout(() => {
+                    if (inputField) inputField.value = '';
+                    if (rpmodInput) rpmodInput.value = '';
+                }, 100);
+            }, 250);
         }
     },
 
@@ -1537,13 +1562,14 @@ window.KLITE_RPMod_Panels.GROUP = {
         this.updateCurrentSpeaker();
         this.updateParticipantList();
         
-        // Trigger AI generation for this specific character
-        console.log('Manually triggering response for:', participant.name);
-        this.updateChatContext(participant);
-        this.triggerAIGeneration();
-        
-        // Note: In a real implementation, you might want to restore the previous turn
-        // after the generation is complete, or handle this differently
+        // Handle the response based on character type
+        if (participant.type === 'npc' || participant.type === 'monster') {
+            this.handleNPCResponse(participant, index);
+        } else {
+            // For PCs, just update the context
+            this.updateChatContext(participant);
+            console.log('Ready for player input as:', participant.name);
+        }
     },
 
     updateCurrentSpeaker() {

@@ -1,6 +1,6 @@
 // =============================================
 // KLITE RP mod - KoboldAI Lite conversion
-// Copyrights Peter Hauer
+// Creator Peter Hauer
 // under GPL-3.0 license
 // see https://github.com/PeterPeet/
 // =============================================
@@ -46,75 +46,79 @@ window.KLITE_RPMod_Panels.MEMORY = {
     
     buildHTML() {
         return `
-            <div class="klite-rpmod-memory-panel" style="
-                width: 100%; 
-                height: 100%; 
-                display: flex; 
-                flex-direction: column; 
-                padding: 10px; 
-                box-sizing: border-box;
-                gap: 10px;
-            ">
-                <!-- Header with info and token count -->
-                <div class="klite-rpmod-memory-header" style="
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    flex-shrink: 0;
+        <div class="klite-rpmod-panel-wrapper">
+            <div class="klite-rpmod-panel-content klite-rpmod-scrollable">
+                <div class="klite-rpmod-memory-panel" style="
+                    width: 100%; 
+                    height: 100%; 
+                    display: flex; 
+                    flex-direction: column; 
+                    padding: 10px; 
+                    box-sizing: border-box;
+                    gap: 10px;
                 ">
-                    <label style="
-                        color: #999; 
-                        font-size: 12px; 
-                        display: block;
+                    <!-- Header with info and token count -->
+                    <div class="klite-rpmod-memory-header" style="
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        flex-shrink: 0;
                     ">
-                        Memory - Always included at the start of your story context
-                    </label>
-                    <span id="klite-rpmod-memory-tokens" style="
-                        color: #666;
+                        <label style="
+                            color: #999; 
+                            font-size: 12px; 
+                            display: block;
+                        ">
+                            Memory - Always included at the start of your story context
+                        </label>
+                        <span id="klite-rpmod-memory-tokens" style="
+                            color: #666;
+                            font-size: 11px;
+                            background: rgba(0,0,0,0.3);
+                            padding: 2px 8px;
+                            border-radius: 3px;
+                            border: 1px solid #333;
+                        ">
+                            0 tokens
+                        </span>
+                    </div>
+                    
+                    <!-- Memory textarea -->
+                    <textarea
+                        id="klite-rpmod-memory-textarea"
+                        class="form-control menuinput_multiline"
+                        style="
+                            flex: 1;
+                            width: 100%;
+                            background: rgba(0,0,0,0.3);
+                            border: 1px solid #444;
+                            border-radius: 4px;
+                            color: #e0e0e0;
+                            padding: 8px;
+                            font-size: 12px;
+                            font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+                            line-height: 1.4;
+                            resize: none;
+                            box-sizing: border-box;
+                            transition: border-color 0.2s ease;
+                        "
+                        placeholder="Enter memory text here. This will be included at the beginning of the context sent to the AI."
+                        spellcheck="false"
+                    ></textarea>
+                    
+                    <!-- Status indicator -->
+                    <div id="klite-rpmod-memory-status" style="
+                        display: none;
+                        color: #5cb85c;
                         font-size: 11px;
-                        background: #1a1a1a;
-                        padding: 2px 8px;
-                        border-radius: 3px;
-                        border: 1px solid #333;
+                        text-align: right;
+                        margin-top: -5px;
                     ">
-                        0 tokens
-                    </span>
-                </div>
-                
-                <!-- Memory textarea -->
-                <textarea
-                    id="klite-rpmod-memory-textarea"
-                    class="form-control menuinput_multiline"
-                    style="
-                        flex: 1;
-                        width: 100%;
-                        background: #1a1a1a;
-                        border: 1px solid #444;
-                        border-radius: 4px;
-                        color: #e0e0e0;
-                        padding: 8px;
-                        font-size: 12px;
-                        font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
-                        line-height: 1.4;
-                        resize: none;
-                        box-sizing: border-box;
-                        transition: border-color 0.2s ease;
-                    "
-                    placeholder="Enter memory text here. This will be included at the beginning of the context sent to the AI."
-                    spellcheck="false"
-                ></textarea>
-                
-                <!-- Status indicator -->
-                <div id="klite-rpmod-memory-status" style="
-                    display: none;
-                    color: #5cb85c;
-                    font-size: 11px;
-                    text-align: right;
-                    margin-top: -5px;
-                ">
-                    ✓ Saved
+                        ✓ Saved
+                    </div>
                 </div>
             </div>
+        </div>
         `;
     },
     

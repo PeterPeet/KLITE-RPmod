@@ -1,6 +1,6 @@
 // =============================================
 // KLITE RP mod - KoboldAI Lite conversion
-// Copyrights Peter Hauer
+// Creator Peter Hauer
 // under GPL-3.0 license
 // see https://github.com/PeterPeet/
 // =============================================

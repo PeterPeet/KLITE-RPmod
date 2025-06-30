@@ -1,6 +1,6 @@
 // =============================================
 // KLITE RP mod - KoboldAI Lite conversion
-// Copyrights Peter Hauer
+// Creator Peter Hauer
 // under GPL-3.0 license
 // see https://github.com/PeterPeet/
 // =============================================
@@ -22,333 +22,333 @@ window.KLITE_RPMod_Panels.TOOLS = {
     
     load(container, panel) {
         container.innerHTML = `
-            <div class="klite-rpmod-panel klite-rpmod-panel-tools" id="klite-rpmod-panel-tools">
-                <div class="klite-rpmod-panel-content klite-rpmod-scrollable">
-                    <!-- Statistics Dashboard -->
-                    <div class="klite-rpmod-control-group">
-                        <div class="klite-rpmod-control-group-background"></div>
-                        <h3>Statistics Dashboard</h3>
-                        <div class="klite-rpmod-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                            <div class="klite-rpmod-stat-card" style="background: rgba(0,0,0,0.3); border: 1px solid #444; border-radius: 4px; padding: 10px; text-align: center;">
-                                <div style="color: #666; font-size: 10px; margin-bottom: 2px;">Messages</div>
-                                <div id="klite-rpmod-message-count" style="color: #4a9eff; font-size: 24px; font-weight: bold;">0</div>
-                            </div>
-                            <div class="klite-rpmod-stat-card" style="background: rgba(0,0,0,0.3); border: 1px solid #444; border-radius: 4px; padding: 10px; text-align: center;">
-                                <div style="color: #666; font-size: 10px; margin-bottom: 2px;">Token Count</div>
-                                <div id="klite-rpmod-token-count" style="color: #4a9eff; font-size: 24px; font-weight: bold;">0</div>
-                            </div>
-                            <div class="klite-rpmod-stat-card" style="background: rgba(0,0,0,0.3); border: 1px solid #444; border-radius: 4px; padding: 10px; text-align: center;">
-                                <div style="color: #666; font-size: 10px; margin-bottom: 2px;">Characters</div>
-                                <div id="klite-rpmod-char-count" style="color: #4a9eff; font-size: 24px; font-weight: bold;">0</div>
-                            </div>
-                            <div class="klite-rpmod-stat-card" style="background: rgba(0,0,0,0.3); border: 1px solid #444; border-radius: 4px; padding: 10px; text-align: center;">
-                                <div style="color: #666; font-size: 10px; margin-bottom: 2px;">Words</div>
-                                <div id="klite-rpmod-word-count" style="color: #4a9eff; font-size: 24px; font-weight: bold;">0</div>
-                            </div>
+        <div class="klite-rpmod-panel-wrapper">
+            <div class="klite-rpmod-panel-content klite-rpmod-scrollable">
+                <!-- Statistics Dashboard -->
+                <div class="klite-rpmod-control-group">
+                    <div class="klite-rpmod-control-group-background"></div>
+                    <h3>Statistics Dashboard</h3>
+                    <div class="klite-rpmod-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                        <div class="klite-rpmod-stat-card" style="background: rgba(0,0,0,0.3); border: 1px solid #444; border-radius: 4px; padding: 10px; text-align: center;">
+                            <div style="color: #666; font-size: 10px; margin-bottom: 2px;">Messages</div>
+                            <div id="klite-rpmod-message-count" style="color: #4a9eff; font-size: 24px; font-weight: bold;">0</div>
                         </div>
-                        
-                        <!-- Additional stats row -->
-                        <div class="klite-rpmod-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                            <div style="text-align: center;">
-                                <div style="color: #666; font-size: 10px;">Avg Msg Length</div>
-                                <div id="klite-rpmod-avg-length" style="color: #999; font-size: 16px; font-weight: bold;">0</div>
-                            </div>
-                            <div style="text-align: center;">
-                                <div style="color: #666; font-size: 10px;">User/AI Ratio</div>
-                                <div id="klite-rpmod-user-ai-ratio" style="color: #999; font-size: 16px; font-weight: bold;">0:0</div>
-                            </div>
-                            <div style="text-align: center;">
-                                <div style="color: #666; font-size: 10px;">Unique Words</div>
-                                <div id="klite-rpmod-unique-words" style="color: #999; font-size: 16px; font-weight: bold;">0</div>
-                            </div>
+                        <div class="klite-rpmod-stat-card" style="background: rgba(0,0,0,0.3); border: 1px solid #444; border-radius: 4px; padding: 10px; text-align: center;">
+                            <div style="color: #666; font-size: 10px; margin-bottom: 2px;">Token Count</div>
+                            <div id="klite-rpmod-token-count" style="color: #4a9eff; font-size: 24px; font-weight: bold;">0</div>
                         </div>
-                        
-                        <button class="klite-rpmod-button" id="klite-rpmod-refresh-stats" style="width: 100%;">
-                            Refresh Statistics
+                        <div class="klite-rpmod-stat-card" style="background: rgba(0,0,0,0.3); border: 1px solid #444; border-radius: 4px; padding: 10px; text-align: center;">
+                            <div style="color: #666; font-size: 10px; margin-bottom: 2px;">Characters</div>
+                            <div id="klite-rpmod-char-count" style="color: #4a9eff; font-size: 24px; font-weight: bold;">0</div>
+                        </div>
+                        <div class="klite-rpmod-stat-card" style="background: rgba(0,0,0,0.3); border: 1px solid #444; border-radius: 4px; padding: 10px; text-align: center;">
+                            <div style="color: #666; font-size: 10px; margin-bottom: 2px;">Words</div>
+                            <div id="klite-rpmod-word-count" style="color: #4a9eff; font-size: 24px; font-weight: bold;">0</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Additional stats row -->
+                    <div class="klite-rpmod-stats-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                        <div style="text-align: center;">
+                            <div style="color: #666; font-size: 10px;">Avg Msg Length</div>
+                            <div id="klite-rpmod-avg-length" style="color: #999; font-size: 16px; font-weight: bold;">0</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="color: #666; font-size: 10px;">User/AI Ratio</div>
+                            <div id="klite-rpmod-user-ai-ratio" style="color: #999; font-size: 16px; font-weight: bold;">0:0</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="color: #666; font-size: 10px;">Unique Words</div>
+                            <div id="klite-rpmod-unique-words" style="color: #999; font-size: 16px; font-weight: bold;">0</div>
+                        </div>
+                    </div>
+                    
+                    <button class="klite-rpmod-button" id="klite-rpmod-refresh-stats" style="width: 100%;">
+                        Refresh Statistics
+                    </button>
+                </div>
+
+                <!-- Context Analyzer -->
+                <div class="klite-rpmod-control-group">
+                    <div class="klite-rpmod-control-group-background"></div>
+                    <h3>Context Analyzer</h3>
+                    
+                    <!-- Token distribution bar -->
+                    <div class="klite-rpmod-token-bar" style="
+                        display: flex; 
+                        height: 40px; 
+                        border-radius: 4px; 
+                        overflow: hidden; 
+                        margin: 10px;
+                        padding: 5px;
+                        border: 1px solid #444;
+                        background: #1a1a1a;
+                    ">
+                        <div id="klite-rpmod-memory-bar" style="background: #d9534f; transition: width 0.3s;" title="Memory"></div>
+                        <div id="klite-rpmod-wi-bar" style="background: #5cb85c; transition: width 0.3s;" title="World Info"></div>
+                        <div id="klite-rpmod-story-bar" style="background: #5bc0de; transition: width 0.3s;" title="Story"></div>
+                        <div id="klite-rpmod-anote-bar" style="background: #f0ad4e; transition: width 0.3s;" title="Author's Note"></div>
+                        <div id="klite-rpmod-free-bar" style="background: #333; flex: 1;" title="Free Space"></div>
+                    </div>
+                    
+                    <!-- Token breakdown -->
+                    <div style="font-size: 11px; color: #999;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                            <div><span style="display: inline-block; width: 10px; height: 10px; background: #d9534f; margin-right: 5px;"></span>Memory: <span id="klite-rpmod-memory-tokens">0</span></div>
+                            <div><span style="display: inline-block; width: 10px; height: 10px; background: #5cb85c; margin-right: 5px;"></span>World Info: <span id="klite-rpmod-wi-tokens">0</span></div>
+                            <div><span style="display: inline-block; width: 10px; height: 10px; background: #5bc0de; margin-right: 5px;"></span>Story: <span id="klite-rpmod-story-tokens">0</span></div>
+                            <div><span style="display: inline-block; width: 10px; height: 10px; background: #f0ad4e; margin-right: 5px;"></span>Author's Note: <span id="klite-rpmod-anote-tokens">0</span></div>
+                        </div>
+                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #333;">
+                            <strong>Total Context: <span id="klite-rpmod-total-context">0</span> / <span id="klite-rpmod-max-context">8192</span> tokens</strong>
+                            <div style="color: #666; margin-top: 5px;">Free: <span id="klite-rpmod-free-tokens">8192</span> tokens (<span id="klite-rpmod-free-percent">100</span>%)</div>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 8px; margin-top: 10px;">
+                        <button class="klite-rpmod-button" id="klite-rpmod-analyze-context" style="flex: 1;">
+                            Analyze Context
+                        </button>
+                        <button class="klite-rpmod-button" id="klite-rpmod-detailed-analysis" style="flex: 1;">
+                            Detailed View
                         </button>
                     </div>
+                </div>
 
-                    <!-- Context Analyzer -->
-                    <div class="klite-rpmod-control-group">
-                        <div class="klite-rpmod-control-group-background"></div>
-                        <h3>Context Analyzer</h3>
-                        
-                        <!-- Token distribution bar -->
-                        <div class="klite-rpmod-token-bar" style="
-                            display: flex; 
-                            height: 40px; 
-                            border-radius: 4px; 
-                            overflow: hidden; 
-                            margin: 10px;
-                            padding: 5px;
-                            border: 1px solid #444;
-                            background: #1a1a1a;
+                <!-- Smart Memory Writer -->
+                <div class="klite-rpmod-control-group">
+                    <div class="klite-rpmod-control-group-background"></div>
+                    <h3>Smart Memory Writer</h3>
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #333;">(has 120 seconds timeout)</div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <select id="klite-rpmod-memory-context" style="flex: 1; background: #262626; border: 1px solid #444; color: #e0e0e0; padding: 6px;">
+                            <option value="entire">Entire Story (∞)</option>
+                            <option value="last50">Last 50 Messages</option>
+                            <option value="recent" selected>Recent Messages (10)</option>
+                            <option value="last3">Most Recent Messages (3)</option>
+                            <option value="last1">Last Message (1)</option>
+                        </select>
+                        <select id="klite-rpmod-memory-type" style="flex: 1; background: #262626; border: 1px solid #444; color: #e0e0e0; padding: 6px;">
+                            <option value="summary" selected>Summary</option>
+                            <option value="keywords">Keywords</option>
+                            <option value="outline">Outline</option>
+                        </select>
+                    </div>
+                    
+                    <button class="klite-rpmod-button" id="klite-rpmod-generate-memory" style="width: 100%; margin-bottom: 10px;">
+                        🧠 Generate Memory
+                    </button>
+                    <textarea id="klite-rpmod-memory-output" placeholder="Generated memory will appear here..." style="
+                        width: 100%;
+                        height: 150px;
+                        background: #262626;
+                        border: 1px solid #444;
+                        color: #e0e0e0;
+                        padding: 10px;
+                        font-size: 13px;
+                        resize: vertical;
+                        margin-bottom: 10px;
+                    "></textarea>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <button class="klite-rpmod-button" id="klite-rpmod-apply-memory">
+                            ✓ Apply
+                        </button>
+                        <button class="klite-rpmod-button" id="klite-rpmod-append-memory">
+                            + Append
+                        </button>
+                    </div>
+                </div>
+                <!-- Quick Dice -->
+                <div class="klite-rpmod-control-group">
+                    <div class="klite-rpmod-control-group-background"></div>
+                    <h3>Quick Dice</h3>
+                    
+                    <!-- Standard dice buttons -->
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <button class="klite-rpmod-dice-btn" data-dice="d2" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d2</button>
+                        <button class="klite-rpmod-dice-btn" data-dice="d4" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d4</button>
+                        <button class="klite-rpmod-dice-btn" data-dice="d6" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d6</button>
+                        <button class="klite-rpmod-dice-btn" data-dice="d8" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d8</button>
+                        <button class="klite-rpmod-dice-btn" data-dice="d10" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d10</button>
+                        <button class="klite-rpmod-dice-btn" data-dice="d12" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d12</button>
+                        <button class="klite-rpmod-dice-btn" data-dice="d20" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d20</button>
+                        <button class="klite-rpmod-dice-btn" data-dice="d100" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d100</button>
+                    </div>
+                    
+                    <!-- Custom dice input -->
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="klite-rpmod-custom-dice" placeholder="e.g., 2d6+3" style="
+                            flex: 1; 
+                            background: #262626; 
+                            border: 1px solid #444; 
+                            color: #e0e0e0; 
+                            padding: 6px; 
+                            border-radius: 4px;
                         ">
-                            <div id="klite-rpmod-memory-bar" style="background: #d9534f; transition: width 0.3s;" title="Memory"></div>
-                            <div id="klite-rpmod-wi-bar" style="background: #5cb85c; transition: width 0.3s;" title="World Info"></div>
-                            <div id="klite-rpmod-story-bar" style="background: #5bc0de; transition: width 0.3s;" title="Story"></div>
-                            <div id="klite-rpmod-anote-bar" style="background: #f0ad4e; transition: width 0.3s;" title="Author's Note"></div>
-                            <div id="klite-rpmod-free-bar" style="background: #333; flex: 1;" title="Free Space"></div>
-                        </div>
-                        
-                        <!-- Token breakdown -->
-                        <div style="font-size: 11px; color: #999;">
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
-                                <div><span style="display: inline-block; width: 10px; height: 10px; background: #d9534f; margin-right: 5px;"></span>Memory: <span id="klite-rpmod-memory-tokens">0</span></div>
-                                <div><span style="display: inline-block; width: 10px; height: 10px; background: #5cb85c; margin-right: 5px;"></span>World Info: <span id="klite-rpmod-wi-tokens">0</span></div>
-                                <div><span style="display: inline-block; width: 10px; height: 10px; background: #5bc0de; margin-right: 5px;"></span>Story: <span id="klite-rpmod-story-tokens">0</span></div>
-                                <div><span style="display: inline-block; width: 10px; height: 10px; background: #f0ad4e; margin-right: 5px;"></span>Author's Note: <span id="klite-rpmod-anote-tokens">0</span></div>
-                            </div>
-                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #333;">
-                                <strong>Total Context: <span id="klite-rpmod-total-context">0</span> / <span id="klite-rpmod-max-context">8192</span> tokens</strong>
-                                <div style="color: #666; margin-top: 5px;">Free: <span id="klite-rpmod-free-tokens">8192</span> tokens (<span id="klite-rpmod-free-percent">100</span>%)</div>
-                            </div>
-                        </div>
-                        
-                        <div style="display: flex; gap: 8px; margin-top: 10px;">
-                            <button class="klite-rpmod-button" id="klite-rpmod-analyze-context" style="flex: 1;">
-                                Analyze Context
-                            </button>
-                            <button class="klite-rpmod-button" id="klite-rpmod-detailed-analysis" style="flex: 1;">
-                                Detailed View
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Smart Memory Writer -->
-                    <div class="klite-rpmod-control-group">
-                        <div class="klite-rpmod-control-group-background"></div>
-                        <h3>Smart Memory Writer</h3>
-                        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #333;">(has 120 seconds timeout)</div>
-                        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                            <select id="klite-rpmod-memory-context" style="flex: 1; background: #262626; border: 1px solid #444; color: #e0e0e0; padding: 6px;">
-                                <option value="entire">Entire Story (∞)</option>
-                                <option value="last50">Last 50 Messages</option>
-                                <option value="recent" selected>Recent Messages (10)</option>
-                                <option value="last3">Most Recent Messages (3)</option>
-                                <option value="last1">Last Message (1)</option>
-                            </select>
-                            <select id="klite-rpmod-memory-type" style="flex: 1; background: #262626; border: 1px solid #444; color: #e0e0e0; padding: 6px;">
-                                <option value="summary" selected>Summary</option>
-                                <option value="keywords">Keywords</option>
-                                <option value="outline">Outline</option>
-                            </select>
-                        </div>
-                        
-                        <button class="klite-rpmod-button" id="klite-rpmod-generate-memory" style="width: 100%; margin-bottom: 10px;">
-                            🧠 Generate Memory
+                        <button class="klite-rpmod-button" id="klite-rpmod-roll-custom" style="width: auto; padding: 6px 16px;">
+                            Roll
                         </button>
-                        <textarea id="klite-rpmod-memory-output" placeholder="Generated memory will appear here..." style="
-                            width: 100%;
-                            height: 150px;
-                            background: #262626;
-                            border: 1px solid #444;
-                            color: #e0e0e0;
-                            padding: 10px;
-                            font-size: 13px;
-                            resize: vertical;
-                            margin-bottom: 10px;
-                        "></textarea>
-                        
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                            <button class="klite-rpmod-button" id="klite-rpmod-apply-memory">
-                                ✓ Apply
-                            </button>
-                            <button class="klite-rpmod-button" id="klite-rpmod-append-memory">
-                                + Append
-                            </button>
-                        </div>
                     </div>
-                    <!-- Quick Dice -->
-                    <div class="klite-rpmod-control-group">
-                        <div class="klite-rpmod-control-group-background"></div>
-                        <h3>Quick Dice</h3>
-                        
-                        <!-- Standard dice buttons -->
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                            <button class="klite-rpmod-dice-btn" data-dice="d2" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d2</button>
-                            <button class="klite-rpmod-dice-btn" data-dice="d4" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d4</button>
-                            <button class="klite-rpmod-dice-btn" data-dice="d6" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d6</button>
-                            <button class="klite-rpmod-dice-btn" data-dice="d8" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d8</button>
-                            <button class="klite-rpmod-dice-btn" data-dice="d10" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d10</button>
-                            <button class="klite-rpmod-dice-btn" data-dice="d12" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d12</button>
-                            <button class="klite-rpmod-dice-btn" data-dice="d20" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d20</button>
-                            <button class="klite-rpmod-dice-btn" data-dice="d100" style="width: 32px; height: 32px; padding: 0; background: #333; border: 1px solid #555; border-radius: 4px; color: #ccc; font-size: 11px; cursor: pointer;">d100</button>
-                        </div>
-                        
-                        <!-- Custom dice input -->
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <input type="text" id="klite-rpmod-custom-dice" placeholder="e.g., 2d6+3" style="
-                                flex: 1; 
+                    
+                    <!-- Dice result display -->
+                    <div id="klite-rpmod-dice-result" style="
+                        margin-top: 10px; 
+                        padding: 12px; 
+                        background: rgba(0,0,0,0.3); 
+                        border-radius: 4px; 
+                        text-align: center; 
+                        min-height: 50px; 
+                        display: none;
+                        border: 1px solid #444;
+                    ">
+                        <div id="klite-rpmod-dice-total" style="font-size: 28px; font-weight: bold; color: #4a9eff; margin-bottom: 5px;"></div>
+                        <div id="klite-rpmod-dice-breakdown" style="font-size: 12px; color: #999;"></div>
+                        <div id="klite-rpmod-dice-animation" style="margin-top: 10px;"></div>
+                    </div>
+                    
+                    <!-- Dice settings -->
+                    <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="klite-rpmod-dice-to-chat" checked>
+                        <label for="klite-rpmod-dice-to-chat" style="color: #999; font-size: 12px;">Add rolls to chat</label>
+                    </div>
+                </div>
+
+                <!-- Auto-Re-Generate -->
+                <div class="klite-rpmod-control-group">
+                    <div class="klite-rpmod-control-group-background"></div>
+                    <h3>Auto-Re-Generate</h3>
+                    
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <input type="checkbox" id="klite-rpmod-auto-regen-toggle" style="width: auto;">
+                        <label for="klite-rpmod-auto-regen-toggle" style="color: #999; font-size: 13px;">Enable Auto-Regenerate</label>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div>
+                            <label style="color: #999; font-size: 11px;">Delay (ms):</label>
+                            <input type="number" id="klite-rpmod-auto-regen-delay" value="3000" min="1000" max="10000" step="500" style="
+                                width: 100%; 
                                 background: #262626; 
                                 border: 1px solid #444; 
                                 color: #e0e0e0; 
-                                padding: 6px; 
-                                border-radius: 4px;
+                                padding: 4px;
                             ">
-                            <button class="klite-rpmod-button" id="klite-rpmod-roll-custom" style="width: auto; padding: 6px 16px;">
-                                Roll
-                            </button>
                         </div>
-                        
-                        <!-- Dice result display -->
-                        <div id="klite-rpmod-dice-result" style="
-                            margin-top: 10px; 
-                            padding: 12px; 
-                            background: rgba(0,0,0,0.3); 
-                            border-radius: 4px; 
-                            text-align: center; 
-                            min-height: 50px; 
-                            display: none;
-                            border: 1px solid #444;
-                        ">
-                            <div id="klite-rpmod-dice-total" style="font-size: 28px; font-weight: bold; color: #4a9eff; margin-bottom: 5px;"></div>
-                            <div id="klite-rpmod-dice-breakdown" style="font-size: 12px; color: #999;"></div>
-                            <div id="klite-rpmod-dice-animation" style="margin-top: 10px;"></div>
-                        </div>
-                        
-                        <!-- Dice settings -->
-                        <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
-                            <input type="checkbox" id="klite-rpmod-dice-to-chat" checked>
-                            <label for="klite-rpmod-dice-to-chat" style="color: #999; font-size: 12px;">Add rolls to chat</label>
+                        <div>
+                            <label style="color: #999; font-size: 11px;">Max Retries:</label>
+                            <input type="number" id="klite-rpmod-auto-regen-max" value="3" min="1" max="10" style="
+                                width: 100%; 
+                                background: #262626; 
+                                border: 1px solid #444; 
+                                color: #e0e0e0; 
+                                padding: 4px;
+                            ">
                         </div>
                     </div>
-
-                    <!-- Auto-Re-Generate -->
-                    <div class="klite-rpmod-control-group">
-                        <div class="klite-rpmod-control-group-background"></div>
-                        <h3>Auto-Re-Generate</h3>
-                        
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                            <input type="checkbox" id="klite-rpmod-auto-regen-toggle" style="width: auto;">
-                            <label for="klite-rpmod-auto-regen-toggle" style="color: #999; font-size: 13px;">Enable Auto-Regenerate</label>
-                        </div>
-                        
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                            <div>
-                                <label style="color: #999; font-size: 11px;">Delay (ms):</label>
-                                <input type="number" id="klite-rpmod-auto-regen-delay" value="3000" min="1000" max="10000" step="500" style="
-                                    width: 100%; 
-                                    background: #262626; 
-                                    border: 1px solid #444; 
-                                    color: #e0e0e0; 
-                                    padding: 4px;
-                                ">
+                    
+                    <div style="margin-top: 10px;">
+                        <label style="color: #999; font-size: 11px;">Trigger conditions:</label>
+                        <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">
+                            <label style="color: #999; font-size: 11px;">Keyword Triggers:</label>
+                            <div style="margin-top: 5px;">
+                                <textarea id="klite-rpmod-regen-keywords" placeholder="Enter keywords, one per line" style="
+                                    width: 100%;
+                                    height: 60px;
+                                    background: #262626;
+                                    border: 1px solid #444;
+                                    color: #e0e0e0;
+                                    padding: 6px;
+                                    font-size: 11px;
+                                    resize: vertical;
+                                "></textarea>
                             </div>
-                            <div>
-                                <label style="color: #999; font-size: 11px;">Max Retries:</label>
-                                <input type="number" id="klite-rpmod-auto-regen-max" value="3" min="1" max="10" style="
-                                    width: 100%; 
-                                    background: #262626; 
-                                    border: 1px solid #444; 
-                                    color: #e0e0e0; 
-                                    padding: 4px;
-                                ">
-                            </div>
-                        </div>
-                        
-                        <div style="margin-top: 10px;">
-                            <label style="color: #999; font-size: 11px;">Trigger conditions:</label>
-                            <div style="margin-top: 15px; border-top: 1px solid #444; padding-top: 10px;">
-                                <label style="color: #999; font-size: 11px;">Keyword Triggers:</label>
-                                <div style="margin-top: 5px;">
-                                    <textarea id="klite-rpmod-regen-keywords" placeholder="Enter keywords, one per line" style="
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px;">
+                                <div>
+                                    <label style="color: #999; font-size: 11px;">Required matches:</label>
+                                    <input type="number" id="klite-rpmod-keyword-threshold" value="2" min="1" max="10" style="
                                         width: 100%;
-                                        height: 60px;
                                         background: #262626;
                                         border: 1px solid #444;
                                         color: #e0e0e0;
-                                        padding: 6px;
-                                        font-size: 11px;
-                                        resize: vertical;
-                                    "></textarea>
+                                        padding: 4px;
+                                    ">
                                 </div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px;">
-                                    <div>
-                                        <label style="color: #999; font-size: 11px;">Required matches:</label>
-                                        <input type="number" id="klite-rpmod-keyword-threshold" value="2" min="1" max="10" style="
-                                            width: 100%;
-                                            background: #262626;
-                                            border: 1px solid #444;
-                                            color: #e0e0e0;
-                                            padding: 4px;
-                                        ">
-                                    </div>
-                                    <div style="display: flex; align-items: center; gap: 5px; margin-top: 16px;">
-                                        <input type="checkbox" id="klite-rpmod-keyword-case">
-                                        <label for="klite-rpmod-keyword-case" style="color: #888; font-size: 11px;">Case sensitive</label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div style="margin-top: 5px;">
-                                <div style="margin-bottom: 3px;">
-                                    <input type="checkbox" id="klite-rpmod-regen-short" checked>
-                                    <label for="klite-rpmod-regen-short" style="color: #888; font-size: 11px;">Short messages (<50 chars)</label>
-                                </div>
-                                <div style="margin-bottom: 3px;">
-                                    <input type="checkbox" id="klite-rpmod-regen-incomplete" checked>
-                                    <label for="klite-rpmod-regen-incomplete" style="color: #888; font-size: 11px;">Incomplete sentences</label>
-                                </div>
-                                <div>
-                                    <input type="checkbox" id="klite-rpmod-regen-error">
-                                    <label for="klite-rpmod-regen-error" style="color: #888; font-size: 11px;">Error responses</label>
+                                <div style="display: flex; align-items: center; gap: 5px; margin-top: 16px;">
+                                    <input type="checkbox" id="klite-rpmod-keyword-case">
+                                    <label for="klite-rpmod-keyword-case" style="color: #888; font-size: 11px;">Case sensitive</label>
                                 </div>
                             </div>
                         </div>
-                        
-                        <div id="klite-rpmod-auto-regen-status" style="
-                            margin-top: 10px; 
-                            padding: 8px; 
-                            background: rgba(0,0,0,0.3); 
-                            border-radius: 4px; 
-                            color: #666; 
-                            font-size: 11px; 
-                            text-align: center;
-                        ">
-                            Auto-regenerate is disabled
+                        <div style="margin-top: 5px;">
+                            <div style="margin-bottom: 3px;">
+                                <input type="checkbox" id="klite-rpmod-regen-short" checked>
+                                <label for="klite-rpmod-regen-short" style="color: #888; font-size: 11px;">Short messages (<50 chars)</label>
+                            </div>
+                            <div style="margin-bottom: 3px;">
+                                <input type="checkbox" id="klite-rpmod-regen-incomplete" checked>
+                                <label for="klite-rpmod-regen-incomplete" style="color: #888; font-size: 11px;">Incomplete sentences</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="klite-rpmod-regen-error">
+                                <label for="klite-rpmod-regen-error" style="color: #888; font-size: 11px;">Error responses</label>
+                            </div>
                         </div>
                     </div>
+                    
+                    <div id="klite-rpmod-auto-regen-status" style="
+                        margin-top: 10px; 
+                        padding: 8px; 
+                        background: rgba(0,0,0,0.3); 
+                        border-radius: 4px; 
+                        color: #666; 
+                        font-size: 11px; 
+                        text-align: center;
+                    ">
+                        Auto-regenerate is disabled
+                    </div>
+                </div>
 
-                    <!-- Export Tools -->
-                    <div class="klite-rpmod-control-group">
-                        <div class="klite-rpmod-control-group-background"></div>
-                        <h3>Export Tools</h3>
-                        
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                            <button class="klite-rpmod-button" id="klite-rpmod-export-markdown">
-                                📝 Markdown
-                            </button>
-                            <button class="klite-rpmod-button" id="klite-rpmod-export-json">
-                                📊 JSON
-                            </button>
-                            <button class="klite-rpmod-button" id="klite-rpmod-export-html">
-                                🌐 HTML
-                            </button>
-                            <button class="klite-rpmod-button" id="klite-rpmod-export-epub">
-                                📚 EPUB
-                            </button>
-                        </div>
-                        
-                        <div style="margin-top: 10px;">
-                            <label style="color: #999; font-size: 11px;">Export options:</label>
-                            <div style="margin-top: 5px;">
-                                <div style="margin-bottom: 3px;">
-                                    <input type="checkbox" id="klite-rpmod-export-metadata" checked>
-                                    <label for="klite-rpmod-export-metadata" style="color: #888; font-size: 11px;">Include metadata</label>
-                                </div>
-                                <div style="margin-bottom: 3px;">
-                                    <input type="checkbox" id="klite-rpmod-export-worldinfo" checked>
-                                    <label for="klite-rpmod-export-worldinfo" style="color: #888; font-size: 11px;">Include World Info</label>
-                                </div>
-                                <div>
-                                    <input type="checkbox" id="klite-rpmod-export-format">
-                                    <label for="klite-rpmod-export-format" style="color: #888; font-size: 11px;">Format as dialogue</label>
-                                </div>
+                <!-- Export Tools -->
+                <div class="klite-rpmod-control-group">
+                    <div class="klite-rpmod-control-group-background"></div>
+                    <h3>Export Tools</h3>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <button class="klite-rpmod-button" id="klite-rpmod-export-markdown">
+                            📝 Markdown
+                        </button>
+                        <button class="klite-rpmod-button" id="klite-rpmod-export-json">
+                            📊 JSON
+                        </button>
+                        <button class="klite-rpmod-button" id="klite-rpmod-export-html">
+                            🌐 HTML
+                        </button>
+                        <button class="klite-rpmod-button" id="klite-rpmod-export-epub">
+                            📚 EPUB
+                        </button>
+                    </div>
+                    
+                    <div style="margin-top: 10px;">
+                        <label style="color: #999; font-size: 11px;">Export options:</label>
+                        <div style="margin-top: 5px;">
+                            <div style="margin-bottom: 3px;">
+                                <input type="checkbox" id="klite-rpmod-export-metadata" checked>
+                                <label for="klite-rpmod-export-metadata" style="color: #888; font-size: 11px;">Include metadata</label>
+                            </div>
+                            <div style="margin-bottom: 3px;">
+                                <input type="checkbox" id="klite-rpmod-export-worldinfo" checked>
+                                <label for="klite-rpmod-export-worldinfo" style="color: #888; font-size: 11px;">Include World Info</label>
+                            </div>
+                            <div>
+                                <input type="checkbox" id="klite-rpmod-export-format">
+                                <label for="klite-rpmod-export-format" style="color: #888; font-size: 11px;">Format as dialogue</label>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            </div> 
+        </div>        
         `;
 
         this.initializeTools();
@@ -1659,13 +1659,6 @@ window.KLITE_RPMod_Panels.TOOLS = {
             
             if (chatDisplay) {
                 chatDisplay.scrollTop = chatDisplay.scrollHeight;
-                
-                // Flash the background to draw attention
-                const originalBg = chatDisplay.style.background;
-                chatDisplay.style.background = '#2d4a7b';
-                setTimeout(() => {
-                    chatDisplay.style.background = originalBg;
-                }, 200);
             }
         }, 100);
     },

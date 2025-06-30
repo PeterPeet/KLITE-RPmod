@@ -1,1 +1,0 @@
-//placeholder for standalone World generator embedding, will be added after development

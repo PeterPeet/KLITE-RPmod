@@ -1,1 +1,0 @@
-//placeholder for standalone Character generator embedding, will be added after development

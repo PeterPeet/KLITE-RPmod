@@ -1,6 +1,6 @@
 // =============================================
 // KLITE RP mod - KoboldAI Lite conversion
-// Copyrights Peter Hauer
+// Creator Peter Hauer
 // under GPL-3.0 license
 // see https://github.com/PeterPeet/
 // =============================================
@@ -21,13 +21,17 @@ window.KLITE_RPMod_Panels.PLAY_STORY = {
         container.innerHTML = `
         <!-- PLAY Panel (Story Mode) -->
         <div class="klite-rpmod-panel-wrapper">
-            <div class="klite-rpmod-panel-content">
+            <div class="klite-rpmod-panel-content klite-rpmod-scrollable">
                 <div class="klite-rpmod-section-content">
                     <h3>Timeline / Index</h3>
-                    <div id="klite-rpmod-timeline" class="timeline" style="min-height: 200px; padding-bottom: 15px; max-height: 300px; overflow-y: auto;">
+                    <div id="klite-rpmod-timeline" class="timeline" style="width: 100%; min-height: 200px; margin-top: 8px; background: rgba(0,0,0,0.3); 
+                               border: 1px solid #444; color: #e0e0e0; padding: 8px; border-radius: 4px; resize: vertical; max-height: 400px; overflow-y: auto;">
                         <!-- Timeline items will be populated here -->
                     </div>
-                    <button id="klite-rpmod-add-chapter" class="klite-rpmod-button">Add Chapter Marker</button>
+                    <div style="display: grid; gap: 4px; grid-template-columns: 1fr 1fr; margin-top: 8px;">
+                        <button id="klite-rpmod-add-chapter" class="klite-rpmod-button">Add Chapter Marker</button>
+                        <button id="klite-rpmod-delete-chapters" class="klite-rpmod-button delete-btn">Delete All Chapters</button>
+                    </div>
                 </div>
                 
                 <div class="klite-rpmod-section-content">
@@ -199,9 +203,14 @@ window.KLITE_RPMod_Panels.PLAY_STORY = {
     
     initializeTimeline() {
         const addChapterBtn = document.getElementById('klite-rpmod-add-chapter');
+        const deleteChaptersBtn = document.getElementById('klite-rpmod-delete-chapters');
         
         addChapterBtn?.addEventListener('click', () => {
             this.addChapterMarker();
+        });
+        
+        deleteChaptersBtn?.addEventListener('click', () => {
+            this.deleteAllChapters();
         });
         
         // Update timeline display
@@ -236,6 +245,26 @@ window.KLITE_RPMod_Panels.PLAY_STORY = {
         // Update timeline display
         this.updateTimeline();
         console.log('Chapter added:', newChapter);
+    },
+    
+    async deleteAllChapters() {
+        // Ask for confirmation
+        const confirmed = confirm('Are you sure you want to delete all chapters? This action cannot be undone.');
+        
+        if (!confirmed) {
+            return;
+        }
+        
+        // Clear the chapters array
+        this.chapters = [];
+        
+        // Save empty state to database
+        await this.saveChaptersToLiteDB();
+        
+        // Update timeline display to blank state
+        this.updateTimeline();
+        
+        console.log('All chapters deleted');
     },
     
     getCurrentWordCount() {

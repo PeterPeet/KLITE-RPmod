@@ -1,6 +1,6 @@
 // =============================================
 // KLITE RP mod - KoboldAI Lite conversion
-// Copyrights Peter Hauer
+// Creator Peter Hauer
 // under GPL-3.0 license
 // see https://github.com/PeterPeet/
 // =============================================
@@ -48,200 +48,204 @@ window.KLITE_RPMod_Panels.NOTES = {
     
     buildHTML() {
         return `
-            <div class="klite-rpmod-notes-panel" style="
-                width: 100%; 
-                height: 100%; 
-                display: flex; 
-                flex-direction: column; 
-                padding: 0;
-            ">
-                <!-- Personal Notes Section (Top Half) -->
-                <div class="klite-rpmod-notes-section" style="
-                    flex: 1; 
+        <div class="klite-rpmod-panel-wrapper">
+            <div class="klite-rpmod-panel-content  klite-rpmod-scrollable">
+                <div class="klite-rpmod-notes-panel" style="
+                    width: 100%; 
+                    height: 100%; 
                     display: flex; 
                     flex-direction: column; 
-                    padding: 15px; 
-                    border-bottom: 1px solid #333;
+                    padding: 0;
                 ">
-                    <div class="klite-rpmod-notes-header" style="margin-bottom: 10px;">
-                        <h3 style="
-                            margin: 0 0 5px 0; 
-                            color: #e0e0e0; 
-                            font-size: 14px; 
-                            font-weight: 500;
-                        ">
-                            📝 Personal Notes
-                        </h3>
-                        <span style="color: #666; font-size: 11px;">
-                            Private notes - saved with your story
-                        </span>
-                    </div>
-                    
-                    <textarea 
-                        id="klite-rpmod-personal-notes"
-                        placeholder="Keep track of plot points, character details, ideas..."
-                        style="
-                            flex: 1;
-                            width: 100%;
-                            background: rgba(0, 0, 0, 0.3);
-                            border: 1px solid #444;
-                            border-radius: 4px;
-                            color: #e0e0e0;
-                            padding: 10px;
-                            font-size: 13px;
-                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                            resize: none;
-                            margin-top: 8px;
-                            box-sizing: border-box;
-                            transition: border-color 0.2s ease;
-                        "
-                        spellcheck="true"
-                    ></textarea>
-                    
-                    <div class="klite-rpmod-notes-status" style="
+                    <!-- Personal Notes Section (Top Half) -->
+                    <div class="klite-rpmod-notes-section" style="
+                        flex: 1; 
                         display: flex; 
-                        justify-content: space-between; 
-                        margin-top: 5px;
+                        flex-direction: column; 
+                        padding: 15px; 
+                        border-bottom: 1px solid #333;
                     ">
-                        <span id="klite-rpmod-personal-status" style="
-                            color: #666; 
-                            font-size: 11px;
-                            transition: color 0.3s ease;
-                        "></span>
-                        <span style="color: #666; font-size: 11px;">Syncs with Lite</span>
-                    </div>
-                </div>
-
-                <!-- Author's Note Section (Bottom Half) -->
-                <div class="klite-rpmod-notes-section" style="
-                    flex: 1; 
-                    display: flex; 
-                    flex-direction: column; 
-                    padding: 15px;
-                ">
-                    <div class="klite-rpmod-notes-header" style="
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        margin-bottom: 10px;
-                    ">
-                        <div>
+                        <div class="klite-rpmod-notes-header" style="margin-bottom: 10px;">
                             <h3 style="
                                 margin: 0 0 5px 0; 
                                 color: #e0e0e0; 
                                 font-size: 14px; 
                                 font-weight: 500;
                             ">
-                                ✍️ Author's Note
+                                📝 Personal Notes
                             </h3>
                             <span style="color: #666; font-size: 11px;">
-                                Injected into context for AI guidance
+                                Private notes - saved with your story
                             </span>
                         </div>
-                        <span id="klite-rpmod-anote-tokens" style="
-                            color: #666;
-                            font-size: 11px;
-                            background: #1a1a1a;
-                            padding: 2px 8px;
-                            border-radius: 3px;
-                            border: 1px solid #333;
+                        
+                        <textarea 
+                            id="klite-rpmod-personal-notes"
+                            placeholder="Keep track of plot points, character details, ideas..."
+                            style="
+                                flex: 1;
+                                width: 100%;
+                                background: rgba(0, 0, 0, 0.3);
+                                border: 1px solid #444;
+                                border-radius: 4px;
+                                color: #e0e0e0;
+                                padding: 10px;
+                                font-size: 13px;
+                                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                resize: none;
+                                margin-top: 8px;
+                                box-sizing: border-box;
+                                transition: border-color 0.2s ease;
+                            "
+                            spellcheck="true"
+                        ></textarea>
+                        
+                        <div class="klite-rpmod-notes-status" style="
+                            display: flex; 
+                            justify-content: space-between; 
+                            margin-top: 5px;
                         ">
-                            0 tokens
-                        </span>
-                    </div>
-                    
-                    <textarea 
-                        id="klite-rpmod-author-notes"
-                        placeholder="Style: epic fantasy. Focus on character emotions. Use vivid descriptions."
-                        style="
-                            flex: 1;
-                            width: 100%;
-                            background: rgba(0, 0, 0, 0.3);
-                            border: 1px solid #444;
-                            border-radius: 4px;
-                            color: #e0e0e0;
-                            padding: 10px;
-                            font-size: 13px;
-                            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                            resize: none;
-                            margin-top: 8px;
-                            box-sizing: border-box;
-                            transition: border-color 0.2s ease;
-                        "
-                        spellcheck="true"
-                    ></textarea>
-                    
-                    <div class="klite-rpmod-notes-status" style="
-                        display: flex; 
-                        justify-content: space-between; 
-                        margin-top: 5px;
-                    ">
-                        <span id="klite-rpmod-author-status" style="
-                            color: #666; 
-                            font-size: 11px;
-                            transition: color 0.3s ease;
-                        "></span>
-                        <span style="color: #666; font-size: 11px;">Syncs with AI context</span>
+                            <span id="klite-rpmod-personal-status" style="
+                                color: #666; 
+                                font-size: 11px;
+                                transition: color 0.3s ease;
+                            "></span>
+                            <span style="color: #666; font-size: 11px;">Syncs with Lite</span>
+                        </div>
                     </div>
 
-                    <!-- Author's Note Configuration -->
-                    <div class="klite-rpmod-anote-config" style="
-                        margin-top: 12px; 
-                        padding: 12px; 
-                        background: rgba(255, 255, 255, 0.03); 
-                        border: 1px solid #333; 
-                        border-radius: 6px;
+                    <!-- Author's Note Section (Bottom Half) -->
+                    <div class="klite-rpmod-notes-section" style="
+                        flex: 1; 
+                        display: flex; 
+                        flex-direction: column; 
+                        padding: 15px;
                     ">
-                        <div style="
-                            display: flex; 
-                            align-items: center; 
-                            justify-content: space-between; 
+                        <div class="klite-rpmod-notes-header" style="
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
                             margin-bottom: 10px;
                         ">
-                            <h4 style="
-                                margin: 0; 
-                                color: #999; 
-                                font-size: 12px; 
-                                font-weight: 500;
+                            <div>
+                                <h3 style="
+                                    margin: 0 0 5px 0; 
+                                    color: #e0e0e0; 
+                                    font-size: 14px; 
+                                    font-weight: 500;
+                                ">
+                                    ✍️ Author's Note
+                                </h3>
+                                <span style="color: #666; font-size: 11px;">
+                                    Injected into context for AI guidance
+                                </span>
+                            </div>
+                            <span id="klite-rpmod-anote-tokens" style="
+                                color: #666;
+                                font-size: 11px;
+                                background: #1a1a1a;
+                                padding: 2px 8px;
+                                border-radius: 3px;
+                                border: 1px solid #333;
                             ">
-                                Injection Settings
-                            </h4>
-                            <div style="font-size: 8px; color: #999; font-family: monospace;">Chat/RP/Adv automatically @depth</div>
+                                0 tokens
+                            </span>
                         </div>
                         
-                        <!-- Injection Depth Controls -->
-                        <div style="
-                            display: flex; 
-                            align-items: center; 
-                            gap: 10px;
-                        ">
-                            <label style="
-                                color: #999; 
-                                font-size: 12px;
-                                min-width: 40px;
-                            ">
-                                Depth:
-                            </label>
-                            <select id="klite-rpmod-anote-depth" style="
+                        <textarea 
+                            id="klite-rpmod-author-notes"
+                            placeholder="Style: epic fantasy. Focus on character emotions. Use vivid descriptions."
+                            style="
                                 flex: 1;
-                                background: #1a1a1a;
+                                width: 100%;
+                                background: rgba(0, 0, 0, 0.3);
                                 border: 1px solid #444;
-                                border-radius: 3px;
+                                border-radius: 4px;
                                 color: #e0e0e0;
-                                padding: 4px 8px;
-                                font-size: 12px;
-                                cursor: pointer;
+                                padding: 10px;
+                                font-size: 13px;
+                                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                                resize: none;
+                                margin-top: 8px;
+                                box-sizing: border-box;
+                                transition: border-color 0.2s ease;
+                            "
+                            spellcheck="true"
+                        ></textarea>
+                        
+                        <div class="klite-rpmod-notes-status" style="
+                            display: flex; 
+                            justify-content: space-between; 
+                            margin-top: 5px;
+                        ">
+                            <span id="klite-rpmod-author-status" style="
+                                color: #666; 
+                                font-size: 11px;
+                                transition: color 0.3s ease;
+                            "></span>
+                            <span style="color: #666; font-size: 11px;">Syncs with AI context</span>
+                        </div>
+
+                        <!-- Author's Note Configuration -->
+                        <div class="klite-rpmod-anote-config" style="
+                            margin-top: 12px; 
+                            padding: 12px; 
+                            background: rgba(255, 255, 255, 0.03); 
+                            border: 1px solid #333; 
+                            border-radius: 6px;
+                        ">
+                            <div style="
+                                display: flex; 
+                                align-items: center; 
+                                justify-content: space-between; 
+                                margin-bottom: 10px;
                             ">
-                                <option value="1">1 - Very end</option>
-                                <option value="160">2 - 160 tokens from end</option>
-                                <option value="320" selected>3 - 320 tokens from end (Default)</option>
-                                <option value="480">5 - 480 tokens from end</option>
-                                <option value="640">8 - 640 tokens from end</option>
-                            </select>
+                                <h4 style="
+                                    margin: 0; 
+                                    color: #999; 
+                                    font-size: 12px; 
+                                    font-weight: 500;
+                                ">
+                                    Injection Settings
+                                </h4>
+                                <div style="font-size: 8px; color: #999; font-family: monospace;">Chat/RP/Adv automatically @depth</div>
+                            </div>
+                            
+                            <!-- Injection Depth Controls -->
+                            <div style="
+                                display: flex; 
+                                align-items: center; 
+                                gap: 10px;
+                            ">
+                                <label style="
+                                    color: #999; 
+                                    font-size: 12px;
+                                    min-width: 40px;
+                                ">
+                                    Depth:
+                                </label>
+                                <select id="klite-rpmod-anote-depth" style="
+                                    flex: 1;
+                                    background: #1a1a1a;
+                                    border: 1px solid #444;
+                                    border-radius: 3px;
+                                    color: #e0e0e0;
+                                    padding: 4px 8px;
+                                    font-size: 12px;
+                                    cursor: pointer;
+                                ">
+                                    <option value="1">1 - Very end</option>
+                                    <option value="160">2 - 160 tokens from end</option>
+                                    <option value="320" selected>3 - 320 tokens from end (Default)</option>
+                                    <option value="480">5 - 480 tokens from end</option>
+                                    <option value="640">8 - 640 tokens from end</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
         `;
     },
     
@@ -329,20 +333,16 @@ window.KLITE_RPMod_Panels.NOTES = {
     },
     
     loadPersonalNotes() {
-        // Load from Lite's notebox in localsettings
         let notes = '';
         
-        if (typeof localsettings !== 'undefined' && localsettings.notebox) {
+        // Personal notes are stored in localsettings.notebox
+        if (typeof localsettings !== 'undefined' && localsettings.notebox !== undefined) {
             notes = localsettings.notebox;
-        } else if (this.litePersonalTextarea) {
-            notes = this.litePersonalTextarea.value;
-        } else if (typeof window.inputbox_text !== 'undefined') {
-            notes = window.inputbox_text;
         }
         
         this.personalTextarea.value = notes;
     },
-    
+        
     loadAuthorNotes() {
         // Get value from Lite or localsettings
         let anoteValue = '';
@@ -567,32 +567,23 @@ window.KLITE_RPMod_Panels.NOTES = {
         this.isUpdatingPersonal = true;
         
         try {
-            // Update Lite's localsettings.notebox
+            // Update localsettings
             if (typeof localsettings !== 'undefined') {
                 localsettings.notebox = content;
                 
-                // Save settings to persist
+                // Save to persistent storage
                 if (typeof save_settings === 'function') {
                     save_settings();
                 }
             }
             
-            // Also update the textarea if it exists
-            if (this.litePersonalTextarea) {
-                this.litePersonalTextarea.value = content;
-                
-                // Trigger input event for Lite's handlers
-                const event = new Event('input', { bubbles: true });
-                this.litePersonalTextarea.dispatchEvent(event);
-            }
-            
-            // Update global variable
-            if (typeof window.inputbox_text !== 'undefined') {
-                window.inputbox_text = content;
+            // If we need to update the hidden textarea for compatibility
+            const notesTextarea = document.getElementById('inputboxcontainerinputarea');
+            if (notesTextarea) {
+                notesTextarea.value = content;
             }
             
         } finally {
-            // Reset flag after a short delay
             setTimeout(() => {
                 this.isUpdatingPersonal = false;
             }, 50);

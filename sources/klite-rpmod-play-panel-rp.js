@@ -1,6 +1,6 @@
 // =============================================
 // KLITE RP mod - KoboldAI Lite conversion
-// Copyrights Peter Hauer
+// Creator Peter Hauer
 // under GPL-3.0 license
 // see https://github.com/PeterPeet/
 // =============================================
@@ -30,18 +30,17 @@ window.KLITE_RPMod_Panels.PLAY_RP = {
     },
     
     load(container, panel) {
-        const isInstructMode = typeof localsettings !== 'undefined' && localsettings.opmode === 4;
-        
         container.innerHTML = `
         <div class="klite-rpmod-panel-wrapper">
-            <div class="klite-rpmod-panel-content">
+            <div class="klite-rpmod-panel-content klite-rpmod-scrollable">
                     <!-- Rules for the AI / System Prompt -->
                     <div class="klite-rpmod-control-group">
                         <div class="klite-rpmod-control-group-background"></div>
-                        <h3>${isInstructMode ? 'System Prompt' : 'Rules for the AI'}</h3>
+                        <h3>System Prompt / Rules for the AI</h3>
                         <textarea 
                             id="klite-rpmod-rules-field"
-                            placeholder="${isInstructMode ? 'Enter system instructions...' : 'Rules are only available in Instruct Mode.'}"
+
+                            placeholder="Place your System Prompt, JB and rules for the AI here. They will be automatically added to the context."
                             style="width: 100%; min-height: 200px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #e0e0e0; padding: 8px; border-radius: 4px; resize: vertical;"
                         ></textarea>
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 5px;">
@@ -136,8 +135,8 @@ window.KLITE_RPMod_Panels.PLAY_RP = {
                     <div class="klite-rpmod-control-group">
                         <div class="klite-rpmod-control-group-background"></div>
                         
-                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 2px;">
-                            <label style="color: #999; font-size: 12px; width: 80px;">Style:</label>
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 4px;">
+                            <label style="color: #999; font-size: 12px;">Style:  </label>
                             <select id="klite-narrator-style" style="flex: 1; background: #262626; border: 1px solid #444; color: #e0e0e0; padding: 4px;">
                                 <option value="omniscient" selected>Omniscient (knows all)</option>
                                 <option value="limited">Limited (character perspective)</option>
@@ -145,8 +144,8 @@ window.KLITE_RPMod_Panels.PLAY_RP = {
                             </select>
                         </div>
                         
-                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 2px;">
-                            <label style="color: #999; font-size: 12px; width: 80px;">Focus:</label>
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 4px;">
+                            <label style="color: #999; font-size: 12px;">Focus: </label>
                             <select id="klite-narrator-focus" style="flex: 1; background: #262626; border: 1px solid #444; color: #e0e0e0; padding: 4px;">
                                 <option value="environment">Environment & Atmosphere</option>
                                 <option value="emotions">Emotions & Thoughts</option>
@@ -155,7 +154,7 @@ window.KLITE_RPMod_Panels.PLAY_RP = {
                             </select>
                         </div>
                         
-                        <button class="klite-rpmod-button" id="klite-rpmod-trigger-narrator-manual" style="width: 100%;">
+                        <button class="klite-rpmod-button" id="klite-rpmod-trigger-narrator-manual" style="width: 100%; margin-top: 4px;">
                             Trigger Narrator Now
                         </button>
                     </div>               
@@ -711,7 +710,7 @@ window.KLITE_RPMod_Panels.PLAY_RP = {
         let narratorInstruction = this.buildNarratorInstruction(style, focus);
         
         // Create the full prompt with clear system message formatting
-        let fullPrompt = `[NARRATOR: ${narratorInstruction}]`;
+        let fullPrompt = `[SYSTEM INSTRUCTION: Out of Character instructions for the AI: ${narratorInstruction}]`;
         
         // If user had text, append it after the narrator instruction
         if (userText) {
@@ -752,7 +751,7 @@ window.KLITE_RPMod_Panels.PLAY_RP = {
     // Helper method in PLAY_RP panel to build better narrator instructions
     buildNarratorInstruction(style, focus) {
         // Base instruction that clearly identifies this as narrator input
-        let instruction = "You are now speaking as the story's narrator. ";
+        let instruction = "For exactly one answer you should now impersonate and answer as the story's NARRATOR. ";
         
         // Add style-specific instructions
         switch (style) {
@@ -770,18 +769,21 @@ window.KLITE_RPMod_Panels.PLAY_RP = {
         // Add focus-specific instructions
         switch (focus) {
             case 'environment':
-                instruction += "Focus on describing the setting, atmosphere, weather, sounds, smells, and environmental details that set the scene.";
+                instruction += "Focus on describing the setting, atmosphere, weather, sounds, smells, and environmental details that set the scene. ";
                 break;
             case 'emotions':
-                instruction += "Focus on the emotional undertones, character reactions, internal conflicts, and the psychological atmosphere of the scene.";
+                instruction += "Focus on the emotional undertones, character reactions, internal conflicts, and the psychological atmosphere of the scene. ";
                 break;
             case 'action':
-                instruction += "Focus on what is happening, character movements, physical interactions, and the progression of events.";
+                instruction += "Focus on what is happening, character movements, physical interactions, and the progression of events. ";
                 break;
             case 'mixed':
-                instruction += "Provide a balanced description covering the environment, character emotions, and ongoing actions to paint a complete picture.";
+                instruction += "Provide a balanced description covering the environment, character emotions, and ongoing actions to paint a complete picture. ";
                 break;
         }
+
+        // Base instruction to get the AI back into persona
+        instruction += "After this SYSTEM INSTRUCTION is processed the role play resumes."
         
         return instruction;
     },

@@ -2,7 +2,7 @@
 
 # =============================================
 # KLITE RP mod generator script
-# Copyrights Peter Hauer
+# Creator Peter Hauer
 # under GPL-3.0 license
 # see https://github.com/PeterPeet/
 # =============================================
@@ -37,30 +37,21 @@ echo "Generating $output_file..."
 
 echo "    // =============================================" >> "$output_file"
 echo "    // KLITE RP mod - KoboldAI Lite conversion" >> "$output_file"
-echo "    // Copyrights Peter Hauer" >> "$output_file"
+echo "    // Creator Peter Hauer" >> "$output_file"
 echo "    // under GPL-3.0 license" >> "$output_file"
 echo "    // see https://github.com/PeterPeet/" >> "$output_file"
 echo "    // =============================================" >> "$output_file"
 
-# Core scripts
+# Core framework and main file
 cat sources/klite-rpmod-core.js >> "$output_file"
-cat sources/klite-rpmod-ui.js >> "$output_file"
-cat sources/klite-rpmod-helpers.js >> "$output_file"
 
-# Style modules (always add these before the panels)
-cat sources/klite-rpmod-core-styles.js >> "$output_file"
-cat sources/klite-rpmod-panel-system-styles.js >> "$output_file"
-cat sources/klite-rpmod-ui-styles.js >> "$output_file"
-cat sources/klite-rpmod-animations.js >> "$output_file"
-cat sources/klite-rpmod-char-panel-css.js >> "$output_file"
+# CSS-Style module
+cat sources/klite-rpmod-core-styles-css.js >> "$output_file"
 
-# Panel switcher system
-cat sources/klite-rpmod-panel-switcher.js >> "$output_file"
-
-# Base panel system
+# Panels init, base panel system and panel switcher system
 cat sources/klite-rpmod-panels.js >> "$output_file"
 
-# Character manager (multi-part) - must load before PLAY panels
+# Character manager (multi-part) - should load before PLAY panels
 cat sources/klite-rpmod-char-panel-part1.js >> "$output_file"
 cat sources/klite-rpmod-char-panel-part2.js >> "$output_file"
 cat sources/klite-rpmod-char-panel-part3.js >> "$output_file"
@@ -70,7 +61,7 @@ cat sources/klite-rpmod-play-panel-rp.js >> "$output_file"
 cat sources/klite-rpmod-play-panel-adv.js >> "$output_file"
 cat sources/klite-rpmod-play-panel-story.js >> "$output_file"
 
-# Universal panels
+# Left-side panels
 cat sources/klite-rpmod-tools-panel.js >> "$output_file"
 cat sources/klite-rpmod-scene-panel.js >> "$output_file"
 cat sources/klite-rpmod-group-panel.js >> "$output_file"
@@ -82,17 +73,7 @@ cat sources/klite-rpmod-notes-panel.js >> "$output_file"
 cat sources/klite-rpmod-wi-panel.js >> "$output_file"
 cat sources/klite-rpmod-textdb-panel.js >> "$output_file"
 
-# Standalone tools
-# Stable UI
-# cat sources/klite-rpmod-stable-ui-embedded.js >> "$output_file"
-# Character creator
-# at sources/klite-rpmod-chargen-embedded.js >> "$output_file"
-# World creator
-# cat sources/klite-rpmod-worldgen-embedded.js >> "$output_file"
-
-# Synchronisation interface between Lite and RPmod
-cat sources/klite-rpmod-state-manager.js >> "$output_file"
-cat sources/klite-rpmod-event-integration.js >> "$output_file"
-cat sources/klite-rpmod-hotswap.js >> "$output_file"
+# Interface between Lite and RPmod and hotswap, datasync and so on
+cat sources/klite-rpmod-adapter.js >> "$output_file"
 
 echo "Successfully generated $output_file"

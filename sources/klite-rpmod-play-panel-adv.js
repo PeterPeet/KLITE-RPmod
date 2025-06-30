@@ -1,6 +1,6 @@
 // =============================================
 // KLITE RP mod - KoboldAI Lite conversion
-// Copyrights Peter Hauer
+// Creator Peter Hauer
 // under GPL-3.0 license
 // see https://github.com/PeterPeet/
 // =============================================
@@ -15,18 +15,18 @@ window.KLITE_RPMod_Panels = window.KLITE_RPMod_Panels || {};
 window.KLITE_RPMod_Panels.PLAY_ADV = {
     collapsedSections: new Set(),
     quickActions: [
-        'Look Around',
-        'Search',
-        'Check Inventory',
-        'Short Rest (half an hour)',
-        'Long Rest (a full 7-12 hours)'
+        '>Look Around',
+        '>Search',
+        '>Check Inventory',
+        '>Short Rest (half an hour)',
+        '>Long Rest (a full 7-12 hours)'
     ],
     
     load(container) {
         container.innerHTML = `
         <!-- PLAY Panel (Adventure Mode) -->
         <div class="klite-rpmod-panel-wrapper">
-            <div class="klite-rpmod-panel-content">
+            <div class="klite-rpmod-panel-content klite-rpmod-scrollable">
                 <div class="klite-rpmod-section-content">
                     <h3>Quick Actions</h3>
                     <label style="font-size: 11px; color: #ccc; display: block; margin-bottom: 2px;">Quick Action Slots:</label>
@@ -107,6 +107,7 @@ window.KLITE_RPMod_Panels.PLAY_ADV = {
                     <select id="rpg-system" style="width: 100%; margin-bottom: 8px;">
                         <option value="custom">Custom System</option>
                         <option value="dnd5e">D&D 5e - Fantasy adventure</option>
+                        <option value="shadowrun">Shadownrun - Cyberpunk and Fantasy dystopia mix</option>
                         <option value="pathfinder">Pathfinder 2e - Fantasy with deep mechanics</option>
                         <option value="fate">Fate Core - Narrative-focused, any genre</option>
                         <option value="call-of-cthulhu">Call of Cthulhu - Horror investigation</option>
@@ -116,7 +117,7 @@ window.KLITE_RPMod_Panels.PLAY_ADV = {
                         <option value="powered-by-apocalypse">Powered by Apocalypse - Story-first</option>
                     </select>
                     
-                    <button class="klite-rpmod-button">Apply RPG System</button>
+                    <button class="klite-rpmod-button" style="width: 100%; margin-bottom: 4px;">Apply RPG System</button>
                     
                     <div id="custom-rules-buttons" style="display: flex; gap: 4px;">
                         <button class="klite-rpmod-button">Load Custom</button>
