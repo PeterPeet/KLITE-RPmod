@@ -1,5 +1,5 @@
 // =============================================
-// KLITE RP mod - Complete Version v36
+// KLITE RP mod - Complete Version v39 (fix mobile edition)
 // Creator: Peter Hauer | GPL-3.0 License
 // https://github.com/PeterPeet/
 // =============================================
@@ -119,11 +119,22 @@
         @media (max-width: 1400px) {
             .klite-panel-top { left: 0; right: 0; }
             .klite-maincontent { left: 0 !important; right: 0 !important; }
+            
+            /* Hide fullscreen button in iPad mode (768-1400px) - already fullscreen */
+            .klite-desktop-quick-buttons .klite-quick-btn[data-action="fullscreen"] {
+                display: none;
+            }
         }
         
         @media (max-width: 768px) {
             .klite-panel-left, .klite-panel-right { display: none; }
             .klite-maincontent { left: 0 !important; right: 0 !important; }
+        }
+        
+        /* Override media query for mobile mode - panels should be available via arrows */
+        .klite-mobile .klite-panel-left,
+        .klite-mobile .klite-panel-right {
+            display: block !important; /* Override the media query display: none */
         }
         
         /* Collapse handles */
@@ -2352,6 +2363,203 @@
                 grid-template-columns: 1fr;
             }
         }
+        
+        /* =============================================
+           MOBILE MODE STYLES
+           ============================================= */
+        
+        /* Button visibility swapping */
+        .klite-desktop-btn {
+            display: block;
+        }
+        
+        .klite-mobile-btn {
+            display: none;
+        }
+        
+        /* Hide desktop buttons in mobile mode */
+        .klite-mobile .klite-desktop-btn {
+            display: none !important;
+        }
+        
+        /* Show mobile buttons in mobile mode */
+        .klite-mobile .klite-mobile-btn {
+            display: block !important;
+        }
+
+        /* Mobile button sets - hide mode-specific buttons by default */
+        .klite-mobile .klite-mobile-story,
+        .klite-mobile .klite-mobile-adventure,
+        .klite-mobile .klite-mobile-chat {
+            display: none !important;
+        }
+        
+        
+        /* Show correct mobile button set based on mode */
+        .klite-mobile.mode-1 .klite-mobile-story {
+            display: block !important;
+        }
+        
+        .klite-mobile.mode-2 .klite-mobile-adventure {
+            display: block !important;
+        }
+        
+        .klite-mobile.mode-3 .klite-mobile-chat,
+        .klite-mobile.mode-4 .klite-mobile-chat {
+            display: block !important;
+        }
+        
+        /* Mobile input area - tighter spacing */
+        .klite-mobile .klite-input-area {
+            gap: 4px !important;
+        }
+        
+        /* Mobile left buttons - make them narrower and input area larger */
+        .klite-mobile .klite-left-btns {
+            width: 25px !important; /* Fixed narrow width for mobile */
+            flex: none !important;
+            flex-direction: column !important; /* Stack buttons vertically */
+            gap: 1px !important;
+        }
+        
+        .klite-mobile .klite-mobile-btn {
+            width: 25px !important; /* Full width of container */
+            min-width: 25px !important;
+            height: 25px !important;
+            padding: 0 !important;
+            font-size: 14px !important;
+        }
+        
+        /* Mobile - keep quick buttons and edit button visible */
+        
+        /* Mobile panel fullscreen display - only when not collapsed */
+        .klite-mobile .klite-panel-left:not(.collapsed),
+        .klite-mobile .klite-panel-right:not(.collapsed) {
+            width: 100% !important;
+            height: 100% !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            z-index: 32768 !important;
+        }
+        
+        /* Mobile collapsed panels - override fullscreen when collapsed */
+        .klite-mobile .klite-panel-left.collapsed {
+            transform: translateX(-100%) !important;
+        }
+        
+        .klite-mobile .klite-panel-right.collapsed {
+            transform: translateX(100%) !important;
+        }
+        
+        /* Mobile expanded panels - no transform when not collapsed */
+        .klite-mobile .klite-panel-left:not(.collapsed) {
+            transform: translateX(0) !important;
+        }
+        
+        .klite-mobile .klite-panel-right:not(.collapsed) {
+            transform: translateX(0) !important;
+        }
+        
+        /* Hide desktop-specific elements in mobile */
+        .klite-mobile .klite-tabs {
+            display: none !important;
+        }
+        
+        /* Hide left/right panel handles in mobile but keep top handle */
+        .klite-mobile .klite-panel-left .klite-handle,
+        .klite-mobile .klite-panel-right .klite-handle {
+            display: none !important;
+        }
+        
+        /* Default state: Show desktop buttons, hide mobile buttons */
+        .klite-desktop-quick-buttons,
+        .klite-desktop-mode-buttons {
+            display: flex;
+        }
+        
+        .klite-desktop-edit-btn {
+            display: block;
+        }
+        
+        .klite-mobile-quick-buttons,
+        .klite-mobile-edit-btn {
+            display: none !important;
+        }
+        
+        /* Mobile mode: Hide desktop buttons, show mobile buttons */
+        .klite-mobile .klite-desktop-quick-buttons,
+        .klite-mobile .klite-desktop-mode-buttons {
+            display: none !important;
+        }
+        
+        .klite-mobile .klite-desktop-edit-btn {
+            display: none !important;
+        }
+        
+        .klite-mobile .klite-mobile-quick-buttons {
+            display: flex !important;
+        }
+        
+        .klite-mobile .klite-mobile-edit-btn {
+            display: block !important;
+            height: 30px !important;
+            bottom: 115px !important;
+        }
+        
+        /* Mobile content adjustments */
+        .klite-mobile .klite-content {
+            padding-top: 20px !important;
+        }
+        
+        /* Quick buttons positioning for mobile */
+        .klite-mobile .klite-quick-btn {
+            width: 30px !important;
+            height: 30px !important;
+            font-size: 14px !important;
+        }
+        
+        /* Ensure active state works in mobile mode */
+        .klite-mobile .klite-quick-btn.active {
+            background: var(--success) !important;
+            color: white !important;
+        }
+        
+        /* Mobile quick button container positioning */
+        .klite-mobile .klite-mobile-quick-buttons {
+            bottom: 115px !important;
+        }
+        
+        /* Connection info repositioning for mobile */
+        .klite-mobile .klite-info {
+            font-size: 12px !important;
+        }
+        
+        .klite-mobile .klite-info span:has(#prompt-tokens),
+        .klite-mobile .klite-info span:has(#story-tokens) {
+            display: none !important; /* Hide token counter text in mobile */
+        }
+        
+        .klite-mobile .klite-info span:last-child {
+            text-align: left !important; /* Left align connection/queue/timer */
+        }
+        
+        /* Mobile navigation button theme integration */
+        .klite-mobile-nav-btn {
+            background: var(--primary) !important;
+            border: 1px solid var(--border) !important;
+        }
+        
+        .klite-mobile-nav-btn:hover {
+            background: var(--accent) !important;
+        }
+        
+        .klite-mobile-nav-btn:disabled,
+        .klite-mobile-nav-btn[style*="opacity: 0.5"] {
+            background: var(--muted) !important;
+            color: var(--border) !important;
+        }
     `;
     
     // =============================================
@@ -2410,17 +2618,36 @@
     // =============================================
     
     window.KLITE_RPMod = {
-        version: '35',
+        version: '39',
         state: {
             tabs: { left: 'PLAY', right: 'MEMORY' },
             collapsed: { left: false, right: false, top: false },
             generating: false,
-            adventureMode: 0 // Default adventure sub-mode (0=story, 1=action, 2=dice)
+            adventureMode: 0, // Default adventure sub-mode (0=story, 1=action, 2=dice)
+            // Mobile mode state
+            mobile: {
+                enabled: false,
+                currentIndex: 5, // Start at Main view (index 5)
+                sequence: ['PLAY', 'TOOLS', 'SCENE', 'GROUP', 'HELP', 'MAIN', 'CHARS', 'MEMORY', 'NOTES', 'WI', 'TEXTDB']
+            }
         },
         
         // Shared data
         characters: [],
         worldInfo: [],
+        
+        // Mobile mode configuration
+        mobileIcons: {
+            'Me as AI': '👤',
+            'AI as me': '🤖', 
+            'Narrator': '📖',
+            'Story': '✍️',
+            'Action': '⚔️',
+            'Roll': '🎲',
+            'Fallen': '😈',
+            'Reject': '🚫',
+            'Twist': '🔀'
+        },
         
         // Avatar system
         aiAvatarCurrent: null,
@@ -3039,7 +3266,9 @@
             integration: true,
             hotkeys: true,
             errors: true,
-            chat: true
+            chat: true,
+            mobile: true,
+            status: true
         },
         
         log(category, message, ...args) {
@@ -3080,6 +3309,9 @@
                 // Build UI
                 this.buildUI();
                 this.log('init', 'UI built');
+                
+                // Initialize mobile mode detection
+                this.initializeMobileMode();
                 
                 // Initialize dynamic buttons
                 setTimeout(() => {
@@ -3184,9 +3416,25 @@
                     <div class="klite-input-area">
                         <!-- Left buttons -->
                         <div class="klite-left-btns">
-                            <button class="klite-btn klite-bottom-btn" id="btn-1">ME AS AI</button>
-                            <button class="klite-btn klite-bottom-btn" id="btn-2">AI AS ME</button>
-                            <button class="klite-btn klite-bottom-btn" id="btn-3">NARRATOR</button>
+                            <!-- Desktop buttons -->
+                            <button class="klite-btn klite-bottom-btn klite-desktop-btn" id="btn-1">ME AS AI</button>
+                            <button class="klite-btn klite-bottom-btn klite-desktop-btn" id="btn-2">AI AS ME</button>
+                            <button class="klite-btn klite-bottom-btn klite-desktop-btn" id="btn-3">NARRATOR</button>
+                            
+                            <!-- Mobile icon buttons - Story Mode (Mode 1) -->
+                            <button class="klite-btn klite-bottom-btn klite-mobile-btn klite-mobile-story" id="btn-1-mobile-story" title="Fallen">😈</button>
+                            <button class="klite-btn klite-bottom-btn klite-mobile-btn klite-mobile-story" id="btn-2-mobile-story" title="Reject">🚫</button>
+                            <button class="klite-btn klite-bottom-btn klite-mobile-btn klite-mobile-story" id="btn-3-mobile-story" title="Twist">🔀</button>
+                            
+                            <!-- Mobile icon buttons - Adventure Mode (Mode 2) -->
+                            <button class="klite-btn klite-bottom-btn klite-mobile-btn klite-mobile-adventure" id="btn-1-mobile-adventure" title="Story">✍️</button>
+                            <button class="klite-btn klite-bottom-btn klite-mobile-btn klite-mobile-adventure" id="btn-2-mobile-adventure" title="Action">⚔️</button>
+                            <button class="klite-btn klite-bottom-btn klite-mobile-btn klite-mobile-adventure" id="btn-3-mobile-adventure" title="Roll">🎲</button>
+                            
+                            <!-- Mobile icon buttons - Chat/RP Mode (Mode 3&4) -->
+                            <button class="klite-btn klite-bottom-btn klite-mobile-btn klite-mobile-chat" id="btn-1-mobile-chat" title="Me as AI">👤</button>
+                            <button class="klite-btn klite-bottom-btn klite-mobile-btn klite-mobile-chat" id="btn-2-mobile-chat" title="AI as me">🤖</button>
+                            <button class="klite-btn klite-bottom-btn klite-mobile-btn klite-mobile-chat" id="btn-3-mobile-chat" title="Narrator">📖</button>
                         </div>
                         
                         <!-- Input -->
@@ -3208,8 +3456,8 @@
                             </div>
                         </div>
                         
-                        <!-- Quick buttons -->
-                        <div style="position: absolute; bottom: 118px; left: 15px; display: flex; gap: 2px;">
+                        <!-- Original v36 quick buttons (desktop mode) -->
+                        <div class="klite-desktop-quick-buttons" style="position: absolute; bottom: 118px; left: 15px; display: flex; gap: 2px;">
                             <button class="klite-btn klite-quick-btn" data-action="context" title="Context">📊</button>
                             <button class="klite-btn klite-quick-btn" data-action="memory" title="Memory">🧠</button>
                             <button class="klite-btn klite-quick-btn" data-action="samplers" title="Open Settings">⚙️</button>
@@ -3217,14 +3465,27 @@
                             <button class="klite-btn klite-quick-btn" data-action="fullscreen" title="Fullscreen">🖼️</button>
                         </div>
                         
-                        <button class="klite-btn" id="btn-edit" style="position: absolute; bottom: 118px; right: 15px; width: 120px;">✏️ Edit</button>
+                        <!-- Original v36 edit button (desktop mode) -->
+                        <button class="klite-btn klite-desktop-edit-btn" id="btn-edit-desktop" style="position: absolute; bottom: 118px; right: 15px; width: 120px;">✏️ Edit</button>
                         
-                        <div style="position: absolute; bottom: 118px; right: 146px; display: flex; gap: 2px;">
-                            <button class="klite-btn klite-quick-btn" data-action="mode-1">📖</button>
-                            <button class="klite-btn klite-quick-btn" data-action="mode-2">⚔️</button>
-                            <button class="klite-btn klite-quick-btn" data-action="mode-3">💬</button>
-                            <button class="klite-btn klite-quick-btn active" data-action="mode-4">🎭</button>
+                        <!-- Original v36 mode buttons (desktop mode) -->
+                        <div class="klite-desktop-mode-buttons" style="position: absolute; bottom: 118px; right: 146px; display: flex; gap: 2px;">
+                            <button class="klite-btn klite-quick-btn" data-action="mode-1" title="Story Mode">📖</button>
+                            <button class="klite-btn klite-quick-btn" data-action="mode-2" title="Adventure Mode">⚔️</button>
+                            <button class="klite-btn klite-quick-btn" data-action="mode-3" title="Chat Mode">💬</button>
+                            <button class="klite-btn klite-quick-btn active" data-action="mode-4" title="RP Mode">🎭</button>
                         </div>
+                        
+                        <!-- Mobile-specific buttons (mobile only) -->
+                        <div class="klite-mobile-quick-buttons" style="position: absolute; bottom: 118px; left: 15px; gap: 2px;">
+                            <button class="klite-btn klite-quick-btn" data-action="mode-1" title="Story Mode">📖</button>
+                            <button class="klite-btn klite-quick-btn" data-action="mode-2" title="Adventure Mode">⚔️</button>
+                            <button class="klite-btn klite-quick-btn" data-action="mode-3" title="Chat Mode">💬</button>
+                            <button class="klite-btn klite-quick-btn active" data-action="mode-4" title="RP Mode">🎭</button>
+                            <button class="klite-btn klite-quick-btn" data-action="images" title="Images Options">🎨</button>
+                        </div>
+                        
+                        <button class="klite-btn klite-mobile-edit-btn" id="btn-edit" style="position: absolute; bottom: 118px; right: 15px; width: 120px;">✏️ Edit</button>
                     </div>
                 </div>
             `;
@@ -3262,6 +3523,278 @@
             this.log('init', 'UI event listeners attached');
         },
         
+        // =============================================
+        // MOBILE MODE DETECTION AND INITIALIZATION
+        // =============================================
+        
+        initializeMobileMode() {
+            this.log('init', 'Initializing mobile mode detection...');
+            
+            // Detect mobile device - use screen width only (like original CSS)
+            const screenWidth = window.innerWidth;
+            const isNarrowScreen = screenWidth <= 768; // Mobile mode only below 768px
+            
+            this.state.mobile.enabled = isNarrowScreen;
+            
+            this.log('init', `Screen: ${screenWidth}px, Narrow: ${isNarrowScreen}, Mobile enabled: ${this.state.mobile.enabled}`);
+            
+            if (this.state.mobile.enabled) {
+                this.log('init', `Mobile mode enabled - adding mobile class and navigation`);
+                document.body.classList.add('klite-mobile');
+                this.addMobileNavigationButtons();
+                
+                // Set initial mode class
+                const currentMode = window.localsettings?.opmode || 4;
+                this.updateMobileModeClass(currentMode);
+            } else {
+                this.log('init', `Desktop/iPad mode - using original v36 behavior`);
+                // Ensure mobile class is removed if screen size changed
+                document.body.classList.remove('klite-mobile');
+            }
+        },
+        
+        setupConnectionObserver() {
+            const status = document.getElementById('connectstatus');
+            if (!status) {
+                this.log('init', 'Connection status element not found, retrying in 1s...');
+                setTimeout(() => this.setupConnectionObserver(), 1000);
+                return;
+            }
+            
+            // Initial update
+            this.updateStatus();
+            
+            // Create observer to watch for connection status changes
+            this.connectionObserver = new MutationObserver(() => {
+                this.updateStatus();
+            });
+            
+            // Start observing the connection status element
+            this.connectionObserver.observe(status, {
+                childList: true,
+                subtree: true,
+                characterData: true,
+                attributes: true,
+                attributeFilter: ['class'] // Watch for disconnected class changes
+            });
+            
+            this.log('init', 'Connection status observer set up - no more polling!');
+        },
+        
+        handleResize() {
+            // Re-check mobile mode on window resize
+            const screenWidth = window.innerWidth;
+            const shouldBeMobile = screenWidth <= 768;
+            const currentlyMobile = this.state.mobile.enabled;
+            
+            if (shouldBeMobile !== currentlyMobile) {
+                this.log('init', `Screen size changed: ${screenWidth}px - switching from ${currentlyMobile ? 'mobile' : 'desktop'} to ${shouldBeMobile ? 'mobile' : 'desktop'} mode`);
+                
+                this.state.mobile.enabled = shouldBeMobile;
+                
+                if (shouldBeMobile) {
+                    // Switch to mobile mode
+                    document.body.classList.add('klite-mobile');
+                    this.addMobileNavigationButtons();
+                    
+                    // Set initial mode class
+                    const currentMode = window.localsettings?.opmode || 4;
+                    this.updateMobileModeClass(currentMode);
+                } else {
+                    // Switch to desktop mode
+                    document.body.classList.remove('klite-mobile');
+                    this.removeMobileNavigationButtons();
+                }
+            }
+        },
+        
+        removeMobileNavigationButtons() {
+            // Remove mobile navigation arrows when switching back to desktop
+            const leftArrow = document.getElementById('mobile-nav-left');
+            const rightArrow = document.getElementById('mobile-nav-right');
+            
+            if (leftArrow) {
+                leftArrow.remove();
+                this.log('init', 'Removed left mobile navigation button');
+            }
+            if (rightArrow) {
+                rightArrow.remove();
+                this.log('init', 'Removed right mobile navigation button');
+            }
+        },
+        
+        addMobileNavigationButtons() {
+            const leftArrow = document.createElement('button');
+            leftArrow.className = 'klite-btn klite-mobile-nav-btn klite-mobile-nav-left';
+            leftArrow.innerHTML = '◀';
+            leftArrow.id = 'mobile-nav-left';
+            leftArrow.style.cssText = `
+                position: fixed !important;
+                left: 15px !important;
+                bottom: 25% !important;
+                width: 50px !important;
+                height: 50px !important;
+                z-index: 9999 !important;
+                border-radius: 50% !important;
+                background: var(--primary) !important;
+                color: white !important;
+                border: none !important;
+                font-size: 18px !important;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+            `;
+            
+            const rightArrow = document.createElement('button');
+            rightArrow.className = 'klite-btn klite-mobile-nav-btn klite-mobile-nav-right';
+            rightArrow.innerHTML = '▶';
+            rightArrow.id = 'mobile-nav-right';
+            rightArrow.style.cssText = `
+                position: fixed !important;
+                right: 15px !important;
+                bottom: 25% !important;
+                width: 50px !important;
+                height: 50px !important;
+                z-index: 9999 !important;
+                border-radius: 50% !important;
+                background: var(--primary) !important;
+                color: white !important;
+                border: none !important;
+                font-size: 18px !important;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+            `;
+            
+            document.body.appendChild(leftArrow);
+            document.body.appendChild(rightArrow);
+            
+            // Add event listeners
+            leftArrow.addEventListener('click', () => {
+                console.log('[KLITE] Left arrow clicked');
+                this.navigateMobilePanel(-1);
+            });
+            rightArrow.addEventListener('click', () => {
+                console.log('[KLITE] Right arrow clicked'); 
+                this.navigateMobilePanel(1);
+            });
+            
+            this.updateMobileNavigationButtons();
+            this.log('init', 'Mobile navigation buttons added');
+        },
+        
+        navigateMobilePanel(direction) {
+            this.log('mobile', `navigateMobilePanel called with direction: ${direction}`);
+            const newIndex = this.state.mobile.currentIndex + direction;
+            
+            // Boundary checks
+            if (newIndex < 0 || newIndex >= this.state.mobile.sequence.length) {
+                this.log('mobile', `Navigation blocked - at boundary (current: ${this.state.mobile.currentIndex})`);
+                return;
+            }
+            
+            this.state.mobile.currentIndex = newIndex;
+            const targetPanel = this.state.mobile.sequence[newIndex];
+            
+            this.log('mobile', `Navigating to panel: ${targetPanel} (index: ${newIndex})`);
+            
+            if (targetPanel === 'MAIN') {
+                // Show main view
+                this.showMainView();
+            } else {
+                // Show panel
+                this.showMobilePanel(targetPanel);
+            }
+            
+            this.updateMobileNavigationButtons();
+        },
+        
+        showMainView() {
+            // Simple approach: just ensure both panels are collapsed
+            if (!this.state.collapsed.left) {
+                this.togglePanel('left');
+            }
+            if (!this.state.collapsed.right) {
+                this.togglePanel('right');
+            }
+            
+            // Update status when switching to main view
+            this.updateStatus();
+            
+            this.log('mobile', 'Main view shown');
+        },
+        
+        showMobilePanel(panelName) {
+            const leftPanels = ['PLAY', 'TOOLS', 'SCENE', 'GROUP', 'HELP'];
+            const rightPanels = ['CHARS', 'MEMORY', 'NOTES', 'WI', 'TEXTDB'];
+            
+            if (leftPanels.includes(panelName)) {
+                // Switch to the correct tab first
+                this.switchTab('left', panelName);
+                // Ensure left panel is open
+                if (this.state.collapsed.left) {
+                    this.togglePanel('left');
+                }
+                // Ensure right panel is closed
+                if (!this.state.collapsed.right) {
+                    this.togglePanel('right');
+                }
+                
+            } else if (rightPanels.includes(panelName)) {
+                // Switch to the correct tab first
+                this.switchTab('right', panelName);
+                // Ensure right panel is open
+                if (this.state.collapsed.right) {
+                    this.togglePanel('right');
+                }
+                // Ensure left panel is closed
+                if (!this.state.collapsed.left) {
+                    this.togglePanel('left');
+                }
+            }
+            
+            // Update status when switching panels
+            this.updateStatus();
+            
+            this.log('mobile', `Panel ${panelName} shown using togglePanel`);
+        },
+        
+        updateMobileNavigationButtons() {
+            if (!this.state.mobile.enabled) return;
+            
+            const leftBtn = document.getElementById('mobile-nav-left');
+            const rightBtn = document.getElementById('mobile-nav-right');
+            
+            if (leftBtn && rightBtn) {
+                // Gray out buttons at sequence endpoints
+                if (this.state.mobile.currentIndex === 0) {
+                    leftBtn.style.opacity = '0.5';
+                    leftBtn.style.pointerEvents = 'none';
+                } else {
+                    leftBtn.style.opacity = '1';
+                    leftBtn.style.pointerEvents = 'auto';
+                }
+                
+                if (this.state.mobile.currentIndex === this.state.mobile.sequence.length - 1) {
+                    rightBtn.style.opacity = '0.5';
+                    rightBtn.style.pointerEvents = 'none';
+                } else {
+                    rightBtn.style.opacity = '1';
+                    rightBtn.style.pointerEvents = 'auto';
+                }
+                
+                this.log('mobile', `Navigation buttons updated - index: ${this.state.mobile.currentIndex}/${this.state.mobile.sequence.length - 1}`);
+            }
+        },
+        
+        updateMobileModeClass(mode) {
+            if (!this.state.mobile.enabled) return;
+            
+            // Remove all existing mode classes
+            document.body.classList.remove('mode-1', 'mode-2', 'mode-3', 'mode-4');
+            
+            // Add the current mode class
+            document.body.classList.add(`mode-${mode}`);
+            
+            this.log('mobile', `Mobile mode class updated to mode-${mode}`);
+        },
+        
         handleClick(e) {
             // Collapse handles
             if (e.target.classList.contains('klite-handle')) {
@@ -3280,18 +3813,27 @@
             else if (e.target.id === 'btn-submit') {
                 this.submit();
             }
-            // Edit
-            else if (e.target.id === 'btn-edit') {
+            // Edit (both mobile and desktop versions)
+            else if (e.target.id === 'btn-edit' || e.target.id === 'btn-edit-desktop') {
                 this.toggleEdit();
             }
-            // Bottom buttons
-            else if (e.target.id === 'btn-1') {
+            // Bottom buttons (both desktop and mobile versions for all modes)
+            else if (e.target.id === 'btn-1' || 
+                     e.target.id === 'btn-1-mobile-story' || 
+                     e.target.id === 'btn-1-mobile-adventure' || 
+                     e.target.id === 'btn-1-mobile-chat') {
                 this.bottomAction(0);
             }
-            else if (e.target.id === 'btn-2') {
+            else if (e.target.id === 'btn-2' || 
+                     e.target.id === 'btn-2-mobile-story' || 
+                     e.target.id === 'btn-2-mobile-adventure' || 
+                     e.target.id === 'btn-2-mobile-chat') {
                 this.bottomAction(1);
             }
-            else if (e.target.id === 'btn-3') {
+            else if (e.target.id === 'btn-3' || 
+                     e.target.id === 'btn-3-mobile-story' || 
+                     e.target.id === 'btn-3-mobile-adventure' || 
+                     e.target.id === 'btn-3-mobile-chat') {
                 this.bottomAction(2);
             }
             // Section headers
@@ -4061,6 +4603,9 @@
         
         // Actions
         submit() {
+            // Update status on submit
+            this.updateStatus();
+            
             this.log('generation', '=== SUBMISSION DEBUG ===');
             this.log('generation', 'Our input:', document.getElementById('input')?.value);
             this.log('generation', 'KoboldAI input:', document.getElementById('input_text')?.value);
@@ -4224,6 +4769,9 @@
             // Update mode buttons immediately
             this.updateModeButtons();
             
+            // Update mobile mode class for correct button set
+            this.updateMobileModeClass(mode);
+            
             // Update dynamic buttons
             this.onModeChange(mode);
             
@@ -4269,6 +4817,41 @@
             // Reset adventure mode to story when entering adventure mode
             if (mode === 2) {
                 this.state.adventureMode = 0; // Reset to story mode (0)
+            } else {
+                // When leaving adventure mode, clear adventure highlighting from all buttons (desktop and mobile)
+                const bottomButtons = [
+                    document.getElementById('btn-1'),
+                    document.getElementById('btn-2'), 
+                    document.getElementById('btn-3')
+                ];
+                
+                // All mobile button sets
+                const mobileButtons = [
+                    // Story mode mobile buttons
+                    document.getElementById('btn-1-mobile-story'),
+                    document.getElementById('btn-2-mobile-story'),
+                    document.getElementById('btn-3-mobile-story'),
+                    // Adventure mode mobile buttons  
+                    document.getElementById('btn-1-mobile-adventure'),
+                    document.getElementById('btn-2-mobile-adventure'),
+                    document.getElementById('btn-3-mobile-adventure'),
+                    // Chat mode mobile buttons
+                    document.getElementById('btn-1-mobile-chat'),
+                    document.getElementById('btn-2-mobile-chat'),
+                    document.getElementById('btn-3-mobile-chat')
+                ];
+                
+                // Clear desktop buttons
+                bottomButtons.forEach(btn => {
+                    if (btn) btn.classList.remove('adventure-active');
+                });
+                
+                // Clear mobile buttons
+                mobileButtons.forEach(btn => {
+                    if (btn) btn.classList.remove('adventure-active');
+                });
+                
+                this.log('state', `Cleared adventure highlighting from all buttons when leaving adventure mode to ${mode}`);
             }
             
             // Update dynamic buttons when mode changes
@@ -4302,7 +4885,7 @@
 
         setActiveQuickButton(buttonNumber, actualMode) {
             const modeButtons = document.querySelectorAll('[data-action^="mode-"]');
-            const targetBtn = document.querySelector(`[data-action="mode-${buttonNumber}"]`);
+            const targetBtns = document.querySelectorAll(`[data-action="mode-${buttonNumber}"]`);
             const targetMode = actualMode || buttonNumber;
             
             // Check if this is actually a change
@@ -4316,12 +4899,12 @@
             // Clear all active states
             modeButtons.forEach(btn => btn.classList.remove('active'));
             
-            // Set new active button
-            if (targetBtn) {
-                targetBtn.classList.add('active');
+            // Set new active button(s) - both desktop and mobile versions
+            if (targetBtns.length > 0) {
+                targetBtns.forEach(btn => btn.classList.add('active'));
                 this.quickButtonState.activeButton = buttonNumber;
                 this.quickButtonState.lastActiveMode = targetMode;
-                this.log('panels', `Quick button ${buttonNumber} activated (for mode ${targetMode})`);
+                this.log('panels', `Quick button ${buttonNumber} activated (for mode ${targetMode}) - updated ${targetBtns.length} button(s)`);
             }
             
             // Update bottom buttons
@@ -4343,6 +4926,9 @@
             (labels[mode] || labels[3]).forEach((label, i) => {
                 if (btns[i]) btns[i].textContent = label;
             });
+            
+            // Update mobile mode class for correct button set
+            this.updateMobileModeClass(mode);
         },
 
 
@@ -4575,6 +5161,19 @@
                     bottomButtons[0].onclick = () => this.applyStoryModifier('fallen');
                     bottomButtons[1].onclick = () => this.applyStoryModifier('reject');
                     bottomButtons[2].onclick = () => this.applyStoryModifier('twist');
+                    
+                    // Setup mobile story button handlers
+                    const mobileStoryButtons = [
+                        document.getElementById('btn-1-mobile-story'),
+                        document.getElementById('btn-2-mobile-story'),
+                        document.getElementById('btn-3-mobile-story')
+                    ];
+                    
+                    if (mobileStoryButtons[0] && mobileStoryButtons[1] && mobileStoryButtons[2]) {
+                        mobileStoryButtons[0].onclick = () => this.applyStoryModifier('fallen');
+                        mobileStoryButtons[1].onclick = () => this.applyStoryModifier('reject');
+                        mobileStoryButtons[2].onclick = () => this.applyStoryModifier('twist');
+                    }
                     break;
                     
                 case 2: // Adventure mode
@@ -4585,6 +5184,19 @@
                     bottomButtons[0].onclick = () => this.setAdventureMode(0);
                     bottomButtons[1].onclick = () => this.setAdventureMode(1);
                     bottomButtons[2].onclick = () => this.setAdventureMode(2);
+                    
+                    // Setup mobile adventure button handlers
+                    const mobileAdventureButtons = [
+                        document.getElementById('btn-1-mobile-adventure'),
+                        document.getElementById('btn-2-mobile-adventure'),
+                        document.getElementById('btn-3-mobile-adventure')
+                    ];
+                    
+                    if (mobileAdventureButtons[0] && mobileAdventureButtons[1] && mobileAdventureButtons[2]) {
+                        mobileAdventureButtons[0].onclick = () => this.setAdventureMode(0);
+                        mobileAdventureButtons[1].onclick = () => this.setAdventureMode(1);
+                        mobileAdventureButtons[2].onclick = () => this.setAdventureMode(2);
+                    }
                     
                     // Update visual state for current adventure mode
                     this.updateAdventureModeButtons();
@@ -4613,6 +5225,32 @@
                         // Call PLAY_RP panel narrator with Omniscient Mixed preset
                         KLITE_RPMod.panels.PLAY_RP.triggerNarratorWithPreset('omniscient', 'mixed');
                     };
+                    
+                    // Setup mobile chat button handlers
+                    const mobileChatButtons = [
+                        document.getElementById('btn-1-mobile-chat'),
+                        document.getElementById('btn-2-mobile-chat'),
+                        document.getElementById('btn-3-mobile-chat')
+                    ];
+                    
+                    if (mobileChatButtons[0] && mobileChatButtons[1] && mobileChatButtons[2]) {
+                        mobileChatButtons[0].onclick = () => {
+                            if (typeof window.impersonate_message === 'function') {
+                                window.impersonate_message(0);
+                            }
+                        };
+                        
+                        mobileChatButtons[1].onclick = () => {
+                            if (typeof window.impersonate_user === 'function') {
+                                window.impersonate_user();
+                            }
+                        };
+                        
+                        mobileChatButtons[2].onclick = () => {
+                            // Call PLAY_RP panel narrator with Omniscient Mixed preset
+                            KLITE_RPMod.panels.PLAY_RP.triggerNarratorWithPreset('omniscient', 'mixed');
+                        };
+                    }
             }
         },
 
@@ -4651,20 +5289,38 @@
         },
         
         updateAdventureModeButtons() {
+            // Desktop buttons
             const bottomButtons = [
                 document.getElementById('btn-1'),
                 document.getElementById('btn-2'), 
                 document.getElementById('btn-3')
             ];
             
-            if (!bottomButtons[0] || !bottomButtons[1] || !bottomButtons[2]) return;
+            // Mobile buttons for adventure mode
+            const mobileAdventureButtons = [
+                document.getElementById('btn-1-mobile-adventure'),
+                document.getElementById('btn-2-mobile-adventure'), 
+                document.getElementById('btn-3-mobile-adventure')
+            ];
             
-            // Remove active class from all buttons
-            bottomButtons.forEach(btn => btn.classList.remove('adventure-active'));
+            // Remove active class from all desktop buttons
+            if (bottomButtons[0] && bottomButtons[1] && bottomButtons[2]) {
+                bottomButtons.forEach(btn => btn.classList.remove('adventure-active'));
+                
+                // Add active class to current mode button (desktop)
+                if (this.state.adventureMode >= 0 && this.state.adventureMode <= 2) {
+                    bottomButtons[this.state.adventureMode].classList.add('adventure-active');
+                }
+            }
             
-            // Add active class to current mode button
-            if (this.state.adventureMode >= 0 && this.state.adventureMode <= 2) {
-                bottomButtons[this.state.adventureMode].classList.add('adventure-active');
+            // Remove active class from all mobile adventure buttons
+            if (mobileAdventureButtons[0] && mobileAdventureButtons[1] && mobileAdventureButtons[2]) {
+                mobileAdventureButtons.forEach(btn => btn.classList.remove('adventure-active'));
+                
+                // Add active class to current mode button (mobile)
+                if (this.state.adventureMode >= 0 && this.state.adventureMode <= 2) {
+                    mobileAdventureButtons[this.state.adventureMode].classList.add('adventure-active');
+                }
             }
         },
         
@@ -4792,15 +5448,38 @@
         },
         
         updateStatus() {
-            // Connection status
+            // Connection status with debug
             const status = document.getElementById('connectstatus');
             const connEl = document.getElementById('connection');
+            
+            this.log('status', `updateStatus called - status element: ${status ? 'found' : 'missing'}, connEl: ${connEl ? 'found' : 'missing'}`);
+            
             if (status && connEl) {
                 const connectionText = status.textContent || 'Disconnected';
-                connEl.textContent = connectionText;
+                const hasDisconnectedClass = status.classList.contains('disconnected');
                 
-                const isConnected = !status.classList.contains('disconnected');
+                this.log('status', `Reading from connectstatus: "${connectionText}", disconnected class: ${hasDisconnectedClass}`);
+                
+                connEl.textContent = connectionText;
+                const isConnected = !hasDisconnectedClass;
                 connEl.style.color = isConnected ? '#5cb85c' : '#d9534f';
+                
+                // Clean up any debug styling
+                connEl.style.backgroundColor = '';
+                connEl.style.padding = '';
+                connEl.style.borderRadius = '';
+                connEl.style.fontWeight = '';
+                
+                // Clean up parent info div debug styling
+                const infoDiv = connEl.closest('.klite-info');
+                if (infoDiv) {
+                    infoDiv.style.border = '';
+                    infoDiv.style.backgroundColor = '';
+                }
+                
+                this.log('status', `Updated connection span to: "${connectionText}", color: ${isConnected ? 'green' : 'red'}`);
+            } else {
+                this.log('status', 'Missing elements for status update');
             }
             
             // Queue and wait are handled by Horde hooks
@@ -4820,10 +5499,17 @@
             this.updateTokens();
             this.updateModeButtons();
             
-            // Periodic sync with smart mode change detection
+            // Add window resize listener for dynamic mobile mode detection
+            window.addEventListener('resize', () => {
+                this.handleResize();
+            });
+            
+            // Set up connection status observer (no polling!)
+            this.setupConnectionObserver();
+            
+            // Reduced polling - only tokens and mode detection (no connection status)
             setInterval(() => {
                 this.updateTokens();
-                this.updateStatus();
                 
                 // Check for mode changes and handle them smartly
                 const currentMode = window.localsettings?.opmode;
@@ -4834,7 +5520,7 @@
                     this.log('state', `Mode change detected: ${lastMode} → ${currentMode}`);
                     this.updateModeButtons();
                 }
-            }, 1500);
+            }, 3000); // Reduced frequency since no connection status
         },
         
         // State
