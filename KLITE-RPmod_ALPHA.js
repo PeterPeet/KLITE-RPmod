@@ -1,5 +1,5 @@
 // =============================================
-// KLITE RP mod - Complete Version v39 (fix mobile edition)
+// KLITE RP mod - Complete Version v40
 // Creator: Peter Hauer | GPL-3.0 License
 // https://github.com/PeterPeet/
 // =============================================
@@ -126,6 +126,63 @@
             }
         }
         
+        /* Hide tablet sidepanel button by default */
+        .klite-desktop-quick-buttons .klite-quick-btn[data-action="tablet-sidepanel"] {
+            display: none;
+        }
+        
+        /* Show tablet sidepanel button only in tablet mode (768-1400px) */
+        @media (min-width: 768px) and (max-width: 1400px) {
+            .klite-desktop-quick-buttons .klite-quick-btn[data-action="tablet-sidepanel"] {
+                display: block;
+            }
+            
+            /* Active state for tablet sidepanel button */
+            .klite-desktop-quick-buttons .klite-quick-btn[data-action="tablet-sidepanel"].active {
+                background: var(--success) !important;
+                color: white !important;
+            }
+        }
+        
+        /* Active state for fullscreen button (shows in desktop mode) */
+        .klite-desktop-quick-buttons .klite-quick-btn[data-action="fullscreen"].active {
+            background: var(--success) !important;
+            color: white !important;
+        }
+        
+        @media (min-width: 768px) and (max-width: 1400px) {
+            /* Tablet sidepanel mode classes - only apply in tablet mode */
+            .klite-container.tablet-sidepanel-both .klite-panel-top,
+            .klite-container.tablet-sidepanel-both .klite-maincontent {
+                left: 0 !important;
+                right: 0 !important;
+            }
+            
+            .klite-container.tablet-sidepanel-left .klite-panel-top,
+            .klite-container.tablet-sidepanel-left .klite-maincontent {
+                left: 350px !important;
+                right: 0 !important;
+            }
+            
+            .klite-container.tablet-sidepanel-right .klite-panel-top,
+            .klite-container.tablet-sidepanel-right .klite-maincontent {
+                left: 0 !important;
+                right: 350px !important;
+            }
+            
+            .klite-container.tablet-sidepanel-none .klite-panel-top,
+            .klite-container.tablet-sidepanel-none .klite-maincontent {
+                left: 0 !important;
+                right: 0 !important;
+            }
+        }
+        
+        /* Fullscreen mode overrides tablet sidepanel mode */
+        .klite-maincontent.fullscreen { 
+            left: 0 !important; 
+            right: 0 !important; 
+        }
+        
         @media (max-width: 768px) {
             .klite-panel-left, .klite-panel-right { display: none; }
             .klite-maincontent { left: 0 !important; right: 0 !important; }
@@ -210,7 +267,7 @@
             overflow-y: auto;
             overflow-x: hidden;
             padding: 20px;
-            margin: 25px 0 35px 0;
+            margin: 25px 0 34px 0;
         }
         
         /* Input area */
@@ -395,7 +452,7 @@
             justify-content: space-between;
             color: #888;
             font-size: 12px;
-            margin-top: -3px;
+            margin-top: 2px !important;
         }
         
         /* Utilities */
@@ -2418,7 +2475,7 @@
         
         /* Mobile textarea - maximize space */
         .klite-mobile .klite-textarea {
-            min-height: 60px !important;
+            min-height: 122px !important;
             flex: 1 !important;
         }
         
@@ -2428,7 +2485,7 @@
         
         /* Mobile left buttons - make them narrower and input area larger */
         .klite-mobile .klite-left-btns {
-            width: 25px !important; /* Fixed narrow width for mobile */
+            width: 32px !important; /* Fixed narrow width for mobile */
             flex: none !important;
             flex-direction: column !important; /* Stack buttons vertically */
             gap: 1px !important;
@@ -2446,7 +2503,7 @@
         
         .klite-mobile .klite-submit-btn {
             width: 32px !important;
-            height: 60px !important;
+            height: 125px !important;
             font-size: 14px !important;
             flex: none !important;
         }
@@ -2460,17 +2517,16 @@
             position: absolute !important;
             bottom: 0px !important;
             right: 0px !important;
-            width: 120px !important;
+            width: 100px !important;
             z-index: 10 !important;
         }
         
         .klite-mobile .klite-action-btn {
-            height: 16px !important;
-            font-size: 14px !important;
+            height: 19px !important;
+            font-size: 12px !important;
             flex: 1 !important;
-            background: var(--bg3) !important;
             border: 1px solid var(--border) !important;
-            padding-top: 2px !important;
+            padding-top: 0px !important;
         }
         
         /* Mobile info area - make space for action buttons */
@@ -2494,8 +2550,8 @@
         }
         
         .klite-mobile .klite-mobile-btn {
-            width: 25px !important; /* Full width of container */
-            min-width: 25px !important;
+            width: 32px !important;
+            min-width: 32px !important;
             height: 25px !important;
             padding: 0 !important;
             font-size: 14px !important;
@@ -2576,7 +2632,8 @@
         .klite-mobile .klite-mobile-edit-btn {
             display: block !important;
             height: 30px !important;
-            bottom: 90px !important;
+            width: 64px !important;
+            bottom: 155px !important;
         }
         
         /* Mobile content adjustments */
@@ -2599,7 +2656,7 @@
         
         /* Mobile quick button container positioning */
         .klite-mobile .klite-mobile-quick-buttons {
-            bottom: 90px !important;
+            bottom: 155px !important;
         }
         
         /* Connection info repositioning for mobile */
@@ -2689,12 +2746,14 @@
     // =============================================
     
     window.KLITE_RPMod = {
-        version: '39',
+        version: '40',
         state: {
             tabs: { left: 'PLAY', right: 'MEMORY' },
             collapsed: { left: false, right: false, top: false },
             generating: false,
             adventureMode: 0, // Default adventure sub-mode (0=story, 1=action, 2=dice)
+            fullscreen: false,
+            tabletSidepanel: false,
             // Mobile mode state
             mobile: {
                 enabled: false,
@@ -3415,6 +3474,10 @@
                 this.syncTabButtonStates();
                 this.log('init', 'Panels initialized and button states synced');
                 
+                // Restore fullscreen and tablet sidepanel states
+                this.restoreUIStates();
+                this.log('init', 'UI states restored');
+                
                 // Start sync
                 this.startSync();
                 this.log('init', 'Sync started');
@@ -3534,6 +3597,7 @@
                             <button class="klite-btn klite-quick-btn" data-action="samplers" title="Open Settings">⚙️</button>
                             <button class="klite-btn klite-quick-btn" data-action="images" title="Images Options">🎨</button>
                             <button class="klite-btn klite-quick-btn" data-action="fullscreen" title="Fullscreen">🖼️</button>
+                            <button class="klite-btn klite-quick-btn" data-action="tablet-sidepanel" title="Tablet Sidepanel Mode">↔️</button>
                         </div>
                         
                         <!-- Original v36 edit button (desktop mode) -->
@@ -3676,7 +3740,18 @@
                     document.body.classList.remove('klite-mobile');
                     this.removeMobileNavigationButtons();
                 }
+                
+                // Update submit button text for the new mode
+                this.updateSubmitBtn();
             }
+            
+            // Update tablet sidepanel positioning on any resize
+            // This will clean up classes when not in tablet mode
+            this.updateTabletSidepanelPositions();
+            
+            // Update button active states after resize
+            this.updateTabletSidepanelButton();
+            this.updateFullscreenButton();
         },
         
         removeMobileNavigationButtons() {
@@ -3701,12 +3776,12 @@
             leftArrow.id = 'mobile-nav-left';
             leftArrow.style.cssText = `
                 position: fixed !important;
-                left: 15px !important;
-                bottom: 90px !important;
+                left: 8px !important;
+                bottom: 155px !important;
                 width: 32px !important;
                 height: 32px !important;
                 z-index: 9999 !important;
-                border-radius: 8px !important;
+                border-radius: 4px !important;
                 background: var(--primary) !important;
                 color: white !important;
                 border: none !important;
@@ -3720,12 +3795,12 @@
             rightArrow.id = 'mobile-nav-right';
             rightArrow.style.cssText = `
                 position: fixed !important;
-                right: 15px !important;
-                bottom: 90px !important;
+                right: 8px !important;
+                bottom: 155px !important;
                 width: 32px !important;
                 height: 32px !important;
                 z-index: 9999 !important;
-                border-radius: 8px !important;
+                border-radius: 4px !important;
                 background: var(--primary) !important;
                 color: white !important;
                 border: none !important;
@@ -4247,6 +4322,7 @@
                 case 'forward': window.btn_redo?.(); break;
                 case 'retry': window.btn_retry?.(); break;
                 case 'fullscreen': this.toggleFullscreen(); break;
+                case 'tablet-sidepanel': this.toggleTabletSidepanel(); break;
                 case 'mode-1': 
                     this.setMode(1); // Story mode + Classic UI
                     break;
@@ -4469,6 +4545,13 @@
             if (side === 'top') {
                 document.getElementById('maincontent').classList.toggle('top-expanded', !this.state.collapsed[side]);
             }
+            
+            // Update tablet sidepanel positions if in tablet sidepanel mode
+            this.updateTabletSidepanelPositions();
+            
+            // Update button active states when panels are toggled
+            this.updateTabletSidepanelButton();
+            this.updateFullscreenButton();
             
             this.saveState();
         },
@@ -5029,6 +5112,7 @@
             const isFullscreen = maincontent.classList.contains('fullscreen');
             
             maincontent.classList.toggle('fullscreen');
+            this.state.fullscreen = !isFullscreen;
             
             // In fullscreen, auto-collapse panels (but they can still be opened)
             if (!isFullscreen) {
@@ -5041,7 +5125,110 @@
                 }
             }
             
+            // Update button active state
+            this.updateFullscreenButton();
+            
+            this.saveState();
             this.log('state', `Fullscreen ${!isFullscreen ? 'enabled' : 'disabled'}`);
+        },
+        
+        toggleTabletSidepanel() {
+            // Only allow toggling when in tablet mode
+            if (!this.isTabletMode()) {
+                this.log('state', 'Tablet sidepanel mode only available in tablet mode (768-1400px)');
+                return;
+            }
+            
+            this.state.tabletSidepanel = !this.state.tabletSidepanel;
+            
+            if (this.state.tabletSidepanel) {
+                this.updateTabletSidepanelPositions();
+                this.log('state', 'Tablet sidepanel mode enabled');
+            } else {
+                this.removeTabletSidepanelClasses();
+                this.log('state', 'Tablet sidepanel mode disabled');
+            }
+            
+            // Update button active state
+            this.updateTabletSidepanelButton();
+            
+            this.saveState();
+        },
+        
+        updateTabletSidepanelPositions() {
+            if (!this.state.tabletSidepanel) {
+                this.removeTabletSidepanelClasses();
+                return;
+            }
+            
+            // Only apply tablet sidepanel in tablet mode (768-1400px)
+            if (!this.isTabletMode()) {
+                this.removeTabletSidepanelClasses();
+                return;
+            }
+            
+            const container = document.getElementById('klite-container');
+            
+            // Remove all tablet sidepanel classes first
+            this.removeTabletSidepanelClasses();
+            
+            const leftOpen = !this.state.collapsed.left;
+            const rightOpen = !this.state.collapsed.right;
+            
+            if (leftOpen && rightOpen) {
+                // Both panels open: left:0 right:0
+                container.classList.add('tablet-sidepanel-both');
+            } else if (leftOpen && !rightOpen) {
+                // Only left panel open: left:350 right:0
+                container.classList.add('tablet-sidepanel-left');
+            } else if (!leftOpen && rightOpen) {
+                // Only right panel open: left:0 right:350
+                container.classList.add('tablet-sidepanel-right');
+            } else {
+                // Both panels closed: left:0 right:0
+                container.classList.add('tablet-sidepanel-none');
+            }
+        },
+        
+        isTabletMode() {
+            return window.innerWidth >= 768 && window.innerWidth <= 1400;
+        },
+        
+        removeTabletSidepanelClasses() {
+            const container = document.getElementById('klite-container');
+            container.classList.remove('tablet-sidepanel-both', 'tablet-sidepanel-left', 'tablet-sidepanel-right', 'tablet-sidepanel-none');
+        },
+        
+        restoreUIStates() {
+            // Restore fullscreen state
+            if (this.state.fullscreen) {
+                const maincontent = document.getElementById('maincontent');
+                maincontent.classList.add('fullscreen');
+            }
+            
+            // Restore tablet sidepanel state (this will also clean up if not in tablet mode)
+            this.updateTabletSidepanelPositions();
+            
+            // Update button active states
+            this.updateTabletSidepanelButton();
+            this.updateFullscreenButton();
+        },
+        
+        updateTabletSidepanelButton() {
+            const button = document.querySelector('.klite-quick-btn[data-action="tablet-sidepanel"]');
+            if (button) {
+                // Only show active state when in tablet mode and tablet sidepanel is enabled
+                const shouldBeActive = this.isTabletMode() && this.state.tabletSidepanel;
+                button.classList.toggle('active', shouldBeActive);
+            }
+        },
+        
+        updateFullscreenButton() {
+            const button = document.querySelector('.klite-quick-btn[data-action="fullscreen"]');
+            if (button) {
+                // Show active state when fullscreen is enabled
+                button.classList.toggle('active', this.state.fullscreen);
+            }
         },
         
         addCharacterAvatars() {
