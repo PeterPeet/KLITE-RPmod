@@ -2409,9 +2409,21 @@
             display: block !important;
         }
         
-        /* Mobile input area - tighter spacing */
+        /* Mobile input area - maximized layout with relative positioning */
         .klite-mobile .klite-input-area {
             gap: 4px !important;
+            padding: 8px !important;
+            position: relative !important;
+        }
+        
+        /* Mobile textarea - maximize space */
+        .klite-mobile .klite-textarea {
+            min-height: 60px !important;
+            flex: 1 !important;
+        }
+        
+        .klite-mobile .klite-textarea-container {
+            flex: 1 !important;
         }
         
         /* Mobile left buttons - make them narrower and input area larger */
@@ -2420,6 +2432,65 @@
             flex: none !important;
             flex-direction: column !important; /* Stack buttons vertically */
             gap: 1px !important;
+        }
+        
+        /* Mobile right buttons - restructured layout */
+        .klite-mobile .klite-right-btns {
+            width: 32px !important;
+            flex: none !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 1px !important;
+            position: relative !important;
+        }
+        
+        .klite-mobile .klite-submit-btn {
+            width: 32px !important;
+            height: 60px !important;
+            font-size: 14px !important;
+            flex: none !important;
+        }
+        
+        /* Position action buttons outside the right column */
+        .klite-mobile .klite-action-btns {
+            height: 16px !important;
+            flex: none !important;
+            display: flex !important;
+            gap: 1px !important;
+            position: absolute !important;
+            bottom: 0px !important;
+            right: 0px !important;
+            width: 120px !important;
+            z-index: 10 !important;
+        }
+        
+        .klite-mobile .klite-action-btn {
+            height: 16px !important;
+            font-size: 14px !important;
+            flex: 1 !important;
+            background: var(--bg3) !important;
+            border: 1px solid var(--border) !important;
+            padding-top: 2px !important;
+        }
+        
+        /* Mobile info area - make space for action buttons */
+        .klite-mobile .klite-info {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            gap: 8px !important;
+            padding-right: 4px !important;
+            font-size: 11px !important;
+            background: transparent !important;
+        }
+        
+        .klite-mobile .klite-info span:first-child {
+            flex: 1 !important;
+        }
+        
+        .klite-mobile .klite-info span:last-child {
+            flex: 1 !important;
+            text-align: right !important;
         }
         
         .klite-mobile .klite-mobile-btn {
@@ -2505,7 +2576,7 @@
         .klite-mobile .klite-mobile-edit-btn {
             display: block !important;
             height: 30px !important;
-            bottom: 115px !important;
+            bottom: 90px !important;
         }
         
         /* Mobile content adjustments */
@@ -2528,7 +2599,7 @@
         
         /* Mobile quick button container positioning */
         .klite-mobile .klite-mobile-quick-buttons {
-            bottom: 115px !important;
+            bottom: 90px !important;
         }
         
         /* Connection info repositioning for mobile */
@@ -3438,7 +3509,7 @@
                         </div>
                         
                         <!-- Input -->
-                        <div style="flex: 1; display: flex; flex-direction: column; gap: 2px;">
+                        <div class="klite-textarea-container" style="flex: 1; display: flex; flex-direction: column; gap: 2px;">
                             <textarea id="input" class="klite-textarea" placeholder="Enter your prompt here..." style="min-height: 80px;"></textarea>
                             <div class="klite-info">
                                 <span>✍️ <span id="prompt-tokens">0</span> | 🗒️ <span id="story-tokens">0</span></span>
@@ -3477,7 +3548,7 @@
                         </div>
                         
                         <!-- Mobile-specific buttons (mobile only) -->
-                        <div class="klite-mobile-quick-buttons" style="position: absolute; bottom: 118px; left: 15px; gap: 2px;">
+                        <div class="klite-mobile-quick-buttons" style="position: absolute; bottom: 90px; left: 48px; gap: 2px;">
                             <button class="klite-btn klite-quick-btn" data-action="mode-1" title="Story Mode">📖</button>
                             <button class="klite-btn klite-quick-btn" data-action="mode-2" title="Adventure Mode">⚔️</button>
                             <button class="klite-btn klite-quick-btn" data-action="mode-3" title="Chat Mode">💬</button>
@@ -3485,7 +3556,7 @@
                             <button class="klite-btn klite-quick-btn" data-action="images" title="Images Options">🎨</button>
                         </div>
                         
-                        <button class="klite-btn klite-mobile-edit-btn" id="btn-edit" style="position: absolute; bottom: 118px; right: 15px; width: 120px;">✏️ Edit</button>
+                        <button class="klite-btn klite-mobile-edit-btn" id="btn-edit" style="position: absolute; bottom: 90px; right: 48px; width: 40px; height: 40px;">✏️</button>
                     </div>
                 </div>
             `;
@@ -3631,15 +3702,15 @@
             leftArrow.style.cssText = `
                 position: fixed !important;
                 left: 15px !important;
-                bottom: 25% !important;
-                width: 50px !important;
-                height: 50px !important;
+                bottom: 90px !important;
+                width: 32px !important;
+                height: 32px !important;
                 z-index: 9999 !important;
-                border-radius: 50% !important;
+                border-radius: 8px !important;
                 background: var(--primary) !important;
                 color: white !important;
                 border: none !important;
-                font-size: 18px !important;
+                font-size: 16px !important;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
             `;
             
@@ -3650,15 +3721,15 @@
             rightArrow.style.cssText = `
                 position: fixed !important;
                 right: 15px !important;
-                bottom: 25% !important;
-                width: 50px !important;
-                height: 50px !important;
+                bottom: 90px !important;
+                width: 32px !important;
+                height: 32px !important;
                 z-index: 9999 !important;
-                border-radius: 50% !important;
+                border-radius: 8px !important;
                 background: var(--primary) !important;
                 color: white !important;
                 border: none !important;
-                font-size: 18px !important;
+                font-size: 16px !important;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
             `;
             
@@ -4651,10 +4722,10 @@
             const btn = document.getElementById('btn-submit');
             if (btn) {
                 if (this.state.generating) {
-                    btn.textContent = 'Abort';
+                    btn.textContent = this.state.mobile.enabled ? '⏹️' : 'Abort';
                     btn.classList.add('danger');
                 } else {
-                    btn.textContent = 'Submit';
+                    btn.textContent = this.state.mobile.enabled ? '🚀' : 'Submit';
                     btn.classList.remove('danger');
                 }
                 this.log('state', `Submit button updated: ${btn.textContent}`);
