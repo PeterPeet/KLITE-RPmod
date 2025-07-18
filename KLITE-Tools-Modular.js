@@ -10233,81 +10233,480 @@ Result: ${result.total} (${result.breakdown})
     class WorldInfoManagementPanel extends KLitePanel {
         constructor() {
             super('worldinfo');
-            this.displayName = 'WorldInfo Management_WIP';
-            this.groups = ['General'];
-            this.currentGroup = 'General';
-            this.searchTerm = '';
-            this.showAdvanced = false;
-            this.searchTimeout = null;
-            this.pendingEntries = [];
+            this.displayName = 'World Info';
+            this.currentGroup = '';
+            this.searchFilter = '';
+            this.pendingWI = null; // For editing operations (direct ALPHA port)
+            this.showSettings = false; // For collapsible settings
         }
 
         async init() {
-            KLiteModular.log('panels', 'Initializing WorldInfo Management Panel');
+            KLiteModular.log('worldinfo', 'Initializing World Info Panel');
+            // Initialize WI if needed
+            if (!window.current_wi) window.current_wi = [];
+            if (!window.pending_wi_obj) window.pending_wi_obj = [];
             
-            // Load saved settings
-            this.groups = await this.loadData('groups') || ['General'];
-            this.currentGroup = await this.loadData('currentGroup') || 'General';
-            this.showAdvanced = await this.loadData('showAdvanced') || false;
+            // Start editing mode like Lite does
+            this.startEditing();
             
-            // Ensure current group exists
-            if (!this.groups.includes(this.currentGroup)) {
-                this.currentGroup = this.groups[0] || 'General';
-            }
-            
-            // Initialize with current KoboldAI Lite WI data
-            this.loadFromKoboldAI();
+            // Set initial group
+            const groups = this.getGroups();
+            this.currentGroup = window.curr_wi_tab || groups[0] || '';
         }
 
         render() {
-            const wiEntries = this.getFilteredEntries();
-            const stats = this.getStats();
+            // Initialize pending WI from current if needed
+            if (!this.pendingWI) {
+                this.pendingWI = JSON.parse(JSON.stringify(window.current_wi || []));
+            }
+            
+            const groups = this.getGroups();
+            const entries = this.getFilteredEntries();
+            const groupEntries = this.pendingWI.filter(e => (e.wigroup || '') === this.currentGroup);
+            const activeEntries = groupEntries.filter(e => !e.widisabled).length;
+            
+            // Get WI settings
+            const caseSensitive = window.localsettings?.case_sensitive_wi || false;
+            const insertLocation = window.wi_insertlocation || "0";
+            const searchDepth = window.wi_searchdepth || "0";
             
             return `
-                <div class="klite-wi-header">
-                    <div class="klite-wi-tabs">
-                        ${this.groups.map(group => `
-                            <button class="klite-wi-tab ${group === this.currentGroup ? 'active' : ''}" 
-                                    data-group="${group}">
-                                ${group} (${this.getGroupEntryCount(group)})
-                            </button>
-                        `).join('')}
-                        <button class="klite-wi-tab-add" data-action="add-group">+</button>
-                    </div>
-                    <div class="klite-wi-group-controls">
-                        <button class="klite-btn klite-btn-small" data-action="rename-group">Rename</button>
-                        <button class="klite-btn klite-btn-small danger" data-action="delete-group">Delete Group</button>
+                <!-- Header -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0;">🌍 World Info</h3>
+                    <div style="text-align: right; font-size: 11px; color: var(--klite-text-muted);">
+                        <div>${activeEntries}/${groupEntries.length} active in group</div>
+                        <div>${this.pendingWI.length} total entries</div>
                     </div>
                 </div>
                 
-                <div class="klite-wi-controls">
-                    <div class="klite-wi-search">
-                        <input type="text" class="klite-input" placeholder="Search entries..." 
-                               value="${this.searchTerm}" data-action="search">
-                        <button class="klite-btn klite-btn-small" data-action="clear-search">Clear</button>
-                    </div>
-                    <div class="klite-wi-actions">
-                        <button class="klite-btn klite-btn-primary" data-action="add-entry">Add Entry</button>
-                        <button class="klite-btn klite-btn-secondary" data-action="import-export">Import/Export</button>
-                        <button class="klite-btn klite-btn-secondary" data-action="toggle-advanced">
-                            ${this.showAdvanced ? 'Hide' : 'Show'} Advanced
-                        </button>
-                    </div>
+                <!-- Search and Controls -->
+                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                    <input type="text" id="wi-search" placeholder="🔍 Quick search..." value="${this.searchFilter}" 
+                           style="flex: 1; padding: 6px; background: var(--klite-input-bg); border: 1px solid var(--klite-border-color); color: var(--klite-text-color); border-radius: 4px; font-size: 12px;">
+                    <button class="klite-btn klite-btn-primary" data-action="add-wi" style="padding: 6px 12px; font-size: 12px;">+Entry</button>
                 </div>
                 
-                ${this.showAdvanced ? this.renderAdvancedSettings() : ''}
-                
-                <div class="klite-wi-stats">
-                    <span>Active: ${stats.active}/${stats.total}</span>
-                    <span>Group: ${this.currentGroup}</span>
-                    <button class="klite-btn klite-btn-small" data-action="toggle-all">Toggle All</button>
+                <!-- Group Tabs -->
+                <div style="display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 15px; padding: 10px; background: var(--klite-bg-secondary); border-radius: 4px;">
+                    ${groups.map(g => 
+                        `<button class="klite-btn ${g === this.currentGroup ? 'klite-btn-primary' : 'klite-btn-secondary'}" 
+                                 data-action="wi-group" data-group="${g}" 
+                                 style="padding: 4px 12px; font-size: 11px;">
+                            ${g || 'General'}
+                        </button>`
+                    ).join('')}
+                    <button class="klite-btn klite-btn-secondary" data-action="add-wi-group" 
+                            style="padding: 4px 12px; font-size: 11px;">
+                        📁+
+                    </button>
                 </div>
                 
-                <div class="klite-wi-entries">
-                    ${wiEntries.length > 0 ? wiEntries.map((entry, index) => this.renderEntry(entry, index)).join('') : 
-                      '<div class="klite-empty-state">No entries found</div>'}
+                <!-- Control Buttons -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
+                    <button class="klite-btn klite-btn-secondary" data-action="toggle-wi-settings" style="font-size: 12px;">⚙️ Settings</button>
+                    <button class="klite-btn klite-btn-secondary" style="font-size: 12px;">Import/Export</button>
+                </div>
+                
+                <!-- Toggle Group -->
+                <div style="margin-bottom: 15px;">
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 12px;">
+                        <input type="checkbox" id="wi-toggle-group" ${!groupEntries.some(e => e.widisabled) ? 'checked' : ''}>
+                        Toggle Entire Group
+                    </label>
+                </div>
+                
+                <!-- Settings -->
+                ${this.showSettings ? `<div style="margin-bottom: 15px; padding: 12px; background: var(--klite-bg-secondary); border-radius: 4px;">
+                    <h4 style="margin: 0 0 10px 0; font-size: 13px;">⚙️ World Info Settings</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+                        <div>
+                            <label style="font-size: 12px; color: var(--klite-text-muted);">Insert Location:</label>
+                            <select id="wi-insert-location" style="width: 100%; padding: 4px; background: var(--klite-input-bg); border: 1px solid var(--klite-border-color); color: var(--klite-text-color); border-radius: 4px; font-size: 11px;">
+                                <option value="0" ${insertLocation === '0' ? 'selected' : ''}>After Memory</option>
+                                <option value="1" ${insertLocation === '1' ? 'selected' : ''}>Before A/N</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 12px; color: var(--klite-text-muted);">Search Depth:</label>
+                            <select id="wi-search-depth" style="width: 100%; padding: 4px; background: var(--klite-input-bg); border: 1px solid var(--klite-border-color); color: var(--klite-text-color); border-radius: 4px; font-size: 11px;">
+                                <option value="0" ${searchDepth === '0' ? 'selected' : ''}>Full Context</option>
+                                <option value="8192" ${searchDepth === '8192' ? 'selected' : ''}>Last 8192</option>
+                                <option value="4096" ${searchDepth === '4096' ? 'selected' : ''}>Last 4096</option>
+                                <option value="2048" ${searchDepth === '2048' ? 'selected' : ''}>Last 2048</option>
+                                <option value="1024" ${searchDepth === '1024' ? 'selected' : ''}>Last 1024</option>
+                                <option value="512" ${searchDepth === '512' ? 'selected' : ''}>Last 512</option>
+                                <option value="256" ${searchDepth === '256' ? 'selected' : ''}>Last 256</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 12px;">
+                            <input type="checkbox" id="wi-case-sensitive" ${caseSensitive ? 'checked' : ''}>
+                            Case Sensitive Keys
+                        </label>
+                    </div>
+                </div>` : ''}
+                
+                <!-- Entries -->
+                <div id="wi-entries">
+                    ${entries.length ? entries.map((e, displayIndex) => this.renderEntry(e, displayIndex)).join('') : 
+                      '<div style="text-align: center; padding: 40px; color: var(--klite-text-muted);">No world info entries.<br>Click [+Entry] to add a new entry to current group.</div>'}
                 </div>
             `;
+        }
+        
+        // ALPHA-style core methods
+        startEditing() {
+            // Copy current_wi to pending for editing
+            this.pendingWI = JSON.parse(JSON.stringify(window.current_wi || []));
+            
+            // Sort by groups like Lite does
+            this.pendingWI = this.stableSort(this.pendingWI, (a, b) => {
+                const nameA = a.wigroup || '';
+                const nameB = b.wigroup || '';
+                return nameA.localeCompare(nameB);
+            });
+        }
+        
+        commitChanges() {
+            // Save pending changes to current_wi
+            window.current_wi = JSON.parse(JSON.stringify(this.pendingWI));
+            window.pending_wi_obj = this.pendingWI;
+            window.autosave?.();
+        }
+        
+        saveCurrentEdits() {
+            // Save all current input values
+            const entries = document.querySelectorAll('[data-wi-index]');
+            entries.forEach(elem => {
+                const index = parseInt(elem.dataset.wiIndex);
+                const field = elem.dataset.wiField;
+                if (this.pendingWI[index] && field) {
+                    if (field === 'probability') {
+                        this.pendingWI[index][field] = parseInt(elem.value) || 100;
+                    } else {
+                        this.pendingWI[index][field] = elem.value;
+                    }
+                }
+            });
+        }
+        
+        getGroups() {
+            const groups = new Set();
+            this.pendingWI.forEach(e => groups.add(e.wigroup || ''));
+            return Array.from(groups).sort();
+        }
+        
+        getFilteredEntries() {
+            const filtered = this.pendingWI.filter((e, index) => {
+                const matchGroup = (e.wigroup || '') === this.currentGroup;
+                const matchSearch = !this.searchFilter || 
+                    e.key?.toLowerCase().includes(this.searchFilter.toLowerCase()) ||
+                    e.keysecondary?.toLowerCase().includes(this.searchFilter.toLowerCase()) ||
+                    e.content?.toLowerCase().includes(this.searchFilter.toLowerCase()) ||
+                    e.comment?.toLowerCase().includes(this.searchFilter.toLowerCase());
+                return matchGroup && matchSearch;
+            });
+            
+            return filtered;
+        }
+        
+        renderEntry(entry, displayIndex) {
+            const actualIndex = this.pendingWI.indexOf(entry);
+            const isFirst = displayIndex === 0;
+            const isLast = displayIndex === this.getFilteredEntries().length - 1;
+            
+            return `
+                <div class="klite-wi-entry ${entry.widisabled ? 'disabled' : ''}" 
+                     style="margin-bottom: 10px; padding: 10px; background: var(--klite-bg-secondary); border: 1px solid var(--klite-border-color); border-radius: 4px; opacity: ${entry.widisabled ? '0.5' : '1'};">
+                    
+                    <!-- Header Row -->
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                        <button class="klite-btn ${entry.widisabled ? 'klite-btn-danger' : 'klite-btn-success'}" 
+                                data-action="wi-toggle" data-index="${actualIndex}" 
+                                style="width: 24px; height: 24px; padding: 0; font-size: 12px;"
+                                title="${entry.widisabled ? 'Enable entry' : 'Disable entry'}">
+                            ⚡
+                        </button>
+                        
+                        <button class="klite-btn klite-btn-danger" data-action="wi-delete" data-index="${actualIndex}" 
+                                style="width: 24px; height: 24px; padding: 0; font-size: 12px;"
+                                title="Delete entry">
+                            ×
+                        </button>
+                        
+                        <button class="klite-btn klite-btn-secondary" data-action="wi-up" data-index="${actualIndex}" 
+                                style="width: 24px; height: 24px; padding: 0; font-size: 12px;"
+                                title="Move up"
+                                ${isFirst ? 'disabled' : ''}>
+                            ▲
+                        </button>
+                        
+                        <button class="klite-btn klite-btn-secondary" data-action="wi-down" data-index="${actualIndex}" 
+                                style="width: 24px; height: 24px; padding: 0; font-size: 12px;"
+                                title="Move down"
+                                ${isLast ? 'disabled' : ''}>
+                            ▼
+                        </button>
+                        
+                        <div style="flex: 1; text-align: right; display: flex; align-items: center; gap: 8px; justify-content: flex-end;">
+                            <!-- Toggles -->
+                            <button class="klite-btn ${entry.selective ? 'klite-btn-primary' : 'klite-btn-secondary'}" 
+                                    data-action="wi-selective" data-index="${actualIndex}" 
+                                    style="width: 30px; height: 24px; padding: 0; font-size: 12px;"
+                                    title="Selective Key mode (requires both primary and secondary keys)">
+                                📑
+                            </button>
+                            
+                            <button class="klite-btn ${entry.constant ? 'klite-btn-primary' : 'klite-btn-secondary'}" 
+                                    data-action="wi-constant" data-index="${actualIndex}" 
+                                    style="width: 30px; height: 24px; padding: 0; font-size: 12px;"
+                                    title="Constant Key mode (always included)">
+                                📌
+                            </button>
+                            
+                            <!-- Probability -->
+                            <select class="klite-select" data-wi-index="${actualIndex}" data-wi-field="probability" 
+                                    style="width: 70px; height: 24px; padding: 2px; font-size: 11px;">
+                                ${[100, 90, 75, 50, 25, 10, 5, 1].map(p => 
+                                    `<option value="${p}" ${entry.probability === p ? 'selected' : ''}>${p}%</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Primary Key Row -->
+                    <div style="margin-bottom: 8px;">
+                        <input class="klite-input" placeholder="Key(s) - comma separated" 
+                               value="${this.escapeHtml(entry.key || '')}"
+                               data-wi-index="${actualIndex}" data-wi-field="key"
+                               style="width: 100%; font-size: 12px;">
+                    </div>
+                    
+                    <!-- Secondary Keys (if selective) -->
+                    ${entry.selective ? `
+                        <div style="margin-bottom: 8px;">
+                            <input class="klite-input" placeholder="Secondary Key(s) - comma separated" 
+                                   value="${this.escapeHtml(entry.keysecondary || '')}"
+                                   data-wi-index="${actualIndex}" data-wi-field="keysecondary"
+                                   style="width: 100%; font-size: 12px;">
+                        </div>
+                        <div style="margin-bottom: 8px;">
+                            <input class="klite-input" placeholder="Anti Key(s) - comma separated (optional)" 
+                                   value="${this.escapeHtml(entry.keyanti || '')}"
+                                   data-wi-index="${actualIndex}" data-wi-field="keyanti"
+                                   style="width: 100%; font-size: 12px;">
+                        </div>
+                    ` : ''}
+                    
+                    <!-- Content -->
+                    <textarea class="klite-textarea" placeholder="WI Entry..." 
+                              style="width: 100%; min-height: 80px; font-size: 12px; margin-bottom: 8px;"
+                              data-wi-index="${actualIndex}" data-wi-field="content">${this.escapeHtml(entry.content || '')}</textarea>
+                    
+                    <!-- Comment -->
+                    <input class="klite-input" placeholder="Comment (only here for debugging)" 
+                           value="${this.escapeHtml(entry.comment || '')}"
+                           data-wi-index="${actualIndex}" data-wi-field="comment"
+                           style="width: 100%; font-size: 11px;">
+                </div>
+            `;
+        }
+        
+        escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+        
+        stableSort(arr, compareFn) {
+            // Stable sort implementation
+            return arr.map((item, index) => ({ item, index }))
+                      .sort((a, b) => compareFn(a.item, b.item) || a.index - b.index)
+                      .map(({ item }) => item);
+        }
+        
+        // ALPHA-style action handlers and event management
+        actions = {
+            'add-wi': () => {
+                this.saveCurrentEdits();
+                const newEntry = {
+                    key: '',
+                    keysecondary: '',
+                    keyanti: '',
+                    content: '',
+                    comment: '',
+                    folder: null,
+                    selective: false,
+                    constant: false,
+                    probability: 100,
+                    wigroup: this.currentGroup,
+                    widisabled: false
+                };
+                this.pendingWI.push(newEntry);
+                this.commitChanges();
+                this.refresh();
+            },
+            
+            'add-wi-group': () => {
+                const groupName = prompt('Enter name of new WorldInfo Group:\n\nGroups can be used to segment data, e.g. entries for a specific place, person or event. Each entire group can be toggled on/off on demand.\n\nNote: You cannot rename a group after creation.');
+                if (groupName) {
+                    const sanitized = groupName.replace(/[^a-zA-Z0-9_\- ]/g, '').trim();
+                    if (sanitized) {
+                        this.saveCurrentEdits();
+                        // Add a dummy entry to create the group
+                        const newEntry = {
+                            key: '',
+                            keysecondary: '',
+                            keyanti: '',
+                            content: '',
+                            comment: '',
+                            folder: null,
+                            selective: false,
+                            constant: false,
+                            probability: 100,
+                            wigroup: sanitized,
+                            widisabled: false
+                        };
+                        this.pendingWI.push(newEntry);
+                        this.currentGroup = sanitized;
+                        window.curr_wi_tab = sanitized;
+                        this.commitChanges();
+                        this.refresh();
+                    }
+                }
+            },
+            
+            'toggle-wi-settings': () => {
+                this.showSettings = !this.showSettings;
+                this.refresh();
+            },
+            
+            'wi-toggle': (e) => {
+                const index = parseInt(e.target.dataset.index);
+                const entry = this.pendingWI[index];
+                if (entry) {
+                    entry.widisabled = !entry.widisabled;
+                    this.commitChanges();
+                    this.refresh();
+                }
+            },
+            
+            'wi-selective': (e) => {
+                const index = parseInt(e.target.dataset.index);
+                const entry = this.pendingWI[index];
+                if (entry) {
+                    entry.selective = !entry.selective;
+                    this.commitChanges();
+                    this.refresh();
+                }
+            },
+            
+            'wi-constant': (e) => {
+                const index = parseInt(e.target.dataset.index);
+                const entry = this.pendingWI[index];
+                if (entry) {
+                    entry.constant = !entry.constant;
+                    this.commitChanges();
+                    this.refresh();
+                }
+            },
+            
+            'wi-delete': (e) => {
+                const index = parseInt(e.target.dataset.index);
+                if (confirm('Delete this World Info entry?')) {
+                    this.saveCurrentEdits();
+                    this.pendingWI.splice(index, 1);
+                    this.commitChanges();
+                    this.refresh();
+                }
+            },
+            
+            'wi-up': (e) => {
+                const index = parseInt(e.target.dataset.index);
+                this.moveEntry(index, -1);
+            },
+            
+            'wi-down': (e) => {
+                const index = parseInt(e.target.dataset.index);
+                this.moveEntry(index, 1);
+            }
+        }
+        
+        postRender() {
+            // Setup all action handlers
+            document.querySelectorAll('[data-action]').forEach(button => {
+                const action = button.dataset.action;
+                const actionHandler = this.actions[action];
+                if (actionHandler) {
+                    button.addEventListener('click', actionHandler);
+                }
+            });
+            
+            // Setup group tab handlers
+            document.querySelectorAll('[data-action="wi-group"]').forEach(button => {
+                button.addEventListener('click', e => {
+                    this.saveCurrentEdits();
+                    this.currentGroup = e.target.dataset.group;
+                    window.curr_wi_tab = this.currentGroup;
+                    this.refresh();
+                });
+            });
+            
+            // Setup event handlers
+            this.setupEventHandlers();
+            
+            // Setup field change handlers
+            document.querySelectorAll('[data-wi-index]').forEach(element => {
+                element.addEventListener('change', e => {
+                    const index = parseInt(e.target.dataset.wiIndex);
+                    const field = e.target.dataset.wiField;
+                    if (this.pendingWI[index] && field) {
+                        if (field === 'probability') {
+                            this.pendingWI[index][field] = parseInt(e.target.value) || 100;
+                        } else {
+                            this.pendingWI[index][field] = e.target.value;
+                        }
+                        this.commitChanges();
+                    }
+                });
+            });
+        }
+        
+        moveEntry(index, direction) {
+            this.saveCurrentEdits();
+            const entry = this.pendingWI[index];
+            const newIndex = index + direction;
+            
+            if (newIndex >= 0 && newIndex < this.pendingWI.length) {
+                const targetEntry = this.pendingWI[newIndex];
+                // Only swap if same group
+                if ((entry.wigroup || '') === (targetEntry.wigroup || '')) {
+                    this.pendingWI[index] = targetEntry;
+                    this.pendingWI[newIndex] = entry;
+                    this.commitChanges();
+                    this.refresh();
+                }
+            }
+        }
+        
+        toggleGroupEnabled(enabled) {
+            this.pendingWI.forEach(entry => {
+                if ((entry.wigroup || '') === this.currentGroup) {
+                    entry.widisabled = !enabled;
+                }
+            });
+            this.commitChanges();
+            this.refresh();
+        }
+        
+        refresh() {
+            const panel = document.querySelector('[data-panel="worldinfo"]');
+            if (panel) {
+                panel.innerHTML = this.render();
+                this.postRender();
+            }
         }
 
         renderAdvancedSettings() {
@@ -10862,14 +11261,14 @@ Result: ${result.total} (${result.breakdown})
         loadFromKoboldAI() {
             // Load current WI data from KoboldAI Lite
             if (window.worldinfo) {
-                this.pendingEntries = [...window.worldinfo];
+                this.pendingWI = [...window.worldinfo];
             }
         }
 
         saveToKoboldAI() {
             // Save current entries back to KoboldAI Lite
             if (window.worldinfo) {
-                window.worldinfo = [...this.pendingEntries];
+                window.worldinfo = [...this.pendingWI];
                 
                 // Trigger KoboldAI Lite to refresh WI
                 if (window.worldinfoFromData) {
@@ -10879,34 +11278,34 @@ Result: ${result.total} (${result.breakdown})
         }
 
         getGroupEntries(group) {
-            return this.pendingEntries.filter(entry => (entry.group || 'General') === group);
+            return this.pendingWI.filter(entry => (entry.group || 'General') === group);
         }
 
         getEntryById(id) {
-            return this.pendingEntries.find(entry => (entry.id || this.pendingEntries.indexOf(entry)) == id);
+            return this.pendingWI.find(entry => (entry.id || this.pendingWI.indexOf(entry)) == id);
         }
 
         addEntryToKoboldAI(entry) {
             entry.id = Date.now().toString();
-            this.pendingEntries.push(entry);
+            this.pendingWI.push(entry);
             this.saveToKoboldAI();
         }
 
         updateEntryInKoboldAI(entryId, newData) {
-            const index = this.pendingEntries.findIndex(e => (e.id || this.pendingEntries.indexOf(e)) == entryId);
+            const index = this.pendingWI.findIndex(e => (e.id || this.pendingWI.indexOf(e)) == entryId);
             if (index !== -1) {
-                this.pendingEntries[index] = { ...this.pendingEntries[index], ...newData };
+                this.pendingWI[index] = { ...this.pendingWI[index], ...newData };
                 this.saveToKoboldAI();
             }
         }
 
         removeEntryFromKoboldAI(entryId) {
-            this.pendingEntries = this.pendingEntries.filter(e => (e.id || this.pendingEntries.indexOf(e)) != entryId);
+            this.pendingWI = this.pendingWI.filter(e => (e.id || this.pendingWI.indexOf(e)) != entryId);
             this.saveToKoboldAI();
         }
 
         updateEntriesGroup(oldGroup, newGroup) {
-            this.pendingEntries.forEach(entry => {
+            this.pendingWI.forEach(entry => {
                 if ((entry.group || 'General') === oldGroup) {
                     entry.group = newGroup;
                 }
@@ -10915,7 +11314,7 @@ Result: ${result.total} (${result.breakdown})
         }
 
         deleteGroupEntries(group) {
-            this.pendingEntries = this.pendingEntries.filter(entry => (entry.group || 'General') !== group);
+            this.pendingWI = this.pendingWI.filter(entry => (entry.group || 'General') !== group);
             this.saveToKoboldAI();
         }
 
@@ -11020,7 +11419,7 @@ Result: ${result.total} (${result.breakdown})
             this.currentGroup = 'General';
             this.searchTerm = '';
             this.showAdvanced = false;
-            this.pendingEntries = [];
+            this.pendingWI = [];
         }
     }
 
@@ -11030,14 +11429,8 @@ Result: ${result.total} (${result.breakdown})
     class TextDatabasePanel extends KLitePanel {
         constructor() {
             super('textdb');
-            this.displayName = 'Text Database_WIP';
+            this.displayName = 'Text Database';
             this.showAdvanced = false;
-            this.saveTimeout = null;
-            this.stats = {
-                wordCount: 0,
-                charCount: 0,
-                memoryUsage: 0
-            };
         }
 
         async init() {
@@ -11046,534 +11439,459 @@ Result: ${result.total} (${result.breakdown})
             // Load saved settings
             this.showAdvanced = await this.loadData('showAdvanced') || false;
             
-            // Initialize KoboldAI Lite integration
-            this.initKoboldAIIntegration();
+            // Initialize TextDB variables
+            this.ensureTextDBInitialized();
             
-            // Update statistics
-            this.updateStats();
+            setTimeout(() => {
+                this.setupEventHandlers();
+                this.setupAdvancedControls();
+                this.setupImportModal();
+            }, 100);
         }
 
         render() {
-            const isEnabled = this.isEnabled();
-            const content = this.getContent();
+            this.ensureTextDBInitialized();
+            
+            const data = window.documentdb_data || '';
+            const enabled = window.documentdb_enabled || false;
+            const searchHistory = window.documentdb_searchhistory || false;
+            const numResults = window.documentdb_numresults || 3;
+            const searchRange = window.documentdb_searchrange || 300;
+            const chunkSize = window.documentdb_chunksize || 800;
+            
+            const charCount = data.length;
+            const wordCount = data.split(/\s+/).filter(word => word.length > 0).length;
+            const memorySizeMB = (charCount * 2) / (1024 * 1024); // Rough JS memory estimate
             
             return `
-                <div class="klite-textdb-header">
-                    <div class="klite-textdb-controls">
-                        <label class="klite-textdb-toggle">
-                            <input type="checkbox" ${isEnabled ? 'checked' : ''} 
-                                   data-action="toggle-enabled">
-                            Enable Text Database
-                        </label>
-                        <button class="klite-btn klite-btn-small" data-action="import-files">
-                            Import Files
-                        </button>
-                        <button class="klite-btn klite-btn-small" data-action="export-database">
-                            Export Database
-                        </button>
-                        <button class="klite-btn klite-btn-small" data-action="toggle-advanced">
-                            ${this.showAdvanced ? 'Hide' : 'Show'} Advanced
-                        </button>
+                <!-- Header -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0;">📚 Text Database</h3>
+                    <div style="font-size: 11px; color: ${enabled ? 'var(--success)' : 'var(--muted)'}; font-weight: bold;">
+                        ${enabled ? '✓ ACTIVE' : '✗ DISABLED'}
+                    </div>
+                </div>
+                
+                <!-- Main Controls -->
+                ${this.section('🎛️ Database Control',
+                    `<div class="klite-row" style="margin-bottom: 15px;">
+                        ${this.checkbox('textdb-enabled', 'Enable Text Database', enabled)}
                     </div>
                     
-                    <div class="klite-textdb-stats">
-                        <div class="klite-textdb-stat">
-                            <span class="label">Words:</span>
-                            <span class="value">${this.stats.wordCount}</span>
+                    <div style="margin-bottom: 15px;">
+                        <div class="klite-buttons-fill" style="margin-bottom: 8px;">
+                            ${this.button('📁 Import Files', 'secondary', 'import-textdb')}
+                            ${this.button('📤 Export', 'secondary', 'export-textdb')}
                         </div>
-                        <div class="klite-textdb-stat">
-                            <span class="label">Characters:</span>
-                            <span class="value">${this.stats.charCount}</span>
+                        <div class="klite-buttons-fill">
+                            ${this.button('🔧 Advanced', '', 'toggle-textdb-advanced')}
+                            ${this.button('🗑️ Clear All', 'danger', 'clear-textdb')}
                         </div>
-                        <div class="klite-textdb-stat">
-                            <span class="label">Memory:</span>
-                            <span class="value">${this.stats.memoryUsage} KB</span>
+                    </div>`
+                )}
+                
+                <!-- Advanced Settings -->
+                ${this.showAdvanced ? `
+                    ${this.section('⚙️ Advanced Settings', `
+                        <div style="margin-bottom: 15px;">
+                            <!-- Search Configuration -->
+                            <h4 style="margin-top: 0;">Search Configuration</h4>
+                            
+                            <label>Number of Results (1-5):</label>
+                            <div class="klite-row" style="margin-bottom: 10px;">
+                                <input id="textdb-num-results" type="range" min="1" max="5" value="${numResults}" 
+                                       class="klite-input" style="flex: 1; margin-right: 10px;">
+                                <span id="textdb-num-results-value" style="min-width: 30px; font-weight: bold;">${numResults}</span>
+                            </div>
+                            
+                            <label>Search Range - Recent Text (0-1024 chars):</label>
+                            <div class="klite-row" style="margin-bottom: 10px;">
+                                <input id="textdb-search-range" type="range" min="0" max="1024" step="50" value="${searchRange}" 
+                                       class="klite-input" style="flex: 1; margin-right: 10px;">
+                                <span id="textdb-search-range-value" style="min-width: 60px; font-weight: bold;">${searchRange}</span>
+                            </div>
+                            
+                            <label>Chunk Size (32-2048 chars):</label>
+                            <div class="klite-row" style="margin-bottom: 15px;">
+                                <input id="textdb-chunk-size" type="range" min="32" max="2048" step="32" value="${chunkSize}" 
+                                       class="klite-input" style="flex: 1; margin-right: 10px;">
+                                <span id="textdb-chunk-size-value" style="min-width: 60px; font-weight: bold;">${chunkSize}</span>
+                            </div>
+                            
+                            <!-- Search Options -->
+                            <h4>Search Options</h4>
+                            ${this.checkbox('textdb-search-history', 'Include Story History in Search', searchHistory)}
+                            
+                            <!-- Performance Info -->
+                            <div class="klite-info klite-mt">
+                                <strong>Performance Impact:</strong><br>
+                                <span style="font-size: 11px; color: var(--muted);">
+                                    Search speed decreases with larger chunks and history inclusion.
+                                </span>
+                            </div>
+                        </div>
+                    `)}
+                ` : ''}
+                
+                <!-- Data Editor -->
+                ${this.section('📝 Text Data', `
+                    <div style="margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div style="font-size: 11px; color: var(--muted);">
+                                ${wordCount.toLocaleString()} words • ${charCount.toLocaleString()} chars
+                            </div>
+                            <div style="font-size: 11px; color: var(--muted);">
+                                Auto-saved • ${charCount.toLocaleString()} characters
+                            </div>
                         </div>
                     </div>
-                </div>
+                    <div style="display: flex; flex-direction: column; height: calc(100vh - 350px);">
+                        <textarea id="textdb-data" class="klite-textarea klite-textarea-fullheight" 
+                                  style="font-family: monospace; font-size: 12px; height: 100%;"
+                                  placeholder="TextDB data...">${this.escapeHtml(data)}</textarea>
+                    </div>`
+                )}
                 
-                ${this.showAdvanced ? this.renderAdvancedSettings() : ''}
-                
-                <div class="klite-textdb-editor">
-                    <textarea class="klite-textdb-textarea" 
-                              placeholder="Enter your text database content here... Import files or paste text directly."
-                              data-action="content-change"
-                              ${!isEnabled ? 'disabled' : ''}>${content}</textarea>
-                </div>
-                
-                <div class="klite-textdb-dropzone" data-action="file-drop">
-                    <div class="klite-textdb-dropzone-content">
-                        <div class="klite-textdb-dropzone-icon">📁</div>
-                        <div class="klite-textdb-dropzone-text">
-                            Drop files here to import<br>
-                            <small>Supports .txt, .md, .json files</small>
+                <!-- Import Modal Placeholder -->
+                <div id="textdb-import-modal" class="klite-modal" style="display: none;">
+                    <div class="klite-modal-content">
+                        <div class="klite-modal-header">
+                            <h3>📁 Import Text Database</h3>
+                            <button class="klite-modal-close" onclick="document.getElementById('textdb-import-modal').style.display='none'"> -->
+                        </div>
+                        <div class="klite-modal-body">
+                            <div class="klite-control-group">
+                                <label>Import Mode:</label>
+                                <select id="textdb-import-mode" class="klite-input">
+                                    <option value="append">Append to existing content</option>
+                                    <option value="replace">Replace all content</option>
+                                </select>
+                            </div>
+                            
+                            <div class="klite-control-group">
+                                <label>File Format:</label>
+                                <div id="textdb-file-drop" style="border: 2px dashed var(--border); padding: 20px; text-align: center; margin: 10px 0; border-radius: 4px; cursor: pointer;">
+                                    <div>📁 Drop files here or click to select</div>
+                                    <div style="font-size: 11px; color: var(--muted); margin-top: 5px;">Supports: .txt, .md, .json</div>
+                                </div>
+                                <input type="file" id="textdb-file-input" accept=".txt,.md,.json" multiple style="display: none;">
+                            </div>
+                        </div>
+                        <div class="klite-modal-footer">
+                            ${this.button('Import', 'primary', 'execute-textdb-import')}
+                            ${this.button('Cancel', 'secondary', 'close-textdb-import')}
                         </div>
                     </div>
                 </div>
             `;
         }
 
-        renderAdvancedSettings() {
-            const settings = this.getSettings();
+        ensureTextDBInitialized() {
+            // Initialize all TextDB variables if they don't exist
+            if (typeof window.documentdb_enabled === 'undefined') window.documentdb_enabled = false;
+            if (typeof window.documentdb_searchhistory === 'undefined') window.documentdb_searchhistory = false;
+            if (typeof window.documentdb_numresults === 'undefined') window.documentdb_numresults = 3;
+            if (typeof window.documentdb_searchrange === 'undefined') window.documentdb_searchrange = 300;
+            if (typeof window.documentdb_chunksize === 'undefined') window.documentdb_chunksize = 800;
+            if (typeof window.documentdb_data === 'undefined') window.documentdb_data = '';
             
-            return `
-                <div class="klite-textdb-advanced">
-                    <h4>Advanced Settings</h4>
-                    
-                    <div class="klite-textdb-setting">
-                        <label>
-                            <input type="checkbox" data-setting="searchhistory" 
-                                   ${settings.searchhistory ? 'checked' : ''}>
-                            Include Story History in Searches
-                        </label>
-                        <small>Enables searching through the conversation history</small>
-                    </div>
-                    
-                    <div class="klite-textdb-setting">
-                        <label>Search Results Count: <span class="value">${settings.numresults}</span></label>
-                        <input type="range" min="1" max="5" value="${settings.numresults}" 
-                               data-setting="numresults" class="klite-slider">
-                        <small>Number of search results to return (1-5)</small>
-                    </div>
-                    
-                    <div class="klite-textdb-setting">
-                        <label>Search Range: <span class="value">${settings.searchrange}</span> chars</label>
-                        <input type="range" min="0" max="1024" value="${settings.searchrange}" 
-                               data-setting="searchrange" class="klite-slider">
-                        <small>Recent text range to include in searches (0-1024 characters)</small>
-                    </div>
-                    
-                    <div class="klite-textdb-setting">
-                        <label>Chunk Size: <span class="value">${settings.chunksize}</span> chars</label>
-                        <input type="range" min="32" max="2048" value="${settings.chunksize}" 
-                               data-setting="chunksize" class="klite-slider">
-                        <small>Text chunk size for processing (32-2048 characters)<br>
-                        Smaller chunks use less memory but may reduce context quality</small>
-                    </div>
-                    
-                    <div class="klite-textdb-setting">
-                        <button class="klite-btn klite-btn-small klite-btn-secondary" 
-                                data-action="clear-database">
-                            Clear Database
-                        </button>
-                        <small>Remove all text database content</small>
-                    </div>
-                </div>
-            `;
+            KLiteModular.log('panels', 'TextDB variables initialized');
         }
 
         postRender() {
             KLiteModular.log('panels', 'Setting up Text Database Panel event handlers');
             
-            // Main controls
-            document.querySelectorAll('[data-action]').forEach(element => {
-                element.addEventListener('click', (e) => {
-                    const action = e.target.dataset.action;
+            // Bind actions using the framework
+            for (const [action, handler] of Object.entries(this.actions)) {
+                const elements = document.querySelectorAll(`[data-action="${action}"]`);
+                elements.forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        handler(e);
+                    });
+                });
+            }
+        }
+
+        setupEventHandlers() {
+            // Main enable/disable
+            const enabledCheckbox = document.getElementById('textdb-enabled');
+            if (enabledCheckbox) {
+                enabledCheckbox.addEventListener('change', e => {
+                    window.documentdb_enabled = e.target.checked;
+                    this.save();
+                    this.refresh();
+                    KLiteModular.log('panels', `TextDB enabled: ${e.target.checked}`);
+                });
+            }
+            
+            // Text data editor
+            const dataTextarea = document.getElementById('textdb-data');
+            if (dataTextarea) {
+                let saveTimeout;
+                dataTextarea.addEventListener('input', e => {
+                    window.documentdb_data = e.target.value;
                     
-                    switch (action) {
-                        case 'toggle-enabled':
-                            this.toggleEnabled();
-                            break;
-                        case 'import-files':
-                            this.showImportModal();
-                            break;
-                        case 'export-database':
-                            this.exportDatabase();
-                            break;
-                        case 'toggle-advanced':
-                            this.toggleAdvanced();
-                            break;
-                        case 'clear-database':
-                            this.clearDatabase();
-                            break;
+                    clearTimeout(saveTimeout);
+                    saveTimeout = setTimeout(() => {
+                        this.save();
+                    }, 1000);
+                });
+            }
+            
+            // Search history checkbox
+            const searchHistoryCheckbox = document.getElementById('textdb-search-history');
+            if (searchHistoryCheckbox) {
+                searchHistoryCheckbox.addEventListener('change', e => {
+                    window.documentdb_searchhistory = e.target.checked;
+                    this.save();
+                    KLiteModular.log('panels', `TextDB search history: ${e.target.checked}`);
+                });
+            }
+        }
+
+        setupAdvancedControls() {
+            // Number of results slider
+            const numResultsSlider = document.getElementById('textdb-num-results');
+            const numResultsValue = document.getElementById('textdb-num-results-value');
+            if (numResultsSlider && numResultsValue) {
+                numResultsSlider.addEventListener('input', e => {
+                    const value = parseInt(e.target.value);
+                    numResultsValue.textContent = value;
+                    window.documentdb_numresults = value;
+                    this.save();
+                });
+            }
+            
+            // Search range slider
+            const searchRangeSlider = document.getElementById('textdb-search-range');
+            const searchRangeValue = document.getElementById('textdb-search-range-value');
+            if (searchRangeSlider && searchRangeValue) {
+                searchRangeSlider.addEventListener('input', e => {
+                    const value = parseInt(e.target.value);
+                    searchRangeValue.textContent = value;
+                    window.documentdb_searchrange = value;
+                    this.save();
+                });
+            }
+            
+            // Chunk size slider
+            const chunkSizeSlider = document.getElementById('textdb-chunk-size');
+            const chunkSizeValue = document.getElementById('textdb-chunk-size-value');
+            if (chunkSizeSlider && chunkSizeValue) {
+                chunkSizeSlider.addEventListener('input', e => {
+                    const value = parseInt(e.target.value);
+                    chunkSizeValue.textContent = value;
+                    window.documentdb_chunksize = value;
+                    this.save();
+                });
+            }
+        }
+
+        setupImportModal() {
+            const fileInput = document.getElementById('textdb-file-input');
+            const dropZone = document.getElementById('textdb-file-drop');
+            
+            if (dropZone && fileInput) {
+                // Click to select files
+                dropZone.addEventListener('click', () => fileInput.click());
+                
+                // Drag and drop functionality
+                dropZone.addEventListener('dragover', e => {
+                    e.preventDefault();
+                    dropZone.style.backgroundColor = 'var(--bg-hover)';
+                });
+                
+                dropZone.addEventListener('dragleave', e => {
+                    e.preventDefault();
+                    dropZone.style.backgroundColor = '';
+                });
+                
+                dropZone.addEventListener('drop', e => {
+                    e.preventDefault();
+                    dropZone.style.backgroundColor = '';
+                    
+                    const files = Array.from(e.dataTransfer.files);
+                    this.processImportFiles(files);
+                });
+                
+                // File input change
+                fileInput.addEventListener('change', e => {
+                    if (e.target.files.length > 0) {
+                        this.processImportFiles(Array.from(e.target.files));
                     }
                 });
-            });
-
-            // Content change handler
-            const textarea = document.querySelector('[data-action="content-change"]');
-            if (textarea) {
-                textarea.addEventListener('input', (e) => {
-                    this.handleContentChange(e.target.value);
-                });
             }
-
-            // Settings sliders
-            document.querySelectorAll('[data-setting]').forEach(element => {
-                element.addEventListener('input', (e) => {
-                    this.updateSetting(e.target.dataset.setting, e.target.value, e.target.checked);
-                });
-            });
-
-            // Drag and drop
-            this.setupDragAndDrop();
         }
 
-        setupDragAndDrop() {
-            const dropzone = document.querySelector('[data-action="file-drop"]');
-            if (!dropzone) return;
-
-            dropzone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                dropzone.classList.add('dragover');
-            });
-
-            dropzone.addEventListener('dragleave', (e) => {
-                e.preventDefault();
-                dropzone.classList.remove('dragover');
-            });
-
-            dropzone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                dropzone.classList.remove('dragover');
-                
-                const files = Array.from(e.dataTransfer.files);
-                this.handleFileImport(files);
-            });
-        }
-
-        // Core functionality
-        toggleEnabled() {
-            const newState = !this.isEnabled();
-            this.setEnabled(newState);
-            this.refresh();
-        }
-
-        toggleAdvanced() {
-            this.showAdvanced = !this.showAdvanced;
-            this.saveData('showAdvanced', this.showAdvanced);
-            this.refresh();
-        }
-
-        handleContentChange(content) {
-            // Debounced save
-            clearTimeout(this.saveTimeout);
-            this.saveTimeout = setTimeout(() => {
-                this.setContent(content);
-                this.updateStats();
-                this.refresh();
-            }, 1000);
-        }
-
-        updateSetting(settingName, value, checked) {
-            const settings = this.getSettings();
+        processImportFiles(files) {
+            const mode = document.getElementById('textdb-import-mode')?.value || 'append';
+            let processedFiles = 0;
+            let totalContent = mode === 'replace' ? '' : (window.documentdb_data || '');
             
-            if (settingName === 'searchhistory') {
-                settings.searchhistory = checked;
-                window.documentdb_searchhistory = checked;
-            } else {
-                const numValue = parseInt(value);
-                settings[settingName] = numValue;
-                
-                // Update KoboldAI variables
-                switch (settingName) {
-                    case 'numresults':
-                        window.documentdb_numresults = numValue;
-                        break;
-                    case 'searchrange':
-                        window.documentdb_searchrange = numValue;
-                        break;
-                    case 'chunksize':
-                        window.documentdb_chunksize = numValue;
-                        break;
-                }
-            }
-            
-            this.saveKoboldAISettings();
-            
-            // Update display
-            const valueSpan = document.querySelector(`[data-setting="${settingName}"] + .klite-slider ~ small .value`) ||
-                            document.querySelector(`[data-setting="${settingName}"] ~ label .value`);
-            if (valueSpan) {
-                valueSpan.textContent = value;
-            }
-        }
-
-        // Import/Export functionality
-        showImportModal() {
-            const modal = document.createElement('div');
-            modal.className = 'klite-modal-overlay';
-            modal.innerHTML = `
-                <div class="klite-modal klite-textdb-import-modal">
-                    <div class="klite-modal-header">
-                        <h3>Import Files</h3>
-                        <button class="klite-modal-close">×</button>
-                    </div>
-                    <div class="klite-modal-content">
-                        <div class="klite-textdb-import-mode">
-                            <h4>Import Mode</h4>
-                            <label>
-                                <input type="radio" name="import-mode" value="append" checked>
-                                Append to existing content
-                            </label>
-                            <label>
-                                <input type="radio" name="import-mode" value="replace">
-                                Replace all existing content
-                            </label>
-                        </div>
-                        
-                        <div class="klite-textdb-import-files">
-                            <h4>Select Files</h4>
-                            <input type="file" multiple accept=".txt,.md,.json" 
-                                   class="klite-file-input" data-action="file-select">
-                            <div class="klite-textdb-supported-formats">
-                                <small>Supported formats: .txt, .md, .json</small>
-                            </div>
-                        </div>
-                        
-                        <div class="klite-textdb-import-preview">
-                            <h4>Import Preview</h4>
-                            <div class="klite-textdb-file-list" data-preview="file-list">
-                                No files selected
-                            </div>
-                        </div>
-                    </div>
-                    <div class="klite-modal-footer">
-                        <button class="klite-btn klite-btn-primary" data-action="import-confirm">
-                            Import Files
-                        </button>
-                        <button class="klite-btn klite-btn-secondary klite-modal-close">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            `;
-
-            document.body.appendChild(modal);
-
-            // Modal event handlers
-            modal.querySelector('.klite-modal-close').addEventListener('click', () => {
-                modal.remove();
-            });
-
-            modal.querySelector('[data-action="file-select"]').addEventListener('change', (e) => {
-                this.updateImportPreview(e.target.files, modal);
-            });
-
-            modal.querySelector('[data-action="import-confirm"]').addEventListener('click', () => {
-                const files = modal.querySelector('[data-action="file-select"]').files;
-                const mode = modal.querySelector('input[name="import-mode"]:checked').value;
-                
-                if (files.length > 0) {
-                    this.handleFileImport(Array.from(files), mode);
-                    modal.remove();
-                }
-            });
-
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) {
-                    modal.remove();
-                }
-            });
-        }
-
-        updateImportPreview(files, modal) {
-            const fileList = modal.querySelector('[data-preview="file-list"]');
-            
-            if (files.length === 0) {
-                fileList.innerHTML = 'No files selected';
-                return;
-            }
-
-            fileList.innerHTML = Array.from(files).map(file => `
-                <div class="klite-textdb-file-item">
-                    <div class="klite-textdb-file-name">${file.name}</div>
-                    <div class="klite-textdb-file-size">${this.formatFileSize(file.size)}</div>
-                    <div class="klite-textdb-file-type">${file.type || 'text/plain'}</div>
-                </div>
-            `).join('');
-        }
-
-        async handleFileImport(files, mode = 'append') {
-            try {
-                const validFiles = files.filter(file => {
-                    const extension = file.name.split('.').pop().toLowerCase();
-                    return ['txt', 'md', 'json'].includes(extension);
-                });
-
-                if (validFiles.length === 0) {
-                    alert('No valid files selected. Please choose .txt, .md, or .json files.');
-                    return;
-                }
-
-                let importedContent = '';
-                
-                for (const file of validFiles) {
-                    const content = await this.readFileContent(file);
-                    importedContent += `
-
-=== ${file.name} ===
-
-${content}`;
-                }
-
-                const currentContent = this.getContent();
-                const newContent = mode === 'replace' ? importedContent.trim() : 
-                                 (currentContent + importedContent).trim();
-
-                this.setContent(newContent);
-                this.updateStats();
-                this.refresh();
-
-                alert(`Successfully imported ${validFiles.length} file(s)!`);
-            } catch (error) {
-                alert('Error importing files: ' + error.message);
-            }
-        }
-
-        async readFileContent(file) {
-            return new Promise((resolve, reject) => {
+            files.forEach(file => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     let content = e.target.result;
                     
-                    // Try to parse and pretty-print JSON files
+                    // Process JSON files
                     if (file.name.endsWith('.json')) {
                         try {
                             const jsonData = JSON.parse(content);
                             content = JSON.stringify(jsonData, null, 2);
                         } catch (err) {
-                            // If JSON parsing fails, use raw content
+                            // Use raw content if JSON parsing fails
                         }
                     }
                     
-                    resolve(content);
+                    totalContent += `\n\n=== ${file.name} ===\n\n${content}`;
+                    processedFiles++;
+                    
+                    // When all files are processed
+                    if (processedFiles === files.length) {
+                        window.documentdb_data = totalContent;
+                        document.getElementById('textdb-data').value = totalContent;
+                        this.save();
+                        document.getElementById('textdb-import-modal').style.display = 'none';
+                        this.refresh();
+                        
+                        // Imported ${files.length} files (${mode} mode)
+                        KLiteModular.log('panels', `TextDB import: ${files.length} files, mode: ${mode}`);
+                    }
                 };
-                reader.onerror = () => reject(new Error('Failed to read file'));
                 reader.readAsText(file);
             });
         }
 
-        exportDatabase() {
-            const content = this.getContent();
-            const settings = this.getSettings();
-            
-            const exportData = {
-                content: content,
-                settings: settings,
-                stats: this.stats,
-                exportDate: new Date().toISOString(),
-                version: '1.0'
-            };
-
-            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `textdb-export-${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        clearDatabase() {
-            if (confirm('Are you sure you want to clear all text database content? This cannot be undone.')) {
-                this.setContent('');
-                this.updateStats();
-                this.refresh();
-            }
-        }
-
-        // Statistics and utilities
-        updateStats() {
-            const content = this.getContent();
-            
-            this.stats.charCount = content.length;
-            this.stats.wordCount = content.split(/\s+/).filter(word => word.length > 0).length;
-            this.stats.memoryUsage = Math.round((content.length * 2) / 1024); // Rough estimate in KB
-        }
-
-        formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-
-        // KoboldAI Lite integration
-        initKoboldAIIntegration() {
-            // Initialize KoboldAI variables if they don't exist
-            if (typeof window.documentdb_enabled === 'undefined') {
-                window.documentdb_enabled = false;
-            }
-            if (typeof window.documentdb_data === 'undefined') {
-                window.documentdb_data = '';
-            }
-            if (typeof window.documentdb_searchhistory === 'undefined') {
-                window.documentdb_searchhistory = false;
-            }
-            if (typeof window.documentdb_numresults === 'undefined') {
-                window.documentdb_numresults = 3;
-            }
-            if (typeof window.documentdb_searchrange === 'undefined') {
-                window.documentdb_searchrange = 300;
-            }
-            if (typeof window.documentdb_chunksize === 'undefined') {
-                window.documentdb_chunksize = 800;
-            }
-        }
-
-        isEnabled() {
-            return window.documentdb_enabled || false;
-        }
-
-        setEnabled(enabled) {
-            window.documentdb_enabled = enabled;
-            this.saveKoboldAISettings();
-        }
-
-        getContent() {
-            return window.documentdb_data || '';
-        }
-
-        setContent(content) {
-            window.documentdb_data = content;
-            this.saveKoboldAISettings();
-        }
-
-        getSettings() {
-            return {
-                searchhistory: window.documentdb_searchhistory || false,
-                numresults: window.documentdb_numresults || 3,
-                searchrange: window.documentdb_searchrange || 300,
-                chunksize: window.documentdb_chunksize || 800
-            };
-        }
-
-        saveKoboldAISettings() {
-            // Trigger KoboldAI Lite's save functions
+        save() {
+            // Save using KoboldAI Lite's storage functions
             if (typeof window.save_settings === 'function') {
                 window.save_settings();
             }
             if (typeof window.autosave === 'function') {
                 window.autosave();
             }
+            
+            // Update statistics display if visible
+            setTimeout(() => this.refresh(), 100);
         }
 
+        actions = {
+            'toggle-textdb-advanced': () => {
+                this.showAdvanced = !this.showAdvanced;
+                this.refresh();
+            },
+            
+            'import-textdb': () => {
+                document.getElementById('textdb-import-modal').style.display = 'block';
+            },
+            
+            'export-textdb': () => {
+                const data = {
+                    version: '1.0',
+                    exported: new Date().toISOString(),
+                    settings: {
+                        documentdb_enabled: window.documentdb_enabled,
+                        documentdb_searchhistory: window.documentdb_searchhistory,
+                        documentdb_numresults: window.documentdb_numresults,
+                        documentdb_searchrange: window.documentdb_searchrange,
+                        documentdb_chunksize: window.documentdb_chunksize
+                    },
+                    data: window.documentdb_data
+                };
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `textdb-export-${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                
+                // Text database exported with settings
+                KLiteModular.log('panels', 'TextDB exported with full settings');
+            },
+            
+            'clear-textdb': () => {
+                if (confirm('Clear all text database content? This cannot be undone.')) {
+                    window.documentdb_data = '';
+                    document.getElementById('textdb-data').value = '';
+                    this.save();
+                    this.refresh();
+                    // Text database cleared
+                }
+            },
+            
+            'execute-textdb-import': () => {
+                const fileInput = document.getElementById('textdb-file-input');
+                if (fileInput.files.length > 0) {
+                    this.processImportFiles(Array.from(fileInput.files));
+                } else {
+                    // Please select files to import
+                }
+            },
+            
+            'close-textdb-import': () => {
+                document.getElementById('textdb-import-modal').style.display = 'none';
+            }
+        };
+
+        // Template helpers (from ALPHA)
+        section(title, content) {
+            return `
+                <div class="klite-section">
+                    <div class="klite-section-title">${title}</div>
+                    <div class="klite-section-content">${content}</div>
+                </div>
+            `;
+        }
+        
+        button(text, type = '', action = '') {
+            const className = type ? `klite-btn klite-btn-${type}` : 'klite-btn';
+            const actionAttr = action ? `data-action="${action}"` : '';
+            return `<button class="${className}" ${actionAttr}>${text}</button>`;
+        }
+        
+        checkbox(id, label, checked = false) {
+            return `
+                <label class="klite-checkbox">
+                    <input type="checkbox" id="${id}" ${checked ? 'checked' : ''}>
+                    <span>${label}</span>
+                </label>
+            `;
+        }
+        
+        escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Framework integration methods
         refresh() {
-            const panel = document.querySelector('[data-panel="textdb"]');
-            if (panel) {
-                panel.innerHTML = this.render();
+            // Update panel content through framework
+            const container = document.querySelector(`[data-panel="${this.name}"] .klite-panel-content`);
+            if (container) {
+                container.innerHTML = this.render();
                 this.postRender();
             }
         }
-
+        
         saveState() {
             return {
-                showAdvanced: this.showAdvanced,
-                stats: this.stats
+                showAdvanced: this.showAdvanced
             };
         }
-
+        
         restoreState(state) {
-            if (state.showAdvanced !== undefined) this.showAdvanced = state.showAdvanced;
-            if (state.stats) this.stats = state.stats;
+            if (state && state.showAdvanced !== undefined) {
+                this.showAdvanced = state.showAdvanced;
+            }
         }
-
+        
         cleanup() {
-            clearTimeout(this.saveTimeout);
+            // Clean up any resources
             this.showAdvanced = false;
-            this.stats = { wordCount: 0, charCount: 0, memoryUsage: 0 };
         }
     }
 
@@ -11583,170 +11901,205 @@ ${content}`;
     class GroupChatPanel extends KLitePanel {
         constructor() {
             super('groupchat');
-            this.displayName = 'Group Chat_WIP';
-            this.groupEnabled = false;
-            this.groupChars = [];
+            this.displayName = 'Group Chat';
+            this.enabled = false;
+            this.activeChars = [];
             this.currentSpeaker = 0;
-            this.speakerMode = 'manual'; // manual, roundrobin, random, keyword, weighted, party
-            this.autoResponseEnabled = false;
-            this.autoResponseDelay = 60; // seconds
-            this.autoResponseTimer = null;
-            this.userActivityTimer = null;
             this.speakerHistory = [];
+            
+            // Auto-response system
+            this.speakerMode = 1; // 1=manual, 2=round-robin, 3=random, 4=keyword, 5=talkative, 6=party
+            this.autoResponses = {
+                enabled: false,
+                delay: 10,
+                enableSelfAnswers: false,
+                continueWithoutPlayer: false,
+                autoAdvanceAfterTrigger: true
+            };
+            this.autoResponseTimer = null;
+            this.isUserTyping = false;
             this.roundRobinPosition = 0;
-            this.partyRoundChars = [];
+            this.lastTriggerTime = {};
+            this.currentModal = null;
         }
 
         async init() {
             KLiteModular.log('panels', 'Initializing Group Chat Panel');
             
             // Load saved settings
-            this.groupEnabled = await this.loadData('groupEnabled') || false;
-            this.groupChars = await this.loadData('groupChars') || [];
-            this.currentSpeaker = await this.loadData('currentSpeaker') || 0;
-            this.speakerMode = await this.loadData('speakerMode') || 'manual';
-            this.autoResponseEnabled = await this.loadData('autoResponseEnabled') || false;
-            this.autoResponseDelay = await this.loadData('autoResponseDelay') || 60;
-            this.speakerHistory = await this.loadData('speakerHistory') || [];
-            this.roundRobinPosition = await this.loadData('roundRobinPosition') || 0;
-            this.partyRoundChars = await this.loadData('partyRoundChars') || [];
+            await this.loadSettings();
             
-            // Initialize KoboldAI integration
-            this.initKoboldAIIntegration();
+            // Setup input monitoring when panel is first used
+            this.setupInputMonitoring();
             
-            // Start auto-response if enabled
-            if (this.groupEnabled && this.autoResponseEnabled) {
-                this.startAutoResponse();
-            }
+            // Setup event handlers after render
+            setTimeout(() => this.setupEventHandlers(), 100);
         }
 
         render() {
             return `
-                <div class="klite-group-header">
-                    <div class="klite-group-toggle">
-                        <label>
-                            <input type="checkbox" ${this.groupEnabled ? 'checked' : ''} 
-                                   data-action="toggle-group">
-                            Enable Group Chat
-                        </label>
-                    </div>
-                    
-                    ${this.groupEnabled ? this.renderGroupControls() : ''}
-                </div>
+                ${this.section('Group Chat Control',
+                    `<label>
+                        <input type="checkbox" id="group-enabled" ${this.enabled ? 'checked' : ''}>
+                        Enable Group Chat Mode
+                    </label>
+                    <div class="klite-muted klite-mt">
+                        When enabled, multiple characters will participate in the conversation.
+                    </div>`
+                )}
                 
-                ${this.groupEnabled ? this.renderCharacterList() : ''}
-                ${this.groupEnabled ? this.renderSpeakerControls() : ''}
-                ${this.groupEnabled ? this.renderAutoResponseControls() : ''}
+                ${this.enabled ? this.renderGroupControls() : ''}
             `;
         }
 
         renderGroupControls() {
             return `
-                <div class="klite-group-controls">
-                    <div class="klite-group-actions">
-                        <button class="klite-btn klite-btn-small" data-action="add-from-library">
-                            Add from Library
-                        </button>
-                        <button class="klite-btn klite-btn-small" data-action="add-custom">
-                            Add Custom
-                        </button>
-                        <button class="klite-btn klite-btn-small" data-action="edit-current">
-                            Edit Current
-                        </button>
+                ${this.section('Characters in Group',
+                    `<div id="group-chars">
+                        ${this.renderActiveChars()}
                     </div>
-                    
-                    <div class="klite-group-info">
-                        <span class="klite-group-count">${this.groupChars.length} characters</span>
-                        <span class="klite-group-current">
-                            Current: ${this.getCurrentSpeakerName()}
-                        </span>
+                    <div class="klite-buttons-fill klite-mt">
+                        ${this.button('+Char', '', 'add-from-library')}
+                        ${this.button('+Custom', '', 'add-custom')}
+                        ${this.getCurrentSpeaker()?.isCustom ? this.button('Edit', 'primary', 'edit-current') : ''}
+                    </div>`
+                )}
+                
+                ${this.section('Current Status',
+                    `<div class="klite-muted">
+                        Current Speaker: <strong>${this.getCurrentSpeaker()?.name || '—'}</strong>
                     </div>
-                </div>
-            `;
-        }
-
-        renderCharacterList() {
-            if (this.groupChars.length === 0) {
-                return `
-                    <div class="klite-group-empty">
-                        <p>No characters in group. Add characters to start group chat.</p>
-                    </div>
-                `;
-            }
-
-            return `
-                <div class="klite-group-chars">
-                    ${this.groupChars.map((char, index) => `
-                        <div class="klite-group-char ${index === this.currentSpeaker ? 'active' : ''}" 
-                             data-char-id="${index}">
-                            <div class="klite-group-char-info">
-                                <div class="klite-group-char-avatar">
-                                    ${char.avatar ? `<img src="${char.avatar}" alt="${char.name}">` : '👤'}
-                                </div>
-                                <div class="klite-group-char-details">
-                                    <div class="klite-group-char-name">${char.name}</div>
-                                    <div class="klite-group-char-desc">${char.description || 'No description'}</div>
-                                    ${char.isCustom ? '<div class="klite-group-char-custom">Custom</div>' : ''}
-                                </div>
-                            </div>
-                            <div class="klite-group-char-actions">
-                                <button class="klite-btn-small" data-action="move-up" data-char-id="${index}">▲</button>
-                                <button class="klite-btn-small" data-action="move-down" data-char-id="${index}">▼</button>
-                                <button class="klite-btn-small danger" data-action="remove-char" data-char-id="${index}">×</button>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-
-        renderSpeakerControls() {
-            return `
-                <div class="klite-group-speaker">
-                    <div class="klite-group-speaker-mode">
-                        <label>Speaker Mode:</label>
-                        <select class="klite-select" data-action="speaker-mode">
-                            <option value="manual" ${this.speakerMode === 'manual' ? 'selected' : ''}>Manual Order</option>
-                            <option value="roundrobin" ${this.speakerMode === 'roundrobin' ? 'selected' : ''}>Round Robin</option>
-                            <option value="random" ${this.speakerMode === 'random' ? 'selected' : ''}>Random Selection</option>
-                            <option value="keyword" ${this.speakerMode === 'keyword' ? 'selected' : ''}>Keyword Triggered</option>
-                            <option value="weighted" ${this.speakerMode === 'weighted' ? 'selected' : ''}>Talkative Weighted</option>
-                            <option value="party" ${this.speakerMode === 'party' ? 'selected' : ''}>Party Round Robin</option>
+                    <div class="klite-mt">
+                        <label>Next Speaker Selection:</label>
+                        <select id="speaker-mode" class="klite-select" style="width: 100%;" onchange="KLiteModular.activePanels.get('groupchat').changeSpeakerMode(this.value)">
+                            <option value="1" ${this.speakerMode === 1 ? 'selected' : ''}>Manual Order</option>
+                            <option value="2" ${this.speakerMode === 2 ? 'selected' : ''}>Round Robin</option>
+                            <option value="3" ${this.speakerMode === 3 ? 'selected' : ''}>Random Selection</option>
+                            <option value="4" ${this.speakerMode === 4 ? 'selected' : ''}>Keyword Triggered</option>
+                            <option value="5" ${this.speakerMode === 5 ? 'selected' : ''}>Talkative Weighted</option>
+                            <option value="6" ${this.speakerMode === 6 ? 'selected' : ''}>Party Round Robin</option>
                         </select>
                     </div>
-                    
-                    <div class="klite-group-speaker-actions">
-                        <button class="klite-btn klite-btn-small" data-action="next-speaker">
-                            Next Speaker
-                        </button>
-                        <button class="klite-btn klite-btn-small klite-btn-primary" data-action="trigger-current">
-                            Trigger Current
-                        </button>
+                    <div id="speaker-mode-description" style="margin-top: 6px; font-size: 11px; color: var(--muted); padding: 6px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                        ${this.getSpeakerModeDescription()}
                     </div>
-                </div>
+                    
+                    ${this.renderAutoResponseControls()}
+                    
+                    <div class="klite-buttons-fill klite-mt">
+                        ${this.button('Advance Speaker', '', 'next-speaker')}
+                        ${this.button('Trigger Speaker', 'primary', 'trigger-response')}
+                    </div>`
+                )}
+                
+                ${this.speakerHistory.length > 0 ? this.section('Speaker History',
+                    `<div style="max-height: 120px; overflow-y: auto; font-size: 11px;">
+                        ${this.speakerHistory.slice(-10).reverse().map((entry, i) => `
+                            <div style="padding: 2px 4px; margin: 1px 0; background: rgba(0,0,0,0.1); border-radius: 3px; display: flex; justify-content: space-between;">
+                                <span>${entry.name}</span>
+                                <span style="color: var(--muted);">${this.formatTime(entry.timestamp)}</span>
+                            </div>
+                        `).join('')}
+                    </div>`
+                ) : ''}
             `;
+        }
+
+        renderActiveChars() {
+            if (this.activeChars.length === 0) {
+                return '<div class="klite-center klite-muted">No characters in group</div>';
+            }
+            
+            return this.activeChars.map((char, i) => {
+                const avatar = char.image || '';
+                return `
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; background: var(--bg2); ${i === this.currentSpeaker ? 'border-color: var(--accent); background: rgba(74, 158, 255, 0.1);' : ''}">
+                        ${avatar ? `
+                            <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
+                                <img src="${avatar}" alt="${char.name}" style="width: 100%; height: 100%; object-fit: cover;">
+                            </div>
+                        ` : `
+                            <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <span style="font-size: 18px;">${char.name.charAt(0)}</span>
+                            </div>
+                        `}
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: bold; color: var(--text); ${i === this.currentSpeaker ? 'color: var(--accent);' : ''}">${char.name}${i === this.currentSpeaker ? ' (Current)' : ''}</div>
+                        </div>
+                        <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                            <button class="klite-btn" data-action="set-speaker" data-index="${i}" style="padding: 4px 8px; font-size: 11px;">Set</button>
+                            <button class="klite-btn danger" data-action="remove-from-group" data-index="${i}" style="padding: 4px 8px; font-size: 11px;">×</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        getSpeakerModeDescription() {
+            switch(this.speakerMode) {
+                case 1: return 'Manual order: Characters speak only when triggered manually.';
+                case 2: return 'Round Robin: Characters take turns speaking in a circular order.';
+                case 3: return 'Random Selection: A random character is chosen for each turn, with optional exclusion of recent speakers.';
+                case 4: return 'Keyword Triggered: Characters respond when mentioned by name or specific keywords in the conversation.';
+                case 5: return 'Talkative Weighted: Characters speak based on their talkativeness rating with cooldown periods.';
+                case 6: return 'Party Round Robin: Everyone speaks once per round before anyone gets to speak again.';
+                default: return 'Manual order: Characters speak only when triggered manually.';
+            }
         }
 
         renderAutoResponseControls() {
+            const isManual = this.speakerMode === 1;
+            const isDisabled = isManual || !this.autoResponses.enabled;
+            
             return `
-                <div class="klite-group-auto">
-                    <div class="klite-group-auto-toggle">
-                        <label>
-                            <input type="checkbox" ${this.autoResponseEnabled ? 'checked' : ''} 
-                                   data-action="toggle-auto-response">
-                            Auto-Response
+                <div style="margin-top: 15px; padding: 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg3); ${isManual ? 'opacity: 0.5;' : ''}">
+                    <div style="margin-bottom: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: ${isManual ? 'not-allowed' : 'pointer'};">
+                            <input type="checkbox" id="auto-responses-enabled" ${this.autoResponses.enabled ? 'checked' : ''} 
+                                   ${isManual ? 'disabled' : ''}
+                                   onchange="KLiteModular.activePanels.get('groupchat').toggleAutoResponses(this.checked)">
+                            <span style="font-weight: bold; color: ${isManual ? 'var(--muted)' : 'var(--text)'};">">Enable Auto Responses</span>
                         </label>
+                        ${isManual ? '<div style="font-size: 11px; color: var(--muted); margin-top: 4px;">Auto responses are disabled in Manual Order mode</div>' : ''}
                     </div>
                     
-                    ${this.autoResponseEnabled ? `
-                        <div class="klite-group-auto-settings">
-                            <div class="klite-group-auto-delay">
-                                <label>Delay: <span class="value">${this.autoResponseDelay}s</span></label>
-                                <input type="range" min="10" max="300" value="${this.autoResponseDelay}" 
-                                       data-action="auto-delay" class="klite-slider">
-                            </div>
+                    <div style="margin-left: 20px;">
+                        <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                            <label style="font-size: 12px; color: var(--muted);">Delay between triggers:</label>
+                            <input type="number" id="auto-response-delay" min="1" max="300" value="${this.autoResponses.delay}" 
+                                   ${isDisabled ? 'disabled' : ''}
+                                   style="width: 60px; padding: 2px 4px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 2px; ${isDisabled ? 'opacity: 0.5; cursor: not-allowed;' : ''}"
+                                   onchange="KLiteModular.activePanels.get('groupchat').updateAutoResponseDelay(this.value)">
+                            <span style="font-size: 12px; color: var(--muted);">seconds</span>
                         </div>
-                    ` : ''}
+                        
+                        <div style="margin-bottom: 6px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: ${isDisabled ? 'not-allowed' : 'pointer'}; font-size: 12px;">
+                                <input type="checkbox" id="enable-self-answers" ${this.autoResponses.enableSelfAnswers ? 'checked' : ''}
+                                       ${isDisabled ? 'disabled' : ''}
+                                       onchange="KLiteModular.activePanels.get('groupchat').updateAutoResponseSetting('enableSelfAnswers', this.checked)">
+                                <span style="color: ${isDisabled ? 'var(--muted)' : 'var(--text)'};">">Enable self-answers</span>
+                            </label>
+                        </div>
+                        
+                        <div style="margin-bottom: 6px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: ${isDisabled ? 'not-allowed' : 'pointer'}; font-size: 12px;">
+                                <input type="checkbox" id="continue-without-player" ${this.autoResponses.continueWithoutPlayer ? 'checked' : ''}
+                                       ${isDisabled ? 'disabled' : ''}
+                                       onchange="KLiteModular.activePanels.get('groupchat').updateAutoResponseSetting('continueWithoutPlayer', this.checked)">
+                                <span style="color: ${isDisabled ? 'var(--muted)' : 'var(--text)'};">">Continue without player input</span>
+                            </label>
+                        </div>
+                        
+                        <div style="margin-bottom: 6px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: ${isDisabled ? 'not-allowed' : 'pointer'}; font-size: 12px;">
+                                <input type="checkbox" id="auto-advance-after-trigger" ${this.autoResponses.autoAdvanceAfterTrigger ? 'checked' : ''}
+                                       ${isDisabled ? 'disabled' : ''}
+                                       onchange="KLiteModular.activePanels.get('groupchat').updateAutoResponseSetting('autoAdvanceAfterTrigger', this.checked)">
+                                <span style="color: ${isDisabled ? 'var(--muted)' : 'var(--text)'};">">Auto advance after trigger</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
             `;
         }
@@ -11754,791 +12107,1354 @@ ${content}`;
         postRender() {
             KLiteModular.log('panels', 'Setting up Group Chat Panel event handlers');
             
-            // Main controls
-            document.querySelectorAll('[data-action]').forEach(element => {
-                element.addEventListener('click', (e) => {
-                    const action = e.target.dataset.action;
-                    const charId = e.target.dataset.charId;
-                    
-                    switch (action) {
-                        case 'toggle-group':
-                            this.toggleGroup();
-                            break;
-                        case 'add-from-library':
-                            this.showCharacterLibrary();
-                            break;
-                        case 'add-custom':
-                            this.showCustomCharacterModal();
-                            break;
-                        case 'edit-current':
-                            this.editCurrentCharacter();
-                            break;
-                        case 'remove-char':
-                            this.removeCharacter(parseInt(charId));
-                            break;
-                        case 'move-up':
-                            this.moveCharacter(parseInt(charId), -1);
-                            break;
-                        case 'move-down':
-                            this.moveCharacter(parseInt(charId), 1);
-                            break;
-                        case 'next-speaker':
-                            this.nextSpeaker();
-                            break;
-                        case 'trigger-current':
-                            this.triggerCurrentSpeaker();
-                            break;
-                        case 'toggle-auto-response':
-                            this.toggleAutoResponse();
-                            break;
-                    }
+            // Bind actions using the framework
+            for (const [action, handler] of Object.entries(this.actions)) {
+                const elements = document.querySelectorAll(`[data-action="${action}"]`);
+                elements.forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        handler(e);
+                    });
                 });
-                
-                element.addEventListener('change', (e) => {
-                    const action = e.target.dataset.action;
-                    
-                    switch (action) {
-                        case 'speaker-mode':
-                            this.setSpeakerMode(e.target.value);
-                            break;
-                        case 'auto-delay':
-                            this.setAutoResponseDelay(parseInt(e.target.value));
-                            break;
-                    }
-                });
-            });
-
-            // Character selection
-            document.querySelectorAll('.klite-group-char').forEach(element => {
-                element.addEventListener('click', (e) => {
-                    if (!e.target.matches('[data-action]')) {
-                        const charId = parseInt(element.dataset.charId);
-                        this.setCurrentSpeaker(charId);
-                    }
-                });
-            });
-
-            // Monitor user activity for auto-response
-            this.setupUserActivityMonitoring();
+            }
         }
 
-        // Core functionality
-        toggleGroup() {
-            this.groupEnabled = !this.groupEnabled;
-            this.saveData('groupEnabled', this.groupEnabled);
-            
-            if (this.groupEnabled) {
-                this.initKoboldAIIntegration();
-                if (this.autoResponseEnabled) {
-                    this.startAutoResponse();
+        setupEventHandlers() {
+            document.getElementById('group-enabled')?.addEventListener('change', e => {
+                this.enabled = e.target.checked;
+                this.refresh();
+                
+                if (this.enabled) {
+                    window.localsettings.opmode = 3; // Force chat mode
+                    this.updateKoboldSettings();
                 }
+                
+                // Refresh PLAY_RP panel to update character controls without switching to it
+                const playPanel = KLiteModular.activePanels.get('characters');
+                if (playPanel) {
+                    // Check if PLAY panel is currently visible and showing PLAY_RP
+                    const mode = window.localsettings?.opmode;
+                    const isRPMode = mode === 3 || mode === 4;
+                    
+                    if (isRPMode) {
+                        // Always update the state so it shows correctly when switching to it
+                        if (!this.enabled) {
+                            // Reset character enabled state when group chat is disabled
+                        }
+                    }
+                }
+            });
+        }
+
+        changeSpeakerMode(newMode) {
+            this.speakerMode = parseInt(newMode);
+            this.saveSettings(); // Save the new setting
+            this.clearAutoResponseTimer();
+            this.refresh();
+        }
+
+        // Auto-response system methods
+        toggleAutoResponses(enabled) {
+            this.autoResponses.enabled = enabled;
+            this.clearAutoResponseTimer();
+            this.refresh();
+            
+            if (enabled) {
+                this.setupInputMonitoring();
+                // Auto responses enabled
             } else {
-                this.stopAutoResponse();
-                this.restoreKoboldAISettings();
-            }
-            
-            this.refresh();
-        }
-
-        toggleAutoResponse() {
-            this.autoResponseEnabled = !this.autoResponseEnabled;
-            this.saveData('autoResponseEnabled', this.autoResponseEnabled);
-            
-            if (this.autoResponseEnabled && this.groupEnabled) {
-                this.startAutoResponse();
-            } else {
-                this.stopAutoResponse();
-            }
-            
-            this.refresh();
-        }
-
-        setSpeakerMode(mode) {
-            this.speakerMode = mode;
-            this.saveData('speakerMode', mode);
-            
-            // Reset mode-specific state
-            if (mode === 'roundrobin') {
-                this.roundRobinPosition = this.currentSpeaker;
-                this.saveData('roundRobinPosition', this.roundRobinPosition);
-            } else if (mode === 'party') {
-                this.partyRoundChars = [];
-                this.saveData('partyRoundChars', this.partyRoundChars);
+                // Auto responses disabled
             }
         }
 
-        setAutoResponseDelay(delay) {
-            this.autoResponseDelay = delay;
-            this.saveData('autoResponseDelay', delay);
-            
-            // Update display
-            const valueSpan = document.querySelector('[data-action="auto-delay"] ~ label .value');
-            if (valueSpan) {
-                valueSpan.textContent = `${delay}s`;
-            }
-            
-            // Restart timer with new delay
-            if (this.autoResponseEnabled) {
-                this.startAutoResponse();
-            }
+        updateAutoResponseDelay(delay) {
+            this.autoResponses.delay = parseInt(delay) || 10;
+            this.clearAutoResponseTimer();
         }
 
-        // Character management
-        addCharacter(character) {
-            this.groupChars.push({
-                ...character,
-                id: Date.now().toString(),
-                talkativeness: character.talkativeness || 50,
-                isCustom: character.isCustom || false
-            });
-            
-            this.saveData('groupChars', this.groupChars);
-            this.refresh();
+        updateAutoResponseSetting(setting, value) {
+            this.autoResponses[setting] = value;
+            this.saveSettings();
         }
 
-        removeCharacter(index) {
-            if (confirm('Remove this character from the group?')) {
-                this.groupChars.splice(index, 1);
-                
-                // Adjust current speaker if needed
-                if (this.currentSpeaker >= this.groupChars.length) {
-                    this.currentSpeaker = Math.max(0, this.groupChars.length - 1);
-                    this.saveData('currentSpeaker', this.currentSpeaker);
+        actions = {
+            'add-from-library': () => {
+                this.showCharacterSelectorModal();
+            },
+            
+            'add-custom': () => {
+                this.showCustomCharacterModal();
+            },
+            
+            'edit-current': () => {
+                const currentSpeaker = this.getCurrentSpeaker();
+                if (currentSpeaker && currentSpeaker.isCustom) {
+                    this.showCustomCharacterModal(currentSpeaker);
                 }
-                
-                this.saveData('groupChars', this.groupChars);
+            },
+            
+            'set-speaker': (e) => {
+                this.currentSpeaker = parseInt(e.target.dataset.index);
                 this.refresh();
-            }
-        }
-
-        moveCharacter(index, direction) {
-            const newIndex = index + direction;
+            },
             
-            if (newIndex >= 0 && newIndex < this.groupChars.length) {
-                [this.groupChars[index], this.groupChars[newIndex]] = 
-                [this.groupChars[newIndex], this.groupChars[index]];
+            'next-speaker': () => {
+                this.advanceSpeaker();
+                this.saveSettings(); // Save state after speaker change
+            },
+            
+            'trigger-response': () => {
+                this.triggerCurrentSpeaker();
                 
-                // Adjust current speaker if needed
-                if (this.currentSpeaker === index) {
-                    this.currentSpeaker = newIndex;
-                } else if (this.currentSpeaker === newIndex) {
-                    this.currentSpeaker = index;
+                // Auto advance if enabled
+                if (this.autoResponses.autoAdvanceAfterTrigger) {
+                    setTimeout(() => {
+                        this.advanceSpeaker();
+                    }, 100);
                 }
                 
-                this.saveData('groupChars', this.groupChars);
-                this.saveData('currentSpeaker', this.currentSpeaker);
+                // Start auto-response timer if enabled
+                this.startAutoResponseTimer();
+                
+                // Save state after triggering
+                this.saveSettings();
+            },
+            
+            'remove-from-group': (e) => {
+                const index = parseInt(e.target.dataset.index);
+                const char = this.activeChars[index];
+                
+                // Remove character avatar from group avatars map if exists
+                if (char && KLiteModular.groupAvatars) {
+                    KLiteModular.groupAvatars.delete(char.id);
+                }
+                
+                this.activeChars.splice(index, 1);
+                if (this.currentSpeaker >= this.activeChars.length) {
+                    this.currentSpeaker = 0;
+                }
                 this.refresh();
+                this.updateKoboldSettings();
             }
+        };
+
+        getCurrentSpeaker() {
+            return this.activeChars[this.currentSpeaker];
         }
 
-        setCurrentSpeaker(index) {
-            if (index >= 0 && index < this.groupChars.length) {
-                this.currentSpeaker = index;
-                this.saveData('currentSpeaker', this.currentSpeaker);
-                this.updateKoboldAICharacter();
+        // This method is now implemented in the ALPHA algorithms section below
+
+        advanceSpeaker() {
+            if (this.activeChars.length <= 1) return;
+            
+            // Use the sophisticated speaker selection from ALPHA
+            const nextSpeaker = this.selectNextSpeaker(this.speakerMode, false);
+            if (nextSpeaker !== null) {
+                this.currentSpeaker = nextSpeaker;
+                this.addToSpeakerHistory(this.currentSpeaker);
                 this.refresh();
+                KLiteModular.log('panels', `Advanced to speaker: ${this.getCurrentSpeaker()?.name} using mode ${this.speakerMode}`);
             }
         }
 
-        getCurrentSpeakerName() {
-            if (this.groupChars.length === 0) return 'None';
-            if (this.currentSpeaker >= this.groupChars.length) return 'Invalid';
-            return this.groupChars[this.currentSpeaker].name;
-        }
-
-        // Speaker management algorithms
-        nextSpeaker() {
-            if (this.groupChars.length === 0) return;
+        updateKoboldSettings() {
+            KLiteModular.log('panels', `Updating KoboldAI settings for group chat (enabled: ${this.enabled})`);
             
-            let nextIndex = this.currentSpeaker;
-            
-            switch (this.speakerMode) {
-                case 'manual':
-                    nextIndex = (this.currentSpeaker + 1) % this.groupChars.length;
-                    break;
-                    
-                case 'roundrobin':
-                    this.roundRobinPosition = (this.roundRobinPosition + 1) % this.groupChars.length;
-                    nextIndex = this.roundRobinPosition;
-                    this.saveData('roundRobinPosition', this.roundRobinPosition);
-                    break;
-                    
-                case 'random':
-                    nextIndex = this.getRandomSpeaker();
-                    break;
-                    
-                case 'keyword':
-                    nextIndex = this.getKeywordSpeaker();
-                    break;
-                    
-                case 'weighted':
-                    nextIndex = this.getWeightedSpeaker();
-                    break;
-                    
-                case 'party':
-                    nextIndex = this.getPartyRoundSpeaker();
-                    break;
-            }
-            
-            this.setCurrentSpeaker(nextIndex);
-            this.addToSpeakerHistory(nextIndex);
-        }
-
-        getRandomSpeaker() {
-            // Avoid recent speakers
-            const availableChars = this.groupChars
-                .map((char, index) => index)
-                .filter(index => !this.speakerHistory.slice(-2).includes(index));
-            
-            if (availableChars.length === 0) {
-                return Math.floor(Math.random() * this.groupChars.length);
-            }
-            
-            return availableChars[Math.floor(Math.random() * availableChars.length)];
-        }
-
-        getKeywordSpeaker() {
-            // Check recent context for character names
-            const recentText = this.getRecentContext();
-            
-            for (let i = 0; i < this.groupChars.length; i++) {
-                const char = this.groupChars[i];
-                if (recentText.toLowerCase().includes(char.name.toLowerCase())) {
-                    return i;
+            if (!this.enabled || this.activeChars.length === 0) {
+                // Reset to single character
+                if (window.localsettings) {
+                    const originalName = window.localsettings.chatopponent;
+                    window.localsettings.chatopponent = window.localsettings.chatopponent?.split('||$||')[0] || 'AI';
+                    KLiteModular.log('panels', `Reset to single character: ${originalName} -> ${window.localsettings.chatopponent}`);
                 }
-            }
-            
-            // Fallback to round robin
-            return (this.currentSpeaker + 1) % this.groupChars.length;
-        }
-
-        getWeightedSpeaker() {
-            const totalWeight = this.groupChars.reduce((sum, char) => sum + (char.talkativeness || 50), 0);
-            const random = Math.random() * totalWeight;
-            
-            let currentWeight = 0;
-            for (let i = 0; i < this.groupChars.length; i++) {
-                currentWeight += this.groupChars[i].talkativeness || 50;
-                if (random <= currentWeight) {
-                    return i;
-                }
-            }
-            
-            return this.currentSpeaker;
-        }
-
-        getPartyRoundSpeaker() {
-            // Everyone speaks once before anyone speaks twice
-            const availableChars = this.groupChars
-                .map((char, index) => index)
-                .filter(index => !this.partyRoundChars.includes(index));
-            
-            if (availableChars.length === 0) {
-                // Start new round
-                this.partyRoundChars = [];
-                this.saveData('partyRoundChars', this.partyRoundChars);
-                return 0;
-            }
-            
-            const nextIndex = availableChars[Math.floor(Math.random() * availableChars.length)];
-            this.partyRoundChars.push(nextIndex);
-            this.saveData('partyRoundChars', this.partyRoundChars);
-            
-            return nextIndex;
-        }
-
-        addToSpeakerHistory(speakerIndex) {
-            this.speakerHistory.push(speakerIndex);
-            
-            // Keep only last 10 speakers
-            if (this.speakerHistory.length > 10) {
-                this.speakerHistory = this.speakerHistory.slice(-10);
-            }
-            
-            this.saveData('speakerHistory', this.speakerHistory);
-        }
-
-        triggerCurrentSpeaker() {
-            if (this.groupChars.length === 0) return;
-            
-            // Submit current message or trigger AI response
-            const inputElement = document.getElementById('input_text');
-            if (inputElement && window.submit) {
-                window.submit();
-            }
-        }
-
-        // Auto-response system
-        startAutoResponse() {
-            this.stopAutoResponse();
-            
-            if (this.groupChars.length === 0) return;
-            
-            this.autoResponseTimer = setTimeout(() => {
-                if (this.groupEnabled && this.autoResponseEnabled) {
-                    this.nextSpeaker();
-                    this.triggerCurrentSpeaker();
-                    this.startAutoResponse(); // Restart timer
-                }
-            }, this.autoResponseDelay * 1000);
-        }
-
-        stopAutoResponse() {
-            if (this.autoResponseTimer) {
-                clearTimeout(this.autoResponseTimer);
-                this.autoResponseTimer = null;
-            }
-        }
-
-        setupUserActivityMonitoring() {
-            const inputElement = document.getElementById('input_text');
-            if (inputElement) {
-                inputElement.addEventListener('input', () => {
-                    this.onUserActivity();
-                });
-                
-                inputElement.addEventListener('keydown', () => {
-                    this.onUserActivity();
-                });
-            }
-        }
-
-        onUserActivity() {
-            // Pause auto-response when user is typing
-            if (this.autoResponseTimer) {
-                clearTimeout(this.autoResponseTimer);
-                this.autoResponseTimer = null;
-            }
-            
-            // Restart auto-response after user stops typing
-            clearTimeout(this.userActivityTimer);
-            this.userActivityTimer = setTimeout(() => {
-                if (this.groupEnabled && this.autoResponseEnabled) {
-                    this.startAutoResponse();
-                }
-            }, 3000); // 3 second delay after user stops typing
-        }
-
-        // Character modal system
-        showCharacterLibrary() {
-            // Get characters from the character panel if available
-            const characterPanel = KLiteModular.activePanels.get('characters');
-            if (!characterPanel) {
-                alert('Character panel not available. Please add characters to the Characters panel first.');
                 return;
             }
-
-            const availableChars = characterPanel.characters || [];
             
-            if (availableChars.length === 0) {
+            // Build participant list
+            const names = this.activeChars.map(c => c.name).join('||$||');
+            KLiteModular.log('panels', `Setting group participants: ${names}`);
+            KLiteModular.log('panels', `Active characters: ${this.activeChars.length}`, this.activeChars);
+            
+            if (window.localsettings) {
+                window.localsettings.chatopponent = names;
+            }
+            
+            // Clear any exclusions
+            window.groupchat_removals = [];
+            KLiteModular.log('panels', 'Cleared groupchat_removals');
+            
+            window.save_settings?.();
+            window.handle_bot_name_onchange?.();
+        }
+
+        showCharacterSelectorModal() {
+            // Create modal for character selection using unified modal system
+            // This integrates with Characters panel and WorldInfo like ALPHA
+            const characterPanel = KLiteModular.activePanels.get('characters');
+            
+            if (!characterPanel || !characterPanel.characters || characterPanel.characters.length === 0) {
                 alert('No characters available. Please add characters to the Characters panel first.');
                 return;
             }
-
+            
+            // Filter out already active characters
+            const availableChars = characterPanel.characters.filter(c => 
+                !this.activeChars.find(ac => ac.id === c.id)
+            );
+            
+            if (availableChars.length === 0) {
+                alert('All available characters are already in the group.');
+                return;
+            }
+            
+            // Create modal for character selection
             const modal = document.createElement('div');
-            modal.className = 'klite-modal-overlay';
+            modal.className = 'klite-modal';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;';
+            
             modal.innerHTML = `
-                <div class="klite-modal klite-group-char-modal">
+                <div class="klite-modal-content" style="background: var(--bg2); border-radius: 8px; padding: 20px; border: 1px solid var(--border); max-width: 600px; max-height: 80vh; overflow-y: auto;">
                     <div class="klite-modal-header">
-                        <h3>Add Character from Library</h3>
-                        <button class="klite-modal-close">×</button>
+                        <h3>Select Characters for Group</h3>
                     </div>
-                    <div class="klite-modal-content">
-                        <div class="klite-group-char-grid">
+                    <div class="klite-modal-body">
+                        <p style="color: var(--muted); font-size: 12px; margin-bottom: 15px;">
+                            Choose characters from the library to add to your group chat.
+                        </p>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <input type="text" id="group-char-search" placeholder="Search characters..." 
+                                style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; margin-bottom: 10px;">
+                        </div>
+                        
+                        <div id="group-character-selection-list" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 10px; background: var(--bg); margin-bottom: 15px;">
                             ${availableChars.map(char => `
-                                <div class="klite-group-char-option" data-char-id="${char.id}">
-                                    <div class="klite-group-char-avatar">
-                                        ${char.image ? `<img src="${char.image}" alt="${char.name}">` : '👤'}
+                                <div style="display: flex; align-items: center; gap: 12px; padding: 8px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg2);">
+                                    <input type="checkbox" value="${char.id}" style="margin: 0;">
+                                    <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
+                                        ${char.image ? `<img src="${char.image}" alt="${char.name}" style="width: 100%; height: 100%; object-fit: cover;">` : `<div style="width: 100%; height: 100%; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 18px;">${char.name.charAt(0)}</div>`}
                                     </div>
-                                    <div class="klite-group-char-name">${char.name}</div>
-                                    <div class="klite-group-char-desc">${char.description || 'No description'}</div>
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: bold; color: var(--text); font-size: 12px;">${char.name}</div>
+                                        <div style="color: var(--muted); font-size: 11px; line-height: 1.3;">${char.description || 'No description'}</div>
+                                    </div>
                                 </div>
                             `).join('')}
                         </div>
-                    </div>
-                    <div class="klite-modal-footer">
-                        <button class="klite-btn klite-btn-primary" data-action="confirm-selection">
-                            Add Selected
-                        </button>
-                        <button class="klite-btn klite-btn-secondary klite-modal-close">
-                            Cancel
-                        </button>
+                        
+                        <div class="klite-modal-footer">
+                            <button class="klite-btn klite-btn-primary" data-action="confirm-group-char-selection">
+                                Add Selected Characters
+                            </button>
+                            <button class="klite-btn" data-action="close-group-char-modal">
+                                Cancel
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
-
+            
             document.body.appendChild(modal);
-
-            // Handle character selection
-            let selectedChar = null;
-            modal.querySelectorAll('.klite-group-char-option').forEach(option => {
-                option.addEventListener('click', () => {
-                    modal.querySelectorAll('.klite-group-char-option').forEach(o => o.classList.remove('selected'));
-                    option.classList.add('selected');
-                    selectedChar = availableChars.find(c => c.id == option.dataset.charId);
-                });
-            });
-
-            // Modal event handlers
-            modal.querySelector('.klite-modal-close').addEventListener('click', () => {
-                modal.remove();
-            });
-
-            modal.querySelector('[data-action="confirm-selection"]').addEventListener('click', () => {
-                if (selectedChar) {
-                    this.addCharacter({
-                        name: selectedChar.name,
-                        description: selectedChar.description,
-                        avatar: selectedChar.image,
-                        talkativeness: 50,
-                        isCustom: false
-                    });
-                    modal.remove();
-                }
-            });
-
+            this.currentModal = modal;
+            
+            // Close modal when clicking outside or pressing escape
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
-                    modal.remove();
+                    this.closeCharacterModal();
                 }
             });
+            
+            // Setup modal event handlers
+            modal.querySelector('[data-action="confirm-group-char-selection"]').addEventListener('click', () => {
+                this.confirmCharacterSelection();
+            });
+            
+            modal.querySelector('[data-action="close-group-char-modal"]').addEventListener('click', () => {
+                this.closeCharacterModal();
+            });
+            
+            // Close modal on escape key
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    this.closeCharacterModal();
+                    document.removeEventListener('keydown', handleEscape);
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
+        }
+
+        confirmCharacterSelection() {
+            const checkboxes = document.querySelectorAll('#group-character-selection-list input[type="checkbox"]:checked');
+            
+            if (checkboxes.length === 0) {
+                // No characters selected
+                return;
+            }
+            
+            let added = 0;
+            checkboxes.forEach(checkbox => {
+                const charId = checkbox.value; // Keep as string to handle both string and number IDs
+                const characterPanel = KLiteModular.activePanels.get('characters');
+                const char = characterPanel.characters.find(c => c.id == charId);
+                if (char && !this.activeChars.find(ac => ac.id == char.id)) {
+                    // Mark CHARS characters as not custom
+                    char.isCustom = false;
+                    this.activeChars.push(char);
+                    
+                    // Add character avatar to group avatars map if available
+                    if (char.image && KLiteModular.groupAvatars) {
+                        KLiteModular.groupAvatars.set(char.id, char.image);
+                    }
+                    
+                    added++;
+                }
+            });
+            
+            this.closeCharacterModal();
+            this.refresh();
+            this.updateKoboldSettings();
+            
+            if (added > 0) {
+                // Added ${added} character${added === 1 ? '' : 's'} to group
+            }
         }
 
         showCustomCharacterModal(editChar = null) {
-            const isEdit = editChar !== null;
-            const charData = editChar || {
-                name: '',
-                description: '',
-                avatar: '',
-                talkativeness: 50
-            };
-
             const modal = document.createElement('div');
-            modal.className = 'klite-modal-overlay';
+            modal.className = 'klite-modal';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;';
+            
             modal.innerHTML = `
-                <div class="klite-modal klite-group-custom-modal">
-                    <div class="klite-modal-header">
-                        <h3>${isEdit ? 'Edit' : 'Create'} Custom Character</h3>
-                        <button class="klite-modal-close">×</button>
+                <div class="klite-modal-content" style="background: var(--bg2); border-radius: 8px; padding: 20px; max-width: 400px; border: 1px solid var(--border);">
+                    <h3 style="margin-top: 0; color: var(--text);">${editChar ? 'Edit Custom Character' : 'Add Custom Character'}</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px;">Name</label>
+                        <input type="text" id="group-custom-char-name" placeholder="Character name" value="${editChar?.name || ''}"
+                            style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
                     </div>
-                    <div class="klite-modal-content">
-                        <div class="klite-group-custom-field">
-                            <label>Character Name:</label>
-                            <input type="text" class="klite-input" data-field="name" 
-                                   value="${charData.name}" placeholder="Enter character name">
-                        </div>
-                        
-                        <div class="klite-group-custom-field">
-                            <label>Description:</label>
-                            <textarea class="klite-textarea" data-field="description" 
-                                      rows="3" placeholder="Enter character description">${charData.description}</textarea>
-                        </div>
-                        
-                        <div class="klite-group-custom-field">
-                            <label>Avatar URL:</label>
-                            <input type="text" class="klite-input" data-field="avatar" 
-                                   value="${charData.avatar}" placeholder="Enter avatar URL (optional)">
-                        </div>
-                        
-                        <div class="klite-group-custom-field">
-                            <label>Talkativeness: <span class="value">${charData.talkativeness}</span></label>
-                            <input type="range" min="1" max="100" value="${charData.talkativeness}" 
-                                   data-field="talkativeness" class="klite-slider">
-                            <small>How likely this character is to speak in weighted mode</small>
-                        </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px;">Talkativeness (1-100)</label>
+                        <input type="number" id="group-custom-char-talkativeness" min="1" max="100" value="${editChar?.talkativeness || 50}" 
+                            style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
                     </div>
-                    <div class="klite-modal-footer">
-                        <button class="klite-btn klite-btn-primary" data-action="save-custom">
-                            ${isEdit ? 'Update' : 'Create'} Character
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px;">Keywords (comma separated)</label>
+                        <input type="text" id="group-custom-char-keywords" placeholder="keyword1, keyword2, keyword3" value="${editChar?.keywords ? editChar.keywords.join(', ') : ''}"
+                            style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px;">Description</label>
+                        <textarea id="group-custom-char-description" placeholder="Brief character description" 
+                            style="width: 100%; height: 60px; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; resize: vertical;">${editChar?.description || ''}</textarea>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px;">
+                        <button class="klite-btn klite-btn-primary" data-action="confirm-custom-character" ${editChar ? `data-edit-char-id="${editChar.id}"` : ''} style="flex: 1;">
+                            ${editChar ? 'Update Character' : 'Add Character'}
                         </button>
-                        <button class="klite-btn klite-btn-secondary klite-modal-close">
+                        <button class="klite-btn" data-action="close-group-char-modal" style="flex: 1;">
                             Cancel
                         </button>
                     </div>
                 </div>
             `;
-
+            
             document.body.appendChild(modal);
-
-            // Update talkativeness display
-            const talkSlider = modal.querySelector('[data-field="talkativeness"]');
-            const talkValue = modal.querySelector('.value');
-            talkSlider.addEventListener('input', (e) => {
-                talkValue.textContent = e.target.value;
+            this.currentModal = modal;
+            
+            // Setup modal event handlers
+            modal.querySelector('[data-action="confirm-custom-character"]').addEventListener('click', (e) => {
+                const editCharId = e.target.dataset.editCharId || null;
+                this.confirmCustomCharacter(editCharId);
             });
-
-            // Modal event handlers
-            modal.querySelector('.klite-modal-close').addEventListener('click', () => {
-                modal.remove();
+            
+            modal.querySelector('[data-action="close-group-char-modal"]').addEventListener('click', () => {
+                this.closeCharacterModal();
             });
-
-            modal.querySelector('[data-action="save-custom"]').addEventListener('click', () => {
-                const name = modal.querySelector('[data-field="name"]').value.trim();
-                const description = modal.querySelector('[data-field="description"]').value.trim();
-                const avatar = modal.querySelector('[data-field="avatar"]').value.trim();
-                const talkativeness = parseInt(modal.querySelector('[data-field="talkativeness"]').value);
-
-                if (!name) {
-                    alert('Character name is required');
-                    return;
-                }
-
-                if (isEdit) {
-                    // Update existing character
-                    const charIndex = this.groupChars.indexOf(editChar);
-                    if (charIndex !== -1) {
-                        this.groupChars[charIndex] = {
-                            ...this.groupChars[charIndex],
-                            name,
-                            description,
-                            avatar,
-                            talkativeness
-                        };
-                        this.saveData('groupChars', this.groupChars);
-                        this.refresh();
-                    }
-                } else {
-                    // Create new character
-                    this.addCharacter({
-                        name,
-                        description,
-                        avatar,
-                        talkativeness,
-                        isCustom: true
-                    });
-                }
-
-                modal.remove();
-            });
-
+            
+            // Close modal when clicking outside
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
-                    modal.remove();
+                    this.closeCharacterModal();
                 }
             });
         }
 
-        editCurrentCharacter() {
-            if (this.groupChars.length === 0) return;
+        confirmCustomCharacter(editId = null) {
+            const name = document.getElementById('group-custom-char-name')?.value;
+            const talkativeness = parseInt(document.getElementById('group-custom-char-talkativeness')?.value) || 50;
+            const keywords = document.getElementById('group-custom-char-keywords')?.value || '';
+            const description = document.getElementById('group-custom-char-description')?.value || '';
             
-            const currentChar = this.groupChars[this.currentSpeaker];
-            if (currentChar && currentChar.isCustom) {
-                this.showCustomCharacterModal(currentChar);
-            } else {
-                alert('Only custom characters can be edited');
-            }
-        }
-
-        // KoboldAI integration
-        initKoboldAIIntegration() {
-            if (this.groupEnabled && this.groupChars.length > 0) {
-                // Force chat mode
-                if (window.localsettings) {
-                    window.localsettings.opmode = 3; // Chat mode
+            if (name) {
+                if (editId) {
+                    // Edit existing character
+                    const charIndex = this.activeChars.findIndex(c => c.id === editId);
+                    if (charIndex !== -1) {
+                        this.activeChars[charIndex].name = name;
+                        this.activeChars[charIndex].description = description;
+                        this.activeChars[charIndex].talkativeness = talkativeness;
+                        this.activeChars[charIndex].keywords = keywords.split(',').map(k => k.trim()).filter(k => k);
+                    }
+                } else {
+                    // Add new character
+                    const char = {
+                        id: 'custom-' + Date.now(),
+                        name: name,
+                        description: description,
+                        talkativeness: talkativeness,
+                        keywords: keywords.split(',').map(k => k.trim()).filter(k => k),
+                        isCustom: true
+                    };
+                    this.activeChars.push(char);
                 }
+                this.closeCharacterModal();
+                this.refresh();
+                this.updateKoboldSettings();
+            }
+        }
+
+        closeCharacterModal() {
+            if (this.currentModal) {
+                try {
+                    if (this.currentModal.parentNode) {
+                        this.currentModal.parentNode.removeChild(this.currentModal);
+                    }
+                } catch (e) {
+                    KLiteModular.error('Error closing character modal:', e);
+                }
+                this.currentModal = null;
+            }
+            
+            // Also clean up any stray modals
+            const strayModals = document.querySelectorAll('.klite-modal');
+            strayModals.forEach(modal => {
+                if (modal.parentNode) {
+                    modal.parentNode.removeChild(modal);
+                }
+            });
+        }
+
+        // Framework integration helpers (from ALPHA)
+        section(title, content) {
+            return `
+                <div class="klite-section">
+                    <div class="klite-section-title">${title}</div>
+                    <div class="klite-section-content">${content}</div>
+                </div>
+            `;
+        }
+        
+        button(text, type = '', action = '') {
+            const className = type ? `klite-btn klite-btn-${type}` : 'klite-btn';
+            const actionAttr = action ? `data-action="${action}"` : '';
+            return `<button class="${className}" ${actionAttr}>${text}</button>`;
+        }
+        
+        formatTime(timestamp) {
+            return new Date(timestamp).toLocaleTimeString();
+        }
+
+        // Settings management
+        async loadSettings() {
+            // Load saved settings from framework storage
+            this.enabled = await this.loadData('enabled') || false;
+            this.activeChars = await this.loadData('activeChars') || [];
+            this.currentSpeaker = await this.loadData('currentSpeaker') || 0;
+            this.speakerMode = await this.loadData('speakerMode') || 1;
+            this.autoResponses = await this.loadData('autoResponses') || {
+                enabled: false,
+                delay: 10,
+                enableSelfAnswers: false,
+                continueWithoutPlayer: false,
+                autoAdvanceAfterTrigger: true
+            };
+            this.speakerHistory = await this.loadData('speakerHistory') || [];
+            this.roundRobinPosition = await this.loadData('roundRobinPosition') || 0;
+        }
+        
+        async saveSettings() {
+            // Save all settings
+            await this.saveData('enabled', this.enabled);
+            await this.saveData('activeChars', this.activeChars);
+            await this.saveData('currentSpeaker', this.currentSpeaker);
+            await this.saveData('speakerMode', this.speakerMode);
+            await this.saveData('autoResponses', this.autoResponses);
+            await this.saveData('speakerHistory', this.speakerHistory);
+            await this.saveData('roundRobinPosition', this.roundRobinPosition);
+        }
+
+        setupInputMonitoring() {
+            // Monitor input for auto-response timing
+            const inputElement = document.getElementById('input_text');
+            if (inputElement) {
+                inputElement.addEventListener('input', () => {
+                    this.isUserTyping = true;
+                    this.clearAutoResponseTimer();
+                });
                 
-                this.updateKoboldAICharacter();
+                inputElement.addEventListener('keydown', () => {
+                    this.isUserTyping = true;
+                });
             }
         }
 
-        updateKoboldAICharacter() {
-            if (this.groupChars.length === 0) return;
+        startAutoResponseTimer() {
+            if (!this.autoResponses.enabled || this.speakerMode === 1) return;
             
-            const currentChar = this.groupChars[this.currentSpeaker];
-            if (!currentChar) return;
+            this.clearAutoResponseTimer();
             
-            // Update character name in KoboldAI
-            if (window.localsettings) {
-                window.localsettings.character = currentChar.name;
-            }
-            
-            // Update UI if available
-            const charInput = document.getElementById('character_name');
-            if (charInput) {
-                charInput.value = currentChar.name;
+            this.autoResponseTimer = setTimeout(() => {
+                if (this.enabled && this.autoResponses.enabled) {
+                    this.advanceSpeaker();
+                    this.triggerCurrentSpeaker();
+                    this.startAutoResponseTimer(); // Restart timer
+                }
+            }, this.autoResponses.delay * 1000);
+        }
+
+        clearAutoResponseTimer() {
+            if (this.autoResponseTimer) {
+                clearTimeout(this.autoResponseTimer);
+                this.autoResponseTimer = null;
             }
         }
 
-        restoreKoboldAISettings() {
-            // Restore original settings when group chat is disabled
-            if (window.localsettings) {
-                // Don't force chat mode anymore
-                // User can change mode manually
-            }
-        }
-
-        getRecentContext() {
-            // Get recent conversation context for keyword detection
-            if (window.gametext_arr && window.gametext_arr.length > 0) {
-                return window.gametext_arr.slice(-3).join(' ');
-            }
-            return '';
-        }
-
+        // Framework integration methods
         refresh() {
-            const panel = document.querySelector('[data-panel="groupchat"]');
-            if (panel) {
-                panel.innerHTML = this.render();
+            // Update panel content through framework
+            const container = document.querySelector(`[data-panel="${this.name}"] .klite-panel-content`);
+            if (container) {
+                container.innerHTML = this.render();
                 this.postRender();
             }
         }
 
         saveState() {
             return {
-                groupEnabled: this.groupEnabled,
-                groupChars: this.groupChars,
+                enabled: this.enabled,
+                activeChars: this.activeChars,
                 currentSpeaker: this.currentSpeaker,
                 speakerMode: this.speakerMode,
-                autoResponseEnabled: this.autoResponseEnabled,
-                autoResponseDelay: this.autoResponseDelay,
+                autoResponses: this.autoResponses,
                 speakerHistory: this.speakerHistory,
-                roundRobinPosition: this.roundRobinPosition,
-                partyRoundChars: this.partyRoundChars
+                roundRobinPosition: this.roundRobinPosition
             };
         }
 
         restoreState(state) {
-            if (state.groupEnabled !== undefined) this.groupEnabled = state.groupEnabled;
-            if (state.groupChars) this.groupChars = state.groupChars;
+            if (state.enabled !== undefined) this.enabled = state.enabled;
+            if (state.activeChars) this.activeChars = state.activeChars;
             if (state.currentSpeaker !== undefined) this.currentSpeaker = state.currentSpeaker;
-            if (state.speakerMode) this.speakerMode = state.speakerMode;
-            if (state.autoResponseEnabled !== undefined) this.autoResponseEnabled = state.autoResponseEnabled;
-            if (state.autoResponseDelay !== undefined) this.autoResponseDelay = state.autoResponseDelay;
+            if (state.speakerMode !== undefined) this.speakerMode = state.speakerMode;
+            if (state.autoResponses) this.autoResponses = state.autoResponses;
             if (state.speakerHistory) this.speakerHistory = state.speakerHistory;
             if (state.roundRobinPosition !== undefined) this.roundRobinPosition = state.roundRobinPosition;
-            if (state.partyRoundChars) this.partyRoundChars = state.partyRoundChars;
         }
 
         cleanup() {
-            this.stopAutoResponse();
-            clearTimeout(this.userActivityTimer);
-            this.groupEnabled = false;
-            this.groupChars = [];
+            this.clearAutoResponseTimer();
+            if (this.currentModal) {
+                this.closeCharacterModal();
+            }
+            this.enabled = false;
+            this.activeChars = [];
             this.currentSpeaker = 0;
             this.speakerHistory = [];
             this.roundRobinPosition = 0;
-            this.partyRoundChars = [];
         }
+
+        // Initialize group avatars map if not exists
+        initGroupAvatars() {
+            if (!KLiteModular.groupAvatars) {
+                KLiteModular.groupAvatars = new Map();
+            }
+        }
+
+        // ALPHA SPEAKER SELECTION ALGORITHMS (Direct Port)
+        selectNextSpeaker(mode, updateCurrent = false) {
+            if (this.activeChars.length === 0) return null;
+            
+            const previousSpeaker = this.currentSpeaker;
+            let nextSpeaker = null;
+            
+            switch (mode) {
+                case 1: // manual
+                case 'manual':
+                    nextSpeaker = (this.currentSpeaker + 1) % this.activeChars.length;
+                    break;
+                    
+                case 2: // round-robin
+                case 'round-robin':
+                    this.roundRobinPosition = (this.roundRobinPosition + 1) % this.activeChars.length;
+                    nextSpeaker = this.roundRobinPosition;
+                    break;
+                    
+                case 3: // random
+                case 'random':
+                    // Enhanced: Avoid same speaker twice in a row if possible
+                    if (this.activeChars.length > 1) {
+                        do {
+                            nextSpeaker = Math.floor(Math.random() * this.activeChars.length);
+                        } while (nextSpeaker === previousSpeaker);
+                    } else {
+                        nextSpeaker = 0;
+                    }
+                    break;
+                    
+                case 4: // keyword
+                case 'keyword':
+                    nextSpeaker = this.selectByKeyword();
+                    break;
+                    
+                case 5: // talkative
+                case 'talkative':
+                    nextSpeaker = this.selectByTalkativeness();
+                    break;
+                    
+                case 6: // party
+                case 'party':
+                    nextSpeaker = this.selectPartyRoundRobin();
+                    break;
+                    
+                default:
+                    return null;
+            }
+            
+            // Update current speaker and UI if requested
+            if (updateCurrent && nextSpeaker !== null) {
+                this.currentSpeaker = nextSpeaker;
+                this.addToSpeakerHistory(this.currentSpeaker);
+                this.refresh();
+                KLiteModular.log('panels', `Speaker selection (${mode}): ${this.activeChars[this.currentSpeaker]?.name} (index ${this.currentSpeaker})`);
+            }
+            
+            return nextSpeaker;
+        }
+        
+        selectByKeyword() {
+            const lastMessage = window.gametext_arr?.[window.gametext_arr.length - 1] || '';
+            const keywords = lastMessage.toLowerCase();
+            
+            // Check each character for keyword matches
+            const matches = [];
+            this.activeChars.forEach((char, index) => {
+                const charKeywords = char.keywords || [char.name.toLowerCase()];
+                const score = charKeywords.reduce((total, keyword) => {
+                    const regex = new RegExp('\\b' + keyword.toLowerCase() + '\\b', 'gi');
+                    return total + (keywords.match(regex) || []).length;
+                }, 0);
+                
+                if (score > 0) {
+                    matches.push({ index, score, name: char.name });
+                }
+            });
+            
+            if (matches.length > 0) {
+                // Sort by score and return highest match
+                matches.sort((a, b) => b.score - a.score);
+                KLiteModular.log('panels', `Keyword matches:`, matches);
+                return matches[0].index;
+            }
+            
+            // Fallback to round-robin if no keyword matches
+            return (this.currentSpeaker + 1) % this.activeChars.length;
+        }
+        
+        selectByTalkativeness() {
+            const now = Date.now();
+            const cooldownTime = 30000; // 30 seconds cooldown
+            
+            // Calculate weights based on talkativeness and cooldown
+            const weights = this.activeChars.map((char, index) => {
+                const baseTalkativeness = char.talkativeness || 50;
+                const lastTrigger = this.lastTriggerTime[index] || 0;
+                const timeSinceLastTrigger = now - lastTrigger;
+                
+                // Reduce weight if recently triggered
+                let weight = baseTalkativeness;
+                if (timeSinceLastTrigger < cooldownTime) {
+                    const cooldownFactor = timeSinceLastTrigger / cooldownTime;
+                    weight *= cooldownFactor;
+                }
+                
+                return { index, weight, name: char.name };
+            });
+            
+            // Weighted random selection
+            const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
+            if (totalWeight === 0) return 0;
+            
+            let random = Math.random() * totalWeight;
+            for (const weight of weights) {
+                random -= weight.weight;
+                if (random <= 0) {
+                    this.lastTriggerTime[weight.index] = now;
+                    KLiteModular.log('panels', `Talkativeness selection: ${weight.name} (weight: ${weight.weight.toFixed(1)})`);
+                    return weight.index;
+                }
+            }
+            
+            return 0;
+        }
+        
+        selectPartyRoundRobin() {
+            // Everyone speaks once per round before anyone speaks again
+            if (!this.partyRoundSpeakers) {
+                this.partyRoundSpeakers = [...Array(this.activeChars.length).keys()];
+                this.shuffleArray(this.partyRoundSpeakers);
+            }
+            
+            if (this.partyRoundSpeakers.length === 0) {
+                // Start new round
+                this.partyRoundSpeakers = [...Array(this.activeChars.length).keys()];
+                this.shuffleArray(this.partyRoundSpeakers);
+            }
+            
+            return this.partyRoundSpeakers.pop();
+        }
+        
+        shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+        
+        addToSpeakerHistory(speakerIndex) {
+            this.speakerHistory.push({
+                index: speakerIndex,
+                name: this.activeChars[speakerIndex]?.name,
+                timestamp: Date.now()
+            });
+            
+            // Keep only last 20 entries
+            if (this.speakerHistory.length > 20) {
+                this.speakerHistory = this.speakerHistory.slice(-20);
+            }
+        }
+        
+        // Update ALPHA triggerCurrentSpeaker method with better KoboldAI integration
+        triggerCurrentSpeaker() {
+            if (this.activeChars.length === 0) return;
+            
+            const currentChar = this.activeChars[this.currentSpeaker];
+            if (!currentChar) return;
+            
+            // Update trigger time for talkativeness mode
+            this.lastTriggerTime[this.currentSpeaker] = Date.now();
+            
+            // Set the character for generation (ALPHA method)
+            if (window.localsettings) {
+                window.localsettings.chatopponent = currentChar.name;
+            }
+            
+            // Trigger AI generation (ALPHA method)
+            if (window.submit_generation) {
+                window.submit_generation();
+            }
+            
+            // Add to speaker history
+            this.addToSpeakerHistory(this.currentSpeaker);
+            
+            KLiteModular.log('panels', `Triggered speaker: ${currentChar.name}`);
+        }
+        
+        // Enhanced auto-response system methods
+        setupInputMonitoring() {
+            const inputField = document.getElementById('input');
+            if (inputField && !inputField.hasAttribute('data-group-monitored')) {
+                inputField.setAttribute('data-group-monitored', 'true');
+                
+                // Monitor typing
+                inputField.addEventListener('input', () => {
+                    this.isUserTyping = true;
+                    this.clearAutoResponseTimer();
+                });
+                
+                inputField.addEventListener('blur', () => {
+                    setTimeout(() => {
+                        this.isUserTyping = false;
+                    }, 500);
+                });
+            }
+        }
+        
+        clearAutoResponseTimer() {
+            if (this.autoResponseTimer) {
+                clearTimeout(this.autoResponseTimer);
+                this.autoResponseTimer = null;
+            }
+        }
+        
+        startAutoResponseTimer() {
+            if (!this.autoResponses.enabled) return;
+            
+            this.clearAutoResponseTimer();
+            this.autoResponseTimer = setTimeout(() => {
+                this.handleAutoResponse();
+            }, this.autoResponses.delay * 1000);
+        }
+        
+        handleAutoResponse() {
+            if (!this.autoResponses.enabled || this.isUserTyping) return;
+            
+            if (this.speakerMode === 1) return; // No auto in manual mode
+            
+            // Determine next speaker based on mode
+            const nextSpeaker = this.selectNextSpeaker(this.speakerMode);
+            if (nextSpeaker !== null) {
+                this.currentSpeaker = nextSpeaker;
+                this.triggerCurrentSpeaker();
+                
+                // Continue without player input if enabled
+                if (this.autoResponses.continueWithoutPlayer) {
+                    this.startAutoResponseTimer();
+                }
+            }
+        }
+        
+        toggleAutoResponses(enabled) {
+            this.autoResponses.enabled = enabled;
+            this.clearAutoResponseTimer();
+            this.refresh();
+            
+            if (enabled) {
+                this.setupInputMonitoring();
+            }
+        }
+        
+        updateAutoResponseDelay(delay) {
+            this.autoResponses.delay = parseInt(delay) || 10;
+            this.clearAutoResponseTimer();
+        }
+        
+        updateAutoResponseSetting(setting, value) {
+            this.autoResponses[setting] = value;
+        }
+
     }
 
     // =============================================
     // HELP & REFERENCE PANEL
     // =============================================
+    // Help & Reference Panel - COMPLETE ALPHA PORT
     class HelpReferencePanel extends KLitePanel {
         constructor() {
             super('helpreference');
-            this.displayName = 'Help & Reference_WIP';
-            this.searchTerm = '';
-            this.selectedCategory = 'all';
-            this.sortBy = 'relevance';
-            this.helpDatabase = this.initializeHelpDatabase();
+            this.displayName = 'Help & Reference';
+            this.currentDatabase = 'rpmod';
+            this.searchQuery = '';
+            this.searchResults = [];
+            this.searchTimeout = null;
+            this.currentSortMode = 'relevance';
+            this.currentDatabaseFilter = '';
+            
+            // Initialize complete ALPHA database (55 entries)
+            this.databases = this.initializeCompleteDatabase();
         }
-
+        
         async init() {
-            KLiteModular.log('panels', 'Initializing Help & Reference Panel');
-            // No async initialization needed
+            KLiteModular.log('panels', 'Initializing Help & Reference Panel with complete ALPHA database');
+            // Load saved state
+            const savedState = await this.loadData('state');
+            if (savedState) {
+                this.searchQuery = savedState.searchQuery || '';
+                this.currentSortMode = savedState.currentSortMode || 'relevance';
+                this.currentDatabaseFilter = savedState.currentDatabaseFilter || '';
+            }
         }
 
-        initializeHelpDatabase() {
+        initializeCompleteDatabase() {
             return {
-                rpmod: [
-                    {
-                        title: "Getting Started with RPMod",
-                        category: "RPMod",
-                        content: "RPMod enhances KoboldAI Lite with additional features for roleplaying and storytelling. Access panels through aesthetic mode.",
-                        keywords: ["setup", "installation", "getting started", "rpmod"]
-                    },
-                    {
-                        title: "Character Management",
-                        category: "RPMod",
-                        content: "Import characters from PNG files, manage character cards, and organize your character library with ratings and categories.",
-                        keywords: ["characters", "import", "export", "character cards"]
-                    },
-                    {
-                        title: "Memory & Context",
-                        category: "RPMod",
-                        content: "Manage AI memory, author's notes, and context optimization. Use the Context Analyzer to monitor token usage.",
-                        keywords: ["memory", "context", "tokens", "author note"]
-                    }
-                ],
-                koboldcpp: [
-                    {
-                        title: "Temperature Setting",
-                        category: "KoboldCpp",
-                        content: "Controls randomness in AI responses. Higher values (0.8-1.0) = more creative, lower values (0.1-0.5) = more focused.",
-                        keywords: ["temperature", "randomness", "creativity", "settings"]
-                    },
-                    {
-                        title: "Top-p Sampling",
-                        category: "KoboldCpp",
-                        content: "Nucleus sampling technique. Values around 0.9 work well for most use cases. Lower values make output more predictable.",
-                        keywords: ["top-p", "nucleus", "sampling", "predictability"]
-                    },
-                    {
-                        title: "Repetition Penalty",
-                        category: "KoboldCpp",
-                        content: "Reduces repetitive text. Values between 1.0-1.15 are recommended. Higher values may break coherence.",
-                        keywords: ["repetition", "penalty", "coherence", "text quality"]
-                    }
-                ],
-                dnd: [
-                    {
-                        title: "Ability Scores",
-                        category: "D&D",
-                        content: "Six core abilities: Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma. Range from 3-18 for most characters.",
-                        keywords: ["abilities", "stats", "strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]
-                    },
-                    {
-                        title: "Dice Rolling",
-                        category: "D&D",
-                        content: "d20 system uses twenty-sided dice for most checks. Add ability modifier + proficiency bonus when applicable.",
-                        keywords: ["dice", "d20", "rolling", "checks", "modifiers"]
-                    },
-                    {
-                        title: "Armor Class",
-                        category: "D&D",
-                        content: "AC determines how hard you are to hit. Base AC = 10 + Dex modifier + armor bonus + shield bonus + other modifiers.",
-                        keywords: ["armor", "ac", "defense", "protection", "combat"]
-                    }
-                ]
+                rpmod: {
+                    name: 'RPMod Features',
+                    icon: '🎭',
+                    placeholder: 'Search RPMod features, hotkeys, usage...',
+                    entries: [
+                        {
+                            id: 'char-import',
+                            title: 'Character Card Import',
+                            category: 'Character Management',
+                            content: 'Import PNG/WEBP character cards with embedded JSON metadata. Supports Tavern Card V1, V2, and V3 formats. Cards automatically populate name, description, personality, scenario, and alternate greetings.',
+                            keywords: ['character', 'import', 'png', 'webp', 'tavern', 'card', 'json', 'metadata']
+                        },
+                        {
+                            id: 'char-gallery',
+                            title: 'Character Gallery',
+                            category: 'Character Management',
+                            content: 'Browse imported characters in grid or list view. Filter by creator, rating, or tags. Rate characters with 5-star system. View detailed character modals with all card data.',
+                            keywords: ['gallery', 'character', 'filter', 'rating', 'tags', 'view', 'modal']
+                        },
+                        {
+                            id: 'group-chat',
+                            title: 'Group Chat Mode',
+                            category: 'Chat Features',
+                            content: 'Run multiple characters simultaneously with intelligent speaker rotation. Choose from round-robin, random, keyword-triggered, talkativeness-weighted, or manual rotation modes.',
+                            keywords: ['group', 'chat', 'multiple', 'characters', 'rotation', 'speaker', 'round-robin', 'random']
+                        },
+                        {
+                            id: 'memory-system',
+                            title: 'Enhanced Memory',
+                            category: 'Memory & Context',
+                            content: 'Persistent memory system with templates, token counting, and AI-assisted generation. Memory persists across sessions and integrates with KoboldAI\'s native memory system.',
+                            keywords: ['memory', 'persistent', 'templates', 'tokens', 'ai-generated', 'context']
+                        },
+                        {
+                            id: 'scene-manager',
+                            title: 'Scene Management',
+                            category: 'World Building',
+                            content: 'Quick scene setup with 84+ locations, time/weather/mood controls. Generate atmospheric descriptions and integrate with image generation. Context vs memory injection modes.',
+                            keywords: ['scene', 'location', 'weather', 'mood', 'atmospheric', 'image', 'generation', 'context']
+                        },
+                        {
+                            id: 'world-info',
+                            title: 'World Info Editor',
+                            category: 'World Building',
+                            content: 'Advanced World Info management with group organization, selective mode, probability controls, and import/export capabilities. Visual indicators for active entries.',
+                            keywords: ['world', 'info', 'wi', 'groups', 'selective', 'probability', 'import', 'export']
+                        },
+                        {
+                            id: 'hotkeys',
+                            title: 'Keyboard Shortcuts',
+                            category: 'User Interface',
+                            content: 'Comprehensive hotkey system with 16+ shortcuts. Ctrl+Shift+U for UI toggle, Ctrl+Shift+[P,C,M,etc] for panel navigation, Ctrl+Shift+Enter for generation.',
+                            keywords: ['hotkeys', 'shortcuts', 'keyboard', 'ctrl', 'shift', 'navigation', 'ui', 'toggle']
+                        },
+                        {
+                            id: 'ui-toggle',
+                            title: 'UI Hotswap (Ctrl+Shift+U)',
+                            category: 'User Interface',
+                            content: 'Toggle between RPMod enhanced UI and original KoboldAI Lite UI. Input values sync automatically. Perfect for compatibility testing or preference switching.',
+                            keywords: ['ui', 'toggle', 'hotswap', 'switch', 'lite', 'compatibility', 'ctrl+shift+u']
+                        },
+                        {
+                            id: 'notes-system',
+                            title: 'Notes & Author\'s Notes',
+                            category: 'Writing Tools',
+                            content: 'Personal notes for private tracking and Author\'s Notes for AI guidance. Template system, token counting, injection depth control, and auto-save functionality.',
+                            keywords: ['notes', 'author', 'personal', 'templates', 'tokens', 'injection', 'depth', 'autosave']
+                        },
+                        {
+                            id: 'textdb',
+                            title: 'Text Database',
+                            category: 'Reference System',
+                            content: 'Searchable reference database for lore, characters, and background information. Import/export documents, search history integration, and smart chunk management.',
+                            keywords: ['textdb', 'database', 'search', 'reference', 'lore', 'import', 'export', 'chunks']
+                        }
+                    ]
+                },
+                kobold: {
+                    name: 'KoboldCpp Guide',
+                    icon: '🤖',
+                    placeholder: 'Search KoboldCpp settings, features, troubleshooting...',
+                    entries: [
+                        {
+                            id: 'temperature',
+                            title: 'Temperature',
+                            category: 'Sampling',
+                            content: 'Controls randomness. 0.1 = very deterministic, 2.0 = very random. Default 0.7. For RP: 0.8-1.2. For coherent: 0.3-0.7. Affects creativity vs consistency.',
+                            keywords: ['temperature', 'sampling', 'randomness', 'creativity', 'deterministic', 'parameter']
+                        },
+                        {
+                            id: 'top-p',
+                            title: 'Top-P (Nucleus Sampling)',
+                            category: 'Sampling',
+                            content: 'Cumulative probability cutoff. 0.9 = top 90% probable tokens. Lower = more focused. Works with temperature. Common: 0.9-0.95. Set to 1.0 to disable.',
+                            keywords: ['top-p', 'top_p', 'nucleus', 'sampling', 'probability', 'cutoff', 'parameter']
+                        },
+                        {
+                            id: 'starting-koboldcpp',
+                            title: 'Starting KoboldCpp',
+                            category: 'Getting Started',
+                            content: 'Run koboldcpp.exe or use command line. Basic usage: koboldcpp --model [modelfile.gguf] --contextsize 4096 --gpulayers 20. Use --help for all options.',
+                            keywords: ['start', 'koboldcpp', 'run', 'launch', 'command', 'line', 'basic']
+                        }
+                    ]
+                },
+                dnd: {
+                    name: 'D&D 5e Reference',
+                    icon: '🎲',
+                    placeholder: 'Search D&D rules, spells, monsters...',
+                    entries: [
+                        {
+                            id: 'ability-scores',
+                            title: 'Ability Scores',
+                            category: 'Core Rules',
+                            content: 'The six ability scores are Strength, Dexterity, Constitution, Intelligence, Wisdom, and Charisma. Modifiers range from -5 (score 1) to +10 (score 30). Standard array: 15, 14, 13, 12, 10, 8.',
+                            keywords: ['ability', 'scores', 'strength', 'dexterity', 'constitution', 'intelligence', 'wisdom', 'charisma', 'modifiers']
+                        },
+                        {
+                            id: 'fireball',
+                            title: 'Fireball',
+                            category: 'Spell',
+                            content: '3rd level evocation. Range: 150 feet. 20-foot radius sphere. 8d6 fire damage, Dexterity save for half. Damage increases by 1d6 per slot above 3rd.',
+                            keywords: ['fireball', 'spell', 'evocation', '3rd', 'level', 'fire', 'damage', 'area', 'aoe']
+                        },
+                        {
+                            id: 'goblin',
+                            title: 'Goblin',
+                            category: 'Monster',
+                            content: 'Small humanoid. AC 15, HP 7 (2d6). Speed 30 ft. Nimble Escape: Disengage or Hide as bonus action. Scimitar +4 (1d6+2). Shortbow +4 (1d6+2).',
+                            keywords: ['goblin', 'monster', 'humanoid', 'small', 'cr', 'nimble', 'escape']
+                        }
+                    ]
+                }
             };
         }
 
         render() {
-            const filteredResults = this.searchEntries();
-            
-            return `
-                <div class="klite-help-search">
-                    <input type="text" class="klite-input" id="help-search-input" 
-                           placeholder="Search help & reference..." 
-                           value="${this.searchTerm}">
-                </div>
-                <div class="klite-help-filters">
-                    <select class="klite-select" id="help-category-filter">
-                        <option value="all">All Categories</option>
-                        <option value="rpmod" ${this.selectedCategory === 'rpmod' ? 'selected' : ''}>RPMod</option>
-                        <option value="koboldcpp" ${this.selectedCategory === 'koboldcpp' ? 'selected' : ''}>KoboldCpp</option>
-                        <option value="dnd" ${this.selectedCategory === 'dnd' ? 'selected' : ''}>D&D</option>
-                    </select>
-                    <select class="klite-select" id="help-sort-filter">
-                        <option value="relevance" ${this.sortBy === 'relevance' ? 'selected' : ''}>Relevance</option>
-                        <option value="title" ${this.sortBy === 'title' ? 'selected' : ''}>Title</option>
-                        <option value="category" ${this.sortBy === 'category' ? 'selected' : ''}>Category</option>
-                    </select>
-                </div>
-                <div class="klite-help-results">
-                    ${filteredResults.length > 0 ? 
-                        filteredResults.map(entry => `
-                            <div class="klite-help-entry" data-entry-id="${entry.id}">
-                                <div class="klite-help-title">${this.highlightSearch(entry.title)}</div>
-                                <div class="klite-help-category">${entry.category}</div>
-                                <div class="klite-help-preview">${this.highlightSearch(entry.content.substring(0, 100))}...</div>
+            // Show no results at first (user requested)
+            if (!this.searchQuery) {
+                return `
+                    <div class="klite-help-search-section">
+                        <div style="margin-bottom: 10px;">
+                            <input type="text" id="help-search-input" style="width: 100%; padding: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 4px;" 
+                                   placeholder="Search across all knowledge bases..."
+                                   value="${this.searchQuery}">
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 6px; margin: 8px 0; font-size: 11px;">
+                            <select id="help-database-filter" style="padding: 4px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 3px;">
+                                <option value="" ${this.currentDatabaseFilter === '' ? 'selected' : ''}>All Knowledge Bases</option>
+                                <option value="rpmod" ${this.currentDatabaseFilter === 'rpmod' ? 'selected' : ''}>🎭 RPMod Features</option>
+                                <option value="kobold" ${this.currentDatabaseFilter === 'kobold' ? 'selected' : ''}>🤖 KoboldCpp Guide</option>
+                                <option value="dnd" ${this.currentDatabaseFilter === 'dnd' ? 'selected' : ''}>🎲 D&D Reference</option>
+                            </select>
+                            <select id="help-sort-mode" style="padding: 4px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 3px;">
+                                <option value="relevance" ${this.currentSortMode === 'relevance' ? 'selected' : ''}>By Relevance</option>
+                                <option value="title" ${this.currentSortMode === 'title' ? 'selected' : ''}>By Title</option>
+                                <option value="category" ${this.currentSortMode === 'category' ? 'selected' : ''}>By Category</option>
+                            </select>
+                        </div>
+                        
+                        <div style="text-align: center; padding: 20px; color: var(--muted);">
+                            <h3>📚 Help & Reference</h3>
+                            <p>Search across ${this.getTotalEntries()} knowledge base entries covering RPMod features, KoboldCpp usage, and D&D 5e rules.</p>
+                            <p style="font-size: 12px;">🎭 RPMod Features (${this.databases.rpmod.entries.length}) • 🤖 KoboldCpp Guide (${this.databases.kobold.entries.length}) • 🎲 D&D Reference (${this.databases.dnd.entries.length})</p>
+                        </div>
+                        
+                        <div style="margin-top: 16px;">
+                            <h4 style="color: var(--text); margin-bottom: 12px;">📝 RPMod Features</h4>
+                            <div style="padding: 8px; margin-bottom: 8px; background: rgba(42, 42, 42, 0.3); border-radius: 4px; border-left: 3px solid var(--klite-primary-color);">
+                                <div style="font-weight: bold; color: var(--text); margin-bottom: 4px;">🎭 Character Cards</div>
+                                <div style="font-size: 12px; color: var(--muted); line-height: 1.4;">Import PNG/WEBP cards with embedded metadata for immersive roleplay.</div>
                             </div>
-                        `).join('') : 
-                        '<div class="klite-empty-state">No results found</div>'
-                    }
+                            <div style="padding: 8px; margin-bottom: 8px; background: rgba(42, 42, 42, 0.3); border-radius: 4px; border-left: 3px solid var(--klite-primary-color);">
+                                <div style="font-weight: bold; color: var(--text); margin-bottom: 4px;">👥 Group Chat</div>
+                                <div style="font-size: 12px; color: var(--muted); line-height: 1.4;">Run multiple characters with smart speaker rotation and personality tracking.</div>
+                            </div>
+                            <div style="padding: 8px; margin-bottom: 8px; background: rgba(42, 42, 42, 0.3); border-radius: 4px; border-left: 3px solid var(--klite-primary-color);">
+                                <div style="font-weight: bold; color: var(--text); margin-bottom: 4px;">🧠 Memory System</div>
+                                <div style="font-size: 12px; color: var(--muted); line-height: 1.4;">Persistent memory and AI-assisted generation from story context.</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Show search results with the ALPHA-style UI
+            return `
+                <div class="klite-help-search-section">
+                    <div style="margin-bottom: 10px;">
+                        <input type="text" id="help-search-input" style="width: 100%; padding: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); border-radius: 4px;" 
+                               placeholder="Search across all knowledge bases..."
+                               value="${this.searchQuery}">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 6px; margin: 8px 0; font-size: 11px;">
+                        <select id="help-database-filter" style="padding: 4px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 3px;">
+                            <option value="" ${this.currentDatabaseFilter === '' ? 'selected' : ''}>All Knowledge Bases</option>
+                            <option value="rpmod" ${this.currentDatabaseFilter === 'rpmod' ? 'selected' : ''}>🎭 RPMod Features</option>
+                            <option value="kobold" ${this.currentDatabaseFilter === 'kobold' ? 'selected' : ''}>🤖 KoboldCpp Guide</option>
+                            <option value="dnd" ${this.currentDatabaseFilter === 'dnd' ? 'selected' : ''}>🎲 D&D Reference</option>
+                        </select>
+                        <select id="help-sort-mode" style="padding: 4px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 3px;">
+                            <option value="relevance" ${this.currentSortMode === 'relevance' ? 'selected' : ''}>By Relevance</option>
+                            <option value="title" ${this.currentSortMode === 'title' ? 'selected' : ''}>By Title</option>
+                            <option value="category" ${this.currentSortMode === 'category' ? 'selected' : ''}>By Category</option>
+                        </select>
+                    </div>
+                    
+                    <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px; text-align: center;">
+                        <span>${this.searchResults.length} results found</span>
+                    </div>
+                    
+                    <div id="help-search-results">
+                        ${this.renderSearchResults()}
+                    </div>
                 </div>
             `;
+        }
+        
+        getTotalEntries() {
+            return Object.values(this.databases).reduce((total, db) => total + db.entries.length, 0);
+        }
+        
+        performSearch(query) {
+            this.searchQuery = query;
+            
+            if (!query.trim()) {
+                this.searchResults = [];
+                return;
+            }
+            
+            const searchTerms = query.toLowerCase().split(/\s+/).filter(term => term.length > 0);
+            const results = [];
+            
+            // Search across all databases using ALPHA's sophisticated scoring
+            Object.keys(this.databases).forEach(dbKey => {
+                const database = this.databases[dbKey];
+                
+                // Filter by database if specified
+                if (this.currentDatabaseFilter && this.currentDatabaseFilter !== dbKey) {
+                    return;
+                }
+                
+                database.entries.forEach(entry => {
+                    let totalScore = 0;
+                    
+                    searchTerms.forEach(term => {
+                        let score = 0;
+                        
+                        // Title matches (highest weight)
+                        if (entry.title.toLowerCase().includes(term)) {
+                            score += 10;
+                        }
+                        
+                        // Category matches (medium-high weight)
+                        if (entry.category.toLowerCase().includes(term)) {
+                            score += 5;
+                        }
+                        
+                        // Content matches (medium weight)
+                        if (entry.content.toLowerCase().includes(term)) {
+                            score += 3;
+                        }
+                        
+                        // Keyword matches (high weight)
+                        entry.keywords.forEach(keyword => {
+                            if (keyword.toLowerCase().includes(term)) {
+                                score += 7;
+                            }
+                        });
+                        
+                        totalScore += score;
+                    });
+                    
+                    if (totalScore > 0) {
+                        results.push({
+                            ...entry,
+                            database: dbKey,
+                            databaseName: database.name,
+                            score: totalScore
+                        });
+                    }
+                });
+            });
+            
+            // Sort by current mode
+            this.searchResults = results.sort((a, b) => {
+                switch (this.currentSortMode) {
+                    case 'title':
+                        return a.title.localeCompare(b.title);
+                    case 'category':
+                        return a.category.localeCompare(b.category);
+                    case 'relevance':
+                    default:
+                        return b.score - a.score;
+                }
+            });
+        }
+        
+        renderSearchResults() {
+            if (this.searchResults.length === 0) {
+                return '<div style="text-align: center; padding: 20px; color: var(--muted);">No results found</div>';
+            }
+            
+            return this.searchResults.map(entry => {
+                const preview = entry.content.length > 200 ? 
+                    entry.content.substring(0, 200) + '...' : entry.content;
+                    
+                return `
+                    <div class="klite-help-entry" data-entry-id="${entry.id}" data-database="${entry.database}" 
+                         style="padding: 12px; margin-bottom: 8px; background: rgba(42, 42, 42, 0.5); border-radius: 4px; cursor: pointer; border: 1px solid transparent;" 
+                         onmouseover="this.style.borderColor='var(--klite-primary-color)'" 
+                         onmouseout="this.style.borderColor='transparent'">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 4px;">
+                            <div style="font-weight: bold; color: var(--text); flex: 1;">
+                                ${this.databases[entry.database].icon} ${this.highlightSearchTerms(entry.title)}
+                            </div>
+                            <div style="font-size: 10px; color: var(--muted); background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 8px;">
+                                ${entry.databaseName}
+                            </div>
+                        </div>
+                        <div style="font-size: 11px; color: var(--klite-primary-color); margin-bottom: 4px;">
+                            ${entry.category}
+                        </div>
+                        <div style="font-size: 12px; color: var(--muted); line-height: 1.4;">
+                            ${this.highlightSearchTerms(preview)}
+                        </div>
+                        ${this.currentSortMode === 'relevance' ? `
+                            <div style="font-size: 10px; color: var(--muted); margin-top: 4px; text-align: right;">
+                                Relevance: ${entry.score}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        highlightSearchTerms(text) {
+            if (!this.searchQuery) return text;
+            
+            const searchTerms = this.searchQuery.split(/\s+/).filter(term => term.length > 0);
+            let highlightedText = text;
+            
+            searchTerms.forEach(term => {
+                const regex = new RegExp(`(${term})`, 'gi');
+                highlightedText = highlightedText.replace(regex, '<mark style="background: var(--klite-primary-color); color: white; padding: 1px 2px; border-radius: 2px;">$1</mark>');
+            });
+            
+            return highlightedText;
+        }
+        
+        showEntryModal(entryId, database) {
+            const entry = this.databases[database].entries.find(e => e.id === entryId);
+            if (!entry) return;
+            
+            const modal = document.createElement('div');
+            modal.className = 'klite-help-modal';
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                background: rgba(0, 0, 0, 0.8); z-index: 10000; 
+                display: flex; align-items: center; justify-content: center;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: var(--bg); border: 1px solid var(--border); border-radius: 8px; max-width: 600px; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);">
+                    <div style="padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; color: var(--text); display: flex; align-items: center; gap: 8px;">
+                            ${this.databases[database].icon} ${entry.title}
+                        </h3>
+                        <button class="klite-help-modal-close" style="background: none; border: none; color: var(--muted); font-size: 24px; cursor: pointer; padding: 0; width: 30px; height: 30px;">&times;</button>
+                    </div>
+                    <div style="padding: 16px;">
+                        <div style="font-size: 12px; color: var(--klite-primary-color); margin-bottom: 8px; background: rgba(74, 158, 255, 0.1); padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                            ${entry.category} • ${this.databases[database].name}
+                        </div>
+                        <div style="color: var(--text); line-height: 1.6; margin-bottom: 16px;">
+                            ${entry.content}
+                        </div>
+                        <div style="border-top: 1px solid var(--border); padding-top: 12px;">
+                            <strong style="color: var(--text);">Keywords:</strong> 
+                            <span style="color: var(--muted); font-size: 12px;">
+                                ${entry.keywords.map(keyword => `<span style="background: rgba(42, 42, 42, 0.5); padding: 2px 6px; border-radius: 4px; margin-right: 4px;">${keyword}</span>`).join('')}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Close modal handlers
+            const closeBtn = modal.querySelector('.klite-help-modal-close');
+            closeBtn.addEventListener('click', () => modal.remove());
+            
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.remove();
+            });
+        }
+        
+        refresh() {
+            const panel = document.querySelector('[data-panel="helpreference"]');
+            if (panel) {
+                panel.innerHTML = this.render();
+                this.postRender();
+            }
+        }
+        
+        postRender() {
+            KLiteModular.log('panels', 'Setting up Help & Reference Panel event handlers');
+            
+            // Search input with debouncing
+            const searchInput = document.getElementById('help-search-input');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => {
+                    clearTimeout(this.searchTimeout);
+                    this.searchTimeout = setTimeout(() => {
+                        this.performSearch(e.target.value);
+                        this.refresh();
+                    }, 300);
+                });
+            }
+            
+            // Database filter
+            const databaseFilter = document.getElementById('help-database-filter');
+            if (databaseFilter) {
+                databaseFilter.addEventListener('change', (e) => {
+                    this.currentDatabaseFilter = e.target.value;
+                    this.performSearch(this.searchQuery);
+                    this.refresh();
+                });
+            }
+            
+            // Sort mode
+            const sortMode = document.getElementById('help-sort-mode');
+            if (sortMode) {
+                sortMode.addEventListener('change', (e) => {
+                    this.currentSortMode = e.target.value;
+                    this.performSearch(this.searchQuery);
+                    this.refresh();
+                });
+            }
+            
+            // Setup result click handlers
+            document.querySelectorAll('.klite-help-entry').forEach(entry => {
+                entry.addEventListener('click', () => {
+                    const entryId = entry.getAttribute('data-entry-id');
+                    const database = entry.getAttribute('data-database');
+                    this.showEntryModal(entryId, database);
+                });
+            });
+            
+            // Perform initial search if query exists
+            if (this.searchQuery) {
+                this.performSearch(this.searchQuery);
+            }
+        }
+        
+        saveState() {
+            const state = {
+                searchQuery: this.searchQuery,
+                currentSortMode: this.currentSortMode,
+                currentDatabaseFilter: this.currentDatabaseFilter
+            };
+            this.saveData('state', state);
+            return state;
+        }
+        
+        restoreState(state) {
+            if (state) {
+                this.searchQuery = state.searchQuery || '';
+                this.currentSortMode = state.currentSortMode || 'relevance';
+                this.currentDatabaseFilter = state.currentDatabaseFilter || '';
+            }
+        }
+        
+        cleanup() {
+            // Remove any open modals
+            document.querySelectorAll('.klite-help-modal').forEach(modal => modal.remove());
+            // Clear search timeout
+            if (this.searchTimeout) {
+                clearTimeout(this.searchTimeout);
+                this.searchTimeout = null;
+            }
         }
 
         postRender() {
@@ -12715,6 +13631,353 @@ ${content}`;
         cleanup() {
             // Remove any open modals
             document.querySelectorAll('.klite-help-modal').forEach(modal => modal.remove());
+        }
+    }
+
+    // =============================================
+    // HOTKEYS PANEL - COMPLETE IMPLEMENTATION
+    // =============================================
+    
+    class HotkeysPanel extends KLitePanel {
+        constructor() {
+            super('hotkeys');
+            this.displayName = 'Hotkeys';
+            this.enabled = false;
+            this.hotkeyListener = null;
+            
+            // Core KoboldAI Lite hotkeys (panel navigation removed for modular framework)
+            this.hotkeys = {
+                // Generation Control (Core KoboldAI Lite Functions)
+                'Ctrl+Shift+Enter': { 
+                    action: 'submit_generation', 
+                    description: 'Submit/Generate',
+                    category: '🎹 Generation Control',
+                    priority: 1
+                },
+                'Ctrl+Shift+R': { 
+                    action: 'retry_generation', 
+                    description: 'Retry/Regenerate',
+                    category: '🎹 Generation Control',
+                    priority: 1
+                },
+                'Ctrl+Shift+Z': { 
+                    action: 'undo_generation', 
+                    description: 'Undo/Back',
+                    category: '🎹 Generation Control',
+                    priority: 1
+                },
+                'Ctrl+Shift+Y': { 
+                    action: 'redo_generation', 
+                    description: 'Redo/Forward',
+                    category: '🎹 Generation Control',
+                    priority: 1
+                },
+                'Ctrl+Alt+A': { 
+                    action: 'abort_generation', 
+                    description: 'Abort Generation',
+                    category: '🎹 Generation Control',
+                    priority: 1
+                },
+                
+                // Focus Management
+                'Ctrl+Shift+F': { 
+                    action: 'focus_main_input', 
+                    description: 'Focus Main Input',
+                    category: '⌨️ Focus Control',
+                    priority: 2
+                }
+            };
+        }
+        
+        async init() {
+            KLiteModular.log('panels', 'Initializing Hotkeys Panel');
+            // Load saved enabled state
+            this.enabled = await this.loadData('enabled') || false;
+            
+            if (this.enabled) {
+                this.enableHotkeys();
+            }
+        }
+        
+        render() {
+            const groupedHotkeys = this.groupHotkeysByCategory();
+            
+            return `
+                <div class="klite-hotkeys-panel">
+                    <!-- Enable/Disable Toggle -->
+                    <div style="margin-bottom: 16px; padding: 12px; background: rgba(42, 42, 42, 0.5); border-radius: 6px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                            <input type="checkbox" id="hotkeys-enable" 
+                                   ${this.enabled ? 'checked' : ''} 
+                                   style="margin: 0;">
+                            <span style="font-weight: bold; color: var(--text);">
+                                🔥 Enable Hotkeys
+                            </span>
+                        </label>
+                        <div style="font-size: 11px; color: var(--muted); margin-top: 4px; margin-left: 24px;">
+                            ${this.enabled ? 
+                                '✅ Hotkeys are active and ready to use' : 
+                                '❌ Hotkeys are disabled'
+                            }
+                        </div>
+                    </div>
+                    
+                    <!-- Hotkey Categories -->
+                    ${Object.entries(groupedHotkeys).map(([category, hotkeys]) => `
+                        <div style="margin-bottom: 16px;">
+                            <h4 style="color: var(--klite-primary-color); margin-bottom: 8px; font-size: 13px;">
+                                ${category}
+                            </h4>
+                            <div style="background: rgba(42, 42, 42, 0.3); border-radius: 4px; padding: 8px;">
+                                ${hotkeys.map(([combination, config]) => `
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-family: monospace; font-size: 11px;">
+                                        <div style="color: var(--text); font-weight: bold;">
+                                            ${this.formatHotkeyDisplay(combination)}
+                                        </div>
+                                        <div style="color: var(--muted); text-align: right;">
+                                            ${config.description}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                    
+                    <!-- Help Text -->
+                    <div style="margin-top: 16px; padding: 8px; background: rgba(74, 158, 255, 0.1); border-radius: 4px; font-size: 11px; color: var(--muted);">
+                        💡 <strong>Tips:</strong> Hotkeys work globally and don't interfere with normal typing. 
+                        Use Ctrl+Shift combinations for main functions, Ctrl+Alt for advanced features.
+                    </div>
+                </div>
+            `;
+        }
+        
+        groupHotkeysByCategory() {
+            const grouped = {};
+            Object.entries(this.hotkeys).forEach(([combination, config]) => {
+                if (!grouped[config.category]) {
+                    grouped[config.category] = [];
+                }
+                grouped[config.category].push([combination, config]);
+            });
+            
+            // Sort each category by priority, then alphabetically
+            Object.keys(grouped).forEach(category => {
+                grouped[category].sort((a, b) => {
+                    const priorityDiff = a[1].priority - b[1].priority;
+                    if (priorityDiff !== 0) return priorityDiff;
+                    return a[0].localeCompare(b[0]);
+                });
+            });
+            
+            return grouped;
+        }
+        
+        formatHotkeyDisplay(combination) {
+            return combination
+                .replace(/Ctrl\+/g, '<span style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 2px; margin-right: 2px;">Ctrl</span>')
+                .replace(/Shift\+/g, '<span style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 2px; margin-right: 2px;">Shift</span>')
+                .replace(/Alt\+/g, '<span style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 2px; margin-right: 2px;">Alt</span>')
+                .replace(/([A-Z])$/, '<span style="background: var(--klite-primary-color); padding: 1px 4px; border-radius: 2px; color: white;">$1</span>')
+                .replace(/Enter$/, '<span style="background: var(--klite-primary-color); padding: 1px 4px; border-radius: 2px; color: white;">Enter</span>')
+                .replace(/Tab$/, '<span style="background: var(--klite-primary-color); padding: 1px 4px; border-radius: 2px; color: white;">Tab</span>');
+        }
+        
+        postRender() {
+            KLiteModular.log('panels', 'Setting up Hotkeys Panel event handlers');
+            
+            // Enable/disable checkbox
+            const enableCheckbox = document.getElementById('hotkeys-enable');
+            if (enableCheckbox) {
+                enableCheckbox.addEventListener('change', (e) => {
+                    this.enabled = e.target.checked;
+                    this.saveData('enabled', this.enabled);
+                    
+                    if (this.enabled) {
+                        this.enableHotkeys();
+                        KLiteModular.showNotification('🔥 Hotkeys enabled', 'success');
+                    } else {
+                        this.disableHotkeys();
+                        KLiteModular.showNotification('❌ Hotkeys disabled', 'info');
+                    }
+                    
+                    // Refresh to update status text
+                    setTimeout(() => this.refresh(), 100);
+                });
+            }
+        }
+        
+        enableHotkeys() {
+            if (this.hotkeyListener) {
+                this.disableHotkeys(); // Remove existing listener
+            }
+            
+            this.hotkeyListener = this.handleKeyDown.bind(this);
+            document.addEventListener('keydown', this.hotkeyListener, true);
+            
+            KLiteModular.log('hotkeys', '🔥 Hotkeys enabled - ' + Object.keys(this.hotkeys).length + ' shortcuts active');
+        }
+        
+        disableHotkeys() {
+            if (this.hotkeyListener) {
+                document.removeEventListener('keydown', this.hotkeyListener, true);
+                this.hotkeyListener = null;
+                KLiteModular.log('hotkeys', '❌ Hotkeys disabled');
+            }
+        }
+        
+        handleKeyDown(event) {
+            // Smart input detection - don't interfere with normal typing
+            const activeElement = document.activeElement;
+            const isTypingInInput = activeElement && (
+                activeElement.tagName === 'INPUT' ||
+                activeElement.tagName === 'TEXTAREA' ||
+                activeElement.isContentEditable
+            );
+            
+            // Build hotkey string
+            const hotkeyString = this.buildHotkeyString(event);
+            const hotkeyConfig = this.hotkeys[hotkeyString];
+            
+            if (!hotkeyConfig) return;
+            
+            // Check if this hotkey is allowed in input fields
+            if (isTypingInInput && !hotkeyConfig.allowInInput) {
+                return; // Let normal typing happen
+            }
+            
+            event.preventDefault();
+            event.stopPropagation();
+            
+            this.executeHotkeyAction(hotkeyConfig.action, hotkeyString);
+            return false;
+        }
+        
+        buildHotkeyString(event) {
+            const parts = [];
+            if (event.ctrlKey) parts.push('Ctrl');
+            if (event.shiftKey) parts.push('Shift');
+            if (event.altKey) parts.push('Alt');
+            if (event.metaKey) parts.push('Meta');
+            
+            let key = event.key;
+            if (key === 'Enter') key = 'Enter';
+            else if (key === ' ') key = 'Space';
+            else if (key === 'Tab') key = 'Tab';
+            else if (key.length === 1) key = key.toUpperCase();
+            
+            parts.push(key);
+            return parts.join('+');
+        }
+        
+        executeHotkeyAction(action, hotkeyString) {
+            KLiteModular.log('hotkeys', `Executing hotkey: ${hotkeyString} → ${action}`);
+            
+            try {
+                switch (action) {
+                    // Generation Control
+                    case 'submit_generation':
+                        this.handleSubmitGeneration();
+                        break;
+                    case 'retry_generation':
+                        this.handleRetryGeneration();
+                        break;
+                    case 'undo_generation':
+                        this.handleUndoGeneration();
+                        break;
+                    case 'redo_generation':
+                        this.handleRedoGeneration();
+                        break;
+                    case 'abort_generation':
+                        this.handleAbortGeneration();
+                        break;
+                        
+                        
+                    // Focus Management
+                    case 'focus_main_input':
+                        this.handleFocusMainInput();
+                        break;
+                        
+                    default:
+                        KLiteModular.log('hotkeys', `Unknown action: ${action}`);
+                }
+            } catch (error) {
+                KLiteModular.log('hotkeys', `Error executing hotkey action ${action}:`, error);
+            }
+        }
+        
+        // Generation Control Actions
+        handleSubmitGeneration() {
+            const generateBtn = document.getElementById('btnsend');
+            if (generateBtn && !generateBtn.disabled) {
+                if (typeof window.prepare_submit_generation === 'function') {
+                    window.prepare_submit_generation();
+                } else {
+                    generateBtn.click();
+                }
+            }
+        }
+        
+        handleRetryGeneration() {
+            if (typeof window.btn_retry === 'function') {
+                window.btn_retry();
+            }
+        }
+        
+        handleUndoGeneration() {
+            if (typeof window.btn_back === 'function') {
+                window.btn_back();
+            }
+        }
+        
+        handleRedoGeneration() {
+            if (typeof window.btn_redo === 'function') {
+                window.btn_redo();
+            }
+        }
+        
+        handleAbortGeneration() {
+            if (typeof window.abort_generation === 'function') {
+                window.abort_generation();
+            }
+        }
+        
+        // Focus Management
+        handleFocusMainInput() {
+            const mainInput = document.getElementById('input_text');
+            if (mainInput) {
+                mainInput.focus();
+                // Move cursor to end
+                mainInput.setSelectionRange(mainInput.value.length, mainInput.value.length);
+            }
+        }
+        
+        
+        refresh() {
+            const panel = document.querySelector('[data-panel="hotkeys"]');
+            if (panel) {
+                panel.innerHTML = this.render();
+                this.postRender();
+            }
+        }
+        
+        saveState() {
+            return {
+                enabled: this.enabled
+            };
+        }
+        
+        restoreState(state) {
+            if (state && state.enabled !== undefined) {
+                this.enabled = state.enabled;
+                if (this.enabled) {
+                    this.enableHotkeys();
+                }
+            }
+        }
+        
+        cleanup() {
+            this.disableHotkeys();
         }
     }
 
@@ -13326,6 +14589,7 @@ ${content}`;
     KLiteModular.registerPanel('timelineindex', TimelineIndexPanel);
     KLiteModular.registerPanel('quickactions', QuickActionsPanel);
     KLiteModular.registerPanel('helpreference', HelpReferencePanel);
+    KLiteModular.registerPanel('hotkeys', HotkeysPanel);
     KLiteModular.registerPanel('worldinfo', WorldInfoManagementPanel);
     KLiteModular.registerPanel('textdb', TextDatabasePanel);
     KLiteModular.registerPanel('groupchat', GroupChatPanel);
