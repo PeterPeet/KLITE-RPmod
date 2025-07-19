@@ -2742,7 +2742,133 @@
     };
     
     // =============================================
-    // 3. MAIN MODULE WITH INTEGRATED PANELS
+    // 3. KOBOLDAI LITE INTEGRATION VERIFICATION
+    // =============================================
+    
+    const LiteAPI = {
+        get settings() { 
+            return window.localsettings || null; 
+        },
+        
+        get memory() { 
+            return typeof window.current_memory === 'string' ? window.current_memory : ''; 
+        },
+        
+        set memory(value) {
+            if (typeof value === 'string') {
+                window.current_memory = value;
+            }
+        },
+        
+        get worldInfo() { 
+            return Array.isArray(window.current_wi) ? window.current_wi : []; 
+        },
+        
+        set worldInfo(value) {
+            if (Array.isArray(value)) {
+                window.current_wi = value;
+            }
+        },
+        
+        get storage() {
+            return {
+                save: typeof window.indexeddb_save === 'function' ? window.indexeddb_save : null,
+                load: typeof window.indexeddb_load === 'function' ? window.indexeddb_load : null
+            };
+        },
+        
+        generate() {
+            if (typeof window.submit_generation_button === 'function') {
+                return window.submit_generation_button();
+            } else {
+                console.warn('[KLITE RPMod] Generation function unavailable');
+                return false;
+            }
+        },
+        
+        updateSettings(newSettings) {
+            if (this.settings && typeof newSettings === 'object') {
+                Object.assign(window.localsettings, newSettings);
+                return true;
+            }
+            console.warn('[KLITE RPMod] Cannot update settings - localsettings unavailable');
+            return false;
+        },
+        
+        isAvailable() {
+            return !!(window.localsettings && window.indexeddb_save && window.indexeddb_load);
+        }
+    };
+    
+    // =============================================
+    // 4. DOM ELEMENT SAFETY UTILITIES
+    // =============================================
+    
+    const DOMUtil = {
+        safeGet(selector, context = document) {
+            const element = context.getElementById ? context.getElementById(selector) : context.querySelector(`#${selector}`);
+            if (!element) {
+                console.warn(`[KLITE RPMod] Element not found: ${selector}`);
+            }
+            return element;
+        },
+        
+        safeQuery(selector, context = document) {
+            try {
+                const element = context.querySelector(selector);
+                if (!element) {
+                    console.warn(`[KLITE RPMod] Element not found: ${selector}`);
+                }
+                return element;
+            } catch (error) {
+                console.warn(`[KLITE RPMod] Invalid selector: ${selector}`, error.message);
+                return null;
+            }
+        },
+        
+        safeQueryAll(selector, context = document) {
+            try {
+                const elements = context.querySelectorAll(selector);
+                if (elements.length === 0) {
+                    console.warn(`[KLITE RPMod] No elements found: ${selector}`);
+                }
+                // Convert NodeList to Array for consistent return type
+                return Array.from(elements);
+            } catch (error) {
+                console.warn(`[KLITE RPMod] Invalid selector: ${selector}`, error.message);
+                return [];
+            }
+        },
+        
+        safeSet(elementOrId, property, value, context = document) {
+            const element = typeof elementOrId === 'string' ? this.safeGet(elementOrId, context) : elementOrId;
+            if (element && property in element) {
+                element[property] = value;
+                return true;
+            }
+            return false;
+        },
+        
+        safeCall(elementOrId, method, ...args) {
+            const element = typeof elementOrId === 'string' ? this.safeGet(elementOrId) : elementOrId;
+            if (element && typeof element[method] === 'function') {
+                return element[method](...args);
+            }
+            console.warn(`[KLITE RPMod] Cannot call ${method} on element:`, elementOrId);
+            return null;
+        }
+    };
+    
+    // =============================================
+    // 5. GLOBAL API EXPOSURE
+    // =============================================
+    
+    // Expose LiteAPI and DOMUtil globally for testing and external access
+    window.LiteAPI = LiteAPI;
+    window.DOMUtil = DOMUtil;
+    
+    // =============================================
+    // 6. MAIN MODULE WITH INTEGRATED PANELS  
     // =============================================
     
     window.KLITE_RPMod = {
@@ -2895,25 +3021,22 @@
             
             // Load current settings from KoboldAI Lite
             loadFromLite() {
-                if (!window.localsettings) return;
+                if (!LiteAPI.settings) return;
                 
                 this.currentSettings = {
-                    temperature: window.localsettings.temperature || 0.7,
-                    top_p: window.localsettings.top_p || 0.9,
-                    top_k: window.localsettings.top_k || 0,
-                    min_p: window.localsettings.min_p || 0.0,
-                    rep_pen: window.localsettings.rep_pen || 1.1,
-                    rep_pen_range: window.localsettings.rep_pen_range || 1024,
-                    max_length: window.localsettings.max_length || 512
+                    temperature: LiteAPI.settings.temperature || 0.7,
+                    top_p: LiteAPI.settings.top_p || 0.9,
+                    top_k: LiteAPI.settings.top_k || 0,
+                    min_p: LiteAPI.settings.min_p || 0.0,
+                    rep_pen: LiteAPI.settings.rep_pen || 1.1,
+                    rep_pen_range: LiteAPI.settings.rep_pen_range || 1024,
+                    max_length: LiteAPI.settings.max_length || 512
                 };
             },
             
             // Save settings to KoboldAI Lite and sync all panels
             saveToLite(settings) {
-                if (!window.localsettings) return;
-                
-                // Update KoboldAI Lite settings
-                Object.assign(window.localsettings, settings);
+                if (!LiteAPI.updateSettings(settings)) return;
                 
                 // Save to localStorage
                 if (window.save_settings) {
@@ -3036,30 +3159,30 @@
                 };
                 
                 // Update parameter displays only
-                document.querySelectorAll('[id$=\"-temp-val\"]').forEach(el => {
+                DOMUtil.safeQueryAll('[id$=\"-temp-val\"]').forEach(el => {
                     if (el) el.textContent = settings.temperature.toFixed(2);
                 });
-                document.querySelectorAll('[id$=\"-topp-val\"]').forEach(el => {
+                DOMUtil.safeQueryAll('[id$=\"-topp-val\"]').forEach(el => {
                     if (el) el.textContent = settings.top_p.toFixed(2);
                 });
-                document.querySelectorAll('[id$=\"-topk-val\"]').forEach(el => {
+                DOMUtil.safeQueryAll('[id$=\"-topk-val\"]').forEach(el => {
                     if (el) el.textContent = settings.top_k;
                 });
-                document.querySelectorAll('[id$=\"-minp-val\"]').forEach(el => {
+                DOMUtil.safeQueryAll('[id$=\"-minp-val\"]').forEach(el => {
                     if (el) el.textContent = settings.min_p.toFixed(3);
                 });
-                document.querySelectorAll('[id$=\"-repen-val\"]').forEach(el => {
+                DOMUtil.safeQueryAll('[id$=\"-repen-val\"]').forEach(el => {
                     if (el) el.textContent = settings.rep_pen.toFixed(2);
                 });
-                document.querySelectorAll('[id$=\"-max-length-value\"]').forEach(el => {
+                DOMUtil.safeQueryAll('[id$=\"-max-length-value\"]').forEach(el => {
                     if (el) el.textContent = settings.max_length + ' tokens';
                 });
                 
                 // Update all panel repetition range and slope displays
-                document.querySelectorAll('[id$="-rng-val"]').forEach(el => {
+                DOMUtil.safeQueryAll('[id$="-rng-val"]').forEach(el => {
                     if (el) el.textContent = settings.rep_pen_range;
                 });
-                document.querySelectorAll('[id$="-slp-val"]').forEach(el => {
+                DOMUtil.safeQueryAll('[id$="-slp-val"]').forEach(el => {
                     if (el) el.textContent = settings.rep_pen_slope.toFixed(1);
                 });
                 
@@ -3091,10 +3214,10 @@
                 const repetitionValue = this.paramToSlider.repetition(currentRepPen);
                 
                 // Update sliders
-                const creativitySlider = document.getElementById(`${panelPrefix}-creativity-slider`);
-                const focusSlider = document.getElementById(`${panelPrefix}-focus-slider`);
-                const repetitionSlider = document.getElementById(`${panelPrefix}-repetition-slider`);
-                const lengthSlider = document.getElementById(`${panelPrefix}-max-length`);
+                const creativitySlider = DOMUtil.safeGet(`${panelPrefix}-creativity-slider`);
+                const focusSlider = DOMUtil.safeGet(`${panelPrefix}-focus-slider`);
+                const repetitionSlider = DOMUtil.safeGet(`${panelPrefix}-repetition-slider`);
+                const lengthSlider = DOMUtil.safeGet(`${panelPrefix}-max-length`);
                 
                 if (creativitySlider) creativitySlider.value = creativityValue;
                 if (focusSlider) focusSlider.value = focusValue;
@@ -3942,8 +4065,13 @@
         },
         
         handleClick(e) {
-            // Collapse handles
+            // Collapse handles - but not in mobile mode to prevent accidental panel closing
             if (e.target.classList.contains('klite-handle')) {
+                // In mobile mode, panel toggling is controlled by navigation, not handles
+                if (this.state.mobile.enabled) {
+                    this.log('mobile', 'Handle click ignored in mobile mode');
+                    return;
+                }
                 this.togglePanel(e.target.dataset.panel);
             }
             // Tabs
@@ -6215,13 +6343,13 @@
         },
         
         async saveToLiteStorage(key, data) {
-            if (typeof window.indexeddb_save !== 'function') {
+            if (!LiteAPI.storage.save) {
                 console.warn('[KLITE RPMod] Storage not ready yet, data will be lost on reload:', key);
                 return false;
             }
             
             try {
-                await window.indexeddb_save(key, data);
+                await LiteAPI.storage.save(key, data);
                 console.log('[KLITE RPMod] Successfully saved to storage:', key);
                 return true;
             } catch (error) {
@@ -6231,13 +6359,13 @@
         },
         
         async loadFromLiteStorage(key) {
-            if (typeof window.indexeddb_load !== 'function') {
+            if (!LiteAPI.storage.load) {
                 console.warn('[KLITE RPMod] Storage not ready yet, cannot load:', key);
                 return null;
             }
             
             try {
-                const result = await window.indexeddb_load(key, null);
+                const result = await LiteAPI.storage.load(key, null);
                 return result;
             } catch (error) {
                 // Key doesn't exist yet - this is expected for first-time users
@@ -7920,9 +8048,7 @@
             KLITE_RPMod.log('panels', `Auto sender: Submitting message: "${contextMessage}"`);
             
             // Submit using KoboldAI's native function
-            if (window.submit_generation_button) {
-                window.submit_generation_button();
-            }
+            LiteAPI.generate();
         },
         
         sendQuickMessage(message) {
@@ -9754,17 +9880,17 @@ Outline:`
             
             if (append) {
                 // Append to existing memory
-                const currentMemory = window.current_memory || '';
-                window.current_memory = currentMemory + (currentMemory.length > 0 ? '\n\n' : '') + memory;
+                const currentMemory = LiteAPI.memory;
+                LiteAPI.memory = currentMemory + (currentMemory.length > 0 ? '\n\n' : '') + memory;
             } else {
                 // Replace existing memory completely
-                window.current_memory = memory;
+                LiteAPI.memory = memory;
             }
             
             // Update memory field in KoboldAI Lite
-            const liteMemory = document.getElementById('memorytext');
+            const liteMemory = DOMUtil.safeGet('memorytext');
             if (liteMemory) {
-                liteMemory.value = window.current_memory;
+                liteMemory.value = LiteAPI.memory;
                 liteMemory.dispatchEvent(new Event('input'));
             }
             
@@ -13831,7 +13957,7 @@ Outline:`
         
         commitChanges() {
             // Save pending changes to current_wi
-            window.current_wi = JSON.parse(JSON.stringify(this.pendingWI));
+            LiteAPI.worldInfo = JSON.parse(JSON.stringify(this.pendingWI));
             window.pending_wi_obj = this.pendingWI;
             window.autosave?.();
         },
