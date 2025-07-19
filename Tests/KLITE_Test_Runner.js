@@ -68,6 +68,12 @@ const KLITETestRunner = {
         
         // Mock DOM elements that Lite provides
         KLITEMocks.createMockLiteDOM();
+        
+        // Set up global container variable that KLITE-RPmod uses
+        if (typeof KLITE_RPMod !== 'undefined') {
+            window.container = document.getElementById('klite-container');
+        }
+        
         this.log('info', 'Mock environment setup complete');
     },
     

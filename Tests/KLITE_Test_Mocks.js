@@ -105,8 +105,9 @@ const KLITEMocks = {
     createMockLiteDOM() {
         const mockElements = new Map();
         
-        // Create mock elements
+        // Create mock elements for both Lite and KLITE-RPmod
         const elements = {
+            // KoboldAI Lite elements
             'memorytext': { 
                 tagName: 'TEXTAREA',
                 value: '',
@@ -144,26 +145,131 @@ const KLITEMocks = {
                 textContent: '',
                 addEventListener: function() {},
                 removeEventListener: function() {}
+            },
+            // KLITE-RPmod panel containers
+            'content-left': {
+                tagName: 'DIV',
+                className: 'klite-content',
+                innerHTML: '',
+                addEventListener: function() {},
+                removeEventListener: function() {}
+            },
+            'content-right': {
+                tagName: 'DIV',
+                className: 'klite-content',
+                innerHTML: '',
+                addEventListener: function() {},
+                removeEventListener: function() {}
+            },
+            'panel-left': {
+                tagName: 'DIV',
+                className: 'klite-panel klite-panel-left',
+                innerHTML: '',
+                addEventListener: function() {},
+                removeEventListener: function() {}
+            },
+            'panel-right': {
+                tagName: 'DIV',
+                className: 'klite-panel klite-panel-right',
+                innerHTML: '',
+                addEventListener: function() {},
+                removeEventListener: function() {}
+            },
+            'panel-top': {
+                tagName: 'DIV',
+                className: 'klite-panel klite-panel-top',
+                innerHTML: '',
+                addEventListener: function() {},
+                removeEventListener: function() {}
+            },
+            'klite-container': {
+                tagName: 'DIV',
+                className: 'klite-container',
+                innerHTML: '',
+                addEventListener: function() {},
+                removeEventListener: function() {}
+            },
+            'maincontent': {
+                tagName: 'DIV',
+                className: 'klite-maincontent',
+                innerHTML: '',
+                addEventListener: function() {},
+                removeEventListener: function() {}
             }
         };
         
         // Store elements for reference
         for (const [id, element] of Object.entries(elements)) {
             element.id = id;
+            
+            // Enhanced classList mock with proper toggle implementation
             element.classList = {
-                contains: () => false,
-                add: () => {},
-                remove: () => {},
-                toggle: () => {}
+                _classes: new Set(),
+                contains: function(className) { return this._classes.has(className); },
+                add: function(className) { this._classes.add(className); },
+                remove: function(className) { this._classes.delete(className); },
+                toggle: function(className) { 
+                    if (this._classes.has(className)) {
+                        this._classes.delete(className);
+                        return false;
+                    } else {
+                        this._classes.add(className);
+                        return true;
+                    }
+                }
             };
+            
             element.style = {};
+            
+            // Add querySelector methods for DOM navigation
+            element.querySelector = function(selector) {
+                // Simple mock implementation
+                if (selector === '.klite-handle') {
+                    return { 
+                        click: () => {},
+                        addEventListener: () => {},
+                        removeEventListener: () => {},
+                        classList: {
+                            _classes: new Set(),
+                            contains: function(className) { return this._classes.has(className); },
+                            add: function(className) { this._classes.add(className); },
+                            remove: function(className) { this._classes.delete(className); },
+                            toggle: function(className) { 
+                                if (this._classes.has(className)) {
+                                    this._classes.delete(className);
+                                    return false;
+                                } else {
+                                    this._classes.add(className);
+                                    return true;
+                                }
+                            }
+                        }
+                    };
+                }
+                return null;
+            };
+            
+            element.querySelectorAll = function(selector) {
+                // Return array-like object (NodeList simulation)
+                const results = [];
+                results.length = 0;
+                return results;
+            };
+            
             mockElements.set(id, element);
         }
         
-        // Mock getElementById
+        // Mock getElementById with memory sync support
         const originalGetElementById = document.getElementById;
         document.getElementById = function(id) {
-            return mockElements.get(id) || originalGetElementById.call(document, id);
+            const element = mockElements.get(id);
+            if (element && id === 'memorytext') {
+                // Sync with window.current_memory if it exists
+                if (typeof window.current_memory === 'string') {
+                    element.value = window.current_memory;
+                }
+            }
+            return element || originalGetElementById.call(document, id);
         };
         
         // Provide cleanup method

@@ -2814,19 +2814,30 @@
         },
         
         safeQuery(selector, context = document) {
-            const element = context.querySelector(selector);
-            if (!element) {
-                console.warn(`[KLITE RPMod] Element not found: ${selector}`);
+            try {
+                const element = context.querySelector(selector);
+                if (!element) {
+                    console.warn(`[KLITE RPMod] Element not found: ${selector}`);
+                }
+                return element;
+            } catch (error) {
+                console.warn(`[KLITE RPMod] Invalid selector: ${selector}`, error.message);
+                return null;
             }
-            return element;
         },
         
         safeQueryAll(selector, context = document) {
-            const elements = context.querySelectorAll(selector);
-            if (elements.length === 0) {
-                console.warn(`[KLITE RPMod] No elements found: ${selector}`);
+            try {
+                const elements = context.querySelectorAll(selector);
+                if (elements.length === 0) {
+                    console.warn(`[KLITE RPMod] No elements found: ${selector}`);
+                }
+                // Convert NodeList to Array for consistent return type
+                return Array.from(elements);
+            } catch (error) {
+                console.warn(`[KLITE RPMod] Invalid selector: ${selector}`, error.message);
+                return [];
             }
-            return elements;
         },
         
         safeSet(elementOrId, property, value, context = document) {
@@ -2849,7 +2860,15 @@
     };
     
     // =============================================
-    // 5. MAIN MODULE WITH INTEGRATED PANELS  
+    // 5. GLOBAL API EXPOSURE
+    // =============================================
+    
+    // Expose LiteAPI and DOMUtil globally for testing and external access
+    window.LiteAPI = LiteAPI;
+    window.DOMUtil = DOMUtil;
+    
+    // =============================================
+    // 6. MAIN MODULE WITH INTEGRATED PANELS  
     // =============================================
     
     window.KLITE_RPMod = {
