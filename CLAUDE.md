@@ -72,38 +72,52 @@ Full support for all Tavern Card formats:
 
 ## Project Structure
 
-### Core Implementation
-- `KLITE-RPmod_ALPHA.js` - Main implementation (18K+ lines)
-- `USER_GUIDE.md` - Comprehensive user documentation and common use cases
+### Core Files (Top Level)
+- `KLITE-RPmod_ALPHA.js` - Main implementation (18K+ lines) - **Primary deliverable**
+- `USER_GUIDE.md` - End-user documentation and common workflows
 - `README.md` - Project overview and installation guide
 - `LICENSE` - Project licensing
+- `CLAUDE.md` - Development context and project guide
 
-### Requirements & Analysis (`Requirements/`)
-- `KLITE-RPmod_Requirements_Analysis.md` - Comprehensive functional & non-functional requirements (200+ requirements)
-- `KLITE-RPmod_User_Stories_Structured.md` - User personas, workflows, and use cases
-- `KLITE-RPmod_Testing_Framework.md` - Testing strategy and framework documentation
-- `Project-Development-Guide.md` - Complete technical architecture guide and development best practices
-- `Userstories-RPmod.md` - Additional user story documentation
+### Documentation (`docs/`)
 
-### Technical Specifications (`Specifications/`)
-- `KoboldAI-Lite_sourcecode_v263_index.html` - Reference Lite source code
-- `spec_v1.md`, `spec_v2.md`, `SPEC_V3.md` - Tavern Card format specifications
-- `concepts_V3.md` - Advanced V3 format concepts
-- `keyword_definitions_spec_v1-v2.md` - Legacy format reference
-- `problematic-characters-examples/` - Test character cards for manual validation
+#### User Documentation (`docs/user/`)
+- Reserved for future user-facing documentation and tutorials
 
-### Testing Framework (`Tests/`)
+#### Developer Documentation (`docs/developer/`)
+- `ARCHITECTURE.md` - Complete technical architecture and development best practices
+- `REQUIREMENTS.md` - Comprehensive functional & non-functional requirements (200+ requirements)
+- `specifications/` - Technical specifications and reference materials
+  - `tavern-cards/` - Character card format specifications
+    - `spec_v1.md`, `spec_v2.md`, `SPEC_V3.md` - Format specifications
+    - `concepts_V3.md` - Advanced V3 format concepts  
+    - `keyword_definitions_spec_v1-v2.md` - Legacy format reference
+  - `reference/` - Reference implementations and source code
+    - `KoboldAI-Lite_sourcecode_v263_index.html` - Reference Lite source
+
+#### Project Documentation (`docs/project/`)
+- `USER_STORIES.md` - User personas, workflows, and detailed use cases
+- `TESTING_STRATEGY.md` - Testing framework documentation and QA approach
+- `archive/` - Historical project documentation
+  - `Userstories-RPmod.md` - Legacy user story documentation
+
+### Testing Framework (`tests/`)
+- `README.md` - Testing framework documentation and usage guide
 - `KLITE_Test_Runner.js` - Core test execution engine
 - `KLITE_Test_Assertions.js` - KLITE-specific validation methods
 - `KLITE_Test_Mocks.js` - KoboldAI Lite environment simulation
-- `Core_System_Tests.js` - System initialization and core functionality tests
-- `Panel_System_Tests.js` - Panel lifecycle and organization tests
-- `Character_Management_Tests.js` - Character card format and CRUD operation tests
+- `Core_System_Tests.js` - System initialization and functionality tests
+- `Panel_System_Tests.js` - Panel lifecycle and organization tests  
+- `Character_Management_Tests.js` - Character card format and CRUD tests
 - `Integration_Tests.js` - KoboldAI Lite integration and API tests
 - `KLITE_Functional_Tests.js` - High-level functional validation
 - `Test_Runner_FunctionalTests.html` - Browser-based functional test runner
 - `Test_Runner_ImplementationTests.html` - Browser-based implementation test runner
-- `README.md` - Testing framework documentation and usage guide
+- `examples/` - Test data and edge cases
+  - `problematic-characters/` - Worst-case character cards for manual testing
+
+### Project Archive (`archive/`)
+- Historical backups and deprecated content
 
 ### Development Milestones
 The project has evolved through systematic development phases:
