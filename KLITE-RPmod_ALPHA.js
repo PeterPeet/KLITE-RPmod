@@ -4065,8 +4065,13 @@
         },
         
         handleClick(e) {
-            // Collapse handles
+            // Collapse handles - but not in mobile mode to prevent accidental panel closing
             if (e.target.classList.contains('klite-handle')) {
+                // In mobile mode, panel toggling is controlled by navigation, not handles
+                if (this.state.mobile.enabled) {
+                    this.log('mobile', 'Handle click ignored in mobile mode');
+                    return;
+                }
                 this.togglePanel(e.target.dataset.panel);
             }
             // Tabs
