@@ -1,5 +1,5 @@
 // =============================================
-// KLITE RP mod - Complete Version v40
+// KLITE RP mod - ALPHA Release
 // Creator: Peter Hauer | GPL-3.0 License
 // https://github.com/PeterPeet/
 // =============================================
@@ -2872,7 +2872,6 @@
     // =============================================
     
     window.KLITE_RPMod = {
-        version: '40',
         state: {
             tabs: { left: 'PLAY', right: 'MEMORY' },
             collapsed: { left: false, right: false, top: false },
@@ -3516,10 +3515,11 @@
             hooks: false,
             panels: false,
             chars: false,
-            generation: false,
+            generation: false,  // Disable Horde status logging
             state: false,
             integration: false,
             hotkeys: false,
+            debug: false,       // Disable debug logging
             errors: true,       // Always show errors
             chat: false,
             mobile: false,
@@ -4807,12 +4807,21 @@
                 const orig = window.render_gametext;
                 const self = this; // Preserve reference to KLITE_RPMod
                 window.render_gametext = (...args) => {
+                    // Check if gametext element was at bottom before rendering
+                    const gametext = document.getElementById('gametext');
+                    const wasAtBottom = gametext ? self.isScrolledToBottom(gametext) : true;
+                    
                     const result = orig.apply(window, args);
                     self.log('integration', 'render_gametext called, syncing chat display');
                     self.syncChat();
                     self.updateAllChatAvatars();
                     self.state.generating = false;
                     self.updateSubmitBtn();
+                    
+                    // Handle auto scroll for main gametext element too
+                    if (gametext) {
+                        self.handleAutoScroll(gametext, wasAtBottom);
+                    }
                     
                     // Trigger auto-ambient color generation if enabled and not in default theme
                     if (self.panels.SCENE?.visualStyle?.autoGenerate && self.panels.SCENE?.visualStyle?.theme !== 'default') {
@@ -4826,32 +4835,31 @@
                 this.log('hooks', 'Hooked render_gametext');
             }
 
-            // Optimal Horde queue/wait time handling via fetch intercept
+            // Comprehensive Horde queue/wait time handling via fetch AND XMLHttpRequest intercept
+            
+            // Hook fetch requests
             const origFetch = window.fetch;
             window.fetch = function(...args) {
                 const url = args[0];
                 
-                // Check if this is a Horde status poll
-                if (url && typeof url === 'string' && url.includes('/api/v2/generate/status/')) {
-                    KLITE_RPMod.log('generation', 'Intercepted Horde status poll:', url);
-                    
+                // Only log Horde requests, not all fetch requests
+                
+                // Check for any Horde-related URLs (broader pattern)
+                if (url && typeof url === 'string' && (
+                    url.includes('/api/v2/generate/status/') || 
+                    url.includes('/generate/status/') ||
+                    url.includes('horde') ||
+                    url.includes('status')
+                )) {
                     return origFetch.apply(window, args).then(response => {
                         // Clone the response so we can read it without consuming it
                         const cloned = response.clone();
                         cloned.json().then(data => {
-                            KLITE_RPMod.log('generation', 'Horde status data:', data);
+                            // Use centralized status update method
+                            KLITE_RPMod.updateHordeStatusFromData(data);
                             
-                            // Update our UI with the Horde status
+                            // Update generating state based on done flag
                             if (data && !data.faulted) {
-                                const queueEl = document.getElementById('queue');
-                                const waitEl = document.getElementById('wait');
-                                
-                                if (queueEl && data.queue_position !== undefined) {
-                                    queueEl.textContent = `#${data.queue_position}`;
-                                }
-                                if (waitEl && data.wait_time !== undefined) {
-                                    waitEl.textContent = `${data.wait_time}s`;
-                                }
                                 
                                 // Update generating state based on done flag
                                 if (data.done === false && !KLITE_RPMod.state.generating) {
@@ -4882,6 +4890,64 @@
                 return origFetch.apply(window, args);
             };
             this.log('hooks', 'Hooked fetch for Horde status interception');
+            
+            // Also hook XMLHttpRequest in case KoboldAI Lite uses that
+            const origXHROpen = XMLHttpRequest.prototype.open;
+            const origXHRSend = XMLHttpRequest.prototype.send;
+            
+            XMLHttpRequest.prototype.open = function(method, url, ...args) {
+                this._requestURL = url;
+                
+                // Check for Horde-related URLs
+                if (url && typeof url === 'string' && (
+                    url.includes('/api/v2/generate/status/') || 
+                    url.includes('/generate/status/') ||
+                    url.includes('horde') ||
+                    url.includes('status')
+                )) {
+                    this._isHordeRequest = true;
+                }
+                
+                return origXHROpen.apply(this, [method, url, ...args]);
+            };
+            
+            XMLHttpRequest.prototype.send = function(...args) {
+                if (this._isHordeRequest) {
+                    // Hook the response
+                    this.addEventListener('load', function() {
+                        if (this.status === 200) {
+                            try {
+                                const data = JSON.parse(this.responseText);
+                                KLITE_RPMod.updateHordeStatusFromData(data);
+                            } catch (error) {
+                                KLITE_RPMod.log('error', 'Failed to parse XHR Horde response:', error);
+                            }
+                        }
+                    });
+                }
+                
+                return origXHRSend.apply(this, args);
+            };
+            
+            this.log('hooks', 'Hooked XMLHttpRequest for Horde status interception');
+            
+            // Hook restart_new_game for proper RPmod state reset
+            if (window.restart_new_game) {
+                const orig = window.restart_new_game;
+                const self = this; // Preserve reference to KLITE_RPMod
+                window.restart_new_game = function(ask_confirm, keep_memory) {
+                    self.log('init', 'New game restart triggered, resetting RPmod state...');
+                    
+                    // Call original Lite reset function first
+                    const result = orig.apply(window, arguments);
+                    
+                    // Reset KLITE-RPmod state after Lite reset
+                    self.resetRPModState(keep_memory);
+                    
+                    return result;
+                };
+                this.log('hooks', 'Hooked restart_new_game for RPmod state reset');
+            }
             
             // Also monitor the Lite's own queue display element
             setInterval(() => {
@@ -4995,6 +5061,64 @@
                 }
                 this.log('state', `Submit button updated: ${btn.textContent}`);
             }
+        },
+        
+        resetRPModState(keepMemory = false) {
+            this.log('init', `Resetting RPmod state (keepMemory: ${keepMemory})`);
+            
+            // Reset character selections
+            if (this.panels.PLAY_RP) {
+                this.panels.PLAY_RP.selectedCharacter = null;
+                this.panels.PLAY_RP.characterEnabled = false;
+                this.panels.PLAY_RP.selectedPersona = null;
+                this.panels.PLAY_RP.personaEnabled = false;
+                
+                // Reset any character-specific rules if not keeping memory
+                if (!keepMemory) {
+                    this.panels.PLAY_RP.rules = '';
+                }
+                
+                this.log('init', 'Reset PLAY_RP panel character selections');
+            }
+            
+            // Reset group chat data
+            if (this.groupAvatars) {
+                this.groupAvatars.clear();
+                this.log('init', 'Cleared group chat avatars');
+            }
+            
+            // Reset avatar states to defaults
+            this.userAvatarCurrent = this.userAvatarDefault;
+            this.aiAvatarCurrent = this.aiAvatarDefault;
+            this.log('init', 'Reset avatars to defaults');
+            
+            // Reset generating state
+            this.state.generating = false;
+            this.updateSubmitBtn();
+            
+            // Reset save slots if not keeping memory
+            if (!keepMemory) {
+                // Clear quick save slots for all panels that have them
+                Object.values(this.panels).forEach(panel => {
+                    if (panel.saveSlots) {
+                        // Initialize with null values to show empty slots
+                        panel.saveSlots.saves = [null, null, null, null, null];
+                        panel.saveSlots.currentSlot = 0;
+                        panel.saveSlots.current = 0;
+                    }
+                });
+                this.log('init', 'Cleared quick save slots');
+            }
+            
+            // Refresh active panels to show reset state
+            if (this.state.tabs.left) {
+                this.loadPanel('left', this.state.tabs.left);
+            }
+            if (this.state.tabs.right) {
+                this.loadPanel('right', this.state.tabs.right);
+            }
+            
+            this.log('init', 'RPmod state reset complete');
         },
         
         toggleEdit() {
@@ -5530,6 +5654,9 @@
             const gametext = document.getElementById('gametext');
             const display = document.getElementById('chat-display');
             if (gametext && display) {
+                // Check if user is at bottom before updating content
+                const wasAtBottom = this.isScrolledToBottom(display);
+                
                 display.innerHTML = gametext.innerHTML || '<p class="klite-center klite-muted">No content yet...</p>';
                 this.log('integration', 'Chat display synced');
                 
@@ -5537,7 +5664,63 @@
                 this.updateGroupAvatars();
                 
                 // Apply avatar replacements after syncing
-                setTimeout(() => this.replaceAvatarsInChat(), 100);
+                setTimeout(() => {
+                    this.replaceAvatarsInChat();
+                    
+                    // Handle auto scroll based on KoboldAI Lite setting
+                    this.handleAutoScroll(display, wasAtBottom);
+                }, 100);
+            }
+        },
+        
+        // Update Horde status from response data (used by both fetch and XHR hooks)
+        updateHordeStatusFromData(data) {
+            if (data && !data.faulted) {
+                // Defensive DOM access with retry mechanism for Horde status
+                const updateHordeStatusElement = (id, value, retries = 3) => {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.textContent = value;
+                        return true;
+                    } else if (retries > 0) {
+                        // Retry after a short delay if element not found
+                        setTimeout(() => updateHordeStatusElement(id, value, retries - 1), 100);
+                    } else {
+                        this.log('error', `Failed to update Horde status element ${id} after retries`);
+                    }
+                    return false;
+                };
+                
+                // Update queue position with defensive access
+                if (data.queue_position !== undefined) {
+                    updateHordeStatusElement('queue', `#${data.queue_position}`);
+                }
+                
+                // Update wait time with defensive access
+                if (data.wait_time !== undefined) {
+                    updateHordeStatusElement('wait', `${data.wait_time}s`);
+                }
+                
+                // Don't override connection status - let it show the original value
+            }
+        },
+        
+        // Auto scroll helper functions
+        isScrolledToBottom(element, threshold = 50) {
+            if (!element) return false;
+            const { scrollTop, scrollHeight, clientHeight } = element;
+            return scrollHeight - scrollTop - clientHeight <= threshold;
+        },
+        
+        handleAutoScroll(element, wasAtBottom = true) {
+            if (!element || !window.localsettings?.autoscroll) return;
+            
+            // Only auto scroll if:
+            // 1. Auto scroll is enabled in settings
+            // 2. User was at bottom before content update (didn't manually scroll up)
+            if (wasAtBottom) {
+                element.scrollTop = element.scrollHeight;
+                this.log('integration', 'Auto scrolled to bottom');
             }
         },
         
@@ -6458,7 +6641,7 @@
                         } else if (data.characters && Array.isArray(data.characters)) {
                             // New format: wrapper object
                             this.characters = data.characters;
-                            this.essential(`📚 Characters loaded (v${data.version}): ${this.characters.length} characters`);
+                            this.essential(`📚 Characters loaded: ${this.characters.length} characters`);
                         } else {
                             this.error('Invalid character data format found in storage. Starting fresh.', data);
                             this.characters = [];
@@ -7490,11 +7673,22 @@
                 KLITE_RPMod.showUnifiedCharacterModal('single-select', (char) => {
                     KLITE_RPMod.panels.PLAY_RP.selectedPersona = char;
                     KLITE_RPMod.panels.PLAY_RP.personaEnabled = true;
-                    KLITE_RPMod.panels.PLAY_RP.applyCharacterData(char);
                     
-                    // Refresh the panel to show the new character
+                    // Apply persona-specific logic (NOT character data which affects AI)
+                    // Update user avatar with persona image if available
+                    if (char.avatar || char.image) {
+                        KLITE_RPMod.updateUserAvatar(char.avatar || char.image);
+                    } else {
+                        // Reset to default user avatar if no persona image
+                        KLITE_RPMod.updateUserAvatar(null);
+                    }
+                    
+                    // Update character context in memory without affecting AI character
+                    KLITE_RPMod.panels.PLAY_RP.updateCharacterContext();
+                    
+                    // Refresh the panel to show the new persona
                     KLITE_RPMod.loadPanel('left', 'PLAY');
-                    // Character application confirmed by UI state change
+                    // Persona application confirmed by UI state change
                 });
             },
             'remove-persona': () => KLITE_RPMod.panels.PLAY_RP.removePersona(),
@@ -8658,16 +8852,74 @@
             const saveName = prompt(`Enter name for save slot ${slotNumber}:`, `Save ${slotNumber}`);
             if (!saveName) return;
             
-            // Create save data
+            // Create comprehensive save data (full RPmod snapshot)
             const saveData = {
+                // Basic metadata
                 name: saveName,
                 timestamp: new Date().toISOString(),
+                version: '2.0', // Version for migration compatibility
+                
+                // Core game state
                 gametext: [...(window.gametext_arr || [])],
                 memory: window.current_memory || '',
-                rules: this.rules || '',
-                settings: {
-                    chatname: window.localsettings?.chatname || 'User',
-                    chatopponent: window.localsettings?.chatopponent || 'AI'
+                
+                // WorldInfo complete state
+                worldInfo: {
+                    entries: window.current_wi ? [...window.current_wi] : [],
+                    pending: window.pending_wi_obj || null
+                },
+                
+                // TextDB complete state  
+                textDB: {
+                    data: window.documentdb_data || '',
+                    enabled: window.documentdb_enabled || false,
+                    searchHistory: window.documentdb_searchhistory || false,
+                    numResults: window.documentdb_numresults || 3,
+                    searchRange: window.documentdb_searchrange || 300,
+                    chunkSize: window.documentdb_chunksize || 800
+                },
+                
+                // Complete generation settings
+                generationSettings: {
+                    chatname: window.localsettings?.chatname,
+                    chatopponent: window.localsettings?.chatopponent,
+                    temperature: window.localsettings?.temperature,
+                    top_p: window.localsettings?.top_p,
+                    top_k: window.localsettings?.top_k,
+                    min_p: window.localsettings?.min_p,
+                    rep_pen: window.localsettings?.rep_pen,
+                    rep_pen_range: window.localsettings?.rep_pen_range,
+                    rep_pen_slope: window.localsettings?.rep_pen_slope,
+                    max_length: window.localsettings?.max_length,
+                    tfs: window.localsettings?.tfs,
+                    typical_p: window.localsettings?.typical_p
+                },
+                
+                // Panel-specific state
+                playRP: {
+                    rules: this.rules || '',
+                    selectedCharacter: this.selectedCharacter || null,
+                    characterEnabled: this.characterEnabled || false,
+                    selectedPersona: this.selectedPersona || null,
+                    personaEnabled: this.personaEnabled || false,
+                    autoSender: this.autoSender ? {...this.autoSender} : null
+                },
+                
+                // Global UI state
+                globalState: {
+                    tabs: {...KLITE_RPMod.state.tabs},
+                    collapsed: {...KLITE_RPMod.state.collapsed},
+                    adventureMode: KLITE_RPMod.state.adventureMode || 0,
+                    fullscreen: KLITE_RPMod.state.fullscreen || false
+                },
+                
+                // Chat styling state
+                chatStyle: KLITE_RPMod.panels.PLAY_CHAT?.chatStyle || 'mobile',
+                
+                // Avatar states
+                avatars: {
+                    userCurrent: KLITE_RPMod.userAvatarCurrent,
+                    aiCurrent: KLITE_RPMod.aiAvatarCurrent
                 }
             };
             
@@ -8695,7 +8947,7 @@
                 return;
             }
             
-            // Load save data
+            // Load comprehensive save data
             try {
                 // Restore game text
                 if (saveData.gametext) {
@@ -8708,13 +8960,76 @@
                     window.current_memory = saveData.memory;
                 }
                 
-                // Restore rules
-                if (saveData.rules !== undefined) {
-                    this.rules = saveData.rules;
+                // Restore WorldInfo complete state
+                if (saveData.worldInfo) {
+                    if (saveData.worldInfo.entries && Array.isArray(saveData.worldInfo.entries)) {
+                        window.current_wi = [...saveData.worldInfo.entries];
+                    }
+                    if (saveData.worldInfo.pending) {
+                        window.pending_wi_obj = {...saveData.worldInfo.pending};
+                    }
                 }
                 
-                // Restore settings
-                if (saveData.settings && window.localsettings) {
+                // Restore TextDB complete state
+                if (saveData.textDB) {
+                    window.documentdb_data = saveData.textDB.data || '';
+                    window.documentdb_enabled = saveData.textDB.enabled || false;
+                    window.documentdb_searchhistory = saveData.textDB.searchHistory || false;
+                    window.documentdb_numresults = saveData.textDB.numResults || 3;
+                    window.documentdb_searchrange = saveData.textDB.searchRange || 300;
+                    window.documentdb_chunksize = saveData.textDB.chunkSize || 800;
+                }
+                
+                // Restore complete generation settings
+                if (saveData.generationSettings && window.localsettings) {
+                    Object.assign(window.localsettings, saveData.generationSettings);
+                }
+                
+                // Restore PLAY_RP panel state
+                if (saveData.playRP) {
+                    this.rules = saveData.playRP.rules || '';
+                    this.selectedCharacter = saveData.playRP.selectedCharacter || null;
+                    this.characterEnabled = saveData.playRP.characterEnabled || false;
+                    this.selectedPersona = saveData.playRP.selectedPersona || null;
+                    this.personaEnabled = saveData.playRP.personaEnabled || false;
+                    if (saveData.playRP.autoSender) {
+                        this.autoSender = {...saveData.playRP.autoSender};
+                    }
+                }
+                
+                // Restore global UI state
+                if (saveData.globalState) {
+                    if (saveData.globalState.tabs) {
+                        Object.assign(KLITE_RPMod.state.tabs, saveData.globalState.tabs);
+                    }
+                    if (saveData.globalState.collapsed) {
+                        Object.assign(KLITE_RPMod.state.collapsed, saveData.globalState.collapsed);
+                    }
+                    if (saveData.globalState.adventureMode !== undefined) {
+                        KLITE_RPMod.state.adventureMode = saveData.globalState.adventureMode;
+                    }
+                    if (saveData.globalState.fullscreen !== undefined) {
+                        KLITE_RPMod.state.fullscreen = saveData.globalState.fullscreen;
+                    }
+                }
+                
+                // Restore chat styling
+                if (saveData.chatStyle && KLITE_RPMod.panels.PLAY_CHAT) {
+                    KLITE_RPMod.panels.PLAY_CHAT.chatStyle = saveData.chatStyle;
+                }
+                
+                // Restore avatar states
+                if (saveData.avatars) {
+                    if (saveData.avatars.userCurrent) {
+                        KLITE_RPMod.userAvatarCurrent = saveData.avatars.userCurrent;
+                    }
+                    if (saveData.avatars.aiCurrent) {
+                        KLITE_RPMod.aiAvatarCurrent = saveData.avatars.aiCurrent;
+                    }
+                }
+                
+                // Legacy compatibility for older saves
+                if (!saveData.version && saveData.settings) {
                     Object.assign(window.localsettings, saveData.settings);
                 }
                 
@@ -9128,6 +9443,9 @@
             const gametext = document.getElementById('gametext');
             if (!gametext) return;
             
+            // Check if user is at bottom before formatting content
+            const wasAtBottom = KLITE_RPMod.isScrolledToBottom(gametext);
+            
             // Get all text chunks in the game text
             const chunks = Array.from(gametext.children);
             
@@ -9211,6 +9529,9 @@
                 // Debug log
                 KLITE_RPMod.log('chat', `Formatted message with avatar: ${isUserMessage ? 'USER' : 'AI'} - "${content.substring(0, 50)}..."`);
             });
+            
+            // Handle auto scroll after formatting
+            KLITE_RPMod.handleAutoScroll(gametext, wasAtBottom);
         },
         
         getMessageAvatar(isUserMessage, content) {
@@ -9246,10 +9567,76 @@
         },
         
         saveToSlot(slotNumber) {
+            // Create comprehensive chat save data (full RPmod snapshot)
             const gameState = {
-                gametext: window.gametext_arr ? [...window.gametext_arr] : [],
+                // Basic metadata
+                name: `Chat ${new Date().toLocaleTimeString()}`,
                 timestamp: new Date().toISOString(),
-                name: `Chat ${new Date().toLocaleTimeString()}`
+                version: '2.0', // Version for migration compatibility
+                
+                // Core game state
+                gametext: window.gametext_arr ? [...window.gametext_arr] : [],
+                memory: window.current_memory || '',
+                
+                // WorldInfo complete state
+                worldInfo: {
+                    entries: window.current_wi ? [...window.current_wi] : [],
+                    pending: window.pending_wi_obj || null
+                },
+                
+                // TextDB complete state  
+                textDB: {
+                    data: window.documentdb_data || '',
+                    enabled: window.documentdb_enabled || false,
+                    searchHistory: window.documentdb_searchhistory || false,
+                    numResults: window.documentdb_numresults || 3,
+                    searchRange: window.documentdb_searchrange || 300,
+                    chunkSize: window.documentdb_chunksize || 800
+                },
+                
+                // Complete generation settings
+                generationSettings: {
+                    chatname: window.localsettings?.chatname,
+                    chatopponent: window.localsettings?.chatopponent,
+                    temperature: window.localsettings?.temperature,
+                    top_p: window.localsettings?.top_p,
+                    top_k: window.localsettings?.top_k,
+                    min_p: window.localsettings?.min_p,
+                    rep_pen: window.localsettings?.rep_pen,
+                    rep_pen_range: window.localsettings?.rep_pen_range,
+                    rep_pen_slope: window.localsettings?.rep_pen_slope,
+                    max_length: window.localsettings?.max_length,
+                    tfs: window.localsettings?.tfs,
+                    typical_p: window.localsettings?.typical_p
+                },
+                
+                // Panel-specific state  
+                playChat: {
+                    chatStyle: this.chatStyle || 'mobile'
+                },
+                
+                playRP: KLITE_RPMod.panels.PLAY_RP ? {
+                    rules: KLITE_RPMod.panels.PLAY_RP.rules || '',
+                    selectedCharacter: KLITE_RPMod.panels.PLAY_RP.selectedCharacter || null,
+                    characterEnabled: KLITE_RPMod.panels.PLAY_RP.characterEnabled || false,
+                    selectedPersona: KLITE_RPMod.panels.PLAY_RP.selectedPersona || null,
+                    personaEnabled: KLITE_RPMod.panels.PLAY_RP.personaEnabled || false,
+                    autoSender: KLITE_RPMod.panels.PLAY_RP.autoSender ? {...KLITE_RPMod.panels.PLAY_RP.autoSender} : null
+                } : null,
+                
+                // Global UI state
+                globalState: {
+                    tabs: {...KLITE_RPMod.state.tabs},
+                    collapsed: {...KLITE_RPMod.state.collapsed},
+                    adventureMode: KLITE_RPMod.state.adventureMode || 0,
+                    fullscreen: KLITE_RPMod.state.fullscreen || false
+                },
+                
+                // Avatar states
+                avatars: {
+                    userCurrent: KLITE_RPMod.userAvatarCurrent,
+                    aiCurrent: KLITE_RPMod.aiAvatarCurrent
+                }
             };
             
             this.saveSlots.saves[slotNumber - 1] = gameState;
@@ -9270,11 +9657,99 @@
                 return;
             }
             
-            if (window.gametext_arr && save.gametext) {
-                window.gametext_arr.length = 0;
-                window.gametext_arr.push(...save.gametext);
-                if (typeof window.render_gametext === 'function') {
-                    window.render_gametext();
+            // Load comprehensive save data
+            try {
+                // Restore game text
+                if (window.gametext_arr && save.gametext) {
+                    window.gametext_arr.length = 0;
+                    window.gametext_arr.push(...save.gametext);
+                    if (typeof window.render_gametext === 'function') {
+                        window.render_gametext();
+                    }
+                }
+                
+                // Restore memory
+                if (save.memory !== undefined) {
+                    window.current_memory = save.memory;
+                }
+                
+                // Restore WorldInfo complete state
+                if (save.worldInfo) {
+                    if (save.worldInfo.entries && Array.isArray(save.worldInfo.entries)) {
+                        window.current_wi = [...save.worldInfo.entries];
+                    }
+                    if (save.worldInfo.pending) {
+                        window.pending_wi_obj = {...save.worldInfo.pending};
+                    }
+                }
+                
+                // Restore TextDB complete state
+                if (save.textDB) {
+                    window.documentdb_data = save.textDB.data || '';
+                    window.documentdb_enabled = save.textDB.enabled || false;
+                    window.documentdb_searchhistory = save.textDB.searchHistory || false;
+                    window.documentdb_numresults = save.textDB.numResults || 3;
+                    window.documentdb_searchrange = save.textDB.searchRange || 300;
+                    window.documentdb_chunksize = save.textDB.chunkSize || 800;
+                }
+                
+                // Restore complete generation settings
+                if (save.generationSettings && window.localsettings) {
+                    Object.assign(window.localsettings, save.generationSettings);
+                }
+                
+                // Restore chat-specific state
+                if (save.playChat) {
+                    this.chatStyle = save.playChat.chatStyle || 'mobile';
+                }
+                
+                // Restore PLAY_RP panel state
+                if (save.playRP && KLITE_RPMod.panels.PLAY_RP) {
+                    KLITE_RPMod.panels.PLAY_RP.rules = save.playRP.rules || '';
+                    KLITE_RPMod.panels.PLAY_RP.selectedCharacter = save.playRP.selectedCharacter || null;
+                    KLITE_RPMod.panels.PLAY_RP.characterEnabled = save.playRP.characterEnabled || false;
+                    KLITE_RPMod.panels.PLAY_RP.selectedPersona = save.playRP.selectedPersona || null;
+                    KLITE_RPMod.panels.PLAY_RP.personaEnabled = save.playRP.personaEnabled || false;
+                    if (save.playRP.autoSender) {
+                        KLITE_RPMod.panels.PLAY_RP.autoSender = {...save.playRP.autoSender};
+                    }
+                }
+                
+                // Restore global UI state
+                if (save.globalState) {
+                    if (save.globalState.tabs) {
+                        Object.assign(KLITE_RPMod.state.tabs, save.globalState.tabs);
+                    }
+                    if (save.globalState.collapsed) {
+                        Object.assign(KLITE_RPMod.state.collapsed, save.globalState.collapsed);
+                    }
+                    if (save.globalState.adventureMode !== undefined) {
+                        KLITE_RPMod.state.adventureMode = save.globalState.adventureMode;
+                    }
+                    if (save.globalState.fullscreen !== undefined) {
+                        KLITE_RPMod.state.fullscreen = save.globalState.fullscreen;
+                    }
+                }
+                
+                // Restore avatar states
+                if (save.avatars) {
+                    if (save.avatars.userCurrent) {
+                        KLITE_RPMod.userAvatarCurrent = save.avatars.userCurrent;
+                    }
+                    if (save.avatars.aiCurrent) {
+                        KLITE_RPMod.aiAvatarCurrent = save.avatars.aiCurrent;
+                    }
+                }
+                
+            } catch (error) {
+                KLITE_RPMod.log('error', `Error loading comprehensive save data: ${error.message}`);
+                // Fallback to basic restore for older saves
+                if (window.gametext_arr && save.gametext) {
+                    window.gametext_arr.length = 0;
+                    window.gametext_arr.push(...save.gametext);
+                    if (typeof window.render_gametext === 'function') {
+                        window.render_gametext();
+                    }
                 }
             }
             
@@ -10017,7 +10492,6 @@ Outline:`
             const data = {
                 title: 'KLITE RPMod Story Export',
                 date: new Date().toISOString(),
-                version: KLITE_RPMod.version,
                 messages: gametext_arr.filter(msg => msg && msg.trim()),
                 memory: window.current_memory || '',
                 authorNote: window.current_anote || '',
@@ -10072,7 +10546,6 @@ Outline:`
         exportAsMarkdown(data) {
             let md = `# ${data.title}\n\n`;
             md += `*Exported on ${new Date(data.date).toLocaleString()}*\n`;
-            md += `*KLITE RPMod v${data.version}*\n\n`;
             
             md += `## Statistics\n\n`;
             md += `- **Total Messages:** ${data.stats.totalMessages}\n`;
@@ -10164,7 +10637,6 @@ Outline:`
     <h1>${data.title}</h1>
     <div class="metadata">
         <p>Exported on ${new Date(data.date).toLocaleString()}</p>
-        <p>KLITE RPMod v${data.version}</p>
     </div>
     
     <div class="stats">
@@ -13346,7 +13818,6 @@ Outline:`
                 
                 ${this.currentDatabase === 'rpmod' && !this.searchQuery ? t.section('ℹ️ About',
                     `<div style="line-height: 1.5;">
-                        <strong>KLITE RP Mod v${KLITE_RPMod.version}</strong><br>
                         <span class="klite-muted">Enhanced roleplay interface for KoboldAI Lite</span><br><br>
                         
                         Created by <strong>Peter Hauer</strong><br>

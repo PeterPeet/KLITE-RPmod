@@ -260,14 +260,8 @@ KLITETestRunner.registerTest('integration', 'core_lite_integration', async () =>
     Assert.storageWorking('Storage integration must be working');
 }, ['REQ-I-001', 'REQ-I-002', 'REQ-I-003']);
 
-// Test version information and metadata
-KLITETestRunner.registerTest('functional', 'version_and_metadata', async () => {
-    // Test that version information is available
-    if (KLITE_RPMod.version) {
-        Assert.isType(KLITE_RPMod.version, 'string', 'Version must be string');
-        Assert.greaterThan(KLITE_RPMod.version.length, 0, 'Version must not be empty');
-    }
-    
+// Test system metadata
+KLITETestRunner.registerTest('functional', 'system_metadata', async () => {
     // Test that system has required metadata
     Assert.isObject(KLITE_RPMod, 'Main object must exist');
     
