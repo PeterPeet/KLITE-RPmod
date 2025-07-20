@@ -3595,6 +3595,9 @@
                 // Set startup configuration
                 this.setupStartupConfiguration();
                 
+                // Restore visual theme
+                await this.restoreVisualTheme();
+                
                 // Initialize panels
                 this.loadPanel('left', this.state.tabs.left);
                 this.loadPanel('right', this.state.tabs.right);
@@ -3636,6 +3639,50 @@
             this.state.tabs.right = 'CHARS';
             
             this.log('init', `Startup configuration: Synced to Lite's mode ${currentMode} (${this.getMode()})`);
+        },
+        
+        async restoreVisualTheme() {
+            this.log('init', 'Restoring visual theme...');
+            
+            try {
+                // Load visual style data from storage (same as SCENE panel does)
+                const saved = await this.loadFromLiteStorage('rpmod_visual_style');
+                if (saved) {
+                    const savedStyle = JSON.parse(saved);
+                    
+                    // Update SCENE panel's visual style with saved data
+                    this.panels.SCENE.visualStyle = {...this.panels.SCENE.visualStyle, ...savedStyle};
+                    
+                    // Handle legacy data migration (same as SCENE panel does)
+                    if (savedStyle.intensity && !savedStyle.lightness) {
+                        this.panels.SCENE.visualStyle.lightness = savedStyle.intensity;
+                    }
+                    if (!this.panels.SCENE.visualStyle.highlightColor) {
+                        this.panels.SCENE.visualStyle.highlightColor = '#5cbc5c';
+                    }
+                    if (!this.panels.SCENE.visualStyle.customTheme) {
+                        this.panels.SCENE.visualStyle.customTheme = {
+                            ambientColor: this.panels.SCENE.visualStyle.ambientColor,
+                            highlightColor: this.panels.SCENE.visualStyle.highlightColor,
+                            lightness: this.panels.SCENE.visualStyle.lightness
+                        };
+                    }
+                    
+                    const savedTheme = savedStyle.theme;
+                    if (savedTheme && savedTheme !== 'default') {
+                        // Apply the saved theme using SCENE panel's method
+                        this.panels.SCENE.applyTheme(savedTheme);
+                        this.panels.SCENE.updateVisualColors(
+                            savedStyle.ambientColor || this.panels.SCENE.visualStyle.ambientColor,
+                            savedStyle.highlightColor || this.panels.SCENE.visualStyle.highlightColor,
+                            savedStyle.lightness || this.panels.SCENE.visualStyle.lightness
+                        );
+                        this.essential(`🎨 Restored visual theme: ${savedTheme}`);
+                    }
+                }
+            } catch (error) {
+                this.log('init', 'No saved visual theme to restore or error occurred:', error);
+            }
         },
         
         buildUI() {
@@ -7379,11 +7426,7 @@
             'load-slot-4': () => KLITE_RPMod.panels.PLAY_RP.handleLoadSlot(4),
             'load-slot-5': () => KLITE_RPMod.panels.PLAY_RP.handleLoadSlot(5),
             
-            // Character & Persona Integration actions
-            'import-persona': () => KLITE_RPMod.panels.PLAY_RP.importPersona(),
-            'manage-personas': () => KLITE_RPMod.panels.PLAY_RP.managePersonas(),
-            'load-from-chars': () => KLITE_RPMod.panels.PLAY_RP.loadFromChars(),
-            'open-char-manager': () => KLITE_RPMod.panels.PLAY_RP.openCharManager(),
+            // Character Integration actions
             'apply-persona': () => KLITE_RPMod.panels.PLAY_RP.applyPersona(),
             'apply-character': () => KLITE_RPMod.panels.PLAY_RP.applyCharacter(),
             'select-character': () => {
@@ -8653,50 +8696,7 @@
             }
         },
         
-        // Character & Persona Integration methods
-        importPersona() {
-            KLITE_RPMod.log('panels', 'Import Persona clicked');
-            // Switch to CHARS panel for persona/character import
-            if (KLITE_RPMod.panels.CHARS) {
-                KLITE_RPMod.switchTab('right', 'CHARS');
-                KLITE_RPMod.essential('📥 Switched to CHARS panel for character import');
-            } else {
-                KLITE_RPMod.error('CHARS panel not available for persona import');
-            }
-        },
-        
-        managePersonas() {
-            KLITE_RPMod.log('panels', 'Manage Personas clicked');
-            // Switch to CHARS panel for persona/character management
-            if (KLITE_RPMod.panels.CHARS) {
-                KLITE_RPMod.switchTab('right', 'CHARS');
-                KLITE_RPMod.essential('📋 Switched to CHARS panel for character management');
-            } else {
-                KLITE_RPMod.error('CHARS panel not available for persona management');
-            }
-        },
-        
-        loadFromChars() {
-            KLITE_RPMod.log('panels', 'Load from CHARS clicked');
-            // Switch to CHARS panel for character loading
-            if (KLITE_RPMod.panels.CHARS) {
-                KLITE_RPMod.switchTab('right', 'CHARS');
-                KLITE_RPMod.essential('📚 Switched to CHARS panel for character loading');
-            } else {
-                KLITE_RPMod.error('CHARS panel not available for character loading');
-            }
-        },
-        
-        openCharManager() {
-            KLITE_RPMod.log('panels', 'Character Manager clicked');
-            // Switch to CHARS panel for character management
-            if (KLITE_RPMod.panels.CHARS) {
-                KLITE_RPMod.switchTab('right', 'CHARS');
-                KLITE_RPMod.essential('📋 Switched to CHARS panel for character management');
-            } else {
-                KLITE_RPMod.error('CHARS panel not available for character management');
-            }
-        }
+        // Character Integration methods
     };
     
     // PLAY_CHAT Panel - Mobile Phone Chat Interface
