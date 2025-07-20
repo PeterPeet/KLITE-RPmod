@@ -3510,18 +3510,19 @@
         // Debug configuration
         debug: true, // Enable debug mode
         debugLevels: {
-            init: true,
-            hooks: true,
-            panels: true,
-            chars: true,
-            generation: true,
-            state: true,
-            integration: true,
-            hotkeys: true,
-            errors: true,
-            chat: true,
-            mobile: true,
-            status: true
+            essential: true,    // Major operations (init, save, import, scenario start)
+            init: false,
+            hooks: false,
+            panels: false,
+            chars: false,
+            generation: false,
+            state: false,
+            integration: false,
+            hotkeys: false,
+            errors: true,       // Always show errors
+            chat: false,
+            mobile: false,
+            status: false
         },
         
         log(category, message, ...args) {
@@ -3537,8 +3538,13 @@
             }
         },
         
+        essential(message, ...args) {
+            // Always log essential operations regardless of debug levels
+            this.log('essential', message, ...args);
+        },
+        
         async init() {
-            this.log('init', '🚀 KLITE RP Mod initializing...');
+            this.essential('🚀 KLITE RP Mod initializing...');
             
             try {
                 // Inject CSS
@@ -3608,7 +3614,7 @@
                 // Mark active
                 document.body.classList.add('klite-active');
                 
-                this.log('init', '✅ KLITE RP Mod initialized successfully');
+                this.essential('✅ KLITE RP Mod initialized successfully');
             } catch (error) {
                 this.error('Failed to initialize:', error);
                 throw error;
@@ -4756,7 +4762,7 @@
                     const result = orig.apply(window, args);
                     self.log('integration', 'render_gametext called, syncing chat display');
                     self.syncChat();
-                    self.addCharacterAvatars();
+                    self.updateAllChatAvatars();
                     self.state.generating = false;
                     self.updateSubmitBtn();
                     
@@ -5359,7 +5365,7 @@
             }
         },
         
-        addCharacterAvatars() {
+        updateAllChatAvatars() {
             const gametext = document.getElementById('gametext');
             if (!gametext) return;
             
@@ -6311,16 +6317,12 @@
                 };
                 
                 const jsonData = JSON.stringify(charactersData);
-                console.log('[KLITE RPMod] Saving:', this.characters.length, 'characters, data size:', Math.round(jsonData.length / 1024), 'KB');
                 
                 await this.saveToLiteStorage('rpmod_characters', jsonData);
-                console.log('[KLITE RPMod] SUCCESS: Characters saved to KoboldAI Lite storage');
-                this.log('state', `Characters saved: ${this.characters.length} characters`);
+                this.essential(`💾 Characters saved: ${this.characters.length} characters (${Math.round(jsonData.length / 1024)}KB)`);
                 
             } catch (error) {
-                console.error('[KLITE RPMod] CRITICAL: Failed to save characters:', error);
-                console.error('[KLITE RPMod] CRITICAL: Failed to save characters - data will be lost on reload!', error.message);
-                this.error('Failed to save characters:', error);
+                this.error('CRITICAL: Failed to save characters - data will be lost on reload!', error);
             }
         },
         
@@ -6344,23 +6346,23 @@
         
         async saveToLiteStorage(key, data) {
             if (!LiteAPI.storage.save) {
-                console.warn('[KLITE RPMod] Storage not ready yet, data will be lost on reload:', key);
+                this.error(`Storage not ready yet, data will be lost on reload: ${key}`);
                 return false;
             }
             
             try {
                 await LiteAPI.storage.save(key, data);
-                console.log('[KLITE RPMod] Successfully saved to storage:', key);
+                this.log('state', `Storage saved: ${key}`);
                 return true;
             } catch (error) {
-                console.error('[KLITE RPMod] Failed to save to storage:', key, error);
+                this.error(`Failed to save to storage: ${key}`, error);
                 return false;
             }
         },
         
         async loadFromLiteStorage(key) {
             if (!LiteAPI.storage.load) {
-                console.warn('[KLITE RPMod] Storage not ready yet, cannot load:', key);
+                this.error(`Storage not ready yet, cannot load: ${key}`);
                 return null;
             }
             
@@ -6369,50 +6371,41 @@
                 return result;
             } catch (error) {
                 // Key doesn't exist yet - this is expected for first-time users
-                console.log('[KLITE RPMod] Storage key does not exist yet, will be created on first save:', key);
+                this.log('state', `Storage key does not exist yet, will be created on first save: ${key}`);
                 return null;
             }
         },
         
         async loadCharacters() {
             try {
-                console.log('[KLITE RPMod] Loading characters from KoboldAI Lite storage...');
-                
                 const liteStorageData = await this.loadFromLiteStorage('rpmod_characters');
                 if (liteStorageData && liteStorageData !== 'offload_to_indexeddb') {
                     const data = JSON.parse(liteStorageData);
-                    console.log('[KLITE RPMod] Found characters in storage:', data?.characters?.length || 0);
                     
                     if (data) {
                         // Handle both legacy format and new format
                         if (Array.isArray(data)) {
                             // Legacy format: direct array
                             this.characters = data;
-                            console.log('[KLITE RPMod] SUCCESS: Loaded legacy format:', this.characters.length, 'characters');
-                            this.log('state', `Characters loaded (legacy format): ${this.characters.length} characters`);
+                            this.essential(`📚 Characters loaded (legacy): ${this.characters.length} characters`);
                         } else if (data.characters && Array.isArray(data.characters)) {
                             // New format: wrapper object
                             this.characters = data.characters;
-                            console.log('[KLITE RPMod] SUCCESS: Loaded v' + data.version + ':', this.characters.length, 'characters');
-                            this.log('state', `Characters loaded (v${data.version}): ${this.characters.length} characters`);
+                            this.essential(`📚 Characters loaded (v${data.version}): ${this.characters.length} characters`);
                         } else {
-                            console.error('[KLITE RPMod] ERROR: Invalid data format!', data);
+                            this.error('Invalid character data format found in storage. Starting fresh.', data);
                             this.characters = [];
-                            console.warn('[KLITE RPMod] Invalid character data format found in storage. Starting fresh.');
                         }
                     } else {
                         this.characters = [];
                     }
                 } else {
-                    console.log('[KLITE RPMod] No character data found in storage - starting fresh');
                     this.characters = [];
                 }
                 
             } catch (error) {
-                console.error('[KLITE RPMod] CRITICAL: Failed to load characters:', error);
                 this.characters = [];
-                console.warn('[KLITE RPMod] Starting with empty character list due to storage error:', error.message);
-                this.error('Failed to load characters:', error);
+                this.error('Failed to load characters - starting with empty list:', error);
             }
         },
         
@@ -6537,7 +6530,9 @@
                     // Imported ${imported} characters
                 }
                 
-                this.log('state', `Import complete: ${imported} characters imported`);
+                if (imported > 0) {
+                    this.essential(`📥 Import complete: ${imported} characters imported`);
+                }
                 return imported;
                 
             } catch (error) {
@@ -8661,33 +8656,45 @@
         // Character & Persona Integration methods
         importPersona() {
             KLITE_RPMod.log('panels', 'Import Persona clicked');
-            console.warn('[PLACEHOLDER] Import Persona functionality - integrate with CHARS panel personas');
+            // Switch to CHARS panel for persona/character import
+            if (KLITE_RPMod.panels.CHARS) {
+                KLITE_RPMod.switchTab('right', 'CHARS');
+                KLITE_RPMod.essential('📥 Switched to CHARS panel for character import');
+            } else {
+                KLITE_RPMod.error('CHARS panel not available for persona import');
+            }
         },
         
         managePersonas() {
             KLITE_RPMod.log('panels', 'Manage Personas clicked');
-            console.warn('[PLACEHOLDER] Manage Personas functionality - open persona manager');
+            // Switch to CHARS panel for persona/character management
+            if (KLITE_RPMod.panels.CHARS) {
+                KLITE_RPMod.switchTab('right', 'CHARS');
+                KLITE_RPMod.essential('📋 Switched to CHARS panel for character management');
+            } else {
+                KLITE_RPMod.error('CHARS panel not available for persona management');
+            }
         },
         
         loadFromChars() {
             KLITE_RPMod.log('panels', 'Load from CHARS clicked');
-            // Try to switch to CHARS panel if available
+            // Switch to CHARS panel for character loading
             if (KLITE_RPMod.panels.CHARS) {
                 KLITE_RPMod.switchTab('right', 'CHARS');
-                // Panel switch visually obvious
+                KLITE_RPMod.essential('📚 Switched to CHARS panel for character loading');
             } else {
-                console.warn('[PLACEHOLDER] CHARS panel integration - load character data');
+                KLITE_RPMod.error('CHARS panel not available for character loading');
             }
         },
         
         openCharManager() {
             KLITE_RPMod.log('panels', 'Character Manager clicked');
-            // Try to switch to CHARS panel if available
+            // Switch to CHARS panel for character management
             if (KLITE_RPMod.panels.CHARS) {
                 KLITE_RPMod.switchTab('right', 'CHARS');
-                // Panel opening visually obvious
+                KLITE_RPMod.essential('📋 Switched to CHARS panel for character management');
             } else {
-                console.warn('[PLACEHOLDER] Character Manager functionality - open character manager');
+                KLITE_RPMod.error('CHARS panel not available for character management');
             }
         }
     };
@@ -10196,7 +10203,7 @@ Outline:`
                     .filter(k => k.length > 0);
                 this.autoRegenerateState.keywords = keywords;
                 
-                console.log(`🔄 Updated keywords: ${keywords.length} keywords set`);
+                KLITE_RPMod.log('tools', `Auto-regen keywords updated: ${keywords.length} keywords set`);
             });
 
             // Threshold handler
@@ -10221,7 +10228,7 @@ Outline:`
             const delayInput = document.getElementById('tools-auto-regen-delay');
             const delay = parseInt(delayInput?.value || '3000');
             
-            console.log(`🔄 Starting auto-regenerate with ${delay}ms delay`);
+            KLITE_RPMod.log('tools', `Auto-regenerate started with ${delay}ms delay`);
             
             // Clear any existing interval
             this.stopAutoRegenerate();
@@ -10249,7 +10256,7 @@ Outline:`
             
             // Check retry limit
             if (this.autoRegenerateState.retryCount >= this.autoRegenerateState.maxRetries) {
-                console.log('🔄 Max retries reached, stopping auto-regenerate');
+                KLITE_RPMod.log('tools', 'Auto-regenerate max retries reached, stopping');
                 this.stopAutoRegenerate();
                 
                 const status = document.getElementById('tools-auto-regen-status');
@@ -10260,7 +10267,7 @@ Outline:`
                 return;
             }
             
-            console.log(`🔄 Auto-regenerating (attempt ${this.autoRegenerateState.retryCount + 1}/${this.autoRegenerateState.maxRetries})`);
+            KLITE_RPMod.log('tools', `Auto-regenerating (attempt ${this.autoRegenerateState.retryCount + 1}/${this.autoRegenerateState.maxRetries})`);
             
             // Increment retry count
             this.autoRegenerateState.retryCount++;
@@ -10308,7 +10315,7 @@ Outline:`
             
             // Check short messages
             if (shortCheck && messageText.length < 50) {
-                console.log('🔄 Triggering regenerate: Short message');
+                KLITE_RPMod.log('tools', 'Auto-regen trigger: Short message');
                 return true;
             }
             
