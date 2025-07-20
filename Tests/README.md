@@ -25,8 +25,9 @@ Comprehensive unit testing framework for the KLITE-RPmod ALPHA implementation, p
 |----------|-------|---------------------|-------|
 | **Core System** | 12 tests | REQ-F-001 to REQ-F-008 | Initialization, UI modes, error handling |
 | **Panel System** | 15 tests | REQ-F-009 to REQ-F-022 | Lifecycle, organization, performance |
-| **Character Management** | 18 tests | REQ-F-023 to REQ-F-038 | V1/V2/V3 formats, CRUD operations |
+| **Character Management** | 22 tests | REQ-F-023 to REQ-F-038 | V1/V2/V3 formats, CRUD operations, async optimization |
 | **Integration** | 16 tests | REQ-I-001 to REQ-I-033 | LiteAPI, DOMUtil, KoboldAI Lite integration |
+| **Performance** | 4 tests | Performance Optimization | Batch import, image optimization, avatar caching |
 
 ## Usage Guide
 
@@ -116,10 +117,59 @@ Assert.panelExists('PANEL_NAME', message)
 Assert.panelRendered('PANEL_NAME', message)
 Assert.validCharacterCard(character, 'v2', message)
 Assert.liteIntegrationWorking('settings', message)
-Assert.performanceWithin(operation, 300, message)
 ```
 
-### Mock System Usage
+## Async Testing Requirements
+
+### Character Operations
+All character operations are now async and must be awaited:
+
+```javascript
+// ✅ Correct async pattern
+await KLITE_RPMod.panels.CHARS.addCharacter(characterData);
+
+// ❌ Old synchronous pattern (will fail)
+KLITE_RPMod.addCharacter(characterData);
+```
+
+### Batch Import Testing
+Test batch operations properly:
+
+```javascript
+// Test batch import optimization
+const result = await KLITE_RPMod.importCharactersFromData([char1, char2, char3]);
+Assert.equal(result, 3, 'All characters must be imported');
+```
+
+### Canvas API Testing
+Handle Canvas API availability for image optimization:
+
+```javascript
+if (typeof document !== 'undefined' && document.createElement) {
+    // Test with Canvas API available
+    Assert.hasProperty(character.images, 'thumbnail', 'Must have optimized thumbnail');
+} else {
+    // Test fallback behavior without Canvas
+    Assert.equal(character.images.thumbnail, character.images.original, 'Must fallback to original');
+}
+```
+
+### Performance Testing
+Test new performance optimizations:
+
+```javascript
+// Test multi-tier image optimization
+Assert.isObject(character.images, 'Character must have images object');
+Assert.hasProperty(character.images, 'preview', 'Must have 256x256 preview');
+Assert.hasProperty(character.images, 'avatar', 'Must have 64x64 avatar');
+
+// Test avatar caching
+KLITE_RPMod.panels.CHARS.setOptimizedAvatar(charId, 'avatar', imageData);
+const cached = KLITE_RPMod.panels.CHARS.getOptimizedAvatar(charId, 'avatar');
+Assert.equal(cached, imageData, 'Avatar must be cached');
+```
+
+## Mock System Usage
 
 ```javascript
 // Get sample character cards
@@ -268,6 +318,8 @@ const observer = new MutationObserver(() => {
 
 **Mock failures**: Check that `KLITEMocks.createMockLiteDOM()` is called during setup
 
+**User input prompts during tests**: Browser dialog mocks (`alert`, `confirm`, `prompt`) are automatically initialized in test runners to prevent blocking. If tests still prompt for input, verify `KLITEMocks.mockBrowserDialogs()` is called during setup.
+
 **Performance failures**: Verify system performance meets timing requirements
 
 ### Debug Mode
@@ -305,6 +357,22 @@ KLITEMocks.createCustomMock = function(type, data) {
     // Custom mock implementation
     return mockObject;
 };
+```
+
+### Browser Dialog Mocking
+The test framework automatically mocks browser dialog functions to prevent user interaction during automated testing:
+
+```javascript
+// Automatically called during test initialization
+KLITEMocks.mockBrowserDialogs();
+
+// Mock behavior:
+// alert() -> logs message and continues
+// confirm() -> logs message and returns true  
+// prompt() -> logs message and returns default value or "Test Input"
+
+// To restore original functions after testing
+KLITEMocks.restoreBrowserDialogs();
 ```
 
 ## Integration with CI/CD

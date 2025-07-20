@@ -125,6 +125,18 @@ const Assert = {
         }
     },
     
+    greaterThanOrEqual(value, threshold, message) {
+        if (value < threshold) {
+            throw new Error(`${message || 'Greater than or equal assertion failed'}: ${value} < ${threshold}`);
+        }
+    },
+    
+    lessThanOrEqual(value, threshold, message) {
+        if (value > threshold) {
+            throw new Error(`${message || 'Less than or equal assertion failed'}: ${value} > ${threshold}`);
+        }
+    },
+    
     // Collection assertions
     arrayLength(array, expectedLength, message) {
         this.isArray(array, message);

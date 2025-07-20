@@ -284,6 +284,12 @@
         });
 
         function initializeTestRunner() {
+            // Set up browser dialog mocks to prevent user interaction during tests
+            if (typeof KLITEMocks !== 'undefined' && KLITEMocks.mockBrowserDialogs) {
+                KLITEMocks.mockBrowserDialogs();
+                logToUI('info', 'Browser dialog mocks initialized (alert, confirm, prompt)');
+            }
+            
             // Configure test runner based on UI settings
             updateConfig();
             
