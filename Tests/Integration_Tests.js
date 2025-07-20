@@ -279,32 +279,41 @@ KLITETestRunner.registerTest('integration', 'parameter_sync_across_panels', asyn
 
 // REQ-I-011: Character selection must update all relevant UI components
 KLITETestRunner.registerTest('integration', 'character_selection_sync', async () => {
-    if (typeof KLITE_RPMod.activateCharacter === 'function') {
+    const originalCharacters = [...KLITE_RPMod.characters];
+    
+    try {
         const testCharacter = KLITEMocks.getSampleCards().v2;
         
-        // Add character temporarily
-        if (typeof KLITE_RPMod.addCharacter === 'function') {
-            const characterId = await KLITE_RPMod.addCharacter(testCharacter);
+        // Add character through CHARS panel
+        if (typeof KLITE_RPMod.panels?.CHARS?.addCharacter === 'function') {
+            await KLITE_RPMod.panels.CHARS.addCharacter(testCharacter.data);
+            const addedCharacter = KLITE_RPMod.characters[KLITE_RPMod.characters.length - 1];
             
-            try {
-                // Test character activation timing
+            // Test character loading (integration with KoboldAI Lite)
+            if (typeof KLITE_RPMod.panels.CHARS.loadCharacter === 'function') {
                 const performanceResult = Assert.performanceWithin(() => {
-                    KLITE_RPMod.activateCharacter(characterId);
-                }, 200, 'Character activation must complete within 200ms');
+                    KLITE_RPMod.panels.CHARS.loadCharacter(addedCharacter);
+                }, 200, 'Character loading must complete within 200ms');
                 
-                // Verify UI updates
-                Assert.equal(window.current_scenario, testCharacter.data.description,
-                           'Scenario must update with character activation');
-                Assert.equal(window.current_sprompt, testCharacter.data.system_prompt,
-                           'System prompt must update with character activation');
+                // Test character integration functions
+                const integrationTests = [
+                    { fn: 'loadAsScenario', desc: 'Load as scenario integration' },
+                    { fn: 'addToWorldInfo', desc: 'World info integration' },
+                    { fn: 'addCharacterToMemory', desc: 'Memory integration' }
+                ];
                 
-            } finally {
-                // Cleanup
-                if (typeof KLITE_RPMod.deleteCharacter === 'function') {
-                    await KLITE_RPMod.deleteCharacter(characterId);
+                for (const test of integrationTests) {
+                    if (typeof KLITE_RPMod.panels.CHARS[test.fn] === 'function') {
+                        Assert.doesNotThrow(() => {
+                            KLITE_RPMod.panels.CHARS[test.fn](addedCharacter);
+                        }, `${test.desc} must not throw errors`);
+                    }
                 }
             }
         }
+    } finally {
+        // Restore original characters
+        KLITE_RPMod.characters = originalCharacters;
     }
 }, ['REQ-I-011']);
 

@@ -112,32 +112,37 @@ const KLITEMocks = {
                 tagName: 'TEXTAREA',
                 value: '',
                 addEventListener: function() {},
-                removeEventListener: function() {}
+                removeEventListener: function() {},
+                dispatchEvent: function(event) { return true; }
             },
             'scenariotext': { 
                 tagName: 'TEXTAREA',
                 value: '',
                 addEventListener: function() {},
-                removeEventListener: function() {}
+                removeEventListener: function() {},
+                dispatchEvent: function(event) { return true; }
             },
             'sprompttext': { 
                 tagName: 'TEXTAREA',
                 value: '',
                 addEventListener: function() {},
-                removeEventListener: function() {}
+                removeEventListener: function() {},
+                dispatchEvent: function(event) { return true; }
             },
             'input_text': { 
                 tagName: 'TEXTAREA',
                 value: '',
                 addEventListener: function() {},
-                removeEventListener: function() {}
+                removeEventListener: function() {},
+                dispatchEvent: function(event) { return true; }
             },
             'output_text': { 
                 tagName: 'DIV',
                 innerHTML: '',
                 textContent: '',
                 addEventListener: function() {},
-                removeEventListener: function() {}
+                removeEventListener: function() {},
+                dispatchEvent: function(event) { return true; }
             },
             'chat-display': {
                 tagName: 'DIV',
@@ -592,6 +597,45 @@ const KLITEMocks = {
         };
     },
     
+    // Mock browser dialogs to prevent user interaction during tests
+    mockBrowserDialogs() {
+        // Store original functions for cleanup
+        this._originalAlert = window.alert;
+        this._originalConfirm = window.confirm;
+        this._originalPrompt = window.prompt;
+        
+        // Mock alert() - just log and continue
+        window.alert = function(message) {
+            console.log(`[MOCK ALERT]: ${message}`);
+        };
+        
+        // Mock confirm() - always return true for tests
+        window.confirm = function(message) {
+            console.log(`[MOCK CONFIRM]: ${message} -> true`);
+            return true;
+        };
+        
+        // Mock prompt() - return default values for tests
+        window.prompt = function(message, defaultValue = '') {
+            const mockValue = defaultValue || 'Test Input';
+            console.log(`[MOCK PROMPT]: ${message} -> ${mockValue}`);
+            return mockValue;
+        };
+    },
+    
+    // Restore original browser dialog functions
+    restoreBrowserDialogs() {
+        if (this._originalAlert) {
+            window.alert = this._originalAlert;
+        }
+        if (this._originalConfirm) {
+            window.confirm = this._originalConfirm;
+        }
+        if (this._originalPrompt) {
+            window.prompt = this._originalPrompt;
+        }
+    },
+    
     // Reset all mocks to initial state
     resetMocks() {
         // Clear mock storage
@@ -615,6 +659,9 @@ const KLITEMocks = {
         window.pending_wi_obj = {};
         window.current_scenario = '';
         window.current_sprompt = '';
+        
+        // Mock browser dialogs
+        this.mockBrowserDialogs();
     },
     
     // Utility methods for test data generation

@@ -480,6 +480,12 @@
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
+            // Set up browser dialog mocks to prevent user interaction during tests
+            if (typeof KLITEMocks !== 'undefined' && KLITEMocks.mockBrowserDialogs) {
+                KLITEMocks.mockBrowserDialogs();
+                updateLog('Browser dialog mocks initialized (alert, confirm, prompt)');
+            }
+            
             updateLog('KLITE-RPmod Functional Test Runner initialized');
             updateLog(`Available tests: ${KLITETestRunner.getTestCount()}`);
             

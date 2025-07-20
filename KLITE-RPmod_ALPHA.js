@@ -2911,6 +2911,7 @@
         userAvatarCurrent: null,
         userAvatarDefault: 'data:image/png;base64,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',
         groupAvatars: new Map(), // Map character ID -> avatar URL for group chat
+        batchImportMode: false, // Flag to prevent individual saves during batch character imports
         
         // =============================================
         // UNIFIED GENERATION CONTROL SYSTEM
@@ -5458,15 +5459,27 @@
         insertCharacterAvatar(chunk, character) {
             let avatarSrc = '';
             
-            if (character.image) {
-                // Use character image from CHARS
-                avatarSrc = character.image;
-            } else if (character.isCustom) {
-                // Use GROUP chat style icon for custom characters
-                avatarSrc = this.generateCustomAvatar(character.name);
-            } else {
-                // Default AI avatar
-                avatarSrc = this.generateDefaultAvatar(character.name);
+            // Try to get optimized avatar from cache first
+            if (character.id && KLITE_RPMod.panels?.CHARS?.getOptimizedAvatar) {
+                const cachedAvatar = KLITE_RPMod.panels.CHARS.getOptimizedAvatar(character.id, 'avatar');
+                if (cachedAvatar) {
+                    avatarSrc = cachedAvatar;
+                    KLITE_RPMod.log('chars', `Using cached optimized avatar for ${character.name}`);
+                }
+            }
+            
+            // Fallback to original logic if no cached avatar
+            if (!avatarSrc) {
+                if (character.image || character.images?.avatar) {
+                    // Use optimized avatar if available, otherwise fall back to original
+                    avatarSrc = character.images?.avatar || character.image;
+                } else if (character.isCustom) {
+                    // Use GROUP chat style icon for custom characters
+                    avatarSrc = this.generateCustomAvatar(character.name);
+                } else {
+                    // Default AI avatar
+                    avatarSrc = this.generateDefaultAvatar(character.name);
+                }
             }
             
             // Create avatar element
@@ -5475,6 +5488,13 @@
             avatar.src = avatarSrc;
             avatar.alt = character.name;
             avatar.title = character.name;
+            
+            // Optimize loading for better performance
+            avatar.loading = 'lazy';
+            avatar.style.width = '40px';
+            avatar.style.height = '40px';
+            avatar.style.objectFit = 'cover';
+            avatar.style.borderRadius = '50%';
             
             // Insert at beginning of chunk
             chunk.insertBefore(avatar, chunk.firstChild);
@@ -6538,7 +6558,7 @@
         },
         
         // Import characters from file data
-        importCharactersFromData(data) {
+        async importCharactersFromData(data) {
             let imported = 0;
             
             try {
@@ -6554,7 +6574,14 @@
                     charactersToImport = [data];
                 }
                 
-                charactersToImport.forEach(charData => {
+                // Enable batch mode for multiple imports
+                const isBatchImport = charactersToImport.length > 1;
+                if (isBatchImport) {
+                    this.batchImportMode = true;
+                    this.log('state', `🔄 Starting batch import of ${charactersToImport.length} characters`);
+                }
+                
+                for (const charData of charactersToImport) {
                     // Check if character already exists (by name and creator)
                     const existing = this.characters.find(char => 
                         char.name === charData.name && 
@@ -6564,15 +6591,20 @@
                     if (!existing) {
                         // Always use the CHARS panel's addCharacter method for proper metadata preservation
                         if (KLITE_RPMod.panels?.CHARS?.addCharacter) {
-                            KLITE_RPMod.panels.CHARS.addCharacter(charData);
+                            await KLITE_RPMod.panels.CHARS.addCharacter(charData);
                             imported++;
                         } else {
                             throw new Error('CHARS panel not available. Character import requires proper panel initialization.');
                         }
                     }
-                });
+                }
                 
+                // Save once at the end for batch imports, or individual save for single imports
                 if (imported > 0) {
+                    if (isBatchImport) {
+                        this.batchImportMode = false;
+                        this.log('state', `💾 Completing batch import with single save operation`);
+                    }
                     this.saveCharacters();
                     // Imported ${imported} characters
                 }
@@ -6583,6 +6615,8 @@
                 return imported;
                 
             } catch (error) {
+                // Ensure batch mode is disabled on error
+                this.batchImportMode = false;
                 this.error('Failed to import characters:', error);
                 return 0;
             }
@@ -15856,9 +15890,9 @@ Pacing Notes: `
             return `
                 <div style="display: flex; flex-direction: column; align-items: center; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg2); cursor: pointer; text-align: center;" 
                      data-char-id="${char.id}" data-action="view-char">
-                    ${char.image ? `
+                    ${(char.images?.thumbnail || char.image) ? `
                         <div style="width: 60px; height: 60px; border-radius: 30px; overflow: hidden; margin-bottom: 6px; border: 1px solid var(--border);">
-                            <img src="${char.image}" alt="${char.name}" style="width: 100%; height: 100%; object-fit: cover;">
+                            <img src="${char.images?.thumbnail || char.image}" alt="${char.name}" style="width: 100%; height: 100%; object-fit: cover;" loading="lazy">
                         </div>
                     ` : `
                         <div style="width: 60px; height: 60px; border-radius: 30px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
@@ -15878,7 +15912,7 @@ Pacing Notes: `
             return `
                 <div class="klite-char-card" data-char-id="${char.id}" data-action="view-char" style="cursor: pointer;">
                     <div class="klite-char-image">
-                        ${char.image ? `<img src="${char.image}" alt="${char.name}">` : '<div class="klite-char-placeholder">👤</div>'}
+                        ${(char.images?.preview || char.image) ? `<img src="${char.images?.preview || char.image}" alt="${char.name}" loading="lazy">` : '<div class="klite-char-placeholder">👤</div>'}
                     </div>
                     <div class="klite-char-name">${char.name}</div>
                     <div class="klite-char-creator">by ${char.creator || 'Unknown'}</div>
@@ -16105,7 +16139,7 @@ Pacing Notes: `
                         const text = await file.text();
                         const data = JSON.parse(text);
                         KLITE_RPMod.log('panels', `Parsed JSON character data:`, data);
-                        this.addCharacter(this.normalizeCharacterData(data));
+                        await this.addCharacter(this.normalizeCharacterData(data));
                     } else if (file.name.endsWith('.png')) {
                         await this.loadPNGFile(file);
                     } else if (file.name.endsWith('.webp')) {
@@ -16474,30 +16508,36 @@ Pacing Notes: `
             return style;
         },
         
-        addCharacter(data) {
+        async addCharacter(data) {
             const now = Date.now();
-            const char = {
-                id: now + Math.random(),
-                name: data.name || 'Unknown',
-                description: data.description || '',
-                personality: data.personality || '',
-                scenario: data.scenario || '',
-                first_mes: data.first_mes || '',
-                mes_example: data.mes_example || '',
-                creator: data.creator || 'Unknown',
-                image: data.image || data.avatar || null,
-                rawData: data,
-                
-                // Timestamps
-                created: now,
-                lastUsed: null,
-                lastModified: now,
-                
-                // Enhanced metadata
-                version: data.spec || 'v1',
-                category: data.category || 'General',
-                
-                // Rating system
+            const charId = now + Math.random();
+            
+            // Create multi-tier images if image exists - this is the performance improvement
+            let optimizedImages = null;
+            if (data.image || data.avatar) {
+                const originalImage = data.image || data.avatar;
+                try {
+                    optimizedImages = await this.createOptimizedImages(originalImage, data.name || 'Unknown');
+                    
+                    // Cache the optimized images for immediate use
+                    this.setOptimizedAvatar(charId, 'preview', optimizedImages.preview);
+                    this.setOptimizedAvatar(charId, 'avatar', optimizedImages.avatar);
+                    this.setOptimizedAvatar(charId, 'thumbnail', optimizedImages.thumbnail);
+                } catch (error) {
+                    KLITE_RPMod.log('chars', `Image optimization failed for ${data.name}, using original:`, error.message);
+                    // Fallback to original image for all uses
+                    optimizedImages = {
+                        original: originalImage,
+                        preview: originalImage,
+                        avatar: originalImage,
+                        thumbnail: originalImage
+                    };
+                }
+            }
+            
+            // Prepare custom metadata to store in character card
+            const customMetadata = {
+                // User ratings and preferences
                 rating: {
                     overall: 0,
                     creativity: 0,
@@ -16515,40 +16555,80 @@ Pacing Notes: `
                     lastSessionDuration: 0
                 },
                 
-                // Enhanced keywords system
-                keywords: this.extractKeywords(data),
+                // User customizations
+                userNotes: '',
+                userTags: [],
+                isFavorite: false,
+                isArchived: false,
                 
-                // For GROUP panel
+                // RPMod enhancements
                 talkativeness: this.extractTalkativeness(data),
-                
-                // Advanced character features
                 traits: this.extractTraits(data),
-                relationships: [],
                 preferences: {
                     genres: this.extractGenres(data),
                     themes: this.extractThemes(data),
                     contentRating: this.extractContentRating(data)
                 },
                 
-                // Custom user fields
-                userNotes: '',
-                userTags: [],
-                isFavorite: false,
-                isArchived: false,
-                
-                // Character card extensions
-                extensions: data.extensions || {},
-                alternateGreetings: data.alternate_greetings || [],
-                worldInfo: data.character_book || null,
-                
-                // Import metadata
+                // Timestamps
+                created: now,
+                lastUsed: null,
+                lastModified: now,
                 importSource: 'manual',
                 importDate: now,
                 originalFilename: data.originalFilename || null
             };
             
+            // Store custom metadata in card extensions for v2/v3 compatibility
+            const enhancedData = { ...data };
+            if (!enhancedData.extensions) enhancedData.extensions = {};
+            enhancedData.extensions.klite_rpmod = customMetadata;
+            
+            const char = {
+                id: charId,
+                name: data.name || 'Unknown',
+                description: data.description || '',
+                personality: data.personality || '',
+                scenario: data.scenario || '',
+                first_mes: data.first_mes || '',
+                mes_example: data.mes_example || '',
+                creator: data.creator || 'Unknown',
+                
+                // Multi-tier image storage
+                images: optimizedImages || {
+                    original: null,
+                    preview: null,
+                    avatar: null,
+                    thumbnail: null
+                },
+                
+                // Backward compatibility
+                image: optimizedImages?.original || data.image || data.avatar || null,
+                
+                // Enhanced data with custom metadata embedded
+                rawData: enhancedData,
+                
+                // Enhanced metadata (for quick access)
+                version: data.spec || 'v1',
+                category: data.category || 'General',
+                keywords: this.extractKeywords(data),
+                relationships: [],
+                
+                // Extensions and advanced features
+                extensions: enhancedData.extensions,
+                alternateGreetings: data.alternate_greetings || [],
+                worldInfo: data.character_book || null,
+                
+                // Custom metadata (extracted for quick access)
+                ...customMetadata
+            };
+            
             KLITE_RPMod.characters.push(char);
-            KLITE_RPMod.saveCharacters();
+            
+            // Only save immediately if not in batch import mode
+            if (!KLITE_RPMod.batchImportMode) {
+                KLITE_RPMod.saveCharacters();
+            }
             // Added character: ${char.name}
         },
         
@@ -18119,6 +18199,208 @@ Pacing Notes: `
             }
         },
         
+        // =============================================
+        // MULTI-TIER IMAGE STORAGE OPTIMIZATION
+        // =============================================
+        
+        async createOptimizedImages(originalImage, filename = 'character') {
+            // Check if we're in a test environment or Canvas API is available
+            if (typeof document === 'undefined' || !document.createElement) {
+                KLITE_RPMod.log('chars', `Canvas API not available, using original image for ${filename}`);
+                return {
+                    original: originalImage,
+                    preview: originalImage,
+                    avatar: originalImage,
+                    thumbnail: originalImage
+                };
+            }
+            
+            return new Promise((resolve) => {
+                try {
+                    const img = new Image();
+                    img.onload = () => {
+                        try {
+                            // Create optimized images for different use cases
+                            const images = {
+                                original: originalImage,                    // Full resolution for export
+                                preview: this.createPreviewImage(img),     // 256x256 for gallery
+                                avatar: this.createAvatarImage(img),       // 64x64 for chat
+                                thumbnail: this.createThumbnailImage(img)  // 32x32 for mobile/list view
+                            };
+                            
+                            KLITE_RPMod.log('chars', `🖼️ Created optimized images for ${filename}: original (${originalImage.length}B), preview (${images.preview.length}B), avatar (${images.avatar.length}B), thumbnail (${images.thumbnail.length}B)`);
+                            resolve(images);
+                        } catch (error) {
+                            KLITE_RPMod.log('chars', `Image optimization failed for ${filename}, using original:`, error.message);
+                            // Fallback to original image for all uses
+                            resolve({
+                                original: originalImage,
+                                preview: originalImage,
+                                avatar: originalImage,
+                                thumbnail: originalImage
+                            });
+                        }
+                    };
+                    img.onerror = () => {
+                        KLITE_RPMod.log('chars', `Failed to load image for optimization: ${filename}, using original`);
+                        // Fallback to original image for all uses
+                        resolve({
+                            original: originalImage,
+                            preview: originalImage,
+                            avatar: originalImage,
+                            thumbnail: originalImage
+                        });
+                    };
+                    img.src = originalImage;
+                } catch (error) {
+                    KLITE_RPMod.log('chars', `Image optimization setup failed for ${filename}, using original:`, error.message);
+                    resolve({
+                        original: originalImage,
+                        preview: originalImage,
+                        avatar: originalImage,
+                        thumbnail: originalImage
+                    });
+                }
+            });
+        },
+        
+        
+        createPreviewImage(img) {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error('Canvas 2D context not available');
+                const size = 256;
+                
+                canvas.width = size;
+                canvas.height = size;
+                
+                // Calculate dimensions to maintain aspect ratio
+                const scale = Math.min(size / img.width, size / img.height);
+                const width = img.width * scale;
+                const height = img.height * scale;
+                const x = (size - width) / 2;
+                const y = (size - height) / 2;
+                
+                // Fill background and draw scaled image
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(0, 0, size, size);
+                ctx.drawImage(img, x, y, width, height);
+                
+                return canvas.toDataURL('image/jpeg', 0.8);
+            } catch (error) {
+                KLITE_RPMod.log('chars', 'Preview image creation failed, using original');
+                return img.src;
+            }
+        },
+        
+        createAvatarImage(img) {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error('Canvas 2D context not available');
+                const size = 64;
+                
+                canvas.width = size;
+                canvas.height = size;
+                
+                // Calculate dimensions to maintain aspect ratio
+                const scale = Math.min(size / img.width, size / img.height);
+                const width = img.width * scale;
+                const height = img.height * scale;
+                const x = (size - width) / 2;
+                const y = (size - height) / 2;
+                
+                // Fill background and draw scaled image
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(0, 0, size, size);
+                ctx.drawImage(img, x, y, width, height);
+                
+                return canvas.toDataURL('image/jpeg', 0.7);
+            } catch (error) {
+                KLITE_RPMod.log('chars', 'Avatar image creation failed, using original');
+                return img.src;
+            }
+        },
+        
+        createThumbnailImage(img) {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error('Canvas 2D context not available');
+                const size = 32;
+                
+                canvas.width = size;
+                canvas.height = size;
+                
+                // Calculate dimensions to maintain aspect ratio
+                const scale = Math.min(size / img.width, size / img.height);
+                const width = img.width * scale;
+                const height = img.height * scale;
+                const x = (size - width) / 2;
+                const y = (size - height) / 2;
+                
+                // Fill background and draw scaled image
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(0, 0, size, size);
+                ctx.drawImage(img, x, y, width, height);
+                
+                return canvas.toDataURL('image/jpeg', 0.6);
+            } catch (error) {
+                KLITE_RPMod.log('chars', 'Thumbnail image creation failed, using original');
+                return img.src;
+            }
+        },
+        
+        // =============================================
+        // AVATAR CACHING SYSTEM
+        // =============================================
+        
+        avatarCache: null, // Will be initialized safely
+        
+        initAvatarCache() {
+            if (!this.avatarCache) {
+                try {
+                    this.avatarCache = new Map();
+                    KLITE_RPMod.log('chars', '🖼️ Avatar cache initialized');
+                } catch (error) {
+                    KLITE_RPMod.log('chars', 'Avatar cache initialization failed, using fallback');
+                    this.avatarCache = {
+                        get: () => null,
+                        set: () => {},
+                        delete: () => {},
+                        clear: () => {},
+                        size: 0
+                    };
+                }
+            }
+        },
+        
+        getOptimizedAvatar(characterId, type = 'avatar') {
+            this.initAvatarCache();
+            const cacheKey = `${characterId}_${type}`;
+            return this.avatarCache.get(cacheKey);
+        },
+        
+        setOptimizedAvatar(characterId, type, imageData) {
+            this.initAvatarCache();
+            const cacheKey = `${characterId}_${type}`;
+            this.avatarCache.set(cacheKey, imageData);
+            
+            // Limit cache size to prevent memory issues
+            if (this.avatarCache.size > 200) {
+                const firstKey = this.avatarCache.keys().next().value;
+                this.avatarCache.delete(firstKey);
+                KLITE_RPMod.log('chars', '🗑️ Avatar cache size limit reached, removed oldest entry');
+            }
+        },
+        
+        clearAvatarCache() {
+            this.initAvatarCache();
+            this.avatarCache.clear();
+            KLITE_RPMod.log('chars', '🗑️ Avatar cache cleared');
+        },
+
         refresh() {
             // Clean up any detail view event handlers before refreshing
             const rightPanel = document.querySelector('div#content-right.klite-content');
