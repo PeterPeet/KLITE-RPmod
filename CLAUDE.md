@@ -94,6 +94,7 @@ Full support for all Tavern Card formats:
     - `keyword_definitions_spec_v1-v2.md` - Legacy format reference
   - `reference/` - Reference implementations and source code
     - `KoboldAI-Lite_sourcecode_v263_index.html` - Reference Lite source
+    - `KoboldAI-Lite-overview-docs.md`- Lite developer documentation for v257
 
 #### Project Documentation (`docs/project/`)
 - `USER_STORIES.md` - User personas, workflows, and detailed use cases
