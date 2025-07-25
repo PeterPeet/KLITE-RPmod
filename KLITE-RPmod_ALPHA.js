@@ -18884,7 +18884,246 @@ Pacing Notes: `
             KLITE_RPMod.loadPanel('right', 'CHARS');
         }
     };
-    
+// === Character Editor Extension for CHARS Panel ===
+KLITE_RPMod.panels.CHARS.editMode = 'none';
+KLITE_RPMod.panels.CHARS.editData = null;
+
+KLITE_RPMod.panels.CHARS.startNewCharacter = function () {
+    this.editMode = 'new';
+    this.editData = {
+        name: '',
+        description: '',
+        personality: '',
+        scenario: '',
+        first_mes: '',
+        mes_example: '',
+        tags: [],
+        avatar: '',
+        character_book: null,
+        creator: 'Manual Editor',
+        extensions: {},
+        category: 'General',
+        alternate_greetings: []
+    };
+    KLITE_RPMod.loadPanel('right', 'CHARS');
+};
+
+KLITE_RPMod.panels.CHARS.abortEdit = function () {
+    this.editMode = 'none';
+    this.editData = null;
+    KLITE_RPMod.loadPanel('right', 'CHARS');
+};
+
+KLITE_RPMod.panels.CHARS.saveCharacter = function () {
+    const data = this.editData;
+    if (!data.name?.trim()) {
+        alert('Character must have a name.');
+        return;
+    }
+
+    // Map tags into the metadata if needed
+    if (!data.tags || !Array.isArray(data.tags)) {
+        data.tags = [];
+    }
+
+    // Fallback spec
+    data.spec = 'chara_card_v2';
+
+    this.addCharacter(data);
+    this.abortEdit();
+};
+
+KLITE_RPMod.panels.CHARS.uploadImage = function (event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        const imgData = e.target.result;
+
+        // ✅ Mutate a local reference (in case CHARS panel re-renders)
+        const panel = KLITE_RPMod.panels.CHARS;
+        if (!panel.editData) panel.editData = {};
+
+        panel.editData.avatar = imgData;
+        panel.editData.image = imgData; // ensure compatibility
+
+        // 🔄 Trigger rerender *after* data is safely assigned
+        KLITE_RPMod.loadPanel('right', 'CHARS');
+    };
+    reader.readAsDataURL(file);
+};
+
+
+KLITE_RPMod.panels.CHARS.renderEditor = function () {
+    const d = this.editData;
+    if (KLITE_RPMod.panels.WI && typeof KLITE_RPMod.panels.WI.init === 'function') {
+        KLITE_RPMod.panels.WI.init(); 
+    }
+    return `
+    <div class="klite-char-editor">
+        <h3>Create New Character</h3>
+
+        <label>Name:</label>
+        <input class="klite-input" value="${d.name}" oninput="KLITE_RPMod.panels.CHARS.editData.name=this.value"><br>
+
+        <label>Description:</label>
+        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.description=this.value">${d.description}</textarea><br>
+
+        <label>Personality:</label>
+        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.personality=this.value">${d.personality}</textarea><br>
+
+        <label>Scenario:</label>
+        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.scenario=this.value">${d.scenario}</textarea><br>
+
+        <label>Greeting (first message):</label>
+        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.first_mes=this.value">${d.first_mes}</textarea><br>
+
+        <label>Example Dialogue:</label>
+        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.mes_example=this.value">${d.mes_example}</textarea><br>
+
+        <label>Tags (comma-separated):</label>
+        <input class="klite-input" value="${d.tags.join(', ')}" oninput="KLITE_RPMod.panels.CHARS.editData.tags=this.value.split(',').map(t=>t.trim())"><br>
+
+        <label>Creator:</label>
+        <input class="klite-input" value="${d.creator || ''}" 
+            oninput="KLITE_RPMod.panels.CHARS.editData.creator=this.value"><br>
+
+        <label>Character Version:</label>
+        <input class="klite-input" value="${d.character_version || ''}" 
+            oninput="KLITE_RPMod.panels.CHARS.editData.character_version=this.value"><br>
+
+        <label>Creator Notes (not shown to AI):</label>
+        <textarea class="klite-input" rows="3"
+            oninput="KLITE_RPMod.panels.CHARS.editData.creator_notes=this.value">
+        ${d.creator_notes || ''}</textarea><br>
+
+        <label>System Prompt Override:</label>
+        <textarea class="klite-input" rows="3"
+            oninput="KLITE_RPMod.panels.CHARS.editData.system_prompt=this.value">
+        ${d.system_prompt || ''}</textarea><br>
+
+        <label>Post-History Instructions (e.g. jailbreak, gets added after prompt with highest priority to AI):</label>
+        <textarea class="klite-input" rows="3"
+            oninput="KLITE_RPMod.panels.CHARS.editData.post_history_instructions=this.value">
+        ${d.post_history_instructions || ''}</textarea><br>
+
+        <label>Alternate Greetings (one per line):</label>
+        <textarea class="klite-input" rows="3"
+            oninput="KLITE_RPMod.panels.CHARS.editData.alternate_greetings = this.value.split('\\n').map(l => l.trim()).filter(Boolean)">
+        ${(d.alternate_greetings || []).join('\\n')}</textarea><br>
+
+        <label>Upload Avatar:</label>
+        <input type="file" accept="image/*" onchange="KLITE_RPMod.panels.CHARS.uploadImage(event)">
+        <div><img src="${d.avatar}" alt="Avatar preview" style="max-height:120px;margin-top:8px;"></div>
+
+        ${this.renderGroupSelector()}
+
+        <div class="klite-buttons-fill klite-mt">
+            <button class="klite-btn primary" onclick="KLITE_RPMod.panels.CHARS.saveCharacterwithWI()">💾 Save</button>
+            <button class="klite-btn primary" onclick="KLITE_RPMod.panels.CHARS.abortEdit()">↩️ Back</button>
+            <button class="klite-btn primary" onclick="KLITE_RPMod.panels.CHARS.toggleGroupSelector()">🔗 Connect WI Group</button>
+        </div>
+    </div>`;
+};
+
+// Extend render() to show New Character button and swap view
+const originalRender = KLITE_RPMod.panels.CHARS.render;
+KLITE_RPMod.panels.CHARS.render = function () {
+    if (this.editMode === 'new') return this.renderEditor();
+    const base = originalRender.call(this);
+    const newBtn = '<div class="klite-buttons-fill klite-mb">' +
+    '<button class="klite-btn primary" onclick="KLITE_RPMod.panels.CHARS.startNewCharacter()">➕ New Character</button>' +
+    '</div>';
+    return newBtn + base;
+};
+
+KLITE_RPMod.panels.CHARS.showGroupSelector = false;
+
+KLITE_RPMod.panels.CHARS.toggleGroupSelector = function () {
+    this.showGroupSelector = !this.showGroupSelector;
+    KLITE_RPMod.loadPanel('right', 'CHARS');
+};
+
+KLITE_RPMod.panels.CHARS.renderGroupSelector = function () {
+    if (!this.showGroupSelector) return '';
+
+    const wiPanel = KLITE_RPMod.panels.WI;
+    const groups = (wiPanel && wiPanel.getGroups && typeof wiPanel.getGroups === 'function')
+        ? wiPanel.getGroups() : [];
+
+    if (!groups.length) return '<div class="klite-muted">No WorldInfo groups available.</div>';
+
+    const selected = this.editData.character_book || '';
+    const options = groups.map(g =>
+        `<option value="${g}" ${selected === g ? 'selected' : ''}>${g || '[Unassigned]'}</option>`
+    ).join('');
+
+    return `
+        <label>WorldInfo Group:</label>
+        <select class="klite-select" onchange="KLITE_RPMod.panels.CHARS.selectGroup(this.value)">
+            <option value="">— Select Group —</option>
+            ${options}
+        </select>
+    `;
+};
+
+KLITE_RPMod.panels.CHARS.selectGroup = function (groupName) {
+    this.editData.character_book = groupName || null;
+    KLITE_RPMod.loadPanel('right', 'CHARS');
+};
+
+// Utility: resolve WI group entries by group name
+KLITE_RPMod.panels.WI.getEntriesForGroup = function (groupName) {
+    const all = this.pendingWI || [];
+    return all.filter(e => e.wigroup === groupName);
+};
+
+if (!KLITE_RPMod.panels.CHARS.saveCharacterwithWI) {
+    KLITE_RPMod.panels.CHARS.saveCharacterwithWI = async function () {
+        const data = this.editData;
+        if (!data.name?.trim()) {
+            alert('Character must have a name.');
+            return;
+        }
+        if (!data.image && !data.avatar) {
+            alert('Character must have an image.');
+            return;
+        }
+
+        data.spec = 'chara_card_v2';
+        data.spec_version = '2.0';
+
+
+        // Embed full WI entries based on selected group name
+        const selectedGroupName = data.character_book;
+        if (selectedGroupName) {
+            const entries = KLITE_RPMod.panels.WI.getEntriesForGroup?.(selectedGroupName) || [];
+            data.character_book = {
+                name: selectedGroupName,
+                entries
+            };
+        } else {
+            data.character_book = null;
+        }
+
+        try {
+            if (KLITE_RPMod.panels?.CHARS?.addCharacter) {
+                await KLITE_RPMod.panels.CHARS.addCharacter(data);
+            } else {
+                throw new Error('CHARS panel not available. Character import requires proper panel initialization.');
+            }
+        } catch (err) {
+            console.error('[KLITE RPMod][ERROR] Character save failed:', err);
+            alert('Failed to save character: ' + err.message);
+            return;
+        }
+
+        this.abortEdit?.();
+    };
+}
+
+   
     // =============================================
     // 5. AUTO-INITIALIZATION
     // =============================================
