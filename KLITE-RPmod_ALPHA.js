@@ -6037,54 +6037,55 @@
             // Your new avatars
             const NEW_USER_AVATAR = 'data:image/png;base64,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';
 
-            // Check if group chat is enabled
             const isGroupChatActive = KLITE_RPMod.panels.GROUP?.enabled || false;
 
-            // Get all images in the chat area
             const chatArea = document.getElementById('chat-display');
             if (!chatArea) return;
 
-            const images = chatArea.querySelectorAll('img');
-            images.forEach(img => {
+            const messages = chatArea.querySelectorAll('chunk, p, .message');
+            messages.forEach(msg => {
+                const img = msg.querySelector('img');
+                if (!img) return;
+
                 if (img.src === USER_AVATAR_ORIGINAL) {
                     img.src = this.userAvatarCurrent || NEW_USER_AVATAR;
-                    // Apply styling for persona avatars
+                    img.style.objectFit = 'cover';
+                    img.style.borderRadius = '50%';
+                    img.style.width = '40px';
+                    img.style.height = '40px';
                     if (this.userAvatarCurrent && this.userAvatarCurrent !== this.userAvatarDefault) {
-                        img.style.objectFit = 'cover';
                         img.style.border = '2px solid #5cb85c';
-                        img.style.borderRadius = '50%';
                     }
-                } else if (img.src === AI_AVATAR_ORIGINAL) {
-                    let avatarToUse = this.aiAvatarDefault;
+                    return;
+                }
+
+                if (img.src === AI_AVATAR_ORIGINAL) {
+                    let avatarToUse = this.aiAvatarCurrent || this.aiAvatarDefault;
 
                     if (isGroupChatActive) {
-                        // For group chat, try to determine which character is speaking
-                        // by looking at the text content near the image
-                        const parent = img.closest('chunk, p, .message');
-                        if (parent) {
-                            const textContent = parent.textContent || '';
-
-                            // Try to match character names in the text content
-                            for (const [charId, avatarUrl] of this.groupAvatars) {
-                                const character = this.characters.find(c => c.id == charId);
-                                if (character && textContent.includes(character.name)) {
-                                    avatarToUse = avatarUrl;
-                                    break;
+                        const textContent = msg.textContent || '';
+                        const match = textContent.trim().match(/^([^:\n]+):/);
+                        if (match) {
+                            const speakerName = match[1].trim();
+                            const char = KLITE_RPMod.panels.GROUP.activeChars?.find(c => c.name === speakerName);
+                            if (char?.avatar) {
+                                avatarToUse = char.avatar;
+                            } else {
+                                const libChar = this.characters.find(c => c.name === speakerName);
+                                if (libChar?.avatar) {
+                                    avatarToUse = libChar.avatar;
                                 }
                             }
                         }
-                    } else {
-                        // Single character mode
-                        avatarToUse = this.aiAvatarCurrent || this.aiAvatarDefault;
                     }
 
                     img.src = avatarToUse;
-
-                    // Apply styling for character avatars to fit nicely
+                    img.style.objectFit = 'cover';
+                    img.style.borderRadius = '50%';
+                    img.style.width = '40px';
+                    img.style.height = '40px';
                     if (avatarToUse !== this.aiAvatarDefault) {
-                        img.style.objectFit = 'cover';
                         img.style.border = '2px solid #5a6b8c';
-                        img.style.borderRadius = '50%';
                     }
                 }
             });
@@ -12229,7 +12230,7 @@ Outline:`
         speakerHistory: [],
 
         // Auto-response system
-        speakerMode: 1, // 1=manual, 2=round-robin, 3=random, 4=keyword, 5=talkative, 6=party
+        speakerMode: 'manual', // 'manual', 'round-robin', 'random', 'keyword', 'talkative', 'party'
         autoResponses: {
             enabled: false,
             delay: 10,
@@ -12308,7 +12309,7 @@ Outline:`
         },
 
         changeSpeakerMode(newMode) {
-            this.speakerMode = parseInt(newMode);
+            this.speakerMode = newMode;
             this.saveSettings(); // Save the new setting
             this.clearAutoResponseTimer();
             KLITE_RPMod.loadPanel('left', 'GROUP');
@@ -12316,13 +12317,20 @@ Outline:`
 
         getSpeakerModeDescription() {
             switch (this.speakerMode) {
-                case 1: return 'Manual order: Characters speak only when triggered manually.';
-                case 2: return 'Round Robin: Characters take turns speaking in a circular order.';
-                case 3: return 'Random Selection: A random character is chosen for each turn, with optional exclusion of recent speakers.';
-                case 4: return 'Keyword Triggered: Characters respond when mentioned by name or specific keywords in the conversation.';
-                case 5: return 'Talkative Weighted: Characters speak based on their talkativeness rating with cooldown periods.';
-                case 6: return 'Party Round Robin: Everyone speaks once per round before anyone gets to speak again.';
-                default: return 'Manual order: Characters speak only when triggered manually.';
+                case 'manual':
+                    return 'Manual order: Characters speak only when triggered manually.';
+                case 'round-robin':
+                    return 'Round Robin: Characters take turns speaking in a circular order.';
+                case 'random':
+                    return 'Random Selection: A random character is chosen for each turn, with optional exclusion of recent speakers.';
+                case 'keyword':
+                    return 'Keyword Triggered: Characters respond when mentioned by name or specific keywords in the conversation.';
+                case 'talkative':
+                    return 'Talkative Weighted: Characters speak based on their talkativeness rating with cooldown periods.';
+                case 'party':
+                    return 'Party Round Robin: Everyone speaks once per round before anyone gets to speak again.';
+                default:
+                    return 'Manual order: Characters speak only when triggered manually.';
             }
         },
 
@@ -12346,12 +12354,12 @@ Outline:`
                     <div class="klite-mt">
                         <label>Next Speaker Selection:</label>
                         <select id="speaker-mode" class="klite-select" style="width: 100%;" onchange="KLITE_RPMod.panels.GROUP.changeSpeakerMode(this.value)">
-                            <option value="1" ${this.speakerMode === 1 ? 'selected' : ''}>Manual Order</option>
-                            <option value="2" ${this.speakerMode === 2 ? 'selected' : ''}>Round Robin</option>
-                            <option value="3" ${this.speakerMode === 3 ? 'selected' : ''}>Random Selection</option>
-                            <option value="4" ${this.speakerMode === 4 ? 'selected' : ''}>Keyword Triggered</option>
-                            <option value="5" ${this.speakerMode === 5 ? 'selected' : ''}>Talkative Weighted</option>
-                            <option value="6" ${this.speakerMode === 6 ? 'selected' : ''}>Party Round Robin</option>
+                            <option value="manual" ${this.speakerMode === 'manual' ? 'selected' : ''}>Manual Order</option>
+                            <option value="round-robin" ${this.speakerMode === 'round-robin' ? 'selected' : ''}>Round Robin</option>
+                            <option value="random" ${this.speakerMode === 'random' ? 'selected' : ''}>Random Selection</option>
+                            <option value="keyword" ${this.speakerMode === 'keyword' ? 'selected' : ''}>Keyword Triggered</option>
+                            <option value="talkative" ${this.speakerMode === 'talkative' ? 'selected' : ''}>Talkative Weighted</option>
+                            <option value="party" ${this.speakerMode === 'party' ? 'selected' : ''}>Party Round Robin</option>
                         </select>
                     </div>
                     <div id="speaker-mode-description" style="margin-top: 6px; font-size: 11px; color: var(--muted); padding: 6px; background: rgba(0,0,0,0.2); border-radius: 4px;">
@@ -12380,7 +12388,7 @@ Outline:`
         },
 
         renderAutoResponseControls() {
-            const isManual = this.speakerMode === 1;
+            const isManual = this.speakerMode === 'manual';
             const isDisabled = isManual || !this.autoResponses.enabled;
 
             return `
@@ -12533,9 +12541,8 @@ Outline:`
             if (this.speakerMode === 'manual') return;
 
             // Determine next speaker based on mode
-            const nextSpeaker = this.selectNextSpeaker(this.speakerMode);
+            const nextSpeaker = this.selectNextSpeaker(this.speakerMode, true);
             if (nextSpeaker !== null) {
-                this.currentSpeaker = nextSpeaker;
                 this.triggerCurrentSpeaker();
 
                 // Continue without player input if enabled
@@ -12687,9 +12694,10 @@ Outline:`
         advanceSpeaker() {
             if (this.activeChars.length <= 1) return;
 
-            this.currentSpeaker = (this.currentSpeaker + 1) % this.activeChars.length;
-            this.refresh();
-            KLITE_RPMod.log('panels', `Advanced to next speaker: ${this.getCurrentSpeaker()?.name}`);
+            const next = this.selectNextSpeaker(this.speakerMode, true);
+            if (next !== null) {
+                KLITE_RPMod.log('panels', `Advanced to next speaker: ${this.getCurrentSpeaker()?.name}`);
+            }
         },
 
         updateKoboldSettings() {
@@ -13253,7 +13261,7 @@ Outline:`
             const saved = await KLITE_RPMod.loadFromLiteStorage('rpmod_group_settings');
             if (saved) {
                 const settings = JSON.parse(saved);
-                this.speakerMode = settings.speakerMode || 1;
+                this.speakerMode = settings.speakerMode || 'manual';
                 if (settings.autoResponses) {
                     Object.assign(this.autoResponses, settings.autoResponses);
                 }
