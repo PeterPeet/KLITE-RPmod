@@ -40,3 +40,78 @@ KLITETestRunner.registerTest('functional', 'group_avatar_mapping_updates', async
     Assert.isTrue(KLITE_RPMod.groupAvatars.get('n') === 'data:image/png;base64,char_avatar', 'Group avatar must map to avatar field');
     Assert.isTrue(KLITE_RPMod.groupAvatars.get('m') === 'data:image/png;base64,char2', 'Group avatar must map to image field');
 }, ['REQ-F-080']);
+
+KLITETestRunner.registerTest('functional', 'pending_speaker_applies_to_new_images', async () => {
+    // Setup DOM and group state using real gametext (not mocked)
+    let game = document.getElementById('gametext');
+    if (!game) {
+        game = document.createElement('div');
+        game.id = 'gametext';
+        document.body.appendChild(game);
+    }
+    game.innerHTML = '';
+    const gp = KLITE_RPMod.panels.GROUP;
+    gp.enabled = true;
+    gp.activeChars = [
+        { id: 'n', name: 'Niko', avatar: 'data:image/png;base64:char_avatar' }
+    ];
+
+    // Simulate triggering Niko as speaker
+    gp.currentSpeaker = 0;
+    // Manually set pending meta as triggerCurrentSpeaker would
+    KLITE_RPMod._pendingAvatarMeta = { name: 'Niko', chatImgCount: 0, gameImgCount: game.querySelectorAll('img').length };
+    KLITE_RPMod._pendingSpeakerName = 'Niko';
+
+    // Append a new image as if Lite added a response icon
+    const img = document.createElement('img');
+    img.src = AI_AVATAR_ORIGINAL; // default AI icon
+    game.appendChild(img);
+
+    // Apply pending assignment and assert
+    KLITE_RPMod.applyPendingGroupAvatarToNewMessages();
+    const lastImg = game.querySelectorAll('img')[game.querySelectorAll('img').length - 1];
+    Assert.equal(lastImg.src.includes('char_avatar'), true, 'New AI images should adopt pending speaker avatar');
+}, ['REQ-F-080']);
+
+KLITETestRunner.registerTest('functional', 'rp_message_info_uses_ui_state', async () => {
+    // User message uses persona avatar/name
+    KLITE_RPMod.userAvatarCurrent = 'data:image/png;base64:user_current';
+    KLITE_RPMod.panels.PLAY_RP.selectedPersona = { name: 'PlayerOne', avatar: 'data:image/png;base64:user_persona' };
+    const u = KLITE_RPMod.getRPMessageInfo(true, 'You say hello');
+    Assert.equal(u.name, 'PlayerOne', 'Persona name should be used for user');
+    Assert.equal(!!u.avatar, true, 'Persona/user avatar should be resolved');
+
+    // Single chat AI uses selected character avatar/name
+    KLITE_RPMod.aiAvatarCurrent = 'data:image/png;base64:ai_current';
+    KLITE_RPMod.panels.GROUP.enabled = false;
+    KLITE_RPMod.panels.PLAY_RP.selectedCharacter = { name: 'Alice', avatar: 'data:image/png;base64:alice' };
+    const a = KLITE_RPMod.getRPMessageInfo(false, 'Hello');
+    Assert.equal(a.name, 'Alice', 'Selected character should be used in single chat');
+    Assert.equal(a.avatar, 'data:image/png;base64:alice', 'Character avatar should be preferred');
+
+    // Group chat AI uses pending speaker without parsing content
+    KLITE_RPMod.panels.GROUP.enabled = true;
+    KLITE_RPMod.panels.GROUP.activeChars = [{ id: 'm', name: 'Mika', image: 'data:image/png;base64:mika' }];
+    KLITE_RPMod._pendingSpeakerName = 'Mika';
+    const g = KLITE_RPMod.getRPMessageInfo(false, 'Some content without name:');
+    Assert.equal(g.name, 'Mika', 'Pending speaker should drive avatar resolution');
+    Assert.equal(g.avatar, 'data:image/png;base64:mika', 'Pending speaker image should be used');
+}, ['REQ-F-080']);
+
+KLITETestRunner.registerTest('functional', 'no_regex_crash_on_parentheses_names', async () => {
+    // Ensure updateAllChatAvatars does not throw for names with parentheses
+    // Setup gametext container with a message prefixed by the character name
+    let game = document.getElementById('gametext');
+    if (!game) {
+        game = document.createElement('div');
+        game.id = 'gametext';
+        document.body.appendChild(game);
+    }
+    const p = document.createElement('p');
+    p.textContent = 'Alice (V2): Hello there.';
+    game.appendChild(p);
+
+    // Seed characters and call updater
+    KLITE_RPMod.characters = [{ id: 'alicev2', name: 'Alice (V2)', image: 'data:image/png;base64,alice' }];
+    Assert.doesNotThrow(() => KLITE_RPMod.updateAllChatAvatars(), 'Should not throw for names with parentheses');
+}, ['REQ-F-080']);
