@@ -1,0 +1,32 @@
+{
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2021": true
+  },
+  "extends": ["eslint:recommended"],
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "script"
+  },
+  "ignorePatterns": [
+    "node_modules/",
+    "archive/",
+    "docs/",
+    "tests/KLITE_Test_Mocks.js"
+  ],
+  "rules": {
+    "no-undef": "error",
+    "no-eval": "error",
+    "eqeqeq": ["warn", "always"],
+    "curly": ["warn", "multi-line"],
+    "no-unused-vars": ["warn", { "args": "none", "ignoreRestSiblings": true }]
+  },
+  "globals": {
+    "KLITE_RPMod": "readonly",
+    "LiteAPI": "readonly",
+    "KLITETestRunner": "readonly",
+    "Assert": "readonly",
+    "KLITEMocks": "readonly"
+  }
+}

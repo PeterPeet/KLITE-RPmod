@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, '**' ]
+  pull_request:
+    branches: [ '**' ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: |
+          npm run lint:report || true
+          npm run lint:sarif || true
+
+      - name: Upload ESLint JSON report
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-report
+          path: eslint-report.json
+          if-no-files-found: ignore
+
+      - name: Upload SARIF to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: eslint-report.sarif
+          category: eslint

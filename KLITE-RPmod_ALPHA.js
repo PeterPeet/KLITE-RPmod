@@ -3514,6 +3514,8 @@
             init: false,
             hooks: false,
             panels: false,
+            group: true,
+            avatars: true,
             chars: false,
             generation: false,  // Disable Horde status logging
             state: false,
@@ -3542,6 +3544,27 @@
         essential(message, ...args) {
             // Always log essential operations regardless of debug levels
             this.log('essential', message, ...args);
+        },
+
+        // Helper to toggle verbose avatar/chat debugging at runtime
+        debugAvatars(enable = true) {
+            this.debugLevels.avatars = !!enable;
+            this.debugLevels.chat = !!enable;
+            this.log('avatars', `Debug avatars set to ${enable}`);
+            // Print quick summary of active defaults and group participants
+            try {
+                this.ensureDefaultAvatars();
+                this.log('avatars', `aiAvatarDefault=${this.aiAvatarDefault ? '[img]' : 'none'}, userAvatarDefault=${this.userAvatarDefault ? '[img]' : 'none'}`);
+                this.log('avatars', `aiAvatarCurrent=${this.aiAvatarCurrent ? '[img]' : 'none'}, userAvatarCurrent=${this.userAvatarCurrent ? '[img]' : 'none'}`);
+                if (this.panels.GROUP?.enabled) {
+                    const names = (this.panels.GROUP.activeChars || []).map(c => `${c.name} (avatar=${!!c.avatar}, image=${!!c.image})`);
+                    this.log('avatars', `group enabled, participants=${names.join(', ')}`);
+                } else {
+                    this.log('avatars', 'group disabled');
+                }
+            } catch (e) {
+                this.log('avatars', `debugAvatars summary error: ${e.message}`);
+            }
         },
 
         async init() {
@@ -4761,10 +4784,34 @@
                         return;
                     }
 
-                    self.state.generating = true;
-                    self.updateSubmitBtn();
-                    self.generationStart = Date.now();
-                    return orig.apply(window, args);
+                    // Ensure Horde models are loaded on first submit
+                    const ensureModelsThenSubmit = () => {
+                        self.state.generating = true;
+                        self.updateSubmitBtn();
+                        self.generationStart = Date.now();
+                        return orig.apply(window, args);
+                    };
+
+                    try {
+                        const usingCustom = typeof window.is_using_custom_ep === 'function' && window.is_using_custom_ep();
+                        if (!usingCustom && Array.isArray(window.selected_models) && window.selected_models.length === 0) {
+                            if (typeof window.fetch_horde_models === 'function') {
+                                window.fetch_horde_models((mdls) => {
+                                    try {
+                                        if (Array.isArray(mdls) && mdls.length > 0 && Array.isArray(window.selected_models) && window.selected_models.length === 0) {
+                                            window.selected_models = [mdls[0]];
+                                        }
+                                    } catch (_) {}
+                                    ensureModelsThenSubmit();
+                                });
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        // non-fatal
+                    }
+
+                    return ensureModelsThenSubmit();
                 };
                 this.log('hooks', 'Hooked submit_generation_button');
             }
@@ -4779,6 +4826,18 @@
                     this.log('generation', 'Temperature:', payload.params?.temperature);
                     this.log('generation', 'Top P:', payload.params?.top_p);
                     this.log('generation', 'Full params:', payload.params);
+
+                    // Sanitize known numeric fields that may be strings
+                    if (payload && payload.params) {
+                        const numKeys = ['max_length','max_context_length','temperature','top_p','top_k','typical_p','tfs','rep_pen','rep_pen_range','mirostat_tau','mirostat_lr'];
+                        numKeys.forEach(k => {
+                            if (k in payload.params && typeof payload.params[k] === 'string') {
+                                const n = Number(payload.params[k]);
+                                if (!Number.isNaN(n)) payload.params[k] = n;
+                            }
+                        });
+                    }
+
                     return orig.apply(window, [payload, ...args]);
                 };
                 this.log('hooks', 'Hooked dispatch_submit_generation');
@@ -4814,8 +4873,15 @@
 
                     const result = orig.apply(window, args);
                     self.log('integration', 'render_gametext called, syncing chat display');
-                    self.syncChat();
+                    // Ensure avatars are updated in gametext before syncing to display
                     self.updateAllChatAvatars();
+                    self.syncChat();
+                    // For chat mode, apply message formatting with avatars in display
+                    try {
+                        if (window.localsettings?.opmode === 3 && KLITE_RPMod.panels?.PLAY_CHAT?.formatChatContent) {
+                            KLITE_RPMod.panels.PLAY_CHAT.formatChatContent();
+                        }
+                    } catch (_) {}
                     self.state.generating = false;
                     self.updateSubmitBtn();
 
@@ -4873,9 +4939,13 @@
                                     setTimeout(() => {
                                         KLITE_RPMod.state.generating = false;
                                         KLITE_RPMod.updateSubmitBtn();
-                                        // Reset queue/wait displays
-                                        if (queueEl) queueEl.textContent = '#0';
-                                        if (waitEl) waitEl.textContent = '0s';
+                                        // Reset queue/wait displays (defensive DOM access)
+                                        try {
+                                            const queueEl = document.getElementById('queue');
+                                            const waitEl = document.getElementById('wait');
+                                            if (queueEl) queueEl.textContent = '#0';
+                                            if (waitEl) waitEl.textContent = '0s';
+                                        } catch (_) {}
                                     }, 600);
                                 }
                             }
@@ -5131,6 +5201,13 @@
             // When entering edit mode, store the current RPmod PLAY state
             if (!wasChecked) {
                 this.quickButtonState.storedModeBeforeEdit = window.localsettings?.opmode;
+                // Also disable placeholder replacement to avoid token injection during edits
+                if (window.localsettings) {
+                    this.quickButtonState.placeholderBeforeEdit = window.localsettings.placeholder_tags;
+                    this.quickButtonState.randomSeedBeforeEdit = window.localsettings.inject_randomness_seed;
+                    window.localsettings.placeholder_tags = false;
+                    window.localsettings.inject_randomness_seed = 0;
+                }
                 this.log('state', `📝 Entering edit mode - storing current mode: ${this.quickButtonState.storedModeBeforeEdit}`);
             }
 
@@ -5155,6 +5232,15 @@
 
                 // Clear stored mode
                 this.quickButtonState.storedModeBeforeEdit = null;
+                // Restore placeholder settings
+                if (window.localsettings) {
+                    if (this.quickButtonState.placeholderBeforeEdit !== undefined) {
+                        window.localsettings.placeholder_tags = this.quickButtonState.placeholderBeforeEdit;
+                    }
+                    if (this.quickButtonState.randomSeedBeforeEdit !== undefined) {
+                        window.localsettings.inject_randomness_seed = this.quickButtonState.randomSeedBeforeEdit;
+                    }
+                }
             }
 
             // Update edit button state
@@ -5539,6 +5625,8 @@
         },
 
         updateAllChatAvatars() {
+            // Ensure default avatars (niko_square/human_square) are loaded from CSS
+            this.ensureDefaultAvatars();
             const gametext = document.getElementById('gametext');
             if (!gametext) return;
 
@@ -5546,7 +5634,8 @@
             gametext.innerHTML = gametext.innerHTML.replace(/data:image\/png;base64,[^"]+/g, '');
 
             // Find all text chunks and add character avatars
-            const chunks = gametext.querySelectorAll('chunk, p, .message');
+            // Include span to support Lite's default markup
+            const chunks = gametext.querySelectorAll('chunk, p, .message, span');
             chunks.forEach(chunk => {
                 const text = chunk.textContent;
                 if (!text) return;
@@ -5557,22 +5646,20 @@
                 // Try to identify character by name in text
                 let characterFound = null;
 
+                const matchByName = (list) => list.find(char => {
+                    const escaped = char.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const re = new RegExp(`^\s*(?:[\"\[])?${escaped}(?:[\]\)]|)\s*[:\-—]`, 'i');
+                    return re.test(text) || text.toLowerCase().includes(`${char.name.toLowerCase()}:`);
+                });
+
                 // Check CHARS data first
                 if (this.characters && this.characters.length > 0) {
-                    characterFound = this.characters.find(char => {
-                        const name = char.name.toLowerCase();
-                        return text.toLowerCase().includes(name + ':') ||
-                            text.toLowerCase().startsWith(name);
-                    });
+                    characterFound = matchByName(this.characters);
                 }
 
                 // Check GROUP characters if no CHARS match
                 if (!characterFound && KLITE_RPMod.panels.GROUP?.activeChars) {
-                    characterFound = KLITE_RPMod.panels.GROUP.activeChars.find(char => {
-                        const name = char.name.toLowerCase();
-                        return text.toLowerCase().includes(name + ':') ||
-                            text.toLowerCase().startsWith(name);
-                    });
+                    characterFound = matchByName(KLITE_RPMod.panels.GROUP.activeChars);
                 }
 
                 if (characterFound) {
@@ -5598,12 +5685,10 @@
                 if (character.image || character.images?.avatar) {
                     // Use optimized avatar if available, otherwise fall back to original
                     avatarSrc = character.images?.avatar || character.image;
-                } else if (character.isCustom) {
-                    // Use GROUP chat style icon for custom characters
-                    avatarSrc = this.generateCustomAvatar(character.name);
                 } else {
-                    // Default AI avatar
-                    avatarSrc = this.generateDefaultAvatar(character.name);
+                    // Fallback: use AI default (niko_square) when character has no image
+                    this.ensureDefaultAvatars();
+                    avatarSrc = this.aiAvatarDefault || this.aiAvatarCurrent || avatarSrc;
                 }
             }
 
@@ -5667,6 +5752,12 @@
                 // Apply avatar replacements after syncing
                 setTimeout(() => {
                     this.replaceAvatarsInChat();
+                try {
+                    if (KLITE_RPMod._pendingSpeakerName && KLITE_RPMod.panels.GROUP?.enabled) {
+                        KLITE_RPMod.applyPendingGroupAvatarToLastMessage(KLITE_RPMod._pendingSpeakerName);
+                        KLITE_RPMod._pendingSpeakerName = null;
+                    }
+                } catch (_) {}
 
                     // Handle auto scroll based on KoboldAI Lite setting
                     this.handleAutoScroll(display, wasAtBottom);
@@ -5745,7 +5836,27 @@
         },
 
         // Avatar system methods
+        ensureDefaultAvatars() {
+            try {
+                // Prefer KoboldAI Lite root CSS variables when available
+                const rs = getComputedStyle(document.documentElement);
+                const nikoVar = rs.getPropertyValue('--img_nikosquare');
+                const humanVar = rs.getPropertyValue('--img_humansquare');
+                const extractUrl = (v) => {
+                    if (!v) return null;
+                    const m = String(v).match(/url\("?(.*)"?\)/);
+                    return m && m[1] ? m[1] : null;
+                };
+                const aiDefault = extractUrl(nikoVar);
+                const userDefault = extractUrl(humanVar);
+                if (aiDefault) this.aiAvatarDefault = aiDefault;
+                if (userDefault) this.userAvatarDefault = userDefault;
+            } catch (_) {
+                // Ignore; fall back to legacy defaults
+            }
+        },
         updateAIAvatar(imageUrl) {
+            this.ensureDefaultAvatars();
             if (imageUrl) {
                 this.aiAvatarCurrent = imageUrl;
             } else {
@@ -5755,6 +5866,12 @@
 
             // Force refresh of all avatars in chat
             this.replaceAvatarsInChat();
+                try {
+                    if (KLITE_RPMod._pendingSpeakerName && KLITE_RPMod.panels.GROUP?.enabled) {
+                        KLITE_RPMod.applyPendingGroupAvatarToLastMessage(KLITE_RPMod._pendingSpeakerName);
+                        KLITE_RPMod._pendingSpeakerName = null;
+                    }
+                } catch (_) {}
         },
 
         updateGroupAvatars() {
@@ -5762,14 +5879,16 @@
             if (KLITE_RPMod.panels.GROUP?.enabled && KLITE_RPMod.panels.GROUP.activeChars) {
                 this.groupAvatars.clear();
                 KLITE_RPMod.panels.GROUP.activeChars.forEach(char => {
-                    if (char.avatar) {
-                        this.groupAvatars.set(char.id, char.avatar);
+                    const av = char.avatar || char.image;
+                    if (av) {
+                        this.groupAvatars.set(char.id, av);
                     }
                 });
             }
         },
 
         updateUserAvatar(imageUrl) {
+            this.ensureDefaultAvatars();
             if (imageUrl) {
                 this.userAvatarCurrent = imageUrl;
             } else {
@@ -5779,6 +5898,12 @@
 
             // Force refresh of all avatars in chat
             this.replaceAvatarsInChat();
+                try {
+                    if (KLITE_RPMod._pendingSpeakerName && KLITE_RPMod.panels.GROUP?.enabled) {
+                        KLITE_RPMod.applyPendingGroupAvatarToLastMessage(KLITE_RPMod._pendingSpeakerName);
+                        KLITE_RPMod._pendingSpeakerName = null;
+                    }
+                } catch (_) {}
         },
 
         // Dynamic button system
@@ -6029,26 +6154,44 @@
         },
 
         replaceAvatarsInChat() {
-            // The exact base64 strings to look for (original KoboldAI Lite avatars)
-            const USER_AVATAR_ORIGINAL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgBAMAAACBVGfHAAAAAXNSR0IB2cksfwAAAAlwSFlzAAACTwAAAk8B95E4kAAAAB5QTFRFFIqj/v//V6u9ksnUFIqjx+PpcbjHFIqjFIqjAAAAcfUgXwAAAAp0Uk5T/////9z//5IQAKod7AcAAACKSURBVHicY5hRwoAE3DsZWhhQgAdDAaoAO4MDqgALA/lAOQmVzyooaIAiYCgoKIYiICgoKIouIIhfBYYZGLYwKBuh8oHcVAUkfqKgaKCgMILPJggGCFMUIQIIewIhAnCXMAlCgQKqEQhDmGECAegCBmiGws1gYFICA2SnIgEHVC4LZlRiRDZ6cgAAfnASgWRzByEAAAAASUVORK5CYII=';
+            // Ensure defaults from CSS variables when available
+            this.ensureDefaultAvatars();
+            KLITE_RPMod.log('avatars', 'replaceAvatarsInChat: start');
 
+            // Legacy data-URI defaults (fallback only)
+            const USER_AVATAR_ORIGINAL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgBAMAAACBVGfHAAAAAXNSR0IB2cksfwAAAAlwSFlzAAACTwAAAk8B95E4kAAAAB5QTFRFFIqj/v//V6u9ksnUFIqjx+PpcbjHFIqjFIqjAAAAcfUgXwAAAAp0Uk5T/////9z//5IQAKod7AcAAACKSURBVHicY5hRwoAE3DsZWhhQgAdDAaoAO4MDqgALA/lAOQmVzyooaIAiYCgoKIYiICgoKIouIIhfBYYZGLYwKBuh8oHcVAUkfqKgaKCgMILPJggGCFMUIQIIewIhAnCXMAlCgQKqEQhDmGECAegCBmiGws1gYFICA2SnIgEHVC4LZlRiRDZ6cgAAfnASgWRzByEAAAAASUVORK5CYII=';
             const AI_AVATAR_ORIGINAL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAAAAXNSR0IB2cksfwAAAAlwSFlzAAALEwAACxMBAJqcGAAAADxQTFRFS2Si+X5+pmBfHyApLjZSS2SjP057Vzw5EA4Sf1ZT+9Sv1WpqnYx/7qaYw7vUAAAAS2Sj9PPzgnrLS2SjAzrF9gAAABR0Uk5T///////w////////////AKj//yMlHqVpAAAD3klEQVR4nKWXi7KjIAyGFSgxEjhV3/9d90+8onZPd810prWSDwi50fyoTNP7/X79g2D4NJlqo+rvV/Mf8npPM2B6/4+6ihKaB/pGaH4e6IPw00y3+48xhBC3J32Id+NeUzN9UPfer4RoD/eIqbnuwLS7zncLAfqdPvvDmvY9XAE6vuuImEAw8fNT1/kr4Qqw+YhdIocfJl0glxyTvyG8m7MNY1B9diAkmgGUODnH7Km7AF53AGEjUJtWYdUPzn0LyC6AQO0qCUCi1PKXAM5tCwXeAC0ROf36AqA2VACmbQ8yP9DVimeA6lPKkLaW3EPylXAARBXV701OhOVPI6hcAXH1mTyP7e8AMyEc4mQDzP7XrfOfl5D7ndAdfXID6NwMyXACEpEbgPTCLJn1hEGoAep/OKheQiCEEhj1HgBQX1ZxQMPLlyVsABwejkp8EGEQAkxRA4RgIRYhTxme1fkKoBZwAHjLA+b/cgLQ8gZ4gZ+tVtgAnboaa+Lg0IwRhBqAmX0cI0WFqHN3FUAXAOPpzIWhPzZYQgUAu4ljiaKTaKwtZtwAIdv8XkocR9+UYM5/BMTRxzJKsWEu+RPAAsBxKSWWgTHS18cofiwhlCJD4cApUb0CNWKA/5dhwAqKD2UIXAEoFgUMkIJTCCcjzkGE890BQhXA685WQNqD6ujKWDRhhI7EdKUCtKSGxd8ASEr+6sqNApKPeD/iFEpT6nAUcAMgMmBzqwVPgJCd80X3AIlDDcjSzH8PJbD7AGiT020WjfcCN0jI5WwJGk5axP4eikeyvQd4HE5i7I4xEpWANKg0m2p0OUIcQKJnd7uCaABMRebOSOoB1WUVYACzaGSs012NaI5gAC0GcPWD9iLI6/qVdGeXY7R6xu1M0FAhG7s865ctw97Zoz85kuXi5T2EbaZatLileQA+VifrYGrT7ruL+lbZ0orYcXQJpry/tl+26l1s8sOy+BxMqKjr23nf7mhFnktbOgJOGQmnVG0ZVve06VvDUFmEztGIhHAy2YHA+qsCuFNS1T0Edf41AOZ1b7uwH1tYYFA4p3U1owiOOu+AsyxrQ3AIXwrLXtryL4BPpW0rrvMaPgHSx+K6l3cj3Oin1lH6S3nfd+KDa51lAjJhE6ddz7XRu29xUH51O95SgNOahDTB3PPvLc7cZPWYEVlVlp5AkGtJK/63XZoq0jBsvUrPeNDvr/tE1SnD3qxIEVuNfAsY0J9w4Ux2ZKizHPLHFdw127r7HIS2ZpvFTHHbbN+3+2Qm29p9NvXv2v3twkHHCwd9vnA8vvI8vnQ9vvY9v3g+vvo+v3w/u/7/AZoAPJwrbZ1IAAAAAElFTkSuQmCC';
 
-            // Your new avatars
-            const NEW_USER_AVATAR = 'data:image/png;base64,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';
+            const defaultUser = this.userAvatarDefault || null;
+            const defaultAI = this.aiAvatarDefault || null;
+            const USER_DEFAULTS = [defaultUser, USER_AVATAR_ORIGINAL].filter(Boolean);
+            const AI_DEFAULTS = [defaultAI, AI_AVATAR_ORIGINAL].filter(Boolean);
 
             const isGroupChatActive = KLITE_RPMod.panels.GROUP?.enabled || false;
 
             const chatArea = document.getElementById('chat-display');
             if (!chatArea) return;
 
-            const messages = chatArea.querySelectorAll('chunk, p, .message');
+            // Broaden selectors to include Lite's span-based markup
+            let messages = chatArea.querySelectorAll('chunk, p, .message, span');
+            // Fallback: if no messages found in chat-display, try gametext directly
+            if (!messages || messages.length === 0) {
+                const gameArea = document.getElementById('gametext');
+                if (gameArea) {
+                    messages = gameArea.querySelectorAll('chunk, p, .message, span');
+                }
+            }
+            KLITE_RPMod.log('avatars', `replaceAvatarsInChat: scanning ${messages.length || 0} messages`);
             messages.forEach(msg => {
-                const img = msg.querySelector('img');
-                if (!img) return;
+                let img = msg.querySelector('img');
 
-                if (img.src === USER_AVATAR_ORIGINAL) {
-                    img.src = this.userAvatarCurrent || NEW_USER_AVATAR;
+                if (!isGroupChatActive) {
+                    if (!img) return;
+                }
+
+                if (!isGroupChatActive && USER_DEFAULTS.includes(img.src)) {
+                    // Prefer current user avatar; otherwise use Lite's default from CSS
+                    img.src = this.userAvatarCurrent || this.userAvatarDefault || img?.src;
                     img.style.objectFit = 'cover';
                     img.style.borderRadius = '50%';
                     img.style.width = '40px';
@@ -6059,7 +6202,7 @@
                     return;
                 }
 
-                if (img.src === AI_AVATAR_ORIGINAL) {
+                if (!isGroupChatActive && AI_DEFAULTS.includes(img.src)) {
                     let avatarToUse = this.aiAvatarCurrent || this.aiAvatarDefault;
 
                     if (isGroupChatActive) {
@@ -6068,27 +6211,60 @@
                         if (match) {
                             const speakerName = match[1].trim();
                             const char = KLITE_RPMod.panels.GROUP.activeChars?.find(c => c.name === speakerName);
-                            if (char?.avatar) {
-                                avatarToUse = char.avatar;
+                            if (char && (char.avatar || char.image)) {
+                                avatarToUse = char.avatar || char.image;
                             } else {
                                 const libChar = this.characters.find(c => c.name === speakerName);
-                                if (libChar?.avatar) {
-                                    avatarToUse = libChar.avatar;
+                                if (libChar && (libChar.avatar || libChar.image)) {
+                                    avatarToUse = libChar.avatar || libChar.image;
                                 }
                             }
                         }
                     }
 
+                    img.src = avatarToUse || img?.src;
+                    img.style.objectFit = 'cover';
+                    img.style.borderRadius = '50%';
+                    img.style.width = '40px';
+                    img.style.height = '40px';
+                    if (avatarToUse && this.aiAvatarDefault && avatarToUse !== this.aiAvatarDefault) {
+                        img.style.border = '2px solid #5a6b8c';
+                    }
+                    return;
+                }
+
+                // Group mode: ensure there is an avatar, insert one if missing
+                if (isGroupChatActive) {
+                    const textContent = (msg.textContent || '').trim();
+                    let speakerName = null;
+                    const m = textContent.match(/^([^:\n]+):/);
+                    if (m) speakerName = m[1].trim();
+                    let avatarToUse = null;
+                    if (speakerName) {
+                        const char = KLITE_RPMod.panels.GROUP.activeChars?.find(c => c.name === speakerName);
+                        avatarToUse = (char && (char.avatar || char.image)) ? (char.avatar || char.image) : null;
+                        if (!avatarToUse) {
+                            const libChar = this.characters?.find(c => c.name === speakerName);
+                            avatarToUse = (libChar && (libChar.avatar || libChar.image)) ? (libChar.avatar || libChar.image) : null;
+                        }
+                        KLITE_RPMod.log('avatars', `group: message speaker='${speakerName}', avatar='${avatarToUse ? '[img]' : 'none'}'`);
+                    }
+                    if (!avatarToUse) avatarToUse = this.aiAvatarCurrent || this.aiAvatarDefault;
+                    if (!avatarToUse) return;
+
+                    if (!img) {
+                        img = document.createElement('img');
+                        msg.insertBefore(img, msg.firstChild);
+                        KLITE_RPMod.log('avatars', `group: inserted <img> for speaker='${speakerName || 'unknown'}'`);
+                    }
                     img.src = avatarToUse;
                     img.style.objectFit = 'cover';
                     img.style.borderRadius = '50%';
                     img.style.width = '40px';
                     img.style.height = '40px';
-                    if (avatarToUse !== this.aiAvatarDefault) {
-                        img.style.border = '2px solid #5a6b8c';
-                    }
                 }
             });
+            KLITE_RPMod.log('avatars', 'replaceAvatarsInChat: done');
         },
 
         updateStatus() {
@@ -6133,6 +6309,30 @@
                 const seconds = Math.floor((Date.now() - (this.generationStart || Date.now())) / 1000);
                 waitEl.textContent = seconds + 's';
             }
+        },
+
+        applyPendingGroupAvatarToLastMessage(speakerName) {
+            const chatArea = document.getElementById('chat-display');
+            const gameArea = document.getElementById('gametext');
+            const tryApply = (root) => {
+                if (!root) return false;
+                const imgs = root.querySelectorAll('img');
+                if (!imgs || imgs.length === 0) return false;
+                const img = imgs[imgs.length - 1];
+                const char = this.panels.GROUP?.activeChars?.find(c => c.name === speakerName);
+                const avatar = char?.avatar || char?.image || this.aiAvatarCurrent || this.aiAvatarDefault;
+                if (avatar) {
+                    img.src = avatar;
+                    img.style.objectFit = 'cover';
+                    img.style.borderRadius = '50%';
+                    img.style.width = '40px';
+                    img.style.height = '40px';
+                    KLITE_RPMod.log('avatars', `pending: applied to last message, speaker='${speakerName}'`);
+                    return true;
+                }
+                return false;
+            };
+            if (!tryApply(chatArea)) tryApply(gameArea);
         },
 
         startSync() {
@@ -7158,7 +7358,7 @@
                 if (speakingChar) {
                     return {
                         name: speakingChar.name,
-                        avatar: speakingChar.avatar || this.aiAvatarDefault,
+                        avatar: speakingChar.avatar || speakingChar.image || this.aiAvatarDefault,
                         isCharacter: true
                     };
                 }
@@ -7168,7 +7368,7 @@
                 if (currentSpeaker) {
                     return {
                         name: currentSpeaker.name,
-                        avatar: currentSpeaker.avatar || this.aiAvatarDefault,
+                        avatar: currentSpeaker.avatar || currentSpeaker.image || this.aiAvatarDefault,
                         isCharacter: true
                     };
                 }
@@ -9451,7 +9651,7 @@
             // Get all text chunks in the game text
             const chunks = Array.from(gametext.children);
 
-            chunks.forEach(chunk => {
+            chunks.forEach((chunk, idx) => {
                 // Skip if already formatted (has container or is a container)
                 if (chunk.classList.contains('chat-message-container') ||
                     chunk.classList.contains('chat-message') ||
@@ -9459,6 +9659,10 @@
 
                 const content = chunk.textContent.trim();
                 if (!content) return;
+
+                // Debug: show initial raw message snippet
+                const snippet = content.substring(0, 80).replace(/\s+/g, ' ');
+                KLITE_RPMod.log('chat', `formatChat: chunk#${idx} snippet="${snippet}"`);
 
                 // Enhanced user message detection
                 const isUserMessage =
@@ -9496,8 +9700,10 @@
                     // Fallback: if it's very short and ends with punctuation, might be user input
                     (content.length < 100 && content.match(/[.!?]$/));
 
-                // Get appropriate avatar
+                // Get appropriate avatar (with debug)
+                KLITE_RPMod.log('chat', `formatChat: chunk#${idx} isUser=${isUserMessage}`);
                 const avatarSrc = this.getMessageAvatar(isUserMessage, content);
+                KLITE_RPMod.log('chat', `formatChat: chunk#${idx} avatarSrc=${avatarSrc ? (avatarSrc.startsWith('data:') ? '[data-url]' : avatarSrc) : 'none'}`);
 
                 // Create container div
                 const container = document.createElement('div');
@@ -9539,32 +9745,51 @@
         getMessageAvatar(isUserMessage, content) {
             if (isUserMessage) {
                 // User message - use current user avatar or default
-                return KLITE_RPMod.userAvatarCurrent || KLITE_RPMod.userAvatarDefault;
+                const src = KLITE_RPMod.userAvatarCurrent || KLITE_RPMod.userAvatarDefault;
+                KLITE_RPMod.log('avatars', `getMessageAvatar: user -> ${src ? (src.startsWith('data:') ? '[data-url]' : src) : 'none'}`);
+                return src;
             } else {
                 // AI message - check if GROUP chat is active
                 const isGroupChatActive = KLITE_RPMod.panels.GROUP?.enabled || false;
 
-                if (isGroupChatActive && KLITE_RPMod.panels.GROUP?.activeChars) {
-                    // Try to determine which character is speaking based on content
-                    const speakingChar = KLITE_RPMod.panels.GROUP.activeChars.find(char => {
-                        const name = char.name.toLowerCase();
-                        return content.toLowerCase().includes(name + ':') ||
-                            content.toLowerCase().startsWith(name);
-                    });
+            if (isGroupChatActive && KLITE_RPMod.panels.GROUP?.activeChars) {
+                // Try to determine which character is speaking based on content
+                const speakingChar = KLITE_RPMod.panels.GROUP.activeChars.find(char => {
+                    try {
+                        const escaped = String(char.name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        // Optional opening quote/bracket, optional closing bracket/paren, then separator
+                        const re = new RegExp(`^\\s*(?:[\"\[])?${escaped}[\\\]\)]?\\s*[:\\-—]`, 'i');
+                        const ok = re.test(content);
+                        KLITE_RPMod.log('avatars', `getMessageAvatar: test char='${char.name}', regex='${re}', match=${ok}`);
+                        if (ok) return true;
+                    } catch (e) {
+                        KLITE_RPMod.log('avatars', `regex error for char='${char.name}': ${e.message}`);
+                    }
+                    // Fallback simple check
+                    const contain = content.toLowerCase().includes(`${char.name.toLowerCase()}:`);
+                    KLITE_RPMod.log('avatars', `getMessageAvatar: contain check char='${char.name}', result=${contain}`);
+                    return contain;
+                });
 
-                    if (speakingChar && speakingChar.avatar) {
-                        return speakingChar.avatar;
+                    if (speakingChar && (speakingChar.avatar || speakingChar.image)) {
+                        const src = speakingChar.avatar || speakingChar.image;
+                        KLITE_RPMod.log('avatars', `getMessageAvatar: group -> char='${speakingChar.name}', src=${src ? (src.startsWith('data:') ? '[data-url]' : src) : 'none'}`);
+                        return src;
                     }
 
                     // Fallback: use current speaker's avatar
                     const currentSpeaker = KLITE_RPMod.panels.GROUP.getCurrentSpeaker();
-                    if (currentSpeaker && currentSpeaker.avatar) {
-                        return currentSpeaker.avatar;
+                    if (currentSpeaker && (currentSpeaker.avatar || currentSpeaker.image)) {
+                        const src = currentSpeaker.avatar || currentSpeaker.image;
+                        KLITE_RPMod.log('avatars', `getMessageAvatar: group fallback currentSpeaker='${currentSpeaker.name}', src=${src ? (src.startsWith('data:') ? '[data-url]' : src) : 'none'}`);
+                        return src;
                     }
                 }
 
                 // Single character mode or fallback - use current AI avatar or default
-                return KLITE_RPMod.aiAvatarCurrent || KLITE_RPMod.aiAvatarDefault;
+                const src = KLITE_RPMod.aiAvatarCurrent || KLITE_RPMod.aiAvatarDefault;
+                KLITE_RPMod.log('avatars', `getMessageAvatar: ai single -> ${src ? (src.startsWith('data:') ? '[data-url]' : src) : 'none'}`);
+                return src;
             }
         },
 
@@ -12637,6 +12862,12 @@ Outline:`
 
             'trigger-response': () => {
                 const groupPanel = KLITE_RPMod.panels.GROUP;
+                KLITE_RPMod.log('group', `Trigger Speaker clicked; current speaker: ${groupPanel.getCurrentSpeaker()?.name || 'none'}`);
+                // Ensure backend knows we are in chat group mode and participants are synced
+                if (window.localsettings) {
+                    window.localsettings.opmode = 3; // chat
+                }
+                groupPanel.updateKoboldSettings();
                 groupPanel.triggerCurrentSpeaker();
 
                 // Auto advance if enabled
@@ -12677,6 +12908,7 @@ Outline:`
         },
 
         triggerCurrentSpeaker() {
+            KLITE_RPMod.log('group', 'Triggering current speaker via advanced handler');
             const speaker = this.getCurrentSpeaker();
             KLITE_RPMod.log('panels', `Triggering speaker: ${speaker?.name || 'none'} (index: ${this.currentSpeaker})`);
 
@@ -12685,10 +12917,51 @@ Outline:`
                 return;
             }
 
-            // Set up for impersonation
-            KLITE_RPMod.log('panels', `Calling impersonate_message with index: ${this.currentSpeaker}`);
-            window.impersonate_message?.(this.currentSpeaker);
-            // Generating as ${speaker.name}
+            // Force chat mode in Lite
+            if (window.localsettings) {
+                window.localsettings.opmode = 3; // chat mode
+            }
+
+            // Ensure participants are synced to Lite
+            this.updateKoboldSettings();
+
+            // Seed first-turn context if absolutely empty to allow empty submit
+            try {
+                const noContext = Array.isArray(window.gametext_arr) && window.gametext_arr.length === 0 &&
+                    (!window.current_memory || window.current_memory.trim() === '') &&
+                    (!window.current_anote || window.current_anote.trim() === '');
+                if (noContext) {
+                    window.gametext_arr.push('');
+                }
+            } catch (_) {}
+
+            // Temporarily restrict group to the selected speaker using Lite's groupchat_removals
+            const prevRemovals = Array.isArray(window.groupchat_removals) ? [...window.groupchat_removals] : [];
+            const allNames = (window.localsettings?.chatopponent || '')
+                .split('||$||')
+                .map(n => n.trim())
+                .filter(n => n);
+            const targetName = speaker.name;
+            window.groupchat_removals = allNames.filter(n => n !== targetName);
+            KLITE_RPMod.log('panels', `Set groupchat_removals to force speaker:`, window.groupchat_removals);
+
+            // Trigger generation in Lite: align with narrator flow
+            if (typeof window.chat_submit_generation === 'function') {
+                // Let Lite handle text piping to input_text and submission
+                window.chat_submit_generation();
+            } else if (typeof window.submit_generation === 'function') {
+                window.submit_generation('');
+            } else if (typeof window.submit_generation_button === 'function') {
+                window.submit_generation_button();
+            } else {
+                KLITE_RPMod.log('panels', 'Generation function unavailable');
+            }
+
+            // Restore removals shortly after dispatching so future turns are normal
+            setTimeout(() => {
+                window.groupchat_removals = prevRemovals;
+                KLITE_RPMod.log('panels', 'Restored groupchat_removals');
+            }, 1200);
         },
 
         advanceSpeaker() {
@@ -13044,8 +13317,9 @@ Outline:`
                     this.activeChars.push(char);
 
                     // Add character avatar to group avatars map
-                    if (char.avatar) {
-                        KLITE_RPMod.groupAvatars.set(char.id, char.avatar);
+                    const av = char.avatar || char.image;
+                    if (av) {
+                        KLITE_RPMod.groupAvatars.set(char.id, av);
                     }
 
                     added++;
@@ -13123,10 +13397,13 @@ Outline:`
 
             // Check each character for keyword matches
             const matches = [];
+            const escapeRegExp = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             this.activeChars.forEach((char, index) => {
                 const charKeywords = char.keywords || [char.name.toLowerCase()];
                 const score = charKeywords.reduce((total, keyword) => {
-                    const regex = new RegExp('\\b' + keyword.toLowerCase() + '\\b', 'gi');
+                    const safe = escapeRegExp(String(keyword).toLowerCase());
+                    if (!safe) return total;
+                    const regex = new RegExp('\\b' + safe + '\\b', 'gi');
                     return total + (keywords.match(regex) || []).length;
                 }, 0);
 
@@ -13218,29 +13495,7 @@ Outline:`
                 this.speakerHistory = this.speakerHistory.slice(-20);
             }
         },
-
-        triggerCurrentSpeaker() {
-            if (this.activeChars.length === 0) return;
-
-            const currentChar = this.activeChars[this.currentSpeaker];
-            if (!currentChar) return;
-
-            // Update trigger time for talkativeness mode
-            this.lastTriggerTime[this.currentSpeaker] = Date.now();
-
-            // Set the character for generation
-            if (window.localsettings) {
-                window.localsettings.chatopponent = currentChar.name;
-            }
-
-            // Trigger AI generation
-            if (window.submit_generation) {
-                window.submit_generation();
-            }
-
-            // Triggered response from ${currentChar.name}
-            KLITE_RPMod.log('panels', `Triggered speaker: ${currentChar.name}`);
-        },
+        
 
         formatTime(timestamp) {
             const now = Date.now();
@@ -13261,7 +13516,21 @@ Outline:`
             const saved = await KLITE_RPMod.loadFromLiteStorage('rpmod_group_settings');
             if (saved) {
                 const settings = JSON.parse(saved);
-                this.speakerMode = settings.speakerMode || 'manual';
+                // Backward compatibility: migrate numeric modes to string identifiers
+                const mode = settings.speakerMode;
+                if (typeof mode === 'number' || (typeof mode === 'string' && /^\d+$/.test(mode))) {
+                    const map = {
+                        1: 'manual',
+                        2: 'round-robin',
+                        3: 'random',
+                        4: 'keyword',
+                        5: 'talkative',
+                        6: 'party'
+                    };
+                    this.speakerMode = map[parseInt(mode, 10)] || 'manual';
+                } else {
+                    this.speakerMode = mode || 'manual';
+                }
                 if (settings.autoResponses) {
                     Object.assign(this.autoResponses, settings.autoResponses);
                 }
@@ -18624,9 +18893,12 @@ Pacing Notes: `
                     KLITE_RPMod.log('chars', 'Warning: save_wi function not available');
                 }
 
-                // Refresh WI panels if active
-                if (KLITE_RPMod.state.tabs.right === 'MEMORY' && KLITE_RPMod.panels.MEMORY) {
-                    KLITE_RPMod.panels.MEMORY.refresh();
+                // Sync our WI panel's pending state to the updated WI data
+                if (KLITE_RPMod.panels.WI) {
+                    KLITE_RPMod.panels.WI.pendingWI = JSON.parse(JSON.stringify(window.current_wi || []));
+                    if (KLITE_RPMod.state.tabs.right === 'WI') {
+                        KLITE_RPMod.panels.WI.refresh();
+                    }
                 }
 
                 // Also refresh native WI UI if it exists

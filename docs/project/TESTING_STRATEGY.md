@@ -742,3 +742,6 @@ Each test explicitly maps to requirements for:
 - Quality assurance
 
 This framework provides comprehensive validation of all 200+ requirements while maintaining practical implementation for the ALPHA codebase.
+
+### CI (GitHub Actions)
+(See `.github/workflows/ci.yml`)
