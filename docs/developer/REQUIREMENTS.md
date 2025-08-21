@@ -131,7 +131,7 @@
 - **REQ-F-079**: Auto-responses: When enabled and the user is not typing, start a timer that triggers speaker selection using the current mode and optionally continues without player input, with `delay` configurable in seconds; persist settings.
 
 #### 1.7.3 Avatar and Edit-Mode Requirements (Clarifications)
-- **REQ-F-080**: Runtime avatar changes for AI and User must refresh existing chat messages; in group mode, per-message avatars must resolve by speaker name against active group characters or library entries.
+- **REQ-F-080**: Avatar overrides use Lite globals and simple rules: `human_square` uses persona avatar when a user persona is selected, otherwise a NEW user default data-URI; `niko_square` uses the selected character avatar in single chat modes, otherwise the robot default in group/no-character modes. Chat images that use these sources are styled as round avatars (`object-fit: cover; border: 2px solid #5a6b8c; border-radius: 50%`). No regex or per-message parsing is required.
 - **REQ-F-081**: Edit mode must sync content between RPmod `#chat-display` (editable) and Lite `#gametext` (non-editable while editing): on save or UI switch, copy edits to `#gametext` and call `merge_edit_field()`; only one surface is editable at a time.
 
 ## 2. NON-FUNCTIONAL REQUIREMENTS

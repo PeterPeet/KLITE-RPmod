@@ -190,6 +190,24 @@ KLITE-RPmod provides optimized mobile navigation:
 
 ## 🛠️ Advanced Features
 
+### Avatars
+KLITE-RPmod integrates with KoboldAI Lite’s avatar variables to keep things simple and reliable:
+
+- `human_square`: Displays the user’s avatar
+  - If a persona is selected in PLAY → RP, uses that character’s avatar.
+  - Otherwise, uses the built‑in NEW user default avatar.
+
+- `niko_square`: Displays the AI’s avatar
+  - In single chat modes with a selected character, uses that character’s avatar.
+  - In group chat or when no character is selected, uses the robot default.
+
+All chat avatars are styled as circles for consistency:
+- `object-fit: cover`
+- `border: 2px solid #5a6b8c`
+- `border-radius: 50%`
+
+Tip: Switch personas/characters in the PLAY panel and the avatars update automatically across the UI.
+
 ### Context Analysis (TOOLS Panel)
 Monitor and optimize your context usage:
 - Real-time token counting by category
