@@ -616,14 +616,11 @@
 
         /* Character Avatar in Chat */
         .klite-chat-avatar {
-            width: 24px;
-            height: 24px;
-            border-radius: 12px;
-            border: 2px solid var(--border);
-            object-fit: cover;
-            display: inline-block;
-            vertical-align: middle;
-            margin-right: 8px;
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            display: block;
+            margin: 0 0 8px 0;
             background: var(--bg3);
         }
         
@@ -2904,7 +2901,8 @@
             'Twist': '🔀'
         },
 
-        // Avatar system
+        // Avatar system (disabled in chat)
+        avatarsEnabled: false,
         aiAvatarCurrent: null,
         aiAvatarDefault: 'data:image/png;base64,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', // The robot emoji
         userAvatarCurrent: null,
@@ -2916,6 +2914,10 @@
         // - human_square: user's avatar (persona image if selected, otherwise NEW user default)
         // - niko_square: AI's avatar (selected character in single mode; robot default in group or when none)
         applyAvatarOverrides() {
+            if (!this.avatarsEnabled) {
+                // Avatars disabled — do not touch Lite globals or re-render
+                return;
+            }
             try {
                 // Ensure we have defaults available
                 this.ensureDefaultAvatars();
@@ -2960,6 +2962,7 @@
 
         // Post-style any <img> elements that use human_square or niko_square
         styleLiteAvatarImages() {
+            if (!this.avatarsEnabled) return; // no-op when avatars disabled
             try {
                 const imgs = document.querySelectorAll('img');
                 const human = (typeof window !== 'undefined') ? window.human_square : null;
@@ -2968,8 +2971,8 @@
                     const s = img.getAttribute('src');
                     if (!s) return;
                     if ((human && s === human) || (niko && s === niko)) {
-                        img.style.objectFit = 'cover';
-                        img.style.border = '2px solid #5a6b8c';
+                        // Keep only rounding; avoid extra borders/shadows/size formatting
+                        img.style.border = '';
                         img.style.borderRadius = '50%';
                     }
                 });
@@ -3723,8 +3726,7 @@
                 // Mark active
                 document.body.classList.add('klite-active');
 
-                // Initialize Lite avatar variables based on current state
-                this.applyAvatarOverrides();
+                // Avatars disabled for chat stability; do not override Lite avatar globals
 
                 this.essential('✅ KLITE RP Mod initialized successfully');
             } catch (error) {
@@ -5011,31 +5013,6 @@
                         cloned.json().then(data => {
                             // Use centralized status update method
                             KLITE_RPMod.updateHordeStatusFromData(data);
-
-                            // Update generating state based on done flag
-                            if (data && !data.faulted) {
-
-                                // Update generating state based on done flag
-                                if (data.done === false && !KLITE_RPMod.state.generating) {
-                                    KLITE_RPMod.log('generation', 'Setting generating state from Horde poll');
-                                    KLITE_RPMod.state.generating = true;
-                                    KLITE_RPMod.updateSubmitBtn();
-                                } else if (data.done === true && KLITE_RPMod.state.generating) {
-                                    KLITE_RPMod.log('generation', 'Generation complete per Horde status');
-                                    // Delay slightly as Lite fetches the result
-                                    setTimeout(() => {
-                                        KLITE_RPMod.state.generating = false;
-                                        KLITE_RPMod.updateSubmitBtn();
-                                        // Reset queue/wait displays (defensive DOM access)
-                                        try {
-                                            const queueEl = document.getElementById('queue');
-                                            const waitEl = document.getElementById('wait');
-                                            if (queueEl) queueEl.textContent = '#0';
-                                            if (waitEl) waitEl.textContent = '0s';
-                                        } catch (_) {}
-                                    }, 600);
-                                }
-                            }
                         }).catch(err => {
                             KLITE_RPMod.error('Failed to parse Horde status:', err);
                         });
@@ -5202,9 +5179,13 @@
             liteInput.value = text;
             this.log('generation', `Synced text to Lite input: "${text}"`);
 
-            // Clear our input
+            // Clear our input and reflect token change immediately
             input.value = '';
             this.updateTokens();
+
+            // Optimistic UI: mark generating immediately so the button flips to Abort
+            this.state.generating = true;
+            this.updateSubmitBtn();
 
             // Submit using KoboldAI's native function
             this.log('generation', 'Calling submit_generation_button');
@@ -5722,6 +5703,8 @@
         
 
         // Sync
+        // Mirrors Lite's #gametext into our #chat-display without causing feedback loops.
+        // Only updates when content actually changes and never triggers a re-render itself.
         syncChat() {
             const gametext = document.getElementById('gametext');
             const display = document.getElementById('chat-display');
@@ -5729,22 +5712,34 @@
                 // Check if user is at bottom before updating content
                 const wasAtBottom = this.isScrolledToBottom(display);
 
-                display.innerHTML = gametext.innerHTML || '<p class="klite-center klite-muted">No content yet...</p>';
-                this.log('integration', 'Chat display synced');
+                // Compute a lightweight signature to detect actual content changes
+                const html = gametext.innerHTML || '';
+                // Compute a lightweight 32-bit hash signature for change detection
+                let signature = 0;
+                for (let i = 0; i < html.length; i++) {
+                    signature = ((signature << 5) - signature) + html.charCodeAt(i);
+                    signature |= 0; // Convert to 32-bit integer
+                }
 
-                // Update group avatars for group chat mode
-                this.updateGroupAvatars();
+                // Initialize signature store
+                if (!this._lastChatSignature && this._lastChatSignature !== 0) {
+                    this._lastChatSignature = -1;
+                }
 
-                // No extra avatar injection needed; Lite variables drive avatars now
-                setTimeout(() => {
-                    try {
-                        // Re-render in case Lite needs to update images
-                        if (typeof window.render_gametext === 'function') window.render_gametext();
-                    } catch (_) {}
-                
-                    // Handle auto scroll based on KoboldAI Lite setting
-                    this.handleAutoScroll(display, wasAtBottom);
-                }, 100);
+                // Only update display when we detect a change in content
+                if (signature !== this._lastChatSignature) {
+                    display.innerHTML = html || '<p class="klite-center klite-muted">No content yet...</p>';
+                    this._lastChatSignature = signature;
+                    this.log('integration', `Chat display synced (len=${signature})`);
+
+                    // Update group avatars for group chat mode (no DOM injection here)
+                    this.updateGroupAvatars();
+                } else {
+                    this.log('integration', 'Chat display unchanged; skipping sync');
+                }
+
+                // Handle auto scroll based on KoboldAI Lite setting
+                this.handleAutoScroll(display, wasAtBottom);
             }
         },
 
@@ -5927,8 +5922,8 @@
             }
         },
         updateAIAvatar(imageUrl) {
+            if (!this.avatarsEnabled) return; // no-op when avatars disabled
             this.ensureDefaultAvatars();
-            // Update current AI avatar and propagate to Lite globals via simple overrides
             this.aiAvatarCurrent = imageUrl || this.aiAvatarDefault;
             this.applyAvatarOverrides();
         },
@@ -5947,8 +5942,8 @@
         },
 
         updateUserAvatar(imageUrl) {
+            if (!this.avatarsEnabled) return; // no-op when avatars disabled
             this.ensureDefaultAvatars();
-            // Update current user avatar and propagate to Lite globals via simple overrides
             this.userAvatarCurrent = imageUrl || this.userAvatarDefault;
             this.applyAvatarOverrides();
         },
@@ -9314,41 +9309,19 @@
                             min-height: 100vh;
                         }
                         
-                        /* Message container with avatar */
+                        /* Message container with avatar (stacked vertically) */
                         .chat-message-container {
-                            display: flex;
-                            align-items: flex-end;
-                            margin-bottom: 8px;
-                            gap: 8px;
+                            display: block;
+                            margin: 0 8px 12px 8px;
                         }
                         
-                        .chat-message-container.user-container {
-                            flex-direction: row-reverse;
-                            margin-right: 8px;
-                        }
-                        
-                        .chat-message-container.ai-container {
-                            flex-direction: row;
-                            margin-left: 8px;
-                        }
-                        
-                        /* Avatar styling */
+                        /* Avatar styling (large, above the text) */
                         .chat-avatar {
-                            width: 32px;
-                            height: 32px;
+                            width: 96px;
+                            height: 96px;
                             border-radius: 50%;
-                            border: 2px solid #5a6b8c;
-                            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-                            object-fit: cover;
-                            flex-shrink: 0;
-                        }
-                        
-                        .chat-avatar.user-avatar {
-                            border-color: #5a6b8c;
-                        }
-                        
-                        .chat-avatar.ai-avatar {
-                            border-color: #5a6b8c;
+                            display: block;
+                            margin: 0 0 8px 0; /* newline effect */
                         }
                         
                         /* User messages (right side - blue bubbles) */
@@ -9585,34 +9558,54 @@
                     // Fallback: if it's very short and ends with punctuation, might be user input
                     (content.length < 100 && content.match(/[.!?]$/));
 
-                // Get appropriate avatar (with debug)
+                // Note: avatars disabled; only names and text are shown
                 KLITE_RPMod.log('chat', `formatChat: chunk#${idx} isUser=${isUserMessage}`);
-                const avatarSrc = this.getMessageAvatar(isUserMessage, content);
-                KLITE_RPMod.log('chat', `formatChat: chunk#${idx} avatarSrc=${avatarSrc ? (avatarSrc.startsWith('data:') ? '[data-url]' : avatarSrc) : 'none'}`);
 
-                // Create container div
+                // Create container div (without avatar)
                 const container = document.createElement('div');
                 container.className = `chat-message-container ${isUserMessage ? 'user-container' : 'ai-container'}`;
-
-                // Create avatar element
-                const avatar = document.createElement('img');
-                avatar.className = `chat-avatar ${isUserMessage ? 'user-avatar' : 'ai-avatar'}`;
-                avatar.src = avatarSrc;
-                avatar.alt = isUserMessage ? 'User' : 'AI';
-                avatar.title = isUserMessage ? 'You' : 'AI Assistant';
 
                 // Clone the original chunk to preserve its content and styling
                 const messageElement = chunk.cloneNode(true);
 
+                // Ensure a line break before a bolded Name: label, if present (idempotent)
+                try {
+                    const bolds = messageElement.querySelectorAll('b, strong');
+                    for (const b of bolds) {
+                        const txt = (b.textContent || '').trim();
+                        if (/^Name\s*:/.test(txt)) {
+                            const prev = b.previousSibling;
+                            const needsBreak = !(prev && prev.nodeType === Node.ELEMENT_NODE && prev.tagName === 'BR');
+                            if (needsBreak) {
+                                const br = document.createElement('br');
+                                b.parentNode.insertBefore(br, b);
+                            }
+                            break;
+                        }
+                    }
+                } catch (_) {}
+
                 // Remove any existing formatting from the cloned element
                 messageElement.classList.remove('chat-message', 'user-message', 'ai-message');
+
+                // Strip any avatar <img> that may be present in the original content
+                try {
+                    const imgs = messageElement.querySelectorAll('img');
+                    const human = (typeof window !== 'undefined') ? window.human_square : null;
+                    const niko = (typeof window !== 'undefined') ? window.niko_square : null;
+                    imgs.forEach(img => {
+                        const s = img.getAttribute('src');
+                        if ((human && s === human) || (niko && s === niko) || img.classList.contains('chat-avatar') || img.classList.contains('rp-avatar')) {
+                            img.remove();
+                        }
+                    });
+                } catch (_) {}
 
                 // Add new formatting to the message element
                 messageElement.classList.add('chat-message');
                 messageElement.classList.add(isUserMessage ? 'user-message' : 'ai-message');
 
-                // Assemble the container
-                container.appendChild(avatar);
+                // Assemble the container (message only; no avatar)
                 container.appendChild(messageElement);
 
                 // Replace original chunk with container
@@ -9620,25 +9613,14 @@
                 chunk.remove();
 
                 // Debug log
-                KLITE_RPMod.log('chat', `Formatted message with avatar: ${isUserMessage ? 'USER' : 'AI'} - "${content.substring(0, 50)}..."`);
+                KLITE_RPMod.log('chat', `Formatted message: ${isUserMessage ? 'USER' : 'AI'} - "${content.substring(0, 50)}..."`);
             });
 
             // Handle auto scroll after formatting
             KLITE_RPMod.handleAutoScroll(gametext, wasAtBottom);
         },
 
-        getMessageAvatar(isUserMessage, content) {
-            // Use globally overridden Lite variables for simplicity
-            if (isUserMessage) {
-                const src = (typeof window !== 'undefined' && window.human_square) ? window.human_square : (KLITE_RPMod.userAvatarCurrent || KLITE_RPMod.userAvatarDefault);
-                KLITE_RPMod.log('avatars', `getMessageAvatar: user -> ${src ? (typeof src === 'string' && src.startsWith('data:') ? '[data-url]' : src) : 'none'}`);
-                return src;
-            } else {
-                const src = (typeof window !== 'undefined' && window.niko_square) ? window.niko_square : (KLITE_RPMod.aiAvatarCurrent || KLITE_RPMod.aiAvatarDefault);
-                KLITE_RPMod.log('avatars', `getMessageAvatar: ai -> ${src ? (typeof src === 'string' && src.startsWith('data:') ? '[data-url]' : src) : 'none'}`);
-                return src;
-            }
-        },
+        getMessageAvatar() { return null; },
 
         saveToSlot(slotNumber) {
             // Create comprehensive chat save data (full RPmod snapshot)
