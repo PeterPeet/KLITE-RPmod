@@ -28,6 +28,9 @@
     // 1. COMPLETE CSS WITH ALL PANEL STYLES
     // =============================================
 
+    niko_square = "";
+    human_square = "";
+    
     const STYLES = `
         :root {
             --bg: #1a1a1a;
