@@ -69,3 +69,47 @@ KLITETestRunner.registerTest('integration', 'group_settings_persistence', async 
   }
 }, ['REQ-F-079']);
 
+// RPmod autosave bundle is saved with a story hash and restores when matching
+KLITETestRunner.registerTest('integration', 'autosave_bundle_roundtrip', async () => {
+  // Arrange: create a minimal story state and RPmod state
+  window.gametext_arr = ['Hello'];
+  window.current_memory = 'Memo';
+  window.current_anote = 'AN';
+  window.current_wi = [{ key: 'alice', content: 'Alice is a doctor.' }];
+
+  // Configure some RPmod state
+  if (KLITE_RPMod.panels.PLAY_RP) {
+    KLITE_RPMod.panels.PLAY_RP.rules = 'Rule A';
+  }
+  if (KLITE_RPMod.panels.GROUP) {
+    KLITE_RPMod.panels.GROUP.activeChars = [{ name: 'Alice' }, { name: 'Bob' }];
+    KLITE_RPMod.panels.GROUP.currentSpeaker = 1;
+    KLITE_RPMod.panels.GROUP.speakerMode = 'manual';
+  }
+  if (KLITE_RPMod.panels.PLAY_CHAT) {
+    KLITE_RPMod.panels.PLAY_CHAT.chatStyle = 'mobile';
+  }
+
+  // Act: save bundle directly (don’t depend on window.autosave in tests)
+  const hash1 = KLITE_RPMod.computeStoryHash();
+  await KLITE_RPMod.saveAutosaveBundle();
+  const raw = await KLITE_RPMod.loadFromLiteStorage('rpmod_autosave');
+  Assert.isNotNull(raw, 'rpmod_autosave must be saved');
+  const bundle = JSON.parse(raw);
+  Assert.equal(bundle.story_hash, hash1, 'Bundle story_hash must match computed');
+
+  // Mutate RPmod state and then restore
+  if (KLITE_RPMod.panels.PLAY_RP) KLITE_RPMod.panels.PLAY_RP.rules = '';
+  if (KLITE_RPMod.panels.GROUP) {
+    KLITE_RPMod.panels.GROUP.activeChars = [];
+    KLITE_RPMod.panels.GROUP.currentSpeaker = 0;
+  }
+  if (KLITE_RPMod.panels.PLAY_CHAT) KLITE_RPMod.panels.PLAY_CHAT.chatStyle = 'classic';
+
+  await KLITE_RPMod.tryRestoreAutosaveBundle();
+
+  // Assert: values restored
+  if (KLITE_RPMod.panels.PLAY_RP) Assert.equal(KLITE_RPMod.panels.PLAY_RP.rules, 'Rule A', 'RP rules must restore');
+  if (KLITE_RPMod.panels.GROUP) Assert.arrayLength(KLITE_RPMod.panels.GROUP.activeChars, 2, 'Group participants must restore');
+  if (KLITE_RPMod.panels.PLAY_CHAT) Assert.equal(KLITE_RPMod.panels.PLAY_CHAT.chatStyle, 'mobile', 'Chat style must restore');
+}, ['REQ-I-040']);

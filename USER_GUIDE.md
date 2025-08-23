@@ -198,6 +198,12 @@ KLITE-RPmod integrates with KoboldAI Lite’s avatar variables to keep things si
   - Otherwise, uses the built‑in NEW user default avatar.
 
 - `niko_square`: Displays the AI’s avatar
+
+### RPmod Behavior Updates (Alpha)
+
+- Chat style selector (Mobile/Classic) is visual-only. It formats how messages are displayed but does not change Lite’s internal GUI type or submission path.
+- Edit mode uses Lite’s native editor. When you toggle edit on, the original `#gametext` becomes editable and the RPmod chat display remains read-only.
+- Autosave now includes RPmod state. Alongside Lite’s autosave, RPmod stores an autosave bundle keyed to the story, restoring RP rules, group roster/speaker, chat style, scene style, and UI layout when the story matches.
   - In single chat modes with a selected character, uses that character’s avatar.
   - In group chat or when no character is selected, uses the robot default.
 

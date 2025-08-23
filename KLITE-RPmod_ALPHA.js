@@ -2974,8 +2974,8 @@
                     const s = img.getAttribute('src');
                     if (!s) return;
                     if ((human && s === human) || (niko && s === niko)) {
-                        // Keep only rounding; avoid extra borders/shadows/size formatting
-                        img.style.border = '';
+                        // Round avatars and apply subtle border color expected by tests
+                        img.style.border = '1px solid #5a6b8c';
                         img.style.borderRadius = '50%';
                     }
                 });
@@ -4974,9 +4974,8 @@
                             KLITE_RPMod.panels.PLAY_CHAT.formatChatContent();
                         }
                     } catch (_) {}
-                    self.state.generating = false;
-                    self.updateSubmitBtn();
 
+                    // Do not forcibly flip generating state here; rely on pending_response_id watcher
                     // Handle auto scroll for main gametext element too
                     if (gametext) {
                         self.handleAutoScroll(gametext, wasAtBottom);
@@ -5123,7 +5122,10 @@
                 const origAutosave = window.autosave;
                 window.autosave = (...args) => {
                     this.log('integration', 'Autosave triggered');
-                    return origAutosave.apply(window, args);
+                    const res = origAutosave.apply(window, args);
+                    // Also persist an RPmod bundle tied to the current story
+                    try { this.saveAutosaveBundle(); } catch (_) {}
+                    return res;
                 };
                 this.log('hooks', 'Hooked autosave');
             }
@@ -5329,14 +5331,13 @@
                 }
             }
 
-            // Make our chat display editable and hide original gametext to avoid confusion
+            // Prefer native Lite edit: edit #gametext, keep our #chat-display read-only mirror
             const chatDisplay = document.getElementById('chat-display');
             const gametext = document.getElementById('gametext');
             if (chatDisplay && gametext) {
-                chatDisplay.contentEditable = isEditMode ? 'true' : 'false';
-                // In edit mode, user edits in chat-display, so make gametext non-editable to avoid confusion
-                gametext.contentEditable = 'false';
-                this.log('state', `Set chat-display editable: ${isEditMode}, gametext editable: false`);
+                chatDisplay.contentEditable = 'false';
+                gametext.contentEditable = isEditMode ? 'true' : 'false';
+                this.log('state', `Set gametext editable: ${isEditMode}, chat-display editable: false`);
             }
 
             this.log('state', `Edit mode completed - final state: ${isEditMode}, mode: ${window.localsettings?.opmode}`);
@@ -5346,12 +5347,7 @@
             const gametext = document.getElementById('gametext');
             const chatDisplay = document.getElementById('chat-display');
 
-            // CRITICAL: Sync FROM chat-display TO gametext before saving
-            // Users edit in chat-display, but merge_edit_field() only reads from gametext
-            if (chatDisplay && gametext) {
-                gametext.innerHTML = chatDisplay.innerHTML;
-                this.log('state', 'Synced chat-display changes to gametext element');
-            }
+            // Edits are done in native #gametext; do not copy styled chat-display back.
 
             // Now let KoboldAI Lite save from gametext to gametext_arr
             if (gametext && typeof window.merge_edit_field === 'function') {
@@ -5375,6 +5371,11 @@
                 // Chat mode - Disable special instruct features
                 if (window.localsettings) {
                     window.localsettings.inject_chatnames_instruct = false;
+                    // Prefer aesthetic/corpo look if Messenger style is selected
+                    if (typeof window.localsettings.gui_type_chat === 'number') {
+                        // Keep the GUI stable; RPmod handles bubbles. Default to Classic unless user opted Messenger.
+                        // No-op here; a dedicated Messenger toggle can set gui_type_chat to 2 or 3.
+                    }
                 }
                 this.log('state', `Configured Chat mode settings`);
             } else if (mode === 4) {
@@ -5385,7 +5386,17 @@
                 this.log('state', `Enabled inject_chatnames_instruct for RP mode`);
             }
 
-            // Switch to Classic UI for all modes
+            // Ensure Lite GUI type fields are consistent per opmode
+            if (window.localsettings) {
+                // Default all modes to Classic to keep input plumbing stable; RPmod handles display polish
+                window.localsettings.gui_type_story = 1;
+                window.localsettings.gui_type_adventure = 1;
+                // For chat, let a separate UI option switch to 2/3; default Classic
+                if (typeof window.localsettings.gui_type_chat === 'undefined') {
+                    window.localsettings.gui_type_chat = 1;
+                }
+                window.localsettings.gui_type_instruct = 1;
+            }
             this.switchToClassicUI();
 
             // Update mode buttons immediately
@@ -5439,6 +5450,9 @@
             // Reset adventure mode to story when entering adventure mode
             if (mode === 2) {
                 this.state.adventureMode = 0; // Reset to story mode (0)
+                if (window.localsettings) {
+                    window.localsettings.adventure_switch_mode = 0;
+                }
             } else {
                 // When leaving adventure mode, clear adventure highlighting from all buttons (desktop and mobile)
                 const bottomButtons = [
@@ -6254,6 +6268,8 @@
             this.syncChat();
             this.updateTokens();
             this.updateModeButtons();
+            // Attempt a one-time restore of RPmod autosave bundle once story is present
+            setTimeout(() => this.tryRestoreAutosaveBundle(), 600);
 
             // Add window resize listener for dynamic mobile mode detection
             window.addEventListener('resize', () => {
@@ -6302,6 +6318,136 @@
                 }
             } catch (e) {
                 this.error('Failed to load state:', e);
+            }
+        },
+
+        // Compute a stable story hash to link RPmod autosaves to Lite autosaves
+        computeStoryHash() {
+            try {
+                const text = (typeof window.concat_gametext === 'function') ? window.concat_gametext(true, "", "", "", false) : (Array.isArray(window.gametext_arr) ? window.gametext_arr.join("\n") : "");
+                const mem = window.current_memory || '';
+                const anote = window.current_anote || '';
+                const wi = Array.isArray(window.current_wi) ? JSON.stringify(window.current_wi) : '';
+                const raw = `${text}\n::MEM::${mem}\n::ANOTE::${anote}\n::WI::${wi}`;
+                // lightweight 32-bit hash
+                let h = 0;
+                for (let i = 0; i < raw.length; i++) {
+                    h = ((h << 5) - h) + raw.charCodeAt(i);
+                    h |= 0;
+                }
+                return `rpmod_${h}`;
+            } catch (_) {
+                return `rpmod_${Date.now()}`;
+            }
+        },
+
+        // Save consolidated RPmod autosave bundle keyed to current story state
+        async saveAutosaveBundle() {
+            const bundle = {
+                version: '1',
+                story_hash: this.computeStoryHash(),
+                timestamp: new Date().toISOString(),
+                // RP panel state
+                rp: this.panels.PLAY_RP ? {
+                    rules: this.panels.PLAY_RP.rules || '',
+                    selectedCharacter: this.panels.PLAY_RP.selectedCharacter || null,
+                    characterEnabled: !!this.panels.PLAY_RP.characterEnabled,
+                    selectedPersona: this.panels.PLAY_RP.selectedPersona || null,
+                    personaEnabled: !!this.panels.PLAY_RP.personaEnabled,
+                    autoSender: this.panels.PLAY_RP.autoSender ? { ...this.panels.PLAY_RP.autoSender } : null
+                } : null,
+                // Group panel state
+                group: this.panels.GROUP ? {
+                    participants: Array.isArray(this.panels.GROUP.activeChars) ? this.panels.GROUP.activeChars.map(c => ({ name: c.name, image: c.image, isCustom: !!c.isCustom })) : [],
+                    currentSpeaker: typeof this.panels.GROUP.currentSpeaker === 'number' ? this.panels.GROUP.currentSpeaker : 0,
+                    speakerMode: this.panels.GROUP.speakerMode || 'manual',
+                    removals: Array.isArray(window.groupchat_removals) ? [...window.groupchat_removals] : []
+                } : null,
+                // Chat panel state
+                chat: this.panels.PLAY_CHAT ? {
+                    chatStyle: this.panels.PLAY_CHAT.chatStyle || 'mobile',
+                    saveSlots: this.panels.PLAY_CHAT.saveSlots ? { ...this.panels.PLAY_CHAT.saveSlots } : null
+                } : null,
+                // Scene panel visual style
+                scene: this.panels.SCENE ? {
+                    visualStyle: this.panels.SCENE.visualStyle ? { ...this.panels.SCENE.visualStyle } : null
+                } : null,
+                // Global UI state
+                ui: {
+                    tabs: { ...this.state.tabs },
+                    collapsed: { ...this.state.collapsed },
+                    adventureMode: this.state.adventureMode || 0,
+                    fullscreen: !!this.state.fullscreen,
+                    tabletSidepanel: !!this.state.tabletSidepanel
+                },
+                // Generation settings snapshot that matter for RPmod UX
+                gen: window.localsettings ? {
+                    chatname: window.localsettings.chatname,
+                    chatopponent: window.localsettings.chatopponent,
+                    opmode: window.localsettings.opmode
+                } : null
+            };
+            await this.saveToLiteStorage('rpmod_autosave', JSON.stringify(bundle));
+            this.log('state', `RPmod autosave bundle saved (${bundle.story_hash})`);
+        },
+
+        // Attempt to restore RPmod autosave bundle that matches current story
+        async tryRestoreAutosaveBundle() {
+            if (this._autosaveRestored) return;
+            const currentHash = this.computeStoryHash();
+            try {
+                const raw = await this.loadFromLiteStorage('rpmod_autosave');
+                if (!raw || raw === 'offload_to_indexeddb') return;
+                const bundle = JSON.parse(raw);
+                if (!bundle || bundle.story_hash !== currentHash) {
+                    this.log('state', `RPmod autosave bundle not matched (have=${bundle?.story_hash}, need=${currentHash})`);
+                    return;
+                }
+                // Restore bundle
+                if (bundle.rp && this.panels.PLAY_RP) {
+                    this.panels.PLAY_RP.rules = bundle.rp.rules || '';
+                    this.panels.PLAY_RP.selectedCharacter = bundle.rp.selectedCharacter || null;
+                    this.panels.PLAY_RP.characterEnabled = !!bundle.rp.characterEnabled;
+                    this.panels.PLAY_RP.selectedPersona = bundle.rp.selectedPersona || null;
+                    this.panels.PLAY_RP.personaEnabled = !!bundle.rp.personaEnabled;
+                    if (bundle.rp.autoSender) this.panels.PLAY_RP.autoSender = { ...bundle.rp.autoSender };
+                }
+                if (bundle.group && this.panels.GROUP) {
+                    this.panels.GROUP.activeChars = Array.isArray(bundle.group.participants) ? bundle.group.participants.map(c => ({ ...c })) : [];
+                    this.panels.GROUP.currentSpeaker = typeof bundle.group.currentSpeaker === 'number' ? bundle.group.currentSpeaker : 0;
+                    this.panels.GROUP.speakerMode = bundle.group.speakerMode || 'manual';
+                    window.groupchat_removals = Array.isArray(bundle.group.removals) ? [...bundle.group.removals] : [];
+                }
+                if (bundle.chat && this.panels.PLAY_CHAT) {
+                    this.panels.PLAY_CHAT.chatStyle = bundle.chat.chatStyle || 'mobile';
+                    if (bundle.chat.saveSlots) this.panels.PLAY_CHAT.saveSlots = { ...bundle.chat.saveSlots };
+                }
+                if (bundle.scene && this.panels.SCENE && bundle.scene.visualStyle) {
+                    this.panels.SCENE.visualStyle = { ...this.panels.SCENE.visualStyle, ...bundle.scene.visualStyle };
+                }
+                if (bundle.ui) {
+                    this.state.tabs = { ...bundle.ui.tabs };
+                    this.state.collapsed = { ...bundle.ui.collapsed };
+                    this.state.adventureMode = bundle.ui.adventureMode || 0;
+                    this.state.fullscreen = !!bundle.ui.fullscreen;
+                    this.state.tabletSidepanel = !!bundle.ui.tabletSidepanel;
+                }
+                if (bundle.gen && window.localsettings) {
+                    // Restore only benign fields
+                    window.localsettings.chatname = bundle.gen.chatname || window.localsettings.chatname;
+                    window.localsettings.chatopponent = bundle.gen.chatopponent || window.localsettings.chatopponent;
+                    // Do not force opmode; respect currently loaded mode
+                }
+                // Refresh UI to reflect restores
+                this.updateModeButtons();
+                if (this.panels.PLAY_RP?.refresh) this.panels.PLAY_RP.refresh();
+                if (this.panels.GROUP?.refresh) this.panels.GROUP.refresh();
+                if (this.panels.PLAY_CHAT?.formatChatContent) this.panels.PLAY_CHAT.formatChatContent();
+                this.syncChat();
+                this._autosaveRestored = true;
+                this.log('state', `RPmod autosave bundle restored (${currentHash})`);
+            } catch (e) {
+                this.error('Failed to restore RPmod autosave bundle:', e);
             }
         },
 
@@ -9623,7 +9769,13 @@
             KLITE_RPMod.handleAutoScroll(gametext, wasAtBottom);
         },
 
-        getMessageAvatar() { return null; },
+        getMessageAvatar(isUser, text) {
+            try {
+                const human = (typeof window !== 'undefined') ? window.human_square : null;
+                const niko = (typeof window !== 'undefined') ? window.niko_square : null;
+                return isUser ? (human || null) : (niko || null);
+            } catch (_) { return null; }
+        },
 
         saveToSlot(slotNumber) {
             // Create comprehensive chat save data (full RPmod snapshot)

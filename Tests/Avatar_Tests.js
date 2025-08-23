@@ -23,6 +23,7 @@ KLITETestRunner.registerTest('functional', 'avatar_overrides_persona_and_charact
     KLITE_RPMod.panels.GROUP.enabled = false;
     KLITE_RPMod.panels.PLAY_RP.selectedPersona = null;
     KLITE_RPMod.panels.PLAY_RP.selectedCharacter = null;
+    KLITE_RPMod.avatarsEnabled = true;
 
     // Ensure defaults are present
     KLITE_RPMod.ensureDefaultAvatars();
@@ -68,6 +69,7 @@ KLITETestRunner.registerTest('functional', 'group_avatar_mapping_updates', async
 
 KLITETestRunner.registerTest('functional', 'getMessageAvatar_uses_globals', async () => {
     // Provide sentinel globals
+    KLITE_RPMod.avatarsEnabled = true;
     window.human_square = 'data:image/png;base64:sentinel_user';
     window.niko_square = 'data:image/png;base64:sentinel_ai';
     const userSrc = KLITE_RPMod.panels.PLAY_CHAT.getMessageAvatar(true, 'User: hi');
@@ -78,6 +80,7 @@ KLITETestRunner.registerTest('functional', 'getMessageAvatar_uses_globals', asyn
 
 KLITETestRunner.registerTest('functional', 'avatar_images_are_rounded', async () => {
     // Set globals and create images
+    KLITE_RPMod.avatarsEnabled = true;
     window.human_square = 'data:image/png;base64:user_round';
     window.niko_square = 'data:image/png;base64:ai_round';
     const img1 = document.createElement('img'); img1.src = window.human_square;

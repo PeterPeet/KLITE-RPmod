@@ -47,13 +47,13 @@ KLITETestRunner.registerTest('functional', 'edit_mode_toggle_and_save', async ()
 
         const chatDisplay = document.getElementById('chat-display');
         const gametext = document.getElementById('gametext');
-        Assert.equal(chatDisplay.contentEditable, 'true', 'chat-display should be editable in edit mode');
-        Assert.equal(gametext.contentEditable, 'false', 'gametext should be non-editable in edit mode');
+        Assert.equal(chatDisplay.contentEditable, 'false', 'chat-display should be read-only in edit mode');
+        Assert.equal(gametext.contentEditable, 'true', 'gametext should be editable in edit mode');
 
-        // Make an edit and save
-        chatDisplay.innerHTML = '<p>Edited content</p>';
+        // Make an edit in native gametext and save
+        gametext.innerHTML = '<p>Edited content</p>';
         KLITE_RPMod.saveEditChanges();
-        Assert.equal(gametext.innerHTML, '<p>Edited content</p>', 'saveEditChanges should sync chat-display to gametext');
+        Assert.equal(mergeCalled, 1, 'saveEditChanges should call merge_edit_field');
         Assert.equal(mergeCalled, 1, 'saveEditChanges should call merge_edit_field');
 
         // Exit edit mode
@@ -66,26 +66,5 @@ KLITETestRunner.registerTest('functional', 'edit_mode_toggle_and_save', async ()
     }
 }, ['REQ-F-081']);
 
-KLITETestRunner.registerTest('functional', 'edit_mode_ui_switch_sync', async () => {
-    ensureEditDom();
-    const checkbox = document.getElementById('allowediting');
-    checkbox.checked = true; // simulate already in edit mode
-
-    const chatDisplay = document.getElementById('chat-display');
-    const gametext = document.getElementById('gametext');
-
-    // Start on RPmod UI
-    document.body.classList.add('klite-active');
-
-    // Switching to Lite should sync chat-display -> gametext
-    chatDisplay.innerHTML = '<p>RPmod Edit</p>';
-    gametext.innerHTML = '';
-    KLITE_RPMod.toggleUI();
-    Assert.equal(gametext.innerHTML, '<p>RPmod Edit</p>', 'toggleUI to Lite must sync chat edits to gametext');
-
-    // Switching back to RPmod should sync gametext -> chat-display
-    gametext.innerHTML = '<p>Lite Edit</p>';
-    KLITE_RPMod.toggleUI();
-    Assert.equal(chatDisplay.innerHTML, '<p>Lite Edit</p>', 'toggleUI to RPmod must sync gametext edits to chat-display');
-}, ['REQ-F-081']);
-
+// Note: UI switch sync test removed; RPmod uses native #gametext for edits, and chat-display
+// remains a read-only mirror. No direct chat-display -> gametext sync is performed on UI toggles.

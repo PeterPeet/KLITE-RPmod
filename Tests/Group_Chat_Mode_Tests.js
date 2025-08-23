@@ -86,7 +86,9 @@ KLITETestRunner.registerTest('functional', 'group_modes_random_talkative_validit
     window.localsettings = window.localsettings || {};
     let called = 0;
     const origSubmit = window.submit_generation;
+    const origChatSubmit = window.chat_submit_generation;
     window.submit_generation = () => { called++; };
+    window.chat_submit_generation = () => { called++; };
     try {
         gp.currentSpeaker = 1; // Bob
         gp.triggerCurrentSpeaker();
@@ -96,6 +98,7 @@ KLITETestRunner.registerTest('functional', 'group_modes_random_talkative_validit
         Assert.isTrue(t === 0 || t === 1, 'Talkative should select a valid index');
     } finally {
         window.submit_generation = origSubmit;
+        window.chat_submit_generation = origChatSubmit;
     }
 }, ['REQ-F-073', 'REQ-F-075', 'REQ-F-077']);
 

@@ -54,6 +54,38 @@ async function runTests() {
     console.log('=====================================\n');
     
     try {
+        // Minimal Lite globals before loading the mod (jsdom lacks Lite)
+        window.localsettings = Object.assign({
+            opmode: 3,
+            chatname: 'User',
+            chatopponent: 'AI',
+            temperature: 0.7,
+            top_p: 0.9,
+            top_k: 0,
+            min_p: 0.0,
+            rep_pen: 1.1,
+            rep_pen_range: 1024,
+            rep_pen_slope: 0.7,
+            max_length: 512,
+            typical: 1.0,
+            tfs: 1.0,
+            top_a: 0.0
+        }, window.localsettings || {});
+        window.concat_gametext = window.concat_gametext || (() => '');
+        window.gametext_arr = window.gametext_arr || [];
+        window.current_memory = window.current_memory || '';
+        window.current_anote = window.current_anote || '';
+        window.current_wi = window.current_wi || [];
+        window.toggle_opmode = window.toggle_opmode || (() => {});
+        window.submit_generation_button = window.submit_generation_button || (() => {});
+        window.chat_submit_generation = window.chat_submit_generation || (() => {});
+        window.render_gametext = window.render_gametext || (() => {});
+        window.merge_edit_field = window.merge_edit_field || (() => {});
+        window.confirm = window.confirm || (() => true);
+        // Assets used in formatting cleanup
+        window.human_square = window.human_square || '';
+        window.niko_square = window.niko_square || '';
+
         // Load KLITE-RPmod first
         console.log('📦 Loading KLITE-RPmod ALPHA...');
         await loadScript('../KLITE-RPmod_ALPHA.js');
