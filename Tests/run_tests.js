@@ -9,19 +9,21 @@ const path = require('path');
 const { JSDOM } = require('jsdom');
 
 // Setup JSDOM environment
-const dom = new JSDOM(`<!DOCTYPE html><html><body></body></html>`, {
+const dom = new JSDOM(`<!DOCTYPE html><html><head></head><body></body></html>`, {
     url: 'http://localhost',
     pretendToBeVisual: true,
-    resources: 'usable'
+    resources: 'usable',
+    runScripts: 'dangerously'
 });
 
 // Set global objects for browser compatibility
 global.window = dom.window;
 global.document = dom.window.document;
 global.navigator = dom.window.navigator;
-global.performance = dom.window.performance || {
-    now: () => Date.now()
-};
+// Use a simple performance shim to avoid recursion issues in jsdom
+global.performance = { now: () => Date.now() };
+// Ensure window.performance exists for code that expects it
+Object.defineProperty(global.window, 'performance', { value: global.performance, writable: false });
 
 // Mock console for test output
 const originalConsole = global.console;
@@ -37,15 +39,10 @@ async function loadScript(filePath) {
     const content = fs.readFileSync(fullPath, 'utf8');
     
     try {
-        // Create a script element and evaluate it
+        // Execute as inline script within jsdom's window context
         const script = document.createElement('script');
         script.textContent = content;
         document.head.appendChild(script);
-        
-        // For ES modules or specific patterns, use eval as fallback
-        if (content.includes('module.exports') || content.includes('export')) {
-            eval(content);
-        }
     } catch (error) {
         console.error(`Error loading ${filePath}:`, error.message);
         throw error;
@@ -57,6 +54,38 @@ async function runTests() {
     console.log('=====================================\n');
     
     try {
+        // Minimal Lite globals before loading the mod (jsdom lacks Lite)
+        window.localsettings = Object.assign({
+            opmode: 3,
+            chatname: 'User',
+            chatopponent: 'AI',
+            temperature: 0.7,
+            top_p: 0.9,
+            top_k: 0,
+            min_p: 0.0,
+            rep_pen: 1.1,
+            rep_pen_range: 1024,
+            rep_pen_slope: 0.7,
+            max_length: 512,
+            typical: 1.0,
+            tfs: 1.0,
+            top_a: 0.0
+        }, window.localsettings || {});
+        window.concat_gametext = window.concat_gametext || (() => '');
+        window.gametext_arr = window.gametext_arr || [];
+        window.current_memory = window.current_memory || '';
+        window.current_anote = window.current_anote || '';
+        window.current_wi = window.current_wi || [];
+        window.toggle_opmode = window.toggle_opmode || (() => {});
+        window.submit_generation_button = window.submit_generation_button || (() => {});
+        window.chat_submit_generation = window.chat_submit_generation || (() => {});
+        window.render_gametext = window.render_gametext || (() => {});
+        window.merge_edit_field = window.merge_edit_field || (() => {});
+        window.confirm = window.confirm || (() => true);
+        // Assets used in formatting cleanup
+        window.human_square = window.human_square || '';
+        window.niko_square = window.niko_square || '';
+
         // Load KLITE-RPmod first
         console.log('📦 Loading KLITE-RPmod ALPHA...');
         await loadScript('../KLITE-RPmod_ALPHA.js');
@@ -73,8 +102,22 @@ async function runTests() {
         await loadScript('Panel_System_Tests.js');
         await loadScript('Character_Management_Tests.js');
         await loadScript('Integration_Tests.js');
+        await loadScript('Performance_Tests.js');
+        // Deeper unit tests
+        await loadScript('Storage_Tests.js');
+        await loadScript('Panel_Stress_Tests.js');
+        await loadScript('Mobile_Tests.js');
+        await loadScript('Generation_Control_Tests.js');
+        await loadScript('Group_Chat_Mode_Tests.js');
+        await loadScript('Edit_Mode_Tests.js');
+        await loadScript('Avatar_Tests.js');
         
         console.log('✅ All components loaded successfully\n');
+
+        // Bridge window-defined globals to Node global for convenience
+        if (window.KLITETestRunner && !global.KLITETestRunner) {
+            global.KLITETestRunner = window.KLITETestRunner;
+        }
         
         // Configure for headless execution
         if (global.KLITETestRunner) {

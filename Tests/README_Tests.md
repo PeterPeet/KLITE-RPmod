@@ -9,7 +9,6 @@ This test suite validates core user workflows and real-world scenarios for KLITE
 - **`KLITE_Test_Mocks.js`** - Mock objects and data for isolated testing
 - **`KLITE_Test_Runner.js`** - Test execution framework with reporting
 - **`KLITE_Functional_Tests.js`** - Functional tests for user workflows
-- **`test-runner.html`** - Browser-based test interface
 - **`README_Tests.md`** - This documentation
 
 ## Test Categories
@@ -61,25 +60,24 @@ Validate multiple systems working together:
 
 ## Running Tests
 
-### Browser Interface (Recommended)
+### Node (Headless)
 
-1. Open `test-runner.html` in your browser
-2. Ensure KLITE-RPmod_ALPHA.js is loaded
-3. Click test category buttons to run specific test groups
-4. View results in real-time with detailed logging
+Run all tests:
+```
+node tests/run_tests.js
+```
 
-### Manual Browser Execution
+Run by category:
+```
+node tests/run_tests.js functional
+node tests/run_tests.js integration
+node tests/run_tests.js performance
+node tests/run_tests.js data
+```
 
-```javascript
-// Run specific test categories
-await KLITETestRunner.runTests('workflow');
-await KLITETestRunner.runTests('integration');
-
-// Run all tests
-await KLITETestRunner.runAllTests();
-
-// Run specific test by pattern
-await KLITETestRunner.runTests(null, 'casual_roleplay');
+Verbose mode:
+```
+node tests/run_tests.js --verbose
 ```
 
 ### Configuration Options

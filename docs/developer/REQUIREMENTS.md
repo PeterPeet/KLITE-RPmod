@@ -114,6 +114,26 @@
 - **REQ-F-065**: System must provide export/import functionality for content
 - **REQ-F-066**: System must support undo/redo operations where applicable
 
+### 1.7 Group Chat System
+
+#### 1.7.1 Speaker Modes and Selection
+- **REQ-F-070**: Group chat must support speaker modes: manual, round-robin, random, keyword, talkative, and party.
+- **REQ-F-071**: Manual mode: Selecting next speaker increments `currentSpeaker` modulo the number of active characters; no automatic selection or skipping.
+- **REQ-F-072**: Round-robin mode: Maintain an internal `roundRobinPosition` that advances each selection to cycle speakers uniformly.
+- **REQ-F-073**: Random mode: Select a random speaker; when there is more than one participant, avoid selecting the same speaker consecutively if possible.
+- **REQ-F-074**: Keyword mode: Choose the speaker whose `keywords` (or name) best match the last message using a frequency-based score; if no match, fall back to round-robin.
+- **REQ-F-075**: Talkative mode: Perform weighted random selection by each character’s `talkativeness`, reducing weight for 30 seconds after a character speaks; update `lastTriggerTime` on selection.
+- **REQ-F-076**: Party mode: Ensure each participant speaks exactly once per round by consuming a shuffled list of indices; reshuffle when the list is exhausted.
+
+#### 1.7.2 Trigger and Integration Behavior
+- **REQ-F-077**: Triggering the current speaker must set `window.localsettings.opmode = 3`, set `localsettings.chatopponent` to the speaker’s name, and invoke generation via `chat_submit_generation` or `submit_generation`.
+- **REQ-F-078**: When necessary to force a single speaker in a group, temporarily set `window.groupchat_removals` to exclude other participants during generation and restore it afterward.
+- **REQ-F-079**: Auto-responses: When enabled and the user is not typing, start a timer that triggers speaker selection using the current mode and optionally continues without player input, with `delay` configurable in seconds; persist settings.
+
+#### 1.7.3 Avatar and Edit-Mode Requirements (Clarifications)
+- **REQ-F-080**: Avatar overrides use Lite globals and simple rules: `human_square` uses persona avatar when a user persona is selected, otherwise a NEW user default data-URI; `niko_square` uses the selected character avatar in single chat modes, otherwise the robot default in group/no-character modes. Chat images that use these sources are styled as round avatars (`object-fit: cover; border: 2px solid #5a6b8c; border-radius: 50%`). No regex or per-message parsing is required.
+- **REQ-F-081**: Edit mode must sync content between RPmod `#chat-display` (editable) and Lite `#gametext` (non-editable while editing): on save or UI switch, copy edits to `#gametext` and call `merge_edit_field()`; only one surface is editable at a time.
+
 ## 2. NON-FUNCTIONAL REQUIREMENTS
 
 ### 2.1 Performance Requirements
