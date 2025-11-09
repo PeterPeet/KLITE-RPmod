@@ -515,9 +515,9 @@ KLITETestRunner.registerTest('performance', 'batch_import_optimization', async (
         // Test batch import through importCharactersFromData
         if (typeof KLITE_RPMod.importCharactersFromData === 'function') {
             const testCharacters = [
-                sampleCards.v1,
-                sampleCards.v2.data,
-                sampleCards.v3.data
+                { ...sampleCards.v1, name: (sampleCards.v1.name || 'V1') + ' (B1)' },
+                { ...sampleCards.v2.data, name: (sampleCards.v2.data.name || 'V2') + ' (B2)' },
+                { ...sampleCards.v3.data, name: (sampleCards.v3.data.name || 'V3') + ' (B3)' }
             ];
             
             // Test batch mode flag is set for multiple characters
@@ -534,7 +534,7 @@ KLITETestRunner.registerTest('performance', 'batch_import_optimization', async (
             Assert.equal(KLITE_RPMod.batchImportMode, false, 'Batch mode must be reset after completion');
             
             // Test single import doesn't use batch mode  
-            const singleImportCount = await KLITE_RPMod.importCharactersFromData([sampleCards.v1]);
+            const singleImportCount = await KLITE_RPMod.importCharactersFromData([{ ...sampleCards.v1, name: (sampleCards.v1.name || 'V1') + ' (Single)' }]);
             Assert.equal(singleImportCount, 1, 'Single import should import 1 character (duplicate detection not implemented)');
         }
     } finally {

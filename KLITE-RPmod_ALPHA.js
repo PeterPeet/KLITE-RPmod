@@ -15,17 +15,22 @@
     window.KLITE_RPMod_LOADED = true;
 
     // =============================================
-    // CONSOLE RESTORATION FOR KOBOLDAI LITE
+    // CONSOLE RESTORATION FOR KOBOLDAI LITE (GATED)
     // =============================================
-    // Best-effort console restoration (guarded for compatibility)
+    // Gate behind a config flag to avoid intrusive behavior / CSP issues.
+    // Enable by setting window.KLITE_RPMod_Config = { enableConsoleRestore: true } before script load,
+    // or by setting localStorage key 'rpmod_enable_console_restore' to '1'.
     (function(){
       try {
+        const cfgEnabled = !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.enableConsoleRestore);
+        const lsEnabled = (typeof localStorage !== 'undefined' && localStorage.getItem('rpmod_enable_console_restore') === '1');
+        if (!(cfgEnabled || lsEnabled)) return;
         const consoleFrame = document.createElement('iframe');
         consoleFrame.style.display = 'none';
         document.body.appendChild(consoleFrame);
         if (consoleFrame.contentWindow && consoleFrame.contentWindow.console) {
           window.console = consoleFrame.contentWindow.console;
-          window.console.log('[KLITE RPMod] Console access restored via iframe');
+          try { window.console.log('[KLITE RPMod] Console access restored via iframe'); } catch(_){}
         }
       } catch (e) {
         // Keep existing console; do not fail initialization
@@ -213,6 +218,8 @@
 
         /* When maincontent is fullscreen, top panel should also adjust */
         .klite-maincontent.fullscreen ~ .klite-panel-top,
+        /* Fallback for browsers without :has() support: class is toggled on container */
+        .klite-container.klite-fullscreen .klite-panel-top,
         .klite-container:has(.klite-maincontent.fullscreen) .klite-panel-top {
             left: 0 !important;
             right: 0 !important;
@@ -3104,6 +3111,104 @@
             } catch (_) {}
         },
 
+        // ===== Avatar Adapter (Esolite-first, Lite-optional) =====
+        _avatarObserver: null,
+        _avatarProcessed: new WeakSet(),
+
+        enableLiteAvatarsExperimental(on) {
+            try { this.state.avatarPolicy = this.state.avatarPolicy || {}; } catch(_){}
+            this.state.avatarPolicy.liteExperimental = !!on;
+            try { this.saveState(); } catch(_){}
+            this.installAvatarAdapter();
+        },
+
+        getBestAvatarForName(name, isUser) {
+            try {
+                if (isUser) {
+                    const persona = this.panels.TOOLS?.selectedPersona;
+                    if (persona) return this.getBestCharacterAvatar(persona);
+                    return this.userAvatarCurrent || this.userAvatarDefault;
+                }
+                const roles = this.panels.ROLES;
+                if (roles?.activeChars && name) {
+                    const found = roles.activeChars.find(c => c.name === name);
+                    if (found) return this.getBestCharacterAvatar(found) || this.aiAvatarCurrent || this.aiAvatarDefault;
+                }
+                const character = this.panels.TOOLS?.selectedCharacter;
+                if (character) return this.getBestCharacterAvatar(character) || this.aiAvatarCurrent || this.aiAvatarDefault;
+                return this.aiAvatarCurrent || this.aiAvatarDefault;
+            } catch(_) { return this.aiAvatarCurrent || this.aiAvatarDefault; }
+        },
+
+        processChatNodeForAvatar(node) {
+            try {
+                if (!node || this._avatarProcessed.has(node)) return;
+                const img = node.querySelector?.('img, .avatar, .chat-avatar, .rp-avatar, .niko-avatar, .human-avatar');
+                if (!img) return;
+                const isUser = !!node.querySelector?.('.user, .message-user, .from-user, .right, .me');
+                let speakerName = null;
+                const nameEl = node.querySelector?.('.name, .speaker, .message-author, .author, .sender');
+                if (nameEl && nameEl.textContent) speakerName = nameEl.textContent.trim();
+                const avatarUrl = this.getBestAvatarForName(speakerName || (isUser ? (this.panels.TOOLS?.selectedPersona?.name || 'You') : (this.panels.TOOLS?.selectedCharacter?.name || 'AI')), isUser);
+                if (avatarUrl && img && !img._rpmodAvatarSet) {
+                    if (img.tagName === 'IMG') {
+                        img.src = avatarUrl;
+                    } else {
+                        img.style.backgroundImage = `url(${avatarUrl})`;
+                        img.style.backgroundSize = 'cover';
+                    }
+                    img._rpmodAvatarSet = true;
+                    this._avatarProcessed.add(node);
+                }
+            } catch(_){}
+        },
+
+        installAvatarAdapter() {
+            try {
+                // Decide enablement: Esolite or Lite experimental
+                const isEsolite = !!(document.getElementById('topbtn_data_manager') || document.getElementById('openTreeDiagram') || document.getElementById('topbtn_remote_mods'));
+                this.state.avatarPolicy = this.state.avatarPolicy || { esoliteAdapter:false, liteExperimental:false };
+                this.state.avatarPolicy.esoliteAdapter = !!isEsolite;
+                const shouldEnable = isEsolite || this.state.avatarPolicy.liteExperimental;
+                this.avatarsEnabled = shouldEnable;
+                if (!shouldEnable) { this.uninstallAvatarAdapter(); return; }
+                if (this._avatarObserver) return;
+                const mo = new MutationObserver((mutations) => {
+                    let count = 0;
+                    for (const m of mutations) {
+                        if (m.type !== 'childList') continue;
+                        m.addedNodes?.forEach(n => {
+                            if (!(n instanceof HTMLElement)) return;
+                            if (count > 50) return; // cap
+                            const hasText = n.textContent && n.textContent.trim().length > 0;
+                            if (!hasText) return;
+                            this.processChatNodeForAvatar(n);
+                            count++;
+                        });
+                    }
+                });
+                // Observe primary chat containers if available, else fallback to body
+                const targets = [];
+                const t1 = document.getElementById('gametext');
+                const t2 = document.getElementById('chat-display');
+                if (t1) targets.push(t1);
+                if (t2 && t2 !== t1) targets.push(t2);
+                if (targets.length === 0) targets.push(document.body);
+                targets.forEach(t => { try { mo.observe(t, { childList: true, subtree: true }); } catch(_){} });
+                this._avatarObserver = mo;
+                this._avatarProcessed = new WeakSet();
+                this.log('avatars', `Avatar adapter installed (mode=${isEsolite?'esolite':'lite'}).`);
+            } catch (e) {
+                this.log('avatars', `Avatar adapter error: ${e?.message}`);
+            }
+        },
+
+        uninstallAvatarAdapter() {
+            try { this._avatarObserver?.disconnect?.(); } catch(_){}
+            this._avatarObserver = null;
+            this._avatarProcessed = new WeakSet();
+        },
+
         // =============================================
         // UNIFIED GENERATION CONTROL SYSTEM
         // =============================================
@@ -3904,6 +4009,42 @@
                 });
 
                 this.essential('✅ KLITE RP Mod initialized successfully');
+                try { this.installAvatarAdapter(); } catch(_){}
+                // Ensure save/load hooks are installed even if bootstrap timing differed
+                try {
+                    if (!window._rpmod_orig_generate_savefile && typeof window.generate_savefile === 'function') {
+                        window._rpmod_orig_generate_savefile = window.generate_savefile;
+                        window.generate_savefile = function(save_images, export_settings, export_aesthetic_settings){
+                            const obj = window._rpmod_orig_generate_savefile.apply(this, arguments);
+                            try {
+                                const bundle = window.KLITE_RPMod?.getSaveBundle?.();
+                                if (bundle) obj.rpmod = bundle;
+                            } catch(_){}
+                            return obj;
+                        };
+                    }
+                } catch(_){}
+                try {
+                    if (!window._rpmod_orig_kai_json_load && typeof window.kai_json_load === 'function') {
+                        window._rpmod_orig_kai_json_load = window.kai_json_load;
+                        window.kai_json_load = function(){
+                            try {
+                                const storyobj = arguments[0];
+                                if (storyobj && storyobj.rpmod) {
+                                    window._rpmod_pending_restore_bundle = storyobj.rpmod;
+                                }
+                            } catch(_){}
+                            const res = window._rpmod_orig_kai_json_load.apply(this, arguments);
+                            try {
+                                if (window._rpmod_pending_restore_bundle && window.KLITE_RPMod?.restoreFromSaveBundle) {
+                                    window.KLITE_RPMod.restoreFromSaveBundle(window._rpmod_pending_restore_bundle);
+                                    window._rpmod_pending_restore_bundle = null;
+                                }
+                            } catch(_){}
+                            return res;
+                        };
+                    }
+                } catch(_){}
             } catch (error) {
                 this.error('Failed to initialize:', error);
                 this._initialized = false; // allow retry on failure
@@ -4059,7 +4200,8 @@
                 collapsed: { ...this.state.collapsed },
                 adventureMode: this.state.adventureMode || 0,
                 fullscreen: !!this.state.fullscreen,
-                tabletSidepanel: !!this.state.tabletSidepanel
+                tabletSidepanel: !!this.state.tabletSidepanel,
+                avatarPolicy: this.state.avatarPolicy ? { ...this.state.avatarPolicy } : { esoliteAdapter:false, liteExperimental:false }
             };
             return { scene, playRP: playrp, group, chat, avatars, ui };
         },
@@ -4105,6 +4247,8 @@
                     this.state.adventureMode = block.ui.adventureMode || 0;
                     this.state.fullscreen = !!block.ui.fullscreen;
                     this.state.tabletSidepanel = !!block.ui.tabletSidepanel;
+                    if (block.ui.avatarPolicy) this.state.avatarPolicy = { ...block.ui.avatarPolicy };
+                    try { this.installAvatarAdapter(); } catch(_){}
                 }
                 if (block.avatars) {
                     if (block.avatars.userCurrent) this.userAvatarCurrent = block.avatars.userCurrent;
@@ -5593,18 +5737,8 @@
                 const ensureTopbar = () => {
                     // Build when either esobold OR lite nav is present AND RPmod top panel exists
                     const topContent = document.getElementById('top-content');
-                    // Look for any known nav anchor from Lite/Esolite
-                    const hasAnyNav = !!document.querySelector(
-                        '#topbtn_ai a.nav-link.mainnav,\
-                         #topbtn_newgame a.nav-link.mainnav,\
-                         #topbtn_settings a.nav-link.mainnav,\
-                         #topbtn_save_load a.nav-link.mainnav,\
-                         #topbtn_data_manager a.nav-link.mainnav,\
-                         #openTreeDiagram,\
-                         #topbtn_remote_mods,\
-                         #navbarNavDropdown'
-                    );
-                    if (!topContent || !hasAnyNav) return false;
+                    // New behavior: do not depend on backend nav; always create our own topbar when top panel exists
+                    if (!topContent) return false;
 
                     let rpbar = document.getElementById('rpmod-topbar');
                     if (!rpbar) {
@@ -5618,7 +5752,7 @@
                             </div>`;
                         topContent.appendChild(rpbar);
                     }
-                    // Populate/refresh nav entries to match Lite defaults; add Esolite extras if detected
+                    // Populate/refresh nav entries; if backend anchors are missing, build default nav entries
                     const nav = rpbar.querySelector('.rpmod-esolite-nav');
                     if (nav) nav.innerHTML = '';
                     const isEsolite = !!(document.getElementById('topbtn_data_manager') || document.getElementById('openTreeDiagram') || document.getElementById('topbtn_remote_mods'));
@@ -5639,12 +5773,31 @@
                         return true;
                     };
 
-                    // Mirror Lite default visible set: AI, New Session, Scenarios, Save/Load, Settings
-                    addMirrorLink('#topbtn_ai a.nav-link.mainnav', 'AI', () => { try{ closeTopNav?.(); }catch(_){ } try{ display_endpoint_container?.(); }catch(_){ } });
-                    addMirrorLink('#topbtn_newgame a.nav-link.mainnav', 'New Session', () => { try{ closeTopNav?.(); }catch(_){ } try{ display_newgame?.(); }catch(_){ } });
-                    addMirrorLink('#topbtn_scenarios a.nav-link.mainnav', 'Scenarios', () => { try{ closeTopNav?.(); }catch(_){ } try{ display_scenarios?.(); }catch(_){ } });
-                    addMirrorLink('#topbtn_save_load a.nav-link.mainnav', 'Save / Load', () => { try{ closeTopNav?.(); }catch(_){ } try{ display_saveloadcontainer?.(); }catch(_){ } });
-                    addMirrorLink('#topbtn_settings a.nav-link.mainnav', 'Settings', () => { try{ closeTopNav?.(); }catch(_){ } try{ display_settings?.(); }catch(_){ } });
+                    // Mirror Lite default visible set, else add our own entries
+                    const mirrors = [
+                        ['#topbtn_ai a.nav-link.mainnav', 'AI', () => { try{ closeTopNav?.(); }catch(_){ } try{ display_endpoint_container?.(); }catch(_){ } }],
+                        ['#topbtn_newgame a.nav-link.mainnav', 'New Session', () => { try{ closeTopNav?.(); }catch(_){ } try{ display_newgame?.(); }catch(_){ } }],
+                        ['#topbtn_scenarios a.nav-link.mainnav', 'Scenarios', () => { try{ closeTopNav?.(); }catch(_){ } try{ display_scenarios?.(); }catch(_){ } }],
+                        ['#topbtn_save_load a.nav-link.mainnav', 'Save / Load', () => { try{ closeTopNav?.(); }catch(_){ } try{ display_saveloadcontainer?.(); }catch(_){ } }],
+                        ['#topbtn_settings a.nav-link.mainnav', 'Settings', () => { try{ closeTopNav?.(); }catch(_){ } try{ display_settings?.(); }catch(_){ } }]
+                    ];
+                    let addedAny=false;
+                    for (const m of mirrors){ addedAny = addMirrorLink(m[0], m[1], m[2]) || addedAny; }
+                    if (!addedAny){
+                        // Build default nav entries managed by RPmod
+                        const defaults = [
+                            ['AI', () => { try{ display_endpoint_container?.(); }catch(_){ } }],
+                            ['New Session', () => { try{ display_newgame?.(); }catch(_){ } }],
+                            ['Scenarios', () => { try{ display_scenarios?.(); }catch(_){ } }],
+                            ['Save / Load', () => { try{ display_saveloadcontainer?.(); }catch(_){ } }],
+                            ['Settings', () => { try{ display_settings?.(); }catch(_){ } }]
+                        ];
+                        for (const [label, handler] of defaults){
+                            const a = document.createElement('a'); a.className='nav-link mainnav'; a.href='#'; a.textContent=label;
+                            a.onclick = (e)=>{ e.preventDefault(); e.stopPropagation(); try{ handler?.(); }catch(_){} return false; };
+                            nav.appendChild(a);
+                        }
+                    }
 
                     // Esolite-only extras
                     if (isEsolite) {
@@ -6130,6 +6283,14 @@
             maincontent.classList.toggle('fullscreen');
             this.state.fullscreen = !isFullscreen;
 
+            // Toggle container class as :has() fallback for browsers without support
+            try {
+                const container = document.getElementById('klite-container');
+                if (container) {
+                    container.classList.toggle('klite-fullscreen', this.state.fullscreen);
+                }
+            } catch (_) {}
+
             // In fullscreen, auto-collapse panels (but they can still be opened)
             if (!isFullscreen) {
                 // Entering fullscreen
@@ -6225,6 +6386,10 @@
             if (this.state.fullscreen) {
                 const maincontent = document.getElementById('maincontent');
                 maincontent.classList.add('fullscreen');
+                try {
+                    const container = document.getElementById('klite-container');
+                    if (container) container.classList.add('klite-fullscreen');
+                } catch (_) {}
             }
 
             // Restore tablet sidepanel state (this will also clean up if not in tablet mode)
@@ -6933,7 +7098,8 @@
                     collapsed: { ...this.state.collapsed },
                     adventureMode: this.state.adventureMode || 0,
                     fullscreen: !!this.state.fullscreen,
-                    tabletSidepanel: !!this.state.tabletSidepanel
+                    tabletSidepanel: !!this.state.tabletSidepanel,
+                    avatarPolicy: this.state.avatarPolicy ? { ...this.state.avatarPolicy } : { esoliteAdapter:false, liteExperimental:false }
                 },
                 // Generation settings snapshot that matter for RPmod UX
                 gen: window.localsettings ? {
@@ -6997,7 +7163,8 @@
                         collapsed: { ...this.state.collapsed },
                         adventureMode: this.state.adventureMode || 0,
                         fullscreen: !!this.state.fullscreen,
-                        tabletSidepanel: !!this.state.tabletSidepanel
+                        tabletSidepanel: !!this.state.tabletSidepanel,
+                        avatarPolicy: this.state.avatarPolicy ? { ...this.state.avatarPolicy } : { esoliteAdapter:false, liteExperimental:false }
                     },
                     gen: window.localsettings ? {
                         chatname: window.localsettings.chatname,
@@ -7059,7 +7226,9 @@
                     this.state.adventureMode = bundle.ui.adventureMode || 0;
                     this.state.fullscreen = !!bundle.ui.fullscreen;
                     this.state.tabletSidepanel = !!bundle.ui.tabletSidepanel;
+                    if (bundle.ui.avatarPolicy) this.state.avatarPolicy = { ...bundle.ui.avatarPolicy };
                 }
+                try { this.installAvatarAdapter(); } catch(_){}
                 if (bundle.gen && window.localsettings) {
                     window.localsettings.chatname = bundle.gen.chatname || window.localsettings.chatname;
                     window.localsettings.chatopponent = bundle.gen.chatopponent || window.localsettings.chatopponent;
@@ -7122,6 +7291,7 @@
                     this.state.adventureMode = bundle.ui.adventureMode || 0;
                     this.state.fullscreen = !!bundle.ui.fullscreen;
                     this.state.tabletSidepanel = !!bundle.ui.tabletSidepanel;
+                    if (bundle.ui.avatarPolicy) this.state.avatarPolicy = { ...bundle.ui.avatarPolicy };
                 }
                 if (bundle.gen && window.localsettings) {
                     // Restore only benign fields
@@ -7131,6 +7301,7 @@
                 }
                 // Refresh UI to reflect restores
                 this.updateModeButtons();
+                try { this.installAvatarAdapter(); } catch(_){}
                 if (this.panels.TOOLS?.refresh) this.panels.TOOLS.refresh();
                 if (this.panels.ROLES?.refresh) this.panels.ROLES.refresh();
                 if (this.panels.PLAY_CHAT?.formatChatContent) this.panels.PLAY_CHAT.formatChatContent();
@@ -7394,7 +7565,8 @@
 
             list.innerHTML = characters.map(char => {
                 const avatar = char.image || '';
-                const description = char.description || char.content || 'No description available';
+                const descriptionRaw = char.description || char.content || 'No description available';
+                const description = KLITE_RPMod.escapeHtml(descriptionRaw.length > 100 ? descriptionRaw.substring(0, 100) + '...' : descriptionRaw);
                 const tags = char.tags || [];
                 const talkativeness = char.talkativeness || 50;
                 const rating = char.rating || 0;
@@ -7407,7 +7579,7 @@
                         <input type="${selectionType}" name="unified-char-selection" value="${charId}" style="margin: 0;" onclick="event.stopPropagation();">
                         ${avatar ? `
                             <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                                <img src="${avatar}" alt="${char.name}" style="width: 100%; height: 100%; object-fit: cover;">
+                                <img src="${avatar}" alt="${KLITE_RPMod.escapeHtml(char.name || '')}" style="width: 100%; height: 100%; object-fit: cover;">
                             </div>
                         ` : `
                             <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -7416,10 +7588,10 @@
                         `}
                         <div style="flex: 1;">
                             <div style="font-weight: bold; color: var(--text); display: flex; align-items: center; gap: 2px;">
-                                ${char.name}
+                                ${KLITE_RPMod.escapeHtml(char.name || '')}
                                 ${isWIChar ? '<span style="font-size: 9px; background: var(--accent); color: white; padding: 1px 4px; border-radius: 2px;">WI</span>' : ''}
                             </div>
-                            <div style="font-size: 11px; color: var(--muted); margin: 2px 0; max-height: 32px; overflow: hidden;">${description.length > 100 ? description.substring(0, 100) + '...' : description}</div>
+                            <div style="font-size: 11px; color: var(--muted); margin: 2px 0; max-height: 32px; overflow: hidden;">${description}</div>
                             <div style="font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 2px;">
                                 ${!isWIChar ? `<span>Rating: ${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}</span>` : ''}
                                 <span>Talkativeness: ${talkativeness}</span>
@@ -8855,6 +9027,9 @@
         renderCharacterControls() {
             const aiName = window.localsettings?.chatopponent || 'AI';
             const isGroupChatActive = KLITE_RPMod.panels.ROLES?.enabled || false;
+            const isEsolite = !!(document.getElementById('topbtn_data_manager') || document.getElementById('openTreeDiagram') || document.getElementById('topbtn_remote_mods'));
+            const policy = KLITE_RPMod.state?.avatarPolicy || { esoliteAdapter:false, liteExperimental:false };
+            const adapterStatus = isEsolite ? 'Esolite (active)' : (policy.liteExperimental ? 'Lite Experimental (active)' : 'Off');
 
             return `
                 <div class="klite-character-section" style="padding: 12px; background: rgba(0,0,0,0.2); border-radius: 6px;">
@@ -8871,6 +9046,21 @@
                         
                         <div class="character-controls" style="${this.characterEnabled && !isGroupChatActive ? '' : 'opacity: 0.5; pointer-events: none;'}">
                             ${this.selectedCharacter ? this.renderActiveCharacter() : this.renderSelectCharacterButton()}
+                        </div>
+                    </div>
+                </div>
+                <div class="klite-persona-section" style="margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px;">
+                    <div style="display:flex; align-items:center; gap:8px; justify-content: space-between;">
+                        <div>
+                            <div style="font-size:12px; color: var(--muted);">Avatar Adapter</div>
+                            <div style="font-size:13px; font-weight:600; color: var(--text);">${adapterStatus}</div>
+                        </div>
+                        <div>
+                            ${isEsolite ? `<span style=\"font-size:11px; color: var(--muted);\">Using Esolite adapter</span>` : `
+                            <label style="display:flex; align-items:center; gap:6px; font-size:12px;">
+                                <input type="checkbox" id="lite-avatars-experimental" ${policy.liteExperimental ? 'checked' : ''}>
+                                Enable avatars in Lite classic UI (experimental)
+                            </label>`}
                         </div>
                     </div>
                 </div>
@@ -9222,6 +9412,14 @@
                     KLITE_RPMod.log('panels', `AI name changed to: ${e.target.value}`);
                 }
                 try { KLITE_RPMod.panels.TOOLS.saveSettings?.(); } catch (_) {}
+            });
+
+            // Lite avatars experimental toggle
+            document.getElementById('lite-avatars-experimental')?.addEventListener('change', e => {
+                try { KLITE_RPMod.enableLiteAvatarsExperimental(!!e.target.checked); } catch(_){}
+                // Re-render to reflect status
+                const left = KLITE_RPMod.state?.tabs?.left;
+                if (left === 'TOOLS' || left === 'ROLES') KLITE_RPMod.loadPanel('left', left);
             });
 
             // Character integration now uses unified modal system
@@ -14547,7 +14745,8 @@ Outline:`
 
             list.innerHTML = available.map(char => {
                 const avatar = char.image || '';
-                const description = char.description || char.first_mes || 'No description available';
+                const descriptionRaw = char.description || char.first_mes || 'No description available';
+                const description = KLITE_RPMod.escapeHtml(descriptionRaw.length > 100 ? descriptionRaw.substring(0, 100) + '...' : descriptionRaw);
                 const tags = char.tags || [];
                 const talkativeness = char.talkativeness || 50;
 
@@ -14556,7 +14755,7 @@ Outline:`
                         <input type="checkbox" id="char-${char.id}" value="${char.id}" style="margin: 0;">
                         ${avatar ? `
                             <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                                <img src="${avatar}" alt="${char.name}" style="width: 100%; height: 100%; object-fit: cover;">
+                                <img src="${avatar}" alt="${KLITE_RPMod.escapeHtml(char.name || '')}" style="width: 100%; height: 100%; object-fit: cover;">
                             </div>
                         ` : `
                             <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -14564,8 +14763,8 @@ Outline:`
                             </div>
                         `}
                         <div style="flex: 1;">
-                            <div style="font-weight: bold; color: var(--text);">${char.name}</div>
-                            <div style="font-size: 11px; color: var(--muted); margin: 2px 0; max-height: 32px; overflow: hidden;">${description.length > 100 ? description.substring(0, 100) + '...' : description}</div>
+                            <div style="font-weight: bold; color: var(--text);">${KLITE_RPMod.escapeHtml(char.name || '')}</div>
+                            <div style="font-size: 11px; color: var(--muted); margin: 2px 0; max-height: 32px; overflow: hidden;">${description}</div>
                             <div style="font-size: 10px; color: var(--muted);">
                                 Talkativeness: ${talkativeness} | Tags: ${tags.length > 0 ? tags.join(', ') : 'None'}
                             </div>
@@ -17241,7 +17440,8 @@ Pacing Notes: `
             const personal = this.personalNotes || '';
             const author = window.current_anote || '';
             const authorTemplate = window.current_anotetemplate || '<|>';
-            const injectionDepth = window.anote_strength || 320;
+            // Default to Auto-Detect (-1). Use nullish coalescing so 0 is respected.
+            const injectionDepth = (window.anote_strength ?? -1);
 
             // Calculate statistics
             const personalWordCount = personal.split(/\s+/).filter(w => w.length > 0).length;
@@ -17481,6 +17681,14 @@ Pacing Notes: `
             if (depthSelect) {
                 if (typeof window.anote_strength !== 'undefined') {
                     depthSelect.value = window.anote_strength;
+                } else {
+                    // Enable smart detection by default and sync to host field
+                    window.anote_strength = -1;
+                    depthSelect.value = -1;
+                    const liteField = document.getElementById('anotedepth');
+                    if (liteField) liteField.value = -1;
+                    window.save_settings?.();
+                    KLITE_RPMod.log('panels', "Defaulted Author's note injection to Auto-Detect (-1)");
                 }
 
                 depthSelect.addEventListener('change', e => {
@@ -17540,9 +17748,18 @@ Pacing Notes: `
         },
 
         detectStoryMode() {
-            // Try to detect current mode from KoboldAI Lite settings
+            // Detect current mode using RPmod's unified getMode mapping
+            try {
+                const m = (typeof KLITE_RPMod?.getMode === 'function') ? KLITE_RPMod.getMode() : '';
+                if (m === 'adventure') return 'Adventure';
+                if (m === 'chat' || m === 'instruct') return 'Chat/RP';
+                if (m === 'story') return 'Story';
+            } catch (_) {}
+            // Fallbacks: inspect common Lite flags
             if (window.adventure) return 'Adventure';
-            if (window.localsettings?.chatmode) return 'Chat/RP';
+            const opm = window.localsettings?.opmode;
+            if (opm === 2) return 'Adventure';
+            if (opm === 3 || opm === 4) return 'Chat/RP';
             return 'Story';
         },
 

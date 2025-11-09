@@ -31,13 +31,13 @@ KLITE-RPmod enhances KoboldAI Lite with advanced roleplay features while preserv
 KLITE-RPmod uses a **two-panel layout** that adapts to your screen size:
 
 **Left Panel (Workflow-Focused)**
-- 🎯 **PLAY** - Main roleplay interface
-- 🛠️ **TOOLS** - Enhancement utilities  
-- 🎨 **SCENE** - Mood and theming
-- 👥 **GROUP** - Multi-character management
+- 🛠️ **TOOLS** - Generation controls, persona/character integration, narrator tools
+- 📊 **CONTEXT** - Token usage, context parts (story/memory/WI/author)
+- 🎨 **SCENE** - Themes, colors, lightness, scene helpers
+- 👥 **ROLES** - Multi‑character (group) management and triggers
 - ❓ **HELP** - Documentation and shortcuts
 
-**Right Panel (Data-Focused)**  
+**Right Panel (Data-Focused)**
 - 👤 **CHARS** - Character library
 - 🧠 **MEMORY** - Context management
 - 📝 **NOTES** - Private notes and AI instructions
@@ -53,7 +53,7 @@ KLITE-RPmod uses a **two-panel layout** that adapts to your screen size:
 
 ## 📖 Common Use Cases
 
-### 🎯 Quick Roleplay Start
+### 🎯 Quick Roleplay Start (Single Character)
 
 **Goal**: Import a character and start chatting in under 30 seconds
 
@@ -62,14 +62,14 @@ KLITE-RPmod uses a **two-panel layout** that adapts to your screen size:
 2. Open **CHARS** panel (right side)
 3. **Drag & drop** character PNG/JSON file into the panel
 4. Character details auto-populate - click **"Start Scenario"**
-5. Begin chatting in the **PLAY** panel
+5. Begin chatting in the chat area (main view)
 
 **Supported Formats**:
 - PNG files with embedded character data
 - JSON character files
 - WEBP files with character metadata
 
-### 👤 Character Library Management
+### 👤 Character Library Management (CHARS)
 
 **Goal**: Organize and manage multiple characters
 
@@ -89,7 +89,7 @@ KLITE-RPmod uses a **two-panel layout** that adapts to your screen size:
 - Changes save automatically
 - Duplicate characters for variations
 
-### 🧠 Memory Management
+### 🧠 Memory Management (MEMORY)
 
 **Goal**: Maintain conversation continuity and context
 
@@ -110,16 +110,19 @@ KLITE-RPmod uses a **two-panel layout** that adapts to your screen size:
 - Get warnings before hitting context limits
 - Auto-compression maintains key details
 
-### 👥 Group Chat
+### 👥 Group Chat (ROLES)
 
 **Goal**: Multi-character conversations
 
 **Setup**:
-1. Open **GROUP** panel
+1. Open **ROLES** panel (left)
 2. Add 2-4 characters to the group
 3. Adjust character "talkativeness" settings
 4. Set group scenario context
-5. Start conversation in **PLAY** panel
+5. Use “Trigger Speaker” in ROLES, or submit in chat; ROLES sets the speaker and injects tail context automatically
+
+Modes available:
+- Manual, Round‑Robin, Random, Keyword, Talkative (weighted), Party (one per round)
 
 **Managing Group Flow**:
 - Characters respond in natural turn order
@@ -127,7 +130,7 @@ KLITE-RPmod uses a **two-panel layout** that adapts to your screen size:
 - Direct conversations to specific characters
 - Adjust participation rates as needed
 
-### 🌍 World Building
+### 🌍 World Building (WI)
 
 **Goal**: Create persistent, detailed roleplay worlds
 
@@ -145,7 +148,7 @@ KLITE-RPmod uses a **two-panel layout** that adapts to your screen size:
 
 ---
 
-## ⚙️ Generation Settings
+## ⚙️ Generation Settings (TOOLS)
 
 ### Quick Presets
 Use the **TOOLS** panel for instant generation adjustments:
@@ -156,14 +159,22 @@ Use the **TOOLS** panel for instant generation adjustments:
 - **Chaotic** - Highly unpredictable output
 
 ### Custom Settings
-Fine-tune parameters in **PLAY** panel:
+Fine‑tune parameters in **TOOLS**:
 
 - **Creativity** (Temperature/Top-p) - Response variation
 - **Focus** (Top-k/Min-p) - Attention control
 - **Repetition** - Penalty settings
 - **Length** - Maximum response tokens
 
-*Settings sync automatically across all panels*
+Settings write to Lite’s `localsettings` and sync across panels automatically.
+
+### Persona & Character
+- Enable “User Character” (persona) and “AI Character” (single mode) in TOOLS; ROLES manages AI speakers in group mode.
+- RPmod injects a compact persona/character block at tail with capacity checks.
+
+### Author’s Note (NOTES)
+- Editor with token/word counts and smart insertion settings (boundaries/paragraphs/fallback).
+- Mode detection uses RPmod’s unified mode mapping (Story / Chat/RP / Adventure) to describe behavior.
 
 ---
 
@@ -173,6 +184,7 @@ Fine-tune parameters in **PLAY** panel:
 KLITE-RPmod provides optimized mobile navigation:
 
 **Sequential Flow**: PLAY → TOOLS → SCENE → GROUP → HELP → MAIN → CHARS → MEMORY → NOTES → WI → TEXTDB
+Note: Left panel is TOOLS/CONTEXT/SCENE/ROLES/HELP; right panel is CHARS/MEMORY/NOTES/WI/TEXTDB.
 
 **Controls**:
 - Arrow buttons for panel navigation
@@ -197,19 +209,24 @@ Monitor and optimize your context usage:
 - Smart compression suggestions
 - Overflow warnings for local LLMs
 
-### Session Management
+### Session Management (Save/Restore)
 Save and resume roleplay sessions:
-- Quick save current state
-- Multiple save slots per character
-- Full context restoration
-- Export sessions for sharing
+- RPmod embeds its data into host saves (`generate_savefile(...)`) and restores from loads (`kai_json_load(...)`).
+- Autosave bundle links to story hash and includes ROLES/TOOLS/SCENE/UI state.
+- Persists via Lite’s `indexeddb_save/load` or direct IndexedDB fallback.
 
-### Mood & Theming (SCENE Panel)
+### Mood & Theming (SCENE)
 Enhance immersion:
 - Theme selection by genre/mood
 - Dynamic UI adaptation
 - Optional AI-generated scene images
 - Atmospheric narrator mode
+
+### Avatar Integration
+- RPmod chat view always shows avatars efficiently.
+- Esolite: RPmod auto‑enables an adapter that updates only newly inserted chat rows (no mass rewrites).
+- Lite: Optional “Avatar Adapter” toggle in TOOLS enables the same new‑nodes‑only update path for classic UI (experimental).
+- Policy persists in saves (see TOOLS → Avatar Adapter status).
 
 ---
 
@@ -261,6 +278,14 @@ Enhance immersion:
 - Check available system memory
 - Reduce number of open panels
 
+**Avatars slow on Lite**
+- Turn off the “Avatar Adapter” toggle in TOOLS to disable experimental Lite DOM updates.
+- RPmod chat avatars remain enabled and performant.
+
+**Group triggers not rotating**
+- Verify ROLES speaker mode (Round‑Robin/Random/Keyword/Talkative/Party) and participants.
+- Check that Chat mode is active (ROLES forces mode when enabled).
+
 **Memory/context problems**
 - Monitor token usage in TOOLS panel
 - Use smart summarization for long conversations
@@ -298,9 +323,9 @@ Enhance immersion:
 ## 📚 Additional Resources
 
 ### Learning More
-- **User Stories** - See `Requirements/KLITE-RPmod_User_Stories_Structured.md` for detailed workflows
-- **Technical Docs** - Check `Requirements/` folder for specifications
-- **Character Formats** - Review `Specifications/` for Tavern Card details
+- **Requirements** - `docs/developer/REQUIREMENTS.md`
+- **Developer Guide** - `AGENTS.md`
+- **Tests** - Open `Tests/Test_Runner_FunctionalTests.html` in your browser
 
 ### Community
 - **KoboldAI Discord** - https://discord.gg/koboldai

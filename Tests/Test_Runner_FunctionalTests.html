@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KLITE-RPmod Functional Test Runner</title>
     <style>
+        html, body { height: 100%; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             max-width: 1200px;
@@ -13,6 +14,10 @@
             background: #1a1a1a;
             color: #e0e0e0;
         }
+        /* Ensure test UI always clickable and on top of RPmod */
+        #testrunner-root { position: fixed; inset: 0; z-index: 2147483647; pointer-events: auto; background: rgba(0,0,0,0.4); overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+        .klite-container { z-index: 0 !important; }
+        .klite-container, .klite-container * { pointer-events: none !important; }
         
         .header {
             text-align: center;
@@ -170,6 +175,7 @@
     </style>
 </head>
 <body>
+    <div id="testrunner-root">
     <div class="header">
         <h1>🎭 KLITE-RPmod Functional Test Runner</h1>
         <p>Comprehensive testing for core roleplay workflows and user scenarios</p>
@@ -245,12 +251,19 @@
             - Tests/KLITE_Functional_Tests.js (functional tests)
         </div>
     </div>
+    </div>
 
     <!-- Load test dependencies -->
     <script src="../KLITE-RPmod_ALPHA.js"></script>
     <script src="KLITE_Test_Mocks.js"></script>
+    <script src="KLITE_Test_Assertions.js"></script>
+    <script>try { var Assert = window.Assert; } catch(e) { /* safari shim */ }</script>
     <script src="KLITE_Test_Runner.js"></script>
     <script src="KLITE_Functional_Tests.js"></script>
+    <script src="Save_System_Tests.js"></script>
+    <script src="Character_Management_Tests.js"></script>
+    <script src="GroupAndAuthor_Tests.js"></script>
+    <script src="Avatar_Tests.js"></script>
 
     <script>
         // Global variables
