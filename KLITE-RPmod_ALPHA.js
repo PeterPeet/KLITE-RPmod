@@ -13,6 +13,12 @@
         return;
     }
     window.KLITE_RPMod_LOADED = true;
+    // Default config
+    window.KLITE_RPMod_Config = window.KLITE_RPMod_Config || {};
+    window.KLITE_RPMod_Config.panelsOnly = true; // Panels-only mode (requested): render only side panels, keep host UI intact
+    window.KLITE_RPMod_Config.embedInSave = true; // Embed RPmod data by default
+    window.KLITE_RPMod_Config.rpmodAutosave = false; // Do not use separate RPmod autosave by default
+    window.KLITE_RPMod_Config.enableConsoleRestore = false; // Console restoration (access by iFrame) disabled by default (can be seen as intrusive by some browsers)
 
     // =============================================
     // CONSOLE RESTORATION FOR KOBOLDAI LITE (GATED)
@@ -69,15 +75,17 @@
       } catch(_) {}
     }
 
-    // Display one-time warning popup at load about experimental saves
+    // Display one-time warning popup at load about experimental nature of the mod
     function rpmod_show_no_save_warning() {
-      // No-op: RPmod save/load is now integrated with Lite/Esolite saves
+      // No-op: RPmod is perfect
       return;
     }
 
     // Wrap Lite's chat_submit_generation so regular submit respects ROLES management
     (function setupSubmitWrapper(){
       try {
+        // In panels-only mode, do not wrap/alter host submit behavior
+        if (window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.panelsOnly) return;
         if (typeof window.chat_submit_generation === 'function' && !window._orig_chat_submit_generation) {
           window._orig_chat_submit_generation = window.chat_submit_generation;
           window.chat_submit_generation = function(){
@@ -138,22 +146,36 @@
     try { if (typeof window.niko_square === 'undefined') window.niko_square = ''; } catch(_) {}
     try { if (typeof window.human_square === 'undefined') window.human_square = ''; } catch(_) {}
     
+    // NOTE: Large portions of the CSS below relate to the full overlay UI and left/top panels.
+    // In Esobold/Esolite panels-only integration, those sections are UNUSED and kept only
+    // for reference. The right-panel styles and shared tokens remain relevant.
     const STYLES = `
+        /* Map RPmod internal tokens to Esolite theme variables */
         :root {
-            --bg: #1a1a1a;
-            --bg2: #262626;
-            --bg3: #333;
-            --text: #e0e0e0;
-            --muted: #666;
-            --border: #444;
-            --accent: #4a9eff;
-            --primary: #337ab7;
+            /* Background layers */
+            --bg: var(--theme_color_bg_outer);
+            --bg2: var(--theme_color_bg);
+            --bg3: var(--theme_color_bg_dark);
+
+            /* Text colors */
+            --text: var(--theme_color_text);
+            --glowtext: var(--theme_color_glow_text);
+            --muted: var(--theme_color_placeholder_text);
+
+            /* Borders and accents */
+            --border: var(--theme_color_border);
+            --border-highlight: var(--theme_color_border_highlight);
+            --accent: var(--theme_color_highlight);
+
+            /* Buttons and states */
+            --primary: var(--theme_color_button_bg);
+            --primary-text: var(--theme_color_button_text);
             --danger: #d9534f;
             --success: #5cb85c;
             --warning: #f0ad4e;
         }
         
-        /* Hide original UI */
+        /* In full overlay mode, host UI is hidden via .klite-active (panelsOnly disables this) */
         .klite-active #gamecontainer,
         .klite-active #main_container,
         .klite-active #inputrow { display: none !important; }
@@ -175,7 +197,7 @@
             font-family: system-ui, sans-serif;
             z-index: 1;
         }
-        
+    
         /* Panels */
         .klite-panel {
             position: fixed;
@@ -184,6 +206,7 @@
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
         }
         
+        /* UNUSED overlay/left UI START: left panel rules */
         .klite-panel-left {
             left: 0;
             top: 0;
@@ -194,6 +217,7 @@
         }
         
         .klite-panel-left.collapsed { transform: translateX(-350px); }
+        /* UNUSED overlay/left UI END */
         
         .klite-panel-right {
             right: 0;
@@ -206,6 +230,7 @@
         
         .klite-panel-right.collapsed { transform: translateX(350px); }
         
+        /* UNUSED overlay/left UI START: top panel rules */
         .klite-panel-top {
             top: 0;
             left: 350px;
@@ -269,7 +294,7 @@
             background: var(--success) !important;
             color: white !important;
         }
-        
+        /* Tablet sidepanel classes are overlay-only */
         @media (min-width: 768px) and (max-width: 1400px) {
             /* Tablet sidepanel mode classes - only apply in tablet mode */
             .klite-container.tablet-sidepanel-both .klite-panel-top,
@@ -302,6 +327,7 @@
             left: 0 !important; 
             right: 0 !important; 
         }
+        /* UNUSED overlay/left UI END: top panel rules */
         
         @media (max-width: 768px) {
             .klite-panel-left, .klite-panel-right { display: none; }
@@ -330,6 +356,7 @@
         
         .klite-handle:hover { background: var(--bg3); color: var(--text); }
         
+        /* UNUSED overlay/left UI: left handle */
         .klite-panel-left .klite-handle {
             right: -15px;
             top: 50%;
@@ -348,6 +375,7 @@
             border-radius: 5px 0 0 5px;
         }
         
+        /* UNUSED overlay/left UI: top handle */
         .klite-panel-top .klite-handle {
             bottom: -15px;
             left: 50%;
@@ -357,7 +385,7 @@
             border-radius: 0 0 5px 5px;
         }
         
-        /* maincontent content */
+        /* UNUSED overlay/left UI START: maincontent */
         .klite-maincontent {
             position: fixed;
             top: 0;
@@ -380,8 +408,8 @@
             left: 0 !important; 
             right: 0 !important; 
         }
-        
-        /* Chat display */
+
+        /* Chat display (overlay-only) */
         .klite-chat {
             flex: 1;
             overflow-y: auto;
@@ -390,39 +418,43 @@
             margin: 25px 0 34px 0;
         }
         
-        /* Input area */
+        /* Input area (overlay-only) */
         .klite-input-area {
             display: flex;
             padding: 0 15px 15px;
             gap: 10px;
             position: relative;
         }
+        /* UNUSED overlay/left UI END: maincontent */
         
         /* Tabs */
         .klite-tabs {
             display: flex;
             gap: 5px;
             padding: 10px;
-            background: var(--primary);
+            background: var(--theme_color_tabs);
             border-bottom: 1px solid var(--border);
         }
         
         .klite-tab {
             padding: 6px 12px;
-            background: rgba(255,255,255,0.1);
             border: 1px solid transparent;
-            border-radius: 4px;
-            color: white;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 10px;
+            font-size: 12px;
             font-weight: bold;
             min-width: 56px;
             white-space: nowrap;
             text-align: center;
         }
-        
-        .klite-tab:hover { background: rgba(255,255,255,0.2); }
-        .klite-tab.active { background: rgba(255,255,255,0.3); }
+        /* Make klite-tab look like action buttons */
+        .klite-tab.btn.btn-primary {
+            background-color: var(--theme_color_button_bg) !important;
+            color: var(--theme_color_button_text) !important;
+            border-color: var(--theme_color_border) !important;
+        }
+        .klite-tab.btn.btn-primary:hover { background-color: var(--theme_color_topbtn_highlight) !important; }
+        .klite-tab.btn.btn-primary.active { background-color: var(--theme_color_tabs_highlight) !important; }
         
         /* Content */
         .klite-content {
@@ -451,9 +483,10 @@
             display: flex;
             justify-content: space-between;
             user-select: none;
+            color: var(--glowtext);
         }
         
-        .klite-section-header:hover { background: #3a3a3a; }
+        .klite-section-header:hover { background: var(--bg3); }
         .klite-section.collapsed .klite-section-content { display: none; }
         
         .klite-section-content {
@@ -464,10 +497,10 @@
         .klite-input, .klite-textarea, .klite-select {
             width: 100%;
             padding: 8px;
-            background: var(--bg);
-            border: 1px solid var(--border);
+            background: var(--theme_color_input_bg);
+            border: 1px solid var(--theme_color_border);
             border-radius: 4px;
-            color: var(--text);
+            color: var(--theme_color_input_text);
             font: inherit;
         }
         
@@ -484,28 +517,43 @@
         
         .klite-input:focus, .klite-textarea:focus, .klite-select:focus {
             outline: none;
-            border-color: var(--accent);
+            border-color: var(--border-highlight);
+            box-shadow: none;
         }
         
         /* Buttons */
         .klite-btn {
             padding: 4px 8px;
             background: var(--primary);
-            border: 1px solid #2e6da4;
+            border: 1px solid var(--theme_color_border);
             border-radius: 4px;
-            color: white;
+            color: var(--primary-text);
             cursor: pointer;
             font-size: 14px;
             transition: all 0.2s;
         }
+        .klite-btn:hover { background: var(--theme_color_topbtn_highlight); }
+        /* When paired with Bootstrap classes, force theme colours */
+        .klite-btn.btn.btn-primary {
+            background-color: var(--theme_color_button_bg) !important;
+            color: var(--theme_color_button_text) !important;
+            border-color: var(--theme_color_border) !important;
+        }
         
-        .klite-btn:hover { background: #286090; }
-        .klite-btn.danger { background: var(--danger); border-color: #c9302c; }
-        .klite-btn.danger:hover { background: #c9302c; }
-        .klite-btn.success { background: var(--success); border-color: #4cae4c; }
-        .klite-btn.warning { background: var(--warning); border-color: #eea236; }
+        /* Non-overlay mode: shift host content so panel doesn't overlap */
+        body.klite-panels-nonoverlay-right { padding-right: 350px !important; box-sizing: border-box; }
+        /* In case site uses common wrappers, nudge them too */
+        body.klite-panels-nonoverlay-right #main,
+        body.klite-panels-nonoverlay-right .container,
+        body.klite-panels-nonoverlay-right .content,
+        body.klite-panels-nonoverlay-right #content,
+        body.klite-panels-nonoverlay-right .wrapper { padding-right: 350px; box-sizing: border-box; }
+        .klite-btn.danger { background: var(--danger); border-color: var(--theme_color_border); }
+        .klite-btn.danger:hover { filter: brightness(0.95); }
+        .klite-btn.success { background: var(--success); border-color: var(--theme_color_border); }
+        .klite-btn.warning { background: var(--warning); border-color: var(--theme_color_border); }
         .klite-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .klite-btn.danger:disabled { background: #666; border-color: #555; color: #999; }
+        .klite-btn.danger:disabled { background: var(--theme_color_disabled_bg); border-color: var(--theme_color_border); color: var(--muted); }
         
         .klite-btn-xs {
             font-size: 10px;
@@ -567,14 +615,14 @@
             height: 26px;
             padding: 0;
             font-size: 14px;
-            background: #2d6ba0;
+            background: var(--theme_color_topbtn);
         }
         
         /* Info line */
         .klite-info {
             display: flex;
             justify-content: space-between;
-            color: #888;
+            color: var(--muted);
             font-size: 12px;
             margin-top: 2px !important;
         }
@@ -633,6 +681,16 @@
         }
         .klite-muted { color: var(--muted); }
         .klite-center { text-align: center; }
+        
+        /* Tabs also look good using nav-link/mainnav; these ensure theme vars apply */
+        .klite-tab.nav-link.mainnav { 
+            color: var(--theme_color_topmenu_text);
+            background-color: var(--theme_color_topbtn);
+            border-color: var(--theme_color_border);
+        }
+        .klite-tab.nav-link.mainnav:hover { background-color: var(--theme_color_topbtn_highlight); }
+        .klite-tab.nav-link.mainnav.active { background-color: var(--theme_color_tabs_highlight); }
+        .klite-center { text-align: center; }
         .klite-mt { margin-top: 10px; }
         .active { background: var(--success) !important; }
         
@@ -686,7 +744,7 @@
             transition: background 0.2s;
         }
         
-        .klite-timeline-item:hover { background: rgba(255,255,255,0.05); }
+        .klite-timeline-item:hover { background: var(--bg3); }
         
         /* Gametext Array Styling - targeting actual Lite elements */
         .klite-active #gametext {
@@ -735,7 +793,7 @@
         .klite-active #gametext .message:hover,
         .klite-active #gametext p:hover {
             background: var(--bg3) !important;
-            border-color: var(--accent) !important;
+            border-color: var(--border-highlight) !important;
         }
 
         /* Character Avatar in Chat */
@@ -759,8 +817,8 @@
             transition: background 0.2s;
         }
         
-        .klite-character-item:hover { background: rgba(255,255,255,0.05); }
-        .klite-character-item.selected { background: rgba(74,158,255,0.2); }
+        .klite-character-item:hover { background: var(--bg3); }
+        .klite-character-item.selected { background: var(--bg3); border: 1px solid var(--border-highlight); }
         .klite-character-item.current-speaker { 
             border-color: #4CAF50;
             background: rgba(76, 175, 80, 0.1);
@@ -803,6 +861,20 @@
             grid-template-columns: 1fr 1fr;
             gap: 10px;
             width: 100%;
+        }
+        /* Reduce image height in 2-column grid for better fit */
+        .klite-character-grid .klite-char-image img {
+            height: 180px;
+            width: 100%;
+            object-fit: cover;
+            aspect-ratio: auto;
+        }
+        
+        /* Detail view: allow full image scaling */
+        .klite-character-detail .klite-char-image img {
+            height: auto;
+            width: 100%;
+            aspect-ratio: 2/3;
         }
         
         .klite-character-card {
@@ -936,7 +1008,7 @@
         .klite-char-modal-section {
             margin-bottom: 20px;
             padding: 15px;
-            background: rgba(255,255,255,0.05);
+            background: var(--bg3);
             border-radius: 8px;
         }
         
@@ -1090,18 +1162,9 @@
             transition: all 0.2s;
         }
         
-        .klite-dice-btn:hover {
-            background: #3a3a3a;
-            border-color: var(--accent);
-        }
+        .klite-dice-btn:hover { background: var(--bg3); border-color: var(--border-highlight); }
         
-        .klite-dice-result {
-            background: rgba(255,255,255,0.02);
-            border-radius: 4px;
-            padding: 15px;
-            text-align: center;
-            min-height: 80px;
-        }
+        .klite-dice-result { background: var(--bg3); border-radius: 4px; padding: 15px; text-align: center; min-height: 80px; }
         
         .klite-analytics-tab {
             font-size: 12px;
@@ -1476,7 +1539,7 @@
         .klite-char-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            border-color: var(--accent);
+            border-color: var(--border-highlight);
         }
         
         .klite-char-card.selected {
@@ -2065,17 +2128,15 @@
         .klite-chars-empty-action {
             padding: 8px 16px;
             background: var(--primary);
-            border: 1px solid #2e6da4;
+            border: 1px solid var(--theme_color_border);
             border-radius: 4px;
-            color: white;
+            color: var(--primary-text);
             cursor: pointer;
             font-size: 12px;
             transition: all 0.2s;
         }
         
-        .klite-chars-empty-action:hover {
-            background: #286090;
-        }
+        .klite-chars-empty-action:hover { background: var(--theme_color_topbtn_highlight); }
         
         /* Loading States */
         .klite-chars-loading {
@@ -2118,7 +2179,7 @@
         
         .klite-help-db-btn {
             padding: 8px 16px;
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--bg3);
             border: 1px solid var(--border);
             border-radius: 4px;
             color: var(--text);
@@ -2127,10 +2188,7 @@
             font-size: 12px;
         }
         
-        .klite-help-db-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: var(--accent);
-        }
+        .klite-help-db-btn:hover { background: var(--bg2); border-color: var(--border-highlight); }
         
         .klite-help-db-btn.active {
             background: var(--accent);
@@ -2146,19 +2204,15 @@
         .klite-help-search-input {
             width: 100%;
             padding: 10px 40px 10px 12px;
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--border);
+            background: var(--theme_color_input_bg);
+            border: 1px solid var(--theme_color_border);
             border-radius: 4px;
-            color: var(--text);
+            color: var(--theme_color_input_text);
             font-size: 14px;
             transition: all 0.2s ease;
         }
         
-        .klite-help-search-input:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.2);
-        }
+        .klite-help-search-input:focus { outline: none; border-color: var(--border-highlight); box-shadow: none; }
         
         .klite-help-search-clear {
             position: absolute;
@@ -2181,13 +2235,7 @@
             color: var(--text);
         }
         
-        .klite-help-search-results {
-            background: rgba(0, 0, 0, 0.2);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
+        .klite-help-search-results { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; max-height: 400px; overflow-y: auto; }
         
         .klite-help-search-placeholder,
         .klite-help-no-results {
@@ -2208,9 +2256,7 @@
             border-bottom: none;
         }
         
-        .klite-help-search-result:hover {
-            background: rgba(74, 158, 255, 0.1);
-        }
+        .klite-help-search-result:hover { background: var(--bg2); }
         
         .klite-help-result-header {
             display: flex;
@@ -2226,14 +2272,7 @@
             color: var(--text);
         }
         
-        .klite-help-result-category {
-            font-size: 10px;
-            color: var(--muted);
-            background: rgba(255, 255, 255, 0.1);
-            padding: 2px 6px;
-            border-radius: 2px;
-            white-space: nowrap;
-        }
+        .klite-help-result-category { font-size: 10px; color: var(--muted); background: var(--bg2); padding: 2px 6px; border-radius: 2px; white-space: nowrap; }
         
         .klite-help-result-content {
             color: var(--muted);
@@ -2269,23 +2308,10 @@
             margin-bottom: 20px;
         }
         
-        .klite-help-modal-keywords {
-            font-size: 12px;
-            color: var(--muted);
-            padding: 10px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 4px;
-            border-left: 3px solid var(--accent);
-        }
+        .klite-help-modal-keywords { font-size: 12px; color: var(--muted); padding: 10px; background: var(--bg3); border-radius: 4px; border-left: 3px solid var(--border-highlight); }
         
         /* Help feature styles (existing, enhanced) */
-        .klite-help-feature {
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            padding: 12px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
+        .klite-help-feature { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
         
         .klite-help-feature:last-child {
             border-bottom: none;
@@ -2445,18 +2471,16 @@
             flex: 1;
             padding: 6px 12px;
             background: var(--primary);
-            border: 1px solid #2e6da4;
+            border: 1px solid var(--theme_color_border);
             border-radius: 4px;
-            color: white;
+            color: var(--primary-text);
             cursor: pointer;
             font-size: 11px;
             text-align: center;
             transition: all 0.2s;
         }
         
-        .klite-char-worldinfo-action:hover {
-            background: #286090;
-        }
+        .klite-char-worldinfo-action:hover { background: var(--theme_color_topbtn_highlight); }
         
         .klite-char-worldinfo-action.secondary {
             background: var(--bg3);
@@ -2490,13 +2514,11 @@
         
         .klite-char-action-btn.primary {
             background: var(--primary);
-            border-color: #2e6da4;
-            color: white;
+            border-color: var(--theme_color_border);
+            color: var(--primary-text);
         }
         
-        .klite-char-action-btn.primary:hover {
-            background: #286090;
-        }
+        .klite-char-action-btn.primary:hover { background: var(--theme_color_topbtn_highlight); }
         
         .klite-char-action-btn.secondary {
             background: var(--bg2);
@@ -2721,11 +2743,17 @@
             display: none !important;
         }
         
-        /* Hide left/right panel handles in mobile but keep top handle */
+        /* Mobile: show and reposition side handles so they remain usable */
         .klite-mobile .klite-panel-left .klite-handle,
         .klite-mobile .klite-panel-right .klite-handle {
-            display: none !important;
+            display: flex !important;
         }
+        /* Left panel: keep handle visible in both states */
+        .klite-mobile .klite-panel-left:not(.collapsed) .klite-handle { left: 0 !important; right: auto !important; }
+        .klite-mobile .klite-panel-left.collapsed .klite-handle { right: -15px !important; left: auto !important; }
+        /* Right panel: keep handle visible in both states */
+        .klite-mobile .klite-panel-right:not(.collapsed) .klite-handle { right: 0 !important; left: auto !important; }
+        .klite-mobile .klite-panel-right.collapsed .klite-handle { left: -15px !important; right: auto !important; }
         
         /* Default state: Show desktop buttons, hide mobile buttons */
         .klite-desktop-quick-buttons,
@@ -2803,7 +2831,7 @@
         /* Mobile navigation button theme integration */
         .klite-mobile-nav-btn {
             background: var(--primary) !important;
-            border: 1px solid var(--border) !important;
+            border: 1px solid var(--theme_color_border) !important;
         }
         
         .klite-mobile-nav-btn:hover {
@@ -2833,19 +2861,19 @@
         `,
 
         button: (text, className = '', action = '') => `
-            <button class="klite-btn ${className}" ${action ? `data-action="${action}"` : ''}>${text}</button>
+            <button class="klite-btn btn btn-primary actbtn mainnav ${className}" ${action ? `data-action="${action}"` : ''}>${text}</button>
         `,
 
         textarea: (id, placeholder = '', value = '') => `
-            <textarea id="${id}" class="klite-textarea" placeholder="${placeholder}">${value}</textarea>
+            <textarea id="${id}" class="klite-textarea form-control" placeholder="${placeholder}">${value}</textarea>
         `,
 
         input: (id, placeholder = '', type = 'text', value = '') => `
-            <input type="${type}" id="${id}" class="klite-input" placeholder="${placeholder}" value="${value}">
+            <input type="${type}" id="${id}" class="klite-input form-control textbox" placeholder="${placeholder}" value="${value}">
         `,
 
         select: (id, options) => `
-            <select id="${id}" class="klite-select">
+            <select id="${id}" class="klite-select form-control">
                 ${options.map(o => `<option value="${o.value}" ${o.selected ? 'selected' : ''}>${o.text}</option>`).join('')}
             </select>
         `,
@@ -2924,6 +2952,169 @@
 
         isAvailable() {
             return !!(window.localsettings && window.indexeddb_save && window.indexeddb_load);
+        }
+    };
+
+    // Minimal CSS for panels-only mode (no full-screen overlay, no maincontent, no top panel)
+    const STYLES_PANELS_ONLY = `
+        :root {
+            --bg: var(--theme_color_bg_outer);
+            --bg2: var(--theme_color_bg);
+            --bg3: var(--theme_color_bg_dark);
+            --text: var(--theme_color_text);
+            --glowtext: var(--theme_color_glow_text);
+            --muted: var(--theme_color_placeholder_text);
+            --border: var(--theme_color_border);
+            --border-highlight: var(--theme_color_border_highlight);
+            --accent: var(--theme_color_highlight);
+            --primary: var(--theme_color_button_bg);
+            --primary-text: var(--theme_color_button_text);
+            --danger: #d9534f;
+            --success: #5cb85c;
+            --warning: #f0ad4e;
+        }
+        /* Wrapper that doesn't block host interactions */
+        #klite-panels-only { position: fixed; inset: 0; pointer-events: none; z-index: 2147483638; }
+        /* Panels remain interactive */
+        .klite-panel { pointer-events: auto; position: fixed; background: var(--bg2); box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        /* UNUSED: left panel (panels-only uses right panel only) */
+        /* .klite-panel-left { left: 0; top: 0; bottom: 0; width: 350px; border-right: 1px solid var(--border); } */
+        .klite-panel-right { right: 0; top: 0; bottom: 0; width: 350px; border-left: 1px solid var(--border); }
+        /* .klite-panel-left.collapsed { transform: translateX(-350px); } */
+        .klite-panel-right.collapsed { transform: translateX(350px); }
+        .klite-handle { position: absolute; background: var(--bg2); border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; z-index: 2; }
+        .klite-handle:hover { background: var(--bg3); color: var(--text); }
+        /* .klite-panel-left .klite-handle { right: -15px; top: 50%; transform: translateY(-50%); width: 15px; height: 50px; border-radius: 0 5px 5px 0; } */
+        .klite-panel-right .klite-handle { left: -15px; top: 50%; transform: translateY(-50%); width: 15px; height: 50px; border-radius: 5px 0 0 5px; }
+        .klite-tabs { display: flex; gap: 5px; padding: 10px; background: var(--theme_color_tabs); border-bottom: 1px solid var(--border); }
+        .klite-tab { padding: 6px 12px; border: 1px solid transparent; border-radius: 6px; color: var(--theme_color_tabs_text); cursor: pointer; font-size: 10px; font-weight: bold; min-width: 56px; white-space: nowrap; text-align: center; background: var(--theme_color_topbtn); }
+        .klite-tab:hover { background: var(--theme_color_topbtn_highlight); }
+        .klite-tab.active { background: var(--theme_color_tabs_highlight); }
+        .klite-content { overflow-y: auto; overflow-x: hidden; padding: 15px; max-height: calc(100vh - 60px); color: var(--text); }
+        .klite-section { margin-bottom: 20px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+        .klite-section-header { padding: 10px 15px; background: var(--bg3); cursor: pointer; display: flex; justify-content: space-between; user-select: none; color: var(--glowtext); }
+        .klite-section-header:hover { background: var(--bg3); }
+        .klite-section.collapsed .klite-section-content { display: none; }
+        .klite-section-content { padding: 15px; }
+        /* Utilities */
+        .klite-row { display: flex; gap: 2px; align-items: center; }
+        .klite-buttons-left { display: flex; gap: 2px; justify-content: flex-start; }
+        .klite-buttons-center { display: flex; gap: 2px; justify-content: center; }
+        .klite-buttons-right { display: flex; gap: 2px; justify-content: flex-end; }
+        .klite-buttons-spread { display: flex; gap: 2px; justify-content: space-between; }
+        /* Inputs */
+        .klite-input, .klite-textarea, .klite-select { width: 100%; padding: 6px 8px; background: var(--theme_color_input_bg); border: 1px solid var(--theme_color_border); border-radius: 4px; color: var(--theme_color_input_text); font: inherit; }
+        .klite-textarea { resize: vertical; min-height: 80px; }
+        .klite-input:focus, .klite-textarea:focus, .klite-select:focus { outline: none; border-color: var(--border-highlight); box-shadow: none; }
+        /* Buttons */
+        .klite-btn { padding: 4px 8px; background: var(--primary); border: 1px solid var(--theme_color_border); border-radius: 4px; color: var(--primary-text); cursor: pointer; font-size: 14px; transition: all 0.2s; }
+        .klite-btn:hover { background: var(--theme_color_topbtn_highlight); }
+        .klite-btn.btn.btn-primary { background-color: var(--theme_color_button_bg) !important; color: var(--theme_color_button_text) !important; border-color: var(--theme_color_border) !important; }
+        .klite-btn.danger { background: var(--danger); border-color: #c9302c; }
+        .klite-btn.danger:hover { background: #c9302c; }
+        .klite-btn.success { background: var(--success); border-color: #4cae4c; }
+        .klite-btn.warning { background: var(--warning); border-color: #eea236; }
+        .klite-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .klite-btn-sm { font-size: 12px; padding: 3px 6px; min-width: 26px; text-align: center; }
+        .klite-btn-xs { font-size: 10px; padding: 2px 6px; min-height: 22px; }
+        /* Dice (match v1) */
+        .klite-dice-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; }
+        .klite-dice-btn { padding: 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); cursor: pointer; transition: all 0.2s; }
+        .klite-dice-btn:hover { background: var(--bg3); border-color: var(--border-highlight); }
+        .klite-dice-result { background: var(--bg3); border-radius: 4px; padding: 15px; text-align: center; min-height: 80px; }
+
+        /* Context Analyzer (token bar + legend) */
+        .klite-token-bar-container { margin-bottom: 10px; }
+        .klite-token-bar { display: flex; height: 20px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+        .klite-token-segment { height: 100%; transition: width 0.3s ease; }
+        .klite-memory-segment { background: #5bc0de; }
+        .klite-wi-segment { background: #5cb85c; }
+        .klite-story-segment { background: #f0ad4e; }
+        .klite-anote-segment { background: #d9534f; }
+        .klite-free-segment { background: var(--bg3); }
+        .klite-token-legend { margin-bottom: 10px; font-size: 11px; }
+        .klite-token-legend-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+        .klite-token-legend-item { display: flex; align-items: center; gap: 4px; }
+        .klite-token-legend-color { width: 12px; height: 12px; border-radius: 2px; }
+        .klite-token-legend-label { color: var(--muted); }
+        .klite-token-legend-value { color: var(--text); font-weight: bold; }
+
+        /* Timeline (Bookmarks / Index) */
+        .klite-timeline { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 8px; min-height: 200px; max-height: 400px; overflow-y: auto; }
+        .klite-timeline-item { padding: 8px; margin-bottom: 4px; cursor: pointer; border-radius: 4px; transition: background 0.2s; }
+        .klite-timeline-item:hover { background: var(--bg3); }
+    `;
+
+    
+
+    // =============================================
+    // 3a. RPmod Host Adapter (Esolite-first)
+    // =============================================
+
+    // Thin wrapper over host (Esolite/Lite) state and storage.
+    // RPmod should read/write host-native structures only.
+    window.RPmodHostAdapter = {
+        get settings() { return window.localsettings || null; },
+        get theme() { return window.aestheticInstructUISettings || null; },
+        async save(key, data) {
+            if (!LiteAPI.storage.save) throw new Error('Host storage.save unavailable');
+            return LiteAPI.storage.save(key, data);
+        },
+        async load(key) {
+            if (!LiteAPI.storage.load) throw new Error('Host storage.load unavailable');
+            return LiteAPI.storage.load(key, null);
+        },
+        updateSettings(patch) {
+            if (!window.localsettings) return false;
+            Object.assign(window.localsettings, patch || {});
+            return true;
+        },
+        setTheme(patch) {
+            if (!window.aestheticInstructUISettings) return false;
+            Object.assign(window.aestheticInstructUISettings, patch || {});
+            return true;
+        },
+        setMode(opmode, subMode) {
+            if (!window.localsettings) return false;
+            window.localsettings.opmode = opmode;
+            if (typeof subMode === 'number') window.localsettings.adventure_switch_mode = subMode;
+            return true;
+        },
+        // Characters unified store (no RPmod prefixes)
+        async loadCharactersV3() {
+            const raw = await this.load('characters_v3');
+            if (!raw || raw === 'offload_to_indexeddb') return [];
+            try {
+                const data = JSON.parse(raw);
+                if (Array.isArray(data)) return data;
+                if (data && Array.isArray(data.characters)) return data.characters;
+                return [];
+            } catch(_) { return []; }
+        },
+        async saveCharactersV3(list) {
+            const payload = JSON.stringify({ version:'3', saved:new Date().toISOString(), characters: Array.isArray(list)?list:[] });
+            await this.save('characters_v3', payload);
+        },
+        applyCharacter(char, opts = {}) {
+            if (!char || !window.localsettings) return false;
+            // Single-opponent session
+            window.localsettings.chatopponent = char.name || window.localsettings.chatopponent || 'AI';
+            // Mirror portrait into Aesthetic
+            try {
+                if (window.aestheticInstructUISettings && (char.avatar || char.image)) {
+                    window.aestheticInstructUISettings.AI_portrait = char.avatar || char.image;
+                }
+            } catch(_){}
+            // Optional WI injection toggle handled by caller
+            return true;
+        },
+        applyGroup(participantChars = []) {
+            try {
+                if (!window.localsettings) return false;
+                const names = participantChars.map(c => (c && c.name) ? String(c.name).trim() : '').filter(Boolean);
+                window.localsettings.chatopponent = names.join('\n');
+                return true;
+            } catch(_) { return false; }
         }
     };
 
@@ -3010,7 +3201,7 @@
             mobile: {
                 enabled: false,
                 currentIndex: 5, // Start at Main view (index 5)
-                sequence: ['TOOLS', 'CONTEXT', 'SCENE', 'ROLES', 'HELP', 'MAIN', 'CHARS', 'MEMORY', 'NOTES', 'WI', 'TEXTDB']
+                sequence: ['TOOLS', 'CONTEXT', 'IMAGE', 'ROLES', 'HELP', 'MAIN', 'CHARS', 'MEMORY', 'NOTES', 'WI', 'TEXTDB']
             },
             inputScale2x: false
         },
@@ -3210,7 +3401,8 @@
         },
 
         // =============================================
-        // UNIFIED GENERATION CONTROL SYSTEM
+        // UNIFIED GENERATION CONTROL SYSTEM (UNUSED in Esobold panels-only)
+        // Kept for compatibility; UI rendering is short-circuited and init isn't called.
         // =============================================
 
         generationControl: {
@@ -3538,6 +3730,8 @@
 
         // Shared Generation Control HTML
         renderGenerationControl(panelPrefix = 'rp') {
+            // UNUSED in Esobold panels-only mode
+            return '';
             // Load current settings from KoboldAI Lite localsettings
             const currentTemp = window.localsettings?.temperature || 0.7;
             const currentTopP = window.localsettings?.top_p || 0.9;
@@ -3558,7 +3752,7 @@
             return `
                 <!-- Bookmarks / Index -->
                 ${t.section('Bookmarks / Index',
-                `<div id="story-timeline" class="klite-timeline">
+                `<div id="story-timeline" class="klite-timeline" style="min-height: 140px; padding: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px;">
                         ${this.chapters.length ? this.renderChapters() : '<div class="klite-center klite-muted">No bookmarks yet</div>'}
                     </div>
                     <div class="klite-buttons-fill klite-mt">
@@ -3578,39 +3772,39 @@
                     <div style="margin-bottom: 12px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                             <span style="font-size: 12px; color: #ccc;">Creativity</span>
-                            <span style="font-size: 8px; color: #999; font-family: monospace;">temp: <span id="${panelPrefix}-temp-val">${currentTemp.toFixed(2)}</span> | top_p: <span id="${panelPrefix}-topp-val">${currentTopP.toFixed(2)}</span></span>
+                            <span style="font-size: 8px; color: var(--muted); font-family: monospace;">temp: <span id="${panelPrefix}-temp-val">${currentTemp.toFixed(2)}</span> | top_p: <span id="${panelPrefix}-topp-val">${currentTopP.toFixed(2)}</span></span>
                         </div>
                         <input type="range" id="${panelPrefix}-creativity-slider" class="klite-slider" 
                                min="0" max="100" value="${creativityValue}" style="width: 100%;">
                         <div style="display: flex; justify-content: space-between; margin-top: 4px;">
-                            <span style="font-size: 10px; color: #888;">Conservative</span>
-                            <span style="font-size: 10px; color: #888;">Creative</span>
+                            <span style="font-size: 10px; color: var(--muted);">Conservative</span>
+                            <span style="font-size: 10px; color: var(--muted);">Creative</span>
                         </div>
                     </div>
                     
                     <div style="margin-bottom: 12px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                             <span style="font-size: 12px; color: #ccc;">Focus</span>
-                            <span style="font-size: 8px; color: #999; font-family: monospace;">top_k: <span id="${panelPrefix}-topk-val">${currentTopK}</span> | min_p: <span id="${panelPrefix}-minp-val">${currentMinP.toFixed(3)}</span></span>
+                            <span style="font-size: 8px; color: var(--muted); font-family: monospace;">top_k: <span id="${panelPrefix}-topk-val">${currentTopK}</span> | min_p: <span id="${panelPrefix}-minp-val">${currentMinP.toFixed(3)}</span></span>
                         </div>
                         <input type="range" id="${panelPrefix}-focus-slider" class="klite-slider" 
                                min="0" max="100" value="${focusValue}" style="width: 100%;">
                         <div style="display: flex; justify-content: space-between; margin-top: 4px;">
-                            <span style="font-size: 10px; color: #888;">Broad</span>
-                            <span style="font-size: 10px; color: #888;">Focused</span>
+                            <span style="font-size: 10px; color: var(--muted);">Broad</span>
+                            <span style="font-size: 10px; color: var(--muted);">Focused</span>
                         </div>
                     </div>
                     
                     <div style="margin-bottom: 12px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                             <span style="font-size: 12px; color: #ccc;">Repetition</span>
-                            <span style="font-size: 8px; color: #999; font-family: monospace;">pen: <span id="${panelPrefix}-repen-val">${currentRepPen.toFixed(2)}</span> | rng: <span id="${panelPrefix}-rng-val">${currentRepPenRange}</span> | slp: <span id="${panelPrefix}-slp-val">${currentRepPenSlope.toFixed(1)}</span></span>
+                            <span style="font-size: 8px; color: var(--muted); font-family: monospace;">pen: <span id="${panelPrefix}-repen-val">${currentRepPen.toFixed(2)}</span> | rng: <span id="${panelPrefix}-rng-val">${currentRepPenRange}</span> | slp: <span id="${panelPrefix}-slp-val">${currentRepPenSlope.toFixed(1)}</span></span>
                         </div>
                         <input type="range" id="${panelPrefix}-repetition-slider" class="klite-slider" 
                                min="0" max="100" value="${repetitionValue}" style="width: 100%;">
                         <div style="display: flex; justify-content: space-between; margin-top: 4px;">
-                            <span style="font-size: 10px; color: #888;">Repetitive</span>
-                            <span style="font-size: 10px; color: #888;">Varied</span>
+                            <span style="font-size: 10px; color: var(--muted);">Repetitive</span>
+                            <span style="font-size: 10px; color: var(--muted);">Varied</span>
                         </div>
                     </div>
                     
@@ -3628,8 +3822,8 @@
                                value="${currentMaxLength}" 
                                style="width: 100%;">
                         <div style="display: flex; justify-content: space-between; margin-top: 4px;">
-                            <span style="font-size: 10px; color: #888;">256</span>
-                            <span style="font-size: 10px; color: #888;">${maxContextLength}</span>
+                            <span style="font-size: 10px; color: var(--muted);">256</span>
+                            <span style="font-size: 10px; color: var(--muted);">${maxContextLength}</span>
                         </div>
                     </div>
                 </div>
@@ -3792,22 +3986,15 @@
             // 'Ctrl+Shift+U': { action: 'hotswap_ui', description: 'Toggle RPmod ↔ Lite UI' },
             'Ctrl+Shift+E': { action: 'toggle_edit_mode', description: 'Toggle Edit Mode' },
 
-            // Panel Navigation
-            'Ctrl+Shift+P': { action: 'switch_panel_play', description: 'Switch to PLAY Panel' },
+            // Panel Navigation (right panel only)
             'Ctrl+Shift+C': { action: 'switch_panel_chars', description: 'Switch to CHARS Panel' },
-            'Ctrl+Shift+M': { action: 'switch_panel_memory', description: 'Switch to MEMORY Panel' },
-            'Ctrl+Shift+W': { action: 'switch_panel_wi', description: 'Switch to WORLD INFO Panel' },
-            'Ctrl+Shift+S': { action: 'switch_panel_scene', description: 'Switch to SCENE Panel' },
             'Ctrl+Shift+G': { action: 'switch_panel_group', description: 'Switch to ROLES Panel' },
             'Ctrl+Shift+T': { action: 'switch_panel_tools', description: 'Switch to TOOLS Panel' },
-            'Ctrl+Shift+N': { action: 'switch_panel_notes', description: 'Switch to NOTES Panel' },
-            'Ctrl+Shift+D': { action: 'switch_panel_textdb', description: 'Switch to TEXTDB Panel' },
-            'Ctrl+Shift+H': { action: 'switch_panel_help', description: 'Switch to HELP Panel' },
+            'Ctrl+Shift+M': { action: 'switch_panel_context', description: 'Switch to CONTEXT Panel' },
+            'Ctrl+Shift+S': { action: 'switch_panel_image', description: 'Switch to IMAGE Panel' },
 
-            // Panel Toggle (Left/Right panels)
-            'Ctrl+Shift+L': { action: 'toggle_left_panel', description: 'Toggle Left Panel' },
+            // Panel Toggle (Right panel)
             'Ctrl+Shift+K': { action: 'toggle_right_panel', description: 'Toggle Right Panel' },
-            'Ctrl+Shift+I': { action: 'toggle_top_panel', description: 'Toggle Info Panel' },
 
             // Input Focus Management
             'Tab': { action: 'cycle_input_focus', description: 'Cycle Input Focus' },
@@ -3905,7 +4092,7 @@
                 // Inject CSS
                 const style = document.createElement('style');
                 style.id = 'klite-rpmod-styles';
-                style.textContent = STYLES;
+                style.textContent = (window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.panelsOnly) ? STYLES_PANELS_ONLY : STYLES;
                 document.head.appendChild(style);
                 this.log('init', 'CSS injected');
 
@@ -3917,10 +4104,49 @@
                     this.log('init', 'State load skipped/failed (non-blocking):', e.message);
                 }
 
+                const panelsOnly = !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.panelsOnly);
+
+                // In panels-only mode, do not wrap host or replace main content
+                if (panelsOnly) {
+                    // Build only the left/right panels and mount lightweight listeners
+                    this.buildPanelsOnlyUI();
+                    this.log('init', 'Panels-only UI built');
+
+                    // Initialize panels and tabs
+                    /* UNUSED (left panel disabled for Esobold right-panel integration):
+                       Previously mirrored left-panel selection to right. We no longer
+                       initialize or load any left panel content in panels-only mode. */
+                    // this.loadPanel('left', this.state.tabs.left);
+                    this.loadPanel('right', this.state.tabs.right);
+                    this.syncTabButtonStates();
+
+                    // Install settings enhancer to add RPmod checkbox under Advanced
+                    try { this.installSettingsEnhancer(); } catch(_){}
+                    // Apply initial non-overlay state (if set)
+                    try { this.updatePanelsOnlyOverlayPadding(); } catch(_){}
+
+                    // Initialize mobile detection and attach resize listener in panels-only mode
+                    try { this.initializeMobileMode(); } catch(_){}
+                    try { window.addEventListener('resize', () => { try { this.handleResize(); } catch(_){} }); } catch(_){}
+
+                    // Sync colors with Esobold/Lite active theme
+                    this.applyPanelsHostTheme();
+                    this.startPanelsThemeObserver();
+
+                    // Defer storage init and character load so CHARS data is available for selection modals
+                    Promise.resolve().then(async () => {
+                        try { await this.initializeStorageKeys(); } catch(_) {}
+                        try { await this.loadCharacters(); this.log('init', 'Characters loaded (panels-only):', this.characters.length); } catch(_) {}
+                    });
+
+                    this.essential('✅ KLITE RP Mod (panels-only) ready');
+                    return; // Skip the rest of invasive hooks/features
+                }
+
                 // Install write guards before any potential writes
                 this.installWriteGuards();
 
-                // Build UI
+                // Build full overlay UI
                 this.buildUI();
                 this.log('init', 'UI built');
 
@@ -3963,6 +4189,8 @@
 
                 // Restore visual theme (non-blocking)
                 try { await this.restoreVisualTheme(); } catch (e) { this.log('init', 'Visual theme restore skipped:', e.message); }
+                // Start live theme sync to host
+                this.startThemeObserver();
 
                 // Initialize panels
                 this.loadPanel('left', this.state.tabs.left);
@@ -3980,7 +4208,7 @@
                 this.startSync();
                 this.log('init', 'Sync started');
 
-                // Mark active
+                // Mark active (only for full overlay mode)
                 document.body.classList.add('klite-active');
 
                 // Avatars disabled for chat stability; do not override Lite avatar globals
@@ -4012,13 +4240,17 @@
                 try { this.installAvatarAdapter(); } catch(_){}
                 // Ensure save/load hooks are installed even if bootstrap timing differed
                 try {
+                    // Only embed RPmod bundle if explicitly enabled by config
+                    window.KLITE_RPMod_Config = window.KLITE_RPMod_Config || {};
                     if (!window._rpmod_orig_generate_savefile && typeof window.generate_savefile === 'function') {
                         window._rpmod_orig_generate_savefile = window.generate_savefile;
                         window.generate_savefile = function(save_images, export_settings, export_aesthetic_settings){
                             const obj = window._rpmod_orig_generate_savefile.apply(this, arguments);
                             try {
-                                const bundle = window.KLITE_RPMod?.getSaveBundle?.();
-                                if (bundle) obj.rpmod = bundle;
+                                if (window.KLITE_RPMod_Config.embedInSave === true) {
+                                    const bundle = window.KLITE_RPMod?.getSaveBundle?.();
+                                    if (bundle) obj.rpmod = bundle;
+                                }
                             } catch(_){}
                             return obj;
                         };
@@ -4067,15 +4299,15 @@
                     const target = window.localsettings;
                     window.localsettings = new Proxy(target, {
                         set(obj, prop, value) {
-                            if (prop === 'opmode' && value !== 4) {
-                                value = 4;
-                            }
                             if (!KLITE_RPMod.userConsentGranted) {
-                                // Block writes until consent; show modal and swallow this write
                                 try { KLITE_RPMod.showConsentModal(); } catch (_) {}
                                 return true;
                             }
                             obj[prop] = value;
+                            // React to host theme changes instantly
+                            if (prop === 'colortheme') {
+                                try { KLITE_RPMod.onHostThemeChanged(value); } catch(_){}
+                            }
                             return true;
                         }
                     });
@@ -4158,7 +4390,7 @@
         },
 
         collectRpmodState() {
-            const scene = (this.panels.SCENE && this.panels.SCENE.visualStyle) ? { ...this.panels.SCENE.visualStyle } : null;
+            const scene = null; // theming handled by host
             const playrp = this.panels.TOOLS ? {
                 rules: this.panels.TOOLS.rules || '',
                 selectedCharacter: this.panels.TOOLS.selectedCharacter || null,
@@ -4209,15 +4441,7 @@
         importRpmodBlock(block) {
             try {
                 if (!block || typeof block !== 'object') return;
-                if (block.scene && this.panels.SCENE) {
-                    this.panels.SCENE.visualStyle = { ...this.panels.SCENE.visualStyle, ...block.scene };
-                    const t = this.panels.SCENE.visualStyle.theme;
-                    this.panels.SCENE.applyTheme?.(t);
-                    this.panels.SCENE.updateVisualColors?.(this.panels.SCENE.visualStyle.ambientColor, this.panels.SCENE.visualStyle.highlightColor, this.panels.SCENE.visualStyle.lightness);
-                    // Persist and align UI controls so theme stays consistent post-load
-                    try { this.panels.SCENE.saveVisualStyle?.(); } catch(_){}
-                    try { this.panels.SCENE.updateUIControls?.(); } catch(_){}
-                }
+                // Scene/theme import removed
                 if (block.playRP && this.panels.TOOLS) {
                     const p = block.playRP;
                     this.panels.TOOLS.rules = p.rules || '';
@@ -4296,60 +4520,96 @@
         },
 
         async restoreVisualTheme() {
-            this.log('init', 'Restoring visual theme...');
-
+            // Sync RPmod to the host (Lite/Esolite) theme without changing host UI.
             try {
-                // Load visual style data from storage (same as SCENE panel does)
-                const saved = await this.loadFromLiteStorage('rpmod_visual_style');
-                if (saved) {
-                    const savedStyle = JSON.parse(saved);
+                const cs = document.body.classList;
+                // Prefer explicit setting from host settings, fallback to body class detection.
+                let ct = (typeof window.localsettings !== 'undefined' && typeof window.localsettings.colortheme !== 'undefined')
+                    ? Number(window.localsettings.colortheme) : null;
 
-                    // Update SCENE panel's visual style with saved data
-                    this.panels.SCENE.visualStyle = { ...this.panels.SCENE.visualStyle, ...savedStyle };
-
-                    // Handle legacy data migration (same as SCENE panel does)
-                    if (savedStyle.intensity && !savedStyle.lightness) {
-                        this.panels.SCENE.visualStyle.lightness = savedStyle.intensity;
+                if (ct == null || Number.isNaN(ct)) {
+                    // Detect active theme class from host (theme-1..theme-10)
+                    for (let i = 10; i >= 1; i--) {
+                        if (cs.contains(`theme-${i}`)) { ct = i; break; }
                     }
-                    if (!this.panels.SCENE.visualStyle.highlightColor) {
-                        this.panels.SCENE.visualStyle.highlightColor = '#5cbc5c';
-                    }
-                    if (!this.panels.SCENE.visualStyle.customTheme) {
-                        this.panels.SCENE.visualStyle.customTheme = {
-                            ambientColor: this.panels.SCENE.visualStyle.ambientColor,
-                            highlightColor: this.panels.SCENE.visualStyle.highlightColor,
-                            lightness: this.panels.SCENE.visualStyle.lightness
-                        };
-                    }
-
-                    const savedTheme = savedStyle.theme;
-                    if (savedTheme && savedTheme !== 'default' && savedTheme !== 'dark') {
-                        // Apply the saved theme using SCENE panel's method
-                        this.panels.SCENE.applyTheme(savedTheme);
-                        this.panels.SCENE.updateVisualColors(
-                            savedStyle.ambientColor || this.panels.SCENE.visualStyle.ambientColor,
-                            savedStyle.highlightColor || this.panels.SCENE.visualStyle.highlightColor,
-                            savedStyle.lightness || this.panels.SCENE.visualStyle.lightness
-                        );
-                        this.essential(`🎨 Restored visual theme: ${savedTheme}`);
-                    } else {
-                        // If saved was 'dark' or 'default', switch to Lite Theme0 by default
-                        this.panels.SCENE.visualStyle.theme = 'lite0';
-                        this.panels.SCENE.applyTheme?.('lite0');
-                        this.essential('🎨 Defaulted to Lite Theme0 (Default)');
-                    }
-                } else {
-                    // No saved style found; default to Lite Theme0 (Default)
-                    this.panels.SCENE.visualStyle.theme = 'lite0';
-                    this.panels.SCENE.applyTheme?.('lite0');
-                    this.essential('🎨 Defaulted to Lite Theme0 (Default)');
+                    if (ct == null) ct = 0; // Default host theme
                 }
-            } catch (error) {
-                this.log('init', 'No saved visual theme to restore or error occurred:', error);
+
+                // Map to RPmod's Lite theme keys (lite0..liteN)
+                const themeKey = `lite${Math.max(0, Math.min(10, ct))}`;
+
+                // Apply mapping via SCENE's theme engine to reuse its CSS variable bridge
+                if (this.panels?.SCENE?.applyTheme) {
+                    this.panels.SCENE.applyTheme(themeKey);
+                    this.log('init', `Applied host theme to RPmod: ${themeKey}`);
+                } else {
+                    // Fallback: no-op if SCENE theme engine unavailable
+                    this.log('init', `SCENE.applyTheme unavailable; skipped theme sync (${themeKey})`);
+                }
+            } catch (e) {
+                this.log('init', `Theme sync skipped: ${e?.message || e}`);
             }
         },
 
-        buildUI() {
+        startThemeObserver() {
+            try {
+                // Prevent duplicates
+                if (this._themeObserver) return;
+
+                // Helper to read current host theme index from body classes
+                const readHostThemeIndex = () => {
+                    const cs = document.body.classList;
+                    for (let i = 10; i >= 0; i--) {
+                        if (cs.contains(`theme-${i}`)) return i;
+                    }
+                    return 0; // default
+                };
+
+                // Initial cache of applied theme
+                this._lastAppliedHostThemeKey = this._lastAppliedHostThemeKey || null;
+
+                // Observe body.class changes
+                this._themeObserver = new MutationObserver(() => {
+                    try {
+                        const idx = readHostThemeIndex();
+                        const key = `lite${Math.max(0, Math.min(10, Number(idx) || 0))}`;
+                        if (this._lastAppliedHostThemeKey === key) return; // no-op
+                        if (this.panels?.SCENE?.applyTheme) {
+                            this.panels.SCENE.applyTheme(key);
+                            this._lastAppliedHostThemeKey = key;
+                            this.log('init', `Theme observer: host class changed → ${key}`);
+                        }
+                    } catch (e) {
+                        this.log('init', `Theme observer error: ${e?.message || e}`);
+                    }
+                });
+                this._themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+                this.log('init', 'Theme observer installed');
+            } catch (e) {
+                this.log('init', `Theme observer skipped: ${e?.message || e}`);
+            }
+        },
+
+        onHostThemeChanged(idx) {
+            try {
+                const key = `lite${Math.max(0, Math.min(10, Number(idx) || 0))}`;
+                if (this._lastAppliedHostThemeKey === key) return; // no-op
+                if (this.panels?.SCENE?.applyTheme) {
+                    this.panels.SCENE.applyTheme(key);
+                    this._lastAppliedHostThemeKey = key;
+                    this.log('init', `Host theme changed → ${key}`);
+                }
+            } catch (e) {
+                this.log('init', `onHostThemeChanged error: ${e?.message || e}`);
+            }
+        },
+
+        /* UNUSED (full overlay UI and left panel for Esobold integration):
+           Kept as stub for compatibility. Full implementation retained below
+           as buildUI_UNUSED for reference and potential future reuse. */
+        buildUI() { this.log('init', 'buildUI skipped (unused overlay/left UI)'); },
+
+        buildUI_UNUSED() {
             this.log('init', 'Building UI structure...');
 
             const container = document.createElement('div');
@@ -4362,23 +4622,12 @@
                     <div id="top-content"></div>
                 </div>
                 
-                <!-- Left Panel -->
-                <div class="klite-panel klite-panel-left ${this.state.collapsed.left ? 'collapsed' : ''}" id="panel-left">
-                    <div class="klite-handle" data-panel="left">${this.state.collapsed.left ? '▶' : '◀'}</div>
-                    <div class="klite-tabs" data-panel="left">
-                        ${['TOOLS','CONTEXT','SCENE','ROLES','HELP'].map(t =>
-                            `<div class="klite-tab ${t === this.state.tabs.left ? 'active' : ''}" data-tab="${t}">${t}</div>`
-                        ).join('')}
-                    </div>
-                    <div class="klite-content" id="content-left"></div>
-                </div>
-                
                 <!-- Right Panel -->
                 <div class="klite-panel klite-panel-right ${this.state.collapsed.right ? 'collapsed' : ''}" id="panel-right">
                     <div class="klite-handle" data-panel="right">${this.state.collapsed.right ? '◀' : '▶'}</div>
                     <div class="klite-tabs" data-panel="right">
-                        ${['CHARS', 'MEMORY', 'NOTES', 'WI', 'TEXTDB'].map(t =>
-                `<div class=\"klite-tab ${t === this.state.tabs.right ? 'active' : ''}\" data-tab=\"${t}\">${t}</div>`
+                        ${['CHARS','ROLES','TOOLS','CONTEXT','IMAGE'].map(t =>
+                `<div class=\"klite-tab btn actbtn btn-primary mainnav ${t === this.state.tabs.right ? 'active' : ''}\" data-tab=\"${t}\">${t}</div>`
             ).join('')}
                     </div>
                     <div class="klite-content" id="content-right"></div>
@@ -4499,6 +4748,139 @@
             this.log('init', 'UI event listeners attached');
         },
 
+        // Panels-only UI: only left and right panels, no top/main overlay
+        buildPanelsOnlyUI() {
+            this.log('init', 'Building panels-only UI...');
+
+            // Wrapper that doesn't block host interactions
+            let wrapper = document.getElementById('klite-panels-only');
+            if (!wrapper) {
+                wrapper = document.createElement('div');
+                wrapper.id = 'klite-panels-only';
+                document.body.appendChild(wrapper);
+            }
+
+            // Construct only the right panel with requested tabs
+            wrapper.innerHTML = `
+                <div class="klite-panel klite-panel-right ${this.state.collapsed.right ? 'collapsed' : ''}" id="panel-right">
+                    <div class="klite-handle" data-panel="right">${this.state.collapsed.right ? '◀' : '▶'}</div>
+                    <div class="klite-tabs" data-panel="right">
+                        ${['CHARS', 'ROLES', 'TOOLS', 'CONTEXT', 'IMAGE'].map(t =>
+                            `<div class="klite-tab btn actbtn btn-primary mainnav ${t === this.state.tabs.right ? 'active' : ''}" data-tab="${t}">${t}</div>`
+                        ).join('')}
+                    </div>
+                    <div class="klite-content" id="content-right"></div>
+                </div>
+            `;
+
+            // Limit event delegation to panel wrapper only
+            wrapper.addEventListener('click', e => this.handleClick(e));
+            wrapper.addEventListener('input', e => this.handleInput(e));
+            wrapper.addEventListener('change', e => this.handleChange(e));
+            wrapper.addEventListener('dragover', e => this.handleDragOver(e));
+            wrapper.addEventListener('dragleave', e => this.handleDragLeave(e));
+            wrapper.addEventListener('drop', e => this.handleDrop(e));
+
+            this.log('init', 'Panels-only UI event listeners attached');
+
+            // In panels-only mode, also delegate modal clicks at document level
+            // so dynamically injected modals (outside the wrapper) work.
+            document.addEventListener('click', e => {
+                if (e.target.closest('.klite-modal')) {
+                    this.handleModalClick(e);
+                }
+            });
+
+            // Ensure initial overlay padding state is applied
+            try { this.updatePanelsOnlyOverlayPadding(); } catch(_){}
+        },
+
+        // Panels-only theme: approximate Esobold’s active theme by sampling host styles
+        applyPanelsHostTheme() {
+            try {
+                const wrap = document.getElementById('klite-panels-only');
+                if (!wrap) return;
+
+                // Bind panel CSS vars directly to Esolite theme vars (no hardcoded RGBs)
+                const binding = {
+                    bg: 'var(--theme_color_bg_outer)',
+                    bg2: 'var(--theme_color_bg)',
+                    bg3: 'var(--theme_color_bg_dark)',
+                    text: 'var(--theme_color_text)',
+                    muted: 'var(--theme_color_placeholder_text)',
+                    border: 'var(--theme_color_border)',
+                    'border-highlight': 'var(--theme_color_border_highlight)',
+                    accent: 'var(--theme_color_highlight)',
+                    primary: 'var(--theme_color_button_bg)',
+                    'primary-text': 'var(--theme_color_button_text)'
+                };
+                Object.entries(binding).forEach(([k, v]) => { try { wrap.style.setProperty(`--${k}`, v); } catch(_){} });
+                this.log('init', 'Applied theme variable bindings to panels-only wrapper');
+            } catch (e) { this.log('init', `Theme apply skipped: ${e?.message || e}`); }
+        },
+
+        startPanelsThemeObserver() {
+            try {
+                if (this._panelsThemeObserver) return;
+                this._panelsThemeObserver = new MutationObserver(() => {
+                    try { this.applyPanelsHostTheme(); } catch(_){}
+                });
+                this._panelsThemeObserver.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
+                // Also listen to color theme changes via localsettings proxy if available
+                this.log('init', 'Panels theme observer installed');
+            } catch (e) { this.log('init', `Panels theme observer skipped: ${e?.message || e}`); }
+        },
+
+        computeHostColorsFromDOM() {
+            // Heuristic color extraction from host DOM
+            const pickColor = (el, prop) => {
+                if (!el) return '';
+                const s = getComputedStyle(el);
+                const v = s && s.getPropertyValue(prop);
+                return (v && v.trim() && v !== 'transparent' && v !== 'rgba(0, 0, 0, 0)') ? v.trim() : '';
+            };
+            const clamp = (n) => Math.max(0, Math.min(255, n|0));
+            const parseRGB = (c) => {
+                const m = c.match(/rgba?\(([^\)]+)\)/i);
+                if (!m) return null;
+                const parts = m[1].split(',').map(x => parseFloat(x));
+                return { r: parts[0]||0, g: parts[1]||0, b: parts[2]||0, a: (parts[3]==null?1:parts[3]) };
+            };
+            const darken = (c, pct) => {
+                const rgb = parseRGB(c); if (!rgb) return c;
+                const f = 1 - pct;
+                return `rgb(${clamp(rgb.r*f)}, ${clamp(rgb.g*f)}, ${clamp(rgb.b*f)})`;
+            };
+
+            // Candidates for background and accent
+            const body = document.body;
+            const main = document.getElementById('main_container') || document.getElementById('gamecontainer') || body;
+            const anyBtn = document.querySelector('#submit_generation_button, #btn_submit, button, .btn');
+            const anyLink = document.querySelector('a');
+
+            // Base colors
+            let bg = pickColor(main, 'background-color') || pickColor(body, 'background-color') || 'rgb(26,26,26)';
+            let text = pickColor(main, 'color') || pickColor(body, 'color') || 'rgb(224,224,224)';
+            // Accent from button background or link color
+            let accent = pickColor(anyBtn, 'background-color') || pickColor(anyLink, 'color') || '#4a9eff';
+            // Border derived from bg
+            let border = darken(bg, 0.25);
+            let bg2 = darken(bg, 0.10);
+            let bg3 = darken(bg, 0.18);
+            let muted = darken(text, 0.45);
+
+            // If host uses theme-* classes, nudge accent for contrast in some themes
+            const cls = Array.from(body.classList||[]).join(' ');
+            if (/theme-\s*([0-9]+)/.test(cls)) {
+                // light-ish theme indices could benefit from stronger border
+                border = darken(bg, 0.35);
+            }
+
+            // Use accent as primary for v1 visual parity
+            const primary = accent;
+            return { bg, bg2, bg3, text, muted, border, accent, primary };
+        },
+
         // =============================================
         // MOBILE MODE DETECTION AND INITIALIZATION
         // =============================================
@@ -4515,9 +4897,10 @@
             this.log('init', `Screen: ${screenWidth}px, Narrow: ${isNarrowScreen}, Mobile enabled: ${this.state.mobile.enabled}`);
 
             if (this.state.mobile.enabled) {
-                this.log('init', `Mobile mode enabled - adding mobile class and navigation`);
+                this.log('init', `Mobile mode enabled - adding mobile class (navigation arrows disabled)`);
                 document.body.classList.add('klite-mobile');
-                this.addMobileNavigationButtons();
+                // Ensure any legacy mobile nav buttons are removed
+                this.removeMobileNavigationButtons();
 
                 // Set initial mode class
                 const currentMode = window.localsettings?.opmode || 4;
@@ -4574,7 +4957,8 @@
                 if (shouldBeMobile) {
                     // Switch to mobile mode
                     document.body.classList.add('klite-mobile');
-                    this.addMobileNavigationButtons();
+                    // Ensure legacy mobile nav buttons are not present
+                    this.removeMobileNavigationButtons();
 
                     // Set initial mode class
                     const currentMode = window.localsettings?.opmode || 4;
@@ -4599,6 +4983,9 @@
             // Update button active states after resize
             this.updateTabletSidepanelButton();
             this.updateFullscreenButton();
+
+            // Update sidepanel overlay spacing in response to width/mobile changes
+            try { this.updatePanelsOnlyOverlayPadding(); } catch(_){}
         },
 
         removeMobileNavigationButtons() {
@@ -4718,7 +5105,7 @@
 
         showMobilePanel(panelName) {
             // Support new 'TOOLS' tab id while keeping legacy 'PLAY' fallback
-            const leftPanels = ['TOOLS', 'PLAY', 'CONTEXT', 'SCENE', 'ROLES', 'HELP'];
+            const leftPanels = ['TOOLS', 'PLAY', 'CONTEXT', 'IMAGE', 'ROLES', 'HELP'];
             const rightPanels = ['CHARS', 'MEMORY', 'NOTES', 'WI', 'TEXTDB'];
 
             if (leftPanels.includes(panelName)) {
@@ -4793,17 +5180,13 @@
         },
 
         handleClick(e) {
-            // Collapse handles - but not in mobile mode to prevent accidental panel closing
+            // Collapse handles
             if (e.target.classList.contains('klite-handle')) {
-                // In mobile mode, allow only the TOP handle; left/right are controlled by navigation
-                if (this.state.mobile.enabled) {
-                    const panelSide = e.target.dataset.panel;
-                    if (panelSide !== 'top') {
-                        this.log('mobile', `Handle click ignored for '${panelSide}' in mobile mode`);
-                        return;
-                    }
-                }
-                this.togglePanel(e.target.dataset.panel);
+                // Allow handles for all panels on mobile as well
+                const panelSide = e.target.dataset.panel;
+                this.togglePanel(panelSide);
+                // Keep mobile nav button state in sync when handles are used
+                try { if (this.state.mobile.enabled) this.updateMobileNavigationButtons(); } catch(_){}
             }
             // Tabs
             else if (e.target.classList.contains('klite-tab')) {
@@ -4887,11 +5270,13 @@
         },
 
         handleModalClick(e) {
-            this.log('state', `Handling modal action: ${e.target.dataset.action}`);
-            // Handle clicks on dynamically created modals
-            if (e.target.dataset.action) {
+            // Find the closest actionable element inside the modal
+            const actionElement = e.target.closest('[data-action]');
+            const action = actionElement?.dataset?.action;
+            this.log('state', `Handling modal action: ${action || 'none'}`);
+            if (action) {
                 // Route modal actions to main handleAction function
-                this.handleAction(e.target.dataset.action, e);
+                this.handleAction(action, e, actionElement);
             }
         },
 
@@ -5009,45 +5394,24 @@
                     this.handleAction('forward');
                     break;
                 // Panel switching
-                case 'switch_panel_play':
-                    this.switchTab('left', 'TOOLS');
-                    break;
                 case 'switch_panel_chars':
                     this.switchTab('right', 'CHARS');
                     break;
-                case 'switch_panel_memory':
-                    this.switchTab('right', 'MEMORY');
-                    break;
-                case 'switch_panel_wi':
-                    this.switchTab('right', 'WI');
-                    break;
-                case 'switch_panel_scene':
-                    this.switchTab('left', 'SCENE');
+                case 'switch_panel_image':
+                    this.switchTab('right', 'IMAGE');
                     break;
                 case 'switch_panel_group':
-                    this.switchTab('left', 'ROLES');
+                    this.switchTab('right', 'ROLES');
                     break;
                 case 'switch_panel_tools':
-                    this.switchTab('left', 'TOOLS');
+                    this.switchTab('right', 'TOOLS');
                     break;
-                case 'switch_panel_notes':
-                    this.switchTab('right', 'NOTES');
-                    break;
-                case 'switch_panel_textdb':
-                    this.switchTab('right', 'TEXTDB');
-                    break;
-                case 'switch_panel_help':
-                    this.switchTab('left', 'HELP');
+                case 'switch_panel_context':
+                    this.switchTab('right', 'CONTEXT');
                     break;
                 // Panel toggles
-                case 'toggle_left_panel':
-                    this.togglePanel('left');
-                    break;
                 case 'toggle_right_panel':
                     this.togglePanel('right');
-                    break;
-                case 'toggle_top_panel':
-                    this.togglePanel('top');
                     break;
                 case 'toggle_edit_mode':
                     this.toggleEdit();
@@ -5220,16 +5584,16 @@
                         setTimeout(() => { try { this.updateMobileInputLift(); } catch(_){} }, 0);
                     } catch(_){}
                     break;
-                case 'mode-1': return; // disabled
+                case 'mode-1':
                     this.setMode(1); // Story mode + Classic UI
                     break;
-                case 'mode-2': return; // disabled
+                case 'mode-2':
                     this.setMode(2); // Adventure mode + Classic UI
                     break;
-                case 'mode-3': return; // disabled
+                case 'mode-3':
                     this.setMode(3); // Chat mode + Classic UI
                     break;
-                case 'mode-4': return; // disabled
+                case 'mode-4':
                     this.setMode(4); // RP mode = Instruct mode + Classic UI + inject_chatnames_instruct
                     break;
                 case 'context': this.switchTab('left', 'CONTEXT'); break;
@@ -5285,7 +5649,7 @@
                             handled = true;
                         }
                     } else {
-                        // For non-PLAY left panels (ROLES, TOOLS, CONTEXT, SCENE, HELP), check directly
+                        // For non-PLAY left panels (ROLES, TOOLS, CONTEXT, IMAGE, HELP), check directly
                         const panel = KLITE_RPMod.panels[activeLeftPanel];
                         if (panel?.actions?.[action]) {
                             this.log('panels', `Action ${action} handled by ${activeLeftPanel}`);
@@ -5312,38 +5676,160 @@
             }
         },
 
+        // Inject custom checkbox into KoboldAI Lite Settings/Advanced tab
+        installSettingsEnhancer() {
+            try {
+                if (this._settingsEnhanced) return;
+                if (typeof window.display_settings === 'function') {
+                    const orig = window.display_settings;
+                    const self = this;
+                    window.display_settings = function(...args) {
+                        const ret = orig.apply(this, args);
+                        setTimeout(() => { try { self.injectOverlayCheckboxIntoSettings(); } catch(_){} }, 50);
+                        return ret;
+                    };
+                }
+                if (typeof window.display_settings_tab === 'function') {
+                    const origTab = window.display_settings_tab;
+                    const self2 = this;
+                    window.display_settings_tab = function(tabidx, ...rest) {
+                        const r = origTab.apply(this, [tabidx, ...rest]);
+                        if (tabidx === 4) {
+                            setTimeout(() => { try { self2.injectOverlayCheckboxIntoSettings(); } catch(_){} }, 20);
+                        }
+                        return r;
+                    };
+                }
+                this._settingsEnhanced = true;
+                this.log('init', 'Settings enhancer installed');
+            } catch (e) {
+                this.log('init', `Settings enhancer skipped: ${e?.message || e}`);
+            }
+        },
+        injectOverlayCheckboxIntoSettings() {
+            try {
+                // Find the Advanced tab content pane
+                let pane = document.querySelector('#settingsmenuadvanced') || document.querySelector('#advanced') || document.querySelector('#settings-advanced');
+                if (!pane) {
+                    // Try to resolve via nav link text
+                    const links = Array.from(document.querySelectorAll('.settingsnav a, .nav-tabs a'));
+                    const advLink = links.find(a => /advanced/i.test(a.textContent || ''));
+                    if (advLink) {
+                        const href = advLink.getAttribute('href');
+                        if (href && href.startsWith('#')) pane = document.querySelector(href);
+                    }
+                }
+                // Fallback: append into settings body if needed
+                if (!pane) pane = document.querySelector('.settingsbody') || document.body;
+
+                if (!pane || pane.querySelector('#rpmod-overlay-sidepanel')) return; // already injected
+
+                const wrap = document.createElement('div');
+                wrap.style.margin = '8px 0';
+                wrap.innerHTML = `
+                    <label style="display:flex; align-items:center; gap:8px; font-size: 13px;">
+                        <input type="checkbox" id="rpmod-overlay-sidepanel" ${this.getOverlaySidepanelEnabled() ? 'checked' : ''}>
+                        RPmod sidepanel overlays chat area
+                    </label>
+                    <div style="color: var(--muted); font-size: 11px; margin-left: 24px;">Disable to make space so chat stays fully visible.</div>
+                `;
+                pane.appendChild(wrap);
+
+                const cb = wrap.querySelector('#rpmod-overlay-sidepanel');
+                cb.addEventListener('change', () => {
+                    this.setOverlaySidepanelEnabled(cb.checked);
+                    try {
+                        // Persist if possible
+                        if (typeof window.indexeddb_save === 'function') {
+                            window.indexeddb_save('localsettings', window.localsettings);
+                        }
+                    } catch(_){}
+                });
+
+                this.log('init', 'Injected RPmod overlay checkbox into Settings/Advanced');
+            } catch (e) {
+                this.log('init', `Failed to inject overlay checkbox: ${e?.message || e}`);
+            }
+        },
+
         // Panel system
         panels: {},
+
+        // Panels-only overlay mode: when disabled, shrink host content width to make space
+        getOverlaySidepanelEnabled() {
+            try {
+                // Default enabled unless explicitly set false
+                return window.localsettings?.rpmod_overlay_sidepanel !== false;
+            } catch(_) { return true; }
+        },
+        setOverlaySidepanelEnabled(val) {
+            try {
+                if (window.localsettings) window.localsettings.rpmod_overlay_sidepanel = !!val;
+            } catch(_){}
+            try { this.updatePanelsOnlyOverlayPadding(); } catch(_){}
+        },
+        updatePanelsOnlyOverlayPadding() {
+            try {
+                const panelsOnly = !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.panelsOnly);
+                if (!panelsOnly) return;
+                const overlay = this.getOverlaySidepanelEnabled();
+                const right = document.getElementById('panel-right');
+                const isOpen = !!(right && !right.classList.contains('collapsed'));
+                const maincon = document.getElementById('maincontainer');
+                const isMobile = !!(this.state?.mobile?.enabled);
+
+                // Reset any previous adjustments
+                document.body.classList.remove('klite-panels-nonoverlay-right');
+                if (maincon) maincon.style.marginRight = '';
+
+                // Only apply non-overlay spacing on desktop/tablet widths
+                if (!overlay && isOpen && !isMobile) {
+                    if (maincon) {
+                        maincon.style.marginRight = '350px';
+                    } else {
+                        // Fallback to body class if maincontainer not found
+                        document.body.classList.add('klite-panels-nonoverlay-right');
+                    }
+                }
+            } catch(_){}
+        },
 
         switchTab(panel, tab) {
             this.log('panels', `Switching ${panel} panel to ${tab}`);
 
+            // In Esobold panels-only mode, ignore left-panel switches entirely
+            if ((window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.panelsOnly) && panel === 'left') {
+                this.log('panels', 'Ignored left-panel switch in panels-only mode');
+                return;
+            }
+
+            // Update state; if switching 'left' while only right panel is visible, mirror to right
             this.state.tabs[panel] = tab;
+            if (panel === 'left') {
+                this.state.tabs.right = tab;
+            }
             this.saveState();
 
-            // Update UI
-            document.querySelectorAll(`[data-panel="${panel}"] .klite-tab`).forEach(t => {
+            // Update UI (alias left→right when needed)
+            const targetPanel = (panel === 'left') ? 'right' : panel;
+            document.querySelectorAll(`[data-panel="${targetPanel}"] .klite-tab`).forEach(t => {
                 t.classList.toggle('active', t.dataset.tab === tab);
             });
 
-            this.loadPanel(panel, tab);
+            this.loadPanel(targetPanel, tab);
         },
 
         syncTabButtonStates() {
             // Ensure button states match the current state.tabs during initialization
             this.log('panels', 'Syncing tab button states with current state');
 
-            // Wait for DOM to be ready if called too early
-            if (!document.querySelector('[data-panel="left"]')) {
-                this.log('panels', 'DOM not ready, deferring button state sync');
-                setTimeout(() => this.syncTabButtonStates(), 10);
-                return;
+            // Update left panel buttons if present (left panel may not exist)
+            const leftTabs = document.querySelectorAll('[data-panel="left"] .klite-tab');
+            if (leftTabs && leftTabs.length) {
+                leftTabs.forEach(t => {
+                    t.classList.toggle('active', t.dataset.tab === this.state.tabs.left);
+                });
             }
-
-            // Update left panel buttons
-            document.querySelectorAll('[data-panel="left"] .klite-tab').forEach(t => {
-                t.classList.toggle('active', t.dataset.tab === this.state.tabs.left);
-            });
 
             // Update right panel buttons  
             document.querySelectorAll('[data-panel="right"] .klite-tab').forEach(t => {
@@ -5356,10 +5842,170 @@
         loadPanel(side, name) {
             this.log('panels', `Loading panel: ${side}/${name}`);
 
+            // Single-right-panel behavior: render any 'left' loads into 'right'
+            if (side === 'left') side = 'right';
+
             const container = document.getElementById(`content-${side}`);
 
             // Reset panel-specific CSS classes
             container.className = 'klite-content';
+
+            // In panels-only mode, only allow known right-panel tabs
+            if (window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.panelsOnly && side === 'right') {
+                const allowed = new Set(['CHARS','ROLES','TOOLS','CONTEXT','IMAGE','MEMORY','NOTES','WI','TEXTDB']);
+                if (!allowed.has(name)) {
+                    this.log('panels', `Skipped loading unused panel '${name}' in panels-only mode`);
+                    return;
+                }
+            }
+
+            // Lazy-register IMAGE panel if requested and not yet present
+            if (name === 'IMAGE' && !KLITE_RPMod.panels.IMAGE) {
+                try {
+                    KLITE_RPMod.panels.IMAGE = {
+                        render() {
+                            return `
+                                ${t.section('🎨 Image Generation', `
+                                    <div class="klite-image-status" style="margin-bottom: 12px; padding: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;">
+                                        <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px;">Image Generation Status</div>
+                                        <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
+                                            <div><span style="color: var(--muted);">Provider:</span> <span id="scene-mode-status" style="color: var(--text); font-weight: bold;">${KLITE_RPMod.getGenerationMode?.(window.localsettings?.generate_images_mode) || 'auto'}</span></div>
+                                            <div><span style="color: var(--muted);">Model:</span> <span id="scene-model-status" style="color: var(--text); font-weight: bold;">${window.localsettings?.generate_images_model || 'Default'}</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="klite-image-controls" style="margin-bottom: 12px;">
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px;">Auto-generate:</label>
+                                        ${t.select('scene-autogen', [
+                                            { value: '0', text: 'Disabled', selected: true },
+                                            { value: '1', text: 'Immersive Mode' },
+                                            { value: '2', text: 'All Messages' },
+                                            { value: '3', text: 'User Messages Only' },
+                                            { value: '4', text: 'Non-User Messages Only' }
+                                        ])}
+                                        <div style="margin-top: 8px;">${t.checkbox('scene-detect', 'Detect ImgGen Instructions', false)}</div>
+                                    </div>
+                                    <div class="klite-image-generation-section">
+                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Scene & Characters</div>
+                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; margin-bottom: 10px;">
+                                            ${t.button('🏞️ Current Scene', 'klite-btn-sm', 'gen-scene')}
+                                            ${t.button('🤖 AI Character', 'klite-btn-sm', 'gen-ai-portrait')}
+                                            ${t.button('👤 Persona', 'klite-btn-sm', 'gen-user-portrait')}
+                                            ${t.button('👥 Group Shot', 'klite-btn-sm', 'gen-group')}
+                                        </div>
+                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Events & Actions</div>
+                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; margin-bottom: 10px;">
+                                            ${t.button('⚔️ Combat', 'klite-btn-sm', 'gen-combat')}
+                                            ${t.button('💬 Dialogue', 'klite-btn-sm', 'gen-dialogue')}
+                                            ${t.button('🎭 Plot', 'klite-btn-sm', 'gen-dramatic')}
+                                            ${t.button('🌅 Atmosphere', 'klite-btn-sm', 'gen-atmosphere')}
+                                        </div>
+                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Context-Based</div>
+                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px;">
+                                            ${t.button('📝 Memory', 'klite-btn-sm', 'gen-memory')}
+                                            ${t.button('📄 Last Message', 'klite-btn-sm', 'gen-last-message')}
+                                            ${t.button('🔄 Recent Events', 'klite-btn-sm', 'gen-recent')}
+                                            ${t.button('🎯 Custom', 'klite-btn-sm', 'gen-custom')}
+                                        </div>
+                                    </div>
+                                `)}
+                            `;
+                        },
+                        init() {},
+                        isImageGenerationAvailable() {
+                            if (!window.do_manual_gen_image || typeof window.do_manual_gen_image !== 'function') {
+                                return { available: false, reason: 'Image generation function not available' };
+                            }
+                            if (window.localsettings?.image_generation_enabled === false) return { available: false, reason: 'Image generation disabled' };
+                            return { available: true, provider: 'Host' };
+                        },
+                        generateImage(prompt) {
+                            const status = this.isImageGenerationAvailable();
+                            if (!status.available) return false;
+                            try { window.do_manual_gen_image(prompt); KLITE_RPMod.log('image', `Image generation: ${prompt}`); return true; }
+                            catch (e) { KLITE_RPMod.error('Image generation failed:', e); return false; }
+                        },
+                        actions: {
+                            'gen-custom': () => {
+                                const input = window.prompt('Enter an image prompt:');
+                                const prompt = (input || '').trim();
+                                if (!prompt) return;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-scene': () => {
+                                try {
+                                    const arr = Array.isArray(window.gametext_arr) ? window.gametext_arr : [];
+                                    const recent = arr.slice(-3).join(' ').trim();
+                                    const base = recent || (window.current_memory || '').trim();
+                                    const excerpt = base ? base.substring(0, 250) : 'current story context';
+                                    const prompt = `Illustrate the current scene: ${excerpt} — cinematic, detailed, cohesive style`;
+                                    KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                                } catch (_) {
+                                    KLITE_RPMod.panels.IMAGE.generateImage('Illustrate the current scene, cinematic, detailed, cohesive style');
+                                }
+                            },
+                            'gen-ai-portrait': () => {
+                                const aiName = (window.localsettings?.chatopponent || 'character').split('||$||')[0];
+                                const prompt = `Portrait of ${aiName}, detailed character art, high quality`;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-user-portrait': () => {
+                                const userName = window.localsettings?.chatname || 'User';
+                                const prompt = `Portrait of ${userName}, detailed character art, high quality`;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-group': () => {
+                                const aiName = (window.localsettings?.chatopponent || 'character').split('||$||')[0];
+                                const userName = window.localsettings?.chatname || 'User';
+                                const prompt = `Group shot of ${userName} and ${aiName}, dynamic composition, detailed character art`;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-combat': () => {
+                                const location = document.getElementById('scene-location')?.value || 'battlefield';
+                                const prompt = `Intense combat scene in ${location}, action scene, dynamic angles, dramatic lighting`;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-dialogue': () => {
+                                const aiName = (window.localsettings?.chatopponent || 'character').split('||$||')[0];
+                                const userName = window.localsettings?.chatname || 'User';
+                                const prompt = `${userName} and ${aiName} having an intimate conversation, emotional expressions`;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-dramatic': () => {
+                                const location = document.getElementById('scene-location')?.value || 'scene';
+                                const mood = document.getElementById('scene-mood')?.value || 'dramatic';
+                                const prompt = `Dramatic ${mood} moment in ${location}, cinematic composition, emotional intensity`;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-atmosphere': () => {
+                                KLITE_RPMod.panels.IMAGE.generateImage('Atmospheric environmental scene, mood lighting, evocative ambience');
+                            },
+                            'gen-memory': () => {
+                                const memoryText = window.current_memory || '';
+                                const prompt = memoryText ? `Scene based on: ${memoryText.substring(0, 200)}...` : 'Scene based on current memory context';
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt + ', detailed illustration, narrative art');
+                            },
+                            'gen-last-message': () => {
+                                const lastMessage = window.gametext_arr?.[window.gametext_arr.length - 1] || '';
+                                const prompt = lastMessage ? `Scene depicting: ${lastMessage.substring(0, 200)}...` : 'Scene based on last message';
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt + ', detailed illustration, story art');
+                            },
+                            'gen-recent': () => {
+                                try {
+                                    const arr = Array.isArray(window.gametext_arr) ? window.gametext_arr : [];
+                                    const recent = arr.slice(-6).join(' ').trim();
+                                    const excerpt = recent ? recent.substring(0, 400) : 'recent dialogue and narration';
+                                    const prompt = `Key recent events: ${excerpt} — story illustration, cohesive multi-panel feel`;
+                                    KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                                } catch (_) {
+                                    KLITE_RPMod.panels.IMAGE.generateImage('Illustrate recent events — story illustration, cohesive style');
+                                }
+                            }
+                        }
+                    };
+                } catch (e) {
+                    this.error('Failed to register IMAGE panel:', e);
+                }
+            }
 
             // Mode-aware panel selection for PLAY
             if (name === 'PLAY') {
@@ -5450,6 +6096,9 @@
             // Update button active states when panels are toggled
             this.updateTabletSidepanelButton();
             this.updateFullscreenButton();
+
+            // In panels-only mode, update non-overlay body padding state
+            try { this.updatePanelsOnlyOverlayPadding(); } catch(_){}
 
             this.saveState();
         },
@@ -5719,17 +6368,16 @@
                 }
             }, 250);
 
-            // Hook autosave to ensure our data is saved
-            if (window.autosave) {
+            // Hook autosave (optional) to persist RPmod bundle
+            if (window.KLITE_RPMod_Config?.rpmodAutosave && window.autosave) {
                 const origAutosave = window.autosave;
                 window.autosave = (...args) => {
                     this.log('integration', 'Autosave triggered');
                     const res = origAutosave.apply(window, args);
-                    // Also persist an RPmod bundle tied to the current story
                     try { this.saveAutosaveBundle(); } catch (_) {}
                     return res;
                 };
-                this.log('hooks', 'Hooked autosave');
+                this.log('hooks', 'Hooked autosave for RPmod bundle');
             }
 
             // Add RP topbar for Lite/Esolite inside RPmod's top panel once the host has injected its nav items
@@ -6112,8 +6760,8 @@
                 KLITE_RPMod.onRPModeExit();
             }
 
-            // Reload PLAY panel with new mode
-            this.switchTab('left', 'PLAY');
+            // UNUSED (overlay-only): would reload PLAY panel; ignored in panels-only
+            // this.switchTab('left', 'PLAY');
         },
 
         switchToClassicUI() {
@@ -6180,7 +6828,7 @@
             }, 100);
         },
 
-        // Quick button state management
+        // UNUSED (overlay UI): Quick button state management and visual toggles
         quickButtonState: {
             activeButton: null,
             lastActiveMode: null,
@@ -6188,6 +6836,7 @@
             isUpdating: false
         },
 
+        // UNUSED (overlay UI): Updates quick mode buttons
         updateModeButtons() {
             let mode = window.localsettings?.opmode || 1; // Default to story mode
 
@@ -6202,6 +6851,7 @@
             this.setActiveQuickButton(buttonToHighlight, mode);
         },
 
+        // UNUSED (overlay UI): Applies active state to quick mode buttons
         setActiveQuickButton(buttonNumber, actualMode) {
             const modeButtons = document.querySelectorAll('[data-action^="mode-"]');
             const targetBtns = document.querySelectorAll(`[data-action="mode-${buttonNumber}"]`);
@@ -6232,6 +6882,19 @@
             this.log('state', `Mode buttons updated for mode ${targetMode}`);
         },
 
+        setMode(mode) {
+            try {
+                if (!window.localsettings) return;
+                window.localsettings.opmode = mode;
+                this.onModeChange(mode);
+                this.updateModeButtons();
+                // UNUSED (overlay-only): would reload PLAY panel; ignored in panels-only
+                // this.switchTab('left', 'PLAY');
+            } catch (e) {
+                this.error('Failed to set mode', e);
+            }
+        },
+
 
         updateBottomButtons(mode) {
             const btns = ['#btn-1', '#btn-2', '#btn-3'].map(id => document.querySelector(id));
@@ -6251,7 +6914,7 @@
         },
 
 
-
+        // UNUSED (overlay UI): Bottom quick actions exist only in overlay UI
         bottomAction(index) {
             const mode = window.localsettings?.opmode || 3;
             this.log('state', `Bottom action ${index} triggered in mode ${mode}`);
@@ -6276,6 +6939,7 @@
             }
         },
 
+        // UNUSED (overlay UI): Fullscreen toggling requires overlay container/maincontent
         toggleFullscreen() {
             const maincontent = document.getElementById('maincontent');
             const isFullscreen = maincontent.classList.contains('fullscreen');
@@ -6309,6 +6973,7 @@
             this.log('state', `Fullscreen ${!isFullscreen ? 'enabled' : 'disabled'}`);
         },
 
+        // UNUSED (overlay UI): Tablet sidepanel layout applies to overlay container
         toggleTabletSidepanel() {
             // Only allow toggling when in tablet mode
             if (!this.isTabletMode()) {
@@ -6332,6 +6997,7 @@
             this.saveState();
         },
 
+        // UNUSED (overlay UI): Tablet sidepanel CSS classes on overlay container
         updateTabletSidepanelPositions() {
             if (!this.state.tabletSidepanel) {
                 this.removeTabletSidepanelClasses();
@@ -6375,12 +7041,14 @@
             return window.innerWidth >= 768 && window.innerWidth <= 1400;
         },
 
+        // UNUSED (overlay UI): Helper to clear tablet sidepanel classes on overlay container
         removeTabletSidepanelClasses() {
             const container = document.getElementById('klite-container');
             if (!container) return;
             container.classList.remove('tablet-sidepanel-both', 'tablet-sidepanel-left', 'tablet-sidepanel-right', 'tablet-sidepanel-none');
         },
 
+        // UNUSED (overlay UI): Restores fullscreen/tablet sidepanel state on overlay
         restoreUIStates() {
             // Restore fullscreen state
             if (this.state.fullscreen) {
@@ -6400,6 +7068,7 @@
             this.updateFullscreenButton();
         },
 
+        // UNUSED (overlay UI): Updates quick button state inside overlay UI
         updateTabletSidepanelButton() {
             const button = document.querySelector('.klite-quick-btn[data-action="tablet-sidepanel"]');
             if (button) {
@@ -6409,6 +7078,7 @@
             }
         },
 
+        // UNUSED (overlay UI): Updates fullscreen quick button state inside overlay UI
         updateFullscreenButton() {
             const button = document.querySelector('.klite-quick-btn[data-action="fullscreen"]');
             if (button) {
@@ -6978,8 +7648,10 @@
             this.syncChat();
             this.updateTokens();
             this.updateModeButtons();
-            // Attempt a one-time restore of RPmod autosave bundle once story is present
-            setTimeout(() => this.tryRestoreAutosaveBundle(), 600);
+            // Optionally restore RPmod autosave bundle (disabled by default)
+            if (window.KLITE_RPMod_Config?.rpmodAutosave) {
+                setTimeout(() => this.tryRestoreAutosaveBundle(), 600);
+            }
 
             // Add window resize listener for dynamic mobile mode detection
             window.addEventListener('resize', () => {
@@ -7034,83 +7706,6 @@
             }
         },
 
-        // Compute a stable story hash to link RPmod autosaves to Lite autosaves
-        computeStoryHash() {
-            try {
-                const text = (typeof window.concat_gametext === 'function') ? window.concat_gametext(true, "", "", "", false) : (Array.isArray(window.gametext_arr) ? window.gametext_arr.join("\n") : "");
-                const mem = window.current_memory || '';
-                const anote = window.current_anote || '';
-                const wi = Array.isArray(window.current_wi) ? JSON.stringify(window.current_wi) : '';
-                const raw = `${text}\n::MEM::${mem}\n::ANOTE::${anote}\n::WI::${wi}`;
-                // lightweight 32-bit hash
-                let h = 0;
-                for (let i = 0; i < raw.length; i++) {
-                    h = ((h << 5) - h) + raw.charCodeAt(i);
-                    h |= 0;
-                }
-                return `rpmod_${h}`;
-            } catch (_) {
-                return `rpmod_${Date.now()}`;
-            }
-        },
-
-        // Save consolidated RPmod autosave bundle keyed to current story state
-        async saveAutosaveBundle() {
-            const bundle = {
-                version: '1',
-                story_hash: this.computeStoryHash(),
-                timestamp: new Date().toISOString(),
-                // RP panel state
-                rp: this.panels.TOOLS ? {
-                    rules: this.panels.TOOLS.rules || '',
-                    selectedCharacter: this.panels.TOOLS.selectedCharacter || null,
-                    characterEnabled: !!this.panels.TOOLS.characterEnabled,
-                    selectedPersona: this.panels.TOOLS.selectedPersona || null,
-                    personaEnabled: !!this.panels.TOOLS.personaEnabled,
-                    autoSender: this.panels.TOOLS.autoSender ? { ...this.panels.TOOLS.autoSender } : null,
-                    quickActions: Array.isArray(this.panels.TOOLS.quickActions) ? [...this.panels.TOOLS.quickActions] : [],
-                    chapters: Array.isArray(this.panels.TOOLS.chapters) ? [...this.panels.TOOLS.chapters] : []
-                } : null,
-                // Group panel state
-                group: this.panels.ROLES ? {
-                    enabled: !!this.panels.ROLES.enabled,
-                    participants: Array.isArray(this.panels.ROLES.activeChars) ? this.panels.ROLES.activeChars.map(c => ({ name: c.name, image: c.image, isCustom: !!c.isCustom })) : [],
-                    currentSpeaker: typeof this.panels.ROLES.currentSpeaker === 'number' ? this.panels.ROLES.currentSpeaker : 0,
-                    lastSpeaker: typeof this.panels.ROLES.lastSpeaker === 'number' ? this.panels.ROLES.lastSpeaker : -1,
-                    speakerMode: this.panels.ROLES.speakerMode || 'manual',
-                    autoResponses: this.panels.ROLES.autoResponses ? { ...this.panels.ROLES.autoResponses } : null,
-                    roundRobinPosition: typeof this.panels.ROLES.roundRobinPosition === 'number' ? this.panels.ROLES.roundRobinPosition : 0,
-                    speakerHistory: Array.isArray(this.panels.ROLES.speakerHistory) ? this.panels.ROLES.speakerHistory.slice(-20) : [],
-                    removals: Array.isArray(window.groupchat_removals) ? [...window.groupchat_removals] : []
-                } : null,
-                // Chat panel state
-                chat: this.panels.PLAY_CHAT ? {
-                    chatStyle: this.panels.PLAY_CHAT.chatStyle || 'mobile',
-                    saveSlots: this.panels.PLAY_CHAT.saveSlots ? { ...this.panels.PLAY_CHAT.saveSlots } : null
-                } : null,
-                // Scene panel visual style
-                scene: this.panels.SCENE ? {
-                    visualStyle: this.panels.SCENE.visualStyle ? { ...this.panels.SCENE.visualStyle } : null
-                } : null,
-                // Global UI state
-                ui: {
-                    tabs: { ...this.state.tabs },
-                    collapsed: { ...this.state.collapsed },
-                    adventureMode: this.state.adventureMode || 0,
-                    fullscreen: !!this.state.fullscreen,
-                    tabletSidepanel: !!this.state.tabletSidepanel,
-                    avatarPolicy: this.state.avatarPolicy ? { ...this.state.avatarPolicy } : { esoliteAdapter:false, liteExperimental:false }
-                },
-                // Generation settings snapshot that matter for RPmod UX
-                gen: window.localsettings ? {
-                    chatname: window.localsettings.chatname,
-                    chatopponent: window.localsettings.chatopponent,
-                    opmode: window.localsettings.opmode
-                } : null
-            };
-            await this.saveToLiteStorage('rpmod_autosave', JSON.stringify(bundle));
-            this.log('state', `RPmod autosave bundle saved (${bundle.story_hash})`);
-        },
 
         // Produce a serializable snapshot for embedding into host savefiles
         getSaveBundle() {
@@ -7155,9 +7750,7 @@
                         chatStyle: this.panels.PLAY_CHAT.chatStyle || 'mobile',
                         saveSlots: this.panels.PLAY_CHAT.saveSlots ? { ...this.panels.PLAY_CHAT.saveSlots } : null
                     } : null,
-                    scene: this.panels.SCENE ? {
-                        visualStyle: this.panels.SCENE.visualStyle ? { ...this.panels.SCENE.visualStyle } : null
-                    } : null,
+                    // Scene visual style removed
                     ui: {
                         tabs: { ...this.state.tabs },
                         collapsed: { ...this.state.collapsed },
@@ -7217,9 +7810,7 @@
                     this.panels.PLAY_CHAT.chatStyle = bundle.chat.chatStyle || 'mobile';
                     if (bundle.chat.saveSlots) this.panels.PLAY_CHAT.saveSlots = { ...bundle.chat.saveSlots };
                 }
-                if (bundle.scene && this.panels.SCENE && bundle.scene.visualStyle) {
-                    this.panels.SCENE.visualStyle = { ...this.panels.SCENE.visualStyle, ...bundle.scene.visualStyle };
-                }
+                // Removed SCENE visual style restore; theming relies on host
                 if (bundle.ui) {
                     this.state.tabs = { ...bundle.ui.tabs };
                     this.state.collapsed = { ...bundle.ui.collapsed };
@@ -7244,74 +7835,6 @@
             }
         },
 
-        // Attempt to restore RPmod autosave bundle that matches current story
-        async tryRestoreAutosaveBundle() {
-            if (this._autosaveRestored) return;
-            const currentHash = this.computeStoryHash();
-            try {
-                const raw = await this.loadFromLiteStorage('rpmod_autosave');
-                if (!raw || raw === 'offload_to_indexeddb') return;
-                const bundle = JSON.parse(raw);
-                if (!bundle || bundle.story_hash !== currentHash) {
-                    this.log('state', `RPmod autosave bundle not matched (have=${bundle?.story_hash}, need=${currentHash})`);
-                    return;
-                }
-                // Restore bundle
-                if (bundle.rp && this.panels.TOOLS) {
-                    this.panels.TOOLS.rules = bundle.rp.rules || '';
-                    this.panels.TOOLS.selectedCharacter = bundle.rp.selectedCharacter || null;
-                    this.panels.TOOLS.characterEnabled = !!bundle.rp.characterEnabled;
-                    this.panels.TOOLS.selectedPersona = bundle.rp.selectedPersona || null;
-                    this.panels.TOOLS.personaEnabled = !!bundle.rp.personaEnabled;
-                    if (bundle.rp.autoSender) this.panels.TOOLS.autoSender = { ...bundle.rp.autoSender };
-                    if (Array.isArray(bundle.rp.quickActions)) this.panels.TOOLS.quickActions = [...bundle.rp.quickActions];
-                    if (Array.isArray(bundle.rp.chapters)) this.panels.TOOLS.chapters = [...bundle.rp.chapters];
-                }
-                if (bundle.group && this.panels.ROLES) {
-                    this.panels.ROLES.enabled = !!bundle.group.enabled;
-                    this.panels.ROLES.activeChars = Array.isArray(bundle.group.participants) ? bundle.group.participants.map(c => ({ ...c })) : [];
-                    this.panels.ROLES.currentSpeaker = typeof bundle.group.currentSpeaker === 'number' ? bundle.group.currentSpeaker : 0;
-                    this.panels.ROLES.speakerMode = bundle.group.speakerMode || 'manual';
-                    if (typeof bundle.group.lastSpeaker === 'number') this.panels.ROLES.lastSpeaker = bundle.group.lastSpeaker;
-                    if (bundle.group.autoResponses) this.panels.ROLES.autoResponses = { ...bundle.group.autoResponses };
-                    if (typeof bundle.group.roundRobinPosition === 'number') this.panels.ROLES.roundRobinPosition = bundle.group.roundRobinPosition;
-                    if (Array.isArray(bundle.group.speakerHistory)) this.panels.ROLES.speakerHistory = bundle.group.speakerHistory.slice(-20);
-                    window.groupchat_removals = Array.isArray(bundle.group.removals) ? [...bundle.group.removals] : [];
-                }
-                if (bundle.chat && this.panels.PLAY_CHAT) {
-                    this.panels.PLAY_CHAT.chatStyle = bundle.chat.chatStyle || 'mobile';
-                    if (bundle.chat.saveSlots) this.panels.PLAY_CHAT.saveSlots = { ...bundle.chat.saveSlots };
-                }
-                if (bundle.scene && this.panels.SCENE && bundle.scene.visualStyle) {
-                    this.panels.SCENE.visualStyle = { ...this.panels.SCENE.visualStyle, ...bundle.scene.visualStyle };
-                }
-                if (bundle.ui) {
-                    this.state.tabs = { ...bundle.ui.tabs };
-                    this.state.collapsed = { ...bundle.ui.collapsed };
-                    this.state.adventureMode = bundle.ui.adventureMode || 0;
-                    this.state.fullscreen = !!bundle.ui.fullscreen;
-                    this.state.tabletSidepanel = !!bundle.ui.tabletSidepanel;
-                    if (bundle.ui.avatarPolicy) this.state.avatarPolicy = { ...bundle.ui.avatarPolicy };
-                }
-                if (bundle.gen && window.localsettings) {
-                    // Restore only benign fields
-                    window.localsettings.chatname = bundle.gen.chatname || window.localsettings.chatname;
-                    window.localsettings.chatopponent = bundle.gen.chatopponent || window.localsettings.chatopponent;
-                    // Do not force opmode; respect currently loaded mode
-                }
-                // Refresh UI to reflect restores
-                this.updateModeButtons();
-                try { this.installAvatarAdapter(); } catch(_){}
-                if (this.panels.TOOLS?.refresh) this.panels.TOOLS.refresh();
-                if (this.panels.ROLES?.refresh) this.panels.ROLES.refresh();
-                if (this.panels.PLAY_CHAT?.formatChatContent) this.panels.PLAY_CHAT.formatChatContent();
-                this.syncChat();
-                this._autosaveRestored = true;
-                this.log('state', `RPmod autosave bundle restored (${currentHash})`);
-            } catch (e) {
-                this.error('Failed to restore RPmod autosave bundle:', e);
-            }
-        },
 
         // Helper functions
         escapeHtml(text) {
@@ -7427,8 +7950,9 @@
             });
             document.addEventListener('keydown', handleEscape);
 
-            // Load character data and setup filters
-            setTimeout(() => {
+            // Load character data and setup filters (ensuring initial data readiness)
+            setTimeout(async () => {
+                try { await this.ensureCharactersLoaded(); } catch(_) {}
                 this.loadUnifiedCharacterList(mode);
                 this.setupUnifiedCharacterModalFilters();
             }, 100);
@@ -7705,6 +8229,7 @@
 
                     KLITE_RPMod.panels.ROLES.refresh();
                     try { KLITE_RPMod.panels.ROLES.saveSettings?.(); } catch (_) {}
+                    // We do not write multi-opponent to host; speaker is set on trigger.
                     // Character addition confirmed by visual update in group list
                 }
             } else {
@@ -7783,7 +8308,7 @@
 
                 const jsonData = JSON.stringify(charactersData);
 
-                await this.saveToLiteStorage('rpmod_characters', jsonData);
+                await this.saveToLiteStorage('characters_v3', jsonData);
                 this.essential(`💾 Characters saved: ${this.characters.length} characters (${Math.round(jsonData.length / 1024)}KB)`);
 
             } catch (error) {
@@ -7801,10 +8326,10 @@
                 await this.saveState();
             }
 
-            // Initialize rpmod_characters if it doesn't exist
-            const charactersExists = await this.loadFromLiteStorage('rpmod_characters');
+            // Initialize characters_v3 if it doesn't exist
+            const charactersExists = await this.loadFromLiteStorage('characters_v3');
             if (!charactersExists) {
-                this.log('init', 'Creating default rpmod_characters');
+                this.log('init', 'Creating default characters_v3');
                 await this.saveCharacters();
             }
         },
@@ -7845,7 +8370,7 @@
 
         async loadCharacters() {
             try {
-                const liteStorageData = await this.loadFromLiteStorage('rpmod_characters');
+                const liteStorageData = await this.loadFromLiteStorage('characters_v3');
                 if (liteStorageData && liteStorageData !== 'offload_to_indexeddb') {
                     const data = JSON.parse(liteStorageData);
 
@@ -7874,6 +8399,24 @@
                 this.characters = [];
                 this.error('Failed to load characters - starting with empty list:', error);
             }
+        },
+
+        // Ensure character data is ready before opening selection modals or actions
+        async ensureCharactersLoaded() {
+            try {
+                if (!Array.isArray(this.characters) || this.characters.length === 0) {
+                    try { await this.initializeStorageKeys(); } catch(_) {}
+                    try { await this.loadCharacters(); } catch(_) {}
+
+                    // If still empty, try to rebuild from esolite and wait a moment
+                    if (!Array.isArray(this.characters) || this.characters.length === 0) {
+                        try { this.panels.CHARS?.installEsoliteAdapter?.(); } catch(_) {}
+                        await new Promise(r => setTimeout(r, 150));
+                        try { this.panels.CHARS?.rebuildFromEsolite?.(); } catch(_) {}
+                        await new Promise(r => setTimeout(r, 150));
+                    }
+                }
+            } catch (_) {}
         },
 
         // Find character by ID
@@ -8022,28 +8565,81 @@
             }
         },
 
-        // Export characters to downloadable file
-        exportCharactersToFile(filename) {
+        // Export all characters as separate files (PNG preferred, otherwise JSON)
+        async exportCharactersToFile() {
             try {
-                const exportData = {
-                    version: '1.0',
-                    exported: new Date().toISOString(),
-                    characters: this.characters
+                const list = this.getEsoliteCharacterList();
+                // Support both string-based lists and object metadata lists
+                const names = list
+                    .map(m => typeof m === 'string' ? m : (m && m.name) ? m.name : null)
+                    .filter(Boolean);
+                if (names.length === 0) { try { alert('No characters found to export.'); } catch(_) {} return; }
+
+                // Some environments (file://, Safari) restrict multiple auto-downloads.
+                const isFileProtocol = (typeof location !== 'undefined' && location.protocol === 'file:');
+                const isSafari = (typeof navigator !== 'undefined' && /safari/i.test(navigator.userAgent) && !/chrome|chromium|crios/i.test(navigator.userAgent));
+                const constrained = isFileProtocol || isSafari;
+
+                if (constrained && names.length > 0) {
+                    // Prefer ZIP export in constrained environments (file://, Safari)
+                    try {
+                        await this.exportCharactersAsZip(names);
+                        return;
+                    } catch (zipErr) {
+                        try { alert('ZIP export failed, falling back to single JSON bundle.'); } catch(_) {}
+                        try { await this.exportAllFromEsolite(); } catch(_) {}
+                        return;
+                    }
+                }
+
+                const toBlobFromDataURL = (dataURL) => {
+                    try {
+                        const parts = dataURL.split(',');
+                        const header = parts[0];
+                        const b64 = parts[1];
+                        const mime = header.substring(header.indexOf(':') + 1, header.indexOf(';')) || 'application/octet-stream';
+                        const bin = atob(b64);
+                        const bytes = new Uint8Array(bin.length);
+                        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                        return new Blob([bytes], { type: mime });
+                    } catch (_) { return null; }
                 };
 
-                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = filename || `klite-characters-${new Date().toISOString().split('T')[0]}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
-
-                // Exported ${this.characters.length} characters
-                this.log('state', `Characters exported to file: ${a.download}`);
-
+                let delay = 0;
+                for (const name of names) {
+                    try {
+                        const d = await window.getCharacterData?.(name);
+                        if (!d) continue;
+                        const safe = String(name).replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
+                        let blob, filename;
+                        if (d.image && /^data:image\//.test(String(d.image))) {
+                            blob = toBlobFromDataURL(String(d.image));
+                            filename = `${safe}.png`;
+                        } else {
+                            const json = JSON.stringify(d.data || {}, null, 2);
+                            blob = new Blob([json], { type: 'application/json' });
+                            filename = `${safe}.json`;
+                        }
+                        if (!blob) continue;
+                        const url = URL.createObjectURL(blob);
+                        setTimeout(() => {
+                            try {
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = filename;
+                                a.style.display = 'none';
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                            } finally {
+                                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                            }
+                        }, delay);
+                        delay += 150; // stagger to improve reliability
+                    } catch (_) {}
+                }
             } catch (error) {
-                this.error('Failed to export characters:', error);
+                this.error('Failed to export all characters (separate):', error);
             }
         }
     };
@@ -8391,7 +8987,7 @@
     // 4. PANEL DEFINITIONS - PART 1
     // =============================================
 
-    // PLAY_STORY Panel
+    // UNUSED: PLAY_STORY Panel (left/overlay UI, not used in Esobold panels-only)
     KLITE_RPMod.panels.PLAY_STORY = {
         chapters: [],
 
@@ -8474,7 +9070,7 @@
             return this.chapters.map((ch, i) => `
                 <div class="klite-timeline-item" data-chapter="${i}" data-action="goto-chapter" style="cursor: pointer;">
                     <strong>Chapter ${ch.number}:</strong> ${ch.title}
-                    <div style="font-size: 11px; color: #999;">${ch.wordCount} words</div>
+                    <div style="font-size: 11px; color: var(--muted);">${ch.wordCount} words</div>
                 </div>
             `).join('');
         },
@@ -8578,6 +9174,7 @@
     };
 
     // PLAY_ADV Panel
+    // UNUSED: PLAY_ADV Panel (left/overlay UI, not used in Esobold panels-only)
     KLITE_RPMod.panels.PLAY_ADV = {
         quickActions: ['>Look Around', '>Search', '>Check Inventory', '>Rest', '>Continue'],
 
@@ -8812,10 +9409,10 @@
                 
                 <!-- Quick Dice (moved from CONTEXT) -->
                 ${t.section('🎲 Quick Dice',
-                `<div class=\"klite-dice-grid\">\n\
+                `<div class=\"klite-dice-grid\" style=\"gap: 4px;\">\n\
                         ${['d2', 'd4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd100'].map(d =>
                     `
-                            <button class=\"klite-dice-btn\" data-action=\"roll-${d}\">${d}</button>
+                            <button class=\"klite-btn klite-btn-sm\" data-action=\"roll-${d}\" style=\"width: 100%;\">${d}</button>
                         `
                 ).join('')}\n\
                     </div>
@@ -8847,6 +9444,66 @@
             this.initQuickActions();
             await this.loadChapters();
             this.updateTimeline();
+        },
+
+        async loadSettings() {
+            try {
+                const raw = await KLITE_RPMod.loadFromLiteStorage('rpmod_tools_settings');
+                if (!raw || raw === 'offload_to_indexeddb') return;
+                const s = JSON.parse(raw);
+                if (s) {
+                    this.personaEnabled = !!s.personaEnabled;
+                    this.characterEnabled = !!s.characterEnabled;
+                    this.selectedPersona = s.selectedPersona || null;
+                    this.selectedCharacter = s.selectedCharacter || null;
+                    // Optionally restore names if provided
+                    if (s.chatname && window.localsettings) {
+                        window.localsettings.chatname = s.chatname;
+                    }
+                    if (s.chatopponent && window.localsettings) {
+                        window.localsettings.chatopponent = s.chatopponent;
+                    }
+                    // Refresh avatars
+                    try {
+                        if (this.selectedPersona && this.personaEnabled) {
+                            const up = this.selectedPersona.avatar || this.selectedPersona.image || null;
+                            KLITE_RPMod.updateUserAvatar(up);
+                        }
+                        if (this.selectedCharacter && this.characterEnabled) {
+                            const ap = this.selectedCharacter.avatar || this.selectedCharacter.image || null;
+                            KLITE_RPMod.updateAIAvatar(ap);
+                        }
+                    } catch(_) {}
+                }
+            } catch (e) {
+                KLITE_RPMod.log('panels', 'TOOLS.loadSettings failed:', e?.message || e);
+            }
+        },
+
+        saveSettings() {
+            try {
+                const payload = {
+                    personaEnabled: !!this.personaEnabled,
+                    characterEnabled: !!this.characterEnabled,
+                    selectedPersona: this.selectedPersona ? {
+                        id: this.selectedPersona.id,
+                        name: this.selectedPersona.name,
+                        image: this.selectedPersona.image || this.selectedPersona.avatar || null,
+                        type: this.selectedPersona.type
+                    } : null,
+                    selectedCharacter: this.selectedCharacter ? {
+                        id: this.selectedCharacter.id,
+                        name: this.selectedCharacter.name,
+                        image: this.selectedCharacter.image || this.selectedCharacter.avatar || null,
+                        type: this.selectedCharacter.type
+                    } : null,
+                    chatname: window.localsettings?.chatname || null,
+                    chatopponent: window.localsettings?.chatopponent || null
+                };
+                KLITE_RPMod.saveToLiteStorage('rpmod_tools_settings', JSON.stringify(payload));
+            } catch (e) {
+                KLITE_RPMod.log('panels', 'TOOLS.saveSettings failed:', e?.message || e);
+            }
         },
 
         actions: {
@@ -8917,25 +9574,25 @@
             },
             'select-persona': () => {
                 KLITE_RPMod.showUnifiedCharacterModal('single-select', (char) => {
-                    KLITE_RPMod.panels.TOOLS.selectedPersona = char;
-                    KLITE_RPMod.panels.TOOLS.personaEnabled = true;
+                    const tools = KLITE_RPMod.panels.TOOLS;
+                    tools.selectedPersona = char;
+                    tools.personaEnabled = true;
 
-                    // Apply persona-specific logic (NOT character data which affects AI)
                     // Update user avatar with persona image if available
                     if (char.avatar || char.image) {
                         KLITE_RPMod.updateUserAvatar(char.avatar || char.image);
                     } else {
-                        // Reset to default user avatar if no persona image
                         KLITE_RPMod.updateUserAvatar(null);
                     }
 
-                    // Update character context in memory without affecting AI character
-                    KLITE_RPMod.panels.TOOLS.updateCharacterContext();
+                    // Update character context and persist selection
+                    tools.updateCharacterContext();
+                    try { tools.saveSettings?.(); } catch(_) {}
 
-                    // Refresh current left panel (TOOLS or ROLES) without switching
+                    // Refresh panels immediately so the persona tile appears without tab switching
+                    try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
                     const left2 = KLITE_RPMod.state?.tabs?.left;
                     if (left2 === 'TOOLS' || left2 === 'ROLES') KLITE_RPMod.loadPanel('left', left2);
-                    // Persona application confirmed by UI state change
                 });
             },
             'remove-persona': () => KLITE_RPMod.panels.TOOLS.removePersona(),
@@ -9046,21 +9703,6 @@
                         
                         <div class="character-controls" style="${this.characterEnabled && !isGroupChatActive ? '' : 'opacity: 0.5; pointer-events: none;'}">
                             ${this.selectedCharacter ? this.renderActiveCharacter() : this.renderSelectCharacterButton()}
-                        </div>
-                    </div>
-                </div>
-                <div class="klite-persona-section" style="margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.15); border-radius: 6px;">
-                    <div style="display:flex; align-items:center; gap:8px; justify-content: space-between;">
-                        <div>
-                            <div style="font-size:12px; color: var(--muted);">Avatar Adapter</div>
-                            <div style="font-size:13px; font-weight:600; color: var(--text);">${adapterStatus}</div>
-                        </div>
-                        <div>
-                            ${isEsolite ? `<span style=\"font-size:11px; color: var(--muted);\">Using Esolite adapter</span>` : `
-                            <label style="display:flex; align-items:center; gap:6px; font-size:12px;">
-                                <input type="checkbox" id="lite-avatars-experimental" ${policy.liteExperimental ? 'checked' : ''}>
-                                Enable avatars in Lite classic UI (experimental)
-                            </label>`}
                         </div>
                     </div>
                 </div>
@@ -9767,7 +10409,7 @@
             return this.chapters.map((ch, i) => `
                 <div class="klite-timeline-item" data-chapter="${i}" data-action="goto-chapter" style="cursor: pointer;">
                     <strong>Chapter ${ch.number}:</strong> ${ch.title}
-                    <div style="font-size: 11px; color: #999;">${ch.wordCount} words</div>
+                    <div style="font-size: 11px; color: var(--muted);">${ch.wordCount} words</div>
                 </div>
             `).join('');
         },
@@ -9972,6 +10614,8 @@
 
                 // Update character context in memory
                 this.updateCharacterContext();
+                // Ensure ROLES panel reflects changes immediately if visible
+                try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
             } else {
                 alert('Failed to apply persona');
             }
@@ -10045,6 +10689,8 @@
 
                 // Update character context in memory
                 this.updateCharacterContext();
+                // Ensure ROLES panel reflects changes immediately if visible
+                try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
             } else {
                 alert('Failed to apply character');
             }
@@ -10096,6 +10742,8 @@
                 this.updateCharacterContext();
 
                 KLITE_RPMod.log('panels', `Applied character data for: ${characterData.name}`);
+                // Ensure ROLES panel reflects changes immediately if visible
+                try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
             }
         },
 
@@ -10128,6 +10776,8 @@
 
             // Update character context in memory
             this.updateCharacterContext();
+            // Ensure ROLES panel reflects changes immediately if visible
+            try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
         },
 
         removeCharacter() {
@@ -10159,6 +10809,8 @@
 
             // Update character context in memory
             this.updateCharacterContext();
+            // Ensure ROLES panel reflects changes immediately if visible
+            try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
         },
 
 
@@ -10515,6 +11167,7 @@
     };
 
     // PLAY_CHAT Panel - Mobile Phone Chat Interface
+    // UNUSED: PLAY_CHAT Panel (overlay chat formatter/UI, not used in Esobold panels-only)
     KLITE_RPMod.panels.PLAY_CHAT = {
         saveSlots: {
             current: 0,
@@ -11355,12 +12008,12 @@
                 ${t.section('🔄 Auto-Regenerate',
                 `<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                         <input type="checkbox" id="tools-auto-regen-toggle" style="width: auto;">
-                        <label for="tools-auto-regen-toggle" style="color: #999; font-size: 13px;">Enable Auto-Regenerate</label>
+                        <label for="tools-auto-regen-toggle" style="color: var(--muted); font-size: 13px;">Enable Auto-Regenerate</label>
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin-bottom: 10px;">
                         <div>
-                            <label style="color: #999; font-size: 11px;">Delay (ms):</label>
+                            <label style="color: var(--muted); font-size: 11px;">Delay (ms):</label>
                             <input type="number" id="tools-auto-regen-delay" value="3000" min="1000" max="10000" step="500" style="
                                 width: 100%; 
                                 background: var(--bg2); 
@@ -11371,7 +12024,7 @@
                             ">
                         </div>
                         <div>
-                            <label style="color: #999; font-size: 11px;">Max Retries:</label>
+                            <label style="color: var(--muted); font-size: 11px;">Max Retries:</label>
                             <input type="number" id="tools-auto-regen-max" value="3" min="1" max="10" style="
                                 width: 100%; 
                                 background: var(--bg2); 
@@ -11384,7 +12037,7 @@
                     </div>
                     
                     <div style="margin-bottom: 10px;">
-                        <label style="color: #999; font-size: 11px;">Keyword Triggers:</label>
+                        <label style="color: var(--muted); font-size: 11px;">Keyword Triggers:</label>
                         <textarea id="tools-regen-keywords" placeholder="Enter keywords, one per line" style="
                             width: 100%;
                             height: 60px;
@@ -11399,7 +12052,7 @@
                         "></textarea>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px;">
                             <div>
-                                <label style="color: #999; font-size: 11px;">Required matches:</label>
+                                <label style="color: var(--muted); font-size: 11px;">Required matches:</label>
                                 <input type="number" id="tools-keyword-threshold" value="2" min="1" max="10" style="
                                     width: 100%;
                                     background: var(--bg2);
@@ -11411,7 +12064,7 @@
                             </div>
                             <div style="display: flex; align-items: center; gap: 2px; margin-top: 16px;">
                                 <input type="checkbox" id="tools-keyword-case">
-                                <label for="tools-keyword-case" style="color: #888; font-size: 11px;">Case sensitive</label>
+                                <label for="tools-keyword-case" style="color: var(--muted); font-size: 11px;">Case sensitive</label>
                             </div>
                         </div>
                     </div>
@@ -11436,9 +12089,10 @@
                     
                     <div id="tools-auto-regen-status" style="
                         padding: 8px; 
-                        background: rgba(0,0,0,0.3); 
+                        background: var(--bg3); 
+                        border: 1px solid var(--border);
                         border-radius: 4px; 
-                        color: #666; 
+                        color: var(--muted); 
                         font-size: 11px; 
                         text-align: center;
                     ">
@@ -12128,11 +12782,11 @@ Outline:`
                 if (this.autoRegenerateState.enabled) {
                     this.startAutoRegenerate();
                     status.textContent = '✓ Auto-regenerate is active';
-                    status.style.color = '#5cb85c';
+                    status.style.color = 'var(--success)';
                 } else {
                     this.stopAutoRegenerate();
                     status.textContent = 'Auto-regenerate is disabled';
-                    status.style.color = '#666';
+                    status.style.color = 'var(--muted)';
                 }
             });
 
@@ -12328,6 +12982,7 @@ Outline:`
     };
 
     // SCENE PANEL
+    // UNUSED: SCENE Panel (left/overlay UI, not used in Esobold panels-only)
     KLITE_RPMod.panels.SCENE = {
         visualStyle: {
             theme: 'lite0',
@@ -12484,9 +13139,6 @@ Outline:`
 
         render() {
             return `
-                <div style="margin: 8px 0 12px 0; padding: 8px; border: 1px solid var(--warning, #f0ad4e); background: rgba(240,173,78,0.1); color: var(--text); border-radius: 4px; font-size: 12px;">
-                    ⚠ Do not load characters into Memory or WorldInfo, when using the KLITE-RPmod as the ROLES feature inject the characters in an alternative way that would be broken.
-                </div>
                 <!-- Visual Style -->
                 ${t.section('🌈 Visual Style',
                 `<div class="klite-visual-style-controls">
@@ -12702,7 +13354,7 @@ Outline:`
                     modeStatus.textContent = mode;
 
                     if (localsettings.generate_images_mode === '0') {
-                        modeStatus.style.color = '#999';
+                        modeStatus.style.color = 'var(--muted)';
                     } else {
                         modeStatus.style.color = '#4a9eff';
                     }
@@ -12713,7 +13365,7 @@ Outline:`
                     modelStatus.textContent = localsettings.generate_images_model;
 
                     if (localsettings.generate_images_mode === '0') {
-                        modelStatus.style.color = '#999';
+                        modelStatus.style.color = 'var(--muted)';
                     } else {
                         modelStatus.style.color = '#4a9eff';
                     }
@@ -13040,7 +13692,7 @@ Outline:`
 
             // Remove existing theme classes (RPMod and Lite mappings)
             document.body.classList.remove('theme-default', 'theme-light', 'theme-dark', 'theme-corpo', 'theme-blue', 'theme-coder', 'theme-rainbow', 'theme-pink', 'theme-transparent');
-            document.body.classList.remove('theme-1', 'theme-2', 'theme-3', 'theme-4', 'theme-5');
+            document.body.classList.remove('theme-1', 'theme-2', 'theme-3', 'theme-4', 'theme-5', 'theme-6');
 
             // Handle Lite themes (map to existing KoboldAI Lite root presets)
             // Lite Theme1 behaves as Nostalgic theme, but stays selected as 'lite1'
@@ -13071,7 +13723,7 @@ Outline:`
                 const idx = theme.replace('lite', '');
                 if (idx === '0') {
                     // Lite Theme0 (default root vars) -> no .theme-N class
-                } else if ([ '1','2','3','4','5' ].includes(idx)) {
+                } else if ([ '1','2','3','4','5','6' ].includes(idx)) {
                     document.body.classList.add(`theme-${idx}`);
                 }
 
@@ -13189,7 +13841,7 @@ Outline:`
                 .klite-active {
                     --bg: #1e1e1e !important;
                     --bg2: #2a2a2a !important;
-                    --bg3: #3a3a3a !important;
+            --bg3: var(--theme_color_bg_dark) !important;
                     --text: #e0e0e0 !important;
                     --muted: #888888 !important;
                     --border: #444444 !important;
@@ -13228,7 +13880,7 @@ Outline:`
                 .klite-active {
                     --bg: #1e1e1e !important;
                     --bg2: #2a2a2a !important;
-                    --bg3: #3a3a3a !important;
+            --bg3: var(--theme_color_bg_dark) !important;
                     --text: #e0e0e0 !important;
                     --muted: #888888 !important;
                     --border: #444444 !important;
@@ -13966,13 +14618,18 @@ Outline:`
             // Ensure Character & Persona controls (rendered here from TOOLS) are wired immediately
             setTimeout(() => { try { KLITE_RPMod.panels.TOOLS?.setupCharacterIntegration?.(); } catch (_) {} }, 120);
         },
+        // Apply current participants to host chatopponent (newline list)
+        applyGroupToHost() {
+            // No-op: We manage ROLES as parallel 1:1 chats and set
+            // chatopponent per turn when triggering a speaker.
+        },
 
         render() {
             return `
                 ${t.section('Group Chat Control',
                 `<label>
                         <input type=\"checkbox\" id=\"group-enabled\" ${this.enabled ? 'checked' : ''}>
-                        Enable Group Chat Mode
+                        Enable advanced Group Chat in Esobold
                     </label>`
             )}
                 
@@ -13991,37 +14648,33 @@ Outline:`
             document.getElementById('group-enabled')?.addEventListener('change', e => {
                 this.enabled = e.target.checked;
                 this.refresh();
+                try { this.saveSettings?.(); } catch(_) {}
 
                 if (this.enabled) {
-                    window.localsettings.opmode = 3; // Force chat mode
-                    this.updateKoboldSettings();
-                }
-
-                // Refresh TOOLS panel to update character controls without switching to it
-                if (KLITE_RPMod.panels.TOOLS) {
-                    // Check if left panel is currently visible and showing TOOLS
-                    if (KLITE_RPMod.state.tabs.left === 'TOOLS') {
-                        const mode = KLITE_RPMod.getMode();
-                        const isRPMode = mode === 'chat' || mode === 'instruct';
-
-                        if (isRPMode) {
-                            // Re-render the panel content without switching tabs
-                            const container = document.getElementById('content-left');
-                            if (container) {
-                                container.innerHTML = KLITE_RPMod.panels.TOOLS.render();
-                                // Re-initialize the panel
-                                setTimeout(async () => {
-                                    await KLITE_RPMod.panels.TOOLS.init();
-                                }, 10);
-                            }
+                    // Entering group chat: force chat mode, but do NOT set a multi-name chatopponent.
+                    if (window.localsettings) window.localsettings.opmode = 3;
+                    try { if (KLITE_RPMod.panels.TOOLS) KLITE_RPMod.panels.TOOLS.characterEnabled = false; } catch(_){}
+                } else {
+                    // Leaving group chat: restore AI name to selected character or input field
+                    try {
+                        if (window.localsettings) {
+                            const selected = KLITE_RPMod.panels.TOOLS?.selectedCharacter;
+                            const aiNameInput = document.getElementById('rp-ai-name');
+                            const fallback = (aiNameInput && aiNameInput.value) ? aiNameInput.value : (selected?.name || window.localsettings.chatopponent || 'AI');
+                            window.localsettings.chatopponent = fallback;
+                            window.save_settings?.();
+                            window.handle_bot_name_onchange?.();
                         }
-                    }
-
-                    // Always update the state so it shows correctly when switching to it
-                    if (!this.enabled) {
-                        KLITE_RPMod.panels.TOOLS.characterEnabled = false;
-                    }
+                    } catch(_){}
                 }
+
+                // Refresh TOOLS panel to update character controls (works in panels-only mode as well)
+                try {
+                    const left = KLITE_RPMod.state?.tabs?.left;
+                    if (left === 'TOOLS' || left === 'ROLES') {
+                        KLITE_RPMod.loadPanel('left', left);
+                    }
+                } catch(_){}
 
                 // Update Lite's avatar variables to reflect group/single state
                 try { KLITE_RPMod.applyAvatarOverrides(); } catch (_) {}
@@ -14196,7 +14849,7 @@ Outline:`
                         </div>
                         <div style="display: flex; gap: 4px; flex-shrink: 0;">
                             <button class="klite-btn" data-action="set-speaker" data-index="${i}" style="padding: 4px 8px; font-size: 11px;">Set Next</button>
-                            <button class="klite-btn danger" data-action="remove-from-group" data-index="${i}" style="padding: 4px 8px; font-size: 11px;"> -->
+                            <button class="klite-btn danger" data-action="remove-from-group" data-index="${i}" style="padding: 4px 8px; font-size: 11px;">Remove</button>
                         </div>
                     </div>
                 `;
@@ -14209,6 +14862,7 @@ Outline:`
             this.autoResponses.enabled = enabled;
             this.clearAutoResponseTimer();
             this.refresh();
+            try { this.saveSettings?.(); } catch(_) {}
 
             if (enabled) {
                 this.setupInputMonitoring();
@@ -14221,10 +14875,12 @@ Outline:`
         updateAutoResponseDelay(delay) {
             this.autoResponses.delay = parseInt(delay) || 10;
             this.clearAutoResponseTimer();
+            try { this.saveSettings?.(); } catch(_) {}
         },
 
         updateAutoResponseSetting(setting, value) {
             this.autoResponses[setting] = value;
+            try { this.saveSettings?.(); } catch(_) {}
         },
 
         setupInputMonitoring() {
@@ -14432,7 +15088,6 @@ Outline:`
                     groupPanel.lastSpeaker -= 1;
                 }
                 groupPanel.refresh();
-                groupPanel.updateKoboldSettings();
                 groupPanel.saveSettings?.();
             },
 
@@ -14516,8 +15171,19 @@ Outline:`
                 window.localsettings.opmode = 3; // chat mode
             }
 
-            // Ensure participants are synced to Lite (single speaker only)
-            this.updateKoboldSettings();
+            // Set the active speaker as the AI opponent for this turn
+            try {
+                if (window.localsettings && speaker?.name) {
+                    window.localsettings.chatopponent = speaker.name;
+                    window.save_settings?.();
+                    window.handle_bot_name_onchange?.();
+                }
+                // Update AI avatar to speaker's best avatar if available
+                try {
+                    const best = KLITE_RPMod.getBestCharacterAvatar?.(speaker);
+                    if (best) KLITE_RPMod.updateAIAvatar?.(best);
+                } catch(_){}
+            } catch(_) {}
 
             // Track last trigger time for talkative/weighted modes
             try {
@@ -14535,10 +15201,7 @@ Outline:`
                 }
             } catch (_) {}
 
-            // Set chatopponent directly to current speaker. We do NOT use backend groupchat.
-            if (window.localsettings) {
-                window.localsettings.chatopponent = speaker.name || (window.localsettings.chatopponent||'AI');
-            }
+            // Do not override group participants list in host; keep chatopponent as full group.
 
             // Build tail injection for this turn; warn and abort if overflowing
             const prep = this._prepareTailInjectionForTurn();
@@ -14590,16 +15253,9 @@ Outline:`
         },
 
         updateKoboldSettings() {
-            KLITE_RPMod.log('panels', `Updating KoboldAI settings for group chat (enabled: ${this.enabled})`);
-
-            // We no longer stuff multiple names into chatopponent; we manage per-turn.
-            if (window.localsettings) {
-                const next = this.getCurrentSpeaker();
-                const prev = localsettings.chatopponent;
-                localsettings.chatopponent = (next && next.name) ? next.name : (prev?.split('||$||')[0] || prev || 'AI');
-                KLITE_RPMod.log('panels', `chatopponent set to: ${localsettings.chatopponent}`);
-                try { window.save_settings?.(); window.handle_bot_name_onchange?.(); } catch(_) {}
-            }
+            // Intentionally do not write group opponents into chatopponent.
+            // Group is managed as parallel 1:1 sessions; chatopponent is set per trigger.
+            try { window.save_settings?.(); } catch(_) {}
         },
 
         showCharacterSelectorModal() {
@@ -14669,8 +15325,9 @@ Outline:`
             };
             document.addEventListener('keydown', handleEscape);
 
-            // Load character data and setup filters
-            setTimeout(() => {
+            // Load character data and setup filters (ensure initial data readiness)
+            setTimeout(async () => {
+                try { await KLITE_RPMod.ensureCharactersLoaded(); } catch(_) {}
                 this.loadAvailableCharacters();
                 this.setupCharacterModalFilters();
             }, 100);
@@ -14926,9 +15583,11 @@ Outline:`
                 }
             });
 
+            // Persist and update UI/state
+            try { this.saveSettings?.(); } catch(_) {}
             this.closeCharacterModal();
             this.refresh();
-            this.updateKoboldSettings();
+            // Do not set multi-opponent; will set speaker name per trigger
 
             if (added > 0) {
                 // Added ${added} character${added === 1 ? '' : 's'} to group
@@ -14966,6 +15625,7 @@ Outline:`
                 this.closeCharacterModal();
                 this.refresh();
                 this.updateKoboldSettings();
+                this.applyGroupToHost();
             }
         },
 
@@ -15139,10 +15799,19 @@ Outline:`
                 if (typeof settings.lastSpeaker === 'number') {
                     this.lastSpeaker = settings.lastSpeaker;
                 }
+                if (typeof settings.enabled === 'boolean') {
+                    this.enabled = settings.enabled;
+                }
                 if (Array.isArray(settings.participants)) {
-                    this.activeChars = settings.participants.map(c => ({ name: c.name, image: c.image, isCustom: !!c.isCustom }));
-                    // Update chatopponent to reflect group
-                    try { this.updateKoboldSettings(); } catch (_) {}
+                    this.activeChars = settings.participants.map(c => ({
+                        id: c.id,
+                        name: c.name,
+                        image: c.image,
+                        isCustom: !!c.isCustom,
+                        talkativeness: typeof c.talkativeness === 'number' ? c.talkativeness : undefined,
+                        keywords: Array.isArray(c.keywords) ? c.keywords : undefined
+                    }));
+                    // Do not update chatopponent here (managed per trigger)
                 }
                 // Restore history if present
                 if (Array.isArray(settings.speakerHistory)) {
@@ -15154,11 +15823,21 @@ Outline:`
 
         saveSettings() {
             const settings = {
+                enabled: !!this.enabled,
                 speakerMode: this.speakerMode,
                 autoResponses: this.autoResponses,
                 currentSpeaker: this.currentSpeaker,
                 lastSpeaker: this.lastSpeaker,
-                participants: Array.isArray(this.activeChars) ? this.activeChars.map(c => ({ name: c.name, image: c.image, isCustom: !!c.isCustom })) : [],
+                participants: Array.isArray(this.activeChars)
+                    ? this.activeChars.map(c => ({
+                        id: c.id,
+                        name: c.name,
+                        image: c.image,
+                        isCustom: !!c.isCustom,
+                        talkativeness: typeof c.talkativeness === 'number' ? c.talkativeness : undefined,
+                        keywords: Array.isArray(c.keywords) ? c.keywords : undefined
+                    }))
+                    : [],
                 speakerHistory: Array.isArray(this.speakerHistory) ? this.speakerHistory.slice(-20) : []
             };
             KLITE_RPMod.saveToLiteStorage('rpmod_group_settings', JSON.stringify(settings));
@@ -15166,13 +15845,17 @@ Outline:`
         },
 
         refresh() {
-            if (KLITE_RPMod.state?.tabs?.left === 'ROLES') {
+            // Re-render ROLES if it is currently visible on either logical side.
+            // loadPanel('left', ...) maps to the active container in both full and panels-only modes.
+            const leftActive = KLITE_RPMod.state?.tabs?.left === 'ROLES';
+            const rightActive = KLITE_RPMod.state?.tabs?.right === 'ROLES';
+            if (leftActive || rightActive) {
                 KLITE_RPMod.loadPanel('left', 'ROLES');
             }
         }
     };
 
-    // HELP PANEL - Enhanced with Search System
+    // UNUSED: HELP PANEL (left/overlay UI, not used in Esobold panels-only) - Enhanced with Search System
     KLITE_RPMod.panels.HELP = {
         currentDatabase: 'rpmod',
         searchQuery: '',
@@ -15234,7 +15917,7 @@ Outline:`
                         id: 'hotkeys',
                         title: 'Keyboard Shortcuts',
                         category: 'User Interface',
-                        content: 'Comprehensive hotkey system with 16+ shortcuts. Ctrl+Shift+U for UI toggle, Ctrl+Shift+[P,C,M,etc] for panel navigation, Ctrl+Shift+Enter for generation.',
+                        content: 'Comprehensive hotkey system with focused shortcuts. Panel navigation: Ctrl+Shift+[C,G,T,M,S]; generation: Ctrl+Shift+Enter; UI edit: Ctrl+Shift+E.',
                         keywords: ['hotkeys', 'shortcuts', 'keyboard', 'ctrl', 'shift', 'navigation', 'ui', 'toggle']
                     },
                     {
@@ -15689,17 +16372,13 @@ Outline:`
                         <div>Ctrl+Shift+E - Toggle Edit Mode</div>
                         <br>
                         <div><strong>📋 Panel Navigation:</strong></div>
-                        <div>Ctrl+Shift+P - PLAY Panel</div>
                         <div>Ctrl+Shift+C - CHARS Panel</div>
-                        <div>Ctrl+Shift+M - MEMORY Panel</div>
-                        <div>Ctrl+Shift+W - WORLD INFO Panel</div>
-                        <div>Ctrl+Shift+S - SCENE Panel</div>
+                        <div>Ctrl+Shift+G - ROLES Panel</div>
                         <div>Ctrl+Shift+T - TOOLS Panel</div>
-                        <div>Ctrl+Shift+N - NOTES Panel</div>
-                        <div>Ctrl+Shift+H - HELP Panel</div>
+                        <div>Ctrl+Shift+M - CONTEXT Panel</div>
+                        <div>Ctrl+Shift+S - IMAGE Panel</div>
                         <br>
                         <div><strong>🎚️ Panel Toggle:</strong></div>
-                        <div>Ctrl+Shift+L - Toggle Left Panel</div>
                         <div>Ctrl+Shift+K - Toggle Right Panel</div>
                         <div>Tab - Cycle Input Focus</div>
                     </div>`
@@ -17131,9 +17810,6 @@ Outline:`
                         <div>${wordCount} words</div>
                     </div>
                 </div>
-                <div style="margin: 8px 0 12px 0; padding: 8px; border: 1px solid var(--warning, #f0ad4e); background: rgba(240,173,78,0.1); color: var(--text); border-radius: 4px; font-size: 12px;">
-                    ⚠ Do not load characters into Memory or WorldInfo, when using the KLITE-RPmod as the ROLES feature inject the characters in an alternative way that would be broken.
-                </div>
                 
                 <!-- Main Memory Editor -->
                 ${t.section('📝 Memory Content',
@@ -18003,12 +18679,13 @@ Pacing Notes: `
 
             return `
                 ${t.section('Import Characters',
-                `<div class="klite-upload-zone" id="char-upload-zone" style="height: 60px; padding: 8px;">
-                        Drop character-file here or<br>click here to import files.
+                `<div id="char-upload-zone" style="text-align:center;">
+                        <button class="klite-btn" style="width:100%; padding: 18px 12px; font-size: 14px;">
+                            Click or drag characters, saves, lorebooks, world info or PDFs here to add
+                        </button>
                     </div>
                     <div class="klite-buttons-fill klite-mt">
-                        ${t.button('Export All', 'secondary', 'export-chars')}
-                        ${t.button('Clear All', 'danger', 'clear-chars')}
+                        ${t.button('Backup the Characters', 'secondary', 'export-chars')}
                     </div>`
             )}
                 
@@ -18064,7 +18741,7 @@ Pacing Notes: `
                             </div>
                         </div>
                         
-                        <div class="klite-muted" style="font-size: 11px;">
+                        <div id="char-count" class="klite-muted" style="font-size: 11px;">
                             ${filteredChars.length} of ${charCount} characters shown
                         </div>
                     </div>`
@@ -18079,16 +18756,29 @@ Pacing Notes: `
         },
 
         init() {
-            if (!this.fileInput) {
-                this.fileInput = document.createElement('input');
-                this.fileInput.type = 'file';
-                this.fileInput.accept = '.png,.webp,.json';
-                this.fileInput.multiple = true;
-                this.fileInput.style.display = 'none';
-                document.body.appendChild(this.fileInput);
+            // Ensure gallery CSS is present even in panels-only mode or strict hosts
+            try {
+                if (!document.getElementById('klite-chars-gallery-styles')) {
+                    const s = document.createElement('style');
+                    s.id = 'klite-chars-gallery-styles';
+                    s.textContent = `
+                        .klite-character-overview { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 100%; }
+                        .klite-character-grid { display: grid !important; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
+                        .klite-character-overview .klite-overview-thumb { width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
+                        .klite-character-overview .klite-overview-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+                        /* Ensure grid items can shrink to fit tracks */
+                        .klite-character-grid > * , .klite-character-overview > * { min-width: 0 !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box; }
+                        .klite-character-grid .klite-grid-thumb { width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
+                        .klite-character-grid .klite-grid-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+                    `;
+                    document.head.appendChild(s);
+                }
+            } catch(_) {}
 
-                this.fileInput.onchange = e => this.handleFiles(e.target.files);
-            }
+            // Load persisted gallery preferences (view, sort, filters)
+            try { this.loadGalleryPrefs?.(); } catch(_) {}
+            // Use esolite data as primary; install adapter
+            try { this.installEsoliteAdapter?.(); } catch(_) {}
 
             // Setup search functionality
             const searchInput = document.getElementById('char-search');
@@ -18096,6 +18786,7 @@ Pacing Notes: `
                 searchInput.addEventListener('input', e => {
                     this.currentFilter = e.target.value;
                     this.refreshGallery();
+                    try { this.saveGalleryPrefs?.(); } catch(_) {}
                 });
             }
 
@@ -18105,6 +18796,7 @@ Pacing Notes: `
                 tagFilter.addEventListener('change', e => {
                     this.tagFilter = e.target.value;
                     this.refreshGallery();
+                    try { this.saveGalleryPrefs?.(); } catch(_) {}
                 });
             }
 
@@ -18113,6 +18805,7 @@ Pacing Notes: `
                 starFilter.addEventListener('change', e => {
                     this.starFilter = e.target.value;
                     this.refreshGallery();
+                    try { this.saveGalleryPrefs?.(); } catch(_) {}
                 });
             }
 
@@ -18122,6 +18815,7 @@ Pacing Notes: `
                 sortSelect.addEventListener('change', e => {
                     this.currentSort = e.target.value;
                     this.refreshGallery();
+                    try { this.saveGalleryPrefs?.(); } catch(_) {}
                 });
             }
 
@@ -18130,6 +18824,7 @@ Pacing Notes: `
                 viewSelect.addEventListener('change', e => {
                     this.currentView = e.target.value;
                     this.refreshGallery();
+                    try { this.saveGalleryPrefs?.(); } catch(_) {}
                 });
             }
 
@@ -18152,26 +18847,205 @@ Pacing Notes: `
                     e.preventDefault();
                     e.stopPropagation();
                     uploadZone.classList.remove('dragover');
-                    this.handleFiles(e.dataTransfer.files);
+                    try {
+                        const files = e.dataTransfer?.files;
+                        if (files && typeof window.fileInputToFiles === 'function') {
+                            window.fileInputToFiles(Array.from(files), async (result) => {
+                                try { await KLITE_RPMod.panels.CHARS.processEsoliteImportResult(result); } catch(_) {}
+                            });
+                        } else if (files && files.length > 0) {
+                            // Fallback to RPmod handler
+                            this.handleFiles(files);
+                        }
+                    } catch(_) {}
                 });
 
                 uploadZone.addEventListener('click', () => {
-                    this.fileInput.click();
+                    try {
+                        if (typeof window.promptUserForLocalFile === 'function') {
+                            window.promptUserForLocalFile(async (result) => {
+                                try { await KLITE_RPMod.panels.CHARS.processEsoliteImportResult(result); } catch(_) {}
+                            }, [".png", ".webp", ".json", ".txt", ".pdf"], true);
+                        }
+                    } catch(_) {}
                 });
+            }
+
+            // Apply persisted prefs onto current gallery view
+            try { this.refreshGallery?.(); } catch(_) {}
+
+            // Wire up action handling for CHARS panel buttons
+            try {
+                const container = document.querySelector('div#content-right.klite-content');
+                if (container) {
+                    if (container._charsActionHandler) {
+                        container.removeEventListener('click', container._charsActionHandler);
+                    }
+                    const actionHandler = (e) => {
+                        const el = e.target.closest('[data-action]');
+                        if (!el) return;
+                        const action = el.dataset.action;
+                        const fn = KLITE_RPMod.panels.CHARS.actions && KLITE_RPMod.panels.CHARS.actions[action];
+                        if (typeof fn === 'function') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            try { fn(e); } catch (err) { KLITE_RPMod.error('CHARS action failed:', err); }
+                        }
+                    };
+                    container.addEventListener('click', actionHandler);
+                    container._charsActionHandler = actionHandler;
+                }
+            } catch(_) {}
+        },
+
+        // Persist gallery preferences (view, sort, filters) using esolite IndexedDB helpers
+        prefsKey: 'esolite_chars_panel_prefs',
+        async loadGalleryPrefs() {
+            try {
+                const raw = await window.indexeddb_load?.(this.prefsKey, null);
+                if (!raw) return;
+                const prefs = JSON.parse(raw);
+                if (typeof prefs.currentFilter === 'string') this.currentFilter = prefs.currentFilter;
+                if (typeof prefs.currentSort === 'string') this.currentSort = prefs.currentSort;
+                if (typeof prefs.currentView === 'string') this.currentView = prefs.currentView;
+                if (typeof prefs.tagFilter === 'string') this.tagFilter = prefs.tagFilter;
+                if (typeof prefs.starFilter === 'string') this.starFilter = prefs.starFilter;
+            } catch(_) {}
+        },
+        async saveGalleryPrefs() {
+            try {
+                const prefs = {
+                    currentFilter: this.currentFilter,
+                    currentSort: this.currentSort,
+                    currentView: this.currentView,
+                    tagFilter: this.tagFilter,
+                    starFilter: this.starFilter,
+                };
+                await window.indexeddb_save?.(this.prefsKey, JSON.stringify(prefs));
+            } catch(_) {}
+        },
+
+        // Fallback import processor using Esolite’s global functions
+        async processEsoliteImportResult(result) {
+            try {
+                const { fileName, ext, plaintext, dataArr } = result || {};
+                const lowerExt = (ext || '').toLowerCase();
+
+                if (lowerExt === '.png') {
+                    const arr = new Uint8Array(dataArr);
+                    const ok = window.convertTavernPng?.(arr, fileName);
+                    if (ok === null) throw new Error(`${fileName}: PNG is not a valid Tavern card`);
+                } else if (lowerExt === '.webp') {
+                    const arr = new Uint8Array(dataArr);
+                    const ok = window.getTavernExifJSON?.(arr, fileName);
+                    if (ok === null) throw new Error(`${fileName}: WEBP is not a valid Tavern card`);
+                } else if (lowerExt === '.txt') {
+                    const arr = new Uint8Array(dataArr);
+                    await window.saveDocumentToIndexDB?.(fileName, arr, 'text/plain');
+                } else if (lowerExt === '.pdf') {
+                    const arr = new Uint8Array(dataArr);
+                    await window.saveDocumentToIndexDB?.(fileName, arr, 'application/pdf');
+                } else {
+                    let data = null;
+                    try { data = JSON.parse(plaintext); } catch (_) {}
+                    if (!data) throw new Error(`${fileName}: Unsupported or invalid file`);
+
+                    if (typeof window.is_kai_json === 'function' && window.is_kai_json(data) && !data?.scenarioVersion) {
+                        window.saveKLiteSaveToIndexDB?.(fileName, data);
+                    } else {
+                        const looksLikeChar = (data?.spec === 'chara_card_v2' || data?.spec === 'chara_card_v3') ||
+                            (data?.name != null || data?.description != null || data?.personality != null);
+                        if (looksLikeChar) {
+                            window.saveCharacterDataToIndexDB?.(undefined, data, fileName);
+                        } else {
+                            let wiToAdd = data;
+                            let wiName = fileName;
+                            const hasTavWI = typeof window.has_tavern_wi_check === 'function' ? window.has_tavern_wi_check(wiToAdd) : false;
+                            if (hasTavWI) {
+                                if (wiToAdd?.name && wiToAdd.name.trim().length > 0) wiName = wiToAdd.name;
+                                wiToAdd = window.load_tavern_wi?.(wiToAdd);
+                                if (Array.isArray(wiToAdd) && wiToAdd.length > 0) wiToAdd.forEach(wi => wi.wigroup = fileName.replace("'", ""));
+                            } else if (Array.isArray(wiToAdd)) {
+                                try {
+                                    const hasNoGeneralWI = wiToAdd.length === 0 || wiToAdd.find(wi => (wi?.wigroup === undefined || wi.wigroup == null || wi.wigroup.trim() === '' || wi.wigroup === 'General')) === undefined;
+                                    if (hasNoGeneralWI) {
+                                        const wiAllHaveSameGroup = wiToAdd.find((e, p, a) => a.find(c => c?.wigroup !== e.wigroup)) === undefined;
+                                        if (wiAllHaveSameGroup && wiToAdd[0]?.wigroup) wiName = wiToAdd[0].wigroup;
+                                    }
+                                } catch(_) {}
+                            }
+                            if (Array.isArray(wiToAdd)) {
+                                wiToAdd = wiToAdd.filter(wi => wi?.key !== undefined);
+                                if (wiToAdd.length > 0) {
+                                    window.saveLorebookToIndexDB?.(wiName, wiToAdd, data);
+                                } else {
+                                    throw new Error(`${fileName}: JSON does not contain WI or lorebook entries`);
+                                }
+                            } else {
+                                throw new Error(`${fileName}: JSON not recognized as character or WI`);
+                            }
+                        }
+                    }
+                }
+
+                // Sync our list with Esolite after save
+                try { await this.rebuildFromEsolite?.(); } catch(_) {}
+                this.refreshGallery?.();
+            } catch (e) {
+                KLITE_RPMod.error('Import error', e);
+                try { alert(e?.message || String(e)); } catch(_) {}
             }
         },
 
         actions: {
-            'import-chars': () => KLITE_RPMod.panels.CHARS.fileInput.click(),
-            'clear-chars': () => {
-                if (confirm('Delete all characters?')) {
-                    KLITE_RPMod.characters = [];
-                    KLITE_RPMod.saveCharacters();
-                    KLITE_RPMod.panels.CHARS.refresh();
-                    // All characters cleared
-                }
+            'import-chars': () => {
+                try {
+                    if (typeof window.promptUserForLocalFile === 'function') {
+                        window.promptUserForLocalFile(async (result) => {
+                            try { await KLITE_RPMod.panels.CHARS.processEsoliteImportResult(result); } catch(_) {}
+                        }, [".png", ".webp", ".json", ".txt", ".pdf"], true);
+                    }
+                } catch(_) {}
             },
-            'export-chars': () => KLITE_RPMod.panels.CHARS.exportCharacters(),
+            'export-chars': () => KLITE_RPMod.panels.CHARS.exportCharactersAsZip?.(),
+            'server-saves': async () => {
+                try {
+                    if (typeof window.showServerSavesPopup === 'function') {
+                        await window.showServerSavesPopup();
+                    } else {
+                        alert('Server Saves UI is not available in this build.');
+                    }
+                } catch (e) { KLITE_RPMod.error('Server saves popup failed', e); }
+            },
+            'server-control': async () => {
+                try {
+                    if (typeof window.controlRemoteDataStore === 'function') {
+                        await window.controlRemoteDataStore();
+                    } else {
+                        alert('Server control UI is not available in this build.');
+                    }
+                } catch (e) { KLITE_RPMod.error('Server control failed', e); }
+            },
+            'server-overwrite': async () => {
+                try {
+                    if (typeof window.putAllCharacterManagerData === 'function') {
+                        await window.putAllCharacterManagerData();
+                        try { await KLITE_RPMod.panels.CHARS.rebuildFromEsolite?.(); } catch(_) {}
+                    } else {
+                        alert('Server overwrite is not available in this build.');
+                    }
+                } catch (e) { KLITE_RPMod.error('Server overwrite failed', e); }
+            },
+            'server-load': async () => {
+                try {
+                    if (typeof window.loadAllCharacterManagerData === 'function') {
+                        await window.loadAllCharacterManagerData();
+                        try { await KLITE_RPMod.panels.CHARS.rebuildFromEsolite?.(); } catch(_) {}
+                    } else {
+                        alert('Server load is not available in this build.');
+                    }
+                } catch (e) { KLITE_RPMod.error('Server load failed', e); }
+            },
             'load-char': (e) => {
                 const charId = e.target.closest('[data-char-id]')?.dataset.charId;
                 const char = KLITE_RPMod.characters.find(c => c.id == charId);
@@ -18199,11 +19073,7 @@ Pacing Notes: `
                 const char = KLITE_RPMod.characters.find(c => c.id == charId);
                 if (char) KLITE_RPMod.panels.CHARS.loadAsScenario(char);
             },
-            'add-char-worldinfo': (e) => {
-                const charId = e.target.dataset.charId;
-                const char = KLITE_RPMod.characters.find(c => c.id == charId);
-                if (char) KLITE_RPMod.panels.CHARS.addToWorldInfo(char);
-            },
+            // 'add-char-worldinfo' removed (use WI panel and Esolite directly)
             'export-char-json': (e) => {
                 const charId = e.target.dataset.charId;
                 const char = KLITE_RPMod.characters.find(c => c.id == charId);
@@ -18215,12 +19085,12 @@ Pacing Notes: `
                 if (char) KLITE_RPMod.panels.CHARS.exportCharacterPNG(char);
             },
             'edit-character': (e) => {
-                const charId = target.dataset.charId;
+                const charId = e.target.dataset.charId || e.target.closest('[data-char-id]')?.dataset.charId;
                 const char = KLITE_RPMod.characters.find(c => c.id == charId);
                 if (char) KLITE_RPMod.panels.CHARS.setEditMode('edit', char);
             },
             'clone-character': (e) => {
-                const charId = target.dataset.charId;
+                const charId = e.target.dataset.charId || e.target.closest('[data-char-id]')?.dataset.charId;
                 const orig = KLITE_RPMod.characters.find(c => c.id == charId);
                 if (orig) {
                     const copy = JSON.parse(JSON.stringify(orig));
@@ -18234,7 +19104,8 @@ Pacing Notes: `
                 const char = KLITE_RPMod.characters.find(c => c.id == charId);
                 if (char && confirm(`Delete "${char.name}"? This cannot be undone.`)) {
                     KLITE_RPMod.panels.CHARS.deleteCharacter(charId);
-                    document.getElementById('char-modal-' + charId).remove();
+                    const modal = document.getElementById('char-modal-' + charId);
+                    if (modal) modal.remove();
                 }
             }
         },
@@ -18242,23 +19113,24 @@ Pacing Notes: `
         getFilteredCharacters() {
             let filtered = [...KLITE_RPMod.characters];
 
-            // Apply search filter
+            // Apply search filter (safe guards for missing fields)
             if (this.currentFilter) {
-                const filter = this.currentFilter.toLowerCase();
-                filtered = filtered.filter(char =>
-                    char.name.toLowerCase().includes(filter) ||
-                    char.description.toLowerCase().includes(filter) ||
-                    char.personality.toLowerCase().includes(filter) ||
-                    char.creator.toLowerCase().includes(filter) ||
-                    char.keywords.some(k => k.includes(filter))
-                );
+                const filter = String(this.currentFilter || '').toLowerCase();
+                filtered = filtered.filter(char => {
+                    const name = String(char.name || '').toLowerCase();
+                    const desc = String(char.description || '').toLowerCase();
+                    const pers = String(char.personality || '').toLowerCase();
+                    const creator = String(char.creator || '').toLowerCase();
+                    const keywords = Array.isArray(char.keywords) ? char.keywords : [];
+                    const kwMatch = keywords.some(k => String(k || '').toLowerCase().includes(filter));
+                    return name.includes(filter) || desc.includes(filter) || pers.includes(filter) || creator.includes(filter) || kwMatch;
+                });
             }
 
             // Apply tag filter
             if (this.tagFilter) {
-                filtered = filtered.filter(char =>
-                    char.tags && char.tags.includes(this.tagFilter)
-                );
+                const tag = String(this.tagFilter);
+                filtered = filtered.filter(char => Array.isArray(char.tags) && char.tags.includes(tag));
             }
 
             // Apply star filter
@@ -18271,15 +19143,15 @@ Pacing Notes: `
                 }
             }
 
-            // Apply sorting
+            // Apply sorting (safe defaults)
             filtered.sort((a, b) => {
                 switch (this.currentSort) {
                     case 'name-asc':
-                        return a.name.localeCompare(b.name);
+                        return String(a.name||'').localeCompare(String(b.name||''));
                     case 'name-desc':
-                        return b.name.localeCompare(a.name);
+                        return String(b.name||'').localeCompare(String(a.name||''));
                     case 'created':
-                        return (b.created || 0) - (a.created || 0);
+                        return (b.created ?? 0) - (a.created ?? 0);
                     case 'talkativeness':
                         return (b.talkativeness || 0) - (a.talkativeness || 0);
                     case 'rating':
@@ -18320,8 +19192,8 @@ Pacing Notes: `
                     return characters.map(char => this.renderCharacterListItem(char)).join('');
                 case 'detail':
                     return characters.map(char => this.renderCharacterDetailItem(char)).join('');
-                default: // grid
-                    return characters.map(char => this.renderCharacterCard(char)).join('');
+                default: // grid (2 per row)
+                    return characters.map(char => this.renderCharacterGridItem(char)).join('');
             }
         },
 
@@ -18330,16 +19202,43 @@ Pacing Notes: `
                 <div style="display: flex; flex-direction: column; align-items: center; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg2); cursor: pointer; text-align: center;" 
                      data-char-id="${char.id}" data-action="view-char">
                     ${(char.images?.thumbnail || char.image) ? `
-                        <div style="width: 60px; height: 60px; border-radius: 30px; overflow: hidden; margin-bottom: 6px; border: 1px solid var(--border);">
-                            <img src="${char.images?.thumbnail || char.image}" alt="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}" style="width: 100%; height: 100%; object-fit: cover;" loading="lazy">
+                        <div class="klite-overview-thumb" style="width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; margin-bottom: 6px; border: 1px solid var(--border);">
+                            <img src="${char.images?.thumbnail || char.image}" alt="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}" style="width: 100%; height: 100%; object-fit: cover; display: block;" loading="lazy">
                         </div>
                     ` : `
-                        <div style="width: 60px; height: 60px; border-radius: 30px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
+                        <div class="klite-overview-thumb" style="width: 100%; aspect-ratio: 2/3; border-radius: 4px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
                             <span style="font-size: 24px;">${KLITE_RPMod.panels.CHARS.escapeHTML((char.name || '?').charAt(0))}</span>
                         </div>
                     `}
                     <div style="font-size: 12px; font-weight: bold; color: var(--text); line-height: 1.2; word-wrap: break-word; max-width: 100%;">
                         ${(KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')).length > 12 ? KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '').substring(0, 12) + '...' : KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}
+                    </div>
+                    <div style="font-size: 10px; color: var(--muted);">${KLITE_RPMod.panels.CHARS.escapeHTML(char.creator || 'Unknown')}</div>
+                </div>
+            `;
+        },
+
+        // New: 2-per-row grid tile similar to overview, with rating
+        renderCharacterGridItem(char) {
+            const rating = char.rating || 0;
+            return `
+                <div class="klite-char-grid-item" data-char-id="${char.id}" data-action="view-char" style="display: flex; flex-direction: column; align-items: center; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg2); cursor: pointer; text-align: center;">
+                    ${(char.images?.preview || char.image) ? `
+                        <div class=\"klite-grid-thumb\" style=\"width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; margin-bottom: 8px; border: 1px solid var(--border);\">\n                            <img src=\"${char.images?.preview || char.image}\" alt=\"${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}\" style=\"width: 100%; height: 100%; object-fit: cover; display: block;\" loading=\"lazy\">\n                        </div>
+                    ` : `
+                        <div class=\"klite-grid-thumb\" style=\"width: 100%; aspect-ratio: 2/3; border-radius: 4px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin-bottom: 8px;\">\n                            <span style=\"font-size: 36px;\">👤</span>\n                        </div>
+                    `}
+                    <div class="klite-char-name" style="font-weight: bold; color: var(--text); margin-bottom: 4px;">${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}</div>
+                    <div class="klite-char-creator" style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">by ${KLITE_RPMod.panels.CHARS.escapeHTML(char.creator || 'Unknown')}</div>
+                    <div style="text-align: center;">
+                        <select class="klite-select" style="font-size: 10px; padding: 2px 4px;" onchange="KLITE_RPMod.panels.CHARS.updateCharacterRating(${char.id}, this.value)" onclick="event.stopPropagation();">
+                            <option value=\"0\" ${rating === 0 ? 'selected' : ''}>☆ Unrated</option>
+                            <option value=\"1\" ${rating === 1 ? 'selected' : ''}>★☆☆☆☆</option>
+                            <option value=\"2\" ${rating === 2 ? 'selected' : ''}>★★☆☆☆</option>
+                            <option value=\"3\" ${rating === 3 ? 'selected' : ''}>★★★☆☆</option>
+                            <option value=\"4\" ${rating === 4 ? 'selected' : ''}>★★★★☆</option>
+                            <option value=\"5\" ${rating === 5 ? 'selected' : ''}>★★★★★</option>
+                        </select>
                     </div>
                 </div>
             `;
@@ -18441,7 +19340,30 @@ Pacing Notes: `
             const gallery = document.getElementById('char-gallery');
             if (gallery) {
                 gallery.className = `klite-character-${this.currentView}`;
+                // Force grid layout inline to beat hostile styles
+                if (this.currentView === 'overview') {
+                    gallery.style.display = 'grid';
+                    gallery.style.gridTemplateColumns = 'repeat(3, 1fr)';
+                    gallery.style.gap = '6px';
+                } else if (this.currentView === 'grid') {
+                    gallery.style.display = 'grid';
+                    gallery.style.gridTemplateColumns = 'repeat(2, 1fr)';
+                    gallery.style.gap = '10px';
+                } else {
+                    gallery.style.display = '';
+                    gallery.style.gridTemplateColumns = '';
+                    gallery.style.gap = '';
+                }
                 gallery.innerHTML = this.renderCharacters();
+                // Update count line
+                try {
+                    const countEl = document.getElementById('char-count');
+                    if (countEl) {
+                        const total = Array.isArray(KLITE_RPMod.characters) ? KLITE_RPMod.characters.length : 0;
+                        const shown = this.getFilteredCharacters().length;
+                        countEl.textContent = `${shown} of ${total} characters shown`;
+                    }
+                } catch(_) {}
             }
         },
 
@@ -18530,7 +19452,7 @@ Pacing Notes: `
         },
 
         exportCharacters() {
-            KLITE_RPMod.exportCharactersToFile();
+            KLITE_RPMod.exportCharactersAsZip?.();
         },
 
         importWorldInfo(charId) {
@@ -18954,127 +19876,82 @@ Pacing Notes: `
         },
 
         async addCharacter(data) {
-            const now = Date.now();
-            const charId = now + Math.random();
+            try {
+                const name = (data?.name || '').trim();
+                if (!name) throw new Error('Character must have a name.');
+                // Match Esobold/Esolite key sanitization used by getCharacterData
+                const sanitizeForKey = (s) => String(s)
+                    .replaceAll(/[^\w()_\-'",!\[\].]/g, ' ')
+                    .replaceAll(/\s+/g, ' ')
+                    .trim();
+                const storeKeyName = sanitizeForKey(name);
 
-            // Create multi-tier images if image exists - this is the performance improvement
-            let optimizedImages = null;
-            if (data.image || data.avatar) {
-                const originalImage = data.image || data.avatar;
-                try {
-                    optimizedImages = await this.createOptimizedImages(originalImage, data.name || 'Unknown');
+                // Build inner Tavern v2 object from provided fields if not already present
+                const inner = data?.rawData?.data || {
+                    name,
+                    description: data?.description || '',
+                    personality: data?.personality || '',
+                    mes_example: data?.mes_example || '',
+                    first_mes: data?.first_mes || '',
+                    creator: data?.creator || '',
+                    creator_notes: data?.creator_notes || '',
+                    system_prompt: data?.system_prompt || '',
+                    post_history_instructions: data?.post_history_instructions || '',
+                    alternate_greetings: Array.isArray(data?.alternate_greetings) ? data.alternate_greetings : [],
+                    character_book: data?.character_book || null,
+                    tags: Array.isArray(data?.tags) ? data.tags : [],
+                    character_version: data?.character_version || data?.version || '1.0.0'
+                };
 
-                    // Cache the optimized images for immediate use
-                    this.setOptimizedAvatar(charId, 'preview', optimizedImages.preview);
-                    this.setOptimizedAvatar(charId, 'avatar', optimizedImages.avatar);
-                    this.setOptimizedAvatar(charId, 'thumbnail', optimizedImages.thumbnail);
-                } catch (error) {
-                    KLITE_RPMod.log('chars', `Image optimization failed for ${data.name}, using original:`, error.message);
-                    // Fallback to original image for all uses
-                    optimizedImages = {
-                        original: originalImage,
-                        preview: originalImage,
-                        avatar: originalImage,
-                        thumbnail: originalImage
-                    };
+                // If we have a PNG data URL, embed JSON into PNG; else store JSON-only
+                let stored = { name, data: inner };
+                if (data?.image || data?.avatar) {
+                    const dataUrl = String(data.image || data.avatar);
+                    if (dataUrl.startsWith('data:image/png;base64,')) {
+                        try {
+                            const b64 = dataUrl.split(',')[1];
+                            const pngBytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+                            const out = window.tavernTool?.embedIntoPng?.(pngBytes, inner);
+                            if (out && out.length) {
+                                let text = '';
+                                for (let i = 0; i < Math.ceil(out.length / 32768.0); i++) {
+                                    text += String.fromCharCode.apply(null, out.slice(i * 32768, Math.min((i + 1) * 32768, out.length)));
+                                }
+                                stored.image = `data:image/png;base64,${btoa(text)}`;
+                            } else {
+                                stored.image = dataUrl; // fallback
+                            }
+                        } catch(_) { stored.image = dataUrl; }
+                    } else {
+                        // Non-PNG provided; store JSON-only for compatibility
+                        stored.image = undefined;
+                    }
                 }
+
+                await window.indexeddb_save?.(`character_${storeKeyName}`, JSON.stringify(stored));
+                // Ensure list entry and thumbnail
+                try {
+                    if (stored.image && typeof window.generateThumbnail === 'function') {
+                        const thumb = await window.generateThumbnail(stored.image, [256, 256]);
+                        this.setEsoliteCharacterList((arr) => {
+                            const next = (Array.isArray(arr) ? arr : []).filter(c => c?.name !== name);
+                            next.push({ name, thumbnail: thumb, type: 'Character' });
+                            return next;
+                        });
+                    } else {
+                        this.setEsoliteCharacterList((arr) => {
+                            const next = (Array.isArray(arr) ? arr : []).filter(c => c?.name !== name);
+                            next.push({ name, type: 'Character' });
+                            return next;
+                        });
+                    }
+                } catch(_) {}
+
+                await window.updateCharacterListFromAll?.();
+                await this.rebuildFromEsolite?.();
+            } catch(e) {
+                console.error('[CHARS] addCharacter error', e);
             }
-
-            // Prepare custom metadata to store in character card
-            const customMetadata = {
-                // User ratings and preferences
-                rating: {
-                    overall: 0,
-                    creativity: 0,
-                    consistency: 0,
-                    entertainment: 0,
-                    userRating: 0,
-                    totalRatings: 0
-                },
-
-                // Usage statistics
-                stats: {
-                    timesUsed: 0,
-                    totalMessages: 0,
-                    averageSessionLength: 0,
-                    lastSessionDuration: 0
-                },
-
-                // User customizations
-                userNotes: '',
-                userTags: [],
-                isFavorite: false,
-                isArchived: false,
-
-                // RPMod enhancements
-                talkativeness: this.extractTalkativeness(data),
-                traits: this.extractTraits(data),
-                preferences: {
-                    genres: this.extractGenres(data),
-                    themes: this.extractThemes(data),
-                    contentRating: this.extractContentRating(data)
-                },
-
-                // Timestamps
-                created: now,
-                lastUsed: null,
-                lastModified: now,
-                importSource: 'manual',
-                importDate: now,
-                originalFilename: data.originalFilename || null
-            };
-
-            // Store custom metadata in card extensions for v2/v3 compatibility
-            const enhancedData = { ...data };
-            if (!enhancedData.extensions) enhancedData.extensions = {};
-            enhancedData.extensions.klite_rpmod = customMetadata;
-
-            const char = {
-                id: charId,
-                name: data.name || 'Unknown',
-                description: data.description || '',
-                personality: data.personality || '',
-                scenario: data.scenario || '',
-                first_mes: data.first_mes || '',
-                mes_example: data.mes_example || '',
-                creator: data.creator || 'Unknown',
-
-                // Multi-tier image storage
-                images: optimizedImages || {
-                    original: null,
-                    preview: null,
-                    avatar: null,
-                    thumbnail: null
-                },
-
-                // Backward compatibility
-                image: optimizedImages?.original || data.image || data.avatar || null,
-
-                // Enhanced data with custom metadata embedded
-                rawData: enhancedData,
-
-                // Enhanced metadata (for quick access)
-                version: data.spec || 'v1',
-                category: data.category || 'General',
-                keywords: this.extractKeywords(data),
-                relationships: [],
-
-                // Extensions and advanced features
-                extensions: enhancedData.extensions,
-                alternateGreetings: data.alternate_greetings || [],
-                worldInfo: data.character_book || null,
-
-                // Custom metadata (extracted for quick access)
-                ...customMetadata
-            };
-
-            KLITE_RPMod.characters.push(char);
-
-            // Only save immediately if not in batch import mode
-            if (!KLITE_RPMod.batchImportMode) {
-                KLITE_RPMod.saveCharacters();
-            }
-            // Added character: ${char.name}
         },
 
         extractTalkativeness(data) {
@@ -19646,7 +20523,7 @@ Pacing Notes: `
             }
 
             // Tags (V3 feature)
-            if (characterData.tags && characterData.tags.length > 0) {
+            if (Array.isArray(characterData.tags) && characterData.tags.length > 0) {
                 parts.push(`\n[Tags: ${characterData.tags.join(', ')}]`);
             }
 
@@ -20328,15 +21205,12 @@ Pacing Notes: `
                     <h2 style="margin: 0; font-size: 20px; color: var(--text);">${char.name}</h2>
                     <button class="klite-btn" onclick="KLITE_RPMod.panels.CHARS.hideCharacterFullscreen()">← Back</button>
                 </div>
-                <div style="margin: 8px 0 12px 0; padding: 8px; border: 1px solid var(--warning, #f0ad4e); background: rgba(240,173,78,0.1); color: var(--text); border-radius: 4px; font-size: 12px;">
-                    ⚠ Do not load characters into Memory or WorldInfo, when using the KLITE-RPmod as the ROLES feature inject the characters in an alternative way that would be broken.
-                </div>
-               
-                ${t.section('Character Profile',
+
+               ${t.section('Character Profile',
                 `<div style="text-align: center; margin-bottom: 15px;">
                         ${char.image ? `<img src="${char.image}" alt="${char.name}" style="width: 100%; max-width: 200px; border-radius: 8px; margin-bottom: 8px;">` : '<div style="width: 100px; height: 100px; background: var(--bg2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 48px; margin: 0 auto 8px; color: var(--muted);">👤</div>'}
                         <div style="font-weight: 600; font-size: 18px; color: var(--text);">${char.name}</div>
-                        <div style="color: var(--muted); font-size: 14px;">by ${char.creator || 'Unknown'}</div>
+                        <div style="color: var(--muted); font-size: 14px;">by ${KLITE_RPMod.panels.CHARS.escapeHTML(characterData?.creator || 'Unknown')}</div>
                     </div>`
             )}
           
@@ -20367,10 +21241,8 @@ Pacing Notes: `
                 
                 ${t.section('Actions',
                 `<div style="display: flex; flex-direction: column; gap: 6px;">
-                        <button class="klite-btn" data-action="load-char-scenario" data-char-id="${char.id}">Load as Scenario</button>
-                        <button class="klite-btn secondary" data-action="add-char-worldinfo" data-char-id="${char.id}">Add to World Info</button>
-                        <button class="klite-btn secondary" data-action="export-char-json" data-char-id="${char.id}">Export as JSON</button>
-                        <button class="klite-btn secondary" data-action="export-char-png" data-char-id="${char.id}">Export as V2 PNG</button>
+                        <button class="klite-btn secondary" data-action="export-char-json" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${char.id}">Export as JSON</button>
+                        <button class="klite-btn secondary" data-action="export-char-png" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${char.id}">Export as V2 PNG</button>
                         <button class="klite-btn secondary" data-action="edit-character" data-char-id="${char.id}">✏️ Edit</button>
                         <button class="klite-btn secondary" data-action="clone-character" data-char-id="${char.id}">📄 Clone</button>
                         <button class="klite-btn danger" data-action="delete-char-modal" data-char-id="${char.id}">Delete Character</button>
@@ -20429,29 +21301,27 @@ Pacing Notes: `
 
                 const action = actionElement.dataset.action;
                 const charId = actionElement.dataset.charId;
+                const charName = actionElement.dataset.charName || char?.name;
 
-                // Verify this is for the current character
-                if (charId != char.id) return;
+                // Verify this is for the current character if id is present
+                if (charId && (charId != char.id)) return;
 
                 KLITE_RPMod.log('chars', `Detail view action: ${action} for character ${char.id}`);
 
                 // Route to appropriate action handler
                 switch (action) {
                     case 'load-char-scenario':
-                        this.loadAsScenario(char);
-                        break;
-                    case 'add-char-worldinfo':
-                        this.addToWorldInfo(char);
+                        if (charName) this.loadAsScenarioByName?.(charName); else this.loadAsScenario(char);
                         break;
                     case 'export-char-json':
-                        this.exportCharacterJSON(char);
+                        if (charName) this.exportCharacterJSONByName?.(charName); else this.exportCharacterJSON(char);
                         break;
                     case 'export-char-png':
-                        this.exportCharacterPNG(char);
+                        if (charName) this.exportCharacterPNGByName?.(charName); else this.exportCharacterPNG(char);
                         break;
                     case 'delete-char-modal':
                         if (confirm('Delete this character?')) {
-                            this.deleteCharacter(char.id);
+                            if (charName) this.deleteCharacterByName?.(charName); else this.deleteCharacter(char.id);
                         }
                         break;
                     case 'edit-character':
@@ -20872,7 +21742,424 @@ Pacing Notes: `
             }
 
             KLITE_RPMod.loadPanel('right', 'CHARS');
-        }
+        },
+
+        // ==============================
+        // Esolite adapter and sync layer
+        // ==============================
+        installEsoliteAdapter() {
+            // Rebuild characters from esolite immediately, then hook updates
+            this.rebuildFromEsolite?.();
+
+            // Hook into Esolite's list updater if available
+            try {
+                const origUpd = window.updateCharacterListFromAll;
+                if (typeof origUpd === 'function' && !origUpd.__klite_rpmod_wrapped) {
+                    window.updateCharacterListFromAll = async function() {
+                        try { await origUpd.apply(this, arguments); } catch(_) {}
+                        try { KLITE_RPMod?.panels?.CHARS?.rebuildFromEsolite?.(); } catch(_) {}
+                    };
+                    window.updateCharacterListFromAll.__klite_rpmod_wrapped = true;
+                }
+            } catch(_) {}
+
+            // Also listen for explicit esolite events so we sync on initial load and debounced saves
+            try {
+                const onSync = () => { try { KLITE_RPMod?.panels?.CHARS?.rebuildFromEsolite?.(); } catch(_) {} };
+                document.removeEventListener('esolite:characterListUpdated', onSync);
+                document.removeEventListener('esolite:characterListLoaded', onSync);
+                document.addEventListener('esolite:characterListUpdated', onSync);
+                document.addEventListener('esolite:characterListLoaded', onSync);
+            } catch(_) {}
+
+            // Periodic safety sync (in case external code bypasses wrapper)
+            if (!this._esoliteSyncTimer) {
+                this._esoliteSyncTimer = setInterval(() => {
+                    try { this.rebuildFromEsolite?.(); } catch(_) {}
+                }, 5000);
+            }
+        },
+
+        getEsoliteCharacterList() {
+            try {
+                if (typeof allCharacterNames !== 'undefined' && Array.isArray(allCharacterNames)) {
+                    return allCharacterNames;
+                }
+            } catch(_) {}
+            try {
+                if (Array.isArray(window.allCharacterNames)) {
+                    return window.allCharacterNames;
+                }
+            } catch(_) {}
+            return [];
+        },
+
+        async fetchEsoliteCharacterList() {
+            const list = this.getEsoliteCharacterList();
+            if (Array.isArray(list) && list.length > 0) return list;
+            try {
+                const raw = await window.indexeddb_load?.('characterList', '[]');
+                const arr = JSON.parse(raw || '[]');
+                if (Array.isArray(arr)) return arr;
+            } catch(_) {}
+            return [];
+        },
+
+        setEsoliteCharacterList(updater) {
+            // updater: (arr) => newArray
+            try {
+                if (typeof allCharacterNames !== 'undefined' && Array.isArray(allCharacterNames)) {
+                    allCharacterNames = updater(allCharacterNames);
+                    return true;
+                }
+            } catch(_) {}
+            try {
+                if (Array.isArray(window.allCharacterNames)) {
+                    window.allCharacterNames = updater(window.allCharacterNames);
+                    return true;
+                }
+            } catch(_) {}
+            return false;
+        },
+
+        async rebuildFromEsolite() {
+            try {
+                const list = await this.fetchEsoliteCharacterList();
+                // Only consider actual Characters for the CHAR gallery
+                const charMetas = list.filter(m => (m?.type || 'Character') === 'Character');
+                // Always rebuild to reflect metadata edits (creator, tags, etc.) even if count unchanged
+                this._esoliteLastCount = charMetas.length;
+
+                // Build internal view model from esolite storage
+                const built = [];
+                for (let i = 0; i < charMetas.length; i++) {
+                    const meta = charMetas[i];
+                    if (!meta?.name) continue;
+                    try {
+                        const detail = await window.getCharacterData?.(meta.name);
+                        const inner = detail?.data || {};
+                        built.push({
+                            id: i + 1,
+                            name: inner?.name || meta.name,
+                            description: inner?.description || '',
+                            personality: inner?.personality || '',
+                            creator: inner?.creator || '',
+                            keywords: Array.isArray(inner?.keywords) ? inner.keywords : [],
+                            rating: typeof inner?.rating === 'number' ? inner.rating : 0,
+                            talkativeness: typeof inner?.talkativeness === 'number' ? inner.talkativeness : 0,
+                            created: typeof meta?.created === 'number' ? meta.created : i,
+                            tags: Array.isArray(inner?.tags) ? inner.tags : [],
+                            image: detail?.image || null,
+                            thumbnail: meta?.thumbnail || null,
+                            rawData: { data: inner },
+                        });
+                    } catch(_) {
+                        built.push({ id: i + 1, name: meta.name, description: '', personality: '', creator: '', keywords: [], rating: 0, talkativeness: 0, created: i, tags: [], image: null, thumbnail: meta?.thumbnail || null, rawData: { data: { name: meta.name } } });
+                    }
+                }
+                KLITE_RPMod.characters = built;
+                this.refreshGallery?.();
+            } catch(e) {
+                // ignore
+            }
+        },
+
+        async exportAllFromEsolite() {
+            try {
+                const list = this.getEsoliteCharacterList();
+                const bundle = [];
+                for (const meta of list) {
+                    try {
+                        const d = await window.getCharacterData?.(meta.name);
+                        if (d) bundle.push(d);
+                    } catch(_) {}
+                }
+                const blob = new Blob([JSON.stringify({ characters: bundle }, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'esolite_characters.json';
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(a.href), 500);
+            } catch(e) {}
+        },
+
+        // Convert base64 data URL to Uint8Array
+        _dataURLToUint8(dataURL) {
+            try {
+                const parts = String(dataURL).split(',');
+                const b64 = parts[1] || '';
+                const bin = atob(b64);
+                const out = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+                return out;
+            } catch (_) { return null; }
+        },
+
+        // Try to convert any image data URL to PNG Uint8Array; returns null on failure
+        async _imageDataUrlToPngUint8(dataURL) {
+            try {
+                if (/^data:image\/png/i.test(String(dataURL))) {
+                    return this._dataURLToUint8(dataURL);
+                }
+                // Render into canvas and export as PNG
+                const img = new Image();
+                // Ensure same-origin for data URLs
+                img.crossOrigin = 'anonymous';
+                const loaded = new Promise((resolve, reject) => {
+                    img.onload = () => resolve();
+                    img.onerror = (e) => reject(e);
+                });
+                img.src = dataURL;
+                await loaded;
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth || img.width || 1;
+                canvas.height = img.naturalHeight || img.height || 1;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const pngUrl = canvas.toDataURL('image/png');
+                return this._dataURLToUint8(pngUrl);
+            } catch (_) { return null; }
+        },
+
+        // CRC32 implementation for ZIP
+        _crc32(bytes) {
+            let crc = 0 ^ (-1);
+            for (let i = 0; i < bytes.length; i++) {
+                crc = (crc >>> 8) ^ this._crcTable[(crc ^ bytes[i]) & 0xFF];
+            }
+            return (crc ^ (-1)) >>> 0;
+        },
+        _makeCrcTable() {
+            const table = new Uint32Array(256);
+            for (let n = 0; n < 256; n++) {
+                let c = n;
+                for (let k = 0; k < 8; k++) {
+                    c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+                }
+                table[n] = c >>> 0;
+            }
+            return table;
+        },
+        _crcTable: null,
+        _ensureCrc() { if (!this._crcTable) this._crcTable = this._makeCrcTable(); },
+
+        _dosTimeDate(d = new Date()) {
+            // Returns { time, date } packed DOS format
+            const year = d.getFullYear();
+            const dosDate = ((year - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+            const dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | ((d.getSeconds() / 2) | 0);
+            return { time: dosTime & 0xFFFF, date: dosDate & 0xFFFF };
+        },
+
+        _writeU16LE(buf, off, val) { buf[off] = val & 0xFF; buf[off + 1] = (val >>> 8) & 0xFF; },
+        _writeU32LE(buf, off, val) {
+            buf[off] = val & 0xFF;
+            buf[off + 1] = (val >>> 8) & 0xFF;
+            buf[off + 2] = (val >>> 16) & 0xFF;
+            buf[off + 3] = (val >>> 24) & 0xFF;
+        },
+
+        _buildZip(files) {
+            // files: [{ name: string, data: Uint8Array, date?: Date }]
+            this._ensureCrc();
+            const chunks = [];
+            const central = [];
+            let offset = 0;
+            const now = new Date();
+
+            files.forEach(({ name, data, date }) => {
+                const utf8name = new TextEncoder().encode(name);
+                const { time, date: dosDate } = this._dosTimeDate(date || now);
+                const crc = this._crc32(data);
+                const compMethod = 0; // store
+
+                // Local File Header
+                const lfHeader = new Uint8Array(30 + utf8name.length);
+                this._writeU32LE(lfHeader, 0, 0x04034b50);
+                this._writeU16LE(lfHeader, 4, 20);
+                this._writeU16LE(lfHeader, 6, 0);
+                this._writeU16LE(lfHeader, 8, compMethod);
+                this._writeU16LE(lfHeader, 10, time);
+                this._writeU16LE(lfHeader, 12, dosDate);
+                this._writeU32LE(lfHeader, 14, crc);
+                this._writeU32LE(lfHeader, 18, data.length);
+                this._writeU32LE(lfHeader, 22, data.length);
+                this._writeU16LE(lfHeader, 26, utf8name.length);
+                this._writeU16LE(lfHeader, 28, 0);
+                lfHeader.set(utf8name, 30);
+
+                chunks.push(lfHeader);
+                chunks.push(data);
+
+                // Central Directory Header
+                const cdHeader = new Uint8Array(46 + utf8name.length);
+                this._writeU32LE(cdHeader, 0, 0x02014b50);
+                this._writeU16LE(cdHeader, 4, 20);
+                this._writeU16LE(cdHeader, 6, 20);
+                this._writeU16LE(cdHeader, 8, 0);
+                this._writeU16LE(cdHeader, 10, compMethod);
+                this._writeU16LE(cdHeader, 12, time);
+                this._writeU16LE(cdHeader, 14, dosDate);
+                this._writeU32LE(cdHeader, 16, crc);
+                this._writeU32LE(cdHeader, 20, data.length);
+                this._writeU32LE(cdHeader, 24, data.length);
+                this._writeU16LE(cdHeader, 28, utf8name.length);
+                this._writeU16LE(cdHeader, 30, 0);
+                this._writeU16LE(cdHeader, 32, 0);
+                this._writeU16LE(cdHeader, 34, 0);
+                this._writeU16LE(cdHeader, 36, 0);
+                this._writeU32LE(cdHeader, 38, 0);
+                this._writeU32LE(cdHeader, 42, offset);
+                cdHeader.set(utf8name, 46);
+
+                central.push(cdHeader);
+                offset += lfHeader.length + data.length;
+            });
+
+            // Concatenate chunks and central directory
+            let totalSize = 0;
+            chunks.forEach(c => totalSize += c.length);
+            const centralOffset = totalSize;
+            central.forEach(c => totalSize += c.length);
+
+            // End of central directory
+            const end = new Uint8Array(22);
+            this._writeU32LE(end, 0, 0x06054b50);
+            this._writeU16LE(end, 4, 0);
+            this._writeU16LE(end, 6, 0);
+            this._writeU16LE(end, 8, files.length);
+            this._writeU16LE(end, 10, files.length);
+            let centralSize = 0; central.forEach(c => centralSize += c.length);
+            this._writeU32LE(end, 12, centralSize);
+            this._writeU32LE(end, 16, centralOffset);
+            this._writeU16LE(end, 20, 0);
+
+            totalSize += end.length;
+            const out = new Uint8Array(totalSize);
+            let pos = 0;
+            chunks.forEach(c => { out.set(c, pos); pos += c.length; });
+            central.forEach(c => { out.set(c, pos); pos += c.length; });
+            out.set(end, pos);
+            return out;
+        },
+
+        async exportCharactersAsZip(names = null) {
+            try {
+                let charNames = names;
+                if (!Array.isArray(charNames)) {
+                    const list = this.getEsoliteCharacterList();
+                    charNames = list.map(m => typeof m === 'string' ? m : (m && m.name) ? m.name : null).filter(Boolean);
+                }
+                if (!charNames.length) { try { alert('No characters found to export.'); } catch(_) {} return; }
+
+                const files = [];
+                for (const name of charNames) {
+                    try {
+                        const d = await window.getCharacterData?.(name);
+                        if (!d) continue;
+                        const safe = String(name).replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_');
+
+                        let data = null;
+                        let filename = null;
+                        if (d.image && /^data:image\//.test(String(d.image))) {
+                            const pngBytes = await this._imageDataUrlToPngUint8(String(d.image));
+                            if (pngBytes && pngBytes.length) {
+                                data = pngBytes;
+                                filename = `${safe}.png`;
+                            }
+                        }
+                        if (!data) {
+                            const json = JSON.stringify(d.data || {}, null, 2);
+                            data = new TextEncoder().encode(json);
+                            filename = `${safe}.json`;
+                        }
+                        files.push({ name: filename, data });
+                    } catch (_) {}
+                }
+
+                if (!files.length) { try { alert('No exportable character data found.'); } catch(_) {} return; }
+                const zipBytes = this._buildZip(files);
+                const blob = new Blob([zipBytes], { type: 'application/zip' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'characters.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+            } catch (e) {
+                KLITE_RPMod.error('ZIP export failed', e);
+                throw e;
+            }
+        },
+
+        async deleteCharacterByName(name) {
+            try {
+                if (!name) return;
+                await window.indexeddb_save?.(`character_${name}`);
+                this.setEsoliteCharacterList((arr) => arr.filter(c => c?.name !== name));
+                await window.updateCharacterListFromAll?.();
+                await this.rebuildFromEsolite?.();
+            } catch(_) {}
+        },
+
+        async loadCharacterByName(name) {
+            try {
+                const d = await window.getCharacterData?.(name);
+                if (d?.data) window.load_tavern_obj?.(d.data);
+            } catch(_) {}
+        },
+
+        async exportCharacterJSONByName(name) {
+            try {
+                const d = await window.getCharacterData?.(name);
+                if (!d) return;
+                const text = JSON.stringify(d.data || {}, null, 2);
+                const a = document.createElement('a');
+                a.href = 'data:application/json;base64,' + btoa(unescape(encodeURIComponent(text)));
+                a.download = `${name}.json`;
+                a.click();
+            } catch(_) {}
+        },
+
+        async exportCharacterPNGByName(name) {
+            try {
+                const d = await window.getCharacterData?.(name);
+                if (!d) return;
+                if (d.image) {
+                    const a = document.createElement('a');
+                    a.href = d.image;
+                    a.download = `${name}.png`;
+                    a.click();
+                } else {
+                    // Fallback: JSON if no image present
+                    await this.exportCharacterJSONByName(name);
+                }
+            } catch(_) {}
+        },
+
+        async loadAsScenarioByName(name) {
+            try {
+                const d = await window.getCharacterData?.(name);
+                if (d?.data) window.load_tavern_obj?.(d.data);
+            } catch(_) {}
+        },
+
+        async showCharacterFullscreenByName(name) {
+            try {
+                const d = await window.getCharacterData?.(name);
+                if (!d) return;
+                const inner = d.data || {};
+                const char = {
+                    id: Date.now(),
+                    name: inner?.name || name,
+                    image: d.image || null,
+                    rawData: { data: inner }
+                };
+                this.showCharacterFullscreen(char);
+            } catch(_) {}
+        },
     };
     // === Character Editor Extension for CHARS Panel ===
     KLITE_RPMod.panels.CHARS.editMode = 'none';
@@ -20881,8 +22168,11 @@ Pacing Notes: `
     KLITE_RPMod.panels.CHARS.abortEdit = function () {
         this.editMode = 'none';
         this.editData = null;
+        this.currentChar = null;
+        this.showGroupSelector = false;
         this.hideCharacterFullscreen();
         KLITE_RPMod.loadPanel('right', 'CHARS');
+        try { document.getElementById('content-right')?.scrollTo?.(0,0); } catch(_) {}
     };
 
     KLITE_RPMod.panels.CHARS.saveCharacter = function () {
@@ -20905,7 +22195,7 @@ Pacing Notes: `
     };
 
     KLITE_RPMod.panels.CHARS.uploadImage = function (event) {
-        const file = target.files?.[0];
+        const file = event?.target?.files?.[0];
         if (!file) return;
 
         const reader = new FileReader();
@@ -20927,58 +22217,63 @@ Pacing Notes: `
 
 
     KLITE_RPMod.panels.CHARS.renderEditor = function (charData = null) {
-        this.editData = {
-            // Core identity
-            id: charData?.id || null,
-            name: charData?.name || '',
-            description: charData?.description || '',
-            personality: charData?.personality || '',
-            scenario: charData?.scenario || '',
-            first_mes: charData?.first_mes || '',
-            mes_example: charData?.mes_example || '',
+        // Initialize editData once per session or when switching target
+        if (!this.editData) {
+            this.editData = {};
+        }
+        if (charData) {
+            // If entering edit/clone with provided data, seed missing fields only
+            const d = this.editData;
+            this.editData = {
+                // Preserve any already-typed fields in current session
+                id: d.id ?? (charData?.id || null),
+                name: d.name ?? (charData?.name || ''),
+                description: d.description ?? (charData?.description || ''),
+                personality: d.personality ?? (charData?.personality || ''),
+                scenario: d.scenario ?? (charData?.scenario || ''),
+                first_mes: d.first_mes ?? (charData?.first_mes || ''),
+                mes_example: d.mes_example ?? (charData?.mes_example || ''),
 
-            // Tags and metadata
-            tags: Array.isArray(charData?.tags) ? charData.tags : [],
-            creator: charData?.creator || '',
-            character_version: charData?.character_version || charData?.version || '',
-            creator_notes: charData?.creator_notes || charData?.userNotes || '',
-            system_prompt: charData?.system_prompt || (charData?.extensions?.depth_prompt?.prompt || ''),
-            post_history_instructions: charData?.post_history_instructions || '',
+                tags: Array.isArray(d.tags) ? d.tags : (Array.isArray(charData?.tags) ? charData.tags : []),
+                creator: d.creator ?? (charData?.creator || ''),
+                character_version: d.character_version ?? (charData?.character_version || charData?.version || ''),
+                creator_notes: d.creator_notes ?? (charData?.creator_notes || charData?.userNotes || ''),
+                system_prompt: d.system_prompt ?? (charData?.system_prompt || (charData?.extensions?.depth_prompt?.prompt || '')),
+                post_history_instructions: d.post_history_instructions ?? (charData?.post_history_instructions || ''),
 
-            // Greetings and avatars
-            alternate_greetings: Array.isArray(charData?.alternate_greetings)
-                ? charData.alternate_greetings
-                : (Array.isArray(charData?.alternateGreetings) ? charData.alternateGreetings : []),
-            avatar: charData?.avatar || charData?.image || charData?.images?.avatar || '',
-            wi_group: charData?.wi_group || charData?.category || 'General',
+                alternate_greetings: Array.isArray(d.alternate_greetings)
+                    ? d.alternate_greetings
+                    : (Array.isArray(charData?.alternate_greetings)
+                        ? charData.alternate_greetings
+                        : (Array.isArray(charData?.alternateGreetings) ? charData.alternateGreetings : [])),
+                avatar: d.avatar || charData?.avatar || charData?.image || charData?.images?.avatar || '',
+                wi_group: d.wi_group ?? (charData?.wi_group || charData?.category || 'General'),
 
-            // Optional and internal metadata
-            importSource: charData?.importSource || '',
-            importDate: charData?.importDate || Date.now(),
-            originalFilename: charData?.originalFilename || '',
-            isFavorite: !!charData?.isFavorite,
-            isArchived: !!charData?.isArchived,
+                importSource: d.importSource ?? (charData?.importSource || ''),
+                importDate: d.importDate ?? (charData?.importDate || Date.now()),
+                originalFilename: d.originalFilename ?? (charData?.originalFilename || ''),
+                isFavorite: d.isFavorite ?? !!charData?.isFavorite,
+                isArchived: d.isArchived ?? !!charData?.isArchived,
 
-            // Custom fields from extensions (deep cloning optional)
-            extensions: charData?.extensions
-                ? JSON.parse(JSON.stringify(charData.extensions))
-                : {},
+                extensions: d.extensions || (charData?.extensions
+                    ? JSON.parse(JSON.stringify(charData.extensions))
+                    : {}),
 
-            // Optional advanced fields
-            keywords: Array.isArray(charData?.keywords) ? [...charData.keywords] : [],
-            relationships: Array.isArray(charData?.relationships) ? [...charData.relationships] : [],
-            preferences: charData?.preferences ? { ...charData.preferences } : {},
-            traits: Array.isArray(charData?.traits) ? [...charData.traits] : [],
-            rating: charData?.rating ? { ...charData.rating } : {},
-            stats: charData?.stats ? { ...charData.stats } : {},
-            worldInfo: charData?.worldInfo ? { ...charData.worldInfo } : {},
-        };
+                keywords: Array.isArray(d.keywords) ? [...d.keywords] : (Array.isArray(charData?.keywords) ? [...charData.keywords] : []),
+                relationships: Array.isArray(d.relationships) ? [...d.relationships] : (Array.isArray(charData?.relationships) ? [...charData.relationships] : []),
+                preferences: d.preferences ? { ...d.preferences } : (charData?.preferences ? { ...charData.preferences } : {}),
+                traits: Array.isArray(d.traits) ? [...d.traits] : (Array.isArray(charData?.traits) ? [...charData.traits] : []),
+                rating: d.rating ? { ...d.rating } : (charData?.rating ? { ...charData.rating } : {}),
+                stats: d.stats ? { ...d.stats } : (charData?.stats ? { ...charData.stats } : {}),
+                worldInfo: d.worldInfo ? { ...d.worldInfo } : (charData?.worldInfo ? { ...charData.worldInfo } : {}),
+            };
+        }
 
+        const d = this.editData;
         if (KLITE_RPMod.panels.WI && typeof KLITE_RPMod.panels.WI.init === 'function') {
             KLITE_RPMod.panels.WI.init();
         }
 
-        const d = this.editData;
 
         return `
     <div class="klite-char-editor">
@@ -21003,7 +22298,7 @@ Pacing Notes: `
         <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.mes_example=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.mes_example)}</textarea><br>
 
         <label>Tags (comma-separated):</label>
-        <input class="klite-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.tags.join(', '))}" oninput="KLITE_RPMod.panels.CHARS.editData.tags=this.value.split(',').map(t=>t.trim())"><br>
+        <input class="klite-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML((Array.isArray(d.tags) ? d.tags : []).join(', '))}" oninput="KLITE_RPMod.panels.CHARS.editData.tags=this.value.split(',').map(t=>t.trim()).filter(Boolean)"><br>
 
         <label>Creator:</label>
         <input class="klite-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.creator)}" oninput="KLITE_RPMod.panels.CHARS.editData.creator=this.value"><br>
@@ -21025,8 +22320,8 @@ Pacing Notes: `
             oninput="KLITE_RPMod.panels.CHARS.editData.alternate_greetings = this.value.split('\\n').map(l => l.trim()).filter(Boolean)">${KLITE_RPMod.panels.CHARS.escapeTextarea((d.alternate_greetings || []).join('\\n'))}</textarea><br>
 
         <label>Upload Avatar:</label>
-        <input type="file" accept="image/*" onchange="KLITE_RPMod.panels.CHARS.uploadImage(event)">
-        <div><img src="${d.avatar}" alt="Avatar preview" style="max-height:120px;margin-top:8px;"></div>
+        <input type="file" accept="image/png" onchange="KLITE_RPMod.panels.CHARS.uploadImage(event)">
+        <div><img src="${d.avatar || ''}" alt="Avatar preview" style="max-height:120px;margin-top:8px;"></div>
 
         ${this.renderGroupSelector()}
 
@@ -21056,6 +22351,8 @@ Pacing Notes: `
     KLITE_RPMod.panels.CHARS.setEditMode = function (mode, char = null) {
         this.editMode = mode;
         this.currentChar = char;
+        // Reset editData when switching modes/targets to avoid stale merges
+        this.editData = null;
         KLITE_RPMod.loadPanel('right', 'CHARS');
     };
 
@@ -21107,10 +22404,7 @@ Pacing Notes: `
                 alert('Character must have a name.');
                 return;
             }
-            if (!data.image && !data.avatar) {
-                alert('Character must have an image.');
-                return;
-            }
+            // Image is optional; if absent, we will save JSON-only.
 
             data.spec = 'chara_card_v2';
             data.spec_version = '2.0';
@@ -21131,6 +22425,13 @@ Pacing Notes: `
             try {
                 if (KLITE_RPMod.panels?.CHARS?.addCharacter) {
                     await KLITE_RPMod.panels.CHARS.addCharacter(data);
+                    // If name changed, remove old list entry to avoid duplicates
+                    try {
+                        const oldName = this.currentChar?.name;
+                        if (oldName && oldName !== data.name) {
+                            this.setEsoliteCharacterList(arr => (Array.isArray(arr) ? arr : []).filter(c => c?.name !== oldName));
+                        }
+                    } catch(_) {}
                 } else {
                     throw new Error('CHARS panel not available. Character import requires proper panel initialization.');
                 }
@@ -21259,6 +22560,50 @@ Pacing Notes: `
                 };
             }
         } catch(e) { console.warn('[RPMod] Failed to make setupHooks idempotent:', e); }
+
+        // Panels-only stubs: disable overlay/left-only operations at runtime
+        try {
+            (function(){
+                try {
+                    if (!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.panelsOnly)) return;
+                    if (!window.KLITE_RPMod) return;
+                    const M = window.KLITE_RPMod;
+                    const noop = function(){};
+                    [
+                        'toggleFullscreen',
+                        'toggleTabletSidepanel',
+                        'updateTabletSidepanelPositions',
+                        'removeTabletSidepanelClasses',
+                        'restoreUIStates',
+                        'updateTabletSidepanelButton',
+                        'updateFullscreenButton',
+                        'bottomAction',
+                        'updateModeButtons',
+                        'setActiveQuickButton',
+                        'onModeChange',
+                        'switchToClassicUI',
+                        'addMobileNavigationButtons',
+                        'toggleUI'
+                    ].forEach(k => { try { if (typeof M[k] === 'function') M[k] = noop; } catch(_){} });
+
+                    // Generation controls/UI are unused in panels-only
+                    try {
+                        if (M.generationControl) Object.assign(M.generationControl, {
+                            init: noop,
+                            setupEventHandlers: noop,
+                            saveToLite: noop,
+                            applyPreset: noop,
+                            updateFromSlider: noop,
+                            updateDisplaysOnly: noop,
+                            syncAllPanels: noop,
+                            syncPanel: noop,
+                            updatePresetButtons: noop
+                        });
+                        M.renderGenerationControl = () => '';
+                    } catch(_) {}
+                } catch(_) {}
+            })();
+        } catch(_) {}
 
         // Flexible readiness detector that works on Lite and forks
         function isLiteReady(){
