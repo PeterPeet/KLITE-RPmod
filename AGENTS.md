@@ -1,46 +1,27 @@
 # KLITE RPmod – Developer Guide (BETA)
 
-This repo contains the monolithic ALPHA implementation of KLITE RPmod and a browser-based test harness. It enhances KoboldAI Lite/Esolite with roleplay tooling, while maintaining compatibility with the host UI and storage.
+This repo contains the monolithic ALPHA implementation of KLITE RPmod. It enhances KoboldAI Lite based fork Esobold Esolite with roleplay tooling, while maintaining compatibility with Esolite as the host UI and storage.
 
 ## Core Principles
-- Enhance, don’t replace: integrate with Lite/Esolite APIs (e.g., `localsettings`, IndexedDB helpers) and avoid invasive DOM rewrites.
-- Host-agnostic: auto-detect Esolite vs Lite, and gracefully fall back when helpers are missing.
+- Enhance, don’t replace: integrate with Esolite APIs (e.g., `localsettings`, IndexedDB helpers) and avoid invasive DOM rewrites.
+- Host-agnostic: auto-detect Esolite and it's functions for the mod to work properly.
 - Performance-first: incremental updates, idempotent hooks, and guarded observers.
+- NEVER loose savegames or characters of the user. We must always try to keep those save when doing changes on the mod or bugfixes. When we change things on the save system we need to test carefully.
+
+## Goals
+- View, create, edit characters (in CHARS Panel)
+- Select Persona and character or build a group (in ROLES Panel)
+- Have some tools that help with general things, the context and images (in TOOLS, CONTEXT, IMAGES Panels)
 
 ## What’s implemented
-- Panels: TOOLS, CONTEXT, SCENE, ROLES, HELP (left) and CHARS, MEMORY, NOTES, WI, TEXTDB (right).
-- Save/restore: embeds RPmod bundle in `generate_savefile(...)` and restores in `kai_json_load(...)`; persists `rpmod_*` keys via Lite’s storage or direct IndexedDB fallback.
-- ROLES trigger system: manual/round‑robin/random/keyword/talkative/party, tail injection and correct `chatopponent` semantics.
-- Author’s Note: unified mode detection (Story/Chat/RP/Adventure), smart settings persistence.
-- Avatar integration:
-  - RPmod chat avatars (fast).
-  - Esolite adapter (auto): MutationObserver updates only newly inserted rows scoped to chat containers; no mass document sweeps.
-  - Lite experimental toggle: same approach, off by default.
-  - Policy persisted as `ui.avatarPolicy` in the RPmod bundle; restored both from savefiles and autosave bundles.
-
-## Testing
-- Runner: open `Tests/Test_Runner_FunctionalTests.html` in a browser.
-  - Includes functional, integration, ROLES/NOTES, save system, avatar tests, and character tests.
-  - Log output and export JSON with per-test details.
-- Key coverage:
-  - Save/load embedding and Lite storage fallback
-  - ROLES triggers (round‑robin/keyword/talkative)
-  - Author’s Note mode detection + smart settings persistence
-  - Avatar policy persistence, name mapping, and DOM injection for new rows (chat container scoped)
-
-## Developer tips
-- Hooks are idempotent; we double‑install save/load wrappers where needed to avoid timing issues.
-- Use `KLITE_RPMod.enableLiteAvatarsExperimental(true)` to test Lite DOM avatars. The observer watches `#gametext`/`#chat-display`.
-- Avatar sources resolve from CHARS cache (`getOptimizedAvatar(id,'avatar')`) with fallbacks; avoid blob URLs.
-- Fullscreen layout uses a script‑toggled `.klite-fullscreen` class as a fallback for browsers without `:has()` support.
-- Console restoration is gated: set `window.KLITE_RPMod_Config.enableConsoleRestore=true` or localStorage key `rpmod_enable_console_restore=1` to enable.
+- Right Panels: CHARS, ROLES, TOOLS, CONTEXT, IMAGES
+- Right panel can collapse or expand. Also can be set to a mode where it overlays or thins the chat window down by the user in advanced settings after load.
+- Integrates into Esolite's functions and storage as much as possible.
+- Tools and Context Panels give standalone Tools for interaction with the chat history, general tools or interacting with the context of the chat.
+- Images is a direct way to create images from the chat.
+- Character gallery, Filters, Editor and Dialogue to sho details and export and edit the characters.
 
 ## Files of interest
+- `AGENTS.md` - this file
 - `KLITE-RPmod_ALPHA.js` – main implementation (~18k+ lines)
-- `docs/developer/REQUIREMENTS.md` – derived requirements (updated to match ALPHA)
-- `Tests/` – mocks, assertions, runner, and test suites
-
-## Future work
-- Optional topbar indicator of avatar adapter mode.
-- Fine‑tune adapter caps and idle scheduling for ultra‑long sessions.
-- Expand fork‑specific selectors/entries when DOM structures are known.
+- `Esobold Esolite a fork of KoboldAI Lite` – Folder with the Esolite UI. It's mainly a monolithic html and javascript index.html with most of the code only some css and javascripts are in subfolders and included at the very end of index.html. That are mostly the Esolite specific parts of the fork. All Lite code is in the index.html. 

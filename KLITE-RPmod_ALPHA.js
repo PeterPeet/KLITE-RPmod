@@ -2844,6 +2844,7 @@
     // =============================================
 
     const t = {
+        // Collapsible section with a header and content
         section: (title, content, collapsed = false) => `
             <div class="klite-section ${collapsed ? 'collapsed' : ''}">
                 <div class="klite-section-header" data-section="${title}">
@@ -2855,7 +2856,7 @@
         `,
 
         button: (text, className = '', action = '') => `
-            <button class="klite-btn btn btn-primary actbtn mainnav ${className}" ${action ? `data-action="${action}"` : ''}>${text}</button>
+            <button class="klite-btn ${className}" ${action ? `data-action="${action}"` : ''}>${text}</button>
         `,
 
         textarea: (id, placeholder = '', value = '') => `
@@ -2969,8 +2970,10 @@
         }
         /* Wrapper that doesn't block host interactions */
         #klite-panels-only { position: fixed; inset: 0; pointer-events: none; z-index: 2147483638; }
-        /* Panels remain interactive */
-        .klite-panel { pointer-events: auto; position: fixed; background: var(--bg2); box-shadow: 0 0 10px rgba(0,0,0,0.5); }
+        /* Ensure descendants accept events even if wrapper is non-interactive */
+        #klite-panels-only * { pointer-events: auto; }
+        /* Panels remain interactive and above host */
+        .klite-panel { pointer-events: auto; position: fixed; background: var(--bg2); box-shadow: 0 0 10px rgba(0,0,0,0.5); z-index: 2147483640; }
         /* v2: left panel removed */
         .klite-panel-right { right: 0; top: 0; bottom: 0; width: 350px; border-left: 1px solid var(--border); transition: transform 0.2s ease; }
         
@@ -3184,8 +3187,31 @@
     // =============================================
 
     window.KLITE_RPMod = {
+        // Map host image provider mode (number or string) to human-readable label
+        getGenerationMode(mode) {
+            try {
+                // Prefer host select's current option text if available
+                const sel = document.getElementById('generate_images_mode');
+                if (sel && sel.options && sel.options.length) {
+                    const val = (mode ?? window.localsettings?.generate_images_mode ?? sel.value);
+                    const match = Array.from(sel.options).find(o => String(o.value) === String(val));
+                    if (match) return (match.text || '').trim();
+                }
+            } catch(_) {}
+            // Fallback mapping based on known Esolite values
+            const map = {
+                0: '[Disabled]',
+                1: 'AI Horde',
+                2: 'KCPP / Forge / A1111',
+                3: 'OpenAI DALL-E',
+                4: 'ComfyUI',
+                5: 'Pollinations.ai'
+            };
+            const key = (typeof mode === 'string') ? parseInt(mode, 10) : (mode ?? window.localsettings?.generate_images_mode ?? 0);
+            return map[key] || '[Disabled]';
+        },
         state: {
-            tabs: { left: 'TOOLS', right: 'MEMORY' },
+            tabs: { left: 'TOOLS', right: 'CHARS' },
             collapsed: { left: false, right: false, top: false },
             generating: false,
             adventureMode: 0, // Default adventure sub-mode (0=story, 1=action, 2=dice)
@@ -3441,6 +3467,14 @@
 
                 // In panels-only mode, do not wrap host or replace main content
                 if (panelsOnly) {
+                    // Ensure valid default tab for right panel (fallback to CHARS if unknown)
+                    try {
+                        const allowedRight = new Set(['CHARS','ROLES','TOOLS','CONTEXT','IMAGE']);
+                        if (!allowedRight.has(this.state?.tabs?.right)) {
+                            this.log('init', `Invalid or missing right tab '${this.state?.tabs?.right}', defaulting to CHARS`);
+                            this.state.tabs.right = 'CHARS';
+                        }
+                    } catch(_) {}
                     // Ensure the minimal right-panel container exists before loading content
                     try { this.buildPanelsOnlyUI(); } catch(_) {}
                     this.loadPanel('right', this.state.tabs.right);
@@ -3893,20 +3927,56 @@
                     <div class="klite-handle" data-panel="right">${this.state.collapsed?.right ? '◀' : '▶'}</div>
                     <div class="klite-tabs" data-panel="right">
                         ${['CHARS', 'ROLES', 'TOOLS', 'CONTEXT', 'IMAGE'].map(t =>
-                            `<div class=\"klite-tab btn actbtn btn-primary mainnav ${t === this.state.tabs?.right ? 'active' : ''}\" data-tab=\"${t}\">${t}</div>`
+                            `<div class=\"klite-tab ${t === this.state.tabs?.right ? 'active' : ''}\" data-tab=\"${t}\">${t}</div>`
                         ).join('')}
                     </div>
                     <div class="klite-content" id="content-right"></div>
                 </div>
             `;
 
-            // Limit event delegation to panel wrapper only
-            wrapper.addEventListener('click', e => this.handleClick(e));
-            wrapper.addEventListener('input', e => this.handleInput(e));
-            wrapper.addEventListener('change', e => this.handleChange(e));
-            wrapper.addEventListener('dragover', e => this.handleDragOver(e));
-            wrapper.addEventListener('dragleave', e => this.handleDragLeave(e));
-            wrapper.addEventListener('drop', e => this.handleDrop(e));
+            // Delegate events to the interactive panel element (wrapper uses pointer-events:none)
+            const panelEl = wrapper.querySelector('#panel-right');
+            if (panelEl) {
+                const dispatchClick = (e) => {
+                    try {
+                        if (e.__kliteHandled) return;
+                        const inPanel = e.target && e.target.closest && e.target.closest('#panel-right');
+                        if (!inPanel) return;
+                        e.__kliteHandled = true;
+                        this.handleClick(e);
+                    } catch(_) {}
+                };
+                const dispatchInput = (e) => {
+                    try {
+                        if (e.__kliteHandledInput) return;
+                        const inPanel = e.target && e.target.closest && e.target.closest('#panel-right');
+                        if (!inPanel) return;
+                        e.__kliteHandledInput = true;
+                        this.handleInput(e);
+                    } catch(_) {}
+                };
+                const dispatchChange = (e) => {
+                    try {
+                        if (e.__kliteHandledChange) return;
+                        const inPanel = e.target && e.target.closest && e.target.closest('#panel-right');
+                        if (!inPanel) return;
+                        e.__kliteHandledChange = true;
+                        this.handleChange(e);
+                    } catch(_) {}
+                };
+                // Bubble-level on panel element
+                panelEl.addEventListener('click', dispatchClick);
+                panelEl.addEventListener('input', dispatchInput);
+                panelEl.addEventListener('change', dispatchChange);
+                panelEl.addEventListener('dragover', e => this.handleDragOver(e));
+                panelEl.addEventListener('dragleave', e => this.handleDragLeave(e));
+                panelEl.addEventListener('drop', e => this.handleDrop(e));
+
+                // Capture-level on document to survive upstream stopPropagation
+                document.addEventListener('click', dispatchClick, true);
+                document.addEventListener('input', dispatchInput, true);
+                document.addEventListener('change', dispatchChange, true);
+            }
 
             // In panels-only mode, also delegate modal clicks at document level
             document.addEventListener('click', e => {
@@ -3915,12 +3985,7 @@
                 }
             }, true);
 
-            // Safety net: route any clicks within the panels-only wrapper to handler (in case wrapper listeners miss)
-            document.addEventListener('click', e => {
-                if (e.target.closest('#klite-panels-only')) {
-                    this.handleClick(e);
-                }
-            }, true);
+            // Note: Do not add a global click router for '#klite-panels-only' to avoid double-handling.
 
             // Ensure initial overlay padding state is applied
             try { this.updatePanelsOnlyOverlayPadding?.(); } catch(_) {}
@@ -3977,6 +4042,12 @@
                 return;
             }
 
+            // Section headers (handle before generic actions)
+            if (e.target.closest('.klite-section-header')) {
+                this.handleSectionToggle(e);
+                return;
+            }
+
             // Tabs
             const tabEl = e.target.closest('.klite-tab');
             if (tabEl) {
@@ -4008,25 +4079,30 @@
                 this.bottomAction(2); return;
             }
 
-            // Section headers
-            if (e.target.closest('.klite-section-header')) {
-                this.handleSectionToggle(e);
-                return;
-            }
+            // (Section headers handled earlier)
         },
 
         handleInput(e) {
-            if (e.target.id === 'input') {
-                this.updateTokens();
-            }
+            try {
+                if (e.target && e.target.id === 'input') {
+                    this.updateTokens();
+                }
+                // Route data-action inputs as actions for consistency
+                const actionEl = e.target && e.target.closest && e.target.closest('[data-action]');
+                if (actionEl && actionEl.dataset && actionEl.dataset.action) {
+                    this.handleAction(actionEl.dataset.action, e, actionEl);
+                }
+            } catch(_) {}
         },
 
         handleChange(e) {
-            // Handle data-action changes (like select dropdowns)
-            if (e.target.dataset.action || e.target.closest('[data-action]')) {
-                const actionElement = e.target.dataset.action ? e.target : e.target.closest('[data-action]');
-                this.handleAction(actionElement.dataset.action, e);
-            }
+            try {
+                // Provide minimal routing for elements explicitly marked as actions
+                const actionEl = e.target && e.target.closest && e.target.closest('[data-action]');
+                if (actionEl && actionEl.dataset && actionEl.dataset.action) {
+                    this.handleAction(actionEl.dataset.action, e, actionEl);
+                }
+            } catch(_) {}
         },
 
         handleDragOver(e) {
@@ -4040,6 +4116,8 @@
         handleDrop(e) {
             e.preventDefault();
         },
+
+        // (duplicate handleInput/handleChange removed to prevent shadowing)
 
         handleSectionToggle(e) {
             const sectionHeader = e.target.closest('.klite-section-header');
@@ -4307,9 +4385,9 @@
                     this.closeUnifiedCharacterModal();
                     break;
                 case 'toggle-unified-char-selection':
-                    const charId = target.dataset.charId || target.closest('[data-char-id]')?.dataset.charId;
+                    const containerEl = target.closest('[data-char-id]');
                     const selectionType = target.dataset.selectionType || target.closest('[data-selection-type]')?.dataset.selectionType;
-                    if (charId && selectionType) this.toggleUnifiedCharacterSelection(charId, selectionType);
+                    if (containerEl && selectionType) this.toggleUnifiedCharacterSelection(containerEl, selectionType);
                     break;
                 case 'confirm-group-char-selection':
                     KLITE_RPMod.panels.ROLES?.confirmCharacterSelection();
@@ -4563,26 +4641,25 @@
             if (name === 'IMAGE' && !KLITE_RPMod.panels.IMAGE) {
                 try {
                     KLITE_RPMod.panels.IMAGE = {
+                        _syncTimer: null,
                         render() {
                             return `
                                 ${t.section('🎨 Image Generation', `
                                     <div class="klite-image-status" style="margin-bottom: 12px; padding: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;">
                                         <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px;">Image Generation Status</div>
                                         <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
-                                            <div><span style="color: var(--muted);">Provider:</span> <span id="scene-mode-status" style="color: var(--text); font-weight: bold;">${KLITE_RPMod.getGenerationMode?.(window.localsettings?.generate_images_mode) || 'auto'}</span></div>
-                                            <div><span style="color: var(--muted);">Model:</span> <span id="scene-model-status" style="color: var(--text); font-weight: bold;">${window.localsettings?.generate_images_model || 'Default'}</span></div>
+                                            <div><span style="color: var(--muted);">Provider:</span> <span id="scene-mode-status" style="color: var(--text); font-weight: bold;">${KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode)}</span></div>
+                                            <div><span style="color: var(--muted);">Model:</span> <span id="scene-model-status" style="color: var(--text); font-weight: bold;">${(KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode) === 'AI Horde') ? (window.localsettings?.generate_images_model || 'Default') : '-'}</span></div>
                                         </div>
                                     </div>
                                     <div class="klite-image-controls" style="margin-bottom: 12px;">
                                         <label style="display: block; margin-bottom: 4px; font-size: 12px;">Auto-generate:</label>
                                         ${t.select('scene-autogen', [
-                                            { value: '0', text: 'Disabled', selected: true },
-                                            { value: '1', text: 'Immersive Mode' },
-                                            { value: '2', text: 'All Messages' },
-                                            { value: '3', text: 'User Messages Only' },
-                                            { value: '4', text: 'Non-User Messages Only' }
+                                            { value: '0', text: 'Off', selected: String(window.localsettings?.img_autogen_type ?? 0) === '0' },
+                                            { value: '1', text: 'Basic', selected: String(window.localsettings?.img_autogen_type ?? 0) === '1' },
+                                            { value: '2', text: 'Smart', selected: String(window.localsettings?.img_autogen_type ?? 0) === '2' }
                                         ])}
-                                        <div style="margin-top: 8px;">${t.checkbox('scene-detect', 'Detect ImgGen Instructions', false)}</div>
+                                        <div style="margin-top: 8px;">${t.checkbox('scene-detect', 'Detect ImgGen Instructions', !!(window.localsettings?.img_gen_from_instruct))}</div>
                                     </div>
                                     <div class="klite-image-generation-section">
                                         <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Scene & Characters</div>
@@ -4610,7 +4687,76 @@
                                 `)}
                             `;
                         },
-                        init() {},
+                        cleanup() {
+                            if (this._syncTimer) {
+                                clearInterval(this._syncTimer);
+                                this._syncTimer = null;
+                            }
+                        },
+                        init() {
+                            // Wire up RPmod controls to host Esolite settings/controls
+                            const sel = document.getElementById('scene-autogen');
+                            const cb = document.getElementById('scene-detect');
+
+                            const applyAutogenToHost = (val) => {
+                                try { if (window.localsettings) window.localsettings.img_autogen_type = parseInt(val, 10) || 0; } catch(_) {}
+                                try {
+                                    const hostSel = document.getElementById('img_autogen_type');
+                                    if (hostSel) hostSel.value = String(val);
+                                } catch(_) {}
+                            };
+                            const applyDetectToHost = (checked) => {
+                                try { if (window.localsettings) window.localsettings.img_gen_from_instruct = !!checked; } catch(_) {}
+                                try {
+                                    const hostCb = document.getElementById('img_gen_from_instruct');
+                                    if (hostCb) hostCb.checked = !!checked;
+                                } catch(_) {}
+                            };
+
+                            if (sel) {
+                                // Initialize from host/localsettings and listen for changes
+                                const hostSel = document.getElementById('img_autogen_type');
+                                const initVal = hostSel?.value ?? String(window.localsettings?.img_autogen_type ?? '0');
+                                sel.value = String(initVal);
+                                sel.addEventListener('change', () => applyAutogenToHost(sel.value));
+                            }
+                            if (cb) {
+                                const hostCb = document.getElementById('img_gen_from_instruct');
+                                const initChecked = (hostCb?.checked ?? !!window.localsettings?.img_gen_from_instruct);
+                                cb.checked = !!initChecked;
+                                cb.addEventListener('change', () => applyDetectToHost(cb.checked));
+                            }
+
+                            // Periodically sync status and reflect external changes
+                            const updateStatus = () => {
+                                try {
+                                    const modeTxt = KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode);
+                                    let modelTxt = '-';
+                                    if (modeTxt === 'AI Horde') {
+                                        modelTxt = window.localsettings?.generate_images_model || 'Default';
+                                        try {
+                                            const modelSel = document.getElementById('generate_images_model');
+                                            if (modelSel) {
+                                                const opt = modelSel.options[modelSel.selectedIndex];
+                                                modelTxt = (opt?.text || opt?.value || modelTxt || '').toString();
+                                            }
+                                        } catch(_) {}
+                                    }
+                                    const modeEl = document.getElementById('scene-mode-status');
+                                    const modelEl = document.getElementById('scene-model-status');
+                                    if (modeEl && modeEl.textContent !== modeTxt) modeEl.textContent = modeTxt;
+                                    if (modelEl && modelEl.textContent !== modelTxt) modelEl.textContent = modelTxt;
+                                } catch(_) {}
+                                try {
+                                    const hostSel = document.getElementById('img_autogen_type');
+                                    const hostCb = document.getElementById('img_gen_from_instruct');
+                                    if (sel && hostSel && sel.value !== String(hostSel.value)) sel.value = String(hostSel.value);
+                                    if (cb && hostCb && cb.checked !== !!hostCb.checked) cb.checked = !!hostCb.checked;
+                                } catch(_) {}
+                            };
+                            this._syncTimer = setInterval(updateStatus, 1000);
+                            updateStatus();
+                        },
                         isImageGenerationAvailable() {
                             if (!window.do_manual_gen_image || typeof window.do_manual_gen_image !== 'function') {
                                 return { available: false, reason: 'Image generation function not available' };
@@ -5062,6 +5208,14 @@
                             if (queueEl) queueEl.textContent = '#0';
                             if (waitEl) waitEl.textContent = '0s';
                         }, 100);
+                        // Ensure Smart Memory Writer state is reset if it was active
+                        try {
+                            const smw = this.panels?.CONTEXT;
+                            if (smw && smw.memoryGenerationState?.active) {
+                                this.log('generation', 'Smart Memory Writer: generation ended externally, cleaning up state');
+                                smw.cleanupMemoryGeneration(false);
+                            }
+                        } catch (_) {}
                     }
                 }
             }, 250);
@@ -6364,7 +6518,7 @@
             }
 
             list.innerHTML = characters.map(char => {
-                const avatar = char.image || '';
+                const avatar = char.thumbnail || char.image || '';
                 const descriptionRaw = char.description || char.content || 'No description available';
                 const description = KLITE_RPMod.escapeHtml(descriptionRaw.length > 100 ? descriptionRaw.substring(0, 100) + '...' : descriptionRaw);
                 const tags = char.tags || [];
@@ -6403,15 +6557,18 @@
             }).join('');
         },
 
-        toggleUnifiedCharacterSelection(charId, selectionType) {
-            const input = document.querySelector(`input[value="${charId}"]`);
-            if (input) {
+        toggleUnifiedCharacterSelection(containerEl, selectionType) {
+            try {
+                const container = containerEl.closest('[data-char-id]');
+                if (!container) return;
+                const input = container.querySelector('input[type="radio"], input[type="checkbox"]');
+                if (!input) return;
                 if (selectionType === 'radio') {
                     input.checked = true;
                 } else {
                     input.checked = !input.checked;
                 }
-            }
+            } catch(_) {}
         },
 
         setupUnifiedCharacterModalFilters() {
@@ -6490,23 +6647,29 @@
                     return;
                 }
 
-                // Add to ROLES panel
+                // Add to ROLES panel without removing existing (and preserve customs)
                 if (KLITE_RPMod.panels.ROLES) {
+                    const roles = KLITE_RPMod.panels.ROLES;
+                    const existing = roles.activeChars.slice();
+                    const existingKeys = new Set(existing.map(c => (c.id != null ? `id:${c.id}` : `name:${c.name}`)));
+
                     let added = 0;
-                    checkboxes.forEach(checkbox => {
-                        const charId = checkbox.value;
+                    checkboxes.forEach(cb => {
+                        const charId = cb.value;
                         const char = this.findCharacterForUnifiedModal(charId);
-                        if (char && !KLITE_RPMod.panels.ROLES.activeChars.find(ac => ac.id === char.id || ac.name === char.name)) {
-                            char.isCustom = false;
-                            KLITE_RPMod.panels.ROLES.activeChars.push(char);
+                        if (!char) return;
+                        const key = (char.id != null ? `id:${char.id}` : `name:${char.name}`);
+                        if (!existingKeys.has(key)) {
+                            const entry = { ...char, isCustom: false };
+                            existing.push(entry);
+                            existingKeys.add(key);
                             added++;
                         }
                     });
 
-                    KLITE_RPMod.panels.ROLES.refresh();
-                    try { KLITE_RPMod.panels.ROLES.saveSettings?.(); } catch (_) {}
-                    // We do not write multi-opponent to host; speaker is set on trigger.
-                    // Character addition confirmed by visual update in group list
+                    roles.activeChars = existing;
+                    try { roles.saveSettings?.(); } catch(_) {}
+                    roles.refresh();
                 }
             } else {
                 // TOOLS panel (RP) mode - handle single selection
@@ -6564,15 +6727,31 @@
                 }
 
                 // Refresh current left panel (TOOLS or ROLES) without switching
-                const left = KLITE_RPMod.state?.tabs?.left;
-                if (left === 'TOOLS' || left === 'ROLES') KLITE_RPMod.loadPanel('left', left);
+                const active = KLITE_RPMod.state?.tabs?.right;
+                if (active === 'TOOLS' || active === 'ROLES') KLITE_RPMod.loadPanel('right', active);
                 // Character application confirmed by UI state change
             }
         },
 
         // =============================================
-        // CHARACTER HELPER METHODS
-        // =============================================
+    // CHARACTER HELPER METHODS
+    // =============================================
+
+        // Best-effort hook to update the user's avatar in Esolite (aesthetic UI)
+        updateUserAvatar(urlOrNull) {
+            try {
+                // Ensure settings object exists
+                window.aestheticInstructUISettings = window.aestheticInstructUISettings || {};
+                // Assign portrait for "you"
+                if (urlOrNull) {
+                    window.aestheticInstructUISettings.you_portrait = urlOrNull;
+                } else {
+                    window.aestheticInstructUISettings.you_portrait = null; // reset to default
+                }
+                // Some hosts update styles dynamically; attempt a lightweight refresh where possible
+                try { if (typeof window.updateUIFromData === 'function') window.updateUIFromData(); } catch(_) {}
+            } catch (_) { /* swallow */ }
+        },
 
         async saveCharacters() {
             try {
@@ -7257,6 +7436,79 @@
         }
     };
 
+    // Unified submit helper: trigger host chat submission
+    KLITE_RPMod.submit = function() {
+        try {
+            if (typeof window.chat_submit_generation === 'function') return window.chat_submit_generation();
+            if (typeof window.submit_generation_button === 'function') return window.submit_generation_button(true);
+        } catch(_) {}
+        // Fallback: try clicking send button
+        try { document.getElementById('chat_msg_send_btn')?.click(); } catch(_) {}
+    };
+
+    // Return the primary scroll container for chat/story content in Esolite
+    KLITE_RPMod.getChatScrollContainer = function() {
+        try {
+            const gamescreen = document.getElementById('gamescreen');
+            if (gamescreen) return gamescreen;
+            const content = document.getElementById('gametext');
+            let el = content ? content.parentElement : null;
+            while (el && el !== document.body) {
+                const style = window.getComputedStyle(el);
+                const oy = style.overflowY;
+                if (oy === 'auto' || oy === 'scroll') return el;
+                el = el.parentElement;
+            }
+        } catch(_) {}
+        return null;
+    };
+
+    // Ensure KLITE_RPMod.characters is in sync with Esolite before opening selection UIs
+    KLITE_RPMod.ensureCharactersLoaded = async function() {
+        try {
+            if (KLITE_RPMod.panels?.CHARS?.rebuildFromEsolite) {
+                await KLITE_RPMod.panels.CHARS.rebuildFromEsolite();
+            }
+        } catch(_) {}
+        return Array.isArray(KLITE_RPMod.characters) ? KLITE_RPMod.characters.length : 0;
+    };
+
+    // Choose the best available avatar/thumbnail for a character
+    KLITE_RPMod.getBestCharacterAvatar = function(character) {
+        try {
+            if (!character) return null;
+            // Prefer cached optimized avatars if available
+            if (character.id && KLITE_RPMod.panels?.CHARS?.getOptimizedAvatar) {
+                const av = KLITE_RPMod.panels.CHARS.getOptimizedAvatar(character.id, 'avatar');
+                if (av) return av;
+                const thumb = KLITE_RPMod.panels.CHARS.getOptimizedAvatar(character.id, 'thumbnail');
+                if (thumb) return thumb;
+            }
+            // Fallback: find by name in current character list for thumbnail
+            try {
+                if (KLITE_RPMod.characters && character.name) {
+                    const found = KLITE_RPMod.characters.find(c => (c.name||'') === character.name);
+                    if (found) return found.thumbnail || found.image || null;
+                }
+            } catch(_) {}
+            // Fallbacks from character object
+            return character.thumbnail || character.avatar || character.image || null;
+        } catch(_) { return null; }
+    };
+
+    // Update AI avatar in Esolite aesthetic settings
+    KLITE_RPMod.updateAIAvatar = function(urlOrNull) {
+        try {
+            window.aestheticInstructUISettings = window.aestheticInstructUISettings || {};
+            if (urlOrNull) {
+                window.aestheticInstructUISettings.AI_portrait = urlOrNull;
+            } else {
+                window.aestheticInstructUISettings.AI_portrait = 'default';
+            }
+            try { if (typeof window.updateUIFromData === 'function') window.updateUIFromData(); } catch(_) {}
+        } catch(_) {}
+    };
+
     // =============================================
     // 4. PANEL DEFINITIONS
     // =============================================  
@@ -7270,7 +7522,7 @@
         selectedCharacter: null,
         storedModeBeforeEdit: null,
         // Moved from PLAY_ADV: quick actions config for top of panel
-        quickActions: ['>Look Around', '>Search', '>Check Inventory', '>Rest', '>Continue'],
+        quickActions: ['> Look Around', '> Search', '> Check Inventory', '> Rest', '> Continue'],
         // Moved from PLAY_STORY: bookmarks/chapters list
         chapters: [],
         autoSender: {
@@ -7288,16 +7540,8 @@
 
         render() {
             return `
-                <!-- Bookmarks / Index -->
-                ${t.section('Bookmarks / Index',
-                `<div id="story-timeline" class="klite-timeline">
-                        ${this.chapters.length ? this.renderChapters() : '<div class="klite-center klite-muted">No bookmarks yet</div>'}
-                    </div>
-                    <div class="klite-buttons-fill klite-mt">
-                        ${t.button('Add Bookmark', '', 'add-chapter')}
-                        ${t.button('Delete All', 'danger', 'delete-chapters')}
-                    </div>`
-            )}
+                <!-- Bookmarks / Index (hidden) -->
+                
 
                 <!-- Quick Actions (from ADV) -->
                 ${t.section('Quick Actions',
@@ -7350,7 +7594,9 @@
                             The quality of the generated output depends highly on the model and it's capability to understand OOC instructions.
                         </div>
                         <div class="klite-row" style="margin-top: 10px;">
-                            ${t.button('🎬 Trigger Narrator', 'klite-btn-primary', 'narrator')}
+                            <button class="klite-btn klite-btn-sm" data-action="narrator" style="width: 100%; padding: 4px 0; font-size: 14px;">
+                                🎬 Trigger Narrator
+                            </button>  
                         </div>
                     </div>`
             )}
@@ -7380,6 +7626,51 @@
             )}
                 
             `;
+        },
+
+        // Trigger narrator by sending the selected narrator instruction like a Quick Action
+        triggerNarrator() {
+            const style = document.getElementById('narrator-style')?.value || 'omniscient';
+            const focus = document.getElementById('narrator-focus')?.value || 'mixed';
+
+            KLITE_RPMod.log('panels', `Triggering narrator: ${style}/${focus}`);
+
+            const narratorPrompts = {
+                omniscient: {
+                    environment: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator focuses on environment and setting descriptions, providing rich sensory details about the surroundings, atmosphere, and physical spaces. Answer now for one reply as the omniscient narrator focused on environment, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    emotions: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator focuses on revealing inner thoughts, feelings, and emotional states of characters, providing deep psychological insights. Answer now for one reply as the omniscient narrator focused on emotions, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    action: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator focuses on describing actions, events, and physical movements in detail. Answer now for one reply as the omniscient narrator focused on action, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    dialogue: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator focuses on dialogue and conversation, providing context and subtext to spoken words. Answer now for one reply as the omniscient narrator focused on dialogue, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    mixed: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator provides a balanced narrative covering environment, emotions, actions, and dialogue as appropriate. Answer now for one reply as the omniscient narrator with mixed focus, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]'
+                },
+                limited: {
+                    environment: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator focuses on environment from one perspective, describing only what that character would notice about their surroundings. Answer now for one reply as the limited narrator focused on environment, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    emotions: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator focuses on one perspective and hints at emotions rather than revealing them directly. Answer now for one reply as the limited narrator focused on emotions, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    action: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator focuses on actions and events from one character\'s perspective only. Answer now for one reply as the limited narrator focused on action, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    dialogue: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator focuses on dialogue from one character\'s perspective, including what they hear and their reactions. Answer now for one reply as the limited narrator focused on dialogue, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    mixed: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator provides a balanced but limited perspective covering what one character would experience. Answer now for one reply as the limited narrator with mixed focus, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]'
+                },
+                objective: {
+                    environment: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the objective narrator. The objective narrator observes without bias and reports only what can be seen and heard, like a camera. This narrator focuses on environmental details in a detached, observational manner. Answer now for one reply as the objective narrator focused on environment, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    emotions: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the objective narrator. The objective narrator observes without bias and reports only what can be seen and heard, like a camera. This narrator can only describe observable emotional expressions and reactions, not internal feelings. Answer now for one reply as the objective narrator focused on observable emotions, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    action: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the objective narrator. The objective narrator observes without bias and reports only what can be seen and heard, like a camera. This narrator focuses on documenting actions and movements in a factual manner. Answer now for one reply as the objective narrator focused on action, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    dialogue: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the objective narrator. The objective narrator observes without bias and reports only what can be seen and heard, like a camera. This narrator focuses on reporting dialogue and verbal exchanges without interpretation. Answer now for one reply as the objective narrator focused on dialogue, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    mixed: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the objective narrator. The objective narrator observes without bias and reports only what can be seen and heard, like a camera. This narrator provides balanced objective observation of the scene. Answer now for one reply as the objective narrator with mixed focus, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]'
+                },
+                character: {
+                    environment: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate a character POV narrator. This narrator tells the story from a specific character\'s point of view, using their voice and perspective. This narrator focuses on environment as seen through the character\'s eyes and experiences. Answer now for one reply as the character POV narrator focused on environment, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    emotions: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate a character POV narrator. This narrator tells the story from a specific character\'s point of view, using their voice and perspective. This narrator focuses on the character\'s internal emotional state and reactions. Answer now for one reply as the character POV narrator focused on emotions, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    action: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate a character POV narrator. This narrator tells the story from a specific character\'s point of view, using their voice and perspective. This narrator focuses on actions and events as experienced by the character. Answer now for one reply as the character POV narrator focused on action, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    dialogue: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate a character POV narrator. This narrator tells the story from a specific character\'s point of view, using their voice and perspective. This narrator focuses on dialogue and conversations from the character\'s perspective. Answer now for one reply as the character POV narrator focused on dialogue, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
+                    mixed: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate a character POV narrator. This narrator tells the story from a specific character\'s point of view, using their voice and perspective. This narrator provides a balanced character-centered narrative. Answer now for one reply as the character POV narrator with mixed focus, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]'
+                }
+            };
+
+            const instruction = narratorPrompts[style]?.[focus] || narratorPrompts.omniscient.mixed;
+            if (instruction && instruction.trim()) {
+                KLITE_RPMod.log('panels', `Narration request sent.`);
+                this.sendTextToEsolite(instruction);
+            }
         },
 
         async init() {
@@ -7455,7 +7746,6 @@
         },
 
         actions: {
-            'narrator': () => KLITE_RPMod.panels.TOOLS.triggerNarrator(),
             'skip-time': () => KLITE_RPMod.panels.TOOLS.skipTime(),
             'edit-last': () => KLITE_RPMod.panels.TOOLS.editLast(),
             'delete-last': () => KLITE_RPMod.panels.TOOLS.deleteLast(),
@@ -7476,6 +7766,10 @@
             'quick-send-3': () => KLITE_RPMod.panels.TOOLS.handleQuickSend(3),
             'quick-send-4': () => KLITE_RPMod.panels.TOOLS.handleQuickSend(4),
             'quick-send-5': () => KLITE_RPMod.panels.TOOLS.handleQuickSend(5),
+
+            // Trigger narrator
+            'narrator': () => KLITE_RPMod.panels.TOOLS.triggerNarrator(),
+
             // Quick Actions (from ADV)
             'quick-0': () => KLITE_RPMod.panels.TOOLS.sendQuickAction(0),
             'quick-1': () => KLITE_RPMod.panels.TOOLS.sendQuickAction(1),
@@ -7514,9 +7808,9 @@
                         KLITE_RPMod.panels.TOOLS.applyCharacterData(char);
                     }
 
-                    // Refresh current left panel (TOOLS or ROLES) without switching
-                    const left = KLITE_RPMod.state?.tabs?.left;
-                    if (left === 'TOOLS' || left === 'ROLES') KLITE_RPMod.loadPanel('left', left);
+                    // Refresh currently active right panel (TOOLS or ROLES) without switching
+                    const active = KLITE_RPMod.state?.tabs?.right;
+                    if (active === 'TOOLS' || active === 'ROLES') KLITE_RPMod.loadPanel('right', active);
                     // Character application confirmed by UI state change
                 });
             },
@@ -7526,21 +7820,31 @@
                     tools.selectedPersona = char;
                     tools.personaEnabled = true;
 
-                    // Update user avatar with persona image if available
-                    if (char.avatar || char.image) {
-                        KLITE_RPMod.updateUserAvatar(char.avatar || char.image);
-                    } else {
-                        KLITE_RPMod.updateUserAvatar(null);
-                    }
+                    // Update user avatar with persona image if available (best-effort)
+                    try {
+                        if (typeof KLITE_RPMod.updateUserAvatar === 'function') {
+                            KLITE_RPMod.updateUserAvatar(char?.avatar || char?.image || null);
+                        }
+                    } catch(_) {}
+
+                    // Update chatname to selected persona name
+                    try {
+                        if (window.localsettings && char?.name) {
+                            window.localsettings.chatname = char.name;
+                            window.save_settings?.();
+                        }
+                        const userNameInput = document.getElementById('rp-user-name');
+                        if (userNameInput && char?.name) userNameInput.value = char.name;
+                    } catch(_) {}
 
                     // Update character context and persist selection
                     tools.updateCharacterContext();
                     try { tools.saveSettings?.(); } catch(_) {}
 
-                    // Refresh panels immediately so the persona tile appears without tab switching
+                    // Refresh visible panel so tiles update immediately
                     try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
-                    const left2 = KLITE_RPMod.state?.tabs?.left;
-                    if (left2 === 'TOOLS' || left2 === 'ROLES') KLITE_RPMod.loadPanel('left', left2);
+                    const active2 = KLITE_RPMod.state?.tabs?.right;
+                    if (active2 === 'TOOLS' || active2 === 'ROLES') KLITE_RPMod.loadPanel('right', active2);
                 });
             },
             'remove-persona': () => KLITE_RPMod.panels.TOOLS.removePersona(),
@@ -7597,7 +7901,7 @@
 
         renderActivePersona() {
             const char = this.selectedPersona;
-            const avatar = char.image || '';
+            const avatar = KLITE_RPMod.getBestCharacterAvatar(char);
             const isWIChar = char.type === 'worldinfo';
 
             return `
@@ -7672,7 +7976,7 @@
 
         renderActiveCharacter() {
             const char = this.selectedCharacter;
-            const avatar = char.image || '';
+            const avatar = KLITE_RPMod.getBestCharacterAvatar(char);
             const isWIChar = char.type === 'worldinfo';
 
             return `
@@ -7846,83 +8150,6 @@
                 }, 60000);
             } catch (_) {}
         },
-
-        triggerNarrator() {
-            const style = document.getElementById('narrator-style')?.value || 'omniscient';
-            const focus = document.getElementById('narrator-focus')?.value || 'mixed';
-
-            KLITE_RPMod.log('panels', `Triggering narrator: ${style}/${focus}`);
-
-            const narratorPrompts = {
-                omniscient: {
-                    environment: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator focuses on environment and setting descriptions, providing rich sensory details about the surroundings, atmosphere, and physical spaces. Answer now for one reply as the omniscient narrator focused on environment, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    emotions: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator focuses on revealing inner thoughts, feelings, and emotional states of characters, providing deep psychological insights. Answer now for one reply as the omniscient narrator focused on emotions, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    action: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator focuses on describing actions, events, and physical movements in detail. Answer now for one reply as the omniscient narrator focused on action, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    dialogue: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator focuses on dialogue and conversation, providing context and subtext to spoken words. Answer now for one reply as the omniscient narrator focused on dialogue, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    mixed: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator provides a balanced narrative covering environment, emotions, actions, and dialogue as appropriate. Answer now for one reply as the omniscient narrator with mixed focus, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]'
-                },
-                limited: {
-                    environment: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator focuses on environment from one perspective, describing only what that character would notice about their surroundings. Answer now for one reply as the limited narrator focused on environment, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    emotions: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator focuses on one perspective and hints at emotions rather than revealing them directly. Answer now for one reply as the limited narrator focused on emotions, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    action: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator focuses on actions and events from one character\'s perspective only. Answer now for one reply as the limited narrator focused on action, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    dialogue: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator focuses on dialogue from one character\'s perspective, including what they hear and their reactions. Answer now for one reply as the limited narrator focused on dialogue, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    mixed: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator provides a balanced but limited perspective covering what one character would experience. Answer now for one reply as the limited narrator with mixed focus, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]'
-                },
-                objective: {
-                    environment: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the objective narrator. The objective narrator observes without bias and reports only what can be seen and heard, like a camera. This narrator focuses on environmental details in a detached, observational manner. Answer now for one reply as the objective narrator focused on environment, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    emotions: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the objective narrator. The objective narrator observes without bias and reports only what can be seen and heard, like a camera. This narrator can only describe observable emotional expressions and reactions, not internal feelings. Answer now for one reply as the objective narrator focused on observable emotions, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    action: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the objective narrator. The objective narrator observes without bias and reports only what can be seen and heard, like a camera. This narrator focuses on documenting actions and movements in a factual manner. Answer now for one reply as the objective narrator focused on action, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    dialogue: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the objective narrator. The objective narrator observes without bias and reports only what can be seen and heard, like a camera. This narrator focuses on reporting dialogue and verbal exchanges without interpretation. Answer now for one reply as the objective narrator focused on dialogue, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    mixed: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the objective narrator. The objective narrator observes without bias and reports only what can be seen and heard, like a camera. This narrator provides balanced objective observation of the scene. Answer now for one reply as the objective narrator with mixed focus, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]'
-                },
-                character: {
-                    environment: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate a character POV narrator. This narrator tells the story from a specific character\'s point of view, using their voice and perspective. This narrator focuses on environment as seen through the character\'s eyes and experiences. Answer now for one reply as the character POV narrator focused on environment, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    emotions: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate a character POV narrator. This narrator tells the story from a specific character\'s point of view, using their voice and perspective. This narrator focuses on the character\'s internal emotional state and reactions. Answer now for one reply as the character POV narrator focused on emotions, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    action: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate a character POV narrator. This narrator tells the story from a specific character\'s point of view, using their voice and perspective. This narrator focuses on actions and events as experienced by the character. Answer now for one reply as the character POV narrator focused on action, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    dialogue: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate a character POV narrator. This narrator tells the story from a specific character\'s point of view, using their voice and perspective. This narrator focuses on dialogue and conversations from the character\'s perspective. Answer now for one reply as the character POV narrator focused on dialogue, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    mixed: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate a character POV narrator. This narrator tells the story from a specific character\'s point of view, using their voice and perspective. This narrator provides a balanced character-centered narrative. Answer now for one reply as the character POV narrator with mixed focus, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]'
-                }
-            };
-
-            const instruction = narratorPrompts[style]?.[focus] || narratorPrompts.omniscient.mixed;
-
-            const input = document.getElementById('input');
-            if (input) {
-                const userText = input.value.trim();
-                input.value = instruction + (userText ? '\n\n' + userText : '');
-                KLITE_RPMod.submitWithRole('ai');
-            }
-        },
-
-        triggerNarratorWithPreset(style = 'omniscient', focus = 'mixed') {
-            KLITE_RPMod.log('panels', `Triggering narrator with preset: ${style}/${focus}`);
-
-            const narratorPrompts = {
-                omniscient: {
-                    environment: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator focuses on environment and setting descriptions, providing rich sensory details about the surroundings, atmosphere, and physical spaces. Answer now for one reply as the omniscient narrator focused on environment, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    emotions: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator focuses on revealing inner thoughts, feelings, and emotional states of characters, providing deep psychological insights. Answer now for one reply as the omniscient narrator focused on emotions, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    action: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator focuses on describing actions, events, and physical movements in detail. Answer now for one reply as the omniscient narrator focused on action, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    dialogue: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator focuses on dialogue and conversation, providing context and subtext to spoken words. Answer now for one reply as the omniscient narrator focused on dialogue, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    mixed: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the omniscient narrator. The omniscient narrator knows all characters\' thoughts and can see everything happening in the scene. This narrator provides a balanced narrative covering environment, emotions, actions, and dialogue as appropriate. Answer now for one reply as the omniscient narrator with mixed focus, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]'
-                },
-                limited: {
-                    environment: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator focuses on environment from one perspective, describing only what that character would notice about their surroundings. Answer now for one reply as the limited narrator focused on environment, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    emotions: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator focuses on emotions from one perspective, revealing only what that character would think and feel. Answer now for one reply as the limited narrator focused on emotions, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    action: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator focuses on actions from one perspective, describing only what that character would witness. Answer now for one reply as the limited narrator focused on action, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    dialogue: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator focuses on dialogue from one perspective, providing context only for what that character would hear and understand. Answer now for one reply as the limited narrator focused on dialogue, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]',
-                    mixed: '[System Instruction: Switch out of character(OOC) now and as the AI impersonate the limited narrator. The limited narrator can only describe what a specific character can see and experience. This narrator provides a balanced narrative from one perspective, covering environment, emotions, actions, and dialogue as that character would experience them. Answer now for one reply as the limited narrator with mixed focus, afterwards switch back into character and continue the scene as if this system instruction didn\'t happen.]'
-                }
-            };
-
-            const instruction = narratorPrompts[style]?.[focus] || narratorPrompts.omniscient.mixed;
-
-            const userTextEl = document.getElementById('input_text');
-            const chatEl = document.getElementById('cht_inp') || document.getElementById('corpo_cht_inp');
-            const currentUser = (chatEl?.value || userTextEl?.value || '').trim();
-            const combined = instruction + (currentUser ? '\n\n' + currentUser : '');
-            this.sendTextToEsolite(combined);
-        },
-
 
         applyPreset(preset) {
             KLITE_RPMod.log('panels', `Applying RP preset: ${preset}`);
@@ -8405,7 +8632,7 @@
                 gametext_arr.join(' ').split(/\s+/).filter(w => w).length : 0;
 
             // Determine current scroll position using host container
-            const container = this.getChatScrollContainer();
+            const container = KLITE_RPMod.getChatScrollContainer?.() || this.getChatScrollContainer?.();
             const position = container ? container.scrollTop : (document.documentElement.scrollTop || window.scrollY || 0);
 
             this.chapters.push({
@@ -8440,7 +8667,7 @@
             const chapter = this.chapters[index];
             if (!chapter || typeof chapter.position !== 'number') return;
 
-            const container = this.getChatScrollContainer();
+            const container = KLITE_RPMod.getChatScrollContainer?.() || this.getChatScrollContainer?.();
             if (container) {
                 container.scrollTop = chapter.position;
             } else {
@@ -8449,6 +8676,8 @@
             }
             KLITE_RPMod.log('panels', `Scrolled to bookmark ${chapter.number} at position ${chapter.position}`);
         },
+
+        
 
         // Find the primary scroll container for chat/story content
         getChatScrollContainer() {
@@ -8472,8 +8701,8 @@
 
 
         refresh() {
-            const left = KLITE_RPMod.state?.tabs?.left;
-            if (left === 'TOOLS' || left === 'ROLES') KLITE_RPMod.loadPanel('left', left);
+            const active = KLITE_RPMod.state?.tabs?.right;
+            if (active === 'TOOLS' || active === 'ROLES') KLITE_RPMod.loadPanel('right', active);
         },
 
         updateNarratorExplanation(style) {
@@ -8662,15 +8891,14 @@
                 const best = KLITE_RPMod.getBestCharacterAvatar(characterData);
                 KLITE_RPMod.updateAIAvatar(best || null);
 
-                // Update username to character name when character is applied
-                const userNameInput = document.getElementById('rp-user-name');
-                if (userNameInput && characterData.name) {
-                    userNameInput.value = characterData.name;
-                    // Trigger the change event to save the setting
+                // Update AI name to character name when character is applied
+                const aiNameInput = document.getElementById('rp-ai-name');
+                if (aiNameInput && characterData.name) {
+                    aiNameInput.value = characterData.name;
                     if (window.localsettings) {
-                        window.localsettings.chatname = characterData.name;
+                        window.localsettings.chatopponent = characterData.name;
                         window.save_settings?.();
-                        KLITE_RPMod.log('panels', `Username automatically updated to character name: ${characterData.name}`);
+                        KLITE_RPMod.log('panels', `AI name automatically updated to character name: ${characterData.name}`);
                     }
                 }
 
@@ -8757,9 +8985,19 @@
             // Reset user avatar to default when persona is removed
             KLITE_RPMod.updateUserAvatar(null);
 
-            // Refresh current left panel (TOOLS or ROLES) without switching
-            const left = KLITE_RPMod.state?.tabs?.left;
-            if (left === 'TOOLS' || left === 'ROLES') KLITE_RPMod.loadPanel('left', left);
+            // Reset chatname to default "User"
+            try {
+                if (window.localsettings) {
+                    window.localsettings.chatname = 'User';
+                    window.save_settings?.();
+                }
+                const userNameInput = document.getElementById('rp-user-name');
+                if (userNameInput) userNameInput.value = 'User';
+            } catch(_) {}
+
+            // Refresh currently active panel without switching
+            const active = KLITE_RPMod.state?.tabs?.right;
+            if (active === 'TOOLS' || active === 'ROLES') KLITE_RPMod.loadPanel('right', active);
 
             // Update character context in memory
             this.updateCharacterContext();
@@ -8790,9 +9028,19 @@
             // Reset AI avatar to default when character is removed
             KLITE_RPMod.updateAIAvatar(null);
 
-            // Refresh current left panel (TOOLS or ROLES) without switching
-            const left2 = KLITE_RPMod.state?.tabs?.left;
-            if (left2 === 'TOOLS' || left2 === 'ROLES') KLITE_RPMod.loadPanel('left', left2);
+            // Reset chatopponent to default "KoboldAI"
+            try {
+                if (window.localsettings) {
+                    window.localsettings.chatopponent = 'KoboldAI';
+                    window.save_settings?.();
+                }
+                const aiNameInput = document.getElementById('rp-ai-name');
+                if (aiNameInput) aiNameInput.value = 'KoboldAI';
+            } catch(_) {}
+
+            // Refresh currently active panel without switching
+            const active2 = KLITE_RPMod.state?.tabs?.right;
+            if (active2 === 'TOOLS' || active2 === 'ROLES') KLITE_RPMod.loadPanel('right', active2);
 
             // Update character context in memory
             this.updateCharacterContext();
@@ -8901,7 +9149,7 @@
 
             this.autoSender.timer = setInterval(() => {
                 if (!KLITE_RPMod.state.generating && this.autoSender.enabled) {
-                    const input = document.getElementById('input');
+                    const input = document.getElementById('input_text') || document.getElementById('input');
                     if (input && !input.value.trim()) {
                         input.value = this.autoSender.message;
                         KLITE_RPMod.submit();
@@ -9016,6 +9264,8 @@
                     { value: 'recent', text: 'Recent Messages (10)', selected: true },
                     { value: 'last3', text: 'Most Recent (3)' }
                 ])}
+                    </div>
+                    <div class="klite-row" style="margin-top: 6px;">
                         ${t.select('tools-memory-type', [
                     { value: 'summary', text: 'Summary', selected: true },
                     { value: 'keywords', text: 'Keywords' },
@@ -9034,103 +9284,6 @@
                         ${t.button('➕ Append', '', 'append-memory')}
                     </div>`
             )}
-                
-                <!-- Auto-Regenerate -->
-                ${t.section('🔄 Auto-Regenerate',
-                `<div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                        <input type="checkbox" id="tools-auto-regen-toggle" style="width: auto;">
-                        <label for="tools-auto-regen-toggle" style="color: var(--muted); font-size: 13px;">Enable Auto-Regenerate</label>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin-bottom: 10px;">
-                        <div>
-                            <label style="color: var(--muted); font-size: 11px;">Delay (ms):</label>
-                            <input type="number" id="tools-auto-regen-delay" value="3000" min="1000" max="10000" step="500" style="
-                                width: 100%; 
-                                background: var(--bg2); 
-                                border: 1px solid var(--border); 
-                                color: var(--text); 
-                                padding: 4px;
-                                border-radius: 3px;
-                            ">
-                        </div>
-                        <div>
-                            <label style="color: var(--muted); font-size: 11px;">Max Retries:</label>
-                            <input type="number" id="tools-auto-regen-max" value="3" min="1" max="10" style="
-                                width: 100%; 
-                                background: var(--bg2); 
-                                border: 1px solid var(--border); 
-                                color: var(--text); 
-                                padding: 4px;
-                                border-radius: 3px;
-                            ">
-                        </div>
-                    </div>
-                    
-                    <div style="margin-bottom: 10px;">
-                        <label style="color: var(--muted); font-size: 11px;">Keyword Triggers:</label>
-                        <textarea id="tools-regen-keywords" placeholder="Enter keywords, one per line" style="
-                            width: 100%;
-                            height: 60px;
-                            background: var(--bg2);
-                            border: 1px solid var(--border);
-                            color: var(--text);
-                            padding: 6px;
-                            font-size: 11px;
-                            resize: vertical;
-                            border-radius: 3px;
-                            margin-top: 5px;
-                        "></textarea>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px;">
-                            <div>
-                                <label style="color: var(--muted); font-size: 11px;">Required matches:</label>
-                                <input type="number" id="tools-keyword-threshold" value="2" min="1" max="10" style="
-                                    width: 100%;
-                                    background: var(--bg2);
-                                    border: 1px solid var(--border);
-                                    color: var(--text);
-                                    padding: 4px;
-                                    border-radius: 3px;
-                                ">
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 2px; margin-top: 16px;">
-                                <input type="checkbox" id="tools-keyword-case">
-                                <label for="tools-keyword-case" style="color: var(--muted); font-size: 11px;">Case sensitive</label>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div style="margin-bottom: 10px;">
-                        <label style="color: #999; font-size: 11px;">Trigger Conditions:</label>
-                        <div style="margin-top: 5px;">
-                            <div style="margin-bottom: 3px;">
-                                <input type="checkbox" id="tools-regen-short" checked>
-                                <label for="tools-regen-short" style="color: #888; font-size: 11px;">Short messages (<50 chars)</label>
-                            </div>
-                            <div style="margin-bottom: 3px;">
-                                <input type="checkbox" id="tools-regen-incomplete" checked>
-                                <label for="tools-regen-incomplete" style="color: #888; font-size: 11px;">Incomplete sentences</label>
-                            </div>
-                            <div>
-                                <input type="checkbox" id="tools-regen-error">
-                                <label for="tools-regen-error" style="color: #888; font-size: 11px;">Error responses</label>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="tools-auto-regen-status" style="
-                        padding: 8px; 
-                        background: var(--bg3); 
-                        border: 1px solid var(--border);
-                        border-radius: 4px; 
-                        color: var(--muted); 
-                        font-size: 11px; 
-                        text-align: center;
-                    ">
-                        Auto-regenerate is disabled
-                    </div>`
-            )}
-                
                 <!-- Export Tools -->
                 ${t.section('📤 Export Context History',
                 `<div class="klite-buttons-fill">
@@ -9140,6 +9293,14 @@
                     </div>`
             )}
             `;
+        },
+
+        cleanup() {
+            try {
+                if (this.memoryGenerationState?.active) {
+                    this.abortMemoryGeneration('panel_cleanup');
+                }
+            } catch(_) {}
         },
 
         init() {
@@ -9526,27 +9687,26 @@ Outline:`
 
             KLITE_RPMod.log('panels', `Applying memory (append: ${append})`);
 
-            if (append) {
-                // Append to existing memory
-                const currentMemory = LiteAPI.memory;
-                LiteAPI.memory = currentMemory + (currentMemory.length > 0 ? '\n\n' : '') + memory;
-            } else {
-                // Replace existing memory completely
-                LiteAPI.memory = memory;
-            }
-
-            // Update memory field in KoboldAI Lite
-            const liteMemory = DOMUtil.safeGet('memorytext');
+            // Update memory textarea in Esolite and confirm
+            const liteMemory = document.getElementById('memorytext');
             if (liteMemory) {
-                liteMemory.value = LiteAPI.memory;
-                liteMemory.dispatchEvent(new Event('input'));
+                const base = append ? (liteMemory.value || '') : '';
+                liteMemory.value = append ? (base ? base + '\n\n' + memory : memory) : memory;
+                try { liteMemory.dispatchEvent(new Event('input')); } catch(_) {}
+                try { window.confirm_memory?.(); } catch(_) {}
+            } else {
+                // Fallback to LiteAPI memory if textarea not found
+                if (append) {
+                    const currentMemory = LiteAPI.memory;
+                    LiteAPI.memory = currentMemory + (currentMemory.length > 0 ? '\n\n' : '') + memory;
+                } else {
+                    LiteAPI.memory = memory;
+                }
+                window.autosave?.();
+                window.save_settings?.();
             }
 
-            // Trigger autosave
-            window.autosave?.();
-            window.save_settings?.();
-
-            // Switch to memory panel to show result
+            // Switch to memory panel to show result (optional UX)
             KLITE_RPMod.switchTab('right', 'MEMORY');
             // Memory ${append ? 'appended to existing memory' : 'applied (replaced existing memory)'}
 
@@ -10037,8 +10197,18 @@ Outline:`
         lastTriggerTime: {},
 
         async init() {
-            // Load saved settings
-            await this.loadSettings();
+            // Prevent re-entrant refresh loops
+            const prev = KLITE_RPMod._inRolesInit;
+            KLITE_RPMod._inRolesInit = true;
+            try {
+                // Load saved settings
+                await this.loadSettings();
+                // Ensure characters are available; avoid immediate ROLES refresh loops
+                try { await KLITE_RPMod.ensureCharactersLoaded?.(); } catch(_) {}
+                // Do not call this.refresh() here; panel is already being rendered by loadPanel
+            } finally {
+                KLITE_RPMod._inRolesInit = prev;
+            }
             // Setup input monitoring when panel is first used
             this.setupInputMonitoring();
             // Setup event handlers after render
@@ -10094,9 +10264,9 @@ Outline:`
 
                 // Refresh TOOLS panel to update character controls (works in panels-only mode as well)
                 try {
-                    const left = KLITE_RPMod.state?.tabs?.left;
-                    if (left === 'TOOLS' || left === 'ROLES') {
-                        KLITE_RPMod.loadPanel('left', left);
+                    const active = KLITE_RPMod.state?.tabs?.right;
+                    if (active === 'TOOLS' || active === 'ROLES') {
+                        KLITE_RPMod.loadPanel('right', active);
                     }
                 } catch(_){}
 
@@ -10111,7 +10281,13 @@ Outline:`
             this.speakerMode = newMode;
             this.saveSettings(); // Save the new setting
             this.clearAutoResponseTimer();
-            KLITE_RPMod.loadPanel('left', 'ROLES');
+            // In manual mode, force-disable auto advance after trigger
+            if (this.speakerMode === 'manual') {
+                this.autoResponses.autoAdvanceAfterTrigger = false;
+                this.autoResponses.enabled = false; // Auto responses disabled in manual
+                this.autoResponses.autoAdvanceOnUserSubmit = false;
+            }
+            KLITE_RPMod.loadPanel('right', 'ROLES');
         },
 
         getSpeakerModeDescription() {
@@ -10140,8 +10316,7 @@ Outline:`
                         ${this.renderActiveChars()}
                     </div>
                     <div class="klite-buttons-fill klite-mt">
-                        ${t.button('+Char', '', 'add-from-library')}
-                        ${t.button('+Custom', '', 'add-custom')}
+                        ${t.button('Add Character to Group', '', 'add-from-library')}
                         ${this.getCurrentSpeaker()?.isCustom ? t.button('Edit', 'primary', 'edit-current') : ''}
                     </div>`
             )}
@@ -10168,22 +10343,33 @@ Outline:`
                     
                     ${this.renderAutoResponseControls()}
                     
+                    <div class="klite-mt" style="margin-top: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: ${this.speakerMode === 'manual' ? 'not-allowed' : 'pointer'}; font-size: 12px;">
+                            <input type="checkbox" id="auto-advance-after-trigger" ${this.autoResponses.autoAdvanceAfterTrigger ? 'checked' : ''}
+                                   ${this.speakerMode === 'manual' ? 'disabled' : ''}
+                                   onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseSetting('autoAdvanceAfterTrigger', this.checked)">
+                            <span style="color: ${this.speakerMode === 'manual' ? 'var(--muted)' : 'var(--text)'};">Auto advance after trigger</span>
+                        </label>
+                        <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">When enabled, 'Trigger Speaker' advances to the next speaker automatically.</div>
+                    </div>
+
+                    <div class="klite-mt" style="margin-top: 6px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: ${this.speakerMode === 'manual' ? 'not-allowed' : 'pointer'}; font-size: 12px;">
+                            <input type="checkbox" id="auto-advance-on-submit" ${this.autoResponses.autoAdvanceOnUserSubmit ? 'checked' : ''}
+                                   ${this.speakerMode === 'manual' ? 'disabled' : ''}
+                                   onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseSetting('autoAdvanceOnUserSubmit', this.checked)">
+                            <span style="color: ${this.speakerMode === 'manual' ? 'var(--muted)' : 'var(--text)'};">Advance after user submit</span>
+                        </label>
+                        <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">When enabled, submitting your message advances to the next speaker.</div>
+                    </div>
+                    
                     <div class="klite-buttons-fill klite-mt">
-                        ${t.button('Advance Speaker', '', 'next-speaker')}
+                        ${t.button('Manually Advance', '', 'next-speaker')}
                         ${t.button('Trigger Speaker', 'primary', 'trigger-response')}
                     </div>`
             )}
                 
-                ${this.speakerHistory.length > 0 ? t.section('Speaker History',
-                `<div style="max-height: 140px; overflow-y: auto; font-size: 11px;">
-                        ${this.speakerHistory.slice(-20).map((entry, i) => `
-                            <div data-action="goto-history" data-index="${i}" style="padding: 4px 6px; margin: 2px 0; background: rgba(0,0,0,0.1); border-radius: 3px; display: flex; justify-content: space-between; cursor: pointer;">
-                                <span>${entry.name}</span>
-                                <span style="color: var(--muted);">${typeof entry.tokens === 'number' ? entry.tokens : '—'}</span>
-                            </div>
-                        `).join('')}
-                    </div>`
-            ) : ''}
+                <!-- Speaker History (hidden) -->
             `;
         },
 
@@ -10231,14 +10417,7 @@ Outline:`
                             </label>
                         </div>
                         
-                        <div style="margin-bottom: 6px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: ${isDisabled ? 'not-allowed' : 'pointer'}; font-size: 12px;">
-                                <input type="checkbox" id="auto-advance-after-trigger" ${this.autoResponses.autoAdvanceAfterTrigger ? 'checked' : ''}
-                                       ${isDisabled ? 'disabled' : ''}
-                                       onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseSetting('autoAdvanceAfterTrigger', this.checked)">
-                                <span style="color: ${isDisabled ? 'var(--muted)' : 'var(--text)'};">Auto advance after trigger</span>
-                            </label>
-                        </div>
+                    
                     </div>
                 </div>
             `;
@@ -10250,7 +10429,7 @@ Outline:`
             }
 
             return this.activeChars.map((char, i) => {
-                const avatar = char.image || '';
+                const avatar = KLITE_RPMod.getBestCharacterAvatar(char);
                 const isNext = (i === this.currentSpeaker);
                 const isLast = (i === this.lastSpeaker);
                 return `
@@ -10261,7 +10440,7 @@ Outline:`
                             </div>
                         ` : `
                             <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <span style="font-size: 18px;">${char.name.charAt(0)}</span>
+                                <span style="font-size: 18px;">${(char.name||'?').charAt(0)}</span>
                             </div>
                         `}
                         <div style="flex: 1; min-width: 0;">
@@ -10303,7 +10482,12 @@ Outline:`
         },
 
         updateAutoResponseSetting(setting, value) {
-            this.autoResponses[setting] = value;
+            if (setting === 'autoAdvanceAfterTrigger' && this.speakerMode === 'manual') {
+                // Disallow enabling auto-advance in manual mode
+                this.autoResponses.autoAdvanceAfterTrigger = false;
+            } else {
+                this.autoResponses[setting] = value;
+            }
             try { this.saveSettings?.(); } catch(_) {}
         },
 
@@ -10476,13 +10660,13 @@ Outline:`
                 }
                 groupPanel.updateKoboldSettings();
                 try {
-                    const chatDisplay = document.getElementById('chat-display');
-                    groupPanel._preTriggerScroll = chatDisplay ? chatDisplay.scrollTop : 0;
+                    const cont = KLITE_RPMod.getChatScrollContainer?.();
+                    groupPanel._preTriggerScroll = cont ? cont.scrollTop : 0;
                 } catch (_) {}
                 groupPanel.triggerCurrentSpeaker();
 
-                // Auto advance if enabled
-                if (groupPanel.autoResponses.autoAdvanceAfterTrigger) {
+                // Auto advance if enabled and not manual mode
+                if (groupPanel.speakerMode !== 'manual' && groupPanel.autoResponses.autoAdvanceAfterTrigger) {
                     setTimeout(() => {
                         groupPanel.advanceSpeaker();
                     }, 100);
@@ -10958,7 +11142,7 @@ Outline:`
 
                 return `
                     <div style="display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; background: var(--bg2);">
-                        <input type="checkbox" id="char-${char.id}" value="${char.id}" style="margin: 0;">
+                        <input type="checkbox" id="char-${char.id}" value="${char.id}" style="margin: 0;" onclick="event.stopPropagation();">
                         ${avatar ? `
                             <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
                                 <img src="${avatar}" alt="${char.name}" style="width: 100%; height: 100%; object-fit: cover;">
@@ -11189,9 +11373,9 @@ Outline:`
         gotoHistory(index) {
             const entry = this.speakerHistory[index];
             if (!entry) return;
-            const chatDisplay = document.getElementById('chat-display');
-            if (chatDisplay && typeof entry.scrollPos === 'number') {
-                chatDisplay.scrollTop = entry.scrollPos;
+            const cont = KLITE_RPMod.getChatScrollContainer?.();
+            if (cont && typeof entry.scrollPos === 'number') {
+                cont.scrollTop = entry.scrollPos;
             }
         },
 
@@ -11274,7 +11458,7 @@ Outline:`
             const leftActive = KLITE_RPMod.state?.tabs?.left === 'ROLES';
             const rightActive = KLITE_RPMod.state?.tabs?.right === 'ROLES';
             if (leftActive || rightActive) {
-                KLITE_RPMod.loadPanel('left', 'ROLES');
+            KLITE_RPMod.loadPanel('right', 'ROLES');
             }
         }
     };
@@ -11705,17 +11889,32 @@ Outline:`
             'view-char': async (e) => {
                 const charId = e.target.closest('[data-char-id]')?.dataset.charId;
                 const char = KLITE_RPMod.characters.find(c => c.id == charId);
-                if (char?.name) await KLITE_RPMod.panels.CHARS.showCharacterFullscreenByName(char.name);
+                if (char?.name) {
+                    try {
+                        const d = await window.getCharacterData?.(char.name);
+                        const full = {
+                            ...char,
+                            image: (d && d.image) ? d.image : (char.image || null),
+                            rawData: { data: (d && d.data) ? d.data : (char.rawData?.data || {}) }
+                        };
+                        KLITE_RPMod.panels.CHARS.showCharacterFullscreen(full);
+                    } catch (_) {
+                        KLITE_RPMod.panels.CHARS.showCharacterFullscreen(char);
+                    }
+                }
             },
             'rate-char': (e) => {
                 const charId = e.target.closest('[data-char-id]')?.dataset.charId;
                 const rating = parseInt(e.target.dataset.rating);
                 KLITE_RPMod.panels.CHARS.updateCharacterRating(charId, rating);
             },
-            'delete-char': (e) => {
-                const charId = e.target.closest('[data-char-id]')?.dataset.charId;
-                if (confirm('Delete this character?')) {
-                    KLITE_RPMod.panels.CHARS.deleteCharacter(charId);
+            'delete-char': async (e) => {
+                const el = e.target;
+                const charId = el.closest('[data-char-id]')?.dataset.charId;
+                const name = KLITE_RPMod.characters.find(c => c.id == charId)?.name;
+                if (name && confirm(`Delete "${name}"? This cannot be undone.`)) {
+                    try { await KLITE_RPMod.panels.CHARS.deleteCharacterByName(name); } catch(_) {}
+                    try { KLITE_RPMod.panels.CHARS.refreshGallery?.(); } catch(_) {}
                 }
             },
             // New modal actions
@@ -11726,44 +11925,57 @@ Outline:`
             },
             // 'add-char-worldinfo' removed (use WI panel and Esolite directly)
             'export-char-json': async (e) => {
-                const charId = e.target.dataset.charId;
-                const char = KLITE_RPMod.characters.find(c => c.id == charId);
-                if (char?.name) await KLITE_RPMod.panels.CHARS.exportCharacterJSONByName(char.name);
+                const el = e.target;
+                const charId = el.dataset.charId || el.closest('[data-char-id]')?.dataset.charId;
+                const charName = el.dataset.charName || el.closest('[data-char-name]')?.dataset.charName;
+                const char = charId ? KLITE_RPMod.characters.find(c => c.id == charId) : null;
+                const name = charName || char?.name;
+                if (name) await KLITE_RPMod.panels.CHARS.exportCharacterJSONByName(name);
             },
             'export-char-png': async (e) => {
-                const charId = e.target.dataset.charId;
-                const char = KLITE_RPMod.characters.find(c => c.id == charId);
-                if (char?.name) await KLITE_RPMod.panels.CHARS.exportCharacterPNGByName(char.name);
+                const el = e.target;
+                const charId = el.dataset.charId || el.closest('[data-char-id]')?.dataset.charId;
+                const charName = el.dataset.charName || el.closest('[data-char-name]')?.dataset.charName;
+                const char = charId ? KLITE_RPMod.characters.find(c => c.id == charId) : null;
+                const name = charName || char?.name;
+                if (name) await KLITE_RPMod.panels.CHARS.exportCharacterPNGByName(name);
             },
             'edit-character': async (e) => {
-                const charId = e.target.dataset.charId || e.target.closest('[data-char-id]')?.dataset.charId;
-                const char = KLITE_RPMod.characters.find(c => c.id == charId);
-                if (char?.name) {
-                    const d = await window.getCharacterData?.(char.name);
+                const el = e.target;
+                const charId = el.dataset.charId || el.closest('[data-char-id]')?.dataset.charId;
+                const charName = el.dataset.charName || el.closest('[data-char-name]')?.dataset.charName;
+                const char = charId ? KLITE_RPMod.characters.find(c => c.id == charId) : null;
+                const name = charName || char?.name;
+                if (name) {
+                    const d = await window.getCharacterData?.(name);
                     if (d) {
-                        const full = { id: char.id, name: d.data?.name || char.name, image: d.image || null, ...d.data, rawData: { data: d.data || {} } };
+                        const full = { id: (char?.id ?? Date.now()), name: d.data?.name || name, image: d.image || null, ...d.data, rawData: { data: d.data || {} } };
                         KLITE_RPMod.panels.CHARS.setEditMode('edit', full);
                     }
                 }
             },
             'clone-character': async (e) => {
-                const charId = e.target.dataset.charId || e.target.closest('[data-char-id]')?.dataset.charId;
-                const orig = KLITE_RPMod.characters.find(c => c.id == charId);
-                if (orig?.name) {
-                    const d = await window.getCharacterData?.(orig.name);
+                const el = e.target;
+                const charId = el.dataset.charId || el.closest('[data-char-id]')?.dataset.charId;
+                const charName = el.dataset.charName || el.closest('[data-char-name]')?.dataset.charName;
+                const name = charName || KLITE_RPMod.characters.find(c => c.id == charId)?.name;
+                if (name) {
+                    const d = await window.getCharacterData?.(name);
                     if (d) {
-                        const full = { id: undefined, name: (d.data?.name || orig.name) + ' (Clone)', image: d.image || null, ...d.data, rawData: { data: d.data || {} } };
+                        const full = { id: undefined, name: (d.data?.name || name) + ' (Clone)', image: d.image || null, ...d.data, rawData: { data: d.data || {} } };
                         KLITE_RPMod.panels.CHARS.setEditMode('clone', full);
                     }
                 }
             },
-            'delete-char-modal': (e) => {
-                const charId = e.target.dataset.charId;
-                const char = KLITE_RPMod.characters.find(c => c.id == charId);
-                if (char && confirm(`Delete "${char.name}"? This cannot be undone.`)) {
-                    KLITE_RPMod.panels.CHARS.deleteCharacter(charId);
-                    const modal = document.getElementById('char-modal-' + charId);
-                    if (modal) modal.remove();
+            'delete-char-modal': async (e) => {
+                const el = e.target;
+                const charId = el.dataset.charId || el.closest('[data-char-id]')?.dataset.charId;
+                const charName = el.dataset.charName || el.closest('[data-char-name]')?.dataset.charName;
+                const name = charName || KLITE_RPMod.characters.find(c => c.id == charId)?.name;
+                if (name && confirm(`Delete "${name}"? This cannot be undone.`)) {
+                    try { await KLITE_RPMod.panels.CHARS.deleteCharacterByName(name); } catch(_) {}
+                    try { KLITE_RPMod.panels.CHARS.hideCharacterFullscreen(); } catch(_) {}
+                    try { KLITE_RPMod.panels.CHARS.refreshGallery?.(); } catch(_) {}
                 }
             }
         },
@@ -12062,7 +12274,8 @@ Outline:`
                 const rightPanel = document.querySelector('div#content-right.klite-content');
                 const backButton = rightPanel?.querySelector('button[onclick*="hideCharacterFullscreen"]');
                 if (backButton) {
-                    this.showCharacterFullscreen(char);
+                    try { if (this._currentDetailChar && this._currentDetailChar.id == char.id) this._currentDetailChar.rating = char.rating; } catch(_) {}
+                    this.showCharacterFullscreen(this._currentDetailChar && this._currentDetailChar.id == char.id ? this._currentDetailChar : char);
                 }
 
                 // Updated ${char.name} rating to ${rating} stars
@@ -12082,7 +12295,8 @@ Outline:`
                         const rightPanel = document.querySelector('div#content-right.klite-content');
                         const backButton = rightPanel?.querySelector('button[onclick*="hideCharacterFullscreen"]');
                         if (backButton) {
-                            this.showCharacterFullscreen(char);
+                            try { if (this._currentDetailChar && this._currentDetailChar.id == char.id) this._currentDetailChar.tags = char.tags.slice(); } catch(_) {}
+                            this.showCharacterFullscreen(this._currentDetailChar && this._currentDetailChar.id == char.id ? this._currentDetailChar : char);
                         }
                         this.refreshTagDropdown();
                         // Added tag "${tag}" to ${char.name}
@@ -13102,13 +13316,10 @@ Outline:`
                     KLITE_RPMod.log('chars', 'Disabled ROLES chat');
                 }
 
-                // Refresh panels
-                const currentLeftPanel = KLITE_RPMod.state.tabs.left;
-                if (currentLeftPanel === 'ROLES') {
-                    KLITE_RPMod.loadPanel('left', 'ROLES');
-                } else if (currentLeftPanel === 'PLAY') {
-                    // If left panel is PLAY, do not switch tabs; refresh current
-                    KLITE_RPMod.loadPanel('left', currentLeftPanel);
+                // Refresh visible panel without switching
+                const activePanel = KLITE_RPMod.state?.tabs?.right;
+                if (activePanel) {
+                    KLITE_RPMod.loadPanel('right', activePanel);
                 }
 
                 // Apply V3-specific settings
@@ -13901,9 +14112,9 @@ Outline:`
                 `<div style="display: flex; flex-direction: column; gap: 6px;">
                         <button class="klite-btn secondary" data-action="export-char-json" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${char.id}">Export as JSON</button>
                         <button class="klite-btn secondary" data-action="export-char-png" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${char.id}">Export as V2 PNG</button>
-                        <button class="klite-btn secondary" data-action="edit-character" data-char-id="${char.id}">✏️ Edit</button>
-                        <button class="klite-btn secondary" data-action="clone-character" data-char-id="${char.id}">📄 Clone</button>
-                        <button class="klite-btn danger" data-action="delete-char-modal" data-char-id="${char.id}">Delete Character</button>
+                        <button class="klite-btn secondary" data-action="edit-character" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">✏️ Edit</button>
+                        <button class="klite-btn secondary" data-action="clone-character" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">📄 Clone</button>
+                        <button class="klite-btn danger" data-action="delete-char-modal" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">Delete Character</button>
                     </div>`
             )}
                 
@@ -13948,65 +14159,29 @@ Outline:`
 
             // Character fullscreen view ready - all sections start expanded
             KLITE_RPMod.log('chars', 'Character fullscreen view ready with all sections expanded');
+
+            // Keep a reference to the current detail character to preserve enriched fields (e.g., image)
+            try {
+                this._currentDetailChar = char;
+                // Enrich the list model with any newly loaded fields so future lookups keep image/rawData
+                const listChar = KLITE_RPMod.characters.find(c => c.id == char.id);
+                if (listChar) {
+                    if (!listChar.image && char.image) listChar.image = char.image;
+                    if (!listChar.thumbnail && char.thumbnail) listChar.thumbnail = char.thumbnail;
+                    if (!listChar.rawData && char.rawData) listChar.rawData = char.rawData;
+                }
+            } catch(_) {}
         },
 
-        // Set up event handlers for detail view action buttons
+        // Consolidated: rely on the CHARS panel's generic action delegation
         setupDetailViewEventHandlers(rightPanel, char) {
-            // Add click event listener to the right panel for detail view actions
-            const detailEventHandler = (e) => {
-                const actionElement = e.target.closest('[data-action]');
-                if (!actionElement) return;
-
-                const action = actionElement.dataset.action;
-                const charId = actionElement.dataset.charId;
-                const charName = actionElement.dataset.charName || char?.name;
-
-                // Verify this is for the current character if id is present
-                if (charId && (charId != char.id)) return;
-
-                KLITE_RPMod.log('chars', `Detail view action: ${action} for character ${char.id}`);
-
-                // Route to appropriate action handler
-                switch (action) {
-                    case 'load-char-scenario':
-                        if (charName) this.loadAsScenarioByName?.(charName); else this.loadAsScenario(char);
-                        break;
-                    case 'export-char-json':
-                        if (charName) this.exportCharacterJSONByName?.(charName); else this.exportCharacterJSON(char);
-                        break;
-                    case 'export-char-png':
-                        if (charName) this.exportCharacterPNGByName?.(charName); else this.exportCharacterPNG(char);
-                        break;
-                    case 'delete-char-modal':
-                        if (confirm('Delete this character?')) {
-                            if (charName) this.deleteCharacterByName?.(charName); else this.deleteCharacter(char.id);
-                        }
-                        break;
-                    case 'edit-character':
-                        KLITE_RPMod.panels.CHARS.setEditMode('edit', char);
-                        break;
-                    case 'clone-character':
-                        const copy = JSON.parse(JSON.stringify(char));
-                        delete copy.id;
-                        copy.name += ' (Clone)';
-                        KLITE_RPMod.panels.CHARS.setEditMode('clone', copy);
-                        break;
-                    default:
-                        KLITE_RPMod.log('chars', `Unknown detail view action: ${action}`);
+            try {
+                if (rightPanel && rightPanel._detailEventHandler) {
+                    rightPanel.removeEventListener('click', rightPanel._detailEventHandler);
+                    rightPanel._detailEventHandler = null;
                 }
-                e.stopPropagation();
-            };
-
-            // Remove any existing detail view event handler
-            if (rightPanel._detailEventHandler) {
-                rightPanel.removeEventListener('click', rightPanel._detailEventHandler);
-            }
-
-            // Add the new event handler
-            rightPanel.addEventListener('click', detailEventHandler);
-            rightPanel._detailEventHandler = detailEventHandler;
-
-            KLITE_RPMod.log('chars', 'Detail view event handlers set up successfully');
+            } catch(_) {}
+            KLITE_RPMod.log('chars', 'Using generic CHARS action handler for detail view');
         },
 
         hideCharacterFullscreen() {
@@ -14017,6 +14192,9 @@ Outline:`
                 rightPanel._detailEventHandler = null;
                 KLITE_RPMod.log('chars', 'Detail view event handlers cleaned up');
             }
+
+            // Clear current detail reference
+            this._currentDetailChar = null;
 
             // Restore normal CHARS panel view
             KLITE_RPMod.loadPanel('right', 'CHARS');
@@ -14100,15 +14278,15 @@ Outline:`
             }
 
             if (importedCount > 0) {
-                // Save to KoboldAI Lite's native storage system
+                // Save to KoboldAI Lite / Esolite native storage system
                 if (typeof window.save_wi === 'function') {
                     window.save_wi();
-                    KLITE_RPMod.log('chars', 'Saved WI using KoboldAI Lite native function');
+                    KLITE_RPMod.log('chars', 'Saved WI using KoboldAI Lite/Esolite native function');
                 } else {
                     KLITE_RPMod.log('chars', 'Warning: save_wi function not available');
                 }
 
-                // Sync our WI panel's pending state to the updated WI data
+        // Sync our WI panel's pending state to the updated WI data
                 if (KLITE_RPMod.panels.WI) {
                     KLITE_RPMod.panels.WI.pendingWI = JSON.parse(JSON.stringify(window.current_wi || []));
                     if (KLITE_RPMod.state.tabs.right === 'WI') {
@@ -14121,10 +14299,27 @@ Outline:`
                     window.wi_refresh();
                 }
 
+                // Commit changes if host exposes helper (Esolite)
+                try { if (typeof window.commit_wi_changes === 'function') window.commit_wi_changes(); } catch(_) {}
+
+                // Commit WI changes if host exposes this helper (Esolite)
+                try { if (typeof window.commit_wi_changes === 'function') window.commit_wi_changes(); } catch(_) {}
+
                 KLITE_RPMod.log('chars', `✅ Imported ${importedCount} World Info entries to KoboldAI Lite WI system`);
             }
 
             return importedCount;
+        },
+
+        // Import a single WI entry (from details view button) using Esolite WI
+        async importWorldInfoEntry(entry) {
+            if (!entry) return 0;
+            try {
+                return await this.importCharacterWorldInfo([entry]);
+            } catch (e) {
+                KLITE_RPMod.error('Failed to import WI entry', e);
+                return 0;
+            }
         },
 
         toggleTagSelection(tagElement) {
@@ -14182,7 +14377,8 @@ Outline:`
                 const rightPanel = document.querySelector('div#content-right.klite-content');
                 const backButton = rightPanel?.querySelector('button[onclick*="hideCharacterFullscreen"]');
                 if (backButton) {
-                    this.showCharacterFullscreen(char);
+                    try { if (this._currentDetailChar && this._currentDetailChar.id == char.id) this._currentDetailChar.tags = char.tags.slice(); } catch(_) {}
+                    this.showCharacterFullscreen(this._currentDetailChar && this._currentDetailChar.id == char.id ? this._currentDetailChar : char);
                 }
                 // Removed ${tagsToRemove.length} tag(s) from ${char.name}
             }
@@ -14452,6 +14648,45 @@ Outline:`
             return [];
         },
 
+        // List available WI groups from Esolite UI or data
+        getEsoliteWIGroups() {
+            const out = new Set();
+            try {
+                // Prefer UI buttons container if present
+                const btns = document.querySelectorAll('#wi_tab_container #wigroupsbuttons button');
+                btns.forEach(b => { const t = (b.textContent||'').trim(); if (t) out.add(t); });
+            } catch(_) {}
+            try {
+                // Fallback: derive from in-memory WI entries
+                const wi = Array.isArray(window.current_wi) ? window.current_wi : [];
+                wi.forEach(e => { const g = (e && (e.wigroup||e.group||'')); if (g && String(g).trim()) out.add(String(g).trim()); });
+            } catch(_) {}
+            const arr = Array.from(out);
+            arr.sort((a,b)=>a.localeCompare(b));
+            return arr;
+        },
+
+        // Check if a character name is already used (case-insensitive)
+        isCharacterNameTaken(name) {
+            try {
+                if (!name) return false;
+                const target = String(name).trim().toLowerCase();
+                // Check current lightweight list
+                if (Array.isArray(KLITE_RPMod.characters)) {
+                    if (KLITE_RPMod.characters.some(c => String(c?.name || '').trim().toLowerCase() === target)) return true;
+                }
+                // Check Esolite list metas/strings
+                const list = this.getEsoliteCharacterList();
+                if (Array.isArray(list)) {
+                    for (const m of list) {
+                        const nm = typeof m === 'string' ? m : (m && m.name) ? m.name : '';
+                        if (String(nm).trim().toLowerCase() === target) return true;
+                    }
+                }
+            } catch(_) {}
+            return false;
+        },
+
         async fetchEsoliteCharacterList() {
             const list = this.getEsoliteCharacterList();
             if (Array.isArray(list) && list.length > 0) return list;
@@ -14481,11 +14716,21 @@ Outline:`
         },
 
         async rebuildFromEsolite() {
+            if (this._rebuilding) return;
+            this._rebuilding = true;
             try {
                 const list = await this.fetchEsoliteCharacterList();
                 // Only consider actual Characters for the CHAR gallery
                 const charMetas = list.filter(m => (m?.type || 'Character') === 'Character');
+
+                // Fast no-op: if names unchanged and counts equal, skip heavy re-render
+                const namesKey = charMetas.map(m => (m?.name || '')).join('\u0001');
+                if (this._lastNamesKey === namesKey && this._esoliteLastCount === charMetas.length && Array.isArray(KLITE_RPMod.characters) && KLITE_RPMod.characters.length === charMetas.length) {
+                    return;
+                }
+
                 this._esoliteLastCount = charMetas.length;
+                this._lastNamesKey = namesKey;
 
                 // Build lightweight view model only from metadata; defer heavy loads
                 const built = [];
@@ -14510,8 +14755,14 @@ Outline:`
                 }
                 KLITE_RPMod.characters = built;
                 this.refreshGallery?.();
+                // Avoid re-entrant loop: do not refresh ROLES while ROLES is initializing
+                if (!KLITE_RPMod._inRolesInit) {
+                    try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
+                }
             } catch(e) {
                 // ignore
+            } finally {
+                this._rebuilding = false;
             }
         },
 
@@ -14748,10 +14999,25 @@ Outline:`
         async deleteCharacterByName(name) {
             try {
                 if (!name) return;
-                await window.indexeddb_save?.(`character_${name}`);
-                this.setEsoliteCharacterList((arr) => arr.filter(c => c?.name !== name));
-                await window.updateCharacterListFromAll?.();
-                await this.rebuildFromEsolite?.();
+                // Mirror Esolite characterManager.js deletion logic
+                try {
+                    if (Array.isArray(window.allCharacterNames)) {
+                        window.allCharacterNames = window.allCharacterNames.filter(c => c?.name !== name);
+                    } else if (typeof allCharacterNames !== 'undefined' && Array.isArray(allCharacterNames)) {
+                        allCharacterNames = allCharacterNames.filter(c => c?.name !== name);
+                    } else {
+                        this.setEsoliteCharacterList((arr) => (Array.isArray(arr) ? arr : []).filter(c => c?.name !== name));
+                    }
+                } catch(_) {}
+
+                // Persist delete via IndexedDB (Esolite uses call without data to delete)
+                try { await window.indexeddb_save?.(`character_${name}`); } catch(_) {}
+
+                // Update host UI lists
+                try { await window.updateCharacterListFromAll?.(); } catch(_) {}
+
+                // As a fallback, rebuild our gallery model
+                try { await this.rebuildFromEsolite?.(); } catch(_) {}
             } catch(_) {}
         },
 
@@ -15017,9 +15283,8 @@ Outline:`
     KLITE_RPMod.panels.CHARS.renderGroupSelector = function () {
         if (!this.showGroupSelector) return '';
 
-        const wiPanel = KLITE_RPMod.panels.WI;
-        const groups = (wiPanel && wiPanel.getGroups && typeof wiPanel.getGroups === 'function')
-            ? wiPanel.getGroups() : [];
+        // Read WI groups from Esolite's WI tab (UI/data)
+        const groups = this.getEsoliteWIGroups ? this.getEsoliteWIGroups() : [];
 
         if (!groups.length) return '<div class="klite-muted">No WorldInfo groups available.</div>';
 
@@ -15055,14 +15320,33 @@ Outline:`
             data.spec_version = '2.0';
             data.character_book = null;
 
+            // Validate unique name for new
+            if (this.editMode === 'new') {
+                const newName = String(data.name).trim();
+                if (this.isCharacterNameTaken(newName)) {
+                    alert('Please choose an unique name for the character.');
+                    return;
+                }
+            }
+            // Validate unique name for clones
+            if (this.editMode === 'clone') {
+                const newName = String(data.name).trim();
+                if (this.isCharacterNameTaken(newName)) {
+                    alert('Please choose an unique name for the cloned character.');
+                    return;
+                }
+            }
+
             try {
                 if (KLITE_RPMod.panels?.CHARS?.addCharacter) {
                     await KLITE_RPMod.panels.CHARS.addCharacter(data);
-                    // If name changed, remove old list entry to avoid duplicates
+                    // Only remove old entry when editing (not cloning)
                     try {
-                        const oldName = this.currentChar?.name;
-                        if (oldName && oldName !== data.name) {
-                            this.setEsoliteCharacterList(arr => (Array.isArray(arr) ? arr : []).filter(c => c?.name !== oldName));
+                        if (this.editMode === 'edit') {
+                            const oldName = this.currentChar?.name;
+                            if (oldName && oldName !== data.name) {
+                                this.setEsoliteCharacterList(arr => (Array.isArray(arr) ? arr : []).filter(c => c?.name !== oldName));
+                            }
                         }
                     } catch(_) {}
                 } else {
@@ -15193,6 +15477,63 @@ Outline:`
                 };
             }
         } catch(e) { console.warn('[RPMod] Failed to make setupHooks idempotent:', e); }
+
+        // Optional: advance speaker after user submit (when enabled in ROLES settings, non-manual)
+        try {
+            const wrapAdvance = () => {
+                try {
+                    const orig = window.submit_generation_button;
+                    if (typeof orig === 'function' && !orig.__rpmod_advancespeaker_wrapped) {
+                        window.submit_generation_button = function(...args) {
+                            const result = orig.apply(this, args);
+                            try {
+                                setTimeout(() => {
+                                    try {
+                                        const roles = KLITE_RPMod?.panels?.ROLES;
+                                        if (roles?.enabled && roles.speakerMode !== 'manual' && roles.autoResponses?.autoAdvanceOnUserSubmit) {
+                                            roles.advanceSpeaker();
+                                        }
+                                    } catch(_) {}
+                                }, 0);
+                            } catch(_) {}
+                            return result;
+                        };
+                        window.submit_generation_button.__rpmod_advancespeaker_wrapped = true;
+                    }
+                } catch(_) {}
+            };
+            // Wrap immediately if available, otherwise try again shortly
+            wrapAdvance();
+            setTimeout(wrapAdvance, 200);
+        } catch(e) { /* ignore */ }
+
+        // Also wrap chat_submit_generation to conditionally advance after user submit (non-manual modes)
+        try {
+            const wrapChatAdvance = () => {
+                try {
+                    const origChat = window.chat_submit_generation;
+                    if (typeof origChat === 'function' && !origChat.__rpmod_advancespeaker_chat_wrapped) {
+                        window.chat_submit_generation = function(...args) {
+                            const result = origChat.apply(this, args);
+                            try {
+                                setTimeout(() => {
+                                    try {
+                                        const roles = KLITE_RPMod?.panels?.ROLES;
+                                        if (roles?.enabled && roles.speakerMode !== 'manual' && roles.autoResponses?.autoAdvanceOnUserSubmit) {
+                                            roles.advanceSpeaker();
+                                        }
+                                    } catch(_) {}
+                                }, 0);
+                            } catch(_) {}
+                            return result;
+                        };
+                        window.chat_submit_generation.__rpmod_advancespeaker_chat_wrapped = true;
+                    }
+                } catch(_) {}
+            };
+            wrapChatAdvance();
+            setTimeout(wrapChatAdvance, 200);
+        } catch(_) {}
 
         // Panels-only stubs: disable overlay/left-only operations at runtime
         try {
