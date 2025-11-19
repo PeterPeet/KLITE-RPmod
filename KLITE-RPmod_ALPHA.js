@@ -6740,6 +6740,7 @@
                     const roles = KLITE_RPMod.panels.ROLES;
                     const existing = roles.activeChars.slice();
                     const existingKeys = new Set(existing.map(c => (c.id != null ? `id:${c.id}` : `name:${c.name}`)));
+                    const addedChars = [];
 
                     let added = 0;
                     checkboxes.forEach(cb => {
@@ -6752,12 +6753,21 @@
                             existing.push(entry);
                             existingKeys.add(key);
                             added++;
+                            addedChars.push(entry);
                         }
                     });
 
                     roles.activeChars = existing;
                     try { roles.saveSettings?.(); } catch(_) {}
                     roles.refresh();
+
+                    // Update group avatars to include newly added entries
+                    try { KLITE_RPMod.updateGroupAvatars?.(); } catch(_) {}
+
+                    // Append each newly added character to memory (align with legacy selector behavior)
+                    if (added > 0) {
+                        try { addedChars.forEach(c => { try { KLITE_RPMod.appendCharacterToMemorySimple(c); } catch(_) {} }); } catch(_) {}
+                    }
                 }
             } else {
                 // TOOLS panel (RP) mode - handle single selection
@@ -10297,6 +10307,9 @@ Outline:`
 
         render() {
             return `
+                <div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
+                    <strong>Note:</strong> This panel appends character data to Context/memory while selecting them. If you remove characters you need to manually edit Context/memory.
+                </div>
                 ${t.section('Group Chat Control',
                 `<label>
                         <input type=\"checkbox\" id=\"group-enabled\" ${this.enabled ? 'checked' : ''}>
@@ -11987,7 +12000,11 @@ Outline:`
                         const full = {
                             ...char,
                             image: (d && d.image) ? d.image : (char.image || null),
-                            rawData: { data: (d && d.data) ? d.data : (char.rawData?.data || {}) }
+                            rawData: { data: (d && d.data) ? d.data : (char.rawData?.data || {}) },
+                            // Hydrate tags from Esolite character data for details/gallery
+                            tags: Array.isArray(d?.data?.tags) ? d.data.tags.slice() : (Array.isArray(char.tags) ? char.tags.slice() : []),
+                            // Best-effort creator hydration
+                            creator: (d?.data?.creator || char.creator || 'Unknown')
                         };
                         KLITE_RPMod.panels.CHARS.showCharacterFullscreen(full);
                     } catch (_) {
@@ -14483,6 +14500,10 @@ Outline:`
             if (!rightPanel) return;
 
             const characterData = char.rawData?.data || char.rawData || {};
+            // Prefer hydrated tags from char; fallback to embedded data tags
+            const effectiveTags = (Array.isArray(char.tags) && char.tags.length > 0)
+                ? char.tags
+                : (Array.isArray(characterData?.tags) ? characterData.tags : []);
 
             // Extract greetings data
             const greetings = [];
@@ -14519,9 +14540,9 @@ Outline:`
                     </div>`
             )}
           
-                ${t.section('Tags',
+               ${t.section('Tags',
                 `<div id="tags-container-${char.id}" style="margin-bottom: 12px;">
-                        ${(char.tags || []).map(tag => `
+                        ${(effectiveTags || []).map(tag => `
                             <span class="klite-tag-pill" style=\"background: var(--bg2); border-radius: 10px;\" data-tag="${tag}" onclick="KLITE_RPMod.panels.CHARS.toggleTagSelection(this)">&nbsp;&nbsp;${tag}&nbsp;&nbsp;</span>
                         `).join(' ')}
                     </div>
@@ -14594,7 +14615,7 @@ Outline:`
             // Character fullscreen view ready - all sections start expanded
             KLITE_RPMod.log('chars', 'Character fullscreen view ready with all sections expanded');
 
-            // Keep a reference to the current detail character to preserve enriched fields (e.g., image)
+            // Keep a reference to the current detail character to preserve enriched fields (e.g., image, tags)
             try {
                 this._currentDetailChar = char;
                 // Enrich the list model with any newly loaded fields so future lookups keep image/rawData
@@ -14603,6 +14624,12 @@ Outline:`
                     if (!listChar.image && char.image) listChar.image = char.image;
                     if (!listChar.thumbnail && char.thumbnail) listChar.thumbnail = char.thumbnail;
                     if (!listChar.rawData && char.rawData) listChar.rawData = char.rawData;
+                    // Persist hydrated tags into list model and refresh tag filter dropdown
+                    if ((!Array.isArray(listChar.tags) || listChar.tags.length === 0) && Array.isArray(effectiveTags) && effectiveTags.length > 0) {
+                        listChar.tags = effectiveTags.slice();
+                        try { KLITE_RPMod.saveCharacters?.(); } catch(_) {}
+                        try { this.refreshTagDropdown?.(); } catch(_) {}
+                    }
                 }
             } catch(_) {}
         },
@@ -15201,6 +15228,51 @@ Outline:`
                 // Avoid re-entrant loop: do not refresh ROLES while ROLES is initializing
                 if (!KLITE_RPMod._inRolesInit) {
                     try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
+                }
+
+                // Background tag hydration: fetch tags from Esolite for entries missing tags
+                // Runs non-blocking with throttling; persists and refreshes tag filter when updated
+                if (!this._tagHydrationInFlight && typeof window.getCharacterData === 'function') {
+                    this._tagHydrationInFlight = true;
+                    setTimeout(() => {
+                        (async () => {
+                            try {
+                                const candidates = (KLITE_RPMod.characters || []).filter(c => (!Array.isArray(c.tags) || c.tags.length === 0) && c?.name);
+                                let updated = 0;
+                                for (let i = 0; i < candidates.length; i++) {
+                                    const c = candidates[i];
+                                    try {
+                                        const d = await window.getCharacterData(c.name);
+                                        const tags = Array.isArray(d?.data?.tags) ? d.data.tags.filter(t => !!t && String(t).trim().length > 0) : [];
+                                        const creator = d?.data?.creator;
+                                        if (tags.length > 0 || (creator && !c.creator)) {
+                                            // Update the live reference in KLITE_RPMod.characters
+                                            const ref = KLITE_RPMod.characters.find(x => x.id == c.id) || c;
+                                            if (tags.length > 0) ref.tags = tags.slice();
+                                            if (creator && !ref.creator) ref.creator = creator;
+                                            updated++;
+                                            // Debounced save
+                                            if (!this._hydrateSaveTimer) {
+                                                this._hydrateSaveTimer = setTimeout(() => { try { KLITE_RPMod.saveCharacters?.(); } finally { this._hydrateSaveTimer = null; } }, 750);
+                                            }
+                                            // Occasionally refresh tag dropdown so filters appear without waiting for end
+                                            if (updated % 5 === 0) {
+                                                try { this.refreshTagDropdown?.(); } catch(_) {}
+                                            }
+                                        }
+                                    } catch (_) { /* skip on error */ }
+                                    // Yield between items to keep UI responsive
+                                    await new Promise(r => setTimeout(r, 60));
+                                }
+                                if (updated > 0) {
+                                    try { KLITE_RPMod.saveCharacters?.(); } catch(_) {}
+                                    try { this.refreshTagDropdown?.(); } catch(_) {}
+                                }
+                            } finally {
+                                this._tagHydrationInFlight = false;
+                            }
+                        })();
+                    }, 100);
                 }
             } catch(e) {
                 // ignore
