@@ -1020,7 +1020,7 @@
         /* Character tags */
         .klite-tag {
             display: inline-block;
-            background: var(--accent);
+            background: var(--border);
             color: white;
             padding: 2px 6px;
             border-radius: 3px;
@@ -1033,9 +1033,9 @@
             display: inline-block;
             padding: 6px 12px;
             margin: 3px;
-            background: var(--bg2) !important;
+            background: var(--border) !important;
             color: var(--text) !important;
-            border: 1px solid var(--border) !important;
+            border: 1px solid var(--bg2) !important;
             border-radius: 20px !important;
             cursor: pointer;
             font-size: 12px;
@@ -3187,6 +3187,64 @@
     // =============================================
 
     window.KLITE_RPMod = {
+        // Append a simple character block into Esolite memory variable only
+        async appendCharacterToMemorySimple(charObj) {
+            try {
+                if (!charObj) return;
+                const safeGet = (...paths) => {
+                    for (const p of paths) {
+                        try {
+                            const v = p();
+                            if (v !== undefined && v !== null && String(v).trim() !== '') return String(v);
+                        } catch(_) {}
+                    }
+                    return '';
+                };
+
+                let name = safeGet(
+                    () => charObj.name,
+                    () => charObj.rawData?.data?.name,
+                    () => charObj.data?.name
+                ).trim();
+
+                let description = safeGet(
+                    () => charObj.description,
+                    () => charObj.content,
+                    () => charObj.rawData?.data?.description,
+                    () => charObj.data?.description
+                ).trim();
+
+                let personality = safeGet(
+                    () => charObj.personality,
+                    () => charObj.rawData?.data?.personality,
+                    () => charObj.data?.personality
+                ).trim();
+
+                // If core fields are missing, try to fetch full card from Esolite
+                if ((!description || !personality) && typeof window.getCharacterData === 'function') {
+                    const targetName = name || charObj?.name || '';
+                    try {
+                        const data = await window.getCharacterData(targetName);
+                        const d = data?.data || {};
+                        if (!description) description = String(d.description || '').trim();
+                        if (!personality) personality = String(d.personality || '').trim();
+                        if (!name) name = String(d.name || '').trim();
+                    } catch(_) {}
+                }
+
+                const parts = [];
+                if (description) parts.push(`[Description:\n${description}]`);
+                if (personality) parts.push(`[Personality:\n${personality}]`);
+                if (parts.length === 0) return; // nothing to append
+
+                const block = `(((Character description of ${name}:\n${parts.join('\n')})))`;
+                if (typeof window.current_memory === 'string' && window.current_memory.length) {
+                    window.current_memory += '\n\n' + block;
+                } else {
+                    window.current_memory = block;
+                }
+            } catch(_) { /* ignore */ }
+        },
         // Map host image provider mode (number or string) to human-readable label
         getGenerationMode(mode) {
             try {
@@ -3196,6 +3254,15 @@
                     const val = (mode ?? window.localsettings?.generate_images_mode ?? sel.value);
                     const match = Array.from(sel.options).find(o => String(o.value) === String(val));
                     if (match) return (match.text || '').trim();
+                }
+            } catch(_) {}
+            // Try to infer from host connectivity flags when settings UI hasn't been opened yet
+            try {
+                if (typeof window.a1111_is_connected === 'boolean' && window.a1111_is_connected) {
+                    return 'KCPP / Forge / A1111';
+                }
+                if (typeof window.comfyui_is_connected === 'boolean' && window.comfyui_is_connected) {
+                    return 'ComfyUI';
                 }
             } catch(_) {}
             // Fallback mapping based on known Esolite values
@@ -4616,8 +4683,13 @@
         loadPanel(side, name) {
             this.log('panels', `Loading panel: ${side}/${name}`);
 
-            // Single-right-panel behavior: render any 'left' loads into 'right'
-            if (side === 'left') side = 'right';
+            // Single-right-panel behavior: only alias left→right if no left container exists
+            try {
+                if (side === 'left') {
+                    const leftContainer = document.getElementById('content-left');
+                    if (!leftContainer) side = 'right';
+                }
+            } catch(_) { /* fallback to default behavior below */ }
 
             const container = document.getElementById(`content-${side}`);
             if (!container) {
@@ -4736,9 +4808,25 @@
                                         modelTxt = window.localsettings?.generate_images_model || 'Default';
                                         try {
                                             const modelSel = document.getElementById('generate_images_model');
-                                            if (modelSel) {
+                                            if (modelSel && modelSel.options && modelSel.options.length) {
                                                 const opt = modelSel.options[modelSel.selectedIndex];
                                                 modelTxt = (opt?.text || opt?.value || modelTxt || '').toString();
+                                            }
+                                        } catch(_) {}
+                                    } else if (modeTxt === 'KCPP / Forge / A1111') {
+                                        try {
+                                            const localSel = document.getElementById('generate_images_local_model');
+                                            if (localSel && localSel.options && localSel.options.length) {
+                                                const opt = localSel.options[localSel.selectedIndex];
+                                                modelTxt = (opt?.text || opt?.value || '-').toString();
+                                            }
+                                        } catch(_) {}
+                                    } else if (modeTxt === 'ComfyUI') {
+                                        try {
+                                            const comfySel = document.getElementById('generate_images_comfy_model');
+                                            if (comfySel && comfySel.options && comfySel.options.length) {
+                                                const opt = comfySel.options[comfySel.selectedIndex];
+                                                modelTxt = (opt?.text || opt?.value || '-').toString();
                                             }
                                         } catch(_) {}
                                     }
@@ -6712,19 +6800,8 @@
             if (KLITE_RPMod.panels.TOOLS) {
                 KLITE_RPMod.panels.TOOLS.selectedCharacter = char;
                 KLITE_RPMod.panels.TOOLS.characterEnabled = true;
-
-                // Apply to Lite
-                if (char.type === 'worldinfo') {
-                    // WI character
-                    if (window.current_memory) {
-                        window.current_memory += '\\n\\n' + char.content;
-                    } else {
-                        window.current_memory = char.content;
-                    }
-                } else {
-                    // CHARS character
-                    KLITE_RPMod.panels.TOOLS.applyCharacterData(char);
-                }
+                // Apply character extras (avatar/name, context)
+                KLITE_RPMod.panels.TOOLS.applyCharacterData(char);
 
                 // Refresh current left panel (TOOLS or ROLES) without switching
                 const active = KLITE_RPMod.state?.tabs?.right;
@@ -7794,19 +7871,10 @@
                 KLITE_RPMod.showUnifiedCharacterModal('single-select', (char) => {
                     KLITE_RPMod.panels.TOOLS.selectedCharacter = char;
                     KLITE_RPMod.panels.TOOLS.characterEnabled = true;
-
-                    // Apply the character data
-                    if (char.type === 'worldinfo') {
-                        // WI character - add to memory
-                        if (window.current_memory) {
-                            window.current_memory += '\n\n' + char.content;
-                        } else {
-                            window.current_memory = char.content;
-                        }
-                    } else {
-                        // CHARS character - use existing apply logic
-                        KLITE_RPMod.panels.TOOLS.applyCharacterData(char);
-                    }
+                    // Append simple block to memory (resolves full data if needed)
+                    try { KLITE_RPMod.appendCharacterToMemorySimple(char); } catch(_) {}
+                    // Apply character extras (avatar/name, context)
+                    KLITE_RPMod.panels.TOOLS.applyCharacterData(char);
 
                     // Refresh currently active right panel (TOOLS or ROLES) without switching
                     const active = KLITE_RPMod.state?.tabs?.right;
@@ -7819,6 +7887,9 @@
                     const tools = KLITE_RPMod.panels.TOOLS;
                     tools.selectedPersona = char;
                     tools.personaEnabled = true;
+
+                    // Append persona description to memory as a character block (resolves full data if needed)
+                    try { KLITE_RPMod.appendCharacterToMemorySimple(char); } catch(_) {}
 
                     // Update user avatar with persona image if available (best-effort)
                     try {
@@ -8933,26 +9004,6 @@
                     }
                 }
 
-                // Apply character data to memory if it's a CHARS character
-                if (characterData.rawData || characterData.description) {
-                    const description = characterData.description || characterData.rawData?.data?.description || '';
-                    const personality = characterData.personality || characterData.rawData?.data?.personality || '';
-                    const scenario = characterData.scenario || characterData.rawData?.data?.scenario || '';
-
-                    let characterContent = '';
-                    if (description) characterContent += `Description: ${description}\n\n`;
-                    if (personality) characterContent += `Personality: ${personality}\n\n`;
-                    if (scenario) characterContent += `Scenario: ${scenario}\n\n`;
-
-                    if (characterContent) {
-                        if (window.current_memory) {
-                            window.current_memory += '\n\n' + characterContent.trim();
-                        } else {
-                            window.current_memory = characterContent.trim();
-                        }
-                    }
-                }
-
                 // Update character context
                 this.updateCharacterContext();
 
@@ -9051,21 +9102,35 @@
 
         getCharacterContext() {
             // Build character context for dynamic injection during generation
-            let characterContext = '';
+            const parts = [];
+
+            // Helper to compose a rich snippet similar to ROLES injection
+            const buildSnippet = (obj, label) => {
+                if (!obj) return '';
+                const name = (obj.name || '').trim();
+                const desc = (obj.description || obj.content || '').trim();
+                const personality = (obj.personality || '').trim();
+                const scenario = (obj.scenario || '').trim();
+                const notes = (obj.creator_notes || obj.post_history_instructions || '').trim();
+                const lines = [`[${label}: ${name}]`];
+                if (desc) lines.push(`Description: ${desc}`);
+                if (personality) lines.push(`Personality: ${personality}`);
+                if (scenario) lines.push(`Scenario: ${scenario}`);
+                if (notes) lines.push(`Notes: ${notes}`);
+                return lines.join('\n');
+            };
 
             // Add persona context if enabled and selected
             if (this.personaEnabled && this.selectedPersona) {
-                const description = this.selectedPersona.description || this.selectedPersona.content || 'No description available';
-                characterContext += `[The human player impersonates ${this.selectedPersona.name} with the following description:\n${description}]\n\n`;
+                parts.push(buildSnippet(this.selectedPersona, 'User Character'));
             }
 
             // Add character context if enabled and selected
             if (this.characterEnabled && this.selectedCharacter) {
-                const description = this.selectedCharacter.description || this.selectedCharacter.content || 'No description available';
-                characterContext += `[The AI impersonates ${this.selectedCharacter.name} with the following character description:\n${description}]\n\n`;
+                parts.push(buildSnippet(this.selectedCharacter, 'Character'));
             }
 
-            return characterContext;
+            return parts.filter(Boolean).join('\n\n');
         },
 
         injectCharacterContext() {
@@ -9087,6 +9152,16 @@
 
             // Get current input value
             const currentInput = input.value || '';
+            // Capacity check against available context budget
+            try {
+                const base = (window.current_temp_memory || '') + rpmod_concat_history_safe() + currentInput;
+                const cap = rpmod_get_max_allowed_chars(base);
+                const projected = base.length + characterContext.length;
+                if (projected > cap) {
+                    alert('Character data exceeds available context budget. Reduce character data to proceed.');
+                    return;
+                }
+            } catch(_) {}
 
             // Inject character context at the beginning of the input
             // This ensures character context is applied without permanently modifying memory
@@ -10189,7 +10264,9 @@ Outline:`
             delay: 10,
             enableSelfAnswers: false,
             continueWithoutPlayer: false,
-            autoAdvanceAfterTrigger: true
+            autoAdvanceAfterTrigger: true,
+            // Default: advance to next speaker after user submit in group chat (non-manual modes)
+            autoAdvanceOnUserSubmit: true
         },
         autoResponseTimer: null,
         isUserTyping: false,
@@ -10336,6 +10413,7 @@ Outline:`
                             <option value="talkative" ${this.speakerMode === 'talkative' ? 'selected' : ''}>Talkative Weighted</option>
                             <option value="party" ${this.speakerMode === 'party' ? 'selected' : ''}>Party Round Robin</option>
                         </select>
+                        
                     </div>
                     <div id="speaker-mode-description" style="margin-top: 6px; font-size: 11px; color: var(--muted); padding: 6px; background: rgba(0,0,0,0.2); border-radius: 4px;">
                         ${this.getSpeakerModeDescription()}
@@ -11173,6 +11251,7 @@ Outline:`
             }
 
             let added = 0;
+            const addedChars = [];
             checkboxes.forEach(checkbox => {
                 const charId = checkbox.value; // Keep as string to handle both string and number IDs
                 const char = KLITE_RPMod.characters.find(c => c.id == charId);
@@ -11188,6 +11267,7 @@ Outline:`
                     }
 
                     added++;
+                    addedChars.push(char);
                 }
             });
 
@@ -11198,7 +11278,8 @@ Outline:`
             // Do not set multi-opponent; will set speaker name per trigger
 
             if (added > 0) {
-                // Added ${added} character${added === 1 ? '' : 's'} to group
+                // Append each added character to memory (resolves full data if needed)
+                try { addedChars.forEach(c => { try { KLITE_RPMod.appendCharacterToMemorySimple(c); } catch(_) {} }); } catch(_) {}
             }
         },
 
@@ -11234,6 +11315,12 @@ Outline:`
                 this.refresh();
                 this.updateKoboldSettings();
                 this.applyGroupToHost();
+                // Append to memory when adding a new custom character
+                try { KLITE_RPMod.appendCharacterToMemorySimple({
+                    name,
+                    description,
+                    personality: '',
+                }); } catch(_) {}
             }
         },
 
@@ -11471,6 +11558,8 @@ Outline:`
         currentView: 'grid',
         tagFilter: '',
         starFilter: '',
+        detailObserverEnabled: false,
+        _detailSaveTimer: null,
 
         // Basic HTML escaping helpers to prevent HTML/JS injection when rendering
         escapeHTML(str = '') {
@@ -11605,6 +11694,9 @@ Outline:`
                         .klite-character-grid > * , .klite-character-overview > * { min-width: 0 !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box; }
                         .klite-character-grid .klite-grid-thumb { width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
                         .klite-character-grid .klite-grid-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+                        /* Detail view tag chips (non-interactive) */
+                        .klite-character-detail .klite-char-tags .klite-tag-pill { background: var(--bg2) !important; color: var(--text) !important; border: 1px solid var(--border) !important; }
+                        .klite-character-detail .klite-char-tags .klite-tag-pill.selected { background: var(--border) !important; color: var(--text) !important; border: 1px solid var(--bg2) !important; }
                     `;
                     document.head.appendChild(s);
                 }
@@ -12061,7 +12153,8 @@ Outline:`
                 case 'list':
                     return characters.map(char => this.renderCharacterListItem(char)).join('');
                 case 'detail':
-                    return characters.map(char => this.renderCharacterDetailItem(char)).join('');
+                    // Reuse Grid View logic, but layout is set to 1 per row in refreshGallery
+                    return characters.map(char => this.renderCharacterGridItem(char)).join('');
                 default: // grid (2 per row)
                     return characters.map(char => this.renderCharacterGridItem(char)).join('');
             }
@@ -12091,10 +12184,12 @@ Outline:`
         // New: 2-per-row grid tile similar to overview, with rating
         renderCharacterGridItem(char) {
             const rating = char.rating || 0;
+            const preferFull = this.currentView === 'detail';
+            const imgsrc = preferFull ? (char.image || char.thumbnail) : (char.thumbnail || char.image);
             return `
                 <div class="klite-char-grid-item" data-char-id="${char.id}" data-action="view-char" style="display: flex; flex-direction: column; align-items: center; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg2); cursor: pointer; text-align: center;">
-                    ${(char.thumbnail || char.image) ? `
-                        <div class=\"klite-grid-thumb\" style=\"width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; margin-bottom: 8px; border: 1px solid var(--border);\">\n                            <img src=\"${char.thumbnail || char.image}\" alt=\"${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}\" style=\"width: 100%; height: 100%; object-fit: cover; display: block;\" loading=\"lazy\">\n                        </div>
+                    ${imgsrc ? `
+                        <div class=\"klite-grid-thumb\" style=\"width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; margin-bottom: 8px; border: 1px solid var(--border);\">\n                            <img src=\"${imgsrc}\" alt=\"${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}\" style=\"width: 100%; height: 100%; object-fit: cover; display: block;\" loading=\"lazy\">\n                        </div>
                     ` : `
                         <div class=\"klite-grid-thumb\" style=\"width: 100%; aspect-ratio: 2/3; border-radius: 4px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin-bottom: 8px;\">\n                            <span style=\"font-size: 36px;\">👤</span>\n                        </div>
                     `}
@@ -12109,6 +12204,11 @@ Outline:`
                             <option value=\"4\" ${rating === 4 ? 'selected' : ''}>★★★★☆</option>
                             <option value=\"5\" ${rating === 5 ? 'selected' : ''}>★★★★★</option>
                         </select>
+                        ${ this.currentView === 'detail' ? `
+                        <div class=\"klite-char-tags\" style=\"margin-top: 6px; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;\">\n                            ${ (Array.isArray(char.tags) && char.tags.length > 0)
+                                ? char.tags.map(t => `<span class=\"klite-tag-pill\" style=\"pointer-events:none; cursor: default; border-radius: 10px;\">&nbsp;&nbsp;${KLITE_RPMod.panels.CHARS.escapeHTML(String(t))}&nbsp;&nbsp;</span>`).join(' ')
+                                : '' }\n                        </div>
+                        ` : ''}
                     </div>
                 </div>
             `;
@@ -12173,13 +12273,20 @@ Outline:`
 
         renderCharacterDetailItem(char) {
             const rating = char.rating || 0;
-            const tags = char.tags && char.tags.length > 0 ? char.tags.map(tag => `<span class="klite-tag">${tag}</span>`).join('') : '<span class="klite-tag-empty">No tags</span>';
+            const tagsText = Array.isArray(char.tags) && char.tags.length > 0
+                ? char.tags.map(t => KLITE_RPMod.panels.CHARS.escapeHTML(String(t))).join(', ')
+                : 'No tags';
             const talkLevel = char.talkativeness >= 80 ? 'Very Talkative' : char.talkativeness >= 40 ? 'Moderate' : 'Quiet';
+            // Prefer upgraded detail cache, then full image, then thumbnail, then generic cached avatar
+            const imgSrc = (this.getOptimizedAvatar ? this.getOptimizedAvatar(char.id, 'detail') : null)
+                || char.image
+                || char.thumbnail
+                || (this.getOptimizedAvatar ? this.getOptimizedAvatar(char.id, 'avatar') : null);
 
             return `
                 <div style="margin-bottom: 20px; border: 1px solid var(--border); border-radius: 8px; padding: 15px; background: var(--bg2);" data-char-id="${char.id}" data-action="view-char">
                     <div style="width: 100%; margin-bottom: 15px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border);">
-                        ${char.image ? `<img src="${char.image}" alt="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}" style="width: 100%; height: auto; display: block;">` : '<div style="width: 100%; height: 200px; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 48px;">👤</div>'}
+                        ${imgSrc ? `<img src="${imgSrc}" alt="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}" style="width: 100%; height: auto; display: block;" loading="lazy">` : '<div style="width: 100%; height: 200px; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 48px;">👤</div>'}
                     </div>
                     <div style="text-align: center;">
                         <div style="font-size: 18px; font-weight: bold; color: var(--text); margin-bottom: 8px;">${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}</div>
@@ -12193,13 +12300,13 @@ Outline:`
                                 <option value="5" ${rating === 5 ? 'selected' : ''}>★★★★★</option>
                             </select>
                         </div>
-                        <div style="color: var(--muted); margin-bottom: 12px;">by ${KLITE_RPMod.panels.CHARS.escapeHTML(char.creator || 'Unknown')}</div>
-                        <div style="text-align: left; margin-bottom: 12px; color: var(--text); line-height: 1.4;">${KLITE_RPMod.panels.CHARS.escapeHTML((char.description || 'No description available').substring(0, 300) + ((char.description || '').length > 300 ? '...' : ''))}</div>
+                        <div class="klite-char-creator" style="color: var(--muted); margin-bottom: 12px;">by ${KLITE_RPMod.panels.CHARS.escapeHTML(char.creator || 'Unknown')}</div>
+                        <div class="klite-char-desc" style="text-align: left; margin-bottom: 12px; color: var(--text); line-height: 1.4;">${KLITE_RPMod.panels.CHARS.escapeHTML((char.description || 'No description available').substring(0, 300) + ((char.description || '').length > 300 ? '...' : ''))}</div>
                         <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 12px; color: var(--muted);">
-                            <span>Talk: ${talkLevel} (${char.talkativeness || 0})</span>
-                            <span>Keywords: ${char.keywords ? char.keywords.length : 0}</span>
+                            <span class="klite-char-talk">Talk: ${talkLevel} (${char.talkativeness || 0})</span>
+                            <span class="klite-char-keywords">Keywords: ${char.keywords ? char.keywords.length : 0}</span>
                         </div>
-                        <div style="margin-bottom: 15px;">${char.tags && char.tags.length > 0 ? char.tags.map(tag => `<span class=\"klite-tag\">${KLITE_RPMod.panels.CHARS.escapeHTML(tag)}</span>`).join('') : '<span class=\"klite-tag-empty\">No tags</span>'}</div>
+                        <div class="klite-char-tags" style="margin-bottom: 15px;">${tagsText}</div>
                     </div>
                 </div>
                 <hr style="border: none; border-top: 1px solid var(--border); margin: 20px 0;">
@@ -12219,22 +12326,351 @@ Outline:`
                     gallery.style.display = 'grid';
                     gallery.style.gridTemplateColumns = 'repeat(2, 1fr)';
                     gallery.style.gap = '10px';
+                } else if (this.currentView === 'detail') {
+                    gallery.style.display = 'grid';
+                    gallery.style.gridTemplateColumns = 'repeat(1, 1fr)';
+                    gallery.style.gap = '10px';
                 } else {
                     gallery.style.display = '';
                     gallery.style.gridTemplateColumns = '';
                     gallery.style.gap = '';
                 }
-                gallery.innerHTML = this.renderCharacters();
-                // Update count line
-                try {
-                    const countEl = document.getElementById('char-count');
-                    if (countEl) {
-                        const total = Array.isArray(KLITE_RPMod.characters) ? KLITE_RPMod.characters.length : 0;
-                        const shown = this.getFilteredCharacters().length;
-                        countEl.textContent = `${shown} of ${total} characters shown`;
-                    }
-                } catch(_) {}
+                if (this.currentView === 'detail') {
+                    // Load full images up-front for detail view, then render once
+                    try {
+                        this._renderDetailAfterPrefetch(gallery);
+                    } catch(_) { /* fallback to immediate render */ gallery.innerHTML = this.renderCharacters(); }
+                } else {
+                    gallery.innerHTML = this.renderCharacters();
+                    // Update count line
+                    try {
+                        const countEl = document.getElementById('char-count');
+                        if (countEl) {
+                            const total = Array.isArray(KLITE_RPMod.characters) ? KLITE_RPMod.characters.length : 0;
+                            const shown = this.getFilteredCharacters().length;
+                            countEl.textContent = `${shown} of ${total} characters shown`;
+                        }
+                    } catch(_) {}
+                }
             }
+        },
+
+        async _renderDetailAfterPrefetch(galleryEl) {
+            try {
+                // Prefetch full images for all filtered characters
+                const list = this.getFilteredCharacters();
+                if (Array.isArray(list) && typeof window.getCharacterData === 'function') {
+                    for (let i = 0; i < list.length; i++) {
+                        const c = list[i];
+                        if (!c?.image) {
+                            try {
+                                const data = await window.getCharacterData(c.name);
+                                if (data?.image) c.image = data.image;
+                            } catch(_) {}
+                        }
+                    }
+                }
+            } catch(_) {}
+            // Render once with full images available
+            try { galleryEl.innerHTML = this.renderCharacters(); } catch(_) {}
+            // Update count line
+            try {
+                const countEl = document.getElementById('char-count');
+                if (countEl) {
+                    const total = Array.isArray(KLITE_RPMod.characters) ? KLITE_RPMod.characters.length : 0;
+                    const shown = this.getFilteredCharacters().length;
+                    countEl.textContent = `${shown} of ${total} characters shown`;
+                }
+            } catch(_) {}
+        },
+
+        _ensureDetailThumbnails() {
+            // Disabled: using Grid View logic for Detail View
+            return;
+            const list = this.getFilteredCharacters();
+            if (!Array.isArray(list) || list.length === 0) return;
+
+            // Build quick name -> thumbnail map from esolite meta if available
+            let thumbByName = new Map();
+            try {
+                const metas = this.getEsoliteCharacterList();
+                if (Array.isArray(metas)) {
+                    metas.forEach(m => {
+                        const n = (m && m.name) ? String(m.name) : '';
+                        if (n && m && m.thumbnail) thumbByName.set(n, m.thumbnail);
+                    });
+                }
+            } catch(_) {}
+
+            // Helper to swap placeholder with <img>
+            const attachImg = (el, src, altText, isThumb = false) => {
+                if (!el || !src) return false;
+                const img = document.createElement('img');
+                img.src = src;
+                img.alt = altText || '';
+                img.style.width = '100%';
+                img.style.height = 'auto';
+                img.loading = 'lazy';
+                if (isThumb) img.dataset.thumb = '1';
+                // Clear and inject
+                el.innerHTML = '';
+                el.appendChild(img);
+                return true;
+            };
+
+            // Scale a dataURL to a target max width (preserve aspect)
+            const scaleDataURLToWidth = async (dataURL, maxWidth = 640) => {
+                try {
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    const loaded = new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; });
+                    img.src = dataURL;
+                    await loaded;
+                    const ratio = img.naturalWidth > 0 ? Math.min(1, maxWidth / img.naturalWidth) : 1;
+                    const w = Math.max(1, Math.round(img.naturalWidth * ratio));
+                    const h = Math.max(1, Math.round(img.naturalHeight * ratio));
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w; canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+                    // Prefer PNG to preserve transparency; could be switched to JPEG for smaller size
+                    return canvas.toDataURL('image/png');
+                } catch(_) {
+                    return dataURL;
+                }
+            };
+
+            // First pass: fill from esolite thumbnails if missing
+            for (const char of list) {
+                if (!char) continue;
+                const cardEl = document.querySelector(`[data-char-id="${char.id}"]`);
+                const container = cardEl ? cardEl.querySelector(':scope > div:first-child') : null;
+                if (!container) continue;
+                const hasImg = !!container.querySelector('img');
+                if (hasImg) continue;
+
+                const metaThumb = thumbByName.get(char.name);
+                const cached = (typeof this.getOptimizedAvatar === 'function') ? this.getOptimizedAvatar(char.id, 'avatar') : null;
+                const cachedDetail = (typeof this.getOptimizedAvatar === 'function') ? this.getOptimizedAvatar(char.id, 'detail') : null;
+                const usingThumb = !char.image && !cachedDetail && (char.thumbnail || metaThumb || cached);
+                const src = char.image || cachedDetail || char.thumbnail || metaThumb || cached || null;
+                if (src) {
+                    if (attachImg(container, src, char.name || '', usingThumb)) {
+                        if (!char.image && !char.thumbnail && (metaThumb || cached)) {
+                            // Persist in-memory so next refresh renders directly
+                            if (metaThumb) char.thumbnail = metaThumb;
+                            else if (cached) char.thumbnail = cached;
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            // Install/refresh IntersectionObserver to upgrade thumbnails to full images on visibility
+            if (this.detailObserverEnabled && typeof window.IntersectionObserver === 'function') {
+                try { this._detailIO?.disconnect?.(); } catch(_) {}
+                this._detailIO = null;
+                this._detailObserved = new Set();
+                this._detailIO = new IntersectionObserver((entries) => {
+                    entries.forEach(async (entry) => {
+                        if (!entry.isIntersecting) return;
+                        const el = entry.target;
+                        const charId = el?.dataset?.charId;
+                        const char = list.find(c => String(c.id) === String(charId));
+                        if (!char) return;
+                        // Already upgraded?
+                        const hasDetail = (typeof this.getOptimizedAvatar === 'function') && !!this.getOptimizedAvatar(char.id, 'detail');
+                        if (typeof window.getCharacterData !== 'function') return;
+                        try {
+                            const data = await window.getCharacterData(char.name);
+                            const full = data?.data || {};
+                            const src = data?.image || null;
+                            // Update metadata fields from full card
+                            try {
+                                char.creator = full?.creator || char.creator || 'Unknown';
+                                char.description = full?.description || char.description || '';
+                                if (Array.isArray(full?.tags)) char.tags = full.tags.slice();
+                                // Compute talkativeness/keywords using existing helpers
+                                char.talkativeness = this.extractTalkativeness?.(full) || char.talkativeness || 0;
+                                char.keywords = this.extractCharacterKeywords?.(full) || char.keywords || [];
+                                // Update visible DOM fields without full re-render
+                                const cEl = el.querySelector('.klite-char-creator');
+                                if (cEl) cEl.textContent = `by ${char.creator || 'Unknown'}`;
+                                const dEl = el.querySelector('.klite-char-desc');
+                                if (dEl) {
+                                    const text = String(char.description || 'No description available');
+                                    const excerpt = text.substring(0, 300) + (text.length > 300 ? '...' : '');
+                                    dEl.textContent = excerpt;
+                                }
+                                const tEl = el.querySelector('.klite-char-talk');
+                                if (tEl) {
+                                    const lvl = (char.talkativeness >= 80) ? 'Very Talkative' : (char.talkativeness >= 40 ? 'Moderate' : 'Quiet');
+                                    tEl.textContent = `Talk: ${lvl} (${char.talkativeness || 0})`;
+                                }
+                                const kEl = el.querySelector('.klite-char-keywords');
+                                if (kEl) kEl.textContent = `Keywords: ${Array.isArray(char.keywords) ? char.keywords.length : 0}`;
+                                const tagsEl = el.querySelector('.klite-char-tags');
+                                if (tagsEl) {
+                                    if (Array.isArray(char.tags) && char.tags.length > 0) {
+                                        tagsEl.textContent = char.tags.map(t => KLITE_RPMod.panels.CHARS.escapeHTML(String(t))).join(', ');
+                                    } else {
+                                        tagsEl.textContent = 'No tags';
+                                    }
+                                }
+                            } catch(_) {}
+
+                            // Image upgrade (only if we don't already have detail cached)
+                            if (!char.image && !hasDetail && src) {
+                                const container = el.querySelector(':scope > div:first-child');
+                                let targetWidth = 640;
+                                try {
+                                    const rect = container?.getBoundingClientRect?.();
+                                    if (rect && rect.width) targetWidth = Math.max(320, Math.min(1024, Math.round(rect.width)));
+                                } catch(_) {}
+                                const scaled = await scaleDataURLToWidth(src, targetWidth);
+                                try { this.setOptimizedAvatar?.(char.id, 'detail', scaled); } catch(_) {}
+                                if (container) attachImg(container, scaled, char.name || '');
+                            }
+                        } catch (_) { /* ignore per-item failures */ }
+                    });
+                }, { root: document.getElementById('content-right') || null, rootMargin: '50px', threshold: 0.1 });
+            }
+
+            // Observe current detail items for upgrade
+            try {
+                const cards = document.querySelectorAll('#char-gallery [data-char-id]');
+                cards.forEach(card => {
+                    const id = card.getAttribute('data-char-id');
+                    const ch = list.find(c => String(c.id) === String(id));
+                    if (!ch) return;
+                    if (ch.image) return; // already hi-res
+                    if (this._detailObserved && this._detailObserved.has(id)) return;
+                    this._detailObserved?.add?.(id);
+                    this._detailIO?.observe?.(card);
+                });
+            } catch(_) {}
+
+            // Also trigger an immediate metadata/image upgrade for currently visible items (first few)
+            try {
+                const viewportH = window.innerHeight || 800;
+                const visible = Array.from(document.querySelectorAll('#char-gallery [data-char-id]')).filter(card => {
+                    const r = card.getBoundingClientRect();
+                    return r.bottom > 0 && r.top < viewportH;
+                });
+                const runImmediate = async () => {
+                    for (const el of visible) {
+                        const id = el.getAttribute('data-char-id');
+                        const char = list.find(c => String(c.id) === String(id));
+                        if (!char || typeof window.getCharacterData !== 'function') continue;
+                        try {
+                            const data = await window.getCharacterData(char.name);
+                            const full = data?.data || {};
+                            const src = data?.image || null;
+                            // Update metadata fields
+                            try {
+                                char.creator = full?.creator || char.creator || 'Unknown';
+                                char.description = full?.description || char.description || '';
+                                if (Array.isArray(full?.tags)) char.tags = full.tags.slice();
+                                char.talkativeness = this.extractTalkativeness?.(full) || char.talkativeness || 0;
+                                char.keywords = this.extractCharacterKeywords?.(full) || char.keywords || [];
+                                // Update DOM
+                                const cEl = el.querySelector('.klite-char-creator');
+                                if (cEl) cEl.textContent = `by ${char.creator || 'Unknown'}`;
+                                const dEl = el.querySelector('.klite-char-desc');
+                                if (dEl) {
+                                    const text = String(char.description || 'No description available');
+                                    const excerpt = text.substring(0, 300) + (text.length > 300 ? '...' : '');
+                                    dEl.textContent = excerpt;
+                                }
+                                const tEl = el.querySelector('.klite-char-talk');
+                                if (tEl) {
+                                    const lvl = (char.talkativeness >= 80) ? 'Very Talkative' : (char.talkativeness >= 40 ? 'Moderate' : 'Quiet');
+                                    tEl.textContent = `Talk: ${lvl} (${char.talkativeness || 0})`;
+                                }
+                                const kEl = el.querySelector('.klite-char-keywords');
+                                if (kEl) kEl.textContent = `Keywords: ${Array.isArray(char.keywords) ? char.keywords.length : 0}`;
+                                const tagsEl = el.querySelector('.klite-char-tags');
+                                if (tagsEl) {
+                                    if (Array.isArray(char.tags) && char.tags.length > 0) {
+                                        tagsEl.innerHTML = char.tags.map(tag => `<span class=\"klite-tag\">${KLITE_RPMod.panels.CHARS.escapeHTML(tag)}</span>`).join('');
+                                    } else {
+                                        tagsEl.innerHTML = '<span class=\"klite-tag-empty\">No tags</span>';
+                                    }
+                                }
+                                // Debounced persistence
+                                if (this._detailSaveTimer) clearTimeout(this._detailSaveTimer);
+                                this._detailSaveTimer = setTimeout(() => { try { KLITE_RPMod.saveCharacters?.(); } catch(_){} }, 750);
+                            } catch(_) {}
+
+                            // Upgrade image to detail thumbnail if needed
+                            if (!char.image && src) {
+                                const container = el.querySelector(':scope > div:first-child');
+                                let targetWidth = 640;
+                                try {
+                                    const rect = container?.getBoundingClientRect?.();
+                                    if (rect && rect.width) targetWidth = Math.max(320, Math.min(1024, Math.round(rect.width)));
+                                } catch(_) {}
+                                const scaled = await scaleDataURLToWidth(src, targetWidth);
+                                try { this.setOptimizedAvatar?.(char.id, 'detail', scaled); } catch(_) {}
+                                if (container) attachImg(container, scaled, char.name || '');
+                            }
+                        } catch(_) {}
+                    }
+                };
+                (window.requestIdleCallback ? requestIdleCallback(runImmediate, { timeout: 500 }) : setTimeout(runImmediate, 50));
+            } catch(_) {}
+
+            // Fallback when IntersectionObserver is unavailable or unreliable: throttle on-scroll upgrades
+            try {
+                if (!('IntersectionObserver' in window)) {
+                    const upgraded = this._detailMetaUpgraded || (this._detailMetaUpgraded = new Set());
+                    const processVisible = async () => {
+                        const cards = Array.from(document.querySelectorAll('#char-gallery [data-char-id]'));
+                        const viewportH = window.innerHeight || 800;
+                        let count = 0;
+                        for (const el of cards) {
+                            const id = el.getAttribute('data-char-id');
+                            if (upgraded.has(id)) continue;
+                            const r = el.getBoundingClientRect();
+                            if (!(r.bottom > 0 && r.top < viewportH)) continue;
+                            const char = list.find(c => String(c.id) === String(id));
+                            if (!char || typeof window.getCharacterData !== 'function') continue;
+                            try {
+                                upgraded.add(id);
+                                const data = await window.getCharacterData(char.name);
+                                const full = data?.data || {};
+                                const src = data?.image || null;
+                                char.creator = full?.creator || char.creator || 'Unknown';
+                                char.description = full?.description || char.description || '';
+                                if (Array.isArray(full?.tags)) char.tags = full.tags.slice();
+                                char.talkativeness = this.extractTalkativeness?.(full) || char.talkativeness || 0;
+                                char.keywords = this.extractCharacterKeywords?.(full) || char.keywords || [];
+                                const cEl = el.querySelector('.klite-char-creator'); if (cEl) cEl.textContent = `by ${char.creator || 'Unknown'}`;
+                                const dEl = el.querySelector('.klite-char-desc'); if (dEl) { const t = String(char.description || 'No description available'); dEl.textContent = t.substring(0, 300) + (t.length > 300 ? '...' : ''); }
+                                const tEl = el.querySelector('.klite-char-talk'); if (tEl) { const lvl = (char.talkativeness >= 80) ? 'Very Talkative' : (char.talkativeness >= 40 ? 'Moderate' : 'Quiet'); tEl.textContent = `Talk: ${lvl} (${char.talkativeness || 0})`; }
+                                const kEl = el.querySelector('.klite-char-keywords'); if (kEl) kEl.textContent = `Keywords: ${Array.isArray(char.keywords) ? char.keywords.length : 0}`;
+                                const tagsEl = el.querySelector('.klite-char-tags'); if (tagsEl) { if (Array.isArray(char.tags) && char.tags.length > 0) { tagsEl.textContent = char.tags.map(t => KLITE_RPMod.panels.CHARS.escapeHTML(String(t))).join(', '); } else { tagsEl.textContent = 'No tags'; } }
+                                if (!char.image && src) {
+                                const container = el.querySelector(':scope > div:first-child');
+                                    let targetWidth = 640; try { const rect = container?.getBoundingClientRect?.(); if (rect && rect.width) targetWidth = Math.max(320, Math.min(1024, Math.round(rect.width))); } catch(_) {}
+                                    const scaled = await (async () => { try { return await scaleDataURLToWidth(src, targetWidth); } catch(_) { return src; } })();
+                                    try { this.setOptimizedAvatar?.(char.id, 'detail', scaled); } catch(_) {}
+                                    if (container) attachImg(container, scaled, char.name || '');
+                                }
+                                // Debounced persistence
+                                if (this._detailSaveTimer) clearTimeout(this._detailSaveTimer);
+                                this._detailSaveTimer = setTimeout(() => { try { KLITE_RPMod.saveCharacters?.(); } catch(_){} }, 750);
+                                count++; if (count >= 10) break; // avoid large bursts per tick
+                            } catch(_) {}
+                        }
+                    };
+                    let ticking = false;
+                    const onScroll = () => { if (!ticking) { ticking = true; setTimeout(async () => { await processVisible(); ticking = false; }, 150); } };
+                    (document.getElementById('content-right') || window).addEventListener('scroll', onScroll, { passive: true });
+                    window.addEventListener('scroll', onScroll, { passive: true });
+                    setTimeout(processVisible, 50);
+                }
+            } catch(_) {}
         },
 
         refreshTagDropdown() {
@@ -14086,9 +14522,7 @@ Outline:`
                 ${t.section('Tags',
                 `<div id="tags-container-${char.id}" style="margin-bottom: 12px;">
                         ${(char.tags || []).map(tag => `
-                            <span class="klite-tag-pill" data-tag="${tag}" onclick="KLITE_RPMod.panels.CHARS.toggleTagSelection(this)">
-                                ${tag}
-                            </span>
+                            <span class="klite-tag-pill" style=\"background: var(--bg2); border-radius: 10px;\" data-tag="${tag}" onclick="KLITE_RPMod.panels.CHARS.toggleTagSelection(this)">&nbsp;&nbsp;${tag}&nbsp;&nbsp;</span>
                         `).join(' ')}
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
@@ -14733,28 +15167,37 @@ Outline:`
                 this._lastNamesKey = namesKey;
 
                 // Build lightweight view model only from metadata; defer heavy loads
+                // Merge persisted fields (rating, tags, talkativeness, keywords) from existing list
                 const built = [];
+                let existingByName = new Map();
+                try {
+                    if (Array.isArray(KLITE_RPMod.characters)) {
+                        existingByName = new Map(KLITE_RPMod.characters.map(c => [String(c?.name || ''), c]));
+                    }
+                } catch(_) {}
                 for (let i = 0; i < charMetas.length; i++) {
                     const meta = charMetas[i];
                     if (!meta?.name) continue;
+                    const prev = existingByName.get(String(meta.name)) || {};
                     built.push({
                         id: i + 1,
                         name: meta.name,
-                        created: typeof meta?.created === 'number' ? meta.created : i,
+                        created: (typeof meta?.created === 'number' ? meta.created : (typeof prev?.created === 'number' ? prev.created : i)),
                         // Lightweight fields; details loaded on demand
-                        creator: 'Unknown',
-                        rating: 0,
-                        talkativeness: 0,
-                        tags: [],
-                        keywords: [],
+                        creator: prev?.creator || 'Unknown',
+                        rating: typeof prev?.rating === 'number' ? prev.rating : 0,
+                        talkativeness: typeof prev?.talkativeness === 'number' ? prev.talkativeness : 0,
+                        tags: Array.isArray(prev?.tags) ? prev.tags.slice() : [],
+                        keywords: Array.isArray(prev?.keywords) ? prev.keywords.slice() : [],
                         // Use small thumbnail only for gallery
-                        thumbnail: meta?.thumbnail || null,
+                        thumbnail: meta?.thumbnail || prev?.thumbnail || null,
                         image: null,
                         rawData: null,
                     });
                 }
                 KLITE_RPMod.characters = built;
                 this.refreshGallery?.();
+                try { this.refreshTagDropdown?.(); } catch(_) {}
                 // Avoid re-entrant loop: do not refresh ROLES while ROLES is initializing
                 if (!KLITE_RPMod._inRolesInit) {
                     try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
