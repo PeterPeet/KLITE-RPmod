@@ -3551,6 +3551,8 @@
                     try { this.installSettingsEnhancer(); } catch(_){}
                     // Apply initial non-overlay state (if set)
                     try { this.updatePanelsOnlyOverlayPadding(); } catch(_){}
+                    // Apply initial Corpo leftpanel visibility (if set)
+                    try { this.updateCorpoLeftpanelVisibility(); } catch(_){}
 
                     // Initialize mobile detection and attach resize listener in panels-only mode
                     try { this.initializeMobileMode(); } catch(_){}
@@ -4568,11 +4570,16 @@
                 const wrap = document.createElement('div');
                 wrap.style.margin = '8px 0';
                 wrap.innerHTML = `
-                    <label style="display:flex; align-items:center; gap:8px; font-size: 13px;">
+                    <label style="display:flex; align-items:center; gap:8px; font-size: 13px; color: var(--muted);">
                         <input type="checkbox" id="rpmod-overlay-sidepanel" ${this.getOverlaySidepanelEnabled() ? 'checked' : ''}>
                         RPmod sidepanel overlays chat area
                     </label>
                     <div style="color: var(--muted); font-size: 11px; margin-left: 24px;">Disable to make space so chat stays fully visible.</div>
+                    <div style="height:8px"></div>
+                    <label style="display:flex; align-items:center; gap:8px; font-size: 13px; color: var(--muted);">
+                        <input type="checkbox" id="rpmod-hide-corpo-leftpanel" ${this.getHideCorpoLeftpanelEnabled() ? 'checked' : ''}>
+                        Hide Corpo-LeftPanel in Corpo-Theme
+                    </label>
                 `;
                 pane.appendChild(wrap);
 
@@ -4587,7 +4594,19 @@
                     } catch(_){}
                 });
 
-                this.log('init', 'Injected RPmod overlay checkbox into Settings/Advanced');
+                const cbCorpo = wrap.querySelector('#rpmod-hide-corpo-leftpanel');
+                cbCorpo.addEventListener('change', () => {
+                    this.setHideCorpoLeftpanelEnabled(cbCorpo.checked);
+                    try { this.updateCorpoLeftpanelVisibility(); } catch(_){}
+                    try {
+                        // Persist if possible
+                        if (typeof window.indexeddb_save === 'function') {
+                            window.indexeddb_save('localsettings', window.localsettings);
+                        }
+                    } catch(_){}
+                });
+
+                this.log('init', 'Injected RPmod checkboxes into Settings/Advanced');
             } catch (e) {
                 this.log('init', `Failed to inject overlay checkbox: ${e?.message || e}`);
             }
@@ -4608,6 +4627,27 @@
                 if (window.localsettings) window.localsettings.rpmod_overlay_sidepanel = !!val;
             } catch(_){}
             try { this.updatePanelsOnlyOverlayPadding(); } catch(_){}
+        },
+        // Hide/show Corpo theme left panel (id="corpo_leftpanel")
+        getHideCorpoLeftpanelEnabled() {
+            try {
+                return !!window.localsettings?.rpmod_hide_corpo_leftpanel;
+            } catch(_) { return false; }
+        },
+        setHideCorpoLeftpanelEnabled(val) {
+            try {
+                if (window.localsettings) window.localsettings.rpmod_hide_corpo_leftpanel = !!val;
+            } catch(_){}
+        },
+        updateCorpoLeftpanelVisibility() {
+            try {
+                const hide = this.getHideCorpoLeftpanelEnabled();
+                const panel = document.getElementById('corpo_leftpanel');
+                if (panel) panel.style.display = hide ? 'none' : '';
+                // Also hide the open toggle button if present to avoid dangling control
+                const openBtn = document.querySelector('.corpo_leftpanel_open');
+                if (openBtn) openBtn.style.display = hide ? 'none' : '';
+            } catch(_){}
         },
         updatePanelsOnlyOverlayPadding() {
             try {
