@@ -438,7 +438,9 @@
             font-size: 12px;
             font-weight: bold;
             min-width: 56px;
-            white-space: nowrap;
+            white-space: normal; /* allow two-line labels */
+            line-height: 1.1;
+            min-height: 34px; /* approximate two-row height */
             text-align: center;
         }
         /* Make klite-tab look like action buttons */
@@ -449,6 +451,21 @@
         }
         .klite-tab.btn.btn-primary:hover { background-color: var(--theme_color_topbtn_highlight) !important; }
         .klite-tab.btn.btn-primary.active { background-color: var(--theme_color_tabs_highlight) !important; }
+
+        /* Make right-panel tabs fixed 80px and distribute leftover as 29px/5 spaces */
+        .klite-panel-right .klite-tabs {
+            display: flex;
+            justify-content: space-evenly; /* creates 5 equal spaces for 4 items */
+            align-items: stretch;
+            gap: 0 !important;
+            padding: 10px 0; /* vertical padding only */
+            width: calc(100% - 1px); /* 349px when panel is 350px wide */
+            box-sizing: content-box;
+        }
+        .klite-panel-right .klite-tab {
+            width: 80px;
+            flex: 0 0 80px;
+        }
         
         /* Content */
         .klite-content {
@@ -2987,6 +3004,24 @@
         .klite-tab { padding: 6px 12px; border: 1px solid transparent; border-radius: 6px; color: var(--theme_color_tabs_text); cursor: pointer; font-size: 10px; font-weight: bold; min-width: 56px; white-space: nowrap; text-align: center; background: var(--theme_color_topbtn); }
         .klite-tab:hover { background: var(--theme_color_topbtn_highlight); }
         .klite-tab.active { background: var(--theme_color_tabs_highlight); }
+
+        /* Right panel tab layout override (placed after condensed styles to win specificity) */
+        .klite-panel-right .klite-tabs {
+            display: flex !important;
+            justify-content: space-evenly !important; /* 5 equal spaces for 4 items */
+            align-items: stretch;
+            gap: 0 !important;
+            padding: 10px 0 !important; /* vertical only */
+            width: calc(100% - 1px);
+            box-sizing: content-box;
+        }
+        .klite-panel-right .klite-tab {
+            width: 80px !important;
+            flex: 0 0 80px !important;
+            white-space: normal !important; /* allow two-line labels */
+            line-height: 1.1;
+            min-height: 34px;
+        }
         .klite-content { overflow-y: auto; overflow-x: hidden; padding: 15px; max-height: calc(100vh - 60px); color: var(--text); }
         .klite-section { margin-bottom: 20px; background: var(--bg); border-radius: 5px; overflow: hidden; }
         .klite-section-header { padding: 10px 15px; background: var(--bg3); cursor: pointer; display: flex; justify-content: space-between; user-select: none; color: var(--glowtext); }
@@ -3245,6 +3280,91 @@
                 }
             } catch(_) { /* ignore */ }
         },
+        // Populate Create Scenario panel fields (if present) from a character
+        async populateScenarioFromCharacter(charObj) {
+            try {
+                if (!charObj) return;
+                const safeGet = (...paths) => {
+                    for (const p of paths) {
+                        try {
+                            const v = p();
+                            if (v !== undefined && v !== null && String(v).trim() !== '') return String(v);
+                        } catch(_) {}
+                    }
+                    return '';
+                };
+
+                const name = safeGet(
+                    () => charObj.name,
+                    () => charObj.rawData?.data?.name,
+                    () => charObj.data?.name
+                ).trim();
+
+                let scenario = safeGet(
+                    () => charObj.scenario,
+                    () => charObj.rawData?.data?.scenario,
+                    () => charObj.data?.scenario
+                ).trim();
+                let example = safeGet(
+                    () => charObj.mes_example,
+                    () => charObj.rawData?.data?.mes_example,
+                    () => charObj.data?.mes_example
+                ).trim();
+                let first = safeGet(
+                    () => charObj.first_mes,
+                    () => charObj.rawData?.data?.first_mes,
+                    () => charObj.data?.first_mes
+                ).trim();
+
+                // If fields are missing, try to fetch full data through host if available
+                if ((!scenario || !example || !first) && typeof window.getCharacterData === 'function') {
+                    const targetName = name || charObj?.name || '';
+                    try {
+                        const data = await window.getCharacterData(targetName);
+                        const d = data?.data || {};
+                        if (!scenario) scenario = String(d.scenario || '').trim();
+                        if (!example) example = String(d.mes_example || '').trim();
+                        if (!first) first = String(d.first_mes || '').trim();
+                    } catch(_) {}
+                }
+
+                // Update the Scenario panel textareas if available (always clear first)
+                const scenEl = document.getElementById('scenario-text');
+                const exEl = document.getElementById('scenario-example');
+                const firstEl = document.getElementById('scenario-first-message');
+
+                if (scenEl || exEl || firstEl) {
+                    if (scenEl) scenEl.value = '';
+                    if (exEl) exEl.value = '';
+                    if (firstEl) firstEl.value = '';
+                    if (scenEl && scenario) scenEl.value = scenario;
+                    if (exEl && example) exEl.value = example;
+                    if (firstEl && first) firstEl.value = first;
+                }
+
+                // Update persistent scenario state (reset then set)
+                try {
+                    KLITE_RPMod.state = KLITE_RPMod.state || {};
+                    KLITE_RPMod.state.scenario = KLITE_RPMod.state.scenario || { scenario: '', example: '', first: '', sourceId: null, sourceName: '' };
+                    const st = KLITE_RPMod.state.scenario;
+                    st.scenario = '';
+                    st.example = '';
+                    st.first = '';
+                    st.sourceId = null;
+                    st.sourceName = '';
+                    if (scenario) st.scenario = scenario;
+                    if (example) st.example = example;
+                    if (first) st.first = first;
+                    st.sourceId = (charObj.id != null ? charObj.id : st.sourceId);
+                    st.sourceName = name || st.sourceName;
+                } catch(_) {}
+                // If panel is active, re-render to reflect new state
+                try {
+                    const active = KLITE_RPMod.state?.tabs?.right;
+                    if (active === 'SCENARIO') KLITE_RPMod.loadPanel('right', 'SCENARIO');
+                } catch(_) {}
+            } catch(_) { /* ignore */ }
+        },
         // Map host image provider mode (number or string) to human-readable label
         getGenerationMode(mode) {
             try {
@@ -3290,7 +3410,15 @@
                 currentIndex: 5, // Start at Main view (index 5)
                 sequence: ['TOOLS', 'CONTEXT', 'IMAGE', 'ROLES', 'HELP', 'MAIN', 'CHARS', 'MEMORY', 'NOTES', 'WI', 'TEXTDB']
             },
-            inputScale2x: false
+            inputScale2x: false,
+            // Persistent storage for Scenario panel values
+            scenario: {
+                scenario: '',
+                example: '',
+                first: '',
+                sourceId: null,
+                sourceName: ''
+            }
         },
 
         // Shared data
@@ -3536,7 +3664,7 @@
                 if (panelsOnly) {
                     // Ensure valid default tab for right panel (fallback to CHARS if unknown)
                     try {
-                        const allowedRight = new Set(['CHARS','ROLES','TOOLS','CONTEXT','IMAGE']);
+                        const allowedRight = new Set(['CHARS','ROLES','TOOLS','SCENARIO','CONTEXT','IMAGE']);
                         if (!allowedRight.has(this.state?.tabs?.right)) {
                             this.log('init', `Invalid or missing right tab '${this.state?.tabs?.right}', defaulting to CHARS`);
                             this.state.tabs.right = 'CHARS';
@@ -3995,8 +4123,13 @@
                 <div class="klite-panel klite-panel-right ${this.state.collapsed?.right ? 'collapsed' : ''}" id="panel-right">
                     <div class="klite-handle" data-panel="right">${this.state.collapsed?.right ? '◀' : '▶'}</div>
                     <div class="klite-tabs" data-panel="right">
-                        ${['CHARS', 'ROLES', 'TOOLS', 'CONTEXT', 'IMAGE'].map(t =>
-                            `<div class=\"klite-tab ${t === this.state.tabs?.right ? 'active' : ''}\" data-tab=\"${t}\">${t}</div>`
+                        ${[
+                            { key: 'CHARS', label: 'MANAGE<br>CHARS' },
+                            { key: 'ROLES', label: 'SELECT<br>ROLES' },
+                            { key: 'SCENARIO', label: 'CREATE<br>SCENARIO' },
+                            { key: 'TOOLS', label: 'USE<br>TOOLS' }
+                        ].map(t =>
+                            `<div class=\"klite-tab ${t.key === this.state.tabs?.right ? 'active' : ''}\" data-tab=\"${t.key}\">${t.label}</div>`
                         ).join('')}
                     </div>
                     <div class="klite-content" id="content-right"></div>
@@ -4742,7 +4875,8 @@
 
             // In panels-only mode, only allow known right-panel tabs
             if (window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.panelsOnly && side === 'right') {
-                const allowed = new Set(['CHARS','ROLES','TOOLS','CONTEXT','IMAGE','MEMORY','NOTES','WI','TEXTDB']);
+                // Keep CONTEXT/IMAGE loadable (hidden in UI) for compatibility; add SCENARIO
+                const allowed = new Set(['CHARS','ROLES','TOOLS','SCENARIO','CONTEXT','IMAGE','MEMORY','NOTES','WI','TEXTDB']);
                 if (!allowed.has(name)) {
                     this.log('panels', `Skipped loading unused panel '${name}' in panels-only mode`);
                     return;
@@ -6778,6 +6912,7 @@
                 // Add to ROLES panel without removing existing (and preserve customs)
                 if (KLITE_RPMod.panels.ROLES) {
                     const roles = KLITE_RPMod.panels.ROLES;
+                    const wasEmpty = roles.activeChars.length === 0;
                     const existing = roles.activeChars.slice();
                     const existingKeys = new Set(existing.map(c => (c.id != null ? `id:${c.id}` : `name:${c.name}`)));
                     const addedChars = [];
@@ -6800,6 +6935,8 @@
                     roles.activeChars = existing;
                     try { roles.saveSettings?.(); } catch(_) {}
                     roles.refresh();
+                    // If Scenario panel is visible, refresh to reflect first group character
+                    try { const active = KLITE_RPMod.state?.tabs?.right; if (active === 'SCENARIO') KLITE_RPMod.loadPanel('right', 'SCENARIO'); } catch(_) {}
 
                     // Update group avatars to include newly added entries
                     try { KLITE_RPMod.updateGroupAvatars?.(); } catch(_) {}
@@ -6807,6 +6944,8 @@
                     // Append each newly added character to memory (align with legacy selector behavior)
                     if (added > 0) {
                         try { addedChars.forEach(c => { try { KLITE_RPMod.appendCharacterToMemorySimple(c); } catch(_) {} }); } catch(_) {}
+                        // If group was empty, prefill Scenario from the first added character
+                        try { if (wasEmpty && addedChars[0]) KLITE_RPMod.populateScenarioFromCharacter(addedChars[0]); } catch(_) {}
                     }
                 }
             } else {
@@ -6850,12 +6989,14 @@
             if (KLITE_RPMod.panels.TOOLS) {
                 KLITE_RPMod.panels.TOOLS.selectedCharacter = char;
                 KLITE_RPMod.panels.TOOLS.characterEnabled = true;
+                // Prefill Scenario panel from this character as part of selection
+                try { KLITE_RPMod.populateScenarioFromCharacter(char); } catch(_) {}
                 // Apply character extras (avatar/name, context)
                 KLITE_RPMod.panels.TOOLS.applyCharacterData(char);
 
-                // Refresh current left panel (TOOLS or ROLES) without switching
+                // Refresh current right panel (TOOLS/ROLES/SCENARIO) without switching
                 const active = KLITE_RPMod.state?.tabs?.right;
-                if (active === 'TOOLS' || active === 'ROLES') KLITE_RPMod.loadPanel('right', active);
+                if (active === 'TOOLS' || active === 'ROLES' || active === 'SCENARIO') KLITE_RPMod.loadPanel('right', active);
                 // Character application confirmed by UI state change
             }
         },
@@ -7665,6 +7806,218 @@
         },
         // Quick save slots removed in TOOLS
 
+        // Ensure IMAGE panel exists for merged UI usage
+        ensureImagePanel() {
+            try {
+                if (!KLITE_RPMod.panels.IMAGE) {
+                    // Inline registration copied from loadPanel lazy init
+                    KLITE_RPMod.panels.IMAGE = {
+                        _syncTimer: null,
+                        render() {
+                            return `
+                                ${t.section('🎨 Image Generation', `
+                                    <div class="klite-image-status" style="margin-bottom: 12px; padding: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;">
+                                        <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px;">Image Generation Status</div>
+                                        <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
+                                            <div><span style="color: var(--muted);">Provider:</span> <span id="scene-mode-status" style="color: var(--text); font-weight: bold;">${KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode)}</span></div>
+                                            <div><span style="color: var(--muted);">Model:</span> <span id="scene-model-status" style="color: var(--text); font-weight: bold;">${(KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode) === 'AI Horde') ? (window.localsettings?.generate_images_model || 'Default') : '-'}</span></div>
+                                        </div>
+                                    </div>
+                                    <div class="klite-image-controls" style="margin-bottom: 12px;">
+                                        <label style="display: block; margin-bottom: 4px; font-size: 12px;">Auto-generate:</label>
+                                        ${t.select('scene-autogen', [
+                                            { value: '0', text: 'Off', selected: String(window.localsettings?.img_autogen_type ?? 0) === '0' },
+                                            { value: '1', text: 'Basic', selected: String(window.localsettings?.img_autogen_type ?? 0) === '1' },
+                                            { value: '2', text: 'Smart', selected: String(window.localsettings?.img_autogen_type ?? 0) === '2' }
+                                        ])}
+                                        <div style="margin-top: 8px;">${t.checkbox('scene-detect', 'Detect ImgGen Instructions', !!(window.localsettings?.img_gen_from_instruct))}</div>
+                                    </div>
+                                    <div class="klite-image-generation-section">
+                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Scene & Characters</div>
+                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; margin-bottom: 10px;">
+                                            ${t.button('🏞️ Current Scene', 'klite-btn-sm', 'gen-scene')}
+                                            ${t.button('🤖 AI Character', 'klite-btn-sm', 'gen-ai-portrait')}
+                                            ${t.button('👤 Persona', 'klite-btn-sm', 'gen-user-portrait')}
+                                            ${t.button('👥 Group Shot', 'klite-btn-sm', 'gen-group')}
+                                        </div>
+                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Events & Actions</div>
+                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; margin-bottom: 10px;">
+                                            ${t.button('⚔️ Combat', 'klite-btn-sm', 'gen-combat')}
+                                            ${t.button('💬 Dialogue', 'klite-btn-sm', 'gen-dialogue')}
+                                            ${t.button('🎭 Plot', 'klite-btn-sm', 'gen-dramatic')}
+                                            ${t.button('🌅 Atmosphere', 'klite-btn-sm', 'gen-atmosphere')}
+                                        </div>
+                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Context-Based</div>
+                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px;">
+                                            ${t.button('📝 Memory', 'klite-btn-sm', 'gen-memory')}
+                                            ${t.button('📄 Last Message', 'klite-btn-sm', 'gen-last-message')}
+                                            ${t.button('🔄 Recent Events', 'klite-btn-sm', 'gen-recent')}
+                                            ${t.button('🎯 Custom', 'klite-btn-sm', 'gen-custom')}
+                                        </div>
+                                    </div>
+                                `)}
+                            `;
+                        },
+                        cleanup() {
+                            if (this._syncTimer) {
+                                clearInterval(this._syncTimer);
+                                this._syncTimer = null;
+                            }
+                        },
+                        init() {
+                            // Wire up RPmod controls to host Esolite settings/controls
+                            const sel = document.getElementById('scene-autogen');
+                            const cb = document.getElementById('scene-detect');
+
+                            const applyAutogenToHost = (val) => {
+                                try { if (window.localsettings) window.localsettings.img_autogen_type = parseInt(val, 10) || 0; } catch(_) {}
+                                try {
+                                    const hostSel = document.getElementById('img_autogen_type');
+                                    if (hostSel) hostSel.value = String(val);
+                                } catch(_) {}
+                            };
+                            const applyDetectToHost = (checked) => {
+                                try { if (window.localsettings) window.localsettings.img_gen_from_instruct = !!checked; } catch(_) {}
+                                try {
+                                    const hostCb = document.getElementById('img_gen_from_instruct');
+                                    if (hostCb) hostCb.checked = !!checked;
+                                } catch(_) {}
+                            };
+
+                            if (sel) {
+                                const hostSel = document.getElementById('img_autogen_type');
+                                const initVal = hostSel?.value ?? String(window.localsettings?.img_autogen_type ?? '0');
+                                sel.value = String(initVal);
+                                sel.addEventListener('change', () => applyAutogenToHost(sel.value));
+                            }
+                            if (cb) {
+                                const hostCb = document.getElementById('img_gen_from_instruct');
+                                const initChecked = (hostCb?.checked ?? !!window.localsettings?.img_gen_from_instruct);
+                                cb.checked = !!initChecked;
+                                cb.addEventListener('change', () => applyDetectToHost(cb.checked));
+                            }
+
+                            // Periodically sync status and reflect external changes
+                            const updateStatus = () => {
+                                try {
+                                    const modeTxt = KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode);
+                                    let modelTxt = '-';
+                                    try {
+                                        if (modeTxt === 'AI Horde') modelTxt = window.localsettings?.generate_images_model || 'Default';
+                                    } catch(_) {}
+                                    const mEl = document.getElementById('scene-mode-status');
+                                    const mdlEl = document.getElementById('scene-model-status');
+                                    if (mEl) mEl.textContent = modeTxt;
+                                    if (mdlEl) mdlEl.textContent = modelTxt;
+                                    // Keep controls synced with host if user changed them there
+                                    try {
+                                        const sel = document.getElementById('scene-autogen');
+                                        const cb = document.getElementById('scene-detect');
+                                        const hostSel = document.getElementById('img_autogen_type');
+                                        const hostCb = document.getElementById('img_gen_from_instruct');
+                                        if (sel && hostSel && sel.value !== String(hostSel.value)) sel.value = String(hostSel.value);
+                                        if (cb && hostCb && cb.checked !== !!hostCb.checked) cb.checked = !!hostCb.checked;
+                                    } catch(_) {}
+                                } catch(_) {}
+                            };
+                            this._syncTimer = setInterval(updateStatus, 1000);
+                            updateStatus();
+                        },
+                        isImageGenerationAvailable() {
+                            if (!window.do_manual_gen_image || typeof window.do_manual_gen_image !== 'function') {
+                                return { available: false, reason: 'Image generation function not available' };
+                            }
+                            if (window.localsettings?.image_generation_enabled === false) return { available: false, reason: 'Image generation disabled' };
+                            return { available: true, provider: 'Host' };
+                        },
+                        generateImage(prompt) {
+                            const status = this.isImageGenerationAvailable();
+                            if (!status.available) return false;
+                            try { window.do_manual_gen_image(prompt); KLITE_RPMod.log('image', `Image generation: ${prompt}`); return true; }
+                            catch (e) { KLITE_RPMod.error('Image generation failed:', e); return false; }
+                        },
+                        actions: {
+                            'gen-custom': () => {
+                                const input = window.prompt('Enter an image prompt:');
+                                const prompt = (input || '').trim();
+                                if (!prompt) return;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-scene': () => {
+                                try {
+                                    const arr = Array.isArray(window.gametext_arr) ? window.gametext_arr : [];
+                                    const recent = arr.slice(-3).join(' ').trim();
+                                    const base = recent || (window.current_memory || '').trim();
+                                    const excerpt = base ? base.substring(0, 250) : 'current story context';
+                                    const prompt = `Illustrate the current scene: ${excerpt} — cinematic, detailed, cohesive style`;
+                                    KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                                } catch (_) {
+                                    KLITE_RPMod.panels.IMAGE.generateImage('Illustrate the current scene, cinematic, detailed, cohesive style');
+                                }
+                            },
+                            'gen-ai-portrait': () => {
+                                const aiName = (window.localsettings?.chatopponent || 'character').split('||$||')[0];
+                                const prompt = `Portrait of ${aiName}, detailed character art, high quality`;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-user-portrait': () => {
+                                const userName = window.localsettings?.chatname || 'User';
+                                const prompt = `Portrait of ${userName}, detailed character art, high quality`;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-group': () => {
+                                const aiName = (window.localsettings?.chatopponent || 'character').split('||$||')[0];
+                                const userName = window.localsettings?.chatname || 'User';
+                                const prompt = `Group shot of ${userName} and ${aiName}, dynamic composition, detailed character art`;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-combat': () => {
+                                const location = document.getElementById('scene-location')?.value || 'battlefield';
+                                const prompt = `Intense combat scene in ${location}, action scene, dynamic angles, dramatic lighting`;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-dialogue': () => {
+                                const aiName = (window.localsettings?.chatopponent || 'character').split('||$||')[0];
+                                const userName = window.localsettings?.chatname || 'User';
+                                const prompt = `${userName} and ${aiName} having an intimate conversation, emotional expressions`;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-dramatic': () => {
+                                const location = document.getElementById('scene-location')?.value || 'scene';
+                                const mood = document.getElementById('scene-mood')?.value || 'dramatic';
+                                const prompt = `Dramatic ${mood} moment in ${location}, cinematic composition, emotional intensity`;
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                            },
+                            'gen-atmosphere': () => {
+                                KLITE_RPMod.panels.IMAGE.generateImage('Atmospheric environmental scene, mood lighting, evocative ambience');
+                            },
+                            'gen-memory': () => {
+                                const memoryText = window.current_memory || '';
+                                const prompt = memoryText ? `Scene based on: ${memoryText.substring(0, 200)}...` : 'Scene based on current memory context';
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt + ', detailed illustration, narrative art');
+                            },
+                            'gen-last-message': () => {
+                                const lastMessage = window.gametext_arr?.[window.gametext_arr.length - 1] || '';
+                                const prompt = lastMessage ? `Scene depicting: ${lastMessage.substring(0, 200)}...` : 'Scene based on last message';
+                                KLITE_RPMod.panels.IMAGE.generateImage(prompt + ', detailed illustration, story art');
+                            },
+                            'gen-recent': () => {
+                                try {
+                                    const arr = Array.isArray(window.gametext_arr) ? window.gametext_arr : [];
+                                    const recent = arr.slice(-6).join(' ').trim();
+                                    const excerpt = recent ? recent.substring(0, 400) : 'recent dialogue and narration';
+                                    const prompt = `Key recent events: ${excerpt} — story illustration, cohesive multi-panel feel`;
+                                    KLITE_RPMod.panels.IMAGE.generateImage(prompt);
+                                } catch (_) {
+                                    KLITE_RPMod.panels.IMAGE.generateImage('Illustrate recent events — story illustration, cohesive style');
+                                }
+                            }
+                        }
+                    };
+                }
+            } catch(_) {}
+        },
+
         render() {
             return `
                 <!-- Bookmarks / Index (hidden) -->
@@ -7752,6 +8105,9 @@
                     </div>`
             )}
                 
+                ${KLITE_RPMod.panels.CONTEXT.render()}
+                ${(() => { try { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); return KLITE_RPMod.panels.IMAGE.render(); } catch(_) { return ''; } })()}
+                
             `;
         },
 
@@ -7810,6 +8166,9 @@
             this.initQuickActions();
             await this.loadChapters();
             this.updateTimeline();
+            // Initialize merged sections so their controls bind
+            try { KLITE_RPMod.panels.CONTEXT?.init?.(); } catch(_) {}
+            try { this.ensureImagePanel(); KLITE_RPMod.panels.IMAGE?.init?.(); } catch(_) {}
         },
 
         async loadSettings() {
@@ -7923,12 +8282,14 @@
                     KLITE_RPMod.panels.TOOLS.characterEnabled = true;
                     // Append simple block to memory (resolves full data if needed)
                     try { KLITE_RPMod.appendCharacterToMemorySimple(char); } catch(_) {}
+                    // Also prefill Create Scenario panel from this character (1:1 chat case)
+                    try { KLITE_RPMod.populateScenarioFromCharacter(char); } catch(_) {}
                     // Apply character extras (avatar/name, context)
                     KLITE_RPMod.panels.TOOLS.applyCharacterData(char);
 
-                    // Refresh currently active right panel (TOOLS or ROLES) without switching
+                    // Refresh currently active right panel (TOOLS/ROLES/SCENARIO) without switching
                     const active = KLITE_RPMod.state?.tabs?.right;
-                    if (active === 'TOOLS' || active === 'ROLES') KLITE_RPMod.loadPanel('right', active);
+                    if (active === 'TOOLS' || active === 'ROLES' || active === 'SCENARIO') KLITE_RPMod.loadPanel('right', active);
                     // Character application confirmed by UI state change
                 });
             },
@@ -7982,7 +8343,30 @@
             'roll-custom': () => {
                 const input = document.getElementById('tools-custom-dice');
                 if (input?.value) { KLITE_RPMod.panels.CONTEXT.rollDice(input.value); }
-            }
+            },
+
+            // Forward CONTEXT actions in merged panel
+            'generate-memory': () => KLITE_RPMod.panels.CONTEXT.generateMemory(),
+            'apply-memory': () => KLITE_RPMod.panels.CONTEXT.applyMemory(false),
+            'append-memory': () => KLITE_RPMod.panels.CONTEXT.applyMemory(true),
+            'export-markdown': () => KLITE_RPMod.panels.CONTEXT.exportAs('markdown'),
+            'export-json': () => KLITE_RPMod.panels.CONTEXT.exportAs('json'),
+            'export-html': () => KLITE_RPMod.panels.CONTEXT.exportAs('html'),
+            'calculate-context': () => KLITE_RPMod.panels.CONTEXT.analyzeContext(),
+
+            // Forward IMAGE actions in merged panel (ensure panel exists first)
+            'gen-custom': () => { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); KLITE_RPMod.panels.IMAGE.actions['gen-custom']?.(); },
+            'gen-scene': () => { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); KLITE_RPMod.panels.IMAGE.actions['gen-scene']?.(); },
+            'gen-ai-portrait': () => { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); KLITE_RPMod.panels.IMAGE.actions['gen-ai-portrait']?.(); },
+            'gen-user-portrait': () => { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); KLITE_RPMod.panels.IMAGE.actions['gen-user-portrait']?.(); },
+            'gen-group': () => { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); KLITE_RPMod.panels.IMAGE.actions['gen-group']?.(); },
+            'gen-combat': () => { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); KLITE_RPMod.panels.IMAGE.actions['gen-combat']?.(); },
+            'gen-dialogue': () => { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); KLITE_RPMod.panels.IMAGE.actions['gen-dialogue']?.(); },
+            'gen-dramatic': () => { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); KLITE_RPMod.panels.IMAGE.actions['gen-dramatic']?.(); },
+            'gen-atmosphere': () => { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); KLITE_RPMod.panels.IMAGE.actions['gen-atmosphere']?.(); },
+            'gen-memory': () => { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); KLITE_RPMod.panels.IMAGE.actions['gen-memory']?.(); },
+            'gen-last-message': () => { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); KLITE_RPMod.panels.IMAGE.actions['gen-last-message']?.(); },
+            'gen-recent': () => { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); KLITE_RPMod.panels.IMAGE.actions['gen-recent']?.(); }
         },
 
 
@@ -9027,6 +9411,10 @@
                 this.updateCharacterContext();
                 // Ensure ROLES panel reflects changes immediately if visible
                 try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
+                // Prefill Scenario panel fields from this character
+                try { KLITE_RPMod.populateScenarioFromCharacter(characterData); } catch(_) {}
+                // Refresh SCENARIO panel if active to reflect selected character
+                try { const active = KLITE_RPMod.state?.tabs?.right; if (active === 'SCENARIO') KLITE_RPMod.loadPanel('right', 'SCENARIO'); } catch(_) {}
             } else {
                 alert('Failed to apply character');
             }
@@ -9060,6 +9448,10 @@
                 KLITE_RPMod.log('panels', `Applied character data for: ${characterData.name}`);
                 // Ensure ROLES panel reflects changes immediately if visible
                 try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
+                // Prefill Scenario panel fields from this character
+                try { KLITE_RPMod.populateScenarioFromCharacter(characterData); } catch(_) {}
+                // Refresh SCENARIO panel if active to reflect selected character
+                try { const active = KLITE_RPMod.state?.tabs?.right; if (active === 'SCENARIO') KLITE_RPMod.loadPanel('right', 'SCENARIO'); } catch(_) {}
             }
         },
 
@@ -9310,7 +9702,7 @@
     };
 
     // CONTEXT PANEL (formerly TOOLS)
-    KLITE_RPMod.panels.CONTEXT = {
+KLITE_RPMod.panels.CONTEXT = {
         // State
         analysisWindow: null,
         contextCache: null,
@@ -9382,7 +9774,10 @@
                 
                 <!-- Smart Memory Writer -->
                 ${t.section('🧠 Smart Memory Writer',
-                `<div class="klite-row">
+                `<div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
+                        <strong>Warning:</strong> does not work if Agent Mode in Esolite is active.
+                    </div>
+                    <div class="klite-row">
                         ${t.select('tools-memory-context', [
                     { value: 'entire', text: 'Entire Story' },
                     { value: 'last50', text: 'Last 50 Messages' },
@@ -10297,6 +10692,97 @@ Outline:`
         }
     };
 
+    // SCENARIO PANEL (CREATE/SCENARIO) - stub inputs and action
+    KLITE_RPMod.panels.SCENARIO = {
+        getSourceCharacter() {
+            try {
+                if (KLITE_RPMod.panels.ROLES?.enabled && Array.isArray(KLITE_RPMod.panels.ROLES.activeChars) && KLITE_RPMod.panels.ROLES.activeChars.length > 0) {
+                    return KLITE_RPMod.panels.ROLES.activeChars[0];
+                }
+                if (KLITE_RPMod.panels.TOOLS?.selectedCharacter) return KLITE_RPMod.panels.TOOLS.selectedCharacter;
+                const name = (window.localsettings?.chatopponent || '').trim();
+                if (name && Array.isArray(KLITE_RPMod.characters)) {
+                    return KLITE_RPMod.characters.find(c => c?.name === name) || null;
+                }
+            } catch(_) {}
+            return null;
+        },
+
+        _getScenarioFieldsFromChar(char) {
+            if (!char) return { scenario: '', example: '', first: '' };
+            const raw = char.rawData?.data || char.rawData || {};
+            return {
+                scenario: (char.scenario || raw.scenario || '').trim(),
+                example: (char.mes_example || raw.mes_example || '').trim(),
+                first: (char.first_mes || raw.first_mes || '').trim()
+            };
+        },
+
+        render() {
+            const src = this.getSourceCharacter();
+            // Prefer stored scenario values if available; otherwise derive from character
+            const st = KLITE_RPMod.state?.scenario || { scenario: '', example: '', first: '' };
+            const hasStored = !!(st.scenario || st.example || st.first);
+            const vals = hasStored ? { scenario: st.scenario || '', example: st.example || '', first: st.first || '' }
+                                   : this._getScenarioFieldsFromChar(src);
+            return `
+                ${t.section('🗺️ Scenario',
+                `${t.textarea('scenario-text', 'Describe the world, setting, and background.', vals.scenario)}`
+            )}
+                
+                ${t.section('💬 Example Dialogue',
+                `${t.textarea('scenario-example', 'Provide example dialogue lines.', vals.example)}`
+            )}
+                
+                ${t.section('📩 First Message',
+                `${t.textarea('scenario-first-message', 'Write the first message to start the chat.', vals.first)}`
+            )}
+            <div class="klite-buttons-fill klite-mt">
+                ${t.button('Click here to append Scenario and Example Dialogue to Temporary Memory and insert First Message in Chat', '', 'scenario-apply-first')}
+            </div>
+            `;
+        },
+        actions: {
+            'scenario-apply-first': () => {
+                try {
+                    const scen = (document.getElementById('scenario-text')?.value || '').trim();
+                    const ex = (document.getElementById('scenario-example')?.value || '').trim();
+                    const first = (document.getElementById('scenario-first-message')?.value || '').trim();
+
+                    // Persist current values to scenario state
+                    try {
+                        KLITE_RPMod.state = KLITE_RPMod.state || {};
+                        KLITE_RPMod.state.scenario = KLITE_RPMod.state.scenario || { scenario: '', example: '', first: '', sourceId: null, sourceName: '' };
+                        KLITE_RPMod.state.scenario.scenario = scen;
+                        KLITE_RPMod.state.scenario.example = ex;
+                        KLITE_RPMod.state.scenario.first = first;
+                    } catch(_) {}
+
+                    // 1) Append to Temporary Memory
+                    const blocks = [];
+                    if (scen) blocks.push(`[ Scenario:\n${scen}\n]`);
+                    if (ex) blocks.push(`[ Example Dialogue:\n${ex}\n]`);
+                    const toAppend = blocks.join('\n\n');
+                    if (toAppend) {
+                        const cur = (window.current_temp_memory || '').trim();
+                        window.current_temp_memory = cur ? (cur + '\n\n' + toAppend) : toAppend;
+                    }
+
+                    // 2) Insert first message into chat history
+                    if (first) {
+                        try {
+                            if (!Array.isArray(window.gametext_arr)) window.gametext_arr = [];
+                            const prefix = (typeof window.get_instructendplaceholder === 'function') ? window.get_instructendplaceholder() : '';
+                            const name = (window.localsettings?.chatopponent || 'AI');
+                            window.gametext_arr.push(prefix + name + ': ' + first);
+                            window.render_gametext?.();
+                        } catch(_) {}
+                    }
+                } catch(_) {}
+            }
+        }
+    };
+
     // ROLES PANEL (formerly GROUP)
     KLITE_RPMod.panels.ROLES = {
         enabled: false,
@@ -10375,8 +10861,10 @@ Outline:`
                 try { this.saveSettings?.(); } catch(_) {}
 
                 if (this.enabled) {
-                    // Entering group chat: force chat mode, but do NOT set a multi-name chatopponent.
-                    if (window.localsettings) window.localsettings.opmode = 3;
+                    // Entering group chat: preserve Instruct mode (4); otherwise leave current mode unchanged.
+                    if (window.localsettings && window.localsettings.opmode === 4) {
+                        // Stay in Instruct mode
+                    }
                     try { if (KLITE_RPMod.panels.TOOLS) KLITE_RPMod.panels.TOOLS.characterEnabled = false; } catch(_){}
                 } else {
                     // Leaving group chat: restore AI name to selected character or input field
@@ -10395,7 +10883,7 @@ Outline:`
                 // Refresh TOOLS panel to update character controls (works in panels-only mode as well)
                 try {
                     const active = KLITE_RPMod.state?.tabs?.right;
-                    if (active === 'TOOLS' || active === 'ROLES') {
+                    if (active === 'TOOLS' || active === 'ROLES' || active === 'SCENARIO') {
                         KLITE_RPMod.loadPanel('right', active);
                     }
                 } catch(_){}
@@ -10596,6 +11084,8 @@ Outline:`
             this.autoResponses.enabled = enabled;
             this.clearAutoResponseTimer();
             this.refresh();
+            // Refresh Scenario panel if active (source is first group character)
+            try { const active = KLITE_RPMod.state?.tabs?.right; if (active === 'SCENARIO') KLITE_RPMod.loadPanel('right', 'SCENARIO'); } catch(_) {}
             try { this.saveSettings?.(); } catch(_) {}
 
             if (enabled) {
@@ -10723,6 +11213,8 @@ Outline:`
             if (updateCurrent && nextSpeaker !== null) {
                 this.currentSpeaker = nextSpeaker;
                 this.refresh();
+                // Refresh Scenario panel if active
+                try { const active = KLITE_RPMod.state?.tabs?.right; if (active === 'SCENARIO') KLITE_RPMod.loadPanel('right', 'SCENARIO'); } catch(_) {}
                 KLITE_RPMod.log('panels', `Speaker selection (${mode}): ${this.activeChars[this.currentSpeaker]?.name} (index ${this.currentSpeaker})`);
             }
 
@@ -10785,9 +11277,9 @@ Outline:`
             'trigger-response': () => {
                 const groupPanel = KLITE_RPMod.panels.ROLES;
                 KLITE_RPMod.log('group', `Trigger Speaker clicked; next speaker: ${groupPanel.getCurrentSpeaker()?.name || 'none'}`);
-                // Ensure backend knows we are in chat group mode and participants are synced
-                if (window.localsettings) {
-                    window.localsettings.opmode = 3; // chat
+                // Preserve Instruct mode; do not force Chat when triggering
+                if (window.localsettings && window.localsettings.opmode === 4) {
+                    // Stay in Instruct
                 }
                 groupPanel.updateKoboldSettings();
                 try {
@@ -10905,9 +11397,9 @@ Outline:`
 
             // (Removed) pending speaker tracking; avatars now use Lite variables
 
-            // Force chat mode in Lite
-            if (window.localsettings) {
-                window.localsettings.opmode = 3; // chat mode
+            // Preserve Instruct mode (4); do not force Chat
+            if (window.localsettings && window.localsettings.opmode === 4) {
+                // Stay in Instruct mode
             }
 
             // Set the active speaker as the AI opponent for this turn
@@ -11298,6 +11790,9 @@ Outline:`
         confirmCharacterSelection() {
             const checkboxes = document.querySelectorAll('#group-character-selection-list input[type="checkbox"]:checked');
 
+            // Track if group was empty before this confirmation
+            this._wasEmptyBeforeAdd = (this.activeChars.length === 0);
+
             if (checkboxes.length === 0) {
                 // No characters selected
                 return;
@@ -11328,11 +11823,20 @@ Outline:`
             try { this.saveSettings?.(); } catch(_) {}
             this.closeCharacterModal();
             this.refresh();
+            // If Scenario panel is visible, refresh it to immediately reflect first group character
+            try { const active = KLITE_RPMod.state?.tabs?.right; if (active === 'SCENARIO') KLITE_RPMod.loadPanel('right', 'SCENARIO'); } catch(_) {}
             // Do not set multi-opponent; will set speaker name per trigger
 
             if (added > 0) {
                 // Append each added character to memory (resolves full data if needed)
                 try { addedChars.forEach(c => { try { KLITE_RPMod.appendCharacterToMemorySimple(c); } catch(_) {} }); } catch(_) {}
+                // If group was empty before and we have a first added character, prefill Scenario panel from it
+                try {
+                    if (typeof this._wasEmptyBeforeAdd === 'boolean' ? this._wasEmptyBeforeAdd : false) {
+                        const first = addedChars[0];
+                        if (first) KLITE_RPMod.populateScenarioFromCharacter(first);
+                    }
+                } catch(_) {}
             }
         },
 
