@@ -27,3 +27,6 @@ This repo contains the monolithic ALPHA implementation of KLITE RPmod. It enhanc
 - `Esobold Esolite a fork of KoboldAI Lite` – Folder with the Esolite UI. It's mainly a monolithic html and javascript index.html with most of the code only some css and javascripts are in subfolders and included at the very end of index.html. That are mostly the Esolite specific parts of the fork. All Lite code is in the index.html. 
 - `Esobold Esolite a fork of KoboldAI Lite/static/js/`- important JS extensions making Esolite
 - `Esobold Esolite a fork of KoboldAI Lite/static/js/characterManager.js` - Data manager functions from Esolite, most relevant backend file for our integration 
+
+## Addition
+- `Esobold Esolite a fork of KoboldAI Lite` now has an old and a new version in the project folder. The new folder holds the newest version, the old version the Esolite we initially developed against.
