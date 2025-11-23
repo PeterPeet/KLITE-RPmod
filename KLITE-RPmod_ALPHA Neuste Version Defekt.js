@@ -46,6 +46,35 @@
     // =============================================
     // 0. LIGHTWEIGHT SHIMS FOR CONTEXT/COUNT ACCESS
     // =============================================
+    // Host capability detection (Lite / Esobold v299+)
+    const HostDetect = {
+      get isLite() {
+        try { return !!(window.localsettings && (typeof window.concat_gametext === 'function' || Array.isArray(window.gametext_arr))); } catch(_) { return false; }
+      },
+      get isEsoliteV299Plus() {
+        try {
+          // Feature-detect new Esolite (v299+): exposes window.eso.currentChatOpponentOverride and loadByCharacterNameIntoWI
+          return !!(window.eso && ('currentChatOpponentOverride' in window.eso)) && (typeof window.loadByCharacterNameIntoWI === 'function');
+        } catch(_) { return false; }
+      },
+      get isEsoliteAny() {
+        try { return !!(document.getElementById('topbtn_data_manager') || document.getElementById('openTreeDiagram') || document.getElementById('topbtn_remote_mods')); } catch(_) { return false; }
+      }
+    };
+
+    // Inform users early if running on incompatible Lite host (non-Esolite or older than v299)
+    (function showHostWarningOnce(){
+      try {
+        if (!HostDetect.isLite) return; // Not Lite host, ignore
+        if (HostDetect.isEsoliteV299Plus) return; // OK
+        // If this is plain Lite or older Esolite, warn the user once per page load
+        const msg = 'KLITE RPmod is only compatible with Esobold/Esolite newer than 22.11.25 (v299+). Some features may not work on this host.';
+        if (typeof window.popupUtils?.reset === 'function') {
+          try { window.popupUtils.reset().title('RPmod Compatibility').content(`<div style="padding:8px;line-height:1.4">${msg}</div>`).button('OK', ()=>{}).show(); return; } catch(_){ }
+        }
+        alert(msg);
+      } catch(_) {}
+    })();
     function rpmod_count_tokens_safe(txt) {
       try { return (window.count_tokens ? window.count_tokens(String(txt||"")) : Math.ceil(String(txt||"").length/4)); } catch(_) { return Math.ceil(String(txt||"").length/4); }
     }
@@ -3222,6 +3251,48 @@
     // =============================================
 
     window.KLITE_RPMod = {
+        
+        // Helper: determine if Scenario/Example/First have any existing values in state or visible inputs
+        hasScenarioEntries() {
+            try {
+                const st = this.state?.scenario || {};
+                const scen = (document.getElementById('scenario-text')?.value ?? '').trim();
+                const ex = (document.getElementById('scenario-example')?.value ?? '').trim();
+                const first = (document.getElementById('scenario-first-message')?.value ?? '').trim();
+                return !!(
+                    (st.scenario && String(st.scenario).trim()) ||
+                    (st.example && String(st.example).trim()) ||
+                    (st.first && String(st.first).trim()) ||
+                    scen || ex || first
+                );
+            } catch(_) { return false; }
+        },
+
+        // Helper: clear Scenario/Example/First both from state and current UI fields (if present)
+        clearScenarioEntries() {
+            try {
+                this.state = this.state || {};
+                this.state.scenario = { scenario: '', example: '', first: '', sourceId: null, sourceName: '' };
+            } catch(_) {}
+            try { const e = document.getElementById('scenario-text'); if (e) e.value = ''; } catch(_) {}
+            try { const e = document.getElementById('scenario-example'); if (e) e.value = ''; } catch(_) {}
+            try { const e = document.getElementById('scenario-first-message'); if (e) e.value = ''; } catch(_) {}
+        },
+
+        // Helper: confirm reset dialog for Scenario-related fields
+        confirmResetScenario() {
+            try {
+                return window.confirm('Reset Scenario, Example Messages and First Message?');
+            } catch(_) { return false; }
+        },
+
+        // Helper: confirm overwrite if scenario fields already contain entries
+        confirmOverwriteScenarioIfNeeded() {
+            try {
+                if (!this.hasScenarioEntries()) return true;
+                return window.confirm('Existing Scenario/Example/First Message detected. Overwrite them?');
+            } catch(_) { return true; }
+        },
         // Append a simple character block into Esolite memory variable only
         async appendCharacterToMemorySimple(charObj) {
             try {
@@ -3328,18 +3399,20 @@
                     } catch(_) {}
                 }
 
-                // Update the Scenario panel textareas if available (always clear first)
+                // Ask before overwriting existing Scenario fields
+                if (!KLITE_RPMod.confirmOverwriteScenarioIfNeeded()) {
+                    return; // user declined overwrite
+                }
+
+                // Update the Scenario panel textareas if available (preserve existing values when incoming is empty)
                 const scenEl = document.getElementById('scenario-text');
                 const exEl = document.getElementById('scenario-example');
                 const firstEl = document.getElementById('scenario-first-message');
 
                 if (scenEl || exEl || firstEl) {
-                    if (scenEl) scenEl.value = '';
-                    if (exEl) exEl.value = '';
-                    if (firstEl) firstEl.value = '';
-                    if (scenEl && scenario) scenEl.value = scenario;
-                    if (exEl && example) exEl.value = example;
-                    if (firstEl && first) firstEl.value = first;
+                    if (scenEl && (scenario || scenEl.value === '')) scenEl.value = scenario || scenEl.value;
+                    if (exEl && (example || exEl.value === '')) exEl.value = example || exEl.value;
+                    if (firstEl && (first || firstEl.value === '')) firstEl.value = first || firstEl.value;
                 }
 
                 // Update persistent scenario state (reset then set)
@@ -3347,14 +3420,9 @@
                     KLITE_RPMod.state = KLITE_RPMod.state || {};
                     KLITE_RPMod.state.scenario = KLITE_RPMod.state.scenario || { scenario: '', example: '', first: '', sourceId: null, sourceName: '' };
                     const st = KLITE_RPMod.state.scenario;
-                    st.scenario = '';
-                    st.example = '';
-                    st.first = '';
-                    st.sourceId = null;
-                    st.sourceName = '';
-                    if (scenario) st.scenario = scenario;
-                    if (example) st.example = example;
-                    if (first) st.first = first;
+                    if (scenario) st.scenario = scenario; // preserve if empty
+                    if (example) st.example = example;     // preserve if empty
+                    if (first) st.first = first;           // preserve if empty
                     st.sourceId = (charObj.id != null ? charObj.id : st.sourceId);
                     st.sourceName = name || st.sourceName;
                 } catch(_) {}
@@ -3567,7 +3635,7 @@
             panels: false,
             group: true,
             avatars: true,
-            chars: false,
+            chars: true,
             generation: false,  // Disable Horde status logging
             state: false,
             integration: false,
@@ -3636,7 +3704,7 @@
             }
         },
 
-        async init() {
+    async init() {
             if (this._initialized) { this.log('init', 'Already initialized, skipping'); return; }
             this._initialized = true;
             this.essential('🚀 KLITE RP Mod initializing...');
@@ -3649,6 +3717,89 @@
                 style.textContent = STYLES_PANELS_ONLY;
                 document.head.appendChild(style);
                 this.log('init', 'CSS injected');
+
+                // Install reset integration (detect and honor Esolite "Reset ALL Settings")
+                try {
+                    // Wrap reset_all_settings to mark a one-shot flag before reload
+                    if (typeof window.reset_all_settings === 'function' && !window.reset_all_settings.__klite_rpmod_wrapped) {
+                        const origReset = window.reset_all_settings.bind(window);
+                        window.reset_all_settings = function() {
+                            try { sessionStorage.setItem('klite_rpmod_reset_all', '1'); } catch(_) {}
+                            return origReset.apply(this, arguments);
+                        };
+                        window.reset_all_settings.__klite_rpmod_wrapped = true;
+                    }
+
+                    // If flagged by previous session, clear RPmod-specific prefs and reset panel state
+                    const wasReset = (() => { try { return sessionStorage.getItem('klite_rpmod_reset_all') === '1'; } catch(_) { return false; } })();
+                    if (wasReset) {
+                        this.log('init', 'Detected Esolite reset; clearing RPmod prefs');
+                        // Clear CHARS gallery prefs
+                        try { await (window.indexeddb_save ? window.indexeddb_save('esolite_chars_panel_prefs') : (async () => { try { await this.deleteFromLiteStorage?.('esolite_chars_panel_prefs'); } catch(_) {} })()); } catch(_) {}
+                        // Clear ROLES + TOOLS saved settings
+                        try { await (window.indexeddb_save ? window.indexeddb_save('rpmod_group_settings') : (async () => { try { await this.deleteFromLiteStorage?.('rpmod_group_settings'); } catch(_) {} })()); } catch(_) {}
+                        try { await (window.indexeddb_save ? window.indexeddb_save('rpmod_tools_settings') : (async () => { try { await this.deleteFromLiteStorage?.('rpmod_tools_settings'); } catch(_) {} })()); } catch(_) {}
+                        // Clear TOOLS: Quick Actions, Chapters, RP rules
+                        try { await (window.indexeddb_save ? window.indexeddb_save('rpmod_adv_actions') : (async () => { try { await this.deleteFromLiteStorage?.('rpmod_adv_actions'); } catch(_) {} })()); } catch(_) {}
+                        try { await (window.indexeddb_save ? window.indexeddb_save('rpmod_story_chapters') : (async () => { try { await this.deleteFromLiteStorage?.('rpmod_story_chapters'); } catch(_) {} })()); } catch(_) {}
+                        try { await (window.indexeddb_save ? window.indexeddb_save('rpmod_rp_rules') : (async () => { try { await this.deleteFromLiteStorage?.('rpmod_rp_rules'); } catch(_) {} })()); } catch(_) {}
+                        // Clear persisted RPmod state (tabs, scenario, etc.) so Scenario panel resets
+                        try { await (window.indexeddb_save ? window.indexeddb_save('rpmod_state') : (async () => { try { await this.deleteFromLiteStorage?.('rpmod_state'); } catch(_) {} })()); } catch(_) {}
+                        // Clear unified character modal filters
+                        try { await (window.indexeddb_save ? window.indexeddb_save('rpmod_unified_char_filters') : (async () => { try { await this.deleteFromLiteStorage?.('rpmod_unified_char_filters'); } catch(_) {} })()); } catch(_) {}
+                        // Clear Auto Sender settings
+                        try { await (window.indexeddb_save ? window.indexeddb_save('rpmod_auto_sender_settings') : (async () => { try { await this.deleteFromLiteStorage?.('rpmod_auto_sender_settings'); } catch(_) {} })()); } catch(_) {}
+
+                        // Reset in-memory defaults for panels expected by user
+                        try {
+                            // CHARS defaults
+                            if (this.panels?.CHARS) {
+                                this.panels.CHARS.currentFilter = '';
+                                this.panels.CHARS.currentSort = 'name-asc';
+                                this.panels.CHARS.currentView = 'grid';
+                                this.panels.CHARS.tagFilter = '';
+                                this.panels.CHARS.starFilter = '';
+                            }
+                            // ROLES defaults
+                            if (this.panels?.ROLES) {
+                                this.panels.ROLES.enabled = false;
+                                this.panels.ROLES.activeChars = [];
+                                this.panels.ROLES.currentSpeaker = 0;
+                                this.panels.ROLES.lastSpeaker = -1;
+                                this.panels.ROLES.speakerHistory = [];
+                                this.panels.ROLES.speakerMode = 'manual';
+                                try { clearInterval(this.panels.ROLES.autoResponseTimer); } catch(_) {}
+                                this.panels.ROLES.autoResponseTimer = null;
+                                if (this.panels.ROLES.autoResponses) {
+                                    this.panels.ROLES.autoResponses.enabled = false;
+                                }
+                                try { this.panels.ROLES.saveSettings?.(); } catch(_) {}
+                            }
+                            // TOOLS defaults (disable selected personas/characters, reset quick actions/chapters/rules)
+                            if (this.panels?.TOOLS) {
+                                this.panels.TOOLS.personaEnabled = false;
+                                this.panels.TOOLS.characterEnabled = false;
+                                this.panels.TOOLS.selectedPersona = null;
+                                this.panels.TOOLS.selectedCharacter = null;
+                                this.panels.TOOLS.rules = '';
+                                this.panels.TOOLS.quickActions = ['> Look Around', '> Search', '> Check Inventory', '> Rest', '> Continue'];
+                                this.panels.TOOLS.chapters = [];
+                                try { this.panels.TOOLS.saveSettings?.(); } catch(_) {}
+                            }
+                            // Scenario state clears on reload naturally; ensure blank
+                            this.state = this.state || {};
+                            this.state.scenario = { scenario: '', example: '', first: '', sourceId: null, sourceName: '' };
+                        } catch(_) {}
+
+                        try { sessionStorage.removeItem('klite_rpmod_reset_all'); } catch(_) {}
+                        // Mark to perform UI-level resets after panels render
+                        try { sessionStorage.setItem('klite_rpmod_reset_post', '1'); } catch(_) {}
+                    }
+                } catch(_) {}
+
+                // (Removed) render_gametext duplicate collapse; use simple first-message seeding instead
+
+                // (Removed) repack_instruct_turns wrapper; not needed with simple seeding
 
                 // Load state (non-blocking failure ok)
                 try {
@@ -3756,6 +3907,117 @@
                 // Sync button states after UI is built and panels loaded
                 this.syncTabButtonStates();
                 this.log('init', 'Panels initialized and button states synced');
+
+                // If a reset was requested, apply UI-level defaults now
+                try {
+                    const doPostReset = sessionStorage.getItem('klite_rpmod_reset_post') === '1';
+                    if (doPostReset) {
+                        // Narrator defaults: Omniscient + Mixed (if controls are present)
+                        try {
+                            const ns = document.getElementById('narrator-style');
+                            const nf = document.getElementById('narrator-focus');
+                            if (ns) ns.value = 'omniscient';
+                            if (nf) nf.value = 'mixed';
+                            try { this.panels?.TOOLS?.updateNarratorExplanation?.('omniscient'); } catch(_) {}
+                        } catch(_) {}
+
+                        // Clear Smart Memory Writer output (if present)
+                        try {
+                            const out = document.getElementById('tools-memory-output');
+                            if (out) out.value = '';
+                            // Reset any active generation state
+                            if (this.panels?.CONTEXT) {
+                                this.panels.CONTEXT.memoryGenerationState = null;
+                            }
+                        } catch(_) {}
+
+                        // Auto Sender: reset defaults and clear UI
+                        try {
+                            if (!this.panels) this.panels = {};
+                            if (!this.panels.TOOLS) this.panels.TOOLS = {};
+                            const asDefaults = {
+                                enabled: false,
+                                interval: 30,
+                                message: 'Continue.',
+                                startMessage: '',
+                                quickMessages: ['', '', '', '', ''],
+                                currentCount: 0,
+                                timer: null,
+                                isPaused: false,
+                                isStarted: false
+                            };
+                            this.panels.TOOLS.autoSender = { ...(this.panels.TOOLS.autoSender || {}), ...asDefaults };
+                            // Clear UI controls if present
+                            const intervalSlider = document.getElementById('auto-interval-slider');
+                            const intervalDisplay = document.getElementById('auto-interval-display');
+                            const startMessageEl = document.getElementById('auto-start-message');
+                            const autoMessageEl = document.getElementById('auto-message');
+                            if (intervalSlider) intervalSlider.value = asDefaults.interval;
+                            if (intervalDisplay) intervalDisplay.textContent = String(asDefaults.interval);
+                            if (startMessageEl) startMessageEl.value = '';
+                            if (autoMessageEl) autoMessageEl.value = asDefaults.message;
+                            for (let i = 1; i <= 5; i++) {
+                                const quickInput = document.getElementById(`auto-quick-${i}`);
+                                if (quickInput) quickInput.value = '';
+                            }
+                            try { this.panels.TOOLS.updateAutoButtons?.('reset'); } catch(_) {}
+                            try { this.panels.TOOLS.saveAutoSenderSettings?.(); } catch(_) {}
+                        } catch(_) {}
+
+                        // Clear Scenario panel textareas if present
+                        try {
+                            const se = document.getElementById('scenario-text');
+                            const ex = document.getElementById('scenario-example');
+                            const fm = document.getElementById('scenario-first-message');
+                            if (se) se.value = '';
+                            if (ex) ex.value = '';
+                            if (fm) fm.value = '';
+                        } catch(_) {}
+                        // Clear RP rules textarea if present
+                        try {
+                            const rr = document.getElementById('rp-rules');
+                            if (rr) rr.value = '';
+                            try { await this.saveToLiteStorage('rpmod_rp_rules', ''); } catch(_) {}
+                        } catch(_) {}
+                        // Reset Quick Actions inputs to defaults if present
+                        try {
+                            const defaults = ['> Look Around', '> Search', '> Check Inventory', '> Rest', '> Continue'];
+                            for (let i = 0; i < defaults.length; i++) {
+                                const qa = document.getElementById(`adv-quick-${i}`);
+                                if (qa) qa.value = defaults[i];
+                            }
+                            try { await this.saveToLiteStorage('rpmod_adv_actions', JSON.stringify(defaults)); } catch(_) {}
+                        } catch(_) {}
+
+                        // Done with post reset
+                        try { sessionStorage.removeItem('klite_rpmod_reset_post'); } catch(_) {}
+                        // Visually ensure toggles are off and ROLES/TOOLS reflect defaults
+                        try {
+                            const ge = document.getElementById('group-enabled');
+                            if (ge) ge.checked = false;
+                            const pe = document.getElementById('persona-enabled');
+                            if (pe) pe.checked = false;
+                            const ce = document.getElementById('character-enabled');
+                            if (ce) ce.checked = false;
+                        } catch(_) {}
+                        // Reset Esolite chatname/chatopponent to defaults
+                        try {
+                            if (window.localsettings) {
+                                // Use Esolite's conventional defaults
+                                window.localsettings.chatname = 'User';
+                                window.localsettings.chatopponent = 'KoboldAI';
+                                window.save_settings?.();
+                                window.handle_bot_name_onchange?.();
+                            }
+                            const uname = document.getElementById('rp-user-name');
+                            if (uname) uname.value = 'User';
+                            const aname = document.getElementById('rp-ai-name');
+                            if (aname) aname.value = 'KoboldAI';
+                        } catch(_) {}
+                        try { this.panels.ROLES?.refresh?.(); } catch(_) {}
+                        try { this.panels.TOOLS?.refresh?.(); } catch(_) {}
+                    }
+                } catch(_) {}
 
                 // Restore fullscreen and tablet sidepanel states
                 this.restoreUIStates();
@@ -3904,6 +4166,13 @@
                 personaEnabled: !!this.panels.TOOLS.personaEnabled,
                 autoSender: this.panels.TOOLS.autoSender ? { ...this.panels.TOOLS.autoSender } : null
             } : null;
+            const scenario = this.state?.scenario ? {
+                scenario: this.state.scenario.scenario || '',
+                example: this.state.scenario.example || '',
+                first: this.state.scenario.first || '',
+                sourceId: this.state.scenario.sourceId || null,
+                sourceName: this.state.scenario.sourceName || ''
+            } : { scenario: '', example: '', first: '', sourceId: null, sourceName: '' };
             const group = this.panels.ROLES ? {
                 participants: Array.isArray(this.panels.ROLES.activeChars)
                   ? this.panels.ROLES.activeChars.map(c => ({
@@ -3940,7 +4209,7 @@
                 tabletSidepanel: !!this.state.tabletSidepanel,
                 avatarPolicy: this.state.avatarPolicy ? { ...this.state.avatarPolicy } : { esoliteAdapter:false, liteExperimental:false }
             };
-            return { scene, playRP: playrp, group, chat, avatars, ui };
+            return { scene, playRP: playrp, scenario, group, chat, avatars, ui };
         },
 
         importRpmodBlock(block) {
@@ -3955,6 +4224,21 @@
                     this.panels.TOOLS.selectedPersona = p.selectedPersona || null;
                     this.panels.TOOLS.personaEnabled = !!p.personaEnabled;
                     if (p.autoSender) this.panels.TOOLS.autoSender = { ...p.autoSender };
+                }
+                if (block.scenario) {
+                    this.state = this.state || {};
+                    this.state.scenario = {
+                        scenario: block.scenario.scenario || '',
+                        example: block.scenario.example || '',
+                        first: block.scenario.first || '',
+                        sourceId: block.scenario.sourceId || null,
+                        sourceName: block.scenario.sourceName || ''
+                    };
+                    // Try to reflect into visible inputs if panel is active
+                    try {
+                        const active = this.state?.tabs?.right;
+                        if (active === 'SCENARIO') this.loadPanel('right', 'SCENARIO');
+                    } catch(_) {}
                 }
                 if (block.group && this.panels.ROLES) {
                     const g = block.group;
@@ -4229,6 +4513,19 @@
                 // Also listen to color theme changes via localsettings proxy if available
                 this.log('init', 'Panels theme observer installed');
             } catch (e) { this.log('init', `Panels theme observer skipped: ${e?.message || e}`); }
+        },
+
+        // Instruct first-turn visual fix toggle
+        getInstructFirstTurnFixEnabled() {
+            try {
+                // Enabled by default unless explicitly disabled
+                return window.localsettings?.rpmod_instruct_firstturn_fix !== false;
+            } catch(_) { return true; }
+        },
+        setInstructFirstTurnFixEnabled(val) {
+            try {
+                if (window.localsettings) window.localsettings.rpmod_instruct_firstturn_fix = !!val;
+            } catch(_){}
         },
 
         // computeHostColorsFromDOM removed in v2 (unused)
@@ -4713,6 +5010,12 @@
                         <input type="checkbox" id="rpmod-hide-corpo-leftpanel" ${this.getHideCorpoLeftpanelEnabled() ? 'checked' : ''}>
                         Hide Corpo-LeftPanel in Corpo-Theme
                     </label>
+                    <div style="height:8px"></div>
+                    <label style="display:flex; align-items:center; gap:8px; font-size: 13px; color: var(--muted);">
+                        <input type="checkbox" id="rpmod-instruct-firstturn-fix" ${this.getInstructFirstTurnFixEnabled() ? 'checked' : ''}>
+                        Fix duplicate first turn in Instruct mode (display-only)
+                    </label>
+                    <div style="color: var(--muted); font-size: 11px; margin-left: 24px;">On by default. Disables only the visual collapse; data is unchanged.</div>
                 `;
                 pane.appendChild(wrap);
 
@@ -4737,6 +5040,17 @@
                             window.indexeddb_save('localsettings', window.localsettings);
                         }
                     } catch(_){}
+                });
+
+                const cbFix = wrap.querySelector('#rpmod-instruct-firstturn-fix');
+                cbFix.addEventListener('change', () => {
+                    this.setInstructFirstTurnFixEnabled(cbFix.checked);
+                    try {
+                        if (typeof window.indexeddb_save === 'function') {
+                            window.indexeddb_save('localsettings', window.localsettings);
+                        }
+                    } catch(_){}
+                    try { window.render_gametext?.(); } catch(_){}
                 });
 
                 this.log('init', 'Injected RPmod checkboxes into Settings/Advanced');
@@ -6418,6 +6732,13 @@
                         quickActions: Array.isArray(this.panels.TOOLS.quickActions) ? [...this.panels.TOOLS.quickActions] : [],
                         chapters: Array.isArray(this.panels.TOOLS.chapters) ? [...this.panels.TOOLS.chapters] : []
                     } : null,
+                    scenario: this.state?.scenario ? {
+                        scenario: this.state.scenario.scenario || '',
+                        example: this.state.scenario.example || '',
+                        first: this.state.scenario.first || '',
+                        sourceId: this.state.scenario.sourceId || null,
+                        sourceName: this.state.scenario.sourceName || ''
+                    } : { scenario: '', example: '', first: '', sourceId: null, sourceName: '' },
                     group: this.panels.ROLES ? {
                         enabled: !!this.panels.ROLES.enabled,
                         participants: Array.isArray(this.panels.ROLES.activeChars)
@@ -6481,6 +6802,16 @@
                     if (Array.isArray(bundle.rp.quickActions)) this.panels.TOOLS.quickActions = [...bundle.rp.quickActions];
                     if (Array.isArray(bundle.rp.chapters)) this.panels.TOOLS.chapters = [...bundle.rp.chapters];
                 }
+                if (bundle.scenario) {
+                    this.state = this.state || {};
+                    this.state.scenario = {
+                        scenario: bundle.scenario.scenario || '',
+                        example: bundle.scenario.example || '',
+                        first: bundle.scenario.first || '',
+                        sourceId: bundle.scenario.sourceId || null,
+                        sourceName: bundle.scenario.sourceName || ''
+                    };
+                }
                 if (bundle.group && this.panels.ROLES) {
                     this.panels.ROLES.enabled = !!bundle.group.enabled;
                     if (Array.isArray(bundle.group.participants)) {
@@ -6522,6 +6853,7 @@
                 // Refresh
                 if (this.panels.TOOLS?.refresh) this.panels.TOOLS.refresh();
                 if (this.panels.ROLES?.refresh) this.panels.ROLES.refresh();
+                try { const active = (this.state?.tabs?.right); if (active === 'SCENARIO') this.loadPanel('right', 'SCENARIO'); } catch(_) {}
                 if (this.panels.PLAY_CHAT?.formatChatContent) this.panels.PLAY_CHAT.formatChatContent();
                 this.syncChat();
                 this.log('state', 'RPmod save bundle restored from file');
@@ -6941,10 +7273,8 @@
                     // Update group avatars to include newly added entries
                     try { KLITE_RPMod.updateGroupAvatars?.(); } catch(_) {}
 
-                    // Append each newly added character to memory (align with legacy selector behavior)
+                    // If group was empty, prefill Scenario from the first added character
                     if (added > 0) {
-                        try { addedChars.forEach(c => { try { KLITE_RPMod.appendCharacterToMemorySimple(c); } catch(_) {} }); } catch(_) {}
-                        // If group was empty, prefill Scenario from the first added character
                         try { if (wasEmpty && addedChars[0]) KLITE_RPMod.populateScenarioFromCharacter(addedChars[0]); } catch(_) {}
                     }
                 }
@@ -8022,6 +8352,7 @@
             return `
                 <!-- Bookmarks / Index (hidden) -->
                 
+                ${KLITE_RPMod.panels.CONTEXT.renderAnalyzer()}
 
                 <!-- Quick Actions (from ADV) -->
                 ${t.section('Quick Actions',
@@ -8105,7 +8436,7 @@
                     </div>`
             )}
                 
-                ${KLITE_RPMod.panels.CONTEXT.render()}
+                ${KLITE_RPMod.panels.CONTEXT.renderRest()}
                 ${(() => { try { KLITE_RPMod.panels.TOOLS.ensureImagePanel(); return KLITE_RPMod.panels.IMAGE.render(); } catch(_) { return ''; } })()}
                 
             `;
@@ -8280,8 +8611,6 @@
                 KLITE_RPMod.showUnifiedCharacterModal('single-select', (char) => {
                     KLITE_RPMod.panels.TOOLS.selectedCharacter = char;
                     KLITE_RPMod.panels.TOOLS.characterEnabled = true;
-                    // Append simple block to memory (resolves full data if needed)
-                    try { KLITE_RPMod.appendCharacterToMemorySimple(char); } catch(_) {}
                     // Also prefill Create Scenario panel from this character (1:1 chat case)
                     try { KLITE_RPMod.populateScenarioFromCharacter(char); } catch(_) {}
                     // Apply character extras (avatar/name, context)
@@ -8299,8 +8628,7 @@
                     tools.selectedPersona = char;
                     tools.personaEnabled = true;
 
-                    // Append persona description to memory as a character block (resolves full data if needed)
-                    try { KLITE_RPMod.appendCharacterToMemorySimple(char); } catch(_) {}
+                    // No longer append persona description/personality to memory (injection now handles it)
 
                     // Update user avatar with persona image if available (best-effort)
                     try {
@@ -8705,6 +9033,7 @@
 
             // Character toggle
             document.getElementById('character-enabled')?.addEventListener('change', e => {
+                const wasEnabled = !!this.characterEnabled;
                 this.characterEnabled = e.target.checked;
                 const controls = document.querySelector('.character-controls');
                 if (controls) {
@@ -8712,6 +9041,15 @@
                     controls.style.pointerEvents = e.target.checked ? 'auto' : 'none';
                 }
                 this.updateCharacterContext();
+
+                // If disabling AI Character, ask whether to reset Scenario-related fields
+                try {
+                    if (wasEnabled && !this.characterEnabled && KLITE_RPMod.hasScenarioEntries()) {
+                        if (KLITE_RPMod.confirmResetScenario()) {
+                            KLITE_RPMod.clearScenarioEntries();
+                        }
+                    }
+                } catch(_) {}
             });
 
             // Name inputs (bind here so they work when controls are rendered in ROLES)
@@ -9499,6 +9837,15 @@
         },
 
         removeCharacter() {
+            // If removing the AI character, offer to reset Scenario/Example/First data
+            try {
+                if (KLITE_RPMod.hasScenarioEntries()) {
+                    if (KLITE_RPMod.confirmResetScenario()) {
+                        KLITE_RPMod.clearScenarioEntries();
+                    }
+                }
+            } catch(_) {}
+
             this.selectedCharacter = null;
             this.characterEnabled = false;
             this.saveSettings?.();
@@ -9576,50 +9923,37 @@
         },
 
         injectCharacterContext() {
-            // Get character context data
-            const characterContext = this.getCharacterContext();
-
-            // Only inject if there's context to add
-            if (!characterContext.trim()) {
-                this.log('generation', 'No character context to inject');
-                return;
-            }
-
-            // Get the input element
-            const input = document.getElementById('input_text');
-            if (!input) {
-                this.log('generation', 'Input element not found, cannot inject character context');
-                return;
-            }
-
-            // Get current input value
-            const currentInput = input.value || '';
-            // Capacity check against available context budget
+            // Build per-turn context block using persona/character and scenario panel fields
+            const blocks = [];
+            const charCtx = this.getCharacterContext();
+            if (charCtx) blocks.push(charCtx);
             try {
-                const base = (window.current_temp_memory || '') + rpmod_concat_history_safe() + currentInput;
+                const st = KLITE_RPMod?.state?.scenario || {};
+                const scen = (st.scenario || '').trim();
+                const ex = (st.example || '').trim();
+                if (scen) blocks.push(`[ Scenario:\n${scen}\n]`);
+                if (ex) blocks.push(`[ Example Dialogue:\n${ex}\n]`);
+            } catch(_) {}
+
+            const payload = blocks.filter(Boolean).join('\n\n');
+            if (!payload.trim()) {
+                this.log('generation', 'No dynamic context to inject');
+                return;
+            }
+
+            // Capacity check against available context budget (uses host helpers)
+            try {
+                const base = (window.current_temp_memory || '') + rpmod_concat_history_safe();
                 const cap = rpmod_get_max_allowed_chars(base);
-                const projected = base.length + characterContext.length;
-                if (projected > cap) {
-                    alert('Character data exceeds available context budget. Reduce character data to proceed.');
+                if (base.length + payload.length > cap) {
+                    alert('Character or scenario data exceeds available context budget. Reduce details to proceed.');
                     return;
                 }
             } catch(_) {}
 
-            // Inject character context at the beginning of the input
-            // This ensures character context is applied without permanently modifying memory
-            const injectedInput = characterContext + currentInput;
-
-            // Temporarily set the modified input
-            input.value = injectedInput;
-
-            this.log('generation', `Character context injected (${characterContext.length} chars)`);
-            this.log('generation', `Persona enabled: ${this.personaEnabled}, Character enabled: ${this.characterEnabled}`);
-            if (this.selectedPersona) {
-                this.log('generation', `Active persona: ${this.selectedPersona.name}`);
-            }
-            if (this.selectedCharacter) {
-                this.log('generation', `Active character: ${this.selectedCharacter.name}`);
-            }
+            // Prefer host-native preinjection mechanism so nothing leaks into user input
+            try { rpmod_prepend_preinjection(payload); } catch(_) {}
+            this.log('generation', `Preinjected dynamic context (${payload.length} chars)`);
         },
 
         editLast() {
@@ -9719,9 +10053,8 @@ KLITE_RPMod.panels.CONTEXT = {
             keywordCaseSensitive: false
         },
 
-        render() {
-            return `              
-                <!-- Context Analyzer -->
+        renderAnalyzer() {
+            return `
                 ${t.section('🔍 Context Analyzer',
                 `<div class="klite-token-bar-container">
                         <div class="klite-token-bar">
@@ -9771,8 +10104,11 @@ KLITE_RPMod.panels.CONTEXT = {
                         </div>
                     </div>`
             )}
-                
-                <!-- Smart Memory Writer -->
+            `;
+        },
+
+        renderRest() {
+            return `
                 ${t.section('🧠 Smart Memory Writer',
                 `<div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
                         <strong>Warning:</strong> does not work if Agent Mode in Esolite is active.
@@ -9804,7 +10140,6 @@ KLITE_RPMod.panels.CONTEXT = {
                         ${t.button('➕ Append', '', 'append-memory')}
                     </div>`
             )}
-                <!-- Export Tools -->
                 ${t.section('📤 Export Context History',
                 `<div class="klite-buttons-fill">
                         ${t.button('📝 Markdown', '', 'export-markdown')}
@@ -9813,6 +10148,10 @@ KLITE_RPMod.panels.CONTEXT = {
                     </div>`
             )}
             `;
+        },
+
+        render() {
+            return `${this.renderAnalyzer()}${this.renderRest()}`;
         },
 
         cleanup() {
@@ -9899,7 +10238,7 @@ KLITE_RPMod.panels.CONTEXT = {
 
             // Minimum WI - only count constant (always-active) WI entries and filter out images
             if (window.current_wi) {
-                const constantWI = current_wi.filter(wi => wi.content && !wi.widisabled && wi.constant);
+                const constantWI = (window.current_wi || []).filter(wi => wi.content && !wi.widisabled && wi.constant);
                 parts.worldInfo.text = constantWI.map(wi => wi.content).join('\n');
                 parts.worldInfo.tokens = countTokens(filterImages(parts.worldInfo.text));
             }
@@ -10726,6 +11065,12 @@ Outline:`
             const vals = hasStored ? { scenario: st.scenario || '', example: st.example || '', first: st.first || '' }
                                    : this._getScenarioFieldsFromChar(src);
             return `
+                <div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
+                    <strong>Note:</strong> This panel uses per-turn context injection. On Esobold v299+, no manual memory edits are needed to use this. To inject First Message or restart Chat click Start Scenario.
+                </div>
+                <div class="klite-buttons-fill klite-mt" style="margin-bottom: 10px;">
+                    ${t.button('Start Role Play', '', 'scenario-start-roleplay')}
+                </div>
                 ${t.section('🗺️ Scenario',
                 `${t.textarea('scenario-text', 'Describe the world, setting, and background.', vals.scenario)}`
             )}
@@ -10737,13 +11082,12 @@ Outline:`
                 ${t.section('📩 First Message',
                 `${t.textarea('scenario-first-message', 'Write the first message to start the chat.', vals.first)}`
             )}
-            <div class="klite-buttons-fill klite-mt">
-                ${t.button('Click here to append Scenario and Example Dialogue to Temporary Memory and insert First Message in Chat', '', 'scenario-apply-first')}
-            </div>
             `;
         },
         actions: {
-            'scenario-apply-first': () => {
+            'scenario-start-roleplay': () => {
+                if (KLITE_RPMod._scenarioApplying) return; // guard double clicks
+                KLITE_RPMod._scenarioApplying = true;
                 try {
                     const scen = (document.getElementById('scenario-text')?.value || '').trim();
                     const ex = (document.getElementById('scenario-example')?.value || '').trim();
@@ -10758,27 +11102,128 @@ Outline:`
                         KLITE_RPMod.state.scenario.first = first;
                     } catch(_) {}
 
-                    // 1) Append to Temporary Memory
-                    const blocks = [];
-                    if (scen) blocks.push(`[ Scenario:\n${scen}\n]`);
-                    if (ex) blocks.push(`[ Example Dialogue:\n${ex}\n]`);
-                    const toAppend = blocks.join('\n\n');
-                    if (toAppend) {
-                        const cur = (window.current_temp_memory || '').trim();
-                        window.current_temp_memory = cur ? (cur + '\n\n' + toAppend) : toAppend;
-                    }
+                    // 1) Build a transient context injection (Scenario + Example only)
+                    const injBlocks = [];
+                    if (scen) injBlocks.push(`[ Scenario:\n${scen}\n]`);
+                    if (ex) injBlocks.push(`[ Example Dialogue:\n${ex}\n]`);
+                    if (injBlocks.length > 0) rpmod_prepend_preinjection(injBlocks.join('\n\n'));
 
-                    // 2) Insert first message into chat history
-                    if (first) {
-                        try {
-                            if (!Array.isArray(window.gametext_arr)) window.gametext_arr = [];
-                            const prefix = (typeof window.get_instructendplaceholder === 'function') ? window.get_instructendplaceholder() : '';
-                            const name = (window.localsettings?.chatopponent || 'AI');
-                            window.gametext_arr.push(prefix + name + ': ' + first);
-                            window.render_gametext?.();
-                        } catch(_) {}
-                    }
+                    // 2) Insert first message respecting existing chat history (or clear chat if empty first)
+                    try {
+                        if (!Array.isArray(window.gametext_arr)) window.gametext_arr = [];
+                        const hasHistory = window.gametext_arr.length > 0;
+                        // Resolve host-friendly instruct placeholder (preferred for correct classic rendering)
+                        const getIET = () => {
+                            try { if (typeof window.get_instructendplaceholder === 'function') return window.get_instructendplaceholder(); } catch(_) {}
+                            try {
+                                const raw = (window.localsettings?.instruct_endtag || '{{[OUTPUT]}}');
+                                // Classic renderer expects newline-wrapped placeholder
+                                return `\n${raw}\n`;
+                            } catch(_) { return "\n{{[OUTPUT]}}\n"; }
+                        };
+                        if (first) {
+                            if (hasHistory) {
+                                const ok = window.confirm('A chat is already in progress. Start a new chat and delete existing chat history?');
+                                if (ok) {
+                                    // Clear chat history only; keep memory, notes, WI as-is; set exactly the first message
+                                    // Format first turn so Esobold renderer treats it as a proper AI/chat turn (prevents "abcabc" duplication)
+                                    const rolesSpeaker = KLITE_RPMod?.panels?.ROLES?.getCurrentSpeaker?.();
+                                    const toolsChar = KLITE_RPMod?.panels?.TOOLS?.selectedCharacter;
+                                    const speakerName = (rolesSpeaker?.name || toolsChar?.name || window.localsettings?.chatopponent || 'AI');
+                                    const opmode = (window.localsettings?.opmode || 0);
+                                    // Always prefix with RAW instruct OUTPUT tag, 1:1 within first message
+                                    const getIETRaw = () => {
+                                        try { if (typeof window.get_instruct_endtag === 'function') return window.get_instruct_endtag(false); } catch(_) {}
+                                        try { return (window.localsettings?.instruct_endtag || '{{[OUTPUT]}}'); } catch(_) { return '{{[OUTPUT]}}'; }
+                                    };
+                                    let line = first;
+                                    if (opmode === 3) { // Chat mode expects "\nName: message"
+                                        line = `\n${speakerName}: ${first}`;
+                                        window.gametext_arr = [line];
+                                    } else if (opmode === 4) { // Instruct mode: seed one AI turn using end tag
+                                        const endTagRaw = getIETRaw();
+                                        // Do NOT inject names; user wants 1:1 prefix only
+                                        line = `${endTagRaw}${first}`;
+                                        // Single seeded entry matches Esolite behavior and avoids duplicate output
+                                        window.gametext_arr = [line];
+                                    } else {
+                                        window.gametext_arr = [line];
+                                    }
+                                    try { KLITE_RPMod.log('chars', 'After seeding first (Start Role Play), gametext_arr:', JSON.parse(JSON.stringify(window.gametext_arr))); } catch(_) {}
+                                    window.render_gametext?.();
+                                    try {
+                                        const input = document.getElementById('input_text');
+                                        if (input) {
+                                            input.placeholder = 'First message present. Enter your prompt here and press Submit to start.';
+                                            try { input.focus(); } catch(_) {}
+                                        }
+                                    } catch(_) {}
+                                }
+                                // if user declines, do nothing to chat
+                            } else {
+                                // No history: set first message as single entry
+                                const rolesSpeaker = KLITE_RPMod?.panels?.ROLES?.getCurrentSpeaker?.();
+                                const toolsChar = KLITE_RPMod?.panels?.TOOLS?.selectedCharacter;
+                                const speakerName = (rolesSpeaker?.name || toolsChar?.name || window.localsettings?.chatopponent || 'AI');
+                                const opmode = (window.localsettings?.opmode || 0);
+                                // Always prefix with RAW instruct OUTPUT tag, 1:1 within first message
+                                const getIETRaw = () => {
+                                    try { if (typeof window.get_instruct_endtag === 'function') return window.get_instruct_endtag(false); } catch(_) {}
+                                    try { return (window.localsettings?.instruct_endtag || '{{[OUTPUT]}}'); } catch(_) { return '{{[OUTPUT]}}'; }
+                                };
+                                let line = first;
+                                if (opmode === 3) {
+                                    line = `${speakerName}: ${first}`;
+                                    window.gametext_arr = [line];
+                                } else if (opmode === 4) {
+                                    const endTagRaw = getIETRaw();
+                                    // Do NOT inject names; user wants 1:1 prefix only
+                                    line = `${endTagRaw}${first}`;
+                                    // Seed as a single entry to match Esolite instruct-first-turn
+                                    window.gametext_arr = [line];
+                                } else {
+                                    window.gametext_arr = [line];
+                                }
+                                try { KLITE_RPMod.log('chars', 'After seeding first (Start Role Play, no history), gametext_arr:', JSON.parse(JSON.stringify(window.gametext_arr))); } catch(_) {}
+                                window.render_gametext?.();
+                                try {
+                                    const input = document.getElementById('input_text');
+                                    if (input) {
+                                        input.placeholder = 'First message present. Enter your prompt here and press Submit to start.';
+                                        try { input.focus(); } catch(_) {}
+                                    }
+                                } catch(_) {}
+                            }
+                        } else if (hasHistory) {
+                            // No first message provided: still offer to clear existing chat if requested
+                            const ok = window.confirm('A chat is already in progress. Start a new chat and delete existing chat history?');
+                            if (ok) {
+                                window.gametext_arr = [];
+                                window.render_gametext?.();
+                                try {
+                                    const input = document.getElementById('input_text');
+                                    if (input) {
+                                        input.placeholder = 'Enter your prompt here and press Submit to start.';
+                                        try { input.focus(); } catch(_) {}
+                                    }
+                                } catch(_) {}
+                            }
+                        }
+                    } catch(_) {}
+
+                    // 3) If available, set the next speaker override (Esolite v299+)
+                    try {
+                        const rolesSpeaker = KLITE_RPMod?.panels?.ROLES?.getCurrentSpeaker?.();
+                        const toolsChar = KLITE_RPMod?.panels?.TOOLS?.selectedCharacter;
+                        const nextName = (rolesSpeaker?.name || toolsChar?.name || '').trim();
+                        if (nextName && window.eso && ('currentChatOpponentOverride' in window.eso)) {
+                            window.eso.currentChatOpponentOverride = nextName;
+                        }
+                    } catch(_) {}
+
+                    // Note: Do not auto-send. First message represents AI's opening; wait for user input.
                 } catch(_) {}
+                finally { KLITE_RPMod._scenarioApplying = false; }
             }
         }
     };
@@ -10834,7 +11279,7 @@ Outline:`
         render() {
             return `
                 <div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
-                    <strong>Note:</strong> This panel appends character data to Context/memory while selecting them. If you remove characters you need to manually edit Context/memory.
+                    <strong>Note:</strong> This panel uses per-turn context injection. On Esobold v299+, character data can be imported into World Info; no manual memory edits are needed.
                 </div>
                 ${t.section('Group Chat Control',
                 `<label>
@@ -10856,6 +11301,7 @@ Outline:`
 
         setupEventHandlers() {
             document.getElementById('group-enabled')?.addEventListener('change', e => {
+                const wasEnabled = !!this.enabled;
                 this.enabled = e.target.checked;
                 this.refresh();
                 try { this.saveSettings?.(); } catch(_) {}
@@ -10867,6 +11313,14 @@ Outline:`
                     }
                     try { if (KLITE_RPMod.panels.TOOLS) KLITE_RPMod.panels.TOOLS.characterEnabled = false; } catch(_){}
                 } else {
+                    // Leaving group chat: optionally clear Scenario-related fields
+                    try {
+                        if (wasEnabled && KLITE_RPMod.hasScenarioEntries()) {
+                            if (KLITE_RPMod.confirmResetScenario()) {
+                                KLITE_RPMod.clearScenarioEntries();
+                            }
+                        }
+                    } catch(_) {}
                     // Leaving group chat: restore AI name to selected character or input field
                     try {
                         if (window.localsettings) {
@@ -11320,6 +11774,15 @@ Outline:`
                 }
                 groupPanel.refresh();
                 groupPanel.saveSettings?.();
+
+                // If last character was removed from group, ask to reset Scenario-related fields
+                try {
+                    if (groupPanel.activeChars.length === 0 && KLITE_RPMod.hasScenarioEntries()) {
+                        if (KLITE_RPMod.confirmResetScenario()) {
+                            KLITE_RPMod.clearScenarioEntries();
+                        }
+                    }
+                } catch(_) {}
             },
 
 
@@ -11409,6 +11872,12 @@ Outline:`
                     window.save_settings?.();
                     window.handle_bot_name_onchange?.();
                 }
+                // For Esolite v299+, also set one-turn override to ensure correct speaker
+                try {
+                    if (speaker?.name && window.eso && ('currentChatOpponentOverride' in window.eso)) {
+                        window.eso.currentChatOpponentOverride = speaker.name;
+                    }
+                } catch(_){}
                 // Update AI avatar to speaker's best avatar if available
                 try {
                     const best = KLITE_RPMod.getBestCharacterAvatar?.(speaker);
@@ -11828,8 +12297,12 @@ Outline:`
             // Do not set multi-opponent; will set speaker name per trigger
 
             if (added > 0) {
-                // Append each added character to memory (resolves full data if needed)
-                try { addedChars.forEach(c => { try { KLITE_RPMod.appendCharacterToMemorySimple(c); } catch(_) {} }); } catch(_) {}
+                // On Esobold v299+, import added characters into WI for smarter context use
+                try {
+                    if (typeof window.loadByCharacterNameIntoWI === 'function') {
+                        addedChars.forEach(async c => { try { await window.loadByCharacterNameIntoWI(c.name); } catch(_) {} });
+                    }
+                } catch(_) {}
                 // If group was empty before and we have a first added character, prefill Scenario panel from it
                 try {
                     if (typeof this._wasEmptyBeforeAdd === 'boolean' ? this._wasEmptyBeforeAdd : false) {
@@ -11872,12 +12345,12 @@ Outline:`
                 this.refresh();
                 this.updateKoboldSettings();
                 this.applyGroupToHost();
-                // Append to memory when adding a new custom character
-                try { KLITE_RPMod.appendCharacterToMemorySimple({
-                    name,
-                    description,
-                    personality: '',
-                }); } catch(_) {}
+                // Optionally import custom character into WI when supported
+                try {
+                    if (typeof window.loadByCharacterNameIntoWI === 'function' && name) {
+                        window.loadByCharacterNameIntoWI(name);
+                    }
+                } catch(_) {}
             }
         },
 
@@ -14245,8 +14718,42 @@ Outline:`
                 KLITE_RPMod.log('chars', 'Selected greeting:', selectedGreeting);
 
                 if (window.gametext_arr) {
-                    window.gametext_arr = [selectedGreeting];
-                    KLITE_RPMod.log('chars', 'Greeting added to gametext_arr');
+                    // Format greeting as proper first AI turn to avoid first-turn duplication in renderer
+                    const rolesSpeaker = KLITE_RPMod?.panels?.ROLES?.getCurrentSpeaker?.();
+                    const toolsChar = KLITE_RPMod?.panels?.TOOLS?.selectedCharacter;
+                    const speakerName = (rolesSpeaker?.name || toolsChar?.name || window.localsettings?.chatopponent || character?.name || 'AI');
+                    const opmode = (window.localsettings?.opmode || 0);
+                    const endTag = (typeof window.get_instructendplaceholder === 'function') ? window.get_instructendplaceholder() : '';
+                    let line = selectedGreeting || '';
+                    if (opmode === 3) { // Chat mode
+                        const trimmed = line.replace(/^\s+/, '');
+                        if (!trimmed.startsWith(`${speakerName}:`)) {
+                            line = `${speakerName}: ${line}`;
+                        } else {
+                            line = trimmed;
+                        }
+                        if (!line.startsWith('\n')) line = `\n${line}`;
+                        window.gametext_arr = [line];
+                    } else if (opmode === 4) { // Instruct mode
+                        const trimmed = line.replace(/^\s+/, '');
+                        const injectNames = !!(window.localsettings && window.localsettings.inject_chatnames_instruct);
+                        if (injectNames) {
+                            if (!trimmed.startsWith(`${speakerName}:`)) {
+                                line = `${endTag}${speakerName}: ${line}`;
+                            } else {
+                                line = `${endTag}${trimmed}`;
+                            }
+                        } else {
+                            line = `\n{{[OUTPUT]}}\n${trimmed}`;
+                        }
+                        // Seed as a single entry to align with Esolite's instruct behavior
+                        window.gametext_arr = [line];
+                    } else {
+                        window.gametext_arr = [line];
+                    }
+                    
+                    try { KLITE_RPMod.log('chars', 'After seeding greeting (LoadAsScenario), gametext_arr:', JSON.parse(JSON.stringify(window.gametext_arr))); } catch(_) {}
+                    KLITE_RPMod.log('chars', 'Greeting added to gametext_arr (formatted)');
                 }
 
                 // 2. Add description, personality and scenario into MEMORY
@@ -16500,6 +17007,17 @@ Outline:`
                     });
                 };
 
+                const directDelete = async (key) => {
+                    const { db, storeName } = await idbOpen();
+                    return await new Promise((resolve, reject) => {
+                        const tx = db.transaction(storeName, 'readwrite');
+                        const st = tx.objectStore(storeName);
+                        const delReq = st.delete(key);
+                        delReq.onsuccess = () => resolve(true);
+                        delReq.onerror = () => reject(delReq.error);
+                    });
+                };
+
                 KLITE_RPMod.saveToLiteStorage = async function(key, data){
                     if (window.indexeddb_save && typeof window.indexeddb_save === 'function') {
                         return await window.indexeddb_save(key, data).then(() => true).catch(() => directSave(key, data));
@@ -16512,6 +17030,13 @@ Outline:`
                         try { return await window.indexeddb_load(key, null); } catch(_) { /* fallthrough */ }
                     }
                     return await directLoad(key);
+                };
+
+                KLITE_RPMod.deleteFromLiteStorage = async function(key){
+                    if (window.indexeddb_save && typeof window.indexeddb_save === 'function') {
+                        try { await window.indexeddb_save(key); return true; } catch(_) { /* fallthrough */ }
+                    }
+                    return await directDelete(key);
                 };
             }
         } catch(e) { console.warn('[RPMod] Failed to install IndexedDB adapter:', e); }
@@ -16720,3 +17245,5 @@ Outline:`
     })();
 
 })();
+                        // Ensure group avatars cleared
+                        try { this.groupAvatars?.clear?.(); } catch(_) {}
