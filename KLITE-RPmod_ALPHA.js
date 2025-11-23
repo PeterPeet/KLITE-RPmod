@@ -3251,27 +3251,7 @@
     // =============================================
 
     window.KLITE_RPMod = {
-        // Normalize simple duplication patterns like "abcabc" in the first seeded turn
-        _dedupeFirstTurns() {
-            try {
-                if (!Array.isArray(window.gametext_arr) || window.gametext_arr.length === 0) return;
-                const dedupe = (txt) => {
-                    if (!txt) return txt;
-                    const s = String(txt);
-                    const n = s.length;
-                    if (n > 0 && n % 2 === 0) {
-                        const a = s.slice(0, n / 2);
-                        const b = s.slice(n / 2);
-                        if (a === b) return a;
-                    }
-                    return s;
-                };
-                // Check first two entries (index 0 and 1) since instruct mode may use ["", line]
-                for (let i = 0; i < Math.min(2, window.gametext_arr.length); i++) {
-                    window.gametext_arr[i] = dedupe(window.gametext_arr[i]);
-                }
-            } catch(_) { /* ignore */ }
-        },
+        
         // Helper: determine if Scenario/Example/First have any existing values in state or visible inputs
         hasScenarioEntries() {
             try {
@@ -3817,66 +3797,9 @@
                     }
                 } catch(_) {}
 
-                // Install render_gametext post-fix to avoid duplicate first-turn in instruct mode (classic)
-                try {
-                    this.installRenderPatch = () => {
-                        try {
-                            if (this._renderPatched) return true;
-                            if (typeof window.render_gametext !== 'function') return false;
-                            if (window.render_gametext.__klite_rpmod_wrapped) { this._renderPatched = true; return true; }
-                            const originalRender = window.render_gametext.bind(window);
-                            window.render_gametext = function() {
-                                const ret = originalRender.apply(this, arguments);
-                                try {
-                                    const ls = window.localsettings || {};
-                                    if (ls.opmode === 4 && (window.KLITE_RPMod?.getInstructFirstTurnFixEnabled?.() ?? true)) { // instruct mode only, toggleable
-                                        const el = document.getElementById('gametext');
-                                        if (el && el.innerHTML) {
-                                            const html = el.innerHTML;
-                                            // Consider content before first <hr as first turn block
-                                            const idx = html.indexOf('<hr');
-                                            const head = idx >= 0 ? html.slice(0, idx) : html;
-                                            const tail = idx >= 0 ? html.slice(idx) : '';
-                                            // Compare text content halves to be resilient to minor markup differences
-                                            const divA = document.createElement('div');
-                                            const divB = document.createElement('div');
-                                            if (head.length > 1 && head.length % 2 === 0) {
-                                                const rawA = head.slice(0, head.length / 2);
-                                                const rawB = head.slice(head.length / 2);
-                                                divA.innerHTML = rawA; divB.innerHTML = rawB;
-                                                const txtA = divA.textContent || '';
-                                                const txtB = divB.textContent || '';
-                                                if (txtA === txtB) {
-                                                    el.innerHTML = rawB + tail;
-                                                }
-                                            }
-                                        }
-                                    }
-                                } catch (_) { /* ignore */ }
-                                return ret;
-                            };
-                            window.render_gametext.__klite_rpmod_wrapped = true;
-                            this._renderPatched = true;
-                            this.log('init', 'Patched render_gametext to collapse duplicate first-turn (instruct)');
-                            return true;
-                        } catch (e) {
-                            this.log('init', `render_gametext patch skipped: ${e?.message || e}`);
-                            return false;
-                        }
-                    };
-                    // Try immediately, then retry a few times if not yet defined
-                    if (!this.installRenderPatch()) {
-                        let tries = 0;
-                        const maxTries = 20;
-                        const tick = () => {
-                            if (this._renderPatched) return; // done
-                            tries++;
-                            if (this.installRenderPatch()) return;
-                            if (tries < maxTries) setTimeout(tick, 250);
-                        };
-                        setTimeout(tick, 250);
-                    }
-                } catch (_) {}
+                // (Removed) render_gametext duplicate collapse; use simple first-message seeding instead
+
+                // (Removed) repack_instruct_turns wrapper; not needed with simple seeding
 
                 // Load state (non-blocking failure ok)
                 try {
@@ -11212,20 +11135,20 @@ Outline:`
                                     const toolsChar = KLITE_RPMod?.panels?.TOOLS?.selectedCharacter;
                                     const speakerName = (rolesSpeaker?.name || toolsChar?.name || window.localsettings?.chatopponent || 'AI');
                                     const opmode = (window.localsettings?.opmode || 0);
-                                    const endTag = (typeof window.get_instructendplaceholder === 'function') ? window.get_instructendplaceholder() : '';
+                                    // Always prefix the first message with the literal instruct OUTPUT gemtext
+                                    const endTag = "\n{{[OUTPUT]}}\n";
                                     let line = first;
                                     if (opmode === 3) { // Chat mode expects "\nName: message"
                                         line = `\n${speakerName}: ${first}`;
                                         window.gametext_arr = [line];
-                                    } else if (opmode === 4) { // Instruct mode
+                                    } else if (opmode === 4) { // Instruct mode: seed one AI turn using end tag
                                         const injectNames = !!(window.localsettings && window.localsettings.inject_chatnames_instruct);
                                         line = injectNames ? `${endTag}${speakerName}: ${first}` : `${endTag}${first}`;
-                                        // Avoid first-turn duplicate rendering by placing an empty first unit
-                                        window.gametext_arr = ["", line];
+                                        // Single seeded entry matches Esolite behavior and avoids duplicate output
+                                        window.gametext_arr = [line];
                                     } else {
                                         window.gametext_arr = [line];
                                     }
-                                    try { KLITE_RPMod._dedupeFirstTurns(); } catch(_) {}
                                     try { KLITE_RPMod.log('chars', 'After seeding first (Start Role Play), gametext_arr:', JSON.parse(JSON.stringify(window.gametext_arr))); } catch(_) {}
                                     window.render_gametext?.();
                                     try {
@@ -11243,7 +11166,8 @@ Outline:`
                                 const toolsChar = KLITE_RPMod?.panels?.TOOLS?.selectedCharacter;
                                 const speakerName = (rolesSpeaker?.name || toolsChar?.name || window.localsettings?.chatopponent || 'AI');
                                 const opmode = (window.localsettings?.opmode || 0);
-                                const endTag = (typeof window.get_instructendplaceholder === 'function') ? window.get_instructendplaceholder() : '';
+                                // Always prefix the first message with the literal instruct OUTPUT gemtext
+                                const endTag = "\n{{[OUTPUT]}}\n";
                                 let line = first;
                                 if (opmode === 3) {
                                     line = `\n${speakerName}: ${first}`;
@@ -11251,12 +11175,11 @@ Outline:`
                                 } else if (opmode === 4) {
                                     const injectNames = !!(window.localsettings && window.localsettings.inject_chatnames_instruct);
                                     line = injectNames ? `${endTag}${speakerName}: ${first}` : `${endTag}${first}`;
-                                    // Avoid first-turn duplicate rendering by placing an empty first unit
-                                    window.gametext_arr = ["", line];
+                                    // Seed as a single entry to match Esolite instruct-first-turn
+                                    window.gametext_arr = [line];
                                 } else {
                                     window.gametext_arr = [line];
                                 }
-                                try { KLITE_RPMod._dedupeFirstTurns(); } catch(_) {}
                                 try { KLITE_RPMod.log('chars', 'After seeding first (Start Role Play, no history), gametext_arr:', JSON.parse(JSON.stringify(window.gametext_arr))); } catch(_) {}
                                 window.render_gametext?.();
                                 try {
@@ -14817,14 +14740,14 @@ Outline:`
                                 line = `${endTag}${trimmed}`;
                             }
                         } else {
-                            line = `${endTag}${trimmed}`;
+                            line = `\n{{[OUTPUT]}}\n${trimmed}`;
                         }
-                        // Avoid first-turn duplicate rendering by placing an empty first unit
-                        window.gametext_arr = ["", line];
+                        // Seed as a single entry to align with Esolite's instruct behavior
+                        window.gametext_arr = [line];
                     } else {
                         window.gametext_arr = [line];
                     }
-                    try { KLITE_RPMod._dedupeFirstTurns(); } catch(_) {}
+                    
                     try { KLITE_RPMod.log('chars', 'After seeding greeting (LoadAsScenario), gametext_arr:', JSON.parse(JSON.stringify(window.gametext_arr))); } catch(_) {}
                     KLITE_RPMod.log('chars', 'Greeting added to gametext_arr (formatted)');
                 }
