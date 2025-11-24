@@ -44,6 +44,107 @@
     })();
 
     // =============================================
+    // DEBUG CORE (topics, controls, hooks)
+    // =============================================
+    (function setupRpmodDebugCore(){
+      try {
+        const TOPICS_DEFAULTS = {
+          essential: true,
+          init: false,
+          panels: false,
+          group: true,
+          avatars: true,
+          chars: false,
+          generation: false,
+          state: false,
+          integration: false,
+          hotkeys: false,
+          debug: false,
+          errors: true,
+          chat: false,
+          mobile: false,
+          status: false,
+          // Added topics
+          storage: false,
+          network: false,
+          esolite: false,
+          hooks: false,
+          ui: false,
+          narrator: false
+        };
+
+        // Merge defaults into existing config if any
+        try {
+          if (!window.KLITE_RPMod) window.KLITE_RPMod = {};
+          if (!window.KLITE_RPMod.debugLevels) window.KLITE_RPMod.debugLevels = {};
+          for (const k of Object.keys(TOPICS_DEFAULTS)) {
+            if (typeof window.KLITE_RPMod.debugLevels[k] === 'undefined') {
+              window.KLITE_RPMod.debugLevels[k] = TOPICS_DEFAULTS[k];
+            }
+          }
+          if (typeof window.KLITE_RPMod.debug !== 'boolean') window.KLITE_RPMod.debug = true;
+        } catch(_) {}
+
+        // Topic loader from localStorage
+        function applyTopicsFromLocalStorage() {
+          try {
+            const raw = localStorage.getItem('KLITE.debug.topics') || '';
+            const off = localStorage.getItem('KLITE.debug.off') || '';
+            const dbg = localStorage.getItem('KLITE.debug.enabled');
+            if (dbg != null) {
+              window.KLITE_RPMod = window.KLITE_RPMod || {};
+              window.KLITE_RPMod.debug = (dbg === '1' || /^true$/i.test(dbg));
+            }
+            const onAll = /(\*|^all$)/i.test(raw.trim());
+            const offAll = /(\*|^all$)/i.test(off.trim());
+            const onSet = new Set(raw.split(/[,\s]+/).map(s=>s.trim()).filter(Boolean));
+            const offSet = new Set(off.split(/[,\s]+/).map(s=>s.trim()).filter(Boolean));
+            const levels = window.KLITE_RPMod.debugLevels || {};
+            const keys = Object.keys(levels);
+            keys.forEach(k => {
+              if (offAll) { levels[k] = false; return; }
+              if (onAll) { levels[k] = true; return; }
+              if (onSet.size>0) levels[k] = onSet.has(k);
+              if (offSet.has(k)) levels[k] = false;
+            });
+            try { console.log('[KLITE RPMod][DEBUG] topics applied:', Object.entries(levels).filter(([k,v])=>v).map(([k])=>k).join(', ')); } catch(_){}
+          } catch(_) {}
+        }
+
+        // Expose console helpers
+        function setTopics(topicsStr){ try { localStorage.setItem('KLITE.debug.topics', topicsStr||''); applyTopicsFromLocalStorage(); } catch(_){} }
+        function setTopicsOff(topicsStr){ try { localStorage.setItem('KLITE.debug.off', topicsStr||''); applyTopicsFromLocalStorage(); } catch(_){} }
+        function setEnabled(enabled){ try { localStorage.setItem('KLITE.debug.enabled', enabled? '1' : '0'); applyTopicsFromLocalStorage(); } catch(_){} }
+        function on(){ setTopics(Array.from(arguments).join(',')); setTopicsOff(''); }
+        function off(){ setTopics(''); setTopicsOff(Array.from(arguments).join(',')); }
+        function all(){ setTopics('all'); setTopicsOff(''); }
+        function none(){ setTopics(''); setTopicsOff('all'); }
+        function list(){ try { const lv=window.KLITE_RPMod.debugLevels||{}; console.log('[KLITE RPMod][DEBUG] topics:', lv); } catch(_){} }
+
+        // On-demand console restoration via iframe (same as boot-time gate)
+        function restoreConsole(){
+          try {
+            const consoleFrame = document.createElement('iframe');
+            consoleFrame.style.display = 'none';
+            document.body.appendChild(consoleFrame);
+            if (consoleFrame.contentWindow && consoleFrame.contentWindow.console) {
+              window.console = consoleFrame.contentWindow.console;
+              try { window.console.log('[KLITE RPMod] Console access restored via iframe'); } catch(_){}
+            }
+          } catch(_){}
+        }
+
+        try {
+          window.KLITE_RPDebug = window.KLITE_RPDebug || {};
+          Object.assign(window.KLITE_RPDebug, { setTopics, setTopicsOff, setEnabled, on, off, all, none, list, applyTopicsFromLocalStorage, restoreConsole });
+        } catch(_){}
+
+        // Apply at startup
+        applyTopicsFromLocalStorage();
+      } catch(_) {}
+    })();
+
+    // =============================================
     // 0. LIGHTWEIGHT SHIMS FOR CONTEXT/COUNT ACCESS
     // =============================================
     function rpmod_count_tokens_safe(txt) {
@@ -3576,7 +3677,12 @@
             errors: true,       // Always show errors
             chat: false,
             mobile: false,
-            status: false
+            status: false,
+            storage: false,
+            network: false,
+            esolite: false,
+            ui: false,
+            narrator: false
         },
 
         log(category, message, ...args) {
@@ -3595,6 +3701,157 @@
         essential(message, ...args) {
             // Always log essential operations regardless of debug levels
             this.log('essential', message, ...args);
+        },
+
+        // Install debug instrumentation for Esolite bridges and globals
+        installDebugHooks() {
+            try {
+                // Wrap fetch to trace generation/image calls (light redaction)
+                if (window.fetch && !window.fetch.__rpmod_debug_wrapped) {
+                    const origFetch = window.fetch.bind(window);
+                    window.fetch = function(input, init){
+                        try {
+                            const url = (typeof input === 'string') ? input : (input?.url || '');
+                            const method = (init?.method || 'GET').toUpperCase();
+                            const body = init?.body;
+                            const isGen = /kobold|oai|openrouter|mistral|cohere|api\.x\.ai|text\.pollinations|novelai|generate|completion|completions|chat/i.test(url);
+                            const isImg = /image|img|sdapi|comfy|horde|pollinations|dalle/i.test(url);
+                            const topic = isImg ? 'network' : (isGen ? 'network' : 'network');
+                            const preview = (typeof body === 'string') ? (body.length>1000? (body.slice(0,1000)+"…") : body) : (body? '[object]':'');
+                            KLITE_RPMod.log(topic, `fetch ${method} ${url}`, preview ? { bodyPreview: preview } : '');
+                        } catch(_) {}
+                        return origFetch(input, init);
+                    };
+                    window.fetch.__rpmod_debug_wrapped = true;
+                }
+            } catch(_) {}
+
+            // Wrap IndexedDB helpers
+            try {
+                if (window.indexeddb_save && !window.indexeddb_save.__rpmod_debug_wrapped) {
+                    const orig = window.indexeddb_save;
+                    window.indexeddb_save = async function(key, value){
+                        try { KLITE_RPMod.log('storage', `indexeddb_save '${key}' (${typeof value==='string'?value.length:0}B)`); } catch(_){}
+                        return orig.apply(this, arguments);
+                    };
+                    window.indexeddb_save.__rpmod_debug_wrapped = true;
+                }
+            } catch(_) {}
+            try {
+                if (window.indexeddb_load && !window.indexeddb_load.__rpmod_debug_wrapped) {
+                    const orig = window.indexeddb_load;
+                    window.indexeddb_load = async function(key, def){
+                        try { KLITE_RPMod.log('storage', `indexeddb_load '${key}'`); } catch(_){}
+                        const res = await orig.apply(this, arguments);
+                        try { KLITE_RPMod.log('storage', `indexeddb_load '${key}' -> ${res? (String(res).length+'B'):'null'}`); } catch(_){}
+                        return res;
+                    };
+                    window.indexeddb_load.__rpmod_debug_wrapped = true;
+                }
+            } catch(_) {}
+
+            // Proxy localsettings to observe assignments
+            try {
+                if (window.localsettings && !window._rpmod_debug_localsettings_proxy) {
+                    const target = window.localsettings;
+                    window.localsettings = new Proxy(target, {
+                        set(obj, prop, value) {
+                            try { KLITE_RPMod.log('esolite', `localsettings.${String(prop)} =`, value); } catch(_){}
+                            obj[prop] = value; return true;
+                        },
+                        get(obj, prop) { return obj[prop]; }
+                    });
+                    window._rpmod_debug_localsettings_proxy = true;
+                }
+            } catch(_) {}
+
+            // Watch important globals: current_memory, current_temp_memory, current_anote, pending injections
+            function watchStringProp(obj, key, topic){
+                try {
+                    let _val = obj[key];
+                    Object.defineProperty(obj, key, {
+                        configurable: true,
+                        get(){ return _val; },
+                        set(v){
+                            try {
+                                const len = (typeof v==='string')? v.length : 0;
+                                const prevLen = (typeof _val==='string')? _val.length : 0;
+                                const preview = (typeof v==='string') ? (v.length>600? (v.slice(0,600)+'…') : v) : '';
+                                KLITE_RPMod.log(topic, `${key} set (${prevLen} -> ${len} chars)`, preview);
+                            } catch(_){}
+                            _val = v;
+                        }
+                    });
+                } catch(_) {}
+            }
+            watchStringProp(window, 'current_memory', 'storage');
+            watchStringProp(window, 'current_temp_memory', 'storage');
+            watchStringProp(window, 'current_anote', 'storage');
+            watchStringProp(window, 'pending_context_preinjection', 'storage');
+            watchStringProp(window, 'pending_context_postinjection', 'storage');
+
+            // Wrap gametext_arr mutators
+            try {
+                if (Array.isArray(window.gametext_arr) && !window.gametext_arr._rpmod_debug_wrapped) {
+                    const arr = window.gametext_arr;
+                    ['push','unshift','splice','pop','shift'].forEach(fn => {
+                        const orig = arr[fn].bind(arr);
+                        arr[fn] = function(){
+                            try { KLITE_RPMod.log('chat', `gametext_arr.${fn}(${arguments.length})`); } catch(_){}
+                            return orig.apply(this, arguments);
+                        };
+                    });
+                    arr._rpmod_debug_wrapped = true;
+                }
+            } catch(_) {}
+
+            // Wrap Esolite submit path to trace data flow
+            try {
+                const wrapChatSubmit = () => {
+                    const orig = window.chat_submit_generation;
+                    if (typeof orig === 'function' && !orig.__rpmod_debug_wrapped) {
+                        window.chat_submit_generation = function(){
+                            try {
+                                const corpo = document.getElementById('corpo_cht_inp');
+                                const classic = document.getElementById('cht_inp');
+                                KLITE_RPMod.log('chat', 'chat_submit_generation() transferring to input_text', { corpo: corpo?.value?.length||0, classic: classic?.value?.length||0 });
+                            } catch(_){}
+                            return orig.apply(this, arguments);
+                        };
+                        orig.__rpmod_debug_wrapped = true;
+                        window.chat_submit_generation.__rpmod_debug_wrapped = true;
+                    }
+                };
+                wrapChatSubmit(); setTimeout(wrapChatSubmit, 400);
+            } catch(_) {}
+            try {
+                const wrapPrepare = () => {
+                    const orig = window.prepare_submit_generation;
+                    if (typeof orig === 'function' && !orig.__rpmod_debug_wrapped) {
+                        window.prepare_submit_generation = function(){
+                            try { KLITE_RPMod.log('chat', 'prepare_submit_generation()', { input_text_len: (document.getElementById('input_text')?.value||'').length }); } catch(_){}
+                            return orig.apply(this, arguments);
+                        };
+                        orig.__rpmod_debug_wrapped = true;
+                        window.prepare_submit_generation.__rpmod_debug_wrapped = true;
+                    }
+                };
+                wrapPrepare(); setTimeout(wrapPrepare, 400);
+            } catch(_) {}
+            try {
+                const wrapSubmit = () => {
+                    const orig = window.submit_generation;
+                    if (typeof orig === 'function' && !orig.__rpmod_debug_wrapped) {
+                        window.submit_generation = function(senttext){
+                            try { KLITE_RPMod.log('chat', 'submit_generation()', { senttext_len: (senttext||'').length, senttext_preview: (senttext||'').slice(0,600) }); } catch(_){}
+                            return orig.apply(this, arguments);
+                        };
+                        orig.__rpmod_debug_wrapped = true;
+                        window.submit_generation.__rpmod_debug_wrapped = true;
+                    }
+                };
+                wrapSubmit(); setTimeout(wrapSubmit, 400);
+            } catch(_) {}
         },
 
         // Helper to toggle avatar/chat debugging; pass 'verbose' for URL preview
@@ -3649,6 +3906,9 @@
                 style.textContent = STYLES_PANELS_ONLY;
                 document.head.appendChild(style);
                 this.log('init', 'CSS injected');
+
+                // Always install debug hooks early (also in panels-only mode)
+                try { this.installDebugHooks(); this.log('hooks', 'Debug hooks installed'); } catch(_) {}
 
                 // Load state (non-blocking failure ok)
                 try {
@@ -3860,6 +4120,7 @@
                                 try { KLITE_RPMod.showConsentModal(); } catch (_) {}
                                 return true;
                             }
+                            try { KLITE_RPMod.log('esolite', `localsettings.${String(prop)} =`, value); } catch(_){}
                             obj[prop] = value;
                             // React to host theme changes instantly
                             if (prop === 'colortheme') {
@@ -4698,21 +4959,186 @@
                 // Fallback: append into settings body if needed
                 if (!pane) pane = document.querySelector('.settingsbody') || document.body;
 
-                if (!pane || pane.querySelector('#rpmod-overlay-sidepanel')) return; // already injected
+                if (!pane) return;
 
+                // If overlay block already exists, ensure debug settings are present and wired
+                if (pane.querySelector('#rpmod-overlay-sidepanel')) {
+                    let wrap = pane.querySelector('#rpmod-overlay-sidepanel')?.closest('div');
+                    // Update overlay label to single-line text and remove old helper
+                    try {
+                        const cb = pane.querySelector('#rpmod-overlay-sidepanel');
+                        const lbl = cb ? cb.closest('label') : null;
+                        if (lbl && cb) {
+                            // Preserve the existing checkbox node; rebuild the label content
+                            const input = cb;
+                            const parent = lbl;
+                            while (parent.firstChild) parent.removeChild(parent.firstChild);
+                            parent.appendChild(input);
+                            const span = document.createElement('span');
+                            span.textContent = ' RPmod sidepanel overlays chat area (otherwise reduces area width)';
+                            parent.appendChild(span);
+                        }
+                        const helper = (lbl && lbl.nextElementSibling && lbl.nextElementSibling.tagName === 'DIV') ? lbl.nextElementSibling : null;
+                        if (helper && /Disable to make space so chat stays fully visible/i.test(helper.textContent||'')) {
+                            helper.remove();
+                        }
+                    } catch(_){}
+                    if (!pane.querySelector('#rpmod-debug-settings')) {
+                        const dbg = document.createElement('div');
+                        dbg.id = 'rpmod-debug-settings';
+                        dbg.style.cssText = 'padding:8px; border:1px solid var(--theme_color_border); border-radius:6px; background: var(--theme_color_bg_dark); margin-top:10px; color: var(--muted);';
+                        dbg.innerHTML = `
+                            <div style=\"display:flex; align-items:center; gap:8px; margin-bottom:6px;\">\n                                <input type=\"checkbox\" id=\"rpmod-debug-enabled\" ${this.debug ? 'checked' : ''}>\n                                <span style=\"font-weight:bold;\">Enable RPmod Debug Logging</span>\n                            </div>\n                            <div style=\"display:flex; flex-wrap:wrap; gap:8px; font-size:12px; line-height:1.6;\">\n                                ${['chat','narrator','storage','network','esolite','panels','group','avatars','state','generation','hooks','ui'].map(topic => `\n                                    <label style=\\\"display:flex; align-items:center; gap:6px;\\\">\n                                        <input type=\\\"checkbox\\\" class=\\\"rpmod-debug-topic\\\" data-topic=\\\"${topic}\\\" ${this.debugLevels?.[topic] ? 'checked' : ''}>\n                                        <span>${topic}</span>\n                                    </label>\n                                `).join('')}\n                            </div>\n                            <div style=\"display:flex; gap:6px; margin-top:8px;\">\n                                <button id=\"rpmod-debug-all\" class=\"btn btn-primary btn-small\">All</button>\n                                <button id=\"rpmod-debug-none\" class=\"btn btn-primary btn-small\">None</button>\n                                <button id=\"rpmod-debug-recommended\" class=\"btn btn-primary btn-small\">Recommended</button>\n                            </div>\n                            <div id=\"rpmod-debug-active\" style=\"margin-top:6px; font-size:11px; color: var(--muted);\"></div>`;
+                        (wrap || pane).appendChild(dbg);
+
+                        // Add restore-console checkbox row dynamically
+                        try {
+                            const btnRow = dbg.querySelector('#rpmod-debug-all')?.parentElement || null;
+                            const row = document.createElement('div');
+                            row.style.display = 'flex';
+                            row.style.alignItems = 'center';
+                            row.style.gap = '8px';
+                            row.style.margin = '6px 0';
+                            const cb = document.createElement('input');
+                            cb.type = 'checkbox';
+                            cb.id = 'rpmod-debug-restore-console';
+                            cb.checked = (localStorage.getItem('rpmod_enable_console_restore') === '1') || !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.enableConsoleRestore);
+                            const sp = document.createElement('span');
+                            sp.textContent = 'Restore console (iframe workaround)';
+                            row.appendChild(cb); row.appendChild(sp);
+                            if (btnRow && dbg.contains(btnRow)) dbg.insertBefore(row, btnRow); else dbg.appendChild(row);
+                        } catch(_){}
+
+                        // Wire debug controls (idempotent)
+                        const topicsFromLevels = () => {
+                            try {
+                                const lv = this.debugLevels || {};
+                                return Object.keys(lv).filter(k => lv[k]).join(',');
+                            } catch(_) { return ''; }
+                        };
+                        const updateActiveLabel = () => {
+                            try {
+                                const lbl = (wrap || pane).querySelector('#rpmod-debug-active');
+                                if (lbl) lbl.textContent = `Active topics: ${topicsFromLevels() || '(none)'}`;
+                            } catch(_){}
+                        };
+                        const syncTopicsUIFromLevels = () => {
+                            try {
+                                (wrap || pane).querySelectorAll('.rpmod-debug-topic').forEach(cb => {
+                                    const topic = cb.getAttribute('data-topic');
+                                    cb.checked = !!(this.debugLevels && this.debugLevels[topic]);
+                                });
+                                const m = (wrap || pane).querySelector('#rpmod-debug-enabled');
+                                if (m) m.checked = !!this.debug;
+                                updateActiveLabel();
+                            } catch(_){}
+                        };
+                        const persistLevelsToLocalStorage = () => {
+                            try {
+                                const enabledTopics = Object.keys(this.debugLevels||{}).filter(k => this.debugLevels[k]);
+                                if (window.KLITE_RPDebug) {
+                                    window.KLITE_RPDebug.setTopics(enabledTopics.join(','));
+                                    window.KLITE_RPDebug.setTopicsOff('');
+                                } else {
+                                    localStorage.setItem('KLITE.debug.topics', enabledTopics.join(','));
+                                    localStorage.removeItem('KLITE.debug.off');
+                                }
+                            } catch(_){}
+                        };
+                        const dbgMaster = (wrap || pane).querySelector('#rpmod-debug-enabled');
+                        dbgMaster?.addEventListener('change', () => {
+                            try {
+                                this.debug = !!dbgMaster.checked;
+                                if (window.KLITE_RPDebug) window.KLITE_RPDebug.setEnabled(this.debug);
+                            } catch(_){}
+                        });
+                        const restoreCb = (wrap || pane).querySelector('#rpmod-debug-restore-console');
+                        restoreCb?.addEventListener('change', () => {
+                            try {
+                                localStorage.setItem('rpmod_enable_console_restore', restoreCb.checked ? '1' : '0');
+                                if (restoreCb.checked && window.KLITE_RPDebug && typeof KLITE_RPDebug.restoreConsole === 'function') {
+                                    KLITE_RPDebug.restoreConsole();
+                                }
+                            } catch(_){}
+                        });
+                        (wrap || pane).querySelectorAll('.rpmod-debug-topic').forEach(cb => {
+                            cb.addEventListener('change', () => {
+                                try {
+                                    const topic = cb.getAttribute('data-topic');
+                                    if (!this.debugLevels) this.debugLevels = {};
+                                    this.debugLevels[topic] = !!cb.checked;
+                                    persistLevelsToLocalStorage();
+                                    if (window.KLITE_RPDebug) window.KLITE_RPDebug.applyTopicsFromLocalStorage();
+                                    updateActiveLabel();
+                                } catch(_){}
+                            });
+                        });
+                        (wrap || pane).querySelector('#rpmod-debug-all')?.addEventListener('click', () => {
+                            try {
+                                Object.keys(this.debugLevels||{}).forEach(k => this.debugLevels[k] = true);
+                                persistLevelsToLocalStorage();
+                                if (window.KLITE_RPDebug) window.KLITE_RPDebug.all();
+                                syncTopicsUIFromLevels();
+                            } catch(_){}
+                        });
+                        (wrap || pane).querySelector('#rpmod-debug-none')?.addEventListener('click', () => {
+                            try {
+                                Object.keys(this.debugLevels||{}).forEach(k => this.debugLevels[k] = false);
+                                persistLevelsToLocalStorage();
+                                if (window.KLITE_RPDebug) window.KLITE_RPDebug.none();
+                                syncTopicsUIFromLevels();
+                            } catch(_){}
+                        });
+                        (wrap || pane).querySelector('#rpmod-debug-recommended')?.addEventListener('click', () => {
+                            try {
+                                const rec = new Set(['chat','narrator','storage','network','esolite']);
+                                Object.keys(this.debugLevels||{}).forEach(k => this.debugLevels[k] = rec.has(k));
+                                persistLevelsToLocalStorage();
+                                if (window.KLITE_RPDebug) window.KLITE_RPDebug.on('chat,narrator,storage,network,esolite');
+                                syncTopicsUIFromLevels();
+                            } catch(_){}
+                        });
+                        updateActiveLabel();
+                    }
+                    // If overlay exists we’re done (avoid reattaching handlers)
+                    return;
+                }
+
+                // Otherwise inject full block (overlay/hide + debug)
                 const wrap = document.createElement('div');
+                wrap.id = 'rpmod-settings-wrapper';
                 wrap.style.margin = '8px 0';
                 wrap.innerHTML = `
                     <label style="display:flex; align-items:center; gap:8px; font-size: 13px; color: var(--muted);">
                         <input type="checkbox" id="rpmod-overlay-sidepanel" ${this.getOverlaySidepanelEnabled() ? 'checked' : ''}>
-                        RPmod sidepanel overlays chat area
+                        RPmod sidepanel overlays chat area (otherwise reduces area width)
                     </label>
-                    <div style="color: var(--muted); font-size: 11px; margin-left: 24px;">Disable to make space so chat stays fully visible.</div>
                     <div style="height:8px"></div>
                     <label style="display:flex; align-items:center; gap:8px; font-size: 13px; color: var(--muted);">
                         <input type="checkbox" id="rpmod-hide-corpo-leftpanel" ${this.getHideCorpoLeftpanelEnabled() ? 'checked' : ''}>
                         Hide Corpo-LeftPanel in Corpo-Theme
                     </label>
+                    <div style="height:10px"></div>
+                    <div id="rpmod-debug-settings" style="padding:8px; border:1px solid var(--theme_color_border); border-radius:6px; background: var(--theme_color_bg_dark); color: var(--muted);">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                            <input type="checkbox" id="rpmod-debug-enabled" ${this.debug ? 'checked' : ''}>
+                            <span style="font-weight:bold;">Enable RPmod Debug Logging</span>
+                        </div>
+                        <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:12px; line-height:1.6;">
+                            ${['chat','narrator','storage','network','esolite','panels','group','avatars','state','generation','hooks','ui'].map(topic => `
+                                <label style=\"display:flex; align-items:center; gap:6px;\">
+                                    <input type=\"checkbox\" class=\"rpmod-debug-topic\" data-topic=\"${topic}\" ${this.debugLevels?.[topic] ? 'checked' : ''}>
+                                    <span>${topic}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                        <div style="display:flex; gap:6px; margin-top:8px;">
+                            <button id="rpmod-debug-all" class="btn btn-primary btn-small">All</button>
+                            <button id="rpmod-debug-none" class="btn btn-primary btn-small">None</button>
+                            <button id="rpmod-debug-recommended" class="btn btn-primary btn-small">Recommended</button>
+                        </div>
+                        <div id="rpmod-debug-active" style="margin-top:6px; font-size:11px; color: var(--muted);"></div>
+                    </div>
                 `;
                 pane.appendChild(wrap);
 
@@ -4738,6 +5164,126 @@
                         }
                     } catch(_){}
                 });
+
+                // Add restore-console checkbox row dynamically (full injection path)
+                try {
+                    const dbgBox = wrap.querySelector('#rpmod-debug-settings');
+                    const btnRow = wrap.querySelector('#rpmod-debug-all')?.parentElement || null;
+                    if (dbgBox) {
+                        const row = document.createElement('div');
+                        row.style.display = 'flex';
+                        row.style.alignItems = 'center';
+                        row.style.gap = '8px';
+                        row.style.margin = '6px 0';
+                        const cb2 = document.createElement('input');
+                        cb2.type = 'checkbox';
+                        cb2.id = 'rpmod-debug-restore-console';
+                        cb2.checked = (localStorage.getItem('rpmod_enable_console_restore') === '1') || !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.enableConsoleRestore);
+                        const sp2 = document.createElement('span');
+                        sp2.textContent = 'Restore console (iframe workaround)';
+                        row.appendChild(cb2); row.appendChild(sp2);
+                        if (btnRow && dbgBox.contains(btnRow)) dbgBox.insertBefore(row, btnRow); else dbgBox.appendChild(row);
+                    }
+                } catch(_){}
+
+                // Debug controls wiring
+                const topicsFromLevels = () => {
+                    try {
+                        const lv = this.debugLevels || {};
+                        return Object.keys(lv).filter(k => lv[k]).join(',');
+                    } catch(_) { return ''; }
+                };
+                const updateActiveLabel = () => {
+                    try {
+                        const lbl = wrap.querySelector('#rpmod-debug-active');
+                        if (lbl) lbl.textContent = `Active topics: ${topicsFromLevels() || '(none)'}`;
+                    } catch(_){}
+                };
+                const syncTopicsUIFromLevels = () => {
+                    try {
+                        wrap.querySelectorAll('.rpmod-debug-topic').forEach(cb => {
+                            const topic = cb.getAttribute('data-topic');
+                            cb.checked = !!(this.debugLevels && this.debugLevels[topic]);
+                        });
+                        const m = wrap.querySelector('#rpmod-debug-enabled');
+                        if (m) m.checked = !!this.debug;
+                        updateActiveLabel();
+                    } catch(_){}
+                };
+                const persistLevelsToLocalStorage = () => {
+                    try {
+                        const enabledTopics = Object.keys(this.debugLevels||{}).filter(k => this.debugLevels[k]);
+                        if (window.KLITE_RPDebug) {
+                            window.KLITE_RPDebug.setTopics(enabledTopics.join(','));
+                            window.KLITE_RPDebug.setTopicsOff('');
+                        } else {
+                            localStorage.setItem('KLITE.debug.topics', enabledTopics.join(','));
+                            localStorage.removeItem('KLITE.debug.off');
+                        }
+                    } catch(_){}
+                };
+
+                // Master toggle
+                const dbgMaster = wrap.querySelector('#rpmod-debug-enabled');
+                dbgMaster?.addEventListener('change', () => {
+                    try {
+                        this.debug = !!dbgMaster.checked;
+                        if (window.KLITE_RPDebug) window.KLITE_RPDebug.setEnabled(this.debug);
+                    } catch(_){}
+                });
+                const restoreCb = wrap.querySelector('#rpmod-debug-restore-console');
+                restoreCb?.addEventListener('change', () => {
+                    try {
+                        localStorage.setItem('rpmod_enable_console_restore', restoreCb.checked ? '1' : '0');
+                        if (restoreCb.checked && window.KLITE_RPDebug && typeof KLITE_RPDebug.restoreConsole === 'function') {
+                            KLITE_RPDebug.restoreConsole();
+                        }
+                    } catch(_){}
+                });
+
+                // Topic toggles
+                wrap.querySelectorAll('.rpmod-debug-topic').forEach(cb => {
+                    cb.addEventListener('change', () => {
+                        try {
+                            const topic = cb.getAttribute('data-topic');
+                            if (!this.debugLevels) this.debugLevels = {};
+                            this.debugLevels[topic] = !!cb.checked;
+                            persistLevelsToLocalStorage();
+                            if (window.KLITE_RPDebug) window.KLITE_RPDebug.applyTopicsFromLocalStorage();
+                            updateActiveLabel();
+                        } catch(_){}
+                    });
+                });
+
+                // Buttons
+                wrap.querySelector('#rpmod-debug-all')?.addEventListener('click', () => {
+                    try {
+                        Object.keys(this.debugLevels||{}).forEach(k => this.debugLevels[k] = true);
+                        persistLevelsToLocalStorage();
+                        if (window.KLITE_RPDebug) window.KLITE_RPDebug.all();
+                        syncTopicsUIFromLevels();
+                    } catch(_){}
+                });
+                wrap.querySelector('#rpmod-debug-none')?.addEventListener('click', () => {
+                    try {
+                        Object.keys(this.debugLevels||{}).forEach(k => this.debugLevels[k] = false);
+                        persistLevelsToLocalStorage();
+                        if (window.KLITE_RPDebug) window.KLITE_RPDebug.none();
+                        syncTopicsUIFromLevels();
+                    } catch(_){}
+                });
+                wrap.querySelector('#rpmod-debug-recommended')?.addEventListener('click', () => {
+                    try {
+                        const rec = new Set(['chat','narrator','storage','network','esolite']);
+                        Object.keys(this.debugLevels||{}).forEach(k => this.debugLevels[k] = rec.has(k));
+                        persistLevelsToLocalStorage();
+                        if (window.KLITE_RPDebug) window.KLITE_RPDebug.on('chat,narrator,storage,network,esolite');
+                        syncTopicsUIFromLevels();
+                    } catch(_){}
+                });
+
+                // Initial label
+                updateActiveLabel();
 
                 this.log('init', 'Injected RPmod checkboxes into Settings/Advanced');
             } catch (e) {
@@ -6941,11 +7487,9 @@
                     // Update group avatars to include newly added entries
                     try { KLITE_RPMod.updateGroupAvatars?.(); } catch(_) {}
 
-                    // Append each newly added character to memory (align with legacy selector behavior)
-                    if (added > 0) {
-                        try { addedChars.forEach(c => { try { KLITE_RPMod.appendCharacterToMemorySimple(c); } catch(_) {} }); } catch(_) {}
-                        // If group was empty, prefill Scenario from the first added character
-                        try { if (wasEmpty && addedChars[0]) KLITE_RPMod.populateScenarioFromCharacter(addedChars[0]); } catch(_) {}
+                    // Prefill Scenario from first added character if group was previously empty
+                    if (added > 0 && wasEmpty) {
+                        try { if (addedChars[0]) KLITE_RPMod.populateScenarioFromCharacter(addedChars[0]); } catch(_) {}
                     }
                 }
             } else {
@@ -7064,8 +7608,9 @@
             }
 
             try {
+                const size = (typeof data === 'string') ? data.length : 0;
                 await LiteAPI.storage.save(key, data);
-                this.log('state', `Storage saved: ${key}`);
+                this.log('storage', `Storage saved: ${key} (${size}B)`);
                 return true;
             } catch (error) {
                 this.error(`Failed to save to storage: ${key}`, error);
@@ -7081,10 +7626,12 @@
 
             try {
                 const result = await LiteAPI.storage.load(key, null);
+                const size = (typeof result === 'string') ? result.length : 0;
+                this.log('storage', `Storage loaded: ${key} (${size}B)`);
                 return result;
             } catch (error) {
                 // Key doesn't exist yet - this is expected for first-time users
-                this.log('state', `Storage key does not exist yet, will be created on first save: ${key}`);
+                this.log('storage', `Storage key does not exist yet: ${key}`);
                 return null;
             }
         },
@@ -8020,6 +8567,56 @@
 
         render() {
             return `
+                <!-- Context Analyzer (moved from CONTEXT) -->
+                ${t.section('🔍 Context Analyzer',
+                `<div class="klite-token-bar-container">
+                        <div class="klite-token-bar">
+                            <div id="tools-memory-bar" class="klite-token-segment klite-memory-segment" title="Memory"></div>
+                            <div id="tools-wi-bar" class="klite-token-segment klite-wi-segment" title="Minimum WI (Always Active)"></div>
+                            <div id="tools-story-bar" class="klite-token-segment klite-story-segment" title="Story"></div>
+                            <div id="tools-anote-bar" class="klite-token-segment klite-anote-segment" title="Author's Note"></div>
+                            <div id="tools-free-bar" class="klite-token-segment klite-free-segment" title="Free Space"></div>
+                        </div>
+                    </div>
+                    <div class="klite-token-legend">
+                        <div class="klite-token-legend-grid">
+                            <div class="klite-token-legend-item">
+                                <div class="klite-token-legend-color klite-memory-segment"></div>
+                                <span class="klite-token-legend-label">Memory:</span>
+                                <span id="tools-memory-tokens" class="klite-token-legend-value">0</span>
+                            </div>
+                            <div class="klite-token-legend-item">
+                                <div class="klite-token-legend-color klite-wi-segment"></div>
+                                <span class="klite-token-legend-label">min. WI:</span>
+                                <span id="tools-wi-tokens" class="klite-token-legend-value">0</span>
+                            </div>
+                            <div class="klite-token-legend-item">
+                                <div class="klite-token-legend-color klite-story-segment"></div>
+                                <span class="klite-token-legend-label">Context History:</span>
+                                <span id="tools-story-tokens" class="klite-token-legend-value">0</span>
+                            </div>
+                            <div class="klite-token-legend-item">
+                                <div class="klite-token-legend-color klite-anote-segment"></div>
+                                <span class="klite-token-legend-label">Author's Note:</span>
+                                <span id="tools-anote-tokens" class="klite-token-legend-value">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="klite-context-summary" style="margin-bottom: 10px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 12px;">
+                        <div style="margin-bottom: 4px;">
+                            <strong>Total Context:</strong> 
+                            <span id="tools-total-context">0</span> / <span id="tools-max-context">8192</span> tokens
+                        </div>
+                        <div>
+                            <span style="color: var(--muted);">Free:</span> 
+                            <span id="tools-free-tokens" style="color: var(--text); font-weight: bold;">8192</span> tokens 
+                            (<span id="tools-free-percent" style="color: var(--text); font-weight: bold;">100</span>%)
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <button class="klite-btn" data-action="calculate-context" style="width: 100%; padding: 6px;">Calculate Context</button>
+                        </div>
+                    </div>`
+            )}
                 <!-- Bookmarks / Index (hidden) -->
                 
 
@@ -8116,7 +8713,7 @@
             const style = document.getElementById('narrator-style')?.value || 'omniscient';
             const focus = document.getElementById('narrator-focus')?.value || 'mixed';
 
-            KLITE_RPMod.log('panels', `Triggering narrator: ${style}/${focus}`);
+            KLITE_RPMod.log('narrator', `Triggering narrator: ${style}/${focus}`);
 
             const narratorPrompts = {
                 omniscient: {
@@ -8151,7 +8748,9 @@
 
             const instruction = narratorPrompts[style]?.[focus] || narratorPrompts.omniscient.mixed;
             if (instruction && instruction.trim()) {
-                KLITE_RPMod.log('panels', `Narration request sent.`);
+                const preview = instruction.length>800 ? (instruction.slice(0,800)+'…') : instruction;
+                KLITE_RPMod.log('narrator', 'Narration prompt prepared', { length: instruction.length, preview });
+                KLITE_RPMod.log('narrator', 'Narration request sent');
                 this.sendTextToEsolite(instruction);
             }
         },
@@ -8280,8 +8879,7 @@
                 KLITE_RPMod.showUnifiedCharacterModal('single-select', (char) => {
                     KLITE_RPMod.panels.TOOLS.selectedCharacter = char;
                     KLITE_RPMod.panels.TOOLS.characterEnabled = true;
-                    // Append simple block to memory (resolves full data if needed)
-                    try { KLITE_RPMod.appendCharacterToMemorySimple(char); } catch(_) {}
+                    // No longer append character data to memory; WI-based flow is used
                     // Also prefill Create Scenario panel from this character (1:1 chat case)
                     try { KLITE_RPMod.populateScenarioFromCharacter(char); } catch(_) {}
                     // Apply character extras (avatar/name, context)
@@ -8299,8 +8897,7 @@
                     tools.selectedPersona = char;
                     tools.personaEnabled = true;
 
-                    // Append persona description to memory as a character block (resolves full data if needed)
-                    try { KLITE_RPMod.appendCharacterToMemorySimple(char); } catch(_) {}
+                    // No longer append persona data to memory; WI-based flow is used
 
                     // Update user avatar with persona image if available (best-effort)
                     try {
@@ -8990,6 +9587,8 @@
         sendTextToEsolite(text) {
             try {
                 const mode = window.localsettings?.opmode || 3;
+                const preview = (text||'').length>800? (text.slice(0,800)+'…') : (text||'');
+                this.log('chat', 'sendTextToEsolite()', { mode, length: (text||'').length, preview });
                 if (mode === 3) {
                     // Chat mode: prefer chat inputs
                     const chatInputs = [
@@ -8999,9 +9598,11 @@
                     if (chatInputs.length) {
                         chatInputs[0].value = text;
                         if (typeof window.chat_submit_generation === 'function') {
+                            this.log('chat', 'Calling chat_submit_generation()');
                             return window.chat_submit_generation();
                         }
                         if (typeof window.submit_generation_button === 'function') {
+                            this.log('chat', 'Calling submit_generation_button(true)');
                             return window.submit_generation_button(true);
                         }
                     }
@@ -9011,8 +9612,10 @@
                 if (liteInput) {
                     liteInput.value = text;
                     if (typeof window.prepare_submit_generation === 'function') {
+                        this.log('chat', 'Calling prepare_submit_generation()');
                         return window.prepare_submit_generation();
                     }
+                    this.log('chat', 'Calling LiteAPI.generate()');
                     return LiteAPI.generate();
                 }
                 KLITE_RPMod.log('panels', 'sendTextToEsolite: No suitable input found');
@@ -9721,56 +10324,6 @@ KLITE_RPMod.panels.CONTEXT = {
 
         render() {
             return `              
-                <!-- Context Analyzer -->
-                ${t.section('🔍 Context Analyzer',
-                `<div class="klite-token-bar-container">
-                        <div class="klite-token-bar">
-                            <div id="tools-memory-bar" class="klite-token-segment klite-memory-segment" title="Memory"></div>
-                            <div id="tools-wi-bar" class="klite-token-segment klite-wi-segment" title="Minimum WI (Always Active)"></div>
-                            <div id="tools-story-bar" class="klite-token-segment klite-story-segment" title="Story"></div>
-                            <div id="tools-anote-bar" class="klite-token-segment klite-anote-segment" title="Author's Note"></div>
-                            <div id="tools-free-bar" class="klite-token-segment klite-free-segment" title="Free Space"></div>
-                        </div>
-                    </div>
-                    <div class="klite-token-legend">
-                        <div class="klite-token-legend-grid">
-                            <div class="klite-token-legend-item">
-                                <div class="klite-token-legend-color klite-memory-segment"></div>
-                                <span class="klite-token-legend-label">Memory:</span>
-                                <span id="tools-memory-tokens" class="klite-token-legend-value">0</span>
-                            </div>
-                            <div class="klite-token-legend-item">
-                                <div class="klite-token-legend-color klite-wi-segment"></div>
-                                <span class="klite-token-legend-label">min. WI:</span>
-                                <span id="tools-wi-tokens" class="klite-token-legend-value">0</span>
-                            </div>
-                            <div class="klite-token-legend-item">
-                                <div class="klite-token-legend-color klite-story-segment"></div>
-                                <span class="klite-token-legend-label">Context History:</span>
-                                <span id="tools-story-tokens" class="klite-token-legend-value">0</span>
-                            </div>
-                            <div class="klite-token-legend-item">
-                                <div class="klite-token-legend-color klite-anote-segment"></div>
-                                <span class="klite-token-legend-label">Author's Note:</span>
-                                <span id="tools-anote-tokens" class="klite-token-legend-value">0</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="klite-context-summary" style="margin-bottom: 10px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 12px;">
-                        <div style="margin-bottom: 4px;">
-                            <strong>Total Context:</strong> 
-                            <span id="tools-total-context">0</span> / <span id="tools-max-context">8192</span> tokens
-                        </div>
-                        <div>
-                            <span style="color: var(--muted);">Free:</span> 
-                            <span id="tools-free-tokens" style="color: var(--text); font-weight: bold;">8192</span> tokens 
-                            (<span id="tools-free-percent" style="color: var(--text); font-weight: bold;">100</span>%)
-                        </div>
-                        <div style="margin-top: 8px;">
-                            <button class="klite-btn" data-action="calculate-context" style="width: 100%; padding: 6px;">Calculate Context</button>
-                        </div>
-                    </div>`
-            )}
                 
                 <!-- Smart Memory Writer -->
                 ${t.section('🧠 Smart Memory Writer',
@@ -10726,6 +11279,9 @@ Outline:`
             const vals = hasStored ? { scenario: st.scenario || '', example: st.example || '', first: st.first || '' }
                                    : this._getScenarioFieldsFromChar(src);
             return `
+                <div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
+                    <strong>Note:</strong> on clicking Start Role Play all necessary data gets stored into WI. If you want to change the configuration afterwards do it manually in WI.
+                </div>
                 ${t.section('🗺️ Scenario',
                 `${t.textarea('scenario-text', 'Describe the world, setting, and background.', vals.scenario)}`
             )}
@@ -10738,47 +11294,302 @@ Outline:`
                 `${t.textarea('scenario-first-message', 'Write the first message to start the chat.', vals.first)}`
             )}
             <div class="klite-buttons-fill klite-mt">
-                ${t.button('Click here to append Scenario and Example Dialogue to Temporary Memory and insert First Message in Chat', '', 'scenario-apply-first')}
+                ${t.button('Start Role Play', '', 'scenario-start-roleplay')}
             </div>
             `;
         },
         actions: {
-            'scenario-apply-first': () => {
+            'scenario-start-roleplay': async () => {
                 try {
-                    const scen = (document.getElementById('scenario-text')?.value || '').trim();
-                    const ex = (document.getElementById('scenario-example')?.value || '').trim();
-                    const first = (document.getElementById('scenario-first-message')?.value || '').trim();
+                    // Gather selected character names from ROLES panel or fallbacks
+                    const getSelectedNames = () => {
+                        const names = [];
+                        try {
+                            if (KLITE_RPMod.panels.ROLES?.enabled && Array.isArray(KLITE_RPMod.panels.ROLES.activeChars) && KLITE_RPMod.panels.ROLES.activeChars.length > 0) {
+                                KLITE_RPMod.panels.ROLES.activeChars.forEach(c => { if (c?.name) names.push(c.name); });
+                            } else if (KLITE_RPMod.panels.TOOLS?.selectedCharacter?.name) {
+                                names.push(KLITE_RPMod.panels.TOOLS.selectedCharacter.name);
+                            } else if (window.localsettings?.chatopponent) {
+                                names.push(...window.localsettings.chatopponent.split('||$||').filter(Boolean).map(s => s.trim()));
+                            }
+                        } catch(_) {}
+                        return [...new Set(names.filter(Boolean))];
+                    }
 
-                    // Persist current values to scenario state
+                    const scenarioText = (document.getElementById('scenario-text')?.value || '').trim();
+                    const firstMessageText = (document.getElementById('scenario-first-message')?.value || '').trim();
+                    const selectedNames = getSelectedNames();
+
+                    if (selectedNames.length === 0) {
+                        KLITE_RPMod.log('status', 'Start RP aborted: no characters selected');
+                        return;
+                    }
+
+                    // Prefer Chat Mode so group chat works without instruct tags
                     try {
-                        KLITE_RPMod.state = KLITE_RPMod.state || {};
-                        KLITE_RPMod.state.scenario = KLITE_RPMod.state.scenario || { scenario: '', example: '', first: '', sourceId: null, sourceName: '' };
-                        KLITE_RPMod.state.scenario.scenario = scen;
-                        KLITE_RPMod.state.scenario.example = ex;
-                        KLITE_RPMod.state.scenario.first = first;
+                        if (window.localsettings) {
+                            window.localsettings.opmode = 3; // chat mode
+                            window.localsettings.multiline_replies = true;
+                            window.save_settings?.();
+                        }
                     } catch(_) {}
 
-                    // 1) Append to Temporary Memory
-                    const blocks = [];
-                    if (scen) blocks.push(`[ Scenario:\n${scen}\n]`);
-                    if (ex) blocks.push(`[ Example Dialogue:\n${ex}\n]`);
-                    const toAppend = blocks.join('\n\n');
-                    if (toAppend) {
-                        const cur = (window.current_temp_memory || '').trim();
-                        window.current_temp_memory = cur ? (cur + '\n\n' + toAppend) : toAppend;
+                    // Import each character into WI using host API (adds to chatopponent if needed)
+                    for (const name of selectedNames) {
+                        try { await window.loadByCharacterNameIntoWI?.(name); } catch(e) { KLITE_RPMod.log('integration', `loadByCharacterNameIntoWI failed for ${name}: ${e?.message||e}`); }
                     }
 
-                    // 2) Insert first message into chat history
-                    if (first) {
-                        try {
+                    // Ensure per-character WI entries: Description, Personality, Example Dialogue
+                    try {
+                        if (!Array.isArray(window.current_wi)) window.current_wi = [];
+                        for (const name of selectedNames) {
+                            try {
+                                const data = await window.getCharacterData?.(name);
+                                const raw = data?.data || {};
+                                const description = String(raw.description || '').trim();
+                                const personality = String(raw.personality || '').trim();
+                                let examples = String(raw.mes_example || '').trim();
+                                try { if (examples && typeof window.formatExampleMessages === 'function') examples = window.formatExampleMessages(examples); } catch(_) {}
+
+                                // Remove combined memory entries added by importer to avoid duplication
+                                window.current_wi = window.current_wi.filter(wi => !(wi?.wigroup === name && wi?.comment && wi.comment.endsWith('_imported_memory')));
+
+                                const base = { key: name, keyanti: '', folder: name, selective: false, constant: false, probability: 100, wigroup: name, widisabled: false, comment: `${name}_imported_memory` };
+                                if (description) {
+                                    window.current_wi.push({ ...base, keysecondary: `${name} description, appearance`, content: description });
+                                }
+                                if (personality) {
+                                    window.current_wi.push({ ...base, keysecondary: `${name} personality, traits`, content: personality });
+                                }
+                                if (examples) {
+                                    // Do not add examples as active; keep disabled by default
+                                    window.current_wi.push({ ...base, keysecondary: `${name} examples, dialogue`, content: examples, widisabled: true });
+                                }
+                                // Reorder this character's WI entries to: Description, Personality, Example Dialogue, then everything else in original order
+                                try {
+                                    const isOurDesc = (wi) => wi?.wigroup === name && wi?.comment?.endsWith('_imported_memory') && /description, appearance$/.test(wi?.keysecondary||'');
+                                    const isOurPers = (wi) => wi?.wigroup === name && wi?.comment?.endsWith('_imported_memory') && /personality, traits$/.test(wi?.keysecondary||'');
+                                    const isOurEx   = (wi) => wi?.wigroup === name && wi?.comment?.endsWith('_imported_memory') && /examples, dialogue$/.test(wi?.keysecondary||'');
+                                    const groupEntries = window.current_wi.filter(wi => wi?.wigroup === name);
+                                    const others = groupEntries.filter(wi => !isOurDesc(wi) && !isOurPers(wi) && !isOurEx(wi));
+                                    const desc = groupEntries.find(isOurDesc);
+                                    const pers = groupEntries.find(isOurPers);
+                                    const ex   = groupEntries.find(isOurEx);
+                                    const reordered = [];
+                                    if (desc) reordered.push(desc);
+                                    if (pers) reordered.push(pers);
+                                    if (ex)   reordered.push(ex);
+                                    reordered.push(...others);
+                                    // Replace this group's slice in current_wi
+                                    window.current_wi = window.current_wi.filter(wi => wi?.wigroup !== name).concat(reordered);
+                                } catch(_) {}
+                            } catch(e) { KLITE_RPMod.log('integration', `Failed to enrich WI for ${name}: ${e?.message||e}`); }
+                        }
+                    } catch(_) {}
+
+                    // Import User Character (persona) into WI if enabled
+                    try {
+                        const tools = KLITE_RPMod.panels.TOOLS;
+                        const chatname = (window.localsettings?.chatname || 'User').trim();
+                        if (tools?.personaEnabled && tools?.selectedPersona?.name && chatname) {
+                            const personaCardName = tools.selectedPersona.name;
+                            let description = '', personality = '', examples = '';
+                            try {
+                                const data = await window.getCharacterData?.(personaCardName);
+                                const raw = data?.data || {};
+                                description = String(raw.description || '').trim();
+                                personality = String(raw.personality || '').trim();
+                                // Restore formatted example messages with explicit prefix
+                                examples = String(raw.mes_example || '').trim();
+                                if (examples) {
+                                    try {
+                                        if (typeof window.formatExampleMessages === 'function') {
+                                            examples = window.formatExampleMessages(examples);
+                                        } else {
+                                            examples = `Example messages:\n\n${examples}`;
+                                        }
+                                    } catch(_) {
+                                        examples = `Example messages:\n\n${examples}`;
+                                    }
+                                }
+                            } catch(_) {}
+
+                            // Remove any existing combined memory entries for the user persona
+                            window.current_wi = window.current_wi.filter(wi => !(wi?.wigroup === chatname && wi?.comment && wi.comment.endsWith('_imported_memory')));
+
+                            const userBase = {
+                                key: chatname,
+                                keysecondary: '',
+                                keyanti: '',
+                                folder: chatname,
+                                selective: false,
+                                constant: false,
+                                probability: 100,
+                                wigroup: chatname,
+                                widisabled: false,
+                                comment: `${chatname}_imported_memory`
+                            };
+                            if (description) {
+                                window.current_wi.push({ ...userBase, keysecondary: `${chatname} description, appearance`, content: description });
+                            }
+                            if (personality) {
+                                window.current_wi.push({ ...userBase, keysecondary: `${chatname} personality, traits`, content: personality });
+                            }
+                            if (examples) {
+                                // Keep user example dialogue deactivated by default; include formatted prefix
+                                window.current_wi.push({ ...userBase, keysecondary: `${chatname} examples, dialogue`, content: examples, widisabled: true });
+                            }
+                        }
+                    } catch(_) {}
+
+                    // Write Scenario (from Scenario Panel) as an ACTIVE WI entry
+                    try {
+                        if (scenarioText) {
+                            if (!Array.isArray(window.current_wi)) window.current_wi = [];
+                            const scenarioWI = {
+                                key: 'Scenario',
+                                keysecondary: 'Group scenario, setting',
+                                keyanti: '',
+                                content: scenarioText,
+                                comment: 'GroupScenario_active',
+                                folder: 'GroupScenario',
+                                selective: false,
+                                constant: true, // always include as active scenario
+                                probability: 100,
+                                wigroup: 'GroupScenario',
+                                widisabled: false
+                            };
+                            // Replace existing GroupScenario_imported if present
+                            window.current_wi = window.current_wi.filter(wi => wi?.comment !== scenarioWI.comment);
+                            window.current_wi.push(scenarioWI);
+                            KLITE_RPMod.log('storage', 'Scenario imported into WI (active)', { len: scenarioText.length });
+                        }
+                    } catch(e) { KLITE_RPMod.log('storage', 'Failed to add scenario WI:', e?.message||e); }
+
+                    // Optionally add each character's own Scenario as DISABLED entries for later swapping
+                    try {
+                        for (const name of selectedNames) {
+                            try {
+                                const data = await window.getCharacterData?.(name);
+                                const raw = data?.data || {};
+                                const charScenario = (raw.scenario || '').trim();
+                                if (charScenario) {
+                                    const charScenarioWI = {
+                                        key: name,
+                                        keysecondary: `${name} scenario, background`,
+                                        keyanti: '',
+                                        content: charScenario,
+                                        comment: `${name}_imported_scenario`,
+                                        folder: name,
+                                        selective: false,
+                                        constant: false,
+                                        probability: 100,
+                                        wigroup: 'GroupScenario',
+                                        widisabled: true
+                                    };
+                                    window.current_wi = window.current_wi.filter(wi => wi?.comment !== charScenarioWI.comment);
+                                    window.current_wi.push(charScenarioWI);
+                                }
+                            } catch(_) {}
+                        }
+                    } catch(_) {}
+
+                    // Add Group Example Dialogue under GroupScenario as DISABLED entry (below Scenario)
+                    try {
+                        const exampleGroupText = (document.getElementById('scenario-example')?.value || '').trim();
+                        if (exampleGroupText) {
+                            const groupExamplesWI = {
+                                key: 'Group Example Dialogue',
+                                keysecondary: 'Example dialogue for group',
+                                keyanti: '',
+                                content: exampleGroupText,
+                                comment: 'GroupScenario_examples',
+                                folder: 'GroupScenario',
+                                selective: false,
+                                constant: false,
+                                probability: 100,
+                                wigroup: 'GroupScenario',
+                                widisabled: true
+                            };
+                            window.current_wi = window.current_wi.filter(wi => wi?.comment !== groupExamplesWI.comment);
+                            window.current_wi.push(groupExamplesWI);
+                        }
+                    } catch(_) {}
+
+                    // Add User Character Scenario under GroupScenario as DISABLED entry
+                    try {
+                        const tools = KLITE_RPMod.panels.TOOLS;
+                        const chatname = (window.localsettings?.chatname || 'User').trim();
+                        if (tools?.selectedPersona && chatname) {
+                            const sel = tools.selectedPersona;
+                            const personaCardName = sel.name;
+                            let userScenario = '';
+                            // Prefer scenario from the selected persona object itself
+                            try {
+                                userScenario = String(sel.scenario || sel.rawData?.data?.scenario || sel.data?.scenario || '').trim();
+                            } catch(_) {}
+                            // Fallback to character store lookup by persona name
+                            if (!userScenario && personaCardName) {
+                                try {
+                                    const data = await window.getCharacterData?.(personaCardName);
+                                    const raw = data?.data || {};
+                                    userScenario = String(raw.scenario || '').trim();
+                                } catch(_) {}
+                            }
+                            if (userScenario) {
+                                const userScenarioWI = {
+                                    key: chatname,
+                                    keysecondary: `${chatname} scenario, background`,
+                                    keyanti: '',
+                                    content: userScenario,
+                                    comment: `${chatname}_imported_scenario`,
+                                    folder: chatname,
+                                    selective: false,
+                                    constant: false,
+                                    probability: 100,
+                                    wigroup: 'GroupScenario',
+                                    widisabled: true
+                                };
+                                window.current_wi = window.current_wi.filter(wi => wi?.comment !== userScenarioWI.comment);
+                                window.current_wi.push(userScenarioWI);
+                            }
+                        }
+                    } catch(_) {}
+
+                    // Insert First Message into chat
+                    try {
+                        if (firstMessageText) {
                             if (!Array.isArray(window.gametext_arr)) window.gametext_arr = [];
-                            const prefix = (typeof window.get_instructendplaceholder === 'function') ? window.get_instructendplaceholder() : '';
-                            const name = (window.localsettings?.chatopponent || 'AI');
-                            window.gametext_arr.push(prefix + name + ': ' + first);
-                            window.render_gametext?.();
-                        } catch(_) {}
-                    }
-                } catch(_) {}
+                            const firstSpeaker = selectedNames[0] || (window.localsettings?.chatopponent || 'AI');
+                            const inInstruct = (window.localsettings?.opmode === 4 && !!window.localsettings?.inject_chatnames_instruct);
+                            const prefix = inInstruct ? (window.get_instructendplaceholder?.() || '') : '\n';
+                            const line = `${prefix}${firstSpeaker}: ${firstMessageText}`;
+                            const beforeCount = window.gametext_arr.length;
+                            window.gametext_arr.push(line);
+                            KLITE_RPMod.log('chat', 'First message inserted', { speaker: firstSpeaker, len: line.length, chat_count_before: beforeCount, chat_count_after: window.gametext_arr.length });
+                            try { window.render_gametext?.(true); } catch(_) {}
+                        }
+                    } catch(e) { KLITE_RPMod.log('chat', 'Failed to insert first message:', e?.message||e); }
+
+                    // Ensure chatopponent string includes all participants (redundant if host already added them)
+                    try {
+                        if (window.localsettings) {
+                            const existing = (window.localsettings.chatopponent || '').split('||$||').filter(Boolean).map(s => s.trim());
+                            const merged = [...new Set([...existing, ...selectedNames])];
+                            window.localsettings.chatopponent = merged.join('||$||');
+                            window.save_settings?.();
+                            window.handle_bot_name_onchange?.();
+                        }
+                    } catch(_) {}
+
+                    // Autosave if available
+                    try { window.autosave?.(); } catch(_) {}
+
+                    KLITE_RPMod.log('status', 'Role play initialized', { participants: selectedNames });
+                    try { alert('Role Play data configured in WorldInfo. Have fun!'); } catch(_) {}
+                } catch(e) {
+                    KLITE_RPMod.log('errors', 'scenario-start-roleplay handler error:', e?.message||e);
+                }
             }
         }
     };
@@ -10833,9 +11644,6 @@ Outline:`
 
         render() {
             return `
-                <div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
-                    <strong>Note:</strong> This panel appends character data to Context/memory while selecting them. If you remove characters you need to manually edit Context/memory.
-                </div>
                 ${t.section('Group Chat Control',
                 `<label>
                         <input type=\"checkbox\" id=\"group-enabled\" ${this.enabled ? 'checked' : ''}>
@@ -11828,8 +12636,6 @@ Outline:`
             // Do not set multi-opponent; will set speaker name per trigger
 
             if (added > 0) {
-                // Append each added character to memory (resolves full data if needed)
-                try { addedChars.forEach(c => { try { KLITE_RPMod.appendCharacterToMemorySimple(c); } catch(_) {} }); } catch(_) {}
                 // If group was empty before and we have a first added character, prefill Scenario panel from it
                 try {
                     if (typeof this._wasEmptyBeforeAdd === 'boolean' ? this._wasEmptyBeforeAdd : false) {
@@ -11872,12 +12678,7 @@ Outline:`
                 this.refresh();
                 this.updateKoboldSettings();
                 this.applyGroupToHost();
-                // Append to memory when adding a new custom character
-                try { KLITE_RPMod.appendCharacterToMemorySimple({
-                    name,
-                    description,
-                    personality: '',
-                }); } catch(_) {}
+                // No memory appends; WI-based flow is used for character context
             }
         },
 
@@ -12472,7 +13273,8 @@ Outline:`
                     }
                 }
 
-                // Sync our list with Esolite after save
+                // Sync with Esolite after save (flush debounced list update first)
+                try { await window.updateCharacterListFromAll?.(); } catch(_) {}
                 try { await this.rebuildFromEsolite?.(); } catch(_) {}
                 this.refreshGallery?.();
             } catch (e) {
@@ -12539,21 +13341,8 @@ Outline:`
                 const charId = e.target.closest('[data-char-id]')?.dataset.charId;
                 const char = KLITE_RPMod.characters.find(c => c.id == charId);
                 if (char?.name) {
-                    try {
-                        const d = await window.getCharacterData?.(char.name);
-                        const full = {
-                            ...char,
-                            image: (d && d.image) ? d.image : (char.image || null),
-                            rawData: { data: (d && d.data) ? d.data : (char.rawData?.data || {}) },
-                            // Hydrate tags from Esolite character data for details/gallery
-                            tags: Array.isArray(d?.data?.tags) ? d.data.tags.slice() : (Array.isArray(char.tags) ? char.tags.slice() : []),
-                            // Best-effort creator hydration
-                            creator: (d?.data?.creator || char.creator || 'Unknown')
-                        };
-                        KLITE_RPMod.panels.CHARS.showCharacterFullscreen(full);
-                    } catch (_) {
-                        KLITE_RPMod.panels.CHARS.showCharacterFullscreen(char);
-                    }
+                    // Always refetch from Esolite to avoid stale cached data
+                    await KLITE_RPMod.panels.CHARS.showCharacterFullscreenByName(char.name);
                 }
             },
             'rate-char': (e) => {
@@ -13754,22 +14543,31 @@ Outline:`
                     .replaceAll(/\s+/g, ' ')
                     .trim();
                 const storeKeyName = sanitizeForKey(name);
+                const oldName = (data?.__oldName || '').trim();
+                const oldStoreKeyName = oldName ? sanitizeForKey(oldName) : null;
 
                 // Build inner Tavern v2 object from provided fields if not already present
-                const inner = data?.rawData?.data || {
+                let inner = {};
+                // Start from original raw data if present (preserves unknown fields/extensions), then override with edits
+                if (data?.rawData?.data) {
+                    try { inner = JSON.parse(JSON.stringify(data.rawData.data)); } catch(_) { inner = data.rawData.data; }
+                }
+                inner = {
+                    ...inner,
                     name,
-                    description: data?.description || '',
-                    personality: data?.personality || '',
-                    mes_example: data?.mes_example || '',
-                    first_mes: data?.first_mes || '',
-                    creator: data?.creator || '',
-                    creator_notes: data?.creator_notes || '',
-                    system_prompt: data?.system_prompt || '',
-                    post_history_instructions: data?.post_history_instructions || '',
-                    alternate_greetings: Array.isArray(data?.alternate_greetings) ? data.alternate_greetings : [],
-                    character_book: data?.character_book || null,
-                    tags: Array.isArray(data?.tags) ? data.tags : [],
-                    character_version: data?.character_version || data?.version || '1.0.0'
+                    description: (data?.description ?? inner.description) || '',
+                    personality: (data?.personality ?? inner.personality) || '',
+                    scenario: (data?.scenario ?? inner.scenario) || '',
+                    mes_example: (data?.mes_example ?? inner.mes_example) || '',
+                    first_mes: (data?.first_mes ?? inner.first_mes) || '',
+                    creator: (data?.creator ?? inner.creator) || '',
+                    creator_notes: (data?.creator_notes ?? inner.creator_notes) || '',
+                    system_prompt: (data?.system_prompt ?? inner.system_prompt) || '',
+                    post_history_instructions: (data?.post_history_instructions ?? inner.post_history_instructions) || '',
+                    alternate_greetings: Array.isArray(data?.alternate_greetings) ? data.alternate_greetings : (inner.alternate_greetings || []),
+                    character_book: (data?.character_book ?? inner.character_book) || null,
+                    tags: Array.isArray(data?.tags) ? data.tags : (inner.tags || []),
+                    character_version: data?.character_version || inner.character_version || data?.version || '1.0.0'
                 };
 
                 // If we have a PNG data URL, embed JSON into PNG; else store JSON-only
@@ -13795,9 +14593,43 @@ Outline:`
                         // Non-PNG provided; store JSON-only for compatibility
                         stored.image = undefined;
                     }
+                } else {
+                    // Preserve existing image if not provided in editData
+                    try {
+                        let existing = await window.getCharacterData?.(name);
+                        if (!existing && oldName && oldName !== name) {
+                            // Try previous name (rename case)
+                            existing = await window.getCharacterData?.(oldName);
+                        }
+                        if (existing?.image) {
+                            // Try to re-embed updated JSON into the existing PNG, so exports stay in sync
+                            const exImg = String(existing.image);
+                            if (exImg.startsWith('data:image/png;base64,') && window.tavernTool?.embedIntoPng) {
+                                try {
+                                    const b64 = exImg.split(',')[1];
+                                    const pngBytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+                                    const out = window.tavernTool.embedIntoPng(pngBytes, inner);
+                                    if (out && out.length) {
+                                        let text = '';
+                                        for (let i = 0; i < Math.ceil(out.length / 32768.0); i++) {
+                                            text += String.fromCharCode.apply(null, out.slice(i * 32768, Math.min((i + 1) * 32768, out.length)));
+                                        }
+                                        stored.image = `data:image/png;base64,${btoa(text)}`;
+                                    } else {
+                                        stored.image = existing.image;
+                                    }
+                                } catch(_) {
+                                    stored.image = existing.image;
+                                }
+                            } else {
+                                stored.image = existing.image;
+                            }
+                        }
+                    } catch(_) {}
                 }
 
-                await window.indexeddb_save?.(`character_${storeKeyName}`, JSON.stringify(stored));
+                const payload = JSON.stringify(stored);
+                await window.indexeddb_save?.(`character_${storeKeyName}`, payload);
                 // Ensure list entry and thumbnail
                 try {
                     if (stored.image && typeof window.generateThumbnail === 'function') {
@@ -13815,6 +14647,13 @@ Outline:`
                         });
                     }
                 } catch(_) {}
+
+                // If renamed, delete the old entry from storage to avoid stale duplicates
+                if (oldStoreKeyName && oldName && oldName !== name) {
+                    try {
+                        await window.indexeddb_save?.(`character_${oldStoreKeyName}`);
+                    } catch(_) {}
+                }
 
                 await window.updateCharacterListFromAll?.();
                 await this.rebuildFromEsolite?.();
@@ -16398,6 +17237,10 @@ Outline:`
 
             try {
                 if (KLITE_RPMod.panels?.CHARS?.addCharacter) {
+                    // Pass old name for rename-aware image preservation and cleanup
+                    if (this.editMode === 'edit' && this.currentChar?.name) {
+                        data.__oldName = this.currentChar.name;
+                    }
                     await KLITE_RPMod.panels.CHARS.addCharacter(data);
                     // Only remove old entry when editing (not cloning)
                     try {
@@ -16417,6 +17260,7 @@ Outline:`
                 return;
             }
 
+            try { await this.rebuildFromEsolite?.(); } catch(_) {}
             this.abortEdit?.();
         };
     }
@@ -16592,6 +17436,47 @@ Outline:`
             };
             wrapChatAdvance();
             setTimeout(wrapChatAdvance, 200);
+        } catch(_) {}
+
+        // Ensure RPmod resets along with host "Reset ALL settings"
+        try {
+            // Helper: clear RPmod persistent keys
+            KLITE_RPMod._clearAllPersistent = async function() {
+                const keys = [
+                    'rpmod_group_settings',
+                    'rpmod_tools_settings',
+                    'rpmod_playrp_settings',
+                    'rpmod_rp_rules',
+                    'rpmod_unified_embed',
+                    'rpmod_unified_char_filters',
+                    'rpmod_state',
+                    'characters_v3',
+                    'esolite_chars_panel_prefs',
+                    'rpmod_auto_sender_settings',
+                    'rpmod_adv_actions',
+                    'rpmod_story_chapters'
+                ];
+                try {
+                    await Promise.all(keys.map(k => KLITE_RPMod.saveToLiteStorage(k, null).catch(() => {})));
+                } catch(_) {}
+            };
+
+            const wrapResetAll = () => {
+                try {
+                    const origReset = window.reset_all_settings;
+                    if (typeof origReset === 'function' && !origReset.__rpmod_reset_wrapped) {
+                        window.reset_all_settings = function(...args) {
+                            try { KLITE_RPMod._clearAllPersistent?.(); } catch(_) {}
+                            return origReset.apply(this, args);
+                        };
+                        window.reset_all_settings.__rpmod_reset_wrapped = true;
+                    }
+                } catch(_) {}
+            };
+            // Attempt immediate and delayed wrapping to handle load order
+            wrapResetAll();
+            setTimeout(wrapResetAll, 200);
+            setTimeout(wrapResetAll, 1000);
         } catch(_) {}
 
         // Panels-only stubs: disable overlay/left-only operations at runtime

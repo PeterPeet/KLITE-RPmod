@@ -30,3 +30,33 @@ This repo contains the monolithic ALPHA implementation of KLITE RPmod. It enhanc
 
 ## Addition
 - `Esobold Esolite a fork of KoboldAI Lite` now has an old and a new version in the project folder. The new folder holds the newest version, the old version the Esolite we initially developed against.
+
+## Debugging (Topic-based)
+- Enable fine-grained debug logs without modifying the host UI.
+- Toggle topics via console or localStorage:
+  - Console helpers (persist via localStorage):
+    - `KLITE_RPDebug.on('chat,network,storage,narrator')` — enable selected topics.
+    - `KLITE_RPDebug.off('network')` — disable selected topics.
+    - `KLITE_RPDebug.all()` / `KLITE_RPDebug.none()` — enable all / disable all.
+    - `KLITE_RPDebug.list()` — print current topic map.
+  - Direct localStorage keys:
+    - `localStorage.setItem('KLITE.debug.topics', 'chat,network,storage,narrator')`
+    - `localStorage.setItem('KLITE.debug.off', 'network')`
+
+### Topics
+- `essential`: init and critical paths (always useful)
+- `chat`: message flow (inputs, submit, routing)
+- `narrator`: narrator trigger details and prompt preview
+- `storage`: Lite/IndexedDB saves/loads, sizes, memory/context writes
+- `network`: `fetch` calls (URLs + light body preview)
+- `esolite`: `localsettings` writes and host-side state changes
+- `panels`, `group`, `avatars`, `chars`, `generation`, `state`, `hooks`, `ui`, `mobile`, `integration`, `hotkeys`, `status`
+
+### What’s instrumented
+- Esolite chat submit path: `chat_submit_generation`, `prepare_submit_generation`, `submit_generation`.
+- Message sender: `sendTextToEsolite` (mode, length, target call).
+- Narrator: style/focus + full prompt preview (truncated).
+- Storage: `saveToLiteStorage`, `loadFromLiteStorage`, `indexeddb_save/load` (keys, sizes).
+- Globals: watchers for `current_memory`, `current_temp_memory`, `current_anote`, `pending_context_preinjection/postinjection` with length + preview.
+- Chat array: `gametext_arr` operations (`push`, `splice`, ...).
+- Network: global `fetch` wrapper with URL + light body preview (headers redacted).
