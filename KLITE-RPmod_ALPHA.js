@@ -3009,6 +3009,31 @@
         `
     };
 
+    // Delegated handler for opt-in loading of external images
+    try {
+        document.addEventListener('click', (ev) => {
+            const btn = ev.target && ev.target.closest ? ev.target.closest('[data-action="rpmod-load-image"]') : null;
+            if (!btn) return;
+            ev.preventDefault();
+            try {
+                const url = btn.getAttribute('data-url') || '';
+                const alt = btn.getAttribute('data-alt') || '';
+                const style = btn.getAttribute('data-style') || '';
+                const wrap = btn.closest('.klite-safe-image') || btn.parentElement;
+                if (!url || !wrap) return;
+                const img = document.createElement('img');
+                img.loading = 'lazy';
+                try { img.referrerPolicy = 'no-referrer'; } catch(_){}
+                img.alt = alt;
+                if (style) img.setAttribute('style', style);
+                img.src = url;
+                const blocked = wrap.querySelector('.klite-image-blocked');
+                if (blocked) blocked.replaceWith(img); else wrap.insertBefore(img, btn);
+                btn.remove();
+            } catch(_){}
+        });
+    } catch(_){}
+
     // =============================================
     // 3. KOBOLDAI LITE INTEGRATION VERIFICATION
     // =============================================
@@ -7080,8 +7105,31 @@
         // Helper functions
         escapeHtml(text) {
             const div = document.createElement('div');
-            div.textContent = text;
+            div.textContent = text == null ? '' : String(text);
             return div.innerHTML;
+        },
+
+        // Render an image safely. Only auto-loads data: or blob: URLs.
+        // For external http/https, shows a button to opt-in to load.
+        safeImageHTML(url, alt = '', style = '') {
+            try {
+                const src = String(url || '');
+                const eAlt = this.escapeHtml(alt || '');
+                const eStyle = this.escapeHtml(style || '');
+                if (!src) return '';
+                if (/^data:image\//i.test(src) || /^blob:/i.test(src)) {
+                    return `<img src="${src}" alt="${eAlt}" style="${eStyle}" loading="lazy" referrerpolicy="no-referrer">`;
+                }
+                const eUrl = this.escapeHtml(src);
+                return `
+                    <div class="klite-safe-image" style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                        <div class="klite-image-blocked" style="${eStyle};display:flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);">
+                            <span style="padding:8px 12px;">External image hidden</span>
+                        </div>
+                        <button class="klite-btn secondary" data-action="rpmod-load-image" data-url="${eUrl}" data-alt="${eAlt}" data-style="${eStyle}" style="align-self:center;">Load image</button>
+                    </div>
+                `;
+            } catch(_) { return ''; }
         },
 
         // =============================================
@@ -7334,6 +7382,7 @@
                 const rating = char.rating || 0;
                 const isWIChar = char.type === 'worldinfo';
                 const charId = char.id || char.name;
+                const safeTagsPreview = tags.length > 0 ? tags.slice(0, 3).map(KLITE_RPMod.escapeHtml).join(', ') + (tags.length > 3 ? '...' : '') : '';
 
                 return `
                     <div style="display: flex; align-items: center; gap: 2px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; background: var(--bg2); cursor: pointer;" 
@@ -7341,7 +7390,7 @@
                         <input type="${selectionType}" name="unified-char-selection" value="${charId}" style="margin: 0;" onclick="event.stopPropagation();">
                         ${avatar ? `
                             <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                                <img src="${avatar}" alt="${KLITE_RPMod.escapeHtml(char.name || '')}" style="width: 100%; height: 100%; object-fit: cover;">
+                                ${KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width:100%;height:100%;object-fit:cover;display:block;')}
                             </div>
                         ` : `
                             <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -7357,7 +7406,7 @@
                             <div style="font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 2px;">
                                 ${!isWIChar ? `<span>Rating: ${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}</span>` : ''}
                                 <span>Talkativeness: ${talkativeness}</span>
-                                ${tags.length > 0 ? `<span>Tags: ${tags.slice(0, 3).join(', ')}${tags.length > 3 ? '...' : ''}</span>` : ''}
+                                ${tags.length > 0 ? `<span>Tags: ${safeTagsPreview}</span>` : ''}
                             </div>
                         </div>
                     </div>
@@ -9010,7 +9059,7 @@
                 <div style="display: flex; align-items: center; gap: 2px; padding: 12px; border: 1px solid var(--success); border-radius: 6px; background: rgba(34, 197, 94, 0.1); margin-bottom: 8px;">
                     ${avatar ? `
                         <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                            <img src="${avatar}" alt="${char.name}" style="width: 100%; height: 100%; object-fit: cover;">
+                            ${KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width:100%;height:100%;object-fit:cover;display:block;')}
                         </div>
                     ` : `
                         <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -9019,7 +9068,7 @@
                     `}
                     <div style="flex: 1;">
                         <div style="font-weight: bold; color: var(--text); display: flex; align-items: center; gap: 8px;">
-                            ${char.name}
+                            ${KLITE_RPMod.escapeHtml(char.name)}
                             ${isWIChar ? '<span style="font-size: 9px; background: var(--accent); color: white; padding: 1px 4px; border-radius: 2px;">WI</span>' : ''}
                         </div>
                     </div>
@@ -9085,7 +9134,7 @@
                 <div style="display: flex; align-items: center; gap: 2px; padding: 12px; border: 1px solid var(--accent); border-radius: 6px; background: rgba(74, 158, 255, 0.1); margin-bottom: 8px;">
                     ${avatar ? `
                         <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                            <img src="${avatar}" alt="${char.name}" style="width: 100%; height: 100%; object-fit: cover;">
+                            ${KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width:100%;height:100%;object-fit:cover;display:block;')}
                         </div>
                     ` : `
                         <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -9094,7 +9143,7 @@
                     `}
                     <div style="flex: 1;">
                         <div style="font-weight: bold; color: var(--text); display: flex; align-items: center; gap: 8px;">
-                            ${char.name}
+                            ${KLITE_RPMod.escapeHtml(char.name)}
                             ${isWIChar ? '<span style="font-size: 9px; background: var(--accent); color: white; padding: 1px 4px; border-radius: 2px;">WI</span>' : ''}
                         </div>
                     </div>
@@ -9711,12 +9760,14 @@
 
         // Bookmarks/Chapters (moved from PLAY_STORY)
         renderChapters() {
-            return this.chapters.map((ch, i) => `
+            return this.chapters.map((ch, i) => {
+                const safeTitle = KLITE_RPMod.escapeHtml(ch.title || '');
+                return `
                 <div class="klite-timeline-item" data-chapter="${i}" data-action="goto-chapter" style="cursor: pointer;">
-                    <strong>Chapter ${ch.number}:</strong> ${ch.title}
+                    <strong>Chapter ${ch.number}:</strong> ${safeTitle}
                     <div style="font-size: 11px; color: var(--muted);">${ch.wordCount} words</div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         },
 
         async loadChapters() {
@@ -11863,7 +11914,7 @@ Outline:`
                     <div style="display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; background: var(--bg2); ${isNext ? 'border-color: var(--accent); background: rgba(42, 168, 74, 0.12);' : isLast ? 'border-color: #e0b400; background: rgba(224, 180, 0, 0.12);' : ''}">
                         ${avatar ? `
                             <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                                <img src="${avatar}" alt="${char.name}" style="width: 100%; height: 100%; object-fit: cover;">
+                                ${KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width: 100%; height: 100%; object-fit: cover;')}
                             </div>
                         ` : `
                             <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -12451,7 +12502,7 @@ Outline:`
                         <input type="checkbox" id="char-${char.id}" value="${char.id}" style="margin: 0;">
                         ${avatar ? `
                             <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                                <img src="${avatar}" alt="${KLITE_RPMod.escapeHtml(char.name || '')}" style="width: 100%; height: 100%; object-fit: cover;">
+                                ${KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width:100%;height:100%;object-fit:cover;display:block;')}
                             </div>
                         ` : `
                             <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -12462,7 +12513,7 @@ Outline:`
                             <div style="font-weight: bold; color: var(--text);">${KLITE_RPMod.escapeHtml(char.name || '')}</div>
                             <div style="font-size: 11px; color: var(--muted); margin: 2px 0; max-height: 32px; overflow: hidden;">${description}</div>
                             <div style="font-size: 10px; color: var(--muted);">
-                                Talkativeness: ${talkativeness} | Tags: ${tags.length > 0 ? tags.join(', ') : 'None'}
+                                Talkativeness: ${talkativeness} | Tags: ${tags.length > 0 ? tags.map(KLITE_RPMod.escapeHtml).join(', ') : 'None'}
                             </div>
                         </div>
                     </div>
@@ -12576,7 +12627,7 @@ Outline:`
                         <input type="checkbox" id="char-${char.id}" value="${char.id}" style="margin: 0;" onclick="event.stopPropagation();">
                         ${avatar ? `
                             <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                                <img src="${avatar}" alt="${char.name}" style="width: 100%; height: 100%; object-fit: cover;">
+                                ${KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width: 100%; height: 100%; object-fit: cover;')}
                             </div>
                         ` : `
                             <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -12584,7 +12635,7 @@ Outline:`
                             </div>
                         `}
                         <div style="flex: 1;">
-                            <div style="font-weight: bold; color: var(--text);">${char.name}</div>
+                            <div style="font-weight: bold; color: var(--text);">${KLITE_RPMod.escapeHtml(char.name)}</div>
                             <div style="font-size: 11px; color: var(--muted); margin: 2px 0; max-height: 32px; overflow: hidden;">${description.length > 100 ? description.substring(0, 100) + '...' : description}</div>
                             <div style="font-size: 10px; color: var(--muted);">
                                 Talkativeness: ${talkativeness} | Tags: ${tags.length > 0 ? tags.join(', ') : 'None'}
@@ -13516,7 +13567,7 @@ Outline:`
                      data-char-id="${char.id}" data-action="view-char">
                     ${(char.thumbnail || char.image) ? `
                         <div class="klite-overview-thumb" style="width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; margin-bottom: 6px; border: 1px solid var(--border);">
-                            <img src="${char.thumbnail || char.image}" alt="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}" style="width: 100%; height: 100%; object-fit: cover; display: block;" loading="lazy">
+                            ${KLITE_RPMod.safeImageHTML(char.thumbnail || char.image, char.name || '', 'width: 100%; height: 100%; object-fit: cover; display: block;')}
                         </div>
                     ` : `
                         <div class="klite-overview-thumb" style="width: 100%; aspect-ratio: 2/3; border-radius: 4px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
@@ -13526,7 +13577,7 @@ Outline:`
                     <div style="font-size: 12px; font-weight: bold; color: var(--text); line-height: 1.2; word-wrap: break-word; max-width: 100%;">
                         ${(KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')).length > 12 ? KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '').substring(0, 12) + '...' : KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}
                     </div>
-                    <div style="font-size: 10px; color: var(--muted);">${KLITE_RPMod.panels.CHARS.escapeHTML(char.creator || 'Unknown')}</div>
+                    <div class="klite-char-creator" style="font-size: 10px; color: var(--muted);">by ${KLITE_RPMod.panels.CHARS.escapeHTML(char.creator || 'Unknown')}</div>
                 </div>
             `;
         },
@@ -13539,7 +13590,7 @@ Outline:`
             return `
                 <div class="klite-char-grid-item" data-char-id="${char.id}" data-action="view-char" style="display: flex; flex-direction: column; align-items: center; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg2); cursor: pointer; text-align: center;">
                     ${imgsrc ? `
-                        <div class=\"klite-grid-thumb\" style=\"width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; margin-bottom: 8px; border: 1px solid var(--border);\">\n                            <img src=\"${imgsrc}\" alt=\"${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}\" style=\"width: 100%; height: 100%; object-fit: cover; display: block;\" loading=\"lazy\">\n                        </div>
+                        <div class=\"klite-grid-thumb\" style=\"width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; margin-bottom: 8px; border: 1px solid var(--border);\">\n                            ${KLITE_RPMod.safeImageHTML(imgsrc, char.name || '', 'width: 100%; height: 100%; object-fit: cover; display: block;')}\n                        </div>
                     ` : `
                         <div class=\"klite-grid-thumb\" style=\"width: 100%; aspect-ratio: 2/3; border-radius: 4px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin-bottom: 8px;\">\n                            <span style=\"font-size: 36px;\">👤</span>\n                        </div>
                     `}
@@ -13570,7 +13621,7 @@ Outline:`
             return `
                 <div class="klite-char-card" data-char-id="${char.id}" data-action="view-char" style="cursor: pointer;">
                     <div class="klite-char-image">
-                        ${(char.thumbnail || char.image) ? `<img src="${char.thumbnail || char.image}" alt="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}" loading="lazy">` : '<div class="klite-char-placeholder">👤</div>'}
+                        ${(char.thumbnail || char.image) ? `${KLITE_RPMod.safeImageHTML(char.thumbnail || char.image, char.name || '', '')}` : '<div class="klite-char-placeholder">👤</div>'}
                     </div>
                     <div class="klite-char-name">${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}</div>
                     <div class="klite-char-creator">by ${KLITE_RPMod.panels.CHARS.escapeHTML(char.creator || 'Unknown')}</div>
@@ -13596,7 +13647,7 @@ Outline:`
                      data-char-id="${char.id}" data-action="view-char">
                     ${(char.thumbnail || char.image) ? `
                         <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                            <img src="${char.thumbnail || char.image}" alt="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}" style="width: 100%; height: 100%; object-fit: cover;">
+                            ${KLITE_RPMod.safeImageHTML(char.thumbnail || char.image, char.name || '', 'width: 100%; height: 100%; object-fit: cover;')}
                         </div>
                     ` : `
                         <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
@@ -13636,7 +13687,7 @@ Outline:`
             return `
                 <div style="margin-bottom: 20px; border: 1px solid var(--border); border-radius: 8px; padding: 15px; background: var(--bg2);" data-char-id="${char.id}" data-action="view-char">
                     <div style="width: 100%; margin-bottom: 15px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border);">
-                        ${imgSrc ? `<img src="${imgSrc}" alt="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}" style="width: 100%; height: auto; display: block;" loading="lazy">` : '<div style="width: 100%; height: 200px; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 48px;">👤</div>'}
+                        ${imgSrc ? KLITE_RPMod.safeImageHTML(imgSrc, char.name || '', 'width: 100%; height: auto; display: block;') : '<div style="width: 100%; height: 200px; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 48px;">👤</div>'}
                     </div>
                     <div style="text-align: center;">
                         <div style="font-size: 18px; font-weight: bold; color: var(--text); margin-bottom: 8px;">${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || '')}</div>
@@ -13752,19 +13803,13 @@ Outline:`
                 }
             } catch(_) {}
 
-            // Helper to swap placeholder with <img>
+            // Helper to swap placeholder with a safe image (data/blob loads only; external via click)
             const attachImg = (el, src, altText, isThumb = false) => {
                 if (!el || !src) return false;
-                const img = document.createElement('img');
-                img.src = src;
-                img.alt = altText || '';
-                img.style.width = '100%';
-                img.style.height = 'auto';
-                img.loading = 'lazy';
-                if (isThumb) img.dataset.thumb = '1';
-                // Clear and inject
-                el.innerHTML = '';
-                el.appendChild(img);
+                const html = KLITE_RPMod.safeImageHTML(src, altText || '', 'width: 100%; height: auto; display: block;');
+                if (!html) return false;
+                el.innerHTML = html;
+                if (isThumb) try { el.querySelector('img')?.setAttribute('data-thumb','1'); } catch(_) {}
                 return true;
             };
 
@@ -14030,9 +14075,11 @@ Outline:`
                 const uniqueTags = this.getUniqueTags();
                 tagFilter.innerHTML = `
                     <option value="">All Tags</option>
-                    ${uniqueTags.map(tag =>
-                    `<option value="${tag}" ${currentValue === tag ? 'selected' : ''}>${tag}</option>`
-                ).join('')}
+                    ${uniqueTags.map(tag => {
+                        const t = KLITE_RPMod.panels.CHARS.escapeHTML(String(tag));
+                        const sel = (currentValue === tag) ? 'selected' : '';
+                        return `<option value="${t}" ${sel}>${t}</option>`;
+                    }).join('')}
                 `;
             }
         },
@@ -14041,10 +14088,11 @@ Outline:`
         renderCharacterDataSection(title, content) {
             if (!content || content.trim() === '') return '';
 
+            const safe = KLITE_RPMod.escapeHtml(content);
             return `
                 <div class="klite-char-modal-section">
                     <h3>${title}</h3>
-                    <div class="klite-char-modal-text">${content}</div>
+                    <div class="klite-char-modal-text" style="white-space: pre-wrap;">${safe}</div>
                 </div>
             `;
         },
@@ -15312,11 +15360,11 @@ Outline:`
                     const option = document.createElement('div');
                     option.className = 'klite-greeting-option';
                     option.style.cssText = 'margin-bottom: 15px; padding: 10px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;';
+                    const label = KLITE_RPMod.escapeHtml(greeting.label || '');
+                    const preview = KLITE_RPMod.escapeHtml((greeting.content || '').substring(0, 100) + ((greeting.content || '').length > 100 ? '...' : ''));
                     option.innerHTML = `
-                        <strong>${greeting.label}</strong>
-                        <div style="margin-top: 5px; color: var(--muted); font-size: 12px;">
-                            ${greeting.content.length > 100 ? greeting.content.substring(0, 100) + '...' : greeting.content}
-                        </div>
+                        <strong>${label}</strong>
+                        <div style="margin-top: 5px; color: var(--muted); font-size: 12px;">${preview}</div>
                     `;
 
                     option.addEventListener('click', () => {
@@ -15769,7 +15817,7 @@ Outline:`
                 <div id="wi-json-modal" class="klite-modal">
                     <div class="klite-modal-content" style="max-width: 800px;">
                         <div class="klite-modal-header">
-                            <h3>World Info JSON - ${char.name}</h3>
+                            <h3>World Info JSON - ${KLITE_RPMod.escapeHtml(char.name || '')}</h3>
                             <button class="klite-modal-close" onclick="document.getElementById('wi-json-modal').remove()"> -->
                         </div>
                         <div class="klite-modal-body">
@@ -15911,23 +15959,25 @@ Outline:`
             // Replace the CHARS panel content with character details using proper t.section structure
             rightPanel.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--border);">
-                    <h2 style="margin: 0; font-size: 20px; color: var(--text);">${char.name}</h2>
+                    <h2 style="margin: 0; font-size: 20px; color: var(--text);">${KLITE_RPMod.escapeHtml(char.name)}</h2>
                     <button class="klite-btn" onclick="KLITE_RPMod.panels.CHARS.hideCharacterFullscreen()">← Back</button>
                 </div>
 
                ${t.section('Character Profile',
                 `<div style="text-align: center; margin-bottom: 15px;">
-                        ${char.image ? `<img src="${char.image}" alt="${char.name}" style="width: 100%; max-width: 200px; border-radius: 8px; margin-bottom: 8px;">` : '<div style="width: 100px; height: 100px; background: var(--bg2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 48px; margin: 0 auto 8px; color: var(--muted);">👤</div>'}
-                        <div style="font-weight: 600; font-size: 18px; color: var(--text);">${char.name}</div>
+                        ${char.image ? KLITE_RPMod.safeImageHTML(char.image, char.name || '', 'width: 100%; max-width: 200px; border-radius: 8px; margin-bottom: 8px;') : '<div style="width: 100px; height: 100px; background: var(--bg2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 48px; margin: 0 auto 8px; color: var(--muted);">👤</div>'}
+                        <div style="font-weight: 600; font-size: 18px; color: var(--text);">${KLITE_RPMod.escapeHtml(char.name)}</div>
                         <div style="color: var(--muted); font-size: 14px;">by ${KLITE_RPMod.panels.CHARS.escapeHTML(characterData?.creator || 'Unknown')}</div>
                     </div>`
             )}
           
                ${t.section('Tags',
                 `<div id="tags-container-${char.id}" style="margin-bottom: 12px;">
-                        ${(effectiveTags || []).map(tag => `
-                            <span class="klite-tag-pill" style=\"background: var(--bg2); border-radius: 10px;\" data-tag="${tag}" onclick="KLITE_RPMod.panels.CHARS.toggleTagSelection(this)">&nbsp;&nbsp;${tag}&nbsp;&nbsp;</span>
-                        `).join(' ')}
+                        ${(effectiveTags || []).map(tag => {
+                            const t = KLITE_RPMod.panels.CHARS.escapeHTML(String(tag || ''));
+                            return `
+                            <span class="klite-tag-pill" style=\"background: var(--bg2); border-radius: 10px;\" data-tag="${t}" onclick="KLITE_RPMod.panels.CHARS.toggleTagSelection(this)">&nbsp;&nbsp;${t}&nbsp;&nbsp;</span>`;
+                        }).join(' ')}
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
                         <button class="klite-btn" onclick="KLITE_RPMod.panels.CHARS.addTag(${char.id})">Add Tag</button>
@@ -15956,15 +16006,15 @@ Outline:`
                     </div>`
             )}
                 
-                ${characterData.description ? t.section('Description', characterData.description) : ''}
-                ${characterData.personality ? t.section('Personality', characterData.personality) : ''}
-                ${characterData.scenario ? t.section('Scenario', characterData.scenario) : ''}
-                ${characterData.creator_notes ? t.section('Creator Notes', characterData.creator_notes) : ''}
-                ${characterData.post_history_instructions ? t.section('Post History Instructions', characterData.post_history_instructions) : ''}
-                ${characterData.mes_example ? t.section('Example Messages', characterData.mes_example) : ''}
-                ${characterData.system_prompt ? t.section('System Prompt', characterData.system_prompt) : ''}
-                ${characterData.jailbreak ? t.section('Jailbreak', characterData.jailbreak) : ''}
-                ${characterData.depth_prompt_prompt ? t.section('Depth Prompt', characterData.depth_prompt_prompt) : ''}
+                ${characterData.description ? t.section('Description', `<div style=\"white-space: pre-wrap;\">${KLITE_RPMod.escapeHtml(characterData.description)}</div>`) : ''}
+                ${characterData.personality ? t.section('Personality', `<div style=\"white-space: pre-wrap;\">${KLITE_RPMod.escapeHtml(characterData.personality)}</div>`) : ''}
+                ${characterData.scenario ? t.section('Scenario', `<div style=\"white-space: pre-wrap;\">${KLITE_RPMod.escapeHtml(characterData.scenario)}</div>`) : ''}
+                ${characterData.creator_notes ? t.section('Creator Notes', `<div style=\"white-space: pre-wrap;\">${KLITE_RPMod.escapeHtml(characterData.creator_notes)}</div>`) : ''}
+                ${characterData.post_history_instructions ? t.section('Post History Instructions', `<div style=\"white-space: pre-wrap;\">${KLITE_RPMod.escapeHtml(characterData.post_history_instructions)}</div>`) : ''}
+                ${characterData.mes_example ? t.section('Example Messages', `<div style=\"white-space: pre-wrap;\">${KLITE_RPMod.escapeHtml(characterData.mes_example)}</div>`) : ''}
+                ${characterData.system_prompt ? t.section('System Prompt', `<div style=\"white-space: pre-wrap;\">${KLITE_RPMod.escapeHtml(characterData.system_prompt)}</div>`) : ''}
+                ${characterData.jailbreak ? t.section('Jailbreak', `<div style=\"white-space: pre-wrap;\">${KLITE_RPMod.escapeHtml(characterData.jailbreak)}</div>`) : ''}
+                ${characterData.depth_prompt_prompt ? t.section('Depth Prompt', `<div style=\"white-space: pre-wrap;\">${KLITE_RPMod.escapeHtml(characterData.depth_prompt_prompt)}</div>`) : ''}
                 
                 ${greetings.length > 0 ? t.section(`First Messages (${greetings.length})`,
                 greetings.map(greeting => `
@@ -15973,7 +16023,7 @@ Outline:`
                                 <strong>${greeting.label} ${greeting.index === (char.activeGreeting ?? -1) ? '(Active)' : ''}</strong>
                                 ${greeting.index !== (char.activeGreeting ?? -1) ? `<button class="klite-btn" onclick="KLITE_RPMod.panels.CHARS.setActiveGreeting(${char.id}, ${greeting.index})" style="font-size: 12px; padding: 6px 12px; background: var(--accent); color: white;">Set</button>` : ''}
                             </div>
-                            <div style="white-space: pre-wrap; line-height: 1.5; color: var(--text);">${greeting.content}</div>
+                            <div style="white-space: pre-wrap; line-height: 1.5; color: var(--text);">${KLITE_RPMod.escapeHtml(greeting.content || '')}</div>
                         </div>
                     `).join('')
             ) : ''}
@@ -15985,8 +16035,8 @@ Outline:`
                                 <strong>Entry ${i + 1}</strong>
                                 <button class="klite-btn secondary" onclick="KLITE_RPMod.panels.CHARS.importWorldInfoEntry(${JSON.stringify(entry).replace(/"/g, '&quot;')})" style="font-size: 11px; padding: 4px 8px;">📥 Import to WI</button>
                             </div>
-                            <div style="margin-bottom: 6px;"><strong>Keys:</strong> ${(entry.keys || []).join(', ')}</div>
-                            <div style="white-space: pre-wrap; line-height: 1.5; color: var(--text);">${entry.content || ''}</div>
+                            <div style="margin-bottom: 6px;"><strong>Keys:</strong> ${(entry.keys || []).map(k => KLITE_RPMod.escapeHtml(String(k))).join(', ')}</div>
+                            <div style="white-space: pre-wrap; line-height: 1.5; color: var(--text);">${KLITE_RPMod.escapeHtml(entry.content || '')}</div>
                         </div>
                     `).join('')
             ) : ''}
@@ -16594,7 +16644,8 @@ Outline:`
                         name: meta.name,
                         created: (typeof meta?.created === 'number' ? meta.created : (typeof prev?.created === 'number' ? prev.created : i)),
                         // Lightweight fields; details loaded on demand
-                        creator: prev?.creator || 'Unknown',
+                        // Leave empty initially so background hydration can fill real creator
+                        creator: (typeof prev?.creator === 'string') ? prev.creator : '',
                         rating: typeof prev?.rating === 'number' ? prev.rating : 0,
                         talkativeness: typeof prev?.talkativeness === 'number' ? prev.talkativeness : 0,
                         tags: Array.isArray(prev?.tags) ? prev.tags.slice() : [],
@@ -16620,7 +16671,7 @@ Outline:`
                     setTimeout(() => {
                         (async () => {
                             try {
-                                const candidates = (KLITE_RPMod.characters || []).filter(c => (!Array.isArray(c.tags) || c.tags.length === 0) && c?.name);
+                                const candidates = (KLITE_RPMod.characters || []).filter(c => (!Array.isArray(c.tags) || c.tags.length === 0 || c.creator === 'Unknown' || !c.creator) && c?.name);
                                 let updated = 0;
                                 for (let i = 0; i < candidates.length; i++) {
                                     const c = candidates[i];
@@ -16628,11 +16679,17 @@ Outline:`
                                         const d = await window.getCharacterData(c.name);
                                         const tags = Array.isArray(d?.data?.tags) ? d.data.tags.filter(t => !!t && String(t).trim().length > 0) : [];
                                         const creator = d?.data?.creator;
-                                        if (tags.length > 0 || (creator && !c.creator)) {
+                                        if (tags.length > 0 || (creator && (!c.creator || c.creator === 'Unknown'))) {
                                             // Update the live reference in KLITE_RPMod.characters
                                             const ref = KLITE_RPMod.characters.find(x => x.id == c.id) || c;
                                             if (tags.length > 0) ref.tags = tags.slice();
-                                            if (creator && !ref.creator) ref.creator = creator;
+                                            if (creator && (!ref.creator || ref.creator === 'Unknown')) {
+                                                ref.creator = creator;
+                                                try {
+                                                    const card = document.querySelector(`#char-gallery [data-char-id="${ref.id}"] .klite-char-creator`);
+                                                    if (card) card.textContent = `by ${ref.creator || 'Unknown'}`;
+                                                } catch(_) {}
+                                            }
                                             updated++;
                                             // Debounced save
                                             if (!this._hydrateSaveTimer) {
@@ -16966,10 +17023,20 @@ Outline:`
                 const d = await window.getCharacterData?.(name);
                 if (!d) return;
                 const inner = d.data || {};
+
+                // Try to find the existing stored character to preserve stable id/state
+                const stored = KLITE_RPMod.characters.find(c => (c?.name || '').trim() === (inner?.name || name || '').trim());
+
                 const char = {
-                    id: Date.now(),
+                    // Preserve the persistent id so actions (like Set greeting) can update storage
+                    id: stored?.id ?? Date.now(),
                     name: inner?.name || name,
-                    image: d.image || null,
+                    // Prefer freshly loaded image, but keep stored image as fallback
+                    image: d.image || stored?.image || null,
+                    // Preserve stateful fields from stored character so UI reflects current state
+                    activeGreeting: (stored && 'activeGreeting' in stored) ? stored.activeGreeting : null,
+                    rating: stored?.rating ?? 0,
+                    tags: Array.isArray(stored?.tags) ? stored.tags.slice() : (Array.isArray(inner?.tags) ? inner.tags.slice() : []),
                     rawData: { data: inner }
                 };
                 this.showCharacterFullscreen(char);
@@ -17136,7 +17203,7 @@ Outline:`
 
         <label>Upload Avatar:</label>
         <input type="file" accept="image/png" onchange="KLITE_RPMod.panels.CHARS.uploadImage(event)">
-        <div><img src="${d.avatar || ''}" alt="Avatar preview" style="max-height:120px;margin-top:8px;"></div>
+        <div>${KLITE_RPMod.safeImageHTML(d.avatar || '', 'Avatar preview', 'max-height:120px;margin-top:8px;')}</div>
 
         ${this.renderGroupSelector()}
 
