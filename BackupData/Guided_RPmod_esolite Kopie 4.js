@@ -1,0 +1,5021 @@
+/**
+ * Guided RPmod - Interactive AI Roleplay Guide for Esolite
+ *
+ * This mod provides a guided journey to AI roleplay chat adventures with:
+ * - Step-by-step interactive setup
+ * - AI provider configuration (Horde/KoboldCpp/Cloud APIs)
+ * - Persona creation and character import
+ * - Writing style customization
+ * - Greeting selection
+ * - Simplified roleplay UI
+ *
+ * @version 3.0.0
+ * @author KLITE RPmod Team
+ */
+
+(function() {
+    'use strict';
+
+    // =========================================================================
+    // CONFIGURATION & CONSTANTS
+    // =========================================================================
+
+    const VERSION = '3.0.0';
+    const STORAGE_KEY = 'guidedRPmod';
+    const DEBUG = true;
+
+    // Writing style presets (hidden from user, just shows friendly names)
+    const WRITING_PRESETS = {
+        chat: {
+            name: '💬 Chat Style',
+            description: 'Short, quick responses like texting',
+            settings: {
+                max_length: 120,
+                temperature: 0.55,
+                top_p: 0.9,
+                top_k: 40,
+                min_p: 0.05,
+                rep_pen: 1.15,
+                rep_pen_range: 512
+            }
+        },
+        normal: {
+            name: '📝 Normal Writing',
+            description: 'Balanced co-writing style',
+            settings: {
+                max_length: 350,
+                temperature: 0.75,
+                top_p: 0.92,
+                top_k: 100,
+                min_p: 0.05,
+                rep_pen: 1.1,
+                rep_pen_range: 1024
+            }
+        },
+        creative: {
+            name: '✨ Creative Writing',
+            description: 'Expressive, longer prose',
+            settings: {
+                max_length: 600,
+                temperature: 0.95,
+                top_p: 0.95,
+                top_k: 0,
+                min_p: 0.03,
+                rep_pen: 1.05,
+                rep_pen_range: 2048
+            }
+        }
+    };
+
+    // Cloud API providers with their configurations
+    // Esolite dropdown values: 0=Horde, 1=KoboldAI, 2=OpenAI, 3=OpenRouter, 4=Claude, 5=Gemini, 6=Cohere, 7=Mistral, 8=Featherless, 9=Grok, 10=Pollinations, 11=Nvidia
+    const CLOUD_PROVIDERS = {
+        openrouter: {
+            name: 'OpenRouter',
+            description: 'Access many models with one API key',
+            endpoint: 'https://openrouter.ai/api/v1',
+            esoliteDropdown: '3',
+            needsKey: true,
+            keyPlaceholder: 'sk-or-...',
+            models: ['Auto-detect']
+        },
+        openai: {
+            name: 'OpenAI',
+            description: 'ChatGPT models (GPT-4o, GPT-4o-mini)',
+            endpoint: 'https://api.openai.com/v1',
+            esoliteDropdown: '2',
+            needsKey: true,
+            keyPlaceholder: 'sk-...',
+            models: ['Auto-detect']
+        },
+        claude: {
+            name: 'Claude (Anthropic)',
+            description: 'Claude 3.5 Sonnet, Haiku',
+            endpoint: 'https://api.anthropic.com/v1',
+            esoliteDropdown: '4',
+            needsKey: true,
+            keyPlaceholder: 'sk-ant-...',
+            models: ['Auto-detect']
+        },
+        arli: {
+            name: 'Arli AI',
+            description: 'Affordable AI API service',
+            endpoint: 'https://api.arliai.com/v1',
+            esoliteDropdown: '2', // OpenAI compatible
+            needsKey: true,
+            keyPlaceholder: 'Your Arli AI key',
+            models: ['Auto-detect']
+        },
+        nanogpt: {
+            name: 'NanoGPT',
+            description: 'Pay-per-token API service',
+            endpoint: 'https://nano-gpt.com/api/v1',
+            esoliteDropdown: '2', // OpenAI compatible
+            needsKey: true,
+            keyPlaceholder: 'Your NanoGPT key',
+            models: ['Auto-detect']
+        },
+        chutes: {
+            name: 'Chutes',
+            description: 'Fast inference API',
+            endpoint: 'https://api.chutes.ai/v1',
+            esoliteDropdown: '2', // OpenAI compatible
+            needsKey: true,
+            keyPlaceholder: 'Your Chutes key',
+            models: ['Auto-detect']
+        },
+        novita: {
+            name: 'novitaAI',
+            description: 'GPU cloud for AI inference',
+            endpoint: 'https://api.novita.ai/v3/openai',
+            esoliteDropdown: '2', // OpenAI compatible
+            needsKey: true,
+            keyPlaceholder: 'Your novitaAI key',
+            models: ['Auto-detect']
+        },
+        electronhub: {
+            name: 'Electron Hub',
+            description: 'Community AI hub',
+            endpoint: 'https://api.electronhub.top/v1',
+            esoliteDropdown: '2', // OpenAI compatible
+            needsKey: true,
+            keyPlaceholder: 'Your Electron Hub key',
+            models: ['Auto-detect']
+        },
+        custom: {
+            name: 'OpenAI Compatible',
+            description: 'Any OpenAI-compatible API',
+            endpoint: '',
+            esoliteDropdown: '2',
+            needsKey: true,
+            needsEndpoint: true,
+            keyPlaceholder: 'Your API key',
+            models: ['Auto-detect']
+        }
+    };
+
+    // Instruct template auto-detection patterns
+    const INSTRUCT_PATTERNS = {
+        'llama-3': 'llama3',
+        'llama3': 'llama3',
+        'llama2': 'llama2',
+        'mistral': 'mistral',
+        'mixtral': 'mistral',
+        'ministral': 'mistral',
+        'magistral': 'mistral',
+        'qwen': 'chatml',
+        'yi-': 'chatml',
+        'claude': 'claude',
+        'gpt-5': 'chatgpt',        
+        'gpt-4': 'chatgpt',
+        'gpt-3.5': 'chatgpt',
+        'gpt-4o': 'chatgpt',
+        'gemma': 'gemma',
+        'command-r': 'command-r',
+        'deepseek': 'deepseek',
+        'phi-': 'chatml',
+        'solar': 'solar',
+        'openchat': 'openchat',
+        'vicuna': 'vicuna',
+        'alpaca': 'alpaca'
+    };
+
+    // =========================================================================
+    // STATE MANAGEMENT
+    // =========================================================================
+
+    const state = {
+        initialized: false,
+        modActive: false,
+        rpModeActive: false,
+        welcomeShown: false,
+        currentSection: 0,
+        setupComplete: false,
+        easyMode: true,
+        config: {
+            aiType: null,        // 'horde', 'koboldcpp', 'cloud'
+            cloudProvider: null,
+            apiKey: '',
+            endpoint: '',
+            model: '',
+            writingStyle: 'normal',
+            persona: {
+                name: '',
+                description: '',
+                avatar: null
+            },
+            character: null,     // Full TavernCard data
+            firstMessage: ''
+        }
+    };
+
+    // =========================================================================
+    // UTILITY FUNCTIONS
+    // =========================================================================
+
+    function log(...args) {
+        if (DEBUG) console.log('[Guided RPmod]', ...args);
+    }
+
+    function autoDetectInstruct(modelName) {
+        if (!modelName) return 'alpaca';
+        const lower = modelName.toLowerCase();
+        for (const [pattern, template] of Object.entries(INSTRUCT_PATTERNS)) {
+            if (lower.includes(pattern)) return template;
+        }
+        return 'alpaca';
+    }
+
+    function resolveCardMacros(card, userName, charName) {
+        const replacements = {
+            '{{user}}': userName,
+            '{{User}}': userName,
+            '{{USER}}': userName,
+            '{{char}}': charName,
+            '{{Char}}': charName,
+            '{{CHAR}}': charName,
+            '<USER>': userName,
+            '<BOT>': charName,
+        };
+
+        const resolve = (text) => {
+            if (!text) return text;
+            let result = text;
+            for (const [macro, value] of Object.entries(replacements)) {
+                result = result.split(macro).join(value);
+            }
+            return result;
+        };
+
+        // Handle single text field (for inline resolution)
+        if (card.text !== undefined) {
+            return { text: resolve(card.text) };
+        }
+
+        // Handle full card object
+        return {
+            ...card,
+            description: resolve(card.description),
+            personality: resolve(card.personality),
+            scenario: resolve(card.scenario),
+            first_mes: resolve(card.first_mes),
+            mes_example: resolve(card.mes_example),
+            alternate_greetings: (card.alternate_greetings ? card.alternate_greetings.map(g => resolve(g)) : [])
+        };
+    }
+
+    function saveState() {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            log('State saved');
+        } catch (e) {
+            console.error('Failed to save Guided RPmod state:', e);
+        }
+    }
+
+    function loadState() {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                Object.assign(state, parsed);
+                log('State loaded:', state);
+                return true;
+            }
+        } catch (e) {
+            console.error('Failed to load Guided RPmod state:', e);
+        }
+        return false;
+    }
+
+    function clearState() {
+        localStorage.removeItem(STORAGE_KEY);
+        Object.assign(state, {
+            initialized: false,
+            modActive: false,
+            rpModeActive: false,
+            welcomeShown: false,
+            currentSection: 0,
+            setupComplete: false,
+            easyMode: true,
+            config: {
+                aiType: null,
+                cloudProvider: null,
+                apiKey: '',
+                endpoint: '',
+                model: '',
+                writingStyle: 'normal',
+                persona: { name: '', description: '', avatar: null },
+                character: null,
+                firstMessage: ''
+            }
+        });
+    }
+
+    // =========================================================================
+    // ESOLITE BRIDGE - Interface with host application
+    // =========================================================================
+
+    const EsoliteBridge = {
+        // Check if Esolite is ready
+        isReady() {
+            return typeof window.localsettings !== 'undefined' &&
+                   typeof window.generate_savefile === 'function' &&
+                   typeof window.restart_new_game === 'function';
+        },
+
+        // Wait for Esolite to be ready
+        async waitForReady(timeout = 15000) {
+            const start = Date.now();
+            while (!this.isReady()) {
+                if (Date.now() - start > timeout) {
+                    throw new Error('Esolite failed to initialize');
+                }
+                await new Promise(r => setTimeout(r, 100));
+            }
+            log('Esolite is ready');
+        },
+
+        // Apply sampler settings
+        applySamplerSettings(preset) {
+            const settings = WRITING_PRESETS[preset] && WRITING_PRESETS[preset].settings;
+            if (!settings || !window.localsettings) return;
+
+            // Apply to localsettings
+            Object.assign(window.localsettings, settings);
+
+            // Also update DOM elements if they exist (Esolite reads from these)
+            const mappings = {
+                'max_length': 'max_length',
+                'temperature': 'temp',
+                'top_p': 'top_p',
+                'top_k': 'top_k',
+                'min_p': 'min_p',
+                'rep_pen': 'rep_pen',
+                'rep_pen_range': 'rep_pen_range'
+            };
+
+            for (const [key, elemId] of Object.entries(mappings)) {
+                const elem = document.getElementById(elemId);
+                if (elem && settings[key] !== undefined) {
+                    elem.value = settings[key];
+                }
+            }
+
+            log('Applied sampler preset:', preset, settings);
+        },
+
+        // Apply API configuration
+        applyAPIConfig(config) {
+            if (!window.localsettings) return;
+
+            // Disable the import prompt dialogs for Guided RP mode
+            window.localsettings.import_tavern_prompt = false;
+
+            if (config.aiType === 'horde') {
+                // Set dropdown to Horde (0)
+                const dropdown = document.getElementById('customapidropdown');
+                if (dropdown) {
+                    dropdown.value = '0';
+                    // Trigger the change event to let Esolite configure itself
+                    if (typeof window.customapi_dropdown === 'function') {
+                        window.customapi_dropdown(true);
+                    }
+                }
+                // Apply user's Horde API key or use anonymous key
+                const apiKeyInput = document.getElementById('apikey');
+                if (apiKeyInput) {
+                    if (config.hordeApiKey && config.hordeApiKey.length > 0) {
+                        apiKeyInput.value = config.hordeApiKey;
+                        // Also set in localsettings
+                        if (window.localsettings) {
+                            window.localsettings.my_api_key = config.hordeApiKey;
+                        }
+                    } else if (!apiKeyInput.value) {
+                        apiKeyInput.value = '0000000000';
+                    }
+                }
+                log('Configured Horde API', config.hordeApiKey ? 'with user key' : 'anonymous');
+
+            } else if (config.aiType === 'koboldcpp') {
+                // Set dropdown to KoboldAI (1)
+                const dropdown = document.getElementById('customapidropdown');
+                if (dropdown) {
+                    dropdown.value = '1';
+                    if (typeof window.customapi_dropdown === 'function') {
+                        window.customapi_dropdown(true);
+                    }
+                }
+                // Set the endpoint
+                window.custom_kobold_endpoint = config.endpoint || 'http://localhost:5001';
+                const endpointInput = document.getElementById('customkoboldurl');
+                if (endpointInput) {
+                    endpointInput.value = window.custom_kobold_endpoint;
+                }
+                log('Configured KoboldCpp:', window.custom_kobold_endpoint);
+
+            } else if (config.aiType === 'cloud') {
+                const provider = CLOUD_PROVIDERS[config.cloudProvider];
+                if (provider) {
+                    // Set dropdown to the provider's Esolite dropdown value
+                    const dropdown = document.getElementById('customapidropdown');
+                    if (dropdown) {
+                        dropdown.value = provider.esoliteDropdown;
+                        if (typeof window.customapi_dropdown === 'function') {
+                            window.customapi_dropdown(true);
+                        }
+                    }
+
+                    // Set the endpoint
+                    const endpoint = config.endpoint || provider.endpoint;
+                    window.custom_oai_endpoint = endpoint;
+                    const endpointInput = document.getElementById('custom_oai_endpoint');
+                    if (endpointInput) {
+                        endpointInput.value = endpoint;
+                    }
+
+                    // Set the API key
+                    const apiKeyInput = document.getElementById('custom_oai_key');
+                    if (apiKeyInput) {
+                        apiKeyInput.value = config.apiKey;
+                    }
+
+                    // Set model if specified
+                    if (config.model && config.model !== 'Auto-detect') {
+                        const modelInput = document.getElementById('custom_oai_model');
+                        if (modelInput) {
+                            modelInput.value = config.model;
+                        }
+                        window.localsettings.custom_oai_model = config.model;
+
+                        // Auto-detect instruct template from model name
+                        const instruct = autoDetectInstruct(config.model);
+                        window.localsettings.gui_type_instruct = INSTRUCT_MAP[instruct] || 2;
+                    }
+
+                    log('Configured Cloud API:', provider.name, endpoint);
+                }
+            }
+        },
+
+        // Apply persona
+        applyPersona(persona) {
+            if (!window.localsettings) return;
+            window.localsettings.chatname = persona.name || 'User';
+
+            // Update the chatname input if it exists
+            const chatnameInput = document.getElementById('chatnamefield');
+            if (chatnameInput) {
+                chatnameInput.value = persona.name || 'User';
+            }
+
+            log('Applied persona:', persona.name);
+        },
+
+        // Load character card directly (bypassing dialogs)
+        loadCharacterDirect(card, firstMessage) {
+            // Resolve macros with persona name
+            const userName = state.config.persona.name || 'User';
+            const charName = card.name || 'Character';
+
+            // Start a new game first
+            if (typeof window.restart_new_game === 'function') {
+                window.restart_new_game(false);
+            }
+
+            // Set up chat mode with CORPO theme (value 3) to prevent aesthetic mode switch
+            window.localsettings.opmode = 3; // Chat mode
+            window.localsettings.gui_type_chat = 3; // Corpo theme (prevents aesthetic switch)
+            window.localsettings.chatname = userName;
+            window.localsettings.chatopponent = charName;
+            window.localsettings.multiline_replies = true;
+
+            // Build memory from character data
+            let memory = '';
+            if (card.description) {
+                memory += 'Persona: ' + resolveCardMacros({ text: card.description }, userName, charName).text + '\n';
+            }
+            if (card.personality) {
+                memory += 'Personality: ' + resolveCardMacros({ text: card.personality }, userName, charName).text + '\n';
+            }
+            if (card.scenario) {
+                memory += '[Scenario: ' + resolveCardMacros({ text: card.scenario }, userName, charName).text + ']\n';
+            }
+
+            // Add persona description if available
+            if (state.config.persona.description) {
+                memory += '\n[User Persona: ' + state.config.persona.description + ']\n';
+            }
+
+            // Set memory
+            if (typeof window.current_memory !== 'undefined') {
+                window.current_memory = memory + '***';
+            }
+
+            // Set example messages as temporary memory
+            if (card.mes_example && typeof window.current_temp_memory !== 'undefined') {
+                let examples = card.mes_example;
+                if (typeof window.formatExampleMessages === 'function') {
+                    examples = window.formatExampleMessages(examples);
+                }
+                window.current_temp_memory = resolveCardMacros({ text: examples }, userName, charName).text + '\n***';
+            }
+
+            // Handle character book / world info
+            if (card.character_book && card.character_book.entries && typeof window.load_tavern_wi === 'function') {
+                window.current_wi = window.load_tavern_wi(card.character_book);
+            }
+
+            // Set the first message
+            const greeting = firstMessage || card.first_mes || '';
+            const resolvedGreeting = resolveCardMacros({ text: greeting }, userName, charName).text;
+
+            if (resolvedGreeting && typeof window.gametext_arr !== 'undefined') {
+                window.gametext_arr = [];
+                window.gametext_arr.push('\n' + charName + ': ' + resolvedGreeting);
+            }
+
+            // Render the game text
+            if (typeof window.render_gametext === 'function') {
+                window.render_gametext(true);
+            }
+
+            // Update side panel
+            if (typeof window.update_for_sidepanel === 'function') {
+                window.update_for_sidepanel();
+            }
+
+            log('Loaded character directly:', charName);
+            return true;
+        },
+
+        // Generate and download save
+        async saveAndDownload() {
+            const saveBtn = document.getElementById('btn-save');
+            const originalText = saveBtn ? saveBtn.textContent : '';
+
+            try {
+                // Show saving state
+                if (saveBtn) {
+                    saveBtn.textContent = '⏳';
+                    saveBtn.disabled = true;
+                }
+
+                if (typeof window.generate_savefile === 'function') {
+                    const saveData = window.generate_savefile(true, true, true);
+
+                    // Generate filename from character name if available
+                    const charName = (state.config.character && state.config.character.name) || 'adventure';
+                    const timestamp = new Date().toISOString().slice(0, 10);
+                    const saveName = `${charName}_${timestamp}.json`;
+
+                    const blob = new Blob([JSON.stringify(saveData, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = saveName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    state.justSaved = true;
+
+                    // Show success state
+                    if (saveBtn) {
+                        saveBtn.textContent = '✓';
+                        setTimeout(() => {
+                            saveBtn.textContent = originalText;
+                            saveBtn.disabled = false;
+                            state.justSaved = false;
+                        }, 1500);
+                    }
+
+                    log('Save downloaded:', saveName);
+                    return true;
+                } else {
+                    throw new Error('Save function not available');
+                }
+            } catch (e) {
+                console.error('Save failed:', e);
+                // Show error state
+                if (saveBtn) {
+                    saveBtn.textContent = '✕';
+                    setTimeout(() => {
+                        saveBtn.textContent = originalText;
+                        saveBtn.disabled = false;
+                    }, 1500);
+                }
+                alert('Failed to save: ' + e.message);
+            }
+            return false;
+        },
+
+        // Apply corpo chat mode only; keep user's theme intact
+        applyCorpoTheme() {
+            if (!window.localsettings) return;
+
+            window.localsettings.opmode = 3; // Chat mode
+            window.localsettings.gui_type_chat = 3; // Corpo chat style (3 = corpo, 2 = aesthetic)
+            // Do not override Esolite's theme variables here; respect current theme
+        },
+
+        // Reset all data (for restart)
+        resetAllData() {
+            // Clear Guided RP state first
+            clearState();
+
+            // Clear Esolite's IndexedDB
+            const dbName = 'klite';
+            const request = indexedDB.deleteDatabase(dbName);
+            request.onsuccess = () => log('IndexedDB cleared');
+            request.onerror = () => log('Failed to clear IndexedDB');
+
+            // Clear localStorage (but preserve some system keys)
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                // Remove Esolite and Guided RP keys
+                if (key && (key.startsWith('kaihordewebui_') || key.startsWith('e_kaihordewebui_') || key === STORAGE_KEY)) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+
+            // Reload page
+            setTimeout(() => window.location.reload(), 100);
+        },
+
+        // Check for existing session
+        hasExistingSession() {
+            // Check if there's game text or a character loaded
+            return (typeof window.gametext_arr !== 'undefined' &&
+                    Array.isArray(window.gametext_arr) &&
+                    window.gametext_arr.length > 0);
+        }
+    };
+
+    // Map instruct template names to Esolite's gui_type_instruct values
+    const INSTRUCT_MAP = {
+        'alpaca': 2,
+        'vicuna': 3,
+        'llama3': 13,
+        'mistral': 8,
+        'chatml': 6,
+        'chatgpt': 1,
+        'claude': 15,
+        'gemma': 14,
+        'deepseek': 6, // Uses ChatML
+        'command-r': 16,
+        'solar': 8,
+        'openchat': 6
+    };
+
+    // =========================================================================
+    // FILE PARSING - Handle PNG/JSON character cards
+    // =========================================================================
+
+    const FileParser = {
+        // Read file as data URL
+        readAsDataURL(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        },
+
+        // Read file as text
+        readAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsText(file);
+            });
+        },
+
+        // Read file as array buffer
+        readAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        },
+
+        // Extract character data from PNG (TavernCard V2)
+        async extractFromPNG(file) {
+            try {
+                const buffer = await this.readAsArrayBuffer(file);
+                const bytes = new Uint8Array(buffer);
+
+                // PNG signature check
+                const pngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
+                for (let i = 0; i < 8; i++) {
+                    if (bytes[i] !== pngSignature[i]) {
+                        throw new Error('Not a valid PNG file');
+                    }
+                }
+
+                // Find tEXt chunk with 'chara' keyword
+                let offset = 8;
+                while (offset < bytes.length) {
+                    const length = (bytes[offset] << 24) | (bytes[offset + 1] << 16) |
+                                   (bytes[offset + 2] << 8) | bytes[offset + 3];
+                    const type = String.fromCharCode(bytes[offset + 4], bytes[offset + 5],
+                                                      bytes[offset + 6], bytes[offset + 7]);
+
+                    if (type === 'tEXt') {
+                        const data = bytes.slice(offset + 8, offset + 8 + length);
+                        const text = new TextDecoder('latin1').decode(data);
+                        const nullIndex = text.indexOf('\0');
+                        const keyword = text.substring(0, nullIndex);
+                        const value = text.substring(nullIndex + 1);
+
+                        if (keyword === 'chara') {
+                            const decoded = atob(value);
+                            const card = JSON.parse(decoded);
+                            // Get image as data URL
+                            const imageDataUrl = await this.readAsDataURL(file);
+                            return { ...this.normalizeCard(card), image: imageDataUrl };
+                        }
+                    }
+
+                    offset += 12 + length;
+                }
+
+                throw new Error('No character data found in PNG');
+            } catch (e) {
+                console.error('PNG extraction failed:', e);
+                throw e;
+            }
+        },
+
+        // Parse JSON character card
+        async parseJSON(file) {
+            try {
+                const text = await this.readAsText(file);
+                const data = JSON.parse(text);
+                return this.normalizeCard(data);
+            } catch (e) {
+                console.error('JSON parsing failed:', e);
+                throw e;
+            }
+        },
+
+        // Normalize card to consistent format (TavernCard V2)
+        normalizeCard(data) {
+            // Handle V2 spec wrapper
+            if (data.spec === 'chara_card_v2' && data.data) {
+                data = { ...data.data, spec: 'chara_card_v2' };
+            }
+
+            return {
+                name: data.name || data.char_name || 'Unknown',
+                description: data.description || data.char_persona || '',
+                personality: data.personality || '',
+                first_mes: data.first_mes || data.char_greeting || '',
+                mes_example: data.mes_example || data.example_dialogue || '',
+                scenario: data.scenario || data.world_scenario || '',
+                creator: data.creator || '',
+                creator_notes: data.creator_notes || '',
+                system_prompt: data.system_prompt || '',
+                post_history_instructions: data.post_history_instructions || '',
+                alternate_greetings: data.alternate_greetings || [],
+                character_book: data.character_book || null,
+                tags: data.tags || [],
+                image: data.image || null
+            };
+        },
+
+        // Auto-detect and parse file
+        async parseFile(file) {
+            const ext = file.name.toLowerCase().split('.').pop();
+
+            if (ext === 'png' || ext === 'webp') {
+                return await this.extractFromPNG(file);
+            } else if (ext === 'json') {
+                return await this.parseJSON(file);
+            }
+
+            throw new Error(`Unsupported file type: ${ext}`);
+        }
+    };
+
+    // =========================================================================
+    // UI COMPONENTS
+    // =========================================================================
+
+    const UI = {
+        // Create the main landing page overlay
+        createLandingPage() {
+            const overlay = document.createElement('div');
+            overlay.id = 'grp-overlay';
+            overlay.innerHTML = `
+                <div class="grp-container">
+                    <!-- Progress Navigation -->
+                    <nav class="grp-nav">
+                        <div class="nav-dots">
+                            <button class="nav-dot active" data-section="0" aria-label="Introduction" title="Introduction"></button>
+                            <button class="nav-dot" data-section="1" aria-label="Start Mode" title="Start Fresh or Continue"></button>
+                            <button class="nav-dot" data-section="2" aria-label="AI Setup" title="Connect AI"></button>
+                            <button class="nav-dot" data-section="3" aria-label="Writing Style" title="How AI Writes"></button>
+                            <button class="nav-dot" data-section="4" aria-label="Persona" title="Who Are You"></button>
+                            <button class="nav-dot" data-section="5" aria-label="Character" title="Choose Character"></button>
+                            <button class="nav-dot" data-section="6" aria-label="Greeting" title="Choose Greeting"></button>
+                            <button class="nav-dot" data-section="7" aria-label="Review" title="Overview & Start"></button>
+                        </div>
+                    </nav>
+
+                    <!-- Scrollable Sections -->
+                    <div class="grp-sections">
+                        ${this.createSection0()}
+                        ${this.createSection1()}
+                        ${this.createSection2()}
+                        ${this.createSection3()}
+                        ${this.createSection4()}
+                        ${this.createSection5()}
+                        ${this.createSection6()}
+                        ${this.createSection7()}
+                    </div>
+                </div>
+            `;
+            return overlay;
+        },
+
+        // Section 0: Introduction (modern centered layout)
+        createSection0() {
+            return `
+                <section class="grp-section section-intro" data-section="0" data-theme="dark">
+                    <div class="section-content">
+                        <div class="intro-layout">
+                            <div class="intro-hero">
+                                <div class="intro-thumbnail" style="background-image: var(--img_theme_4);"></div>
+                                <h1 class="intro-title">Welcome to Esolite</h1>
+                                <p class="intro-subtitle">Your guided journey to AI roleplay adventures</p>
+                            </div>
+                            <div class="intro-steps-wrapper">
+                                <p class="intro-steps-label">We'll set you up in 7 simple steps:</p>
+                                <div class="intro-steps">
+                                    <div class="intro-step"><span class="step-num">1</span><span class="step-text">Start</span></div>
+                                    <div class="intro-step"><span class="step-num">2</span><span class="step-text">Connect AI</span></div>
+                                    <div class="intro-step"><span class="step-num">3</span><span class="step-text">Style</span></div>
+                                    <div class="intro-step"><span class="step-num">4</span><span class="step-text">Persona</span></div>
+                                    <div class="intro-step"><span class="step-num">5</span><span class="step-text">Character</span></div>
+                                    <div class="intro-step"><span class="step-num">6</span><span class="step-text">Greeting</span></div>
+                                    <div class="intro-step"><span class="step-num">7</span><span class="step-text">Begin!</span></div>
+                                </div>
+                            </div>
+                            <div class="section-nav intro-nav">
+                                <button class="btn-primary btn-next btn-large" data-next="1">
+                                    Let's Begin <span class="arrow">→</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            `;
+        },
+
+        // Section 1: Start Fresh or Continue
+        createSection1() {
+            return `
+                <section class="grp-section section-start-mode" data-section="1" data-theme="blue">
+                    <div class="section-content">
+                        <div class="section-header">
+                            <span class="section-number">Step 1</span>
+                            <h2>How would you like to begin?</h2>
+                            <p>Start fresh or continue an existing adventure</p>
+                        </div>
+
+                        <div class="start-options">
+                            <div class="start-card" id="start-fresh-card" data-mode="fresh">
+                                <div class="start-icon">🚀</div>
+                                <h3>Start Fresh</h3>
+                                <p>Set up a new adventure from scratch with the guided setup</p>
+                            </div>
+                            <div class="start-card" id="continue-card" data-mode="continue">
+                                <div class="start-icon">📂</div>
+                                <h3>Continue Adventure</h3>
+                                <p>Load an existing save file to resume where you left off</p>
+                                <input type="file" id="save-file-input" accept=".json,.kaistory" hidden>
+                            </div>
+                        </div>
+
+                        <div class="load-status" id="load-status" style="display:none;">
+                            <div class="status-message"></div>
+                        </div>
+
+                        <div class="section-nav">
+                            <button class="btn-secondary btn-back" data-back="0">← Back</button>
+                            <button class="btn-primary btn-next" data-next="2" id="start-mode-next">
+                                Continue <span class="arrow">→</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            `;
+        },
+
+        // Section 2: Connect AI (with Horde key support)
+        createSection2() {
+            const providerOptions = Object.entries(CLOUD_PROVIDERS)
+                .map(([key, p]) => `<option value="${key}">${p.name}</option>`)
+                .join('');
+
+            return `
+                <section class="grp-section section-ai" data-section="2" data-theme="purple">
+                    <div class="section-content">
+                        <div class="section-header">
+                            <span class="section-number">Step 2</span>
+                            <h2>Connect Your AI</h2>
+                            <p>Choose where your AI brain lives</p>
+                        </div>
+
+                        <div class="ai-options">
+                            <div class="ai-card" data-ai="horde">
+                                <div class="ai-icon">🌐</div>
+                                <h3>AI Horde</h3>
+                                <p class="ai-tag free">Free</p>
+                                <p class="ai-desc">Community-powered AI. No setup needed!</p>
+                                <p class="ai-note">May have wait times during busy hours</p>
+                            </div>
+
+                            <div class="ai-card" data-ai="koboldcpp">
+                                <div class="ai-icon">💻</div>
+                                <h3>KoboldCpp</h3>
+                                <p class="ai-tag local">Local</p>
+                                <p class="ai-desc">Run AI on your computer. Fast & private!</p>
+                                <p class="ai-note">Requires KoboldCpp running locally</p>
+                            </div>
+
+                            <div class="ai-card" data-ai="cloud">
+                                <div class="ai-icon">☁️</div>
+                                <h3>Cloud API</h3>
+                                <p class="ai-tag paid">Paid</p>
+                                <p class="ai-desc">Professional cloud services</p>
+                                <p class="ai-note">Requires API key from provider</p>
+                            </div>
+                        </div>
+
+                        <!-- Horde Config (with optional API key) -->
+                        <div class="ai-config config-horde" style="display:none;">
+                            <div class="config-info success">
+                                <span class="info-icon">✓</span>
+                                <p>AI Horde is ready! Optionally add your API key for priority access.</p>
+                            </div>
+                            <div class="config-field">
+                                <label>AI Horde API Key (Optional)</label>
+                                <div class="input-with-toggle">
+                                    <input type="password" id="horde-apikey" placeholder="Leave empty for anonymous access">
+                                    <button class="toggle-visibility" aria-label="Show/hide key">👁</button>
+                                </div>
+                                <span class="field-hint">Get your key from <a href="https://aihorde.net/" target="_blank">aihorde.net</a> for faster generation</span>
+                            </div>
+                        </div>
+
+                        <!-- KoboldCpp Config -->
+                        <div class="ai-config config-koboldcpp" style="display:none;">
+                            <div class="config-field">
+                                <label>KoboldCpp Address</label>
+                                <input type="text" id="kobold-endpoint"
+                                       value="http://localhost:5001"
+                                       placeholder="http://localhost:5001">
+                                <span class="field-hint">Usually http://localhost:5001 if running on this computer</span>
+                            </div>
+                            <button class="btn-secondary" id="test-kobold">Test Connection</button>
+                            <div class="connection-status" id="kobold-status"></div>
+                        </div>
+
+                        <!-- Cloud API Config -->
+                        <div class="ai-config config-cloud" style="display:none;">
+                            <div class="config-field">
+                                <label>Choose Provider</label>
+                                <select id="cloud-provider">
+                                    ${providerOptions}
+                                </select>
+                            </div>
+
+                            <div class="config-field" id="custom-endpoint-field" style="display:none;">
+                                <label>API Endpoint URL</label>
+                                <input type="text" id="cloud-endpoint" placeholder="https://api.example.com/v1">
+                            </div>
+
+                            <div class="config-field">
+                                <label>API Key</label>
+                                <div class="input-with-toggle">
+                                    <input type="password" id="cloud-apikey" placeholder="Enter your API key">
+                                    <button class="toggle-visibility" aria-label="Show/hide key">👁</button>
+                                </div>
+                                <span class="field-hint" id="key-hint">Get your key from the provider's website</span>
+                            </div>
+
+                            <div class="config-field">
+                                <label>Model (Optional)</label>
+                                <select id="cloud-model">
+                                    <option value="">Auto-detect</option>
+                                </select>
+                                <span class="field-hint">Leave as auto-detect if unsure, but this will probably choose an expensive high performant model</span>
+                            </div>
+                        </div>
+
+                        <div class="section-nav">
+                            <button class="btn-secondary btn-back" data-back="1">← Back</button>
+                            <button class="btn-primary btn-next" data-next="3" disabled>
+                                Continue <span class="arrow">→</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            `;
+        },
+
+        // Section 3: Writing Style
+        createSection3() {
+            return `
+                <section class="grp-section section-writing" data-section="3" data-theme="pink">
+                    <div class="section-content">
+                        <div class="section-header">
+                            <span class="section-number">Step 3</span>
+                            <h2>How Should the AI Write?</h2>
+                            <p>Choose a writing style for your roleplay</p>
+                        </div>
+
+                        <div class="writing-style-options">
+                            <div class="style-card" data-style="chat">
+                                <div class="style-icon">💬</div>
+                                <h4>Chat Style</h4>
+                                <p class="style-desc">Short, quick responses like texting</p>
+                                <div class="style-details">
+                                    <span class="detail-label">Length:</span> ~120 words<br>
+                                    <span class="detail-label">Best for:</span> Fast-paced conversations
+                                </div>
+                            </div>
+                            <div class="style-card selected" data-style="normal">
+                                <div class="style-icon">📝</div>
+                                <h4>Normal Writing</h4>
+                                <p class="style-desc">Balanced co-writing style (Recommended)</p>
+                                <div class="style-details">
+                                    <span class="detail-label">Length:</span> ~350 words<br>
+                                    <span class="detail-label">Best for:</span> Most roleplays
+                                </div>
+                            </div>
+                            <div class="style-card" data-style="creative">
+                                <div class="style-icon">✨</div>
+                                <h4>Creative Writing</h4>
+                                <p class="style-desc">Expressive, longer prose</p>
+                                <div class="style-details">
+                                    <span class="detail-label">Length:</span> ~600 words<br>
+                                    <span class="detail-label">Best for:</span> Detailed storytelling
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="style-preview">
+                            <h4>Preview:</h4>
+                            <div class="preview-text" id="style-preview-text">
+                                The normal writing style provides a good balance between brevity and detail,
+                                allowing for engaging roleplay without overwhelming you with text.
+                            </div>
+                        </div>
+
+                        <div class="section-nav">
+                            <button class="btn-secondary btn-back" data-back="2">← Back</button>
+                            <button class="btn-primary btn-next" data-next="4">
+                                Continue <span class="arrow">→</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            `;
+        },
+
+        // Section 4: Persona (Who Are You?)
+        createSection4() {
+            return `
+                <section class="grp-section section-persona" data-section="4" data-theme="green">
+                    <div class="section-content">
+                        <div class="section-header">
+                            <span class="section-number">Step 4</span>
+                            <h2>Who Are You?</h2>
+                            <p>Create your character for the roleplay</p>
+                        </div>
+
+                        <div class="persona-toggle-container">
+                            <div class="persona-toggle" role="tablist">
+                                <button class="persona-toggle-btn active" data-method="manual" role="tab" aria-selected="true">
+                                    <span class="toggle-icon">✏️</span>
+                                    <span class="toggle-label">Create</span>
+                                </button>
+                                <button class="persona-toggle-btn" data-method="import" role="tab" aria-selected="false">
+                                    <span class="toggle-icon">📥</span>
+                                    <span class="toggle-label">Import</span>
+                                </button>
+                                <div class="toggle-slider"></div>
+                            </div>
+                        </div>
+
+                        <div class="persona-panels">
+                            <div class="persona-panel active" id="persona-panel-manual" data-panel="manual">
+                                <div class="config-field">
+                                    <label>Your Name</label>
+                                    <input type="text" id="persona-name" placeholder="Enter your character's name">
+                                </div>
+                                <div class="config-field">
+                                    <label>Description <span class="optional-tag">Optional</span></label>
+                                    <textarea id="persona-description"
+                                              placeholder="Describe yourself... (appearance, personality, background)"
+                                              rows="4"></textarea>
+                                    <span class="field-hint">This helps the AI understand who you are in the story</span>
+                                </div>
+                            </div>
+
+                            <div class="persona-panel" id="persona-panel-import" data-panel="import">
+                                <div class="import-zone" id="persona-dropzone">
+                                    <div class="dropzone-content">
+                                        <span class="dropzone-icon">📁</span>
+                                        <p>Drop persona file here</p>
+                                        <p class="dropzone-hint">or click to browse (PNG/JSON/WEBP)</p>
+                                    </div>
+                                    <input type="file" id="persona-file-input" accept=".png,.json,.webp" hidden>
+                                </div>
+                                <div class="imported-persona" id="imported-persona" style="display:none;">
+                                    <img class="persona-avatar" id="persona-avatar-preview" src="" alt="">
+                                    <div class="persona-info">
+                                        <h4 id="imported-persona-name"></h4>
+                                        <p id="imported-persona-desc"></p>
+                                    </div>
+                                    <button class="btn-icon remove-import" id="remove-persona">✕</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="persona-method" value="manual">
+
+                        <div class="section-nav">
+                            <button class="btn-secondary btn-back" data-back="3">← Back</button>
+                            <button class="btn-primary btn-next" data-next="5" disabled>
+                                Continue <span class="arrow">→</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            `;
+        },
+
+        // Section 5: Choose Character
+        createSection5() {
+            return `
+                <section class="grp-section section-character" data-section="5" data-theme="teal">
+                    <div class="section-content">
+                        <div class="section-header">
+                            <span class="section-number">Step 5</span>
+                            <h2>Choose Your Character</h2>
+                            <p>Import a character to roleplay with</p>
+                        </div>
+
+                        <div class="character-import">
+                            <div class="import-zone large" id="character-dropzone">
+                                <div class="dropzone-content">
+                                    <span class="dropzone-icon">🎭</span>
+                                    <p>Drop character card here</p>
+                                    <p class="dropzone-hint">Supports TavernCard V2 (PNG/JSON)</p>
+                                    <button class="btn-secondary">Browse Files</button>
+                                </div>
+                                <input type="file" id="character-file-input" accept=".png,.json,.webp" hidden>
+                            </div>
+                        </div>
+
+                        <!-- Character Preview (shown after import) -->
+                        <div class="character-preview" id="character-preview" style="display:none;">
+                            <div class="preview-card">
+                                <div class="preview-header">
+                                    <img class="preview-avatar" id="char-avatar" src="" alt="">
+                                    <div class="preview-title">
+                                        <h3 id="char-name"></h3>
+                                        <p class="char-creator" id="char-creator"></p>
+                                    </div>
+                                    <button class="btn-icon remove-import" id="remove-character">✕</button>
+                                </div>
+                                <div class="preview-body">
+                                    <div class="preview-section">
+                                        <h4>Description</h4>
+                                        <p id="char-description" class="truncate-text"></p>
+                                    </div>
+                                    <div class="preview-section collapsible collapsed" id="char-personality-section">
+                                        <h4 class="collapsible-header">
+                                            Personality <span class="collapse-icon">▼</span>
+                                        </h4>
+                                        <p id="char-personality" class="collapsible-content truncate-text"></p>
+                                    </div>
+                                    <div class="preview-section collapsible collapsed" id="char-scenario-section">
+                                        <h4 class="collapsible-header">
+                                            Scenario <span class="collapse-icon">▼</span>
+                                        </h4>
+                                        <p id="char-scenario" class="collapsible-content truncate-text"></p>
+                                    </div>
+                                </div>
+                                <div class="preview-tags" id="char-tags"></div>
+                            </div>
+                        </div>
+
+                        <div class="section-nav">
+                            <button class="btn-secondary btn-back" data-back="4">← Back</button>
+                            <button class="btn-primary btn-next" data-next="6" disabled>
+                                Continue <span class="arrow">→</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            `;
+        },
+
+        // Section 6: Choose Greeting
+        createSection6() {
+            return `
+                <section class="grp-section section-greeting" data-section="6" data-theme="orange">
+                    <div class="section-content">
+                        <div class="section-header">
+                            <span class="section-number">Step 6</span>
+                            <h2>Choose the Greeting</h2>
+                            <p>Select how the character will start the conversation</p>
+                        </div>
+
+                        <div class="greeting-options" id="greeting-options">
+                            <div class="greeting-note">
+                                <p>Import a character first to see available greetings</p>
+                            </div>
+                        </div>
+
+                        <div class="greeting-list" id="greeting-list" style="display:none;">
+                            <div class="greetings-container" id="greetings-container">
+                                <!-- Greetings will be populated here -->
+                            </div>
+
+                            <div class="custom-greeting-option">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="use-custom-greeting">
+                                    Write a custom greeting instead
+                                </label>
+                            </div>
+
+                            <div class="custom-greeting-input" id="custom-greeting-section" style="display:none;">
+                                <textarea id="custom-greeting-text"
+                                          placeholder="Write how you want the character to greet you..."
+                                          rows="6"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="section-nav">
+                            <button class="btn-secondary btn-back" data-back="5">← Back</button>
+                            <button class="btn-primary btn-next" data-next="7" disabled>
+                                Continue <span class="arrow">→</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            `;
+        },
+
+        // Section 7: Overview and Start
+        createSection7() {
+            return `
+                <section class="grp-section section-overview" data-section="7" data-theme="green">
+                    <div class="section-content">
+                        <div class="section-header">
+                            <span class="section-number">Step 7</span>
+                            <h2>Ready to Begin!</h2>
+                            <p>Review your setup and start your adventure</p>
+                        </div>
+
+                        <div class="overview-summary">
+                            <div class="summary-item">
+                                <span class="summary-icon">🤖</span>
+                                <div class="summary-info">
+                                    <span class="summary-label">AI Provider</span>
+                                    <span class="summary-value" id="summary-ai">Not configured</span>
+                                </div>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-icon">✍️</span>
+                                <div class="summary-info">
+                                    <span class="summary-label">Writing Style</span>
+                                    <span class="summary-value" id="summary-style">Normal</span>
+                                </div>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-icon">👤</span>
+                                <div class="summary-info">
+                                    <span class="summary-label">Your Persona</span>
+                                    <span class="summary-value" id="summary-persona">Not set</span>
+                                </div>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-icon">🎭</span>
+                                <div class="summary-info">
+                                    <span class="summary-label">Character</span>
+                                    <span class="summary-value" id="summary-character">Not imported</span>
+                                </div>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-icon">💬</span>
+                                <div class="summary-info">
+                                    <span class="summary-label">First Message</span>
+                                    <span class="summary-value" id="summary-greeting">Default</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="greeting-preview">
+                            <h4>Preview First Message:</h4>
+                            <div class="preview-bubble">
+                                <p id="final-greeting-preview">Import a character to see the greeting...</p>
+                            </div>
+                        </div>
+
+                        <div class="section-nav start-nav">
+                            <button class="btn-secondary btn-back" data-back="6">← Back</button>
+                            <button class="btn-primary btn-start" id="start-chat">
+                                🚀 Start Roleplay
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            `;
+        },
+
+        // Create simplified chat header
+        createSimplifiedHeader() {
+            const header = document.createElement('div');
+            header.id = 'grp-chat-header';
+            header.innerHTML = `
+                <div class="chat-header-left">
+                    <img class="chat-char-avatar" id="chat-avatar" src="" alt="">
+                    <span class="chat-char-name" id="chat-char-name">Character</span>
+                </div>
+                <div class="chat-header-right">
+                    <button class="header-btn" id="btn-advanced" title="Advanced Mode">🎭</button>
+                    <button class="header-btn" id="btn-save" title="Save & Download">💾</button>
+                    <button class="header-btn" id="btn-restart" title="Start New">✨</button>
+                </div>
+            `;
+            return header;
+        },
+
+        // Create exit warning dialog
+        createExitDialog() {
+            const dialog = document.createElement('div');
+            dialog.id = 'exit-dialog';
+            dialog.className = 'grp-dialog';
+            dialog.innerHTML = `
+                <div class="dialog-backdrop"></div>
+                <div class="dialog-content">
+                    <h3>⚠️ Leaving So Soon?</h3>
+                    <p>Your progress will be lost if you leave without saving.</p>
+                    <div class="dialog-actions">
+                        <button class="btn-primary" id="exit-save">💾 Save & Exit</button>
+                        <button class="btn-secondary" id="exit-continue">Continue Chat</button>
+                        <button class="btn-danger" id="exit-discard">Leave Without Saving</button>
+                    </div>
+                </div>
+            `;
+            return dialog;
+        },
+
+        // Create restart confirmation dialog
+        createRestartDialog() {
+            const dialog = document.createElement('div');
+            dialog.id = 'restart-dialog';
+            dialog.className = 'grp-dialog';
+            dialog.innerHTML = `
+                <div class="dialog-backdrop"></div>
+                <div class="dialog-content">
+                    <h3>🔄 Start Over?</h3>
+                    <p>This will reset everything and take you back to the beginning.</p>
+                    <p class="dialog-warning">All unsaved progress will be lost!</p>
+                    <div class="dialog-actions">
+                        <button class="btn-secondary" id="restart-cancel">Cancel</button>
+                        <button class="btn-danger" id="restart-confirm">Reset Everything</button>
+                    </div>
+                </div>
+            `;
+            return dialog;
+        }
+    };
+
+    // =========================================================================
+    // STYLES
+    // =========================================================================
+
+    const STYLES = `
+        /* ========== Modern Corporate Design System ========== */
+        :root {
+            /* Base backgrounds - deep, rich darks */
+            --grp-bg-dark: var(--theme_color_bg_dark);
+            --grp-bg: var(--theme_color_bg);
+
+            /* Accents - vibrant but sophisticated */
+            --grp-accent: var(--theme_color_highlight);
+            --grp-accent-light: var(--theme_color_border_highlight);
+            --grp-accent-glow: rgba(99, 102, 241, 0.4);
+            --grp-success: #34d399;
+            --grp-warning: #fbbf24;
+            --grp-danger: #f87171;
+
+            /* Text hierarchy */
+            --grp-text: var(--theme_color_text);
+            --grp-text-muted: var(--theme_color_placeholder_text);
+            --grp-text-dim: var(--theme_color_border);
+
+            /* Glassmorphism surfaces */
+            --grp-glass: rgba(255, 255, 255, 0.03);
+            --grp-glass-border: rgba(255, 255, 255, 0.08);
+            --grp-glass-hover: rgba(255, 255, 255, 0.06);
+
+            /* Cards - subtle elevation */
+            --grp-card-bg: var(--theme_color_input_bg);
+            --grp-card-border: var(--theme_color_border);
+            --grp-card-hover: var(--theme_color_bg_dark);
+
+            /* Controls */
+            --grp-button-bg: var(--theme_color_button_bg);
+            --grp-button-text: var(--theme_color_button_text);
+
+            /* Typography - Apple-like system fonts */
+            --grp-font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            --grp-font-size: 16px;
+
+            /* Section gradients - subtle depth */
+            --grp-step-0: linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.3) 100%);
+            --grp-step-1: linear-gradient(180deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.25) 100%);
+            --grp-step-2: linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.2) 100%);
+            --grp-step-3: linear-gradient(180deg, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.15) 100%);
+            --grp-step-4: linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.1) 100%);
+            --grp-step-5: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.05) 100%);
+            --grp-step-6: linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0) 100%);
+            --grp-step-7: linear-gradient(180deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0) 100%);
+
+            /* Smooth curves */
+            --grp-radius: 20px;
+            --grp-radius-lg: 28px;
+            --grp-radius-sm: 12px;
+
+            /* Fluid transitions */
+            --grp-transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            --grp-transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            --grp-transition-bounce: 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* ========== Reset for overlay ========== */
+        #grp-overlay * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ========== Main Overlay - Full immersive experience ========== */
+        #grp-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 99999;
+            background: var(--grp-bg);
+            font-family: var(--grp-font-family);
+            color: var(--grp-text);
+            overflow: hidden;
+            font-size: var(--grp-font-size);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .grp-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        /* ========== Smooth Scroll Sections ========== */
+        .grp-sections {
+            scroll-snap-type: y mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .grp-section {
+            scroll-snap-align: start;
+            scroll-snap-stop: always;
+        }
+
+        /* ========== Navigation Dots - Minimal & Elegant ========== */
+        .grp-nav {
+            position: fixed;
+            right: 32px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 100;
+            padding: 16px 8px;
+            background: var(--grp-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 30px;
+            border: 1px solid var(--grp-glass-border);
+        }
+
+        .nav-dots {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .nav-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: none;
+            background: var(--grp-text-dim);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .nav-dot::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            background: transparent;
+            transition: all 0.3s ease;
+        }
+
+        .nav-dot:hover {
+            background: var(--grp-text-muted);
+            transform: scale(1.2);
+        }
+
+        .nav-dot.active {
+            background: var(--grp-accent-light);
+            transform: scale(1.4);
+            box-shadow: 0 0 20px var(--grp-accent-glow);
+        }
+
+        .nav-dot.completed {
+            background: var(--grp-success);
+        }
+
+        /* ========== Sections Container - Smooth Scrolling ========== */
+        .grp-sections {
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            scroll-snap-type: y mandatory;
+            scroll-behavior: smooth;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .grp-sections::-webkit-scrollbar {
+            display: none;
+        }
+
+        .grp-section {
+            min-height: 100vh;
+            width: 100%;
+            scroll-snap-align: start;
+            scroll-snap-stop: always;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 48px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Subtle animated gradient background for sections */
+        .grp-section::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse 80% 50% at 50% -20%, var(--grp-accent-glow), transparent);
+            opacity: 0.15;
+            pointer-events: none;
+        }
+
+        .grp-section[data-theme="dark"] { background: var(--grp-bg-dark); }
+        .grp-section[data-theme="blue"],
+        .grp-section[data-theme="purple"],
+        .grp-section[data-theme="pink"],
+        .grp-section[data-theme="green"],
+        .grp-section[data-theme="teal"],
+        .grp-section[data-theme="orange"] { background: var(--grp-bg); }
+
+        .section-content {
+            max-width: 720px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Staggered fade-in animation */
+        .section-content > * {
+            animation: fadeSlideUp 0.8s cubic-bezier(0.4, 0, 0.2, 1) both;
+        }
+
+        .section-content > *:nth-child(1) { animation-delay: 0.1s; }
+        .section-content > *:nth-child(2) { animation-delay: 0.2s; }
+        .section-content > *:nth-child(3) { animation-delay: 0.3s; }
+        .section-content > *:nth-child(4) { animation-delay: 0.4s; }
+
+        @keyframes fadeSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(40px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ========== Section Headers - Apple-like Typography ========== */
+        .section-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        .section-number {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--grp-accent-light);
+            margin-bottom: 16px;
+            padding: 6px 16px;
+            background: var(--grp-glass);
+            border-radius: 20px;
+            border: 1px solid var(--grp-glass-border);
+        }
+
+        .section-header h2 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 16px;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, var(--grp-text) 0%, var(--grp-text) 50%, var(--grp-accent-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .section-header p {
+            color: var(--grp-text-muted);
+            font-size: 1.125rem;
+            max-width: 480px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        /* ========== Hero Section (Welcome) ========== */
+        .hero-content { text-align: center; margin-bottom: 28px; }
+
+        .hero-title {
+            font-size: 4rem;
+            font-weight: 800;
+            margin-bottom: 20px;
+            line-height: 1.1;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, var(--grp-text) 0%, var(--grp-accent) 50%, var(--grp-accent-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: 1.8rem;
+            color: var(--grp-text-muted);
+            margin-bottom: 20px;
+        }
+
+        .hero-description {
+            font-size: 1.3rem;
+            color: var(--grp-text-dim);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* ========== Welcome Options ========== */
+        .welcome-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-bottom: 60px;
+        }
+
+        /* ========== Modern Glassmorphism Cards ========== */
+        .option-card,
+        .ai-card,
+        .style-card,
+        .start-card,
+        .greeting-card {
+            background: var(--grp-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--grp-glass-border);
+            border-radius: var(--grp-radius-lg);
+            transition: all var(--grp-transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Subtle gradient overlay */
+        .option-card::before,
+        .ai-card::before,
+        .style-card::before,
+        .start-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, transparent 50%);
+            opacity: 0;
+            transition: opacity var(--grp-transition);
+            pointer-events: none;
+        }
+
+        .option-card {
+            padding: 48px 36px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .option-card:hover,
+        .ai-card:hover,
+        .style-card:hover,
+        .start-card:hover,
+        .greeting-card:hover {
+            background: var(--grp-glass-hover);
+            border-color: var(--grp-accent-light);
+            transform: translateY(-4px) scale(1.01);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .option-card:hover::before,
+        .ai-card:hover::before,
+        .style-card:hover::before,
+        .start-card:hover::before {
+            opacity: 1;
+        }
+
+        .ai-card.selected,
+        .style-card.selected,
+        .start-card.selected,
+        .greeting-card.selected {
+            background: rgba(255,255,255,0.08);
+            border-color: var(--grp-accent-light);
+            box-shadow:
+                0 0 0 1px var(--grp-accent-light),
+                0 20px 40px rgba(0, 0, 0, 0.25),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+        }
+
+        .ai-card.selected::after,
+        .style-card.selected::after,
+        .start-card.selected::after {
+            content: '✓';
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 28px;
+            height: 28px;
+            background: var(--grp-accent-light);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+            animation: scaleIn 0.3s var(--grp-transition-bounce);
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+
+        .option-icon {
+            font-size: 4rem;
+            margin-bottom: 24px;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+        }
+
+        .option-card h3 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            letter-spacing: -0.01em;
+        }
+
+        .option-card p {
+            color: var(--grp-text-muted);
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        /* ========== Steps Preview ========== */
+        .steps-preview {
+            margin-bottom: 50px;
+        }
+
+        .steps-preview h3 {
+            text-align: center;
+            color: var(--grp-text-muted);
+            font-size: 1.2rem;
+            margin-bottom: 24px;
+        }
+
+        .steps-grid {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+        }
+
+        .step-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .step-number {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--grp-card-bg);
+            border: 3px solid var(--grp-accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.4rem;
+            color: var(--grp-accent-light);
+        }
+
+        .step-label {
+            font-size: 1.1rem;
+            color: var(--grp-text-muted);
+        }
+
+        /* ========== Modern Buttons (Apple-style) ========== */
+        #grp-overlay .btn-primary, #grp-overlay .btn-secondary, #grp-overlay .btn-danger,
+        .grp-dialog .btn-primary, .grp-dialog .btn-secondary, .grp-dialog .btn-danger {
+            padding: 16px 36px;
+            border-radius: 14px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--grp-transition);
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-width: 160px;
+            position: relative;
+            overflow: hidden;
+            letter-spacing: -0.01em;
+        }
+
+        /* Button shine effect */
+        #grp-overlay .btn-primary::before,
+        #grp-overlay .btn-secondary::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        #grp-overlay .btn-primary, .grp-dialog .btn-primary {
+            background: linear-gradient(180deg, var(--grp-accent-light) 0%, var(--grp-button-bg) 100%);
+            color: var(--grp-button-text);
+            box-shadow:
+                0 2px 4px rgba(0,0,0,0.2),
+                0 8px 16px rgba(0,0,0,0.15),
+                inset 0 1px 0 rgba(255,255,255,0.2);
+        }
+
+        #grp-overlay .btn-primary:hover:not(:disabled), .grp-dialog .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow:
+                0 4px 8px rgba(0,0,0,0.25),
+                0 16px 32px rgba(0,0,0,0.2),
+                inset 0 1px 0 rgba(255,255,255,0.25),
+                0 0 40px var(--grp-accent-glow);
+        }
+
+        #grp-overlay .btn-primary:active:not(:disabled) {
+            transform: translateY(0) scale(0.98);
+        }
+
+        #grp-overlay .btn-primary:disabled, .grp-dialog .btn-primary:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #grp-overlay .btn-secondary, .grp-dialog .btn-secondary {
+            background: var(--grp-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: var(--grp-text);
+            border: 1px solid var(--grp-glass-border);
+        }
+
+        #grp-overlay .btn-secondary:hover, .grp-dialog .btn-secondary:hover {
+            background: var(--grp-glass-hover);
+            border-color: var(--grp-text-dim);
+            transform: translateY(-2px);
+        }
+
+        #grp-overlay .btn-danger, .grp-dialog .btn-danger {
+            background: linear-gradient(180deg, #f87171 0%, #dc2626 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+        }
+
+        #grp-overlay .btn-danger:hover, .grp-dialog .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(220, 38, 38, 0.4);
+        }
+
+        #grp-overlay .btn-icon, .grp-dialog .btn-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: var(--grp-glass);
+            backdrop-filter: blur(10px);
+            color: var(--grp-text);
+            cursor: pointer;
+            transition: all var(--grp-transition);
+            font-size: 1.1rem;
+        }
+
+        #grp-overlay .btn-icon:hover, .grp-dialog .btn-icon:hover {
+            background: var(--grp-danger);
+            transform: scale(1.1);
+        }
+
+        .arrow {
+            transition: transform var(--grp-transition-fast);
+            font-size: 1.2rem;
+        }
+
+        #grp-overlay .btn-primary:hover .arrow, .grp-dialog .btn-primary:hover .arrow {
+            transform: translateX(6px);
+        }
+
+        /* Start button special styling */
+        .btn-start {
+            padding: 18px 48px !important;
+            font-size: 1.1rem !important;
+            background: linear-gradient(135deg, var(--grp-success) 0%, #059669 100%) !important;
+            box-shadow:
+                0 4px 12px rgba(34, 197, 94, 0.3),
+                inset 0 1px 0 rgba(255,255,255,0.2) !important;
+        }
+
+        .btn-start:hover {
+            box-shadow:
+                0 8px 24px rgba(34, 197, 94, 0.4),
+                0 0 60px rgba(34, 197, 94, 0.2),
+                inset 0 1px 0 rgba(255,255,255,0.25) !important;
+        }
+
+        /* ========== AI Selection Cards ========== */
+        .ai-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .ai-card {
+            padding: 32px 24px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .ai-card:hover {
+            border-color: var(--grp-accent);
+        }
+
+        .ai-card.selected {
+            background: rgba(255,255,255,0.05);
+            box-shadow: inset 0 0 0 2px var(--grp-accent-light);
+        }
+
+        .ai-icon {
+            font-size: 3.5rem;
+            margin-bottom: 16px;
+        }
+
+        .ai-card h3 {
+            font-size: 1.4rem;
+            margin-bottom: 12px;
+        }
+
+        .ai-tag {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .ai-tag.free { background: var(--grp-success); color: white; }
+        .ai-tag.local { background: var(--grp-accent); color: white; }
+        .ai-tag.paid { background: var(--grp-warning); color: black; }
+
+        .ai-desc {
+            color: var(--grp-text-muted);
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .ai-note {
+            color: var(--grp-text-dim);
+            font-size: 1rem;
+            font-style: italic;
+        }
+
+        /* ========== Config Panels ========== */
+        .ai-config {
+            background: transparent;
+            border-radius: var(--grp-radius);
+            padding: 32px 0;
+            margin-bottom: 16px;
+            animation: fadeInUp 0.3s ease;
+        }
+
+        .config-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px;
+            border-radius: var(--grp-radius-sm);
+            font-size: 1.2rem;
+        }
+
+        .config-info.success {
+            background: rgba(34, 197, 94, 0.15);
+            border: 2px solid var(--grp-success);
+        }
+
+        .info-icon {
+            font-size: 2rem;
+        }
+
+        /* ========== Modern Form Fields ========== */
+        .config-field {
+            margin-bottom: 24px;
+        }
+
+        .config-field label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 10px;
+            color: var(--grp-text);
+            font-size: 0.95rem;
+            letter-spacing: -0.01em;
+        }
+
+        .config-field input,
+        .config-field select,
+        .config-field textarea {
+            width: 100%;
+            padding: 16px 20px;
+            border-radius: var(--grp-radius-sm);
+            border: 1px solid var(--grp-glass-border);
+            background: var(--grp-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            color: var(--grp-text);
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all var(--grp-transition);
+        }
+
+        .config-field input::placeholder,
+        .config-field textarea::placeholder {
+            color: var(--grp-text-dim);
+        }
+
+        .config-field input:hover,
+        .config-field select:hover,
+        .config-field textarea:hover {
+            border-color: var(--grp-text-dim);
+            background: var(--grp-glass-hover);
+        }
+
+        .config-field input:focus,
+        .config-field select:focus,
+        .config-field textarea:focus {
+            outline: none;
+            border-color: var(--grp-accent-light);
+            box-shadow: 0 0 0 3px var(--grp-accent-glow);
+            background: var(--grp-glass-hover);
+        }
+
+        .config-field textarea {
+            resize: vertical;
+            min-height: 120px;
+            line-height: 1.6;
+        }
+
+        .config-field select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            padding-right: 44px;
+        }
+
+        .field-hint {
+            display: block;
+            margin-top: 8px;
+            font-size: 0.875rem;
+            color: var(--grp-text-dim);
+            line-height: 1.5;
+        }
+
+        .input-with-toggle {
+            position: relative;
+            display: flex;
+        }
+
+        .input-with-toggle input {
+            padding-right: 52px;
+        }
+
+        .toggle-visibility {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            opacity: 0.7;
+        }
+
+        .toggle-visibility:hover {
+            opacity: 1;
+        }
+
+        /* ========== Writing Style Cards ========== */
+        .writing-style {
+            margin-bottom: 32px;
+        }
+
+        .writing-style h3 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: var(--grp-text-muted);
+        }
+
+        .style-options {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .style-card {
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .style-card:hover {
+            border-color: var(--grp-accent);
+        }
+
+        .style-card.selected {
+            background: rgba(255,255,255,0.05);
+            box-shadow: inset 0 0 0 2px var(--grp-accent-light);
+        }
+
+        .style-icon {
+            font-size: 2rem;
+            margin-bottom: 8px;
+        }
+
+        .style-card h4 {
+            font-size: 1rem;
+            margin-bottom: 4px;
+        }
+
+        .style-card p {
+            font-size: 0.8rem;
+            color: var(--grp-text-muted);
+        }
+
+        /* ========== Connection Status ========== */
+        .connection-status {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: var(--grp-radius-sm);
+            font-size: 0.9rem;
+        }
+
+        .connection-status.success {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--grp-success);
+        }
+
+        .connection-status.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--grp-danger);
+        }
+
+        .connection-status.testing {
+            background: var(--grp-card-hover);
+            color: var(--grp-accent);
+        }
+
+        /* ========== Load Status (Save file loading) ========== */
+        .load-status {
+            margin-top: 20px;
+            padding: 16px 20px;
+            border-radius: var(--grp-radius-sm);
+            text-align: center;
+            font-size: 1rem;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .load-status.loading {
+            background: rgba(99, 102, 241, 0.15);
+            color: var(--grp-accent-light);
+        }
+
+        .load-status.loading .status-message::before {
+            content: '';
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--grp-accent-light);
+            border-top-color: transparent;
+            border-radius: 50%;
+            margin-right: 10px;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .load-status.success {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--grp-success);
+        }
+
+        .load-status.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--grp-danger);
+        }
+
+        /* ========== Section Navigation (uniform positions) ========== */
+        #grp-overlay .section-nav {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 40px;
+            max-width: 520px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        #grp-overlay .section-nav .btn-back { grid-column: 1; width: 100%; min-width: 0; }
+        #grp-overlay .section-nav .btn-next { grid-column: 2; width: 100%; min-width: 0; }
+        #grp-overlay .section-nav.start-nav { grid-template-columns: 1fr 1fr; justify-items: stretch; }
+
+        /* ========== Persona Section - Modern Segmented Control ========== */
+        .persona-toggle-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 36px;
+        }
+
+        .persona-toggle {
+            display: flex;
+            position: relative;
+            background: var(--grp-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 4px;
+            gap: 0;
+            border: 1px solid var(--grp-glass-border);
+        }
+
+        .persona-toggle-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px 32px;
+            background: transparent;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--grp-text-muted);
+            transition: all var(--grp-transition);
+            position: relative;
+            z-index: 1;
+            min-width: 130px;
+        }
+
+        .persona-toggle-btn:hover:not(.active) {
+            color: var(--grp-text);
+        }
+
+        .persona-toggle-btn.active {
+            color: white;
+        }
+
+        .toggle-icon {
+            font-size: 18px;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: calc(50% - 4px);
+            height: calc(100% - 8px);
+            background: var(--grp-button-bg);
+            border-radius: 10px;
+            transition: transform 0.25s ease;
+            z-index: 0;
+        }
+
+        .persona-toggle-btn[data-method="import"].active ~ .toggle-slider {
+            transform: translateX(100%);
+        }
+
+        .persona-panels {
+            position: relative;
+            min-height: 200px;
+        }
+
+        .persona-panel {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .persona-panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .optional-tag {
+            font-size: 12px;
+            font-weight: 400;
+            color: var(--grp-text-dim);
+            margin-left: 6px;
+        }
+
+        /* ========== Modern Import/Dropzone ========== */
+        .import-zone {
+            border: 2px dashed var(--grp-glass-border);
+            border-radius: var(--grp-radius-lg);
+            padding: 48px 32px;
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--grp-transition);
+            background: var(--grp-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .import-zone::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at center, var(--grp-accent-glow), transparent 70%);
+            opacity: 0;
+            transition: opacity var(--grp-transition);
+        }
+
+        .import-zone:hover,
+        .import-zone.drag-over {
+            border-color: var(--grp-accent-light);
+            background: var(--grp-glass-hover);
+            transform: scale(1.01);
+        }
+
+        .import-zone:hover::before,
+        .import-zone.drag-over::before {
+            opacity: 0.15;
+        }
+
+        .import-zone.large {
+            padding: 64px 40px;
+        }
+
+        .dropzone-icon {
+            font-size: 3.5rem;
+            display: block;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
+            transition: transform var(--grp-transition);
+        }
+
+        .import-zone:hover .dropzone-icon {
+            transform: scale(1.1);
+        }
+
+        .dropzone-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .dropzone-content p {
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+            font-weight: 500;
+        }
+
+        .dropzone-hint {
+            color: var(--grp-text-dim);
+            font-size: 0.875rem;
+        }
+
+        /* ========== Imported Preview - Modern Card ========== */
+        .imported-persona {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px 24px;
+            background: var(--grp-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: var(--grp-radius);
+            border: 1px solid var(--grp-glass-border);
+            animation: fadeSlideUp 0.4s ease;
+        }
+
+        .persona-avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--grp-glass-border);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+
+        .persona-info {
+            flex: 1;
+        }
+
+        .persona-info h4 {
+            margin-bottom: 6px;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .persona-info p {
+            color: var(--grp-text-muted);
+            font-size: 0.9rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.5;
+        }
+
+        /* ========== Character Preview Card ========== */
+        .character-preview {
+            margin-top: 32px;
+            animation: fadeInUp 0.4s ease;
+        }
+
+        .preview-card {
+            background: var(--grp-card-bg);
+            border: 1px solid var(--grp-card-border);
+            border-radius: var(--grp-radius);
+            overflow: hidden;
+        }
+
+        .preview-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .preview-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: var(--grp-radius-sm);
+            object-fit: cover;
+        }
+
+        .preview-title {
+            flex: 1;
+        }
+
+        .preview-title h3 {
+            font-size: 1.5rem;
+            margin-bottom: 4px;
+        }
+
+        .char-creator {
+            color: var(--grp-text-dim);
+            font-size: 0.9rem;
+        }
+
+        .preview-body {
+            padding: 20px;
+        }
+
+        .preview-section {
+            margin-bottom: 16px;
+        }
+
+        .preview-section h4 {
+            color: var(--grp-accent-light);
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .preview-section p {
+            color: var(--grp-text-muted);
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        /* Truncate long descriptions with fade-out */
+        .preview-section p.truncate-text {
+            max-height: 15em; /* approximately 10 lines */
+            overflow: hidden;
+            position: relative;
+        }
+
+        .preview-section p.truncate-text::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 4em;
+            background: linear-gradient(transparent, var(--grp-card-bg));
+            pointer-events: none;
+        }
+
+        .collapsible .collapsible-header {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .collapsible .collapse-icon {
+            font-size: 0.7rem;
+            transition: transform 0.2s ease;
+        }
+
+        .collapsible.collapsed .collapse-icon {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible.collapsed .collapsible-content {
+            display: none;
+        }
+
+        .preview-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 16px 20px;
+            border-top: 1px solid var(--grp-card-border);
+        }
+
+        .preview-tags .tag {
+            background: var(--grp-accent);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        /* ========== Start Summary ========== */
+        .start-summary {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+
+        .summary-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .summary-icon {
+            font-size: 2rem;
+        }
+
+        .summary-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .summary-label {
+            font-size: 0.8rem;
+            color: var(--grp-text-dim);
+            text-transform: uppercase;
+        }
+
+        .summary-value {
+            font-weight: 600;
+        }
+
+        /* ========== First Message Config ========== */
+        .first-message-config {
+            background: var(--grp-card-bg);
+            border-radius: var(--grp-radius);
+            padding: 24px;
+            margin-bottom: 32px;
+        }
+
+        .first-message-config h3 {
+            margin-bottom: 8px;
+        }
+
+        .config-hint {
+            color: var(--grp-text-muted);
+            margin-bottom: 20px;
+        }
+
+        .greeting-selector {
+            margin-bottom: 16px;
+        }
+
+        .greeting-selector label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--grp-text-muted);
+        }
+
+        .greeting-selector select {
+            width: 100%;
+            padding: 10px;
+            border-radius: var(--grp-radius-sm);
+            border: 1px solid var(--grp-card-border);
+            background: rgba(0, 0, 0, 0.3);
+            color: var(--grp-text);
+        }
+
+        .first-message-preview {
+            margin-bottom: 16px;
+        }
+
+        .message-bubble {
+            background: rgba(99, 102, 241, 0.2);
+            border-radius: var(--grp-radius);
+            padding: 16px 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .message-bubble p {
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+
+        .custom-message-toggle {
+            margin-bottom: 16px;
+        }
+
+        .custom-message-toggle label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            color: var(--grp-text-muted);
+        }
+
+        .custom-message-toggle input {
+            accent-color: var(--grp-accent);
+        }
+
+        .custom-message-input textarea {
+            width: 100%;
+            padding: 16px;
+            border-radius: var(--grp-radius-sm);
+            border: 1px solid var(--grp-card-border);
+            background: rgba(0, 0, 0, 0.3);
+            color: var(--grp-text);
+            font-size: 1rem;
+            resize: vertical;
+        }
+
+        /* ========== Simplified Chat Header ========== */
+        #grp-chat-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: var(--theme_color_topmenu);
+            border-bottom: 0px solid var(--theme_color_border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+            z-index: 9999;
+            font-family: var(--grp-font-family);
+        }
+
+        .chat-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .chat-char-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--grp-card-border);
+        }
+
+        .chat-char-name {
+            font-weight: 600;
+            font-size: 1.3rem;
+            color: var(--theme_color_topmenu_text);
+        }
+
+        .chat-header-right {
+            display: flex;
+            gap: 10px;
+        }
+
+        .header-btn {
+            height: 36px;
+            padding: 0 8px;
+            border-radius: 8px;
+            border: 0px solid var(--theme_color_border);
+            cursor: pointer;
+            font-size: 32px;
+            line-height: 50px;
+            color: var(--theme_color_topmenu_text);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .header-btn:hover {
+            background: var(--theme_color_topbtn_highlight);
+            border-color: var(--theme_color_border_highlight);
+        }
+
+        /* ========== Dialog ========== */
+        .grp-dialog {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dialog-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .dialog-content {
+            position: relative;
+            background: var(--grp-bg-dark);
+            border: 1px solid var(--grp-card-border);
+            border-radius: var(--grp-radius);
+            padding: 32px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .dialog-content h3 {
+            font-size: 1.5rem;
+            margin-bottom: 16px;
+        }
+
+        .dialog-content p {
+            color: var(--grp-text-muted);
+            margin-bottom: 12px;
+        }
+
+        .dialog-warning {
+            color: var(--grp-danger) !important;
+            font-weight: 600;
+        }
+
+        .dialog-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        /* ========== Easy Mode UI Hiding ========== */
+        body.grp-easy-mode #top_bar,
+        body.grp-easy-mode #leftpanel,
+        body.grp-easy-mode .btn-add,
+        body.grp-easy-mode #topbar_bg,
+        body.grp-easy-mode #btn_settings,
+        body.grp-easy-mode #btn_story,
+        body.grp-easy-mode #btn_save,
+        body.grp-easy-mode #corpo_chat_img_btn,
+        body.grp-easy-mode .corpoavatar {
+            display: none !important;
+        }
+
+        body.grp-easy-mode #gamescreen {
+            padding-top: 70px !important;
+        }
+
+        /* Hide corpo left panel completely in easy mode */
+        body.grp-easy-mode #corpo_leftpanel,
+        body.grp-easy-mode .corpo_leftpanel {
+            display: none !important;
+            width: 0 !important;
+        }
+
+        /* ========== Mobile Responsive - Tablet ========== */
+        @media (max-width: 768px) {
+            .grp-nav {
+                right: 12px;
+            }
+
+            .nav-dot {
+                width: 10px;
+                height: 10px;
+            }
+
+            .grp-section {
+                padding: 40px 20px;
+            }
+
+            .section-content {
+                padding: 24px 16px;
+                max-width: 100%;
+            }
+
+            .hero-title { font-size: 2.5rem; }
+            .section-header h2 { font-size: 2rem; }
+
+            .hero-subtitle {
+                font-size: 1.2rem;
+            }
+
+            .welcome-options {
+                grid-template-columns: 1fr;
+            }
+
+            .ai-options {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .ai-card {
+                padding: 24px 20px;
+            }
+
+            .style-options { grid-template-columns: 1fr; }
+            .writing-style-options { flex-direction: column; gap: 12px; }
+
+            .steps-grid {
+                flex-wrap: wrap;
+                gap: 16px;
+            }
+
+            /* Intro section - Tablet */
+            .intro-layout {
+                gap: 24px;
+            }
+
+            .intro-hero {
+                gap: 16px;
+            }
+
+            .intro-thumbnail {
+                width: 120px;
+                height: 120px;
+            }
+
+            .intro-title {
+                font-size: 32px;
+            }
+
+            .intro-subtitle {
+                font-size: 15px;
+            }
+
+            .intro-steps-label {
+                font-size: 13px;
+            }
+
+            .intro-steps {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 12px 6px;
+            }
+
+            .intro-step:nth-child(n+5) {
+                grid-column: span 1;
+            }
+
+            .step-num {
+                width: 36px;
+                height: 36px;
+                font-size: 14px;
+            }
+
+            .step-text {
+                font-size: 10px;
+            }
+
+            .intro-nav .btn-large {
+                padding: 14px 36px;
+                font-size: 1.1rem;
+            }
+
+            .start-options {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 16px;
+            }
+
+            .start-card {
+                padding: 24px 20px;
+            }
+
+            .start-icon {
+                font-size: 48px;
+            }
+
+            .start-summary {
+                flex-direction: column;
+                align-items: center;
+                gap: 20px;
+            }
+
+            /* Navigation buttons */
+            #grp-overlay .section-nav {
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+
+            #grp-overlay .btn-primary,
+            #grp-overlay .btn-secondary {
+                padding: 12px 20px;
+                font-size: 1rem;
+                min-width: 0;
+            }
+
+            .preview-header {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .imported-persona {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            /* Persona toggle on tablet */
+            .persona-toggle-btn {
+                padding: 10px 20px;
+                min-width: 100px;
+            }
+
+            /* Overview summary - tablet */
+            .overview-summary {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .overview-summary .summary-item {
+                padding: 16px 12px;
+            }
+
+            .overview-summary .summary-icon {
+                font-size: 24px;
+            }
+
+            .overview-summary .summary-value {
+                font-size: 13px;
+            }
+        }
+
+        /* ========== Mobile Responsive - Small Phones (350px+) ========== */
+        @media (max-width: 480px) {
+            .grp-nav {
+                right: 8px;
+                gap: 12px;
+            }
+
+            .nav-dots {
+                gap: 14px;
+            }
+
+            .nav-dot {
+                width: 8px;
+                height: 8px;
+                border-width: 2px;
+            }
+
+            .grp-section {
+                padding: 30px 12px;
+                min-height: 100dvh;
+            }
+
+            .section-content {
+                padding: 20px 12px;
+            }
+
+            .section-header {
+                margin-bottom: 20px;
+            }
+
+            .section-header h2 {
+                font-size: 1.6rem;
+                line-height: 1.2;
+            }
+
+            .section-header p {
+                font-size: 0.9rem;
+            }
+
+            /* Intro Section - Small phones */
+            .intro-layout {
+                gap: 20px;
+            }
+
+            .intro-hero {
+                gap: 14px;
+            }
+
+            .intro-thumbnail {
+                width: 100px;
+                height: 100px;
+            }
+
+            .intro-title {
+                font-size: 26px;
+            }
+
+            .intro-subtitle {
+                font-size: 14px;
+            }
+
+            .intro-steps-wrapper {
+                padding: 0;
+            }
+
+            .intro-steps-label {
+                font-size: 12px;
+                margin-bottom: 16px;
+            }
+
+            .intro-steps {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 10px 4px;
+            }
+
+            .step-num {
+                width: 30px;
+                height: 30px;
+                font-size: 12px;
+                border-width: 2px;
+            }
+
+            .step-text {
+                font-size: 9px;
+                max-width: 60px;
+            }
+
+            .intro-nav .btn-large {
+                padding: 12px 28px;
+                font-size: 1rem;
+            }
+
+            /* Cards */
+            .ai-card, .start-card, .style-card {
+                padding: 20px 16px;
+            }
+
+            .ai-icon, .start-icon {
+                font-size: 40px;
+                margin-bottom: 12px;
+            }
+
+            .ai-card h3, .start-card h3 {
+                font-size: 18px;
+            }
+
+            .ai-desc, .start-card p {
+                font-size: 13px;
+            }
+
+            .ai-note {
+                font-size: 12px;
+            }
+
+            .ai-tag {
+                padding: 4px 12px;
+                font-size: 0.8rem;
+            }
+
+            /* Writing style cards */
+            .writing-style-options .style-card {
+                padding: 20px 16px;
+            }
+
+            .style-icon {
+                font-size: 36px;
+            }
+
+            .writing-style-options h4 {
+                font-size: 16px;
+            }
+
+            .style-desc {
+                font-size: 12px;
+            }
+
+            .style-details {
+                font-size: 11px;
+            }
+
+            /* Persona toggle */
+            .persona-toggle {
+                width: 100%;
+                max-width: 280px;
+            }
+
+            .persona-toggle-btn {
+                flex: 1;
+                padding: 10px 12px;
+                min-width: 0;
+                font-size: 13px;
+            }
+
+            .toggle-icon {
+                font-size: 16px;
+            }
+
+            /* Form fields */
+            .config-field input,
+            .config-field select,
+            .config-field textarea {
+                padding: 14px 16px;
+                font-size: 1rem;
+            }
+
+            .config-field label {
+                font-size: 1rem;
+            }
+
+            .field-hint {
+                font-size: 0.85rem;
+            }
+
+            /* Import zones */
+            .import-zone {
+                padding: 30px 20px;
+            }
+
+            .import-zone.large {
+                padding: 40px 20px;
+            }
+
+            .dropzone-icon {
+                font-size: 2.5rem;
+            }
+
+            /* Navigation buttons */
+            #grp-overlay .section-nav {
+                gap: 10px;
+                margin-top: 28px;
+            }
+
+            #grp-overlay .btn-primary,
+            #grp-overlay .btn-secondary {
+                padding: 12px 16px;
+                font-size: 0.9rem;
+            }
+
+            .arrow {
+                font-size: 1.1rem;
+            }
+
+            /* Character preview */
+            .preview-avatar {
+                width: 64px;
+                height: 64px;
+            }
+
+            .preview-title h3 {
+                font-size: 1.2rem;
+            }
+
+            .preview-body {
+                padding: 16px;
+            }
+
+            /* Overview summary - small phones */
+            .overview-summary {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .overview-summary .summary-item {
+                padding: 14px 10px;
+            }
+
+            .overview-summary .summary-icon {
+                font-size: 22px;
+            }
+
+            .overview-summary .summary-label {
+                font-size: 10px;
+            }
+
+            .overview-summary .summary-value {
+                font-size: 12px;
+            }
+
+            /* Greeting preview */
+            .greeting-preview h4 {
+                font-size: 12px;
+            }
+
+            .preview-bubble {
+                padding: 14px 16px;
+                font-size: 13px;
+            }
+        }
+
+        /* ========== Mobile Responsive - Very Small Phones (350px) ========== */
+        @media (max-width: 360px) {
+            .grp-section {
+                padding: 24px 8px;
+            }
+
+            .section-content {
+                padding: 16px 10px;
+            }
+
+            .section-header h2 {
+                font-size: 1.4rem;
+            }
+
+            .intro-thumbnail {
+                width: 80px;
+                height: 80px;
+            }
+
+            .intro-title {
+                font-size: 22px;
+            }
+
+            .intro-subtitle {
+                font-size: 13px;
+            }
+
+            .intro-steps-label {
+                font-size: 11px;
+                margin-bottom: 12px;
+            }
+
+            .intro-steps {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 8px 3px;
+            }
+
+            .step-num {
+                width: 26px;
+                height: 26px;
+                font-size: 11px;
+            }
+
+            .step-text {
+                font-size: 8px;
+                max-width: 50px;
+            }
+
+            .intro-nav .btn-large {
+                padding: 10px 24px;
+                font-size: 0.9rem;
+            }
+
+            .ai-card, .start-card, .style-card {
+                padding: 16px 12px;
+            }
+
+            .ai-icon, .start-icon {
+                font-size: 32px;
+            }
+
+            .ai-card h3, .start-card h3 {
+                font-size: 16px;
+            }
+
+            .persona-toggle-btn {
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+
+            #grp-overlay .btn-primary,
+            #grp-overlay .btn-secondary {
+                padding: 10px 12px;
+                font-size: 0.85rem;
+            }
+        }
+
+        /* ========== Return to Easy Mode Button ========== */
+        .grp-return-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 99998;
+            background: var(--grp-accent);
+            color: var(--grp-button-text);
+            border: none;
+            border-radius: 30px;
+            padding: 16px 28px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+            transition: all 0.3s ease;
+            font-family: var(--grp-font-family);
+        }
+
+        .grp-return-btn:hover {
+            background: var(--grp-accent-light);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        /* ========== NEW SECTION STYLES (8 sections) ========== */
+
+        /* ========== Section 0: Intro - Apple-inspired Hero ========== */
+        .intro-layout {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 48px;
+            max-width: 640px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .intro-hero {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .intro-thumbnail {
+            width: 120px;
+            height: 120px;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            border-radius: var(--grp-radius-lg);
+            box-shadow:
+                0 20px 40px rgba(0,0,0,0.4),
+                0 0 60px var(--grp-accent-glow);
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .intro-title {
+            font-size: clamp(2.5rem, 6vw, 3.5rem);
+            font-weight: 700;
+            margin: 0;
+            line-height: 1.05;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, var(--grp-text) 0%, var(--grp-text) 40%, var(--grp-accent-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .intro-subtitle {
+            font-size: 1.25rem;
+            font-weight: 400;
+            color: var(--grp-text-muted);
+            margin: 0;
+            line-height: 1.5;
+            max-width: 380px;
+        }
+
+        .intro-steps-wrapper {
+            width: 100%;
+            padding: 32px;
+            background: var(--grp-glass);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: var(--grp-radius-lg);
+            border: 1px solid var(--grp-glass-border);
+        }
+
+        .intro-steps-label {
+            font-size: 12px;
+            color: var(--grp-text-dim);
+            margin: 0 0 24px 0;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 500;
+        }
+
+        .intro-steps {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 16px 8px;
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        .intro-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 10px;
+            cursor: default;
+        }
+
+        .step-num {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            background: var(--grp-glass);
+            border: 1px solid var(--grp-glass-border);
+            color: var(--grp-text-muted);
+            border-radius: 50%;
+            font-weight: 600;
+            font-size: 15px;
+            flex-shrink: 0;
+            transition: all var(--grp-transition);
+        }
+
+        .intro-step:hover .step-num {
+            background: var(--grp-accent-light);
+            border-color: var(--grp-accent-light);
+            color: white;
+            transform: scale(1.1);
+            box-shadow: 0 8px 20px var(--grp-accent-glow);
+        }
+
+        .step-text {
+            font-size: 11px;
+            color: var(--grp-text-dim);
+            line-height: 1.3;
+            max-width: 65px;
+            font-weight: 500;
+        }
+
+        .intro-nav {
+            display: flex;
+            justify-content: center;
+        }
+
+        .intro-nav .btn-large {
+            padding: 18px 56px;
+            font-size: 1.2rem;
+        }
+
+        /* Section 1: Start Mode (Fresh/Continue) */
+        .start-options {
+            display: flex;
+            gap: 24px;
+            width: 100%;
+            max-width: 768px;
+            margin: 40px auto;
+            justify-content: center;
+        }
+
+        .start-card {
+            flex: 1;
+            padding: 32px;
+            background: var(--grp-card-bg);
+            border: none;
+            border-radius: var(--grp-radius);
+            cursor: pointer;
+            transition: var(--grp-transition);
+            text-align: center;
+        }
+
+        .start-card:hover {
+            background: var(--grp-card-hover);
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+
+        .start-icon {
+            font-size: 64px;
+            margin-bottom: 16px;
+        }
+
+        .start-card h3 {
+            margin: 0 0 12px 0;
+            color: var(--grp-text);
+            font-size: 24px;
+        }
+
+        .start-card p {
+            margin: 0;
+            color: var(--grp-text-muted);
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        /* Section 3: Writing Style */
+        .writing-style-options {
+            display: flex;
+            gap: 20px;
+            margin: 32px 0;
+        }
+
+        .writing-style-options .style-card {
+            flex: 1;
+            padding: 24px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .writing-style-options .style-card:hover {
+            border-color: var(--grp-accent);
+            background: var(--grp-card-hover);
+        }
+
+        .writing-style-options .style-card.selected {
+            border-color: var(--grp-accent-light);
+            background: var(--grp-card-hover);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.25);
+        }
+
+        .style-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .writing-style-options h4 {
+            margin: 0 0 8px 0;
+            color: var(--grp-text);
+            font-size: 20px;
+        }
+
+        .style-desc {
+            margin: 0 0 16px 0;
+            color: var(--grp-text-muted);
+            font-size: 14px;
+        }
+
+        .style-details {
+            font-size: 13px;
+            color: var(--grp-text-dim);
+            line-height: 1.6;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: var(--grp-text-muted);
+        }
+
+        .style-preview {
+            margin-top: 32px;
+            padding: 20px 0;
+            background: transparent;
+            border-radius: 0;
+        }
+
+        .style-preview h4 {
+            margin: 0 0 12px 0;
+            color: var(--grp-text);
+            font-size: 16px;
+        }
+
+        .preview-text {
+            color: var(--grp-text-muted);
+            font-size: 15px;
+            line-height: 1.6;
+            font-style: italic;
+        }
+
+        /* Section 6: Greeting Selection */
+        .greeting-options, .greeting-list {
+            margin: 24px 0;
+        }
+
+        .greeting-note {
+            text-align: center;
+            padding: 40px;
+            color: var(--grp-text-muted);
+        }
+
+        .greetings-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .greeting-card {
+            padding: 20px;
+            border-radius: var(--grp-radius-sm);
+            cursor: pointer;
+        }
+
+        .greeting-card:hover {
+            border-color: var(--grp-accent);
+            background: var(--grp-card-hover);
+        }
+
+        .greeting-card.selected {
+            background: rgba(255,255,255,0.05);
+            box-shadow: inset 0 0 0 2px var(--grp-accent-light);
+        }
+
+        .greeting-label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--grp-accent-light);
+            margin-bottom: 8px;
+        }
+
+        .greeting-text {
+            font-size: 14px;
+            color: var(--grp-text-muted);
+            line-height: 1.5;
+        }
+
+        .custom-greeting-option {
+            margin: 24px 0;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            color: var(--grp-text);
+        }
+
+        .custom-greeting-input {
+            margin-top: 16px;
+        }
+
+        .custom-greeting-input textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 16px;
+            background: var(--grp-card-bg);
+            border: 2px solid var(--grp-card-border);
+            border-radius: var(--grp-radius-sm);
+            color: var(--grp-text);
+            font-family: inherit;
+            font-size: 15px;
+            line-height: 1.6;
+            resize: vertical;
+        }
+
+        /* Section 7: Overview - Modern Summary Cards */
+        .overview-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 16px;
+            margin: 40px 0;
+        }
+
+        .overview-summary .summary-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 12px;
+            padding: 24px 16px;
+            background: var(--grp-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: var(--grp-radius);
+            border: 1px solid var(--grp-glass-border);
+            transition: all var(--grp-transition);
+        }
+
+        .overview-summary .summary-item:hover {
+            background: var(--grp-glass-hover);
+            border-color: var(--grp-accent-light);
+            transform: translateY(-4px);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.2);
+        }
+
+        .overview-summary .summary-icon {
+            font-size: 32px;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+        }
+
+        .overview-summary .summary-info {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .overview-summary .summary-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--grp-text-dim);
+            font-weight: 500;
+        }
+
+        .overview-summary .summary-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--grp-text);
+        }
+
+        .greeting-preview {
+            margin: 40px 0;
+        }
+
+        .greeting-preview h4 {
+            margin: 0 0 16px 0;
+            color: var(--grp-text-dim);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 500;
+        }
+
+        .preview-bubble {
+            padding: 24px;
+            background: var(--grp-glass);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: var(--grp-radius);
+            border: 1px solid var(--grp-glass-border);
+            color: var(--grp-text-muted);
+            font-size: 15px;
+            line-height: 1.7;
+            font-style: italic;
+            max-height: 200px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .preview-bubble::before {
+            content: '"';
+            position: absolute;
+            top: 12px;
+            left: 16px;
+            font-size: 48px;
+            color: var(--grp-accent-glow);
+            font-family: Georgia, serif;
+            line-height: 1;
+            opacity: 0.5;
+        }
+
+        /* Progressive per-section backgrounds (dark → light) */
+        .grp-section[data-section="0"] { background: var(--grp-step-0), var(--grp-bg-dark); }
+        .grp-section[data-section="1"] { background: var(--grp-step-1), var(--grp-bg-dark); }
+        .grp-section[data-section="2"] { background: var(--grp-step-2), var(--grp-bg-dark); }
+        .grp-section[data-section="3"] { background: var(--grp-step-3), var(--grp-bg-dark); }
+        .grp-section[data-section="4"] { background: var(--grp-step-4), var(--grp-bg); }
+        .grp-section[data-section="5"] { background: var(--grp-step-5), var(--grp-bg); }
+        .grp-section[data-section="6"] { background: var(--grp-step-6), var(--grp-bg); }
+        .grp-section[data-section="7"] { background: var(--grp-step-7), var(--grp-bg); }
+
+        /* ========== Animations ========== */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .grp-return-btn {
+            animation: slideIn 0.3s ease;
+        }
+
+        --img_theme_4:url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAIAAABMXPacAACHuUlEQVR4nJT9d7Rt6VUfiM75xZV2PuGem2PdyllSqZSFIpIQ0GTcZmAbnBo/P3AY7Xa/tul+D/ewG2M/Q/dTg8EW0SQBwiAJlEqpsqrqVrz5nhx3WPlL8/2xb5UkkNzuNc64d5991tpr7fmFOedv/uaceNtt5wEAABAR/tLxl99kSN/0HCICAAL2Fy5BHxhjwBkRBcL5RzDGPBEAMA7WWg6EiM6aJEmcJcYYEHnvAYBzTgDe+2/6eAAgAENwIQTGSQjGBboAzjkCIaVkXDjnjLeAARgiekRs21bxjKFqas+YiLV0zjJygI4BEREPCCSQBAF47gIGRCQiIk9EAhkiekAiCkSMMUQOAM5TICcZAoT5s70mk6+X5M03iV59/m8h6G/9Dv0XTvsmYuKMEBEAERFwfn0IgSESeQyMURBCAJAnIB8oeED52tVEBIjfSvoAULYuSaJECW8bYypnPedcI3IenC1tZUNwinOp0IfgnONac86kAIaACr13znrvPRMAAAGAIQbGIQAjCCzgq3f/2pegm09FRETknEOcDwMTXFDwrz3rfNi+1ZPPD/F/LcFvfJPwG94kACAGAIDf/BKGX7uA4fxLUgiBMQ4BEAJnyBEBiUFA8uADMc8YYwxCuDlTEJG++RCwpNev67o1TRKxJNauLdC1mkM3TnSMse5EiivNCWxZTGalm1S+NOBcwWWc6oSk8kQuYAiBEInAEwME4BgYARAyAro5oxljRBSAiIghcs4ZABEFQAJgDBAZUYDX5E4MEL7pg782NuK/IPr/mk1pPi8Aviapv3x+CIEAGN48IAQAZEgBggDmKbDgCTwnp1jkgDAQQ6D5bCNCRGAI32wqBWDeGCW4ZIp84doqlXTk0HBl1D+2vBBJlmghMCB4Ahv8ShvYKzemk8IezMq8rpu2qJrgSTCpA0gABOSAbC5vBp6I+F9a8V+b+IwxxuZrIoQQQkAkjl/bcL7+kV+T+F948X9/Bbw6ol9bAXjzd3h1e/r68wN4QiKiQIEzDojIiBFxAgaBUwBy6D0EL8grjpYTIQAFhvPVhkSEwBFf3VkB2KsvOZAzdZzEglpni1FH3nH22Okjo1SAQp9KjKQXLAA5AheCt4GNbj+dN5TX1fZ4fHV9fX3noHSCEAGYBxlABgRAILIePRIQIdCr6x6BiAgYMoYAyBljDAAgBM45ADDGgvMA/FUR/0Ux/uUx+JYr4FuOxLfYar7FCnhNaEBE3nsGiIgcgQEF8hCAA3AAHzwEz4JVnDkiogDAOaBjhCS+4YO+7mBk+5q5altJuvXModtOH1rpx8I3YAuNoDlPeJQmOooyZNSYuqq9Rw6milMc9Ea9DgwG8drObHV7JqQAUIBIyAg8MQQkhECWMWTIbk78uZSRM+cchRBCeE0ONwfjm4nlL4/Ba4dA9trv9I0X09df9nXnsICv3vIblhh9sw+Z/0dEFEKAQAFRMAYIjKNzliNyBlpyT1C3NphW6yxY6+a6l3EEnD8wIicEpAAw31cDAgiwrJ0eiuH8qSO33nJ8kLAm3+Oh6WeJZCgEExwCeAdB6ShNo6THTQGzgzKKeG9x0Olj2pVcst39sUcHEAIBv7ldEiAhETBCREQWQphbcVxIJkQA9jWZgg8hWGtDCEqpb5D7a6IL868Rbu4aCH9RB/wlWX/Ld77Zm69OhPkQIdLNnemmBcQAQ5ivgEBcIEckRsEHIMm44jIEbij4tlVJyhxA8IgIKBiBZxRu6rIAN/efgEAIQZDtCHP+2NLpIx3lxq7yC13d0T2GJBnPet1OdwiStz7Y4D0QB45llaowWOqPDg/4AQHzKJUN/NnnNwJoRdIjAgUKACzctMIYMsYCEQAFBGCMS7GwsICcSS4YYyGEuimrvGiaxjkH/0X75y/86WvD+Jq99fWnftN9SSDjQIwCBUfBIQTO2Hyz5IiCM8EYZ8gAEAJDQggcKdaymyVJFJP3ZV7EUTTqD7yxVVGaupaCDQaD6WycakW2iSNt20ZyBgDW2iiKGAMppXVtCC5LNLg2loyTPbKQHVnMMhkEml5HaRWatjS2bmybl8XO5CBvWqYjmXVE2tXdjgktcCe4Y+g4tALNIJNnTx669cwJZipBPuacOaeF5ITBeCm1MRaQcy6NC6OFpdNnz6XdnnG+sa6o6v3xQWPaJO2MlhaPnzopVCRUVFSNjtO5xIQQ3ntg+DU7ZL6mGENEBt/i+FZLQXIxtwkRgDEmuRCMC8bSOE6U5ojgrLctWYPkORC6IIAE45wBEnAkLUUS6+2NDYa0tLzQ62bOOWOM4mzYH2zvbA1HfdNUcRxXVYUIaZo2TdNUdfC2l6WCM1NXkpFrqljB8nJfaQD0SjFEqtsmAHUHw+UjhweLSzqJrQ9FVZVVM98fmMC6raq27nTjo4eXEi3AN71InDi8sLLYZb5mZAQQd54FjGRkmlZKSUSt9VwK48PBdGJaF4BxJqMk6w1HnU5PKSWF1lqvrKwopRYXF5umkVKGEBBRSvktHcn/Oy4YAACBx/kujDAfQKLgrWuqgnxwzvlg53cVyBBJSs05ci45R0TOEKSWnGnwvigKyTFLElKqqovW2W6/s7q+SW7IERhDwAAASEDg+4PubDYTECQGgSQ498YdW1kRGpJOV8fShdahyHrDSAoZJyiiTqejk5QL1VqzPx5P93bzvUDBd/q9NMuAWBzHw36vqqau9UcXe+OVhf29qxwiz8AHYiSYlFEExnobfJZlOk7G07zI68XlJc65lDKKokgpwYDIIwEi6sWkamrOed02LhAwYYyRUnpvEW+qyJvmNQH+F3TAtxqG4LxgyDkHwOC8dcY5R95baxkDBigYA8YACQIQQVMW8+V2c8UxxjkXiN1udzYd185wZEpyIGZ9kMB6vd7O7lanN8yrqpP1S+fKKs86PXJeIFjTcIHkDUGIJNOKDXqZcQ5qF0cyMFE1LgSmNHeNDdBoQ1JKQiDrqG1dsORYlPUIxXg81XHUidLlAU902NxtlkZJooODljMZgAfiwXMuGTnPuIjTjAmFvKIQCJjSaRQpBgiMCaU6aRwpXRQzT2EwGOR5PhqN9nf3lFJV0QjxNcThL1pB/wXj5y+NBCEBQ2BAELz33rattW0IAQkEY4yB4JxzxghobliGoOM4hOC9pxAAIHgfrDVEzjmtJNNyms/IuySOEGTVNFmWVU3tWhPIcY7cIQAwBpPJdDjoozfoGgyBBTvq9tGa6f5+7/CgkyXONk3ZdDpplHQYj8iHIjcH+wWDICU3pmnakoiAyRBIcKVVtxenbbVXTmdl5THAoBctDJLNceMDEZfElQtQ5nWSRjpO67q2vu52+lyqaZ5HSVeoCELgjPd6/dMnTnQ76bVr12ZFHgIY45KE13VdVZWMtKPA/rJUv94K+q/ciBBAMkQia61p6rnhxTmXkiEihkDOWePmJjMGCgidpGMBWCCP9OqnIBG1beucS2IdAACZ8d46r7REUx86dGhzayfJunVdM6GzLG3bNoljZ1tT5RLcINWmLHtp3MvkYhdtPh6Xk06/s3L4cKfXm41nL1x6uWkMR8EAYy07nZRh8KFljHX6fSY4gmxLZyWlKhtkPe9y64xVtLiQrR9MXWCOEUkVHAQ0zjnunA9AwKWOIp0YF4wxjAnBWZJGC6OlE6dPLw2H1lq3esMY0+l06rrudrvj8biTJWVZcs7+qzzh/8vBIO+taY0x3jqGKJXgnHNAxhih994TAREAEuMIDMtiNjdJA1GYb0WcM8aSJJlMJgQ+1koIYV3bVBUTWajbXq+Xpikx5oyTMmLITLCcMS3kaHlpZ+2ad0Tec4REog4tmmLp0PKhw8vjycHzzz4TxZ1Tp88dOXwCidd1XZdla2rTFIK0jnXTWO+bpqyuNLVC7A+6nV426nXrZs/ZstONuAjImA0BUJAARTp4m+dlFMdZtzcHIZaWlseTCedcS5UkiZRSSpllWafTQ0RHIU1TAAjBJUnyGpSLiHNY6eYYYED8SzpgLnAAeu1fRHgNgWYQ2rqypgnWcc600lKIuYvrrPuaowiAyDgyRFSJZEwgonPOOucoCM65EAgQx3EUK+ecb60QAphwznEWxpPJyqHDqxu7SmgKWNeN1DLPp294/ZsevueOP/itX8sPdoa9eJRF3DWmKk8cWkyTdP3ajbxuz50+d/rs+W5vZC0mScaRNU2TF9MyzwUL3W7XeFPXreIKEdduXN9cX50U5eGjR0IIdVlFSgghNOqqQY/eEQvWZUlSF3lbFJ3BSEruyWsthETOkQvkCMaYcpab4QIiem+JvFJC637TFEtLC+tra0opcvbrZDufywwwCPYqlAMAhPNRYoABgSMjJBaCY4CMMR+ca9umyCMtuBIIQWIA3wRPnAkEJMZh7rqQ44gcCYA8EQBzzhNRpKUL3hrryHeStGmq4LyWqixLANnt9vNijMwwg8zSIOpsTirdS2MhW9smfXXhwmMPHu3+g7/2Q//hVz5SF8VyIiWDhSxBIa5c22RSnD5z/ujx493uYlMbIZW1rUMERt1ebzDoA4BzJuFZv8+UytrWD5eP3XpP9YlP/EG7tj5aWlKTOlQBHTfeUmBKY1u2SZTu74+jOG6asm7K3rCjoshRMxqlUYKR5EU55Qxms9mlS1d2dnfqJo9ifu3ylSRJlOROcvBOSOFuShlfRbeQgIDYN6wAhFexP2IERB6AvEBkiME707a2LrWSSiB6IiBOnohc8CEExjUB3ITTUSB4AHp1tL8G5MwhW4ZUVZVkfL6i4zhljIUAkU6MD3Vd7+/vZ+koiUJdN1EnBkdNW2nnr7z80tCbv/c3/sYvfuQXXD0BThvTKopFkmRnz51fPLRibKjrNslSa9zcGn41AMKE5CrS3hmGrKotoQgmyCg9e+ttV69dbNt2YWFhfWcjUrEyMtXJtM4BxP5krKWuTdsfDuq6MqYZj3cZY1evXT68cvSWc+dGw0Xw/tq1a0mUIguLi4t//J//8IULz6dJp5Omx48fb9s20vprAgAA8PONKADMgcCbmP7X7/0IMAdjGWcQyNvWtrUzNk4050jB30RrGOMAgJzmQCHRTaMTCOf4DyIRBgiAQHhzkSFi25r5/hisixKFiMYYxpkWaV1We5Np0h10MlmMxx45cD9QPT8dr63tHu70Y47f/33f+9u//RvHT6yoLNVKKBnNTY7haJQkSZGXnU4v4E3t5b31RMwTYxyBMyastZ1epyhnSOK2W87v7W9ubGwsrZySnDVV6Zz2WjCATprWeSkTUc3yWe5Onjy5fmP1+vWrrjWIeLC5N97evfPOO48ePc44zAoL5B9/9JHdjZ1IRsU0L6d5pCLygMQY8LllAt9gaOI3QBF/QfEKBCE5A/K2NU0NwcdaJkmSJImOJCLMoQgOwBlwxhgBeY8UXkOOEdnNcM3XwaVzn0AIcRPrh3kE0TPGgnOKJ0ncCQyKKpcC44jXtkIEV7apSsfTSuhkY2MTrP+2d719e2eTC2xMK5TMel1krCzrqm6iKAqvol1zj2mO2HjvA5ALHjjTkWSMNVURxWpxOGqren9/fzQaccQ0jrJIRoLt7mwgp6otmAAhWFnMrl667BvHUTDgaZyN9w8+95nPfu5zn9nYWLuxeuWTf/Yn3vtep5fFXS0jJFaXza3nz78GEL0m29c2BwbIATm9Oj1fm6FEnnPOkQXn6rIwba0YdrJ00O10Op0kSeYSnH+r+Q2IPFH4+pgnY4wQCBgQo3BzN2CADFBJbk0D5AVHaxrJWbeTAoCzFMVdnWa74wNjql4nblxFjGRANDSdVa2j40dOvXDhhfO3nD12bGV3dzd4GI0WR6PFhYWlpaWlNE0DMuecc85aa60NARgTwEUAdBQ8kRCsqioOgEhlXkgher1eXZSmab014FxTluO97UE3PXFyRcRovBkuDC5fuWKN1zqOVdzLek3ZgIfhcDidjv/0Ex//4qOPcIH33nu/D6xtbQgAxNrG9rqD4L82reE12wYgIHyDf/DaOkAIGAiByNumKk1bYwiCMzGfVoFCCBxJSh5FKtJSMgbBAxFjwDkyBoDha0bRt7BrnXNEhEiMQZIk3W6mtW6axnriWtXOFFXBOEqGDEKqI9e0SqlLl690u93hcPi5T3/m/C23UMCllUP90XBtff25557b3Noum9Z7L4RQSnHOQwiv3giJiDEmpVRKVVXJBXaylIIzTU0+IGJTVt5a07bveMubH7jnnvHu1rVrV6NIDYf9/clY6ohp1diAUh/MChXFabdnrW/bttPpLI76cRxt7x/UJlhis7xEIZngr1y6qCL9F777ay/YN/7M/xIAgHEk8qapTVsLCFkslYDW1EU5y/NpVZUhhCRJRv1BL0u1Es4bgMA511rPl/w3DCoGwACBbsLiAAwp0hIhBO/jKIq0ouCRwFMoylkI0Bv0q7adzPJOkoJxs+k4ioSSuL21nmQxEa2vb169eD1NUyEUAjfGXbt2/dOf/vSXvvSlIq+quiVgWsWcyZuxFB+stYxLFzwRaSEZoDNWccHn8CSwS5cu33/fg//8//U/Lo4GLz737MrSUpXPzt9yyzvf+U4irK2tQ2gRtvNC9wZVoN3ppGhaxgRHFlpbluXW3n4NwSCcvO3WtNdXSTotiwD0WsBkrl/nPxzwLwZxkAAJGJBgiOS9M+ScljyNI8GwrStrbdu2bdvOVUKcaCFZCA68RwhSMCW55ALnvvZ8l8dvEs5CxCzLGGPOOaUkAJRlaW0rBG+aOoSwMFpqHYwnRU93wbgsi7gI+XTPuur5V15ovYtVPJuUSkVaay5Fv9+/9777HnjgdW1jP/OZz2xsbMxmszm35bUjhOAoFHVljEnSKHi7v7uLQEqpqmrW1jff9Ja3vf/9H3j22Qu/+eu/sTAatFWdRfHe5vZsPIviNM+LD3/fD/zgX//rg2PHxk3tpJKdHnBujPPGBhNMY2rvd6bTo+fO/uP/8Z8ODi1uj/e7/UFRVYR/0cO9CcZ5bznniBiCh0A3QTMAxliel6audCRjJY0xQCHSirzjQhhjpBbGmK2N9bqu4zQbHFlZ395pmmZhYcG2BjCyRMiYTpLxZCI5n+Qz3euNRqPV1dWVlZV+v++cS5J4Z2enLkpyvixLEUWNMUqJtm6mk6IzWiqms63rGwuDznS6E8ughTlz8uTG7trtp09xOhdcs7W/naXdTqcbAr308sWqqtY3tyeTyfXr12+99daH3/TQ8ePH97aLwBgFF2VpQIijJD/Ir126vHHj+vhge7TQWTmyYox76E1vXjx8+2e+/OSTFy4laacoyzTOmhZ31rYOLR9XSmOc7c7y7/1rf+POh9988eVXnnv6qcc+95mlfs/NTFubuD/cnc127Np3/uAPfMcHPzTe3Vnb2xWx3puM+1kaguMQEBACzaNLSBQAhFJqvjkiAXDgDOasqLyYBmcjqZRECD54x5G40E1r5liH5pDnU45MSvng/fc99+IrkRLWQwgOGXU6meh0uBBFXUnBvQ9aSSHEfP/N81wIYa313s1dgflUdd5yRrVpvKc466JUwAS2FprWuloLuOvOW7JUX1+7et/dd2Qqfv6ZZwBASjk3Cs6eDq014/H0ycsbt9564pWLL21urZ85eer06dPnz5+bTaeba+sb+7t122xc3ZjuH9x/911Li+dXDo8uXbm8sLg8GC5evHJdqOT6+lbc62WxyssqlqpoXDErGQoh1fMvv/TYV7965913P7i4cPe99ySR+uzHfq+XxFGU7G5tY5yeOXf+g9/93eTdpx/5HCGISCspUSCZ16B1mIdy5y+Ed2a+XyO8ZjV7Z4xzDkKAb9jKAQCiKHLONU0FEhMlJwfjs2fP3nvvvV/+yhPeBxcon02ttWmaKsYZA+ssksdAi6NB21jwPlbKGJPnM2st5wKRWe+598C59x45SM6C923bcqGEEDxAW5YCwrFjR5JUchE297aee/HC2+59SDCOKkJE8j6K9OLSqNPtjkajs2dPx3G8vb29tra2vbVx7Ojhqiyfe+bZp5756l4+3drZzffcB977tkjpQbcrhLCeytp89cKL9z30vt/+N7/IpCLO8zLXceJn1lZmsnvgfMiydHz9+n/6T/9pWhV33nnnoYXBD/zwD+yt37h+4YJ1IUJhnXvTW95ctc1vfvSjn//zTy71+hyIiOq6TjifW5785igAIicigQQMgDE+tyCDs6ZpnWm0FM56ay0j4FJIKZG8D6GqqyiKhBCIIYTQ73e///u/V6koeMsYF69utbZpG2dujhwFJcUtZ889+eSTeTF1ziEiOe+cQ2TziF0IQQjhTSAXtIqspaKYofeaoWYUTLu8Mjy0MKrrGUk2WBjsHexba77t3e/8/Jc/55xr23ax2yUCIDq0tLy0tFTX9YkTx44eWXHOLS8ve2ubplZSPPDA665euxEx9d53v2e8tdFJu4IRY+Ly9bW7X/+OR594Zn9aMJkUtWFKAXLBkbGmmM2mpu2mSTHob1346q/tbx0/fnzY7bzx3vsXh4NLzljLR4NBbswjn/v8H33qUy9+9enRoN9Js3KyLyOdCEHWISC+6gz5V0MzQkvBGBCBddZa662bEy7atkUghnN/NgguEJACSSkBSQvOQjBN/d3f+R3f8V0f/vWP/loIDhHIg2CAUnHOnSUhBAYfIPQ72T133vHVJ5+oy6JtjNQKUc25NMgYAXOehOSMCfKeArrgbfBQz5BRynk3i2675VzwpYyzza3VpcVRliWPP/3ou9/61jiJOFKe571eTwlZNbVzjnPuvY+0Xl5cstZ0s4xBuOXs6dvuuN0wfv/9Dx5dWGnzMjlyZDjq7+5tXL5y7fiJU2l38Lv/8aMYDy0xz2Qc66IosqybGg9AdZFnWp0/eezGxuZsffXK9uYVZM888vmYIefIJBuXUxD6yS8/aqoqHfRPLq8c7GynUsecsxBusrQYUICAQMQIGQCwpirzPJ9MDqbTaVWU1loGgTE2nUzm30EpRYTWuuBhDhgopay1TdMkSbK8vHzj8uWV5WWggIghOGPM3AkKIQgEhGBbs3Jo6dbz50bDoUAmpeTIiGgea537CtY7TwGQRyoFzzySjFgUAUOnIhwtDRMumcdZXh3MinmM/sbq5Y/++q9MDvYZY21dj8dj730SxUmSaK2VUt67ObcQyTdNo6VaHC2UZZkmnRDIGDPo923bPvvss1LqU6fPfezjf8x1XBkPQkdpd1pWKJUNniseRaqTRmSaFPHk0uLS4qJmrKOl3d2ydSU4GrKNt8a1gyTpdLqH+wNfNr6shnESGuOqBinMOTUBiYABwwDgEURwxgU/d1W0kPO5Y4xBRM65EAKJvA8E4CgEH4goiqLGtUDi2LFjjz766JOPP9Hp9aWUWa8n6tYFcj5wzgPnjLGmboK3d95x27FjRxYWhnsHu1rH3pO1Vss4BItMcKFs0wQPjAkgLrhGcAQmEhhHSmnmwVx+5WK327m4dR2FP3z4KGsLfmh0+cUXOef33n8fY2CayqcpAJl2/vDMW8cAJOOC8cY78rau6+PHjyPIvb29UafXNM3161fG0/zOu+5+7IVXXr54heLDveHC7qzlAjxDJXhTGyaQcRh2O3lZNgf7OtKHOmm+teEb7A96cRxPJhMAMRqNyrzKD/JIRYMoYSEsdnrorPAhiSPnXAAKdBODC3PCCKHoDUbWtd4RMtJCeu+n02lTld1uN1aayFvnBJIQInjnnFsa9ccb62kq3/Sm1//z/+mf2rYpy/KjH/01ZxotOERxXtUUAmMMmbDBE6FS6vbbb1/oDzqxriZ5f8RcawkYTyMiQgAhGRl0SIqzqiiTLJWexrNchni0OETutw72sGyLutqfVFJAt9vFxk+36pNnjiqIOnE0nubOubTTU0ojYhzHbV2x4Bln3nsiz5iQOhZCkDNVU3Y73bZt0Lu9g4NjJ47PiuaFl685YkKGvNhjPPXOCakDQ66kQGZMI4TQkjvTKCE6Sh07dHh7ZxOsP6h2OeeccyKq6mLY63obyLV5UURKBgtJkhjbIPAA9CrFOAAwRgEAWFHVQmpgnHHpAhwcHOR5Pv/EuZc0/2jGmLEulsIc7L3tgbvuPHXkh7/ng/l4raq2OWu+//s+1EtEIuDE4ZXQmERHRMSVNIEC4wuLy8G6P/yD37vr1nOHF1Jsi0ODtJ/qYrKvFG9tHQBkotpgDLUigdbnjGw/65BP9ie2thQv9PWhQanRBNbt9Ixpur1kYWnAMDAM5Wx8ZGU5ODo4GCsVCaFM3fAQWLCxwFRJLWVZN4HrEEJMJnKVaUvPYHt/b3d8cGN97StPPAmik3ZHLkwBp4JaicF78oH5AHlZz4qqMpYpDULWIRTWiji2BCgkQxHpRHBu2pYR1HXeHySNLZlGmSjLYNrUoLRl6DmGedAFiJMX5AVZBoy5MDddoK7r2rQcmRBCMjan0npr53a6lPJgdz/V+i1vfMO5M6dOHD/StnVRzJw3vU5n5fCikuzOW28Z7+11szR4b60dDAaLw1ES6+Go9463vem//cHv/6t/5Qdt4w8tjt740IMH+xWDIIVw3uzv70dKIxIT4MlwJHQAxJ0TNtBBMYNEy06SdfoYOCIpzeMkYgym02mSZEVedXv9EGCWl03TxDra29u7cWPNe+88EfJOr38wmXIuyLlRv1tV1XQ2m+Sz5154/tnnnls+smICWAImg9SBM0c+OE9l0+5PxgAQp4m1dmN7Z21zazKdWhe4EDpKyrpCLoxxFJAsJVEcRZFSUinJGDoKTAomhfHeAwWCADCnaCIEToFTYHPOOwBYa4ui8N5HUTRXj0Q0d5I551EUaSUDwvf84PcvHjk6WFqJOwsLKyeWD59qDRDiQ294eDI5eOvbHj537vje7iYHz5FMU504sXJkZXjq5BEpsPX16173wK23nrx24/rKypF77z7LgM8m00RHqYqavEx1xFEE7wWT3nvOOUAQQrWNbYwBJnq9DpNIhAxFGkc6TorGNB5knLbO+wBCiLZt87JYOnTk2trmb3/sj/enRdnaL3/lsRdffNF7n1eVDVA3Zn8yKetqa2dreWXp8OHDxhlPTmgllQohuOC9p6Y2nEtrbVmW4/F4Nps1TTOd5ru7+0S0tLQU6SRJkrkAy6Yu6ypJkhAoEEilGRNEiEIS4/Msmtdoca96V/xrYP0c4YmV7nRSwTnnfE5kQyRrbWua9fX1Xi97+7vedf7Oe87fdd/H/vgT//bnf/HRJy6opHcwKe6+957BoLe40Hv7Wx8ybZ4lKrTt4qB72y0n0lT2+4n1TVHMhosL3/dDP1iU9cLS4tlz5/f29oa9fjnLE6X7WcfVLQsEHhRXEGAeOdBxLCN9MJmUdSWUZIzN2Rhax/3egOvk+VeuxJ1uWVUQSAomhBA68oy974Pfcfz02c9+8ct/8IcfV5F+wxtepyKd9oaToq6tzzq9y1cvCSFuue3Wqq0aUwcMUingorXOOceQCyG73W7TNPv7+7PZjDEmb3qReZ7nWusoikzrmqYJAbTWWsUAbDablWUJwIjIGGOtfZVZzYAYIkNkCHx+gpiP3tyXYYx1u900TcuiCCEY75VgkguPVgkJnt793vccFMUffeITH/k/f8k5uv/+u37/Dz+xMOz9vb/7t7SgwbBz7forH/7we5966sm1jV3wUI4nt54/9dh4rSqnzrdaJVmv+873vPep5158/sWX3//+91946eJ0mivOrbW2DoiIWkqUDMU8fhAoIGdJ2rHeNW3LkDNrm8Zw3uNadwdDlU4vXlu7e5ynacfZtq1qyXhVVdbBwuLit73vg1euXJZSHj16uCombdtorbf2t4klJtCXH3v0zKmjUgvwvjYlcmRCGAvWOw/EtUx1RL6tmvrmckSc+4y9Qf/6pctHz5xZXF7y3uezlIiSKM7iaHNjg5wnYIxVTIj5HHI2MMYAAwN4VRPfJI+IueNqjCHyWRLFcUxEzlmOITirmGJKzIMHy4cW3va2t/3pn/35v/q5X/3RH/nwj/3Yj+9u7+3tbj/39OMf+T9/+f/5937se7//eyf7O3fcfv67vuvbf/EjH42VziJ9/PCKvffu1dXrs6I+tHLsU5/7wvrG9lvf9Z7Ll66dPnPuttvOf/KTfyalrMpyZeWIEKJpmkgq8gTAQgiObF3XaU8PxdCUdVs22DSzaS7lUQE2TTjXiWvx4pUrt507E0yNSHVd/edPfPKFly6dPHvL+dtvW1xcJISXXnqp34l6vd7ueGpALK0c+7Vf/+jmVnjDQwsoOIrQ2pbplBCN8/OwpSfUMqqqsmkaAEDBCRCIkLNutxtC2NramkwmS0sLR48cl4rfuHHjyvUdHqCbZUKIum0TzjudnpTSWjt3koJzzhnygSAgASKIVw3/RkrZ6WREVBSlc06Jm76S966u67rMTxw73rbtL/3Kr/6jf/w3/sE//Ce/9Iv/4Rc/8osHe7v333v7A3fd+/GPf/yn/v7fvoqmmO1/6Ls+vLux84d/9OcbqzcYwze+6eHGhC889sl/8wv/vnHkPPzcz//ScDg8efbcT/3UT21ubl586eVOEgfblJWVMhZCla3hwOfAVFmWnUESWEg6mQmNacu9g7F3yANKrZSOd/d3r1y9ujTsdhINFBBoNpt1Op2Dg4PPfu4RpcTG+o216+3f+fH3vOtd79kvTNJbeOHStc9+4UtJB6QWRP7g4MBSy2XHAVofZJT4IBprpfd1XTvnhI6IiAA5l0ggheJSAWMBYHt3//r11ZMnj8/yUkcJJ5A6JiLJsdvtd3uDJEnSNPXeN21V5kWeT03TODdPvSI2jxlZa6WUcRzbtinynLwt85kzjdIyUjJLIiJ/9uxpIur30x/84R+6fPnqL/3yfxxPitvuuPtXfvk/njp1qt/vX7t+5c7bb1US1y4+/9/+lR/4J//op44dWXn5xZcFjz72sf/8ysVrb3vX+8/fcf873vOBn/lX//rM+du/87t/7Mmnn/re7/tvRguDqi4CcypRAIExFiwgoWDAGLStRWB5nmsdd7uZUmoyLqraORcYlzqOXnzl0ubO1tbOthBiMjnodrs//APf/+Y3v/nEiRPnz92ilTp6+PA73nrq6JEjrTV5a8ZV+7P/5t85wk4PVazm5nkAzwR6gkAoVSSEcMbati2KAhGTJGGMzZ18RBRaCSE4F0TAOY/j+J577huNFquqiqJoDhPoOOr2BkKIOI5PnTp14sSJwytHh8NhmnakvMmVYijYa7wtrfU8elfXtRDCOdfpdMbjsTEmSRIkyCfTN77xDe95z7sOHVr68pe/uLu9KTjf39l95JFHHnnkkYcffvjwoeUyn0Fw3Sytiuk9d93+s//qXx0/fnp3Z3b85Pm3f9u3/7v//d//zsc+/sTTFy5duf4z/+J//Y7vfOtP/MRPnj576sf/9o9FqQ4QkIPQoqoqzgRjwlkjBWuqemNtrZt293d2EbHf71+5tjo+yEWUFHW1cnRZCFjfWL1x49ru/j4A5HmulLr7rju+60MffNubH/pvvvPDb3/rW77ru77rlltumeZF6+EXfvFX9vPSE3b63cFo4FwoyhoZi7OUcbk/zr33jEGWZXOJCyGEEGfOnJm7R3OsN0mytqm5FNb7t779HTt7e2sbG3GaoeDG2TTrdrJeWZYqjoz3B9Ppu977nne869uybkfH0dHjx8u6JgSpFZtrYKXUnCDVNI3WiiMb9Hpbm3vdLE0i5a0xFgI5hPCmN77e1dXViy/30vi282e2t9b/h//+H3/8j76spERic2BHMOQIFAxgOHH8VL83esPr3/R//P9+aTKtoqj3K//x10+ePvPFL37xJ3/y7weC3/qN3zh77vTC0sgG6yF4CsgZV3IeaCXvbNM643e2doiwzItutz8aLj/+9DPWhSiJh6P+uVtOVE248NLLqxsbXEdCqvF4urWx+eILz2+urpbT6flz56TUk2nRevgPv/6bl27cGC4dijudTq8bQjDWMyaUioqy3t09EELmea4jyYBsa+q6btvWWvvAAw8cPXpURRo4Ozg42D84SDt959zp06ejKFpf3+j1+nOTVGs9t0rjLJVSzs3LL33pS03TjEajOVN6NBqFEKqqYoIxby0SEFFVVc65eVrBdDpdXh6cP3++aZo4jrup2Nnanu7v33/HbZrcseXh4aVeJ8KidKeOrdxz13IvSwVjGBDCPLYZCJwSYJpGKfXUU08/88wrS4uH1te3/h//3U/8i//Pzzzz1afvfPCBw0txv5uE4IqiiOLUeB8wRGm8v7+fpqlrmzrPO0kK1ksmyYbZrJjNZnHSWd/YG+eVJwDvjx471O2rxtvnXrl0ZXUzCKXj9PDyocVBd2nYm032Ntc3ut1+Ufv/9Pt//MKla5aYijtVa4YLC1IrCrwsGhR8WuRlbQFlXdf5dJJPx/u7OwzCYDCoqurChQsf/OAHASDLsuvXV6MoKvM8SrK6tc8+97xx1gU/TwAz3qXdjhBiMplcX72xd7B/Y211fXPjyaefKupquLjgKeg4ElrJSLM55NA0TVUXSCAFBx+8t0Iw8uHcmTP33n1PUxVJEq2sLE/HBzHD2e7W2x964NAguf/uc3/nr32g11Gvf+DubqfDmaTAvKM5C4PISskEI2vaJx977I7bTg36Xa3wzz71iYOdzUEnqTbXXnf/fT/wvd/z+Fcenc1mUZIgcGBYNWVv0EdECg7J95IstH7YHQoUsdJrqxv745yYvLGxFZDpVHa7nbiTiaz73CvXPvmFL63vjrsLi1mWjQbD08ePvfNtbz116pQN+IVHn37y2RfSfn+0slwbm1f1aHGBiABwd2fctrZpjFaJ95Rm8f7BbpFPmiqfGzyc8yefeurGjRsf/o7vnM2KXr/fNM1td9xBROPxeDweOxsefOD1f+tv/e2HHnp4rlOFkgEoTdMjR45Ya1988UVjDADs7u62bdvr9YqiAADmnIvjGACappkPxmsKuaqqsizf/OY3D4dDZywCDDoZt21M7vTRhQ+95631ZOvwYuf86ZW/8aM/HAkOARElEQPGENGRATSmzTuj7p13ntOCVpYGK0uDB++5Y2nQedOD95X7e+9808NLw+GzTz3b7w6b0qo4qdsqyeLb77xjf3+/280GvS6E4FvX5HUi9aDX51zuH0xnRXvl+rpHRuSzbuo5xyjl3f6l9b0//9Ljz7zwctWaNNZlns8m07JqPvHnn/9Pf/AJJ7LKOabUJM+jOO33+3le1JU9OJg2tSHgxhIQHwwGaRxzpP6gCxCaphFCLC4ufu5zn+t2u+94xzsGg8Hhw0cnecGYOHPm3Nu/7V1/6+/+nVtuu/UTn/okEe3t7V26cvGVV166cuXK+uZG3dZREkVJvL27k2bZ8qFDZVMHhE63a6wVcx0bx/E8+Oi9J/BJFOfTiZJsfX31ja+7v5ulF/P22Wef2dpYO3TuVFNM6mL/Q+9566njyzb4o0ff2cni0DpGIJi0PiBwFNS0DQaUgsz+xtIoWxxkD735DXffdduFZ559y0MP3nX+9P7OzsOve3Dj2o2DvT3J5MG0Hi4vjPPZe9//oacefYmInDVaiSjStY7Gu3vdE8dM2y4tLRX75Szf35/I3YP9fjcZLY2Y0ls7s4WVk3s7+1998aJC/tzjjy5mOlKqMSYZHb56Y1N1+obJxjlh2ulstnx8UUpZG9MUZT6rOVNS6N3dvNddAIDBsDfJ81gnZV1lWeYIBoNB27rPPvL5v/k3//Y//+mfllEcQvju7/7uY8eOPfnkk5/4xKcuXXolSyJfN71ez1jbNA0wvr6+3jTNLbfcIoSYzWaXLl0qyzJJEudcWZaLi4viNchTSObqFgCUUnNi02RSr6+vb2xs3LhxgwKQo7Ubq2+87YzxbRLJg73NBx64zVp/MJ6hNxgQiCETzjYAXgkGEABdkojxZPuBe+/80b/6g488+nQgPDTq/f2/++M8OGqq0aGTj33lTw+294u8lXFnOis9kPXmueef73W7TVNRqBcGC77j9/b2KIS2rga9Qben9trCeLe+uTEc3arjSCXJ9c21hk8Ei0jwg6K6/cjyxtVXQlsDk8Xq3rWdWWdwaLdpskw667mS/dHQWiuF3jqYto3HRBrjgFBwZYyBQJyhsc2c/s+kattWqThJkoODg2632x0M3/3udz/19NOf/NSn5ryCTqeHwVdNKbUoq4qIkjhmjF2/dq2qqsXFRWvtoaXFGzduNHV56tSJfr+/vb0tYsnKMve21TJpnNFaM5Sz6ThSUkftyxevfvYLX3SBur3YOXPvvfe2xiCia+phNz3Y2kIptY59ACY480jBtU3tPAiVIlNCamuMlLKpZqdPHllcXDTGnTh2tC2ryd52v9epZrMvf+nRjY3duD/o9PoXr19OBtlv/fbvxkkXWMi66f5eXptWag2MEZFO4rqtReA64hSwqZ1v27286nU73Z5qWtPJUhFHz1280k/VcOV4U86UjvY2D7yQu0W5V86GUUrBH1oarCyPjA2c64NZGRBsY8vS9rvLnHMEPs2nUZw0eRHzm07AtCgZE1kSe29XDi+/4fVv/MpXvvT88893ewPGWNu2WZZV+Ww2m83teEQsZnm/39dKN02ztbXV73c7nU7WSUxbbqyudbJsOOgxV04UmW4sy9kkjmPrXWM9iciCalGyOPvco0+QTr3Uk8Kv7eyxKGZaC6UBmNYpA+1JWuKtD0yA5G5plI36HSIKoI3TrY9UPHQuCPBL/ejkcjbZvOabWVXlSscf/c3f/vQXvhx3Ii7Z1vZqlmhbe0QJzHpsGtMmnS4KnLWFF1SbmguZJFHTThULArjwnLWOqnyU6kyxye7WdDZe3dwKceeFtb1n1vZosPL4lbUXN7cv7+xUrlpcHvrWLvQ7EsphLyoLY7yaNXUAKvMy5gqtH3b6rfFNG8qmjaIohNDtpBRcFiuyzdr1K1trN97+5jc/8plPv/jcs71Oatp6nizdNM0b3/jG//fP/K9Hjxxv29Y7p4QkHzgywbjWsqqqvYP95eVlRsCQXNtwIoHeOe+sJyTPOPLArUdC3vrAVeSI0qzfeo9cBAY7kwlPElegFJwCUqBOp7dfmjhJyBrTlnUxZug7nV6qEwmamCqdbYIzbdXL4rrKiePisFM19sjhw5s7u9bDgw+98bmXXtna25dxEsed0DLbNgG8FLI2rZRcJtFCrCfTqfHOOCtRxIkiY+uywYD5dKa1lMAG3U7l1LQoPPGyaopSH1lZ2mns9f3pzmQCXHU6aRzHWniJlCiWxapuvXd8dzyZVRUDxVEEAmNMXbfGzXPfZJrG3W4WRWo8mc0hy8999rNlVWkdZ0ksuSjLUjL+rne9681vfLhpmi9/8Yve+zRJOOemMsG6KIqsc00VoiRu21YKVlXVoeVFss5bJwiZcWHOi7pJECI7LwcgODNtE/c75J0UEjh77vmXPvieNzfeKiURiKwri5kk+ZF/+3MvPPfcqZXFYwu9WHLOZdzpLR07d/jEqe7SKF1amO1uBPLdbtfZtmob40I7mSwuL917/32lo89/+fE4zQ4dPlq1zbQsQwhC8CzLmrrkXAqu5lG5+fentuklikgX490590IqNi1KxtXho0t+a+qBl3lRGbu1u+u93ZlMpIrS4UjHnda2oW7aWbk06s0TN/d2t6dlZR0QY1Jox+XNuxApLoWUJ06cipPk4OCgrlvngo6jpmnmxWmMNd77W86efd/73t8b9H/vd397d3d3NtmfzsbWWnLeOwcASRxVTS1E3Ov19vb2jhy+c7CwOJsVw06vrGvhAIFxhgzBMcDgXfAOYU5ogHkZI6G0CwGYePyrz02rVicdqdFVFSJmg/6Lz770qT/+7P13ne5HcUwk2sabcmdrb/3i6lNpJyTRrffd/cY3PFBXOQPyLgQPw8FC63Fze3d9Y+vG+loUxypNZ0VunXcuIHIgFEIhNDqK5iZyCIEJTkSTYhbJbsS5sYBCukDGQV3ZyXiWLPSiJEYZqTgKpt6fjmvTcB31RwuByUletHXOTe5qe9f5s3VdR1Jdu7HqPDIlvWdaSWRyDg8DhrlRTgAhQFU1UkrgrGmatrVzMyY4/9Dr3/DtH/zAn/3Zn33+858/fuxEXRZ1WUEgRuC8U0pJKQWyWEdVVW1t7bz73e9eXb2epp26KA8m05XlJVFbh4xzzgWwEBw4KwCQs3mmfTdLAAC5rKqc6fTG5vYf/OdP/u0f++HrF54edTKtNTS1b5tbzyzdd8dtXcmyYBMGsdZN6zb2Zltl/eyVi8++fOH199+jta6qQikllJrmRZwNXnz5lb3xZHtnj0kldeyIiPOAIJUi71pnmeBJkiHyaTFxBJFONGfFdNy2bZxEUgICK4uWqVjIqKybvfWNliTXUdrtICmhIxSohKhaM50dNI40B4nU67LFxREAHExmWzsHrfFcRoILLpUjnKc7zMtiEdFkMls52surmkslQ5hOc2PMfDl+4AMfOHPmzP/8z/8ZY+ydb39bmna++MVHup10uyoQEQkwkHOuNTbpZGmnc/jIkfXNLa1jr/2P/MiP/tmffGJnd0tUtUmSSArlrYMQkALnHBmRNTLS3X7fBbDOV63VcQqh/ZXf/O277rz1vltOUDkFBsVstrQwPHfm9Mri4jCSHXDCGIbkNMW6uwBos3inKpQW1pooSrz3PgCXentv/9/9/C/sHpRxdzBYWM7relaXrXFtY3WUcCERWJZ1mRRFXe3t7UkpVRxpwXWUWOu892maEYJx1DbOWq9VXLQehSjL0gNFSqgoouDaprKmJsQ0TSNBrDEnjx0lwuDDlWvXa2MrQzrTEiUCCyEAOe+9o+CcIYbGuCRJvKO2rea79Jx8f//99w+Hw1/4hV9YHI56vd49d9z52c9+dnawz5Ws8gICcs6DD8YaKVS32+30umfP3zKdTq2158+d397dv/2uu8efHzPjAqGcr+6bmgACeB9rlURKCU5EVdMil8A40/FB3v6L/+3f5pVzwJ0L2eJiEsUnjx+P4/hmzgwQ5zxJkk4n7XZSZ5q3v+0t5ENbN977pmmjKFFR9PO/8JHxtOQydsTyquJSDfqjxjhgXCjNpajbxgPt7493d/eLsu72BlJqIhJC1HVd1FWSpVJqxoRpw+7O/qDfH/a63SxNszgE55wh8E1TOe+11oujhYVBXyuhBFtYWMjzfGtn98bGtgkAQgVgyMW8DpKUQinBgdq2Lctyc2d7OiuQc+epqU3b2Okk50zefcedf/LxP1aczSbjleWlL33hke3NjV6nW+UFY4BI3TSbe7hHjx4djUbHT5waj6ecy3kKhRDypRdfJsYZ4RwOEnPFAhgoeGtMr9+Noqi1xnrXtq2OExvQgdBJ/+K1jb/zEz8JTCIX082dbGnp5MmT4+mkdo64cBwbHypnLJJQ8ujRI6+7/766LOZExCRNXYD/+Ku//unPPB4nGeMyTtIk7ZR1uz+eOBf6g2EcJdb43d393Z291bW16Wwmpez3+8CwMW0AKipXlnUURVxqY4PzIc/zTqejOPNtk0UySyJnW+cMAKRJkmaxlJyC89bMwyPOhY2tvbrxjSWlY+toXlhBIEuSJE3iOXm7qqrdnf2Njc2madrWlGU5Byvvvvvuxx9//Pr161mSLiwsrK+uvnDhQpnns8nEmkYp5a2dZ0VwzgeDgXOuaRqttVSq2+37ELz3jWk5E4xzXlUVEalIz7FvABgO+0prD1TWbVU3Ok4JGTDuA/MsUnH/2trWT/y9n1xd2+iNRu10cuuddzClKuuM4C3nIYkhy/aqcmt68PDDD2vObWuSKIIAiPzTn/3s7/zuH8SpaD2pJOMyblrvPLXWq0h776+vreZlFSdZax0iI4LR4iIhVFXV1AYApITJzPeHw+l0mvb6F69cjaJ4Oj4wTRVLziFoRmmkXdMgUBJFWZIIDkCWIxw5fGw6KXf3p/sHUw+McWVcCHMmGYUk1r5t5lWvhsOhD6Ai/dLLLyNjrTGzIvcUsiwry/LChQv9fr9tW9M0VZEjhTKfVVUxJznEcTwvczQcDuu6nrtyc3rVPLw8Ho+XlpY45zfz2UNwiHiTv6+1kNo55+w8zZQTMgIGTBDyqnbOs/5gdObcLZ/4xCe++sQTOkmQs7e84+29xdGkbWqEmbOrk4OQJvc99NBwOGybZriwaIzZ2dn59//+V6rGfPsHPlQZx7jUcUKMV8bYENKss3xopT9aOHLk2HAw8p6cDd3eYLSwFEWRtc4611jTWseEiGOQUqZZd1pWk6Ku6paIBGdIFpzlRBwg1lG3k0rFm7YqyhlSSJIEhTiYFWube+NZ7QMGZABMSllXRRLpcjoui1m/11kYDXf2D0ajURzH8yCM9z7Lsnn8/ODgYK6r27bN83wymcwZK/OQvfe+PxwyFLPZzBijtY7jeHl5OYRg2vbIkZUiz6WUxSyPYi2QfHCuqhAoCMYEFyACcN5UrZ9ndDFByAgZAhIwoSLFxd7ejTOnTq/01FNPP3H16tX3vvd9KPitd9+NvinG+4gYZx1HQijNkGkIl19+4er11aeefXbl6Il+f/iVJ5+TSqGMLIGzLgCL4lRFWmjlHalODGQDEnnb7WaMsYDBh2CapilrxXwvTftZFKdJG9wLFy/vTXMhNSNkNK+uGMg5ThAJqYQWKKxvMZCMeBonewezyXh8MM0D4zrK5vijEGLQydCbWDLiggPNNe2srIhxYmxvfICIkZKEYJydTCZzfRmcJSLyfs6hYkJmaTIej4uict4tLi4a77a2tnYnB+ubG4srh86dO1cURVVV6+trg2F/b7thSiB5V1eltwY551IwLq0L1ofW+rmGmBOH5pHLpjGcy2NHjgrGOYUjhxalgN/4zV/N81nrWpA87vfTwYAlMY9jpuT1a1c+9ju/+4XPPzKbzY4fP37sxKn9g8lTTz8XJ12uVCC0fr7MhCesG+MJmqZhTIxGC8PhAgBrrBNCGeOKuuJSqEgDEwsLS0pFe/sHF165Pq4MqMgDOucZIEfEQGScqdumbExrCblQEXLZ+rCxszcuGgNSRB2ho3l5BQ4IzpSzsWtq75qqLGezWbc3sC4YY+I4NsZwztu21VoTUdXUAWE+2ecFSuaZz/MgDJNiMBo+8MADb33rWznn++ODeahxY3XtySefZECmaYIzkmFRzli/102TmAEJIaIoQi4JedU4R8wGACa4/FoZQAqu2802NtYAw2jQMVURCdbLYkbu93/3t1+4cKEqS8Z4IDrY23v88cc/+tGP/vknP6Ukv/uuO+JYMyaqqn7hxZdb64lxxjUwbj01pq3bdp6jIYQIAZwNRGS9r03rvVdKGWfbxsxzQ+q65kq21m7tjRuAwkNhgvEMuQQQ5EGhNI2zrWtb35hgHVlHRV2PZ7PGM880cOkCuoCcCc45BQfku2nkTTPoZJJhXTe1sZ1eV0VRlqWLiwvz/BZr7bz6EGMsIBAy5EIozaUGJgIgk2LOfev0uo6CEOKee+6+8847vHeLSwtNVT7xxGPzagOXLr+SRFp04gjJk7eRUpxz54IxrqoboXQAQi6YkOQIgudCBKTJZHLsyAq5cry7HdvZ4aNLs1lx/PAhE2BjbfXaKy9JJbz34+lMpf2l0cLw+Alr252dHS7k0aNHX762+pWvfCVKYiF1a31tTeuAS6njRGrNOfcEQimhhHdmXlnJeVMUVRzH0/FBXhQRh1iKJEnG4/HW9u7SsRM7+5P9ouxGSaoj8iEYxzMhUICQXEYAvGlr4w0wCgECcEAxD1nIKJYIpsibuiQO4FQn1beeO/fYhZc456X1CExrba1dXFycTqdKiLquh/1eURRzpYp0k74HiJ5CsKHT69dNyaTY2dl54cKLBHD3fffmZXHhheevXr389re//cUXLjzxxGOcwsJgMMsngrzlCJzj3Ipv29b54AJx5AE8ITLB55qdMeCBtOTWts7VWgmozWy8l6Udm7cCxLGjR0xVTSYTIhr1R1HWq6rKNjWBv/O222vv9/P6M5/5TEAcDkaV5WVlnSUZxUknU5ECAOv9q8W6ERnTWgPQeFqX43GnOw9wW6FwuLTEOb++tmaDF1EishCaumgdR6E5Q+TeoVYpeB+AO0etDYYACEKAYIkhIFdCKSUjDo5JheibcuaCO3Xq1MH+7t7OLldZIqPK+jiOm7YC7CRpVFUVCmytIfwazZMAPCEQIDIUOJ1Oz5w588D9929tbV25fK3X621tbbXWDId9oeSFCxeyNF6/dm3l0NLe/k6/2xWFsQCIgnPFGSG5wJlSHBEFkL1ZpRc9YGBIHJmU2DRNIzxxmQ4XL1584c47bkviuKyMq0vwdmHQDYB53RjbIAfdiUejheWjJ8Vw8WM/8y+3dqe9/iBvqtrLIHWSpCpJUDDr5kgE51KUZRlaJxlKIb235IEI93YP0iQSjLTENOtOZ+XG9sHysRNrs1LFKago391lVR31eoIz1xohZN6a0lSOgQdigiEF5zyghJtFxINpGoGhl6aj3nIs2cLCwtGTp37+I79cExcq8d52srTX69GETOsOLS698MJLCwvDycFYKQWCcTY3IMNcQQohpOIx4tEjR+I4Hu/tx3Hc6/WeeeaZKIqOHT929913//bv/Nb6jWmkRHBWa2WMYRVXFeNNCHlZMEDNhStcpvvMSUTeNFXARkbkQy05X1wYAoWok+7W7qWNycKpux54y3uvr+8h8EPDPre1FmCaypMjDDrRvaX+8TtP9o+vBNX/jV/9+J9//mmu+4UxGKsKyCrdKj7zbeFrUsQktbax3nEpGOdMqsk0FzzqZENnwpzzIqWczmZc6639qYhHs4ICSU+cmBBx2jg/LUpy1jelM5WOUGWMVAiSEIlbz41DCMgRgQQEyUiGIBjvdfrd/tKR47f86ac+vz1p69a0bd00k34v4oiMcHNtQzA5GozG+5M0zoIjZ7xEGUkVrONI5G2sZVvVg6y7NBhcfeWV1dXrC4vDu+6+49ixY5PJRHC+v7enmTh76rRpWu89Y0woLkBIUxljrWKKiBA4Yyx4QCaYUMSNowBwUz3OXQxj69HyyjMvX/mbf+1HumC7aXrpwtMCiEGAEJJO1gZaGIxGy8uD5cU6NDbITz3ypY/+5u/wKAMlal85A54ER4FMeWecbciwSEaR1o6IS+maVnLGmaqqVggVPAgpvKeqbTyFvKqNR+u5t4GEMMY4b4xpwXusasa5khwgwM0CRsQCeueYBwk8IDAiCA6IceKMMRf8pKwHKvrzR77w8tXrWS8xHopZ3hkMFRObW9tl1TLE7e2dfrc3HU8YgUAWfLDWIvBI6fmd5lhOXZd7e3sHBwdZlp08edIYM5vNFhcXV1dXr166ePutt3V7yXR/r9frmaZu25alyKBtwREj7jw5JC9Cw4yVRFo4LlqHLkghUy0S8Gx5+VBZ1lGc7h9MPv/FRx0TvYWlux983ebBRHX7FjgJffz0ubPnbs2L5srV9dXV6Re+8PTP/ty/RsUcC43zabq4t1NFfECNcLnTpJay0XJvqSNTdAgucILgfLBeMFkWLUOBXDDBXfB123hk+5NxG1wbTGMNOR+MtU0bQggMS2dmznrOPWBwyFtUTnDHyAEB50pHgSLvhPfoXQieBNYUdsrpizeuXbhyeVa3nhgRZyB6cdeVLRLM+zPMZjOpldSqsYYYzpmKjWl1HM2d2zlO1zTNM888s7a21uv1AOCFl18qq/z0mZNayKIo4jg+ODgoy7LMC8E5Q2Tce7CWE+Nc2RBM8F6AZdaAIcECstaQtZxjwpn2joq86XUHVW2ch9/5/T+4vrHdWVhmaffMHfdinJ289Y47HnzIgtjZn2W9hf7gsDPxr330YyKKRSwMuia43XEheEoWM6GWEjVUjNV5M94J9SxhFDGP3mRRDESI3Ps5FMgDMEvgAnAlp3nZWtMGZ71zTR0a41tLHlCIIERFofBUO7LGgwVhBXeceQlc6yhBF4T1kgBD8BQCY4FBYcxL165ZxlSnUxnLmVBcoYOmaBYWFrTWc0po0zTzPHXGGJNi7gfMUaM5dyiOY2C4sbVpvdNar21u7O3taa13d3fH4/Gg1790+ZXrV672ul2ObM4FZW1ZoA+KKwTpPFqCwIkEee6B+QDCBxE8Z6g5F0RYVc1wtFTWlql4Z1L++1//rRt742i4dPTc7WfverCzdGR1c692DFWW9ZaSztIf/v5nd3dN0h0UpvEcScqt3QlnshvxhDXKT5TZif04xZkO+9juaDS+yjtaSmBayCiK8jxHxACEjHEhhdSVsY3zJvgAwdSNr1o0LhhrjHGIRvCpM5X1jfW+JbQoPBeomE5lmrngA7m5AeOs9xSAiQCMcVU1tmk9Fxq5bkxoWmus7ySZaVtjWsbQOYsIUivC+daGwBkK7ijUpq1N6ygcOX7syPFjAeHS1Ssvv/yyUmrQ7W2srmkpOp3OzuaWs7abdSTnrjWMQFRVhVxyERFwBEC0AVpkDAk44xIRAmMgbrJ5GetkPWutimIUktA/8vhXW2t+6u/9nU6c7Ozt9vv9aLCkddztDsaT6W/9+u/9ySc+318Y3dhYXTy2XNZN2dRREnPuBU40Nl1tF0bZ4UOHdaIPZpPNnfHubDJtGt9E6JDLrJsms2IslWxdyzhDJuaVdYwLzpOUIJCRp0Qpz6BsqyCQSekCVhQUMQyAc8qGUkxGIDXJyPoWGRKgBxCeCa1Y8IPBaHVtw1mXxlndNlIrHqmD8fQQBEScz9Yoisbjsda6qiopJXI2z+VSSs0Lps3XRJqme3t7cRw7F/I8ZwRRpA4fWhnv70oukigu8xljzDQujmPhGOt0ugx0CMA5CrDGzMAGybjwjIJiJImAggtIxIhC8CFkaa9qcoXixLnbvvjEs+Ijv/zf/8N/MDiaQiDh/ME0/6M/+f0///Rnr1/bOn7yzI2trUPHTm1Ndx3KWVlnMh2NeAQ7d5wa3HHL0aVRkkYxKl5ZMSkGX312+4qA/ekeUsqE0iqKtEAFlogxIGK28Qyld+CIgJBzTs4uZEOdxlt721NTcy4dCy6AQEEOrSVA4pyD4AaRZVlbAxBDRCJwATVxQSziuLJ4eDKZIOOETKdJE0xuq1mRD4eDg4ODtm1d8MAwgCcMATwwAsSmbed1puaMxOdffCGOY6Hk/Q8+sLG2vra2VuWzpaWlra2t2eRg0OvHcVwHr5SyrQFgAuNY93rkuGus5EABWleDt0IITsAcBOKBOAXuQx3ASRkLio1rpIpbU2zsjBePnXz6pcu/+Gu/ed/dd00ODh5/9LGXX3jZO6rKMko669tbKpIH0zxKu/uzWggVQhVM9eDrVu451731xDCNGBGCgBb5rOad+Ey/s/uVx680XvpgQuBakoPA551dPNnWaR1jwPkPeR+c78fpwnBoiqIsS/JuXjkwMB4CBXQYgDNiCOCDSJLatsERRwYBgAQFThQ48uNHjgbriIs4TWZVub61mWTp3u720WMn1tbW5jwfpVTb1vGr9Zi993VdJ3E8r906L8s3x01Ho9HVy1eUUrHSzrZkzcJoILnI81wwnCe/1HUtRK8zs21XddBaBrafKGFkJHmeV64x3URbcrk1WshAtVTSWYMgmeCBgEAUbW2CT+Pk43/2uT/6kz/z1iU66mRdsp57bJ0j4Wpnok63tkFgQpQzqs6cXHnD/UePjtwga8C5tg3Bo1Cuo1W0lJiqV+WHv/TENZHFCCJLo3FxQNbO8xqEkgSMAY910jaNsGG53+8ohXV7cmE5GPPy7vry8WMHxcwTOc6ABwjETc1a5BABZ1rFhamQoRAyEPOBmtZyzvM8X15ebp2Z5jNT5t1IkHdNWVy/dqXf6xRl6b2N49g50zTNvMwPMAwhzIuENU2DiFLqoirf8pa3rK+vr65eP3H0WNs0vd6AESAE55xgyADJh0DEORfIQSIrynFXaTsZC9G+4c5b2vJgY3VtVjhTHQTSWibgKiG7jqwQ0jkfAkkpvJfeNq0nRVxGXZUxb501zXhWG2PIeSV5TXWUxCrSu1u7CLqfxr7afeeb7zl9Qim7ZcqpABbLLghZhdy3ZSzjQ0N+ZKl7/szRS5uN96JpC47AOZGzRBwDUpjXuCQlJLpWIkrEGAUgnBgtNrbZXF/PBj0PQTDiCsE4MoWofMTAOwGAyEUAZk3bhpB10n6/CwCtacqqME2NponRa46WqLTWG8HnfX2Mmct67v3ODynEnPY8R4urqjp+/Dhj7IULz586fuJgfz+O43wy7mQZR8bn7H36Wg1JwYMBwH4qqZx0Inv2yOIwASbik/3zB5N8b2L3K18LvVsVHNPGUqzQWgeAjDGhJNXMeW8cSMkkl95R1XjbtAAgmSDOMcI2NKEuGELEKTTTO8+u3Hr68PaNJ2Kc9aTuJF1ksWuBY5Yqcq7OoiiL2eJC77lLu6yjAQgFKs+cBQwguHIE5IOQ0IljRKY5802DTEhky52ujk7K62HWNME2nkAKyVxwjXPF1OUHg+GRyhjWGowiK5kF713T2Kqu2yxLet2kCu10UkjvlkcLw+XDj718ubSGOGMUWmed15yLm00xACCQjGRVVQDAwk1f/dSJk2s3VueVJAEgWGMBvPeMA87RC5q3amKATNjJXr+TgZlU463zt56548xyvrOWSgymPTxIlxeSglQO0WMvvsKRedsG4RHpZgsC4Eppa62xnjPZNr4sm7IykZJxHJMPjWsq51aWl3Z3JhKZgkqz5kd/8AfXLj53qAe9pD/q9BTXdQPG+MCkiBB9Lbn2rinLZjzNe+lIRVHb5I4CIAAwDCgQmVJSBikwz2eoIuec4KgY984OlT67sHBl9SpwEUVq1Ov1k0QBQ++QWNuEces2y4lpmONCRDqBhJQcdYZNVRd7281sljEc9oZLvb7Waph1yvEkOCcYt2SdsTcL4r16cMbattVCMsRANBoOy7K8fPny0mhhMh5HUnDGiIIzhiklXq0h6Yk4EDEUrzt1vN+Lrl15/sTx3vnjXeb2FgfKV5UPngtv0GrENohgG2+tEspay8XNYtwIEKmYo2jbWqcKABBaLpWOYx3HdV1XlTl87OxLLzx757lbN69fZNJ+8NvfINz+cj8+sjSKOVFweWUCMaG0J1ZXFSJFacRFu7O3XVvitUui2PqZsVaiCCG0tmVMCM0IbF1WkmE/yzjDylQqScDZKLAzg8GyYP1+NloYdNM00SoVggdPxtnWcZ2Uzq5OJs9cvHxleweLfdJxKAtT19g0C0lyZDQadTqhtXvjcRZp8s4ZknoO17sANAeg5y2SQghkb/bQZAAc8Mrly97Y2WzW7aTkrJKyLkvHnZDMAwOEecWIeT8ocd/xw5Pp9tL540sLMaPaNjPNNGnQaVbWpqynLSlDloH3rU+zQV6VKAQiuGAZoJQaALyxxjilVBRFAMCltBAcEghdW9EbHNnd3RdoTx1Jbj8zSEWxMuq3RQGcAlnnDFNMK+4sd87MislSvNwY2jsokMdl65kLxJhHJpAjQwJPhATkgnNtGRuPPlhvx6aKtEglQlOL4A9zcTjrjtIskLXjmQsOgdCFfhJV0zE37lxvePpNr9uYFReu3HjsmedFkiwPFkYrK1mSai7Qu9ZYLYR3DWdsLmiODAC98yhfrQCMaIwRnIcQOGBAHI/HAUFKOZuOj60cytJ4a2ODiHywIbxaLJi92s2ESGy98Kzz5X0PntHaTGf7vVTZqlY6OjjYcx6FjHo6sa1IdbSftzqa80fDvEUoB2QUBDItVVubeXxfSkmIRMiFSDv9/bFZWjiJ9dbu7vat5xbuOr/ky01qpxK5EhoU90CWKkPGgWaSJtM86ZrV9d2d/YKrJceiWdUCF8iFp3kRnHlyuQfhokimTlSzXHZjJnkTjATkRaGcPXXi5IjLxLoQnCXPMUSMcYFlsTdK4p6SDuqqNMuE4tBS5gKPOyS1R2yc97YhIuud8a5pmk6SBoS6aRBQSEXekQ/zLghA1Latlso5RwAcWVXXnV63qUoppXPu0KFD66uryAjDvNtYmLf9BAACDCGIcnPzwYfu6XBmmibiRL7NutnBpEwG3bIFQzI3dH1td21zb1KppLcipA4UgIAxZIjeeyJCJRhgEALIoyAugAMRIqBKF5cPdlYTHB87Du9/7xubakeFVkjJGDeusb5B7gPzAEwKjHUiRGS8uLF1MClbPYxR6qLIRQIOmA2eQtAyguDBVT10i5J/6H3vvP7KpcK3tWvs3oyn2cmF/q2HVvpShrp0kylyiBUyYGi8B8s5YwzBWd9ajnKoO4mIbL+9vnvAk1TqBBgzjFnvXLC1MY2zSafHKJi6IgLNmSPhPCEyxhG886bmHeGcC8iR8Tl7lwgZE/PayVrrNq8FsrntBDBv/YlzsFYMkoHJDR/FmsetyYFD6YwR3ElFujc58M9dXr94dadoZBR3Nze3V06etKalYJQSXAoiar213jWMuoPu7tZmFitBXriWTOVd6RkeX+rl45ff8bbbR4upG0+SuNuWM8EtsKCY8CjAxxTmHR9kJ15E7NSek4qAs9BaXts0SRqmLII3LIoj78qorI/V5kfe923dyJ+/42jjrDGGI8uiOAYeGtNUZaS05rElF4BRoECBhIaYHdiWIQglRUByTiI/vDja2tsHhNoY1c2atj2YTYl8S74h6CfpsYVBInHvYDydTXV/iQIFouCdQBclWDVjLmRgcWsawaSQwrhGCYWIZVkCIAUMAbwnDMg5JwJr/bysl/DIi7Kpmk466IjQzswMtVCdbFbJF16+8ewLa1t7wHQcxV2PWLXVzs5e1umkSeZDW5c5MZRRrNMUGpuXhYy0Eiwi3xazD7/nHXfd9cD//su/d2PtxYWeve3MEpkCyHvPQXCdsDyfujbEaV+rTmuN9bWllkDWhloCTHQbjDUhUTI0LY/AOS+VdKbh4Iapfuep80uCNXVhvellWdzvmab1zhE5zyyXYNA6b+cxfSEFEQOGbeOCB6VlrHRbN41piflUROePH7m4tumsN7bZK2dMSy9xa3W70z88K3K+vDDo9QWTYW9/PMmzhcWybZxzjHnJOOPeehfAcS4CEQVUSqlIGxfKqrHeAeC86yS92kKJAwYAJBBG8O2yLG+YXp12hnE2GEzrdnV1/NQzV/anUDSQ9ToeZNGWnoLU8Szf45y0SJCBEhI5a1ozns46gyEiCM5sU6Br7r7j3Le/5x2nzp579IUXrqx+8eTRwR3njoViR3rnEUDyaVPyWMbEMDhnSmAAmhwFlqXXN3Z3pmOHwocWOMuyqGrGyrRaKi1BeCr29w8dOXTq/PG6rWyc3tgpLz332P7OuN9Nz505deTQYpJo5w16W4WcgktAa66JSASWOIKA2BrX1tYYKYRSmjHI+t040NXtnRuT3YRj5czW+CAIS76NZeaC5yr2ruwnA2Ny7ULrPHkAPy/2oINz5IlH3BofMHTSJIqUcy7P87nh5AJ5ogAwj3q/1ttAbNWFL6yqISkKtSMCw71psb5VVBbyCkzQWmtgnAcHGIQG63xTzaahjSKVZrGQsm5tW9VKVUmSgPcSkUz1vne+bXmUzcZbhMVs1h5dONIBrMtaCPSBSKBDxogz5CEEb1vHghcESpFUTz771d29xvMYlFeSN+3M1bOOQsnBG9ePu4nkb7jr1m6mJ+X4zz/1yKQyw3732KljG2vrn/nchdtvHT30+gckQ0Lgknu0JMChDxSAWIxSCmaCK4rcgevEAyUoL6fe85VhfzQa9Dc3Js6MbdPV+PDpWz/2yHNMs6KqoiiuKXAlOmnaWsORhNLg0BsjPGOBMwHgAyJ6CjLSUoq2bsqm9iHQvCjr13UQu1nHnki848Pf+dRXn1pdvVpUnpowLSsbmMiWIfcovWuCqZzQHgUTHAM6QLDOsDZAMN62XGodpUdWjk5m+Wx/3Mt0J5K9bOG2syfbYkISL7/yTKrgnnPnUoeZ7jMKFZdBopNZU+XetrFUWjLnm8YawMgQv3Bhy3sQggUiDnZ2sLPSlbo1ZmpqD5bPzo76twwH4/3tfLJzcnF0//0PBEIi7L71bV985AtPP3ktMl95/esekEIIGQUhmZCAnNAHZM28dCFnURJbbwhD49vaN93e4t50r99bOn/0SNtapRT50CTdrZXpI1evx/3O1DWs16nLxjLvvOVKJkniqzavxt6BlDowZ8kB4wy5EGLeb3RejjIQcYbIGXJG8xYAr3aZFSXKPLCd0obK6ihB3g9M1oYfzGZcxUlH29C0rgEwCH6ePOIYE4GcI+cctN4HHnOlZDQrC4jE/t7BQ29/fb+j7SwHZPV4/7aTw+ODlb1ru7yY1mVRywiySPaiXr+bJWjrwgWnIh0Uyy0GisdTiBWrAgbTykhFsXz7/ff12qadzljWXbt6/fW33LYAOMVwaHnx2PIR1jQIbDYrq/3JOx560x2nTn/8Dz7tb6t1pDnjRAxIOkLwnJCRhKptBIKMU/DKEZEQ8cKwCKEW0FYTCVITSuu0AzTs22677dlXLi4v9J9eveGRocZgwTkrNI/TqPUMKGcAQvCGB888B5RCcs7btgYA532gmzTpef23+Up4tUsGid/42J9orbpLJ23w3gfGpan9zngSd4dtY4uqDGS4YkprQOt8oNfIMECcSUBWVM20bHr9oZJR0zTV/sEtZ8/M6TllXvhpPYzT1Rc3q2svy7Jsm6pVcYhVujQ4dfZotNJHiMlVzKMCrniST523IGXMDCgO0lFPq/MrK0dsEAstpemLZXtL2vE7e8Sd7MWs9q5ueoPFbDHb3N7f29ztRum73vyA9Ew5QqQQAAIgIBFjgnvGrKBA3gVgXAeOU9PsHIw/9+RzpYH9PVjowhvvuu22Iye5FnVVHV8e3n90xXfie++748vPXkCOOhOVtRa4ZT4AIZcc0SM16EgiWFKR5kK0s1Yy7pyj4AMCl4IJfrMrPc1LElMgEiIdGO9bQwQMQXAUHhG4aNrWBy8E4yJG5oKzBB6RA+NKa4borPPBRzpCFpH30+ksiVVdFWmaHj1ypCkLaJpESVEHzfnutb2oFF0+6PZGLfEG4GA1f3b7heLs8h33nM668dZkvWlCtriyvr5VNaAFMpJC6rYpc1Nu3lg7s7SiPYx394dcpp64VpV0M0udpDupJy9dvBLp5PDh40Q4bcrRygoztRIIrnXkMCBnkkEg5KUxSktG3JpWcSGl3Lp24zOPXTp9x6GVkyeHCwt7m7tPfenRG5cuvfvhN3eTNMz2b19ZvOSaH//rP771s//bjetrkijhULjKmMp5AME48YbaNhjOFJGTUnLOrXeMwHsfvGM3G9i9tgJe7awAwFonmcosCa5Sz9j+ZGq90REP0EYJ59wjeI4MAnFQQIICNs4LqVWUtjZUxgJjAVgA5myYE9yTJJFCpHEcGjPk0S3LxyNMg5dcZPXMMcNjp5bkqM+yS89fWb++AQCdpKNJcoiffeEaSdl64Ty0xssoNgBXbqzPilKgYNYv9ntZnO2Pp9FgYQ/4Rz756X/18S988vLqn7xy7Wd/92Mvzoqq298nahWvfGVCzbkRrOFUCah4qGKF4J2zJlICffBFXW3u/dX3vekDdz90RvaWGnbr6NAPfOBDJ44dfvzZJywzHJqTi50rT3xl59mv/ui733uSiX5VL3hIfYg4uuBA4LQtiAcd6xAc5zzLsoODAyIKIczLnc057vNKxK/1NZ1rY8F47D0BCuuDd4RIrWscOSFJaXRmnsHKgBCJQSCmZSAw1nHGGJcEzDjnHEVRVBUT1KHT7wXrmhrTSG3uXj+6MOwqXVeT5YVFk894FGkuKTB0nqFa6PQuvfRyfylCFTrZ4PLq1rXtcc11pGLvQoDAAwWGm3m+Oh73D8VcR5GQhWmzQ8vPbGz+0n/+8tFbDv+Tf/LP777rPi2jJ77y6Ed+7l+//tZzdx1fMdUYA3IgohAAPQRCQeBM0yadrK2MQE3gy7J6x8Nv9gEP9sb9rOcMlabOusl952+5fPUihLYsZ73R8kokHv/936MgjrV+lpvVySRd6ErnfWgdI6aAGJF1DLGbdeZlnrx1QaCUcl6EY547H1495qsBEQVj3FojmLS2tq4FIGcaxiBOlJTQyuDmWiQgoACiSEWVsdZalFIIAci89y54F3jW7fhivygKpSLJoG1KJWRb5mLRF21xfXOP2fxQf6AFH+9MIp1yzhji9s7ueH9v+eQRYPqpZ5+5vj/1ST/IyLbWuAaQiSTZbNsXx/sB4NTyIe/JKlEz9uuf/PJdb7v7p//lz2aDxRur29PtrVtf/4af/Gc//dF/+3NHl0eMC8YFI4HkENETt8AAAaUDKhnYclZ00+7hQ0uXrqwOFw8NF5fKtg2BYi2EaUNdvvXW23b2d0ISETfHMr3Y6x9fOCFviaez/Mps8quPfh58CM4SIpecyKEJsVa9rFfmlXfOe+8AlVIIN+EyPm9MH8LNdtiIgCgQPAXDpWyNt9bOs2SjWKVp4m/mHSBDYUzgwJQSnCuBNvi5B4KBCAikYPl0Eo/6XOB0fDA5GB/vL7nca60aWz3xzOOnT584dHSlKeSl1RtH+kudYcqckAzzoolFtLW5f/jc+eu7xVOv3GiBizQLgYHz3qNFjNJOVfnndrYjLccvTR++7/4q0O9+5tNilP7jn/5pA2x3/2C4uPQHf/Snj3zqsw/efsfS4aOXrq2OTh0OIAiYB4nALaAFSeAZhqqc9dMeKV3VZlwdLJw9fW1774uPfaV13tr2zPEjb7//vuCb9fX10cLwwLVAdsDhTCfrGJPPisXeaKOoYO7QMUKCAI58UCB6cVcgq6qKIc0R+zhSHHCuFV7zhF8zgYiIka8ZWI4BgvPGkyPOVBJ3pYqdh9YYYJwJPq9/LyMF5DkgJyJvIFgKFsgqEdJE1NWkk0ZS8Beff85b10lSpVSD5k3ve/t9b349daK73vq6hz/4jn0or063S0YOBYc44r311cnadv38tcmV7RpVh3EZQpiHuQNgEMopvQf+ubX1wrQiSZ++eOn51cl3/tAPHT5yImKiHU90wA+96/0x19urm5devFxOSgicBY5BAklPwoN2qAm0FloJubOz61CwtEeLS39++eqnttbv+es/8sZ/8N898BM//qe7a//ij35/MkjTUyd3mnrWVujd4X4/lJN8utfpZ9Ng/+wrX26IW0TGOTJyzkAIsUx7ybAqm3kFVsUF+TAPvkdaI8G8iRSDm6j6zV8JGsad8zfT770nrVMlUyJuHFiPnogYEiMSwBgLzkrOOAILnpMT6BkZDC6NZKJEU85cU165+Mrq1Wt7m9tSyv/pX/zPH/6h73nD+9517PzZzzzxWOhED77327onjqwdjHendRKPIt5vK/3iK7uvrFY7BQeuwVkFLBEiEYoHMMYZYpSmG3m7eOhoU5sbO9t6wN781nceTMqd7fFHf/V3OSaPfuWp6cwYi3HUzcclBoB5a0UIjIDNm+QAeAOxyrr9pUlpZySfuHj9uc2Dd3zvXz3x+rc8+IHv+fCP/d2P/uln1fKRT33lqfVp2Xi2ODwUGnN8ZSlNI5bwqXRfuvrymmvbLGkYA4bEaF7vJ4kyCqwuKgaIgeZmDyOItJ6XWqCva6z2mi3EOPec+7opnDNAzDsQKiZUxnLGI8aVCyEAKa2lFgE8BIoE15xxRkoyLRmCC75q6xlHP5vunzh2JFbq2uVLL75wYWtn2wp+fX8/L6sH3/qOE7ec/+zjT3z12pX+yVNqsDgpnWlEzEZIvVcujl+4nhscMJLSU1eqjIkEWEwMWo+EJkB3mPnWCM6PHD+mdHzi6HGG0ctXtp96YfVv/f3/4V/+f395c7cMPG0dxmkXCXgILBgejKBaQK2h0eQUqr2dnKl+NFgxsvfYC6sPv/PDv/9Hn/9Hf/9/+bc/85Gdi5OoTf/ZP/yZZx7bnM38oeWTNjfNrPDWNMysU/6nF59+ptl/01//wXbULzlv4SbEpqJEyHia1/N6Y3MHeF6qQGsNc0+diAEgEQbCQPOkScEYC0Rt2wY/LwxLgisK6HyQUkspjW2QKNFcCrKmlSgEVySc96RUBBCcaZ1xSnLWtscGnR/5vu9KwfBmxpGtrq42+/sPvfVtofV7+wcf/O7vedPsHXXdPvKJz9/+hgee/9zjGweT5ZWlWYVr+fRGbuJ0SFwC+SjSZB2R5xwtgBAqiuTOle3stpQzWhkN7jh7Jh/n2crgwguXGyerForCeGNnebmcpr4q513jGAQGnoBxogAcgAPh4uLKzngGveiRZ577u//onz78V37E/Pz/ER599sKTF7985vHv/473Hzt529ve844vPXnh+MISeBgNl6/tbq83ZpKlX15de2najJdf0mlWt8Y6AAInBYsUY1DMDrhmSoqyrBgoHam5Xd7WzTwpgREFAAzk4dWup0VhlEw5E1JKIm9dLSQGslIJ50wwrS0LqqbN/ibOdmOqkkjbEALXTGV5ZSfjnLkw1LIPdv/y3nvfcM93vO0NytbNbOY97e3t95IYTCsZSMmb2hqLg+HSHffcvTXdWD5/eLXdX2/KnPjWwSzhgnvrbDBMVOhbDXqYOY2FaVAJFjxHkCm1ZrIo4WgS1+MxJz6bllnWGY0WhWRpxMHXnqok4w4az1zgZCk4T544gSBC69qmzjuJDs4XtaUonRxsf+pLny8r101Hz1x4br8Yy+Hw9Oted3F3t2BIUs0sPL9VrofOHz55dR96ncHRKy9cHZCOGkh0t8rb0O2oQTqdrWtWKea9a5TkgoFS//++vivWsjQr78//TmfvE+89N1ZVV+4w3V1dXT3dk2eMGGAwjLERNrJk8YIchIVBfsJPPPjB2JbBGMu2QJYxYAxMYAjNwMCEru7pMNWxct26OZx8zo5/9sO51V0zGPbTPtLROdK/1r/St9b6SBj6xhiA4Jync44Gz7fqAeCM0SSI6qVUWVlBa+a3xjqJIDFKQ2AfOXXy537mn4psYsrp1b/8i3du3hnkg1ITTEmtViOeXzghZuPpRD5xbvlH/snT/+jHPldMegFHvXxalek4nX3ykdMcEymlUvLWxvbps48IZZfXT1y7+hpFaCQLN50YFlrMISZa67AeVlIFXoAJyPMUOtBttmaHuyFUz5xo1DlBuuIAtH0uez3/SRYh1PC9hBMPWi2LJx49t3f9Na/hYYqBw8Zha61zSNtjmlFtZOxFCKAqL7JS/d8vfeXf/e7//uYrb1557BOrncXh0REiJHOqdWKlRODeztbj7aaE6L394c27+z3qaYg4wypPSVMhJdLplCVJUI/HacaBBc44oKEFFCHOKWNsbvERmqs+ON7bPU/C5oiYBVBp4PlhWWRCCoxdURRJkqhKMQQuP/XEhy9fyid9oPLve+HKfu/orZv33rl159adu8PRKM+y2KNXPvz8xz58+enHzjZDvrdx773Nu1VRLJ1Y6vf7q+21uNmaZYW1djrLNjY2z54/l87yTqN5+cPPf/XLL5bKpr2R12LIrwmEKOeR55tS+Bp4mBgDCfH0LE0cen75xMcunG4opUSGgyCAoPfuO+cvPHX59Ordd9/2k+CjTz1KCapmI4zA008+VY52kZ0PDmEAKQAUAK6QJZxsHx0u1ZYswMqAUpjbd+5jxEnhYKasLtPxOEq8oBHkBZjORmhlMcvFQZGx9tL5U2czYw+27iNoR8MDzwt8aGu1RGl3uD9oRxHi2Fgz/1fP8z4gyTvmr3pQi3bvnz8gQmkHYBTX5ySR8xY7zmnAvTxLv/PGazeuv3uy20EAVGW61E7WPvPCZ//O82leTmYpACCpRSEnTgtTZVbn6WxACYQBZYxUqnpk+Zy2QFsbBeHB0dHyYtfjQSWl1OrRx55YrHf/09Gv3r633+0uf3vzDdPsEC/CGFIMKykJwZzSGoGD7a1PP/Wh7zt7CqfDezfeZbG/duFijOD+resv/d5vffaHP//KN/+yPNpaqiVVVeWj4bmTJ2/evBmYEpQzk0+VFBgxHiRB3OIh9RFqrqy6HA9H4+ZCmy90Rm9knldb6LSgUIvNRhLwes17/eWvP9IFTz12Tijdy7ICw+VzZ73l9TUvOtrcYghOJoOV9bVaQIEoVamBdAj7xkLrSobg3Pe+z/j7PSySDz8IYTrnmXTOeZ7XaDQYRkWaGaUDj+/v7P7iL/7ibDaZD4HMxoNiuK/Hh1yn3RCu1L0Yy2pyNNrbmBzu+Ng9stYt0xHQ6v7GbS2q1dWVoigRJACgQa9//uw5K1VSq03Hk6NeL2m1v/+HPgc539g5gH7E4obBFABAA15wOIUGeB4Q6onl1Y+cPePLshj0o9CP/KAsMlnOImr6W9d/93/88tmmP9q4Ptq44WaDENm9rfujweDO/a39/jhT0LGaIv6wlLe2995458abb9/Y3zua5iUNQxwEhVH1hXbSaXaW28xHa6sLIUPT/e2j2zc+/8mPk6oEBB8VGYzjfl4cHo1rUX2huVALQ+qxShZaV+l4AErZrDWgJUIBCPD89CmlGKH52qE5HgkecKV+lwCU0fOIlVI6LxVRz/d9H1NSCgkInUzTf/bPf+alqy/7QbzQ6cZhGHteiCk2VmWZygsf426zSZ2jlMg8Zwi3k0YSRPl0FgWRM5pgPBmOilnaqMVllmJnx8P+9evXSaulgJ3mhaM0kxJ7oV+LpVGQIuPzDAMF4Xg8fuaxR31ny3TKfXr24oUwrh3u7E37/U4zbITE13ns5A997MPPPXEeVYWcjTlGzoKV1fV6ZxGHiUJMIop4GDXbne6KFO7tt2/f2tixhGktdZV/8vkrH332ad9zZdn/+PPPJM1469obiZIxcFAJREFvMvCiUAgFLR72J2FYI8wjjM7KXFlljLZaI+Oqogx4QBGdL4eYx/5zB/C33ABijcKIQgjDMBQVlFISQjzfz6tKaGsRHc7yVhz88n/7jS986Y8+++mPr7Xjbqclten1eo1m89GL55E1927dqNKRzavdrU3sUDHLfRIQwHwvsJXGFPXGw1NrK8TqiOJiMh72Dp+/8oLo76+vr9abSX/UT1pN7SwwmjhroNWUaOPKSlHGR9PRjJlGyKxQo7yczAoIceQHUuRpmsW1Tl6mlbK37m5CyBpJTJknRJnmAgFNAACIAIAsRM4YY+xia9nWTX8w6W/eZ7VGOetbnSb15v07t3/8cz94+TMvbP3li6/+4ZevnDgZqjJNp2U5M65yFeIBCoh3tN8X0qWVrozTyGroAMVOWiFLBBmHngKWUUoJAc4dDzMhZIz5HsX/QAA+96QUlRKcc85IWZbGglJaC8g0m8ZRDTEv1yL0au9t7N3b/K2WzzFwmJIoitrt9sryG6vdTqceQaUO9jebSWi1gYiWSjAWfefV76yfPUusmk3GH3r8UZFnzOcbO9v7WzvwWeucjeOIEFROi6C5IBgshPAIsdYQgwjEAKjOUvfqW2+c+/5PyXTWCnwAUKPVrTsDoFFF3oiCqqowIFt37taj2BDuINrZ2WrUW5QR6LADFlhzHHg4AAAaZwIhFLQ6hTamSGOPY+V2vvPKx5//yHNnl/7qP//H7dvvnazX5HgsqzyMQ4fMufWV22/cd3meT2YoSFhct32mAQYIlmkGoWXMIwQjC7JsRPlxrjunnvrb1R8AQKxWGDqIsDUKIcS9wAJkARgORtiLcg0I4oSxVEsWLwRBENYbVVEKrSVwR3uzd7f6NZ90G+EPft+nGqutqsgg0EKbqLW0sTe8v38002oyGlTT7JkXXqBVLsr82y+/Mp7OpqNxp7NUi6NaHDQBtRSlxYwxD0FEjfMUybKsnvh5Phxr+dLt9z5z4byoNFCWEQ4QVjIPGFOZANC/v71FCNFCUhZMsmzj7r42+5eeOVePYyVKZwwhxEgBIXSEuqhWacs55djYahIqe6Ld/NTzV2aTw6/+xn8JOTtdr1tVTaejNE3RZLB6snuqUf/wmTN/dO0+BHGZluNyBjBFxCfAxD6qhFLABj4D2hhV1aMGmPdCI3QcBRnrjEX4Ie5sd8zkCQAgAFgIHQQOAOicc8BZZ7WDgHDCfWutUEo565GABr4XJ5vjCUaU89BjBAXGiHwmi2KY/8bvffnC6fWzJ9abca0sZW9r8807myekYpsbs/Hg+z/x6Tdfurq83P36N78RhHFvMt3Y3mkurCCMH3vs4jt/9Of1WqwKEXCmtUUWMWca3CvTmdWCtuNX7+62g+B8u5vwUChjtK5FyXSwG0ThYJRW2mLuOYS11mEYrq939g/729vbcG3NYwRBiIClGGECFQDjsrp9Z4MjdOHUWj2gajrJ93XLLaz7BHBPSJMd7ilgfI8z5hVFSqTmWjx54tTXXr2dlWkBLAlYOs0CR0GloHIcUUuIhgYiRQLkoHu/42HuA+CDfaD//xuAoHMOzOc3LEDWWWOBcVAIYSC2DloLojCMQp8SXDoYdJasg1LLXCmMsB/GNAyszsdl+q13bn7r2tsEuCCIhBBH/dFRpboNfmKhNc6qo974r176drPdWj1xAoX1r33z5aevfFxJffnDz//Fq2/mZbm+0j0ap4GfWKmLLGu26jJzw/G4HgVlObt6756wYDVs+do6JaULbm1sL6+v5cpozBDxLLCTaepH4cmTJ+K4dnR0dDxcbg10DkIHtMmr/PrGflmaRlL3LfKgJRwibIzILbCcEM5CrchgODLALTSXziytc1fsj6ZJd+UTzzz5+9fvkYiN0rEsy5rDoLLYEhRQQXDucmULDI8x8+Nym7EQoXkX7zwRm8vhYXdA7LzXH8FjpB4cG0tKKaPUOGctZIRgjK3WlSgMLCGhCAGIAERAO6i00FWVBIFUykEyms0aHjGEkLafYbI/yyt11OvnTmrOOW90r98/fOf6e9vbmx956/rlpy6fOnv+o5/4xG/+/peagU8R1pUIPb8ws6KEDsgin0LIGs32/sGgMZkgxzrcA1Kmh3mvEoGFyhGNnLXWC3xfG6UU80wQBCsrK57PjFTAGowggtBZpyqRBP6Z9aX1pM2sKKs+xlZBMEgnrVozTTNIHGVeo9GolKQO6kIW6TgMIohQf+u+b8ssGzR9PsmqGo0tZ1o4bZCWRjnjEMCcHRuZOYnFg6vwt/qAOZ+zswg6AAACkCAIrINGAo0xwhQjhhwBihAYcQqcsbbQ1hpjHISEYk4x9WNR5n4YEJKUGgjkaYc1RwfZJEK2VBI2CALU0ehPvnXNYOgI2E/NL//6b/7Sv30y8MOf/hf/cmecvfzWOwvdlWyYUe6FMZvkPaBEEvrO6LKQXj3eHI3T/vjcQvdkow0ACbur94eTpXYXI5Zls0orSim0qixz56DnMymlqgSnbF4Eo4TFYfTU4hp0GEopdWURVBAoAwyjBeXaM5RElHAPuRqMfMPz6YwG9bDZfv32rdHB/kq7cfdop0BgoV73sNIMaQukMlorzAgJcOBzpBCGCAHoAHAPSPOstfhv8MTw0uWngTPQOQzd3E/MS6ezLC9FZYxJkqTTahFoZFkQI7krPYLmbNOVNpUU0mhrQL3ZUNZBRA/7k8ogDakX1ctimnBNdJX2xq2k5TO/VPJo1Eva9TD0p8NhIwx/8if/8cWLj/Ko9q9+4d84bdu8Ph4NiG8KmRaTkccYtMRaq8qKO5MYu1KLVhpN3/edx48GQ4JIPU4gsrIsGMVzUijKPGmstRYa6HmeEZVWIvC5McYBZC3QwkLiuGeN08B4vsdWO0E2GcdeuxknohxBo2osMgY6Rq7fv//2rftnn7yUQ3unt3fv8HCsgeW+cJ62kYZUA2eQdlwSCus8CpjPGHs/B56/PCyA72qRe/rZy9Za5BR0jiAwvwfOwiAKB4NBWZaNetyMIyUqp6uFgDx/dvXsenf91Nmw0ay02+8P7m5sbe3tX791p5DOj5uWhkej7GCU+UmLMFzkB4nHuSOqEJx62lkNjcVAijzkzFZC5Fm3u2wgQIFHASGjSqeTOCaEmrSYZFkmK1jzEzWaXXzk5Go7cTIbDXrWAt+LV9ZOvHn9Xe6z1eVF5KzRFUU4z3NEGUTEIQwBZphWVWmNqfleVRXGCi8KDfKVkcxJKzWsAs9jyQLb3Ljtw/iR5eWACASVRWiSy/v98dbewZlTZ06trjejKNdFgd0Xr35rn7C9EuYqpLTGAFWqMjCnFLZbLUYohHA+RDZHIo0x6CHL/90CuHLJWguMhgAgADB0CDrnHOc8TVNrbS30PAQosI+dXvvklaeunF1u1wJEeSmlhcSLatrBSVbevLP5lT//q3dubpCgnmo8TAUJ6tgjlZwaUSDpAsrTsgqimoNWKYUQcFYFjEIHCHBe4FfQUm3M1sHHnvxQu86FTLXV97e2dzcPEy++uHaq4TOKDCamUCVw6N7NzTMXLnjt5mtvvk4QIggAZ+r1ujGGUa+SCjg4ZzOGDgRBEIX+dDRizElrCgUopTGFOteeizrdxRtb14xRrWQxolRmvTAghtLtXn+YVavL62c6y03KbJYGsT81wjTiq9sH13Z6t48KiQNMfG0M91A9CT2fIYTmhGBzV4oANMZAZ49rcBC4uUd+YILOO4AsoACg+cQLBgo5izEWWmV52W23XDFtePhnfuonz6x1lhca41EfQhhGvlVaKQUxtQhbSGmY/M4ffOWPv/ZSZckgFcLhpNVyGOXTqZxmUS2YKkk5N0IhgJ2FhNFxPl1fW4OVgAg4D2eH2xcIeerEmlFSipIzP6nVrr3y+nJ7YaGRzAa9OAoAMA4TbQ1A9P7+4fnLlzb2dz/3I39XCLG7d/Diiy8igH0/dNoEnp9leVWUQeBjjDFFzUaDORdHtTRNOSYRY+l4UgviOxu3o0YQNWq+FzpgEHJpNj04OpRanzh1skH5IyzpME9UhUEWRf4gy2tJdy+Xf3Hzzmt7++Mwcn7YiOoR940tEYYQYwAAnFeBrMMOIACRA2DOpQ2cgcBBayEgEJiHQiMEgEUOQAeM1YQQ56A0upzNOn6j20iaUTSaTsJ63VmdZSmFwOP8eFo8boyHBz/x93/41KlTv/2Fr4gqh0Jg5WtLW42mof60mI3yaUTqHEClFIFEViKOElOWNW1VngqsvTJvryyOBweiEBjTChTTg95iPcGqOrN6/hBr7OxkOmUEWWcZw35Aj3oHcRynWfa5n/v5P/3VX3OEd5dWgHMUIJ9x38+KouCca62yIu+Phkop0u/Hflims3oQVVl60DtcXu3WmwnEKC3So15vmk+dc41G44kTJ6bDXuwTpiVEzuO40top2eEeKYtGKX7g0hOVk98eDQgPkFW+VxMSW2Dm6o8QIhgjDAmAWqq5yiMH5juS5927BDlgAUDzoT3w4GZA5yxAGCprqkrmpSCUthY6iACfRkIIWQmP+VHgizKXytTr9UlWeJzqIr/85GNBEHzhD//4nRt3rKkw9Y0BGiAWJglngGJdagIsNK7h+3HkT3e22txrUFiJcjCblZxXGIV+ABHN0syU5ZUnP3T7nbcODw9WVpZUWcyyqTIaYlyIqt1q3N3bPXXu4q133j33hS985Yu/304iqCWBBFljbCWzXFdFSEmtFoQBM8BtHOx+6jOfDgib9vsHWztJ1I4oXei0Nu7eK/N0zrBzfukkY0wpJXrjrh8sRxEWsgQSQ5yVMyBgFDdn1bTWbKUivbi+fH13f/lkZKk/mvbCMLQOEgwdABZAY4xU2igdeN77ZueBJJB1gDz0GcB5C5wDAAKMsbEAIZQXBSLYAsj9IM/Gxmk/9Gqxr5VI8wJYYAEaT1POfUjoeDIOYnv+1Mo//NEfunDy7S9/9euH4wENW77nMYJyBSZZCrStewGUklHkyrRB4bml1ulOA9qiP2lffe82j5KFTj3wfSOk1rrZbHYWWjs7Wwwbxuji4sLe0RHAWCoVBH49DCf9wxMnH/n1//prWBtnTBwnDLNuuwMdSONals8454jgNE8nVREkIY39n/r5f733+hv//Vd+JabeYqNx/c03i8ms02ydWFyer8gs04pSygmqYcYglUTnQugyk7IM/UADzevh1TdfmypowuTSqbU33rm5cO6RehBWZQkgRgg6TBx0CCFEKSHEuuNVdQAA+1BiQKBDCALnwPdkC3NHEUbRdDKKmDeeTbOi8jHx/TDNpgihwOOUco8zAEA+mznnVCVWV5azLNVVcXq5VQwXPvfpj/7a7/wpob5yKjPST2p+t+OUsZUMQg6UOOrtPbm+Gja9QqcUqVqzVkuSVJjxdMapByHGEM0mo7OnT4+O9re2NqMoWl5bZb5Xaoc5G08mywudg97R/ubG8889O57MXn3jdR/DlaWOERJDlPg0pInnedSjqhlPlUy3N15/47Wfzie/+dv/sxTZiaXF+/fuWKMeu3geO1jMUqENJDQIIkxJPh4bRGbTvOAgd7bI05CxVhxXDty6e/twNrn4+CXsxY+G9cCvXesdBATXCAcASmCFUhZYizBhnBIihHAPgQHQAQAsgh/cADint33/McZAQoMoyPMcI9MbjXcPDp66eKbMU+CQ74WE4Y27965du7a9uZWmKbBaStlI6ufOnbv87KW1tbX1hWZvOEkiXskiy5VBIEw8JYSThkIcEkwJLTCE2O6PB/vZBFpRCuX7iQOmmGV9pYGU9YD3jw69bnuh3Qw9PJ3Nbty8ubC6Zq0SRudVGVX+YrP+1ts3zp87baV8/vLTw6PhdNhrxgmGjoQcQg9CZ5xWWkAty/FwYXX5F372Zxu14ENPPPrqN77BLOw2m+lsHLIAAAAJrpRWyEZRCGq1HMBZoVLrFHLKQqvhIJfj2fTGztGZxy8OZml5NM3SjfXz5zeydJbnnAKEECMEIgQhEMBJWVUSYYznN+ADGQAAHCAIAOse1B/+GmRjjAuikDudzYY37tx9+vELRVEsrSwf7O29+OKfXbt2bTweI4RqtRp0ADi3s3u4ubn9xS9+8eMffeHH/t7n15eXfA9prUOOfZ9HAd7a2rWVrrfaNksxJg3Pn0xmlrMkrmsnDzZ3lmtupdUo8lSXhUdw7DNdFfvbWyuLnZXVFULpTq83GE1wEObCagO1lB7lz1x67PVvv3TpmWcvnjvTq8cbd+7u7QwxgFEQzgk2KylKWeZKPXfxYr3d8jyv3zv46h9++fFzZwPCbCUpxQQiZRH2+FRMDyezhABnwKC0hagmuKrVa22/NSvLfH88nE38dntU6nRWMOwvrK7du79DMIeqNLIAEFpKkUe55xFChHNSW+ecBRDND/5BHgDBQz5g7gY+eEdIAVcWRS0MqZWI8c3t3VmeBUGwu7X1xS986aWXr7YXuksrJ0aTscMMOACMDZMAOBPXk9feuHbv3v3Pfv7HmcdtViktVpLmJ1+4op58bOfe/f7uUZrlw/0hoaTUOllZRti3CjpLGmHY8rlntSWYU2xESZ2Dzhqr7t67Bym79OxzL379W521CFA+q8ZnVhbSSX95ff382TN3bl/3A7q+vr78kedGg+Gg15tNplk+gRCGtWjt1HItTjy/tnuwv7t9f3d3+4VnL4WcTPtDj2Fb6UoqoaAXRbmzm4M+kJVSFpZOSplqff40WjnVdRJNs1waHAb17b2jZrPDvJowVih5cLS/uLx0/sRqNpsN8zStKmmt4dQgZB2A4Hj/rZvr/oPT/i4BPPxQSkshIKQAoXRWLCx2r77y7R/9gc88eeHMf/j3v9Q76i8sdEuhKLcOUm0RhAhgZzUADkKLWdhIK/u//s8fCMsUIIzS2zdvPXv+zNml5aVHTiw+c+mNl197fTQ+fepMbzAZHs6azeX+rFr0GgklKh8jrQkASFuEIIYAALS7d1BI0V1d11nZWT6xfdDPlYsCXilZr8f1OG4tNB0y3/nOa5ub9567cqXRjLsLLYzQfDgdYSy0KktxtL157+bNysjHL55JkpoUFes0kbbDgx5GFCJXVGXYqJNhHK0uH03TfFJKDGs83t8bBLluEsq07bYWNWU1P6iEaHS8Yiam2Xi93V5sNE8tLrqFtqLkpbffStMUoZCFkdPG/E2I2MMfLAT4wffm/Y4AEeMcoswAW2T51auv7N27NRgMjhsfkRHKAAAhwtYCMJ99nUP8CANoHPLv3txdPXuWAomkvPqtlx//iX9Qarm7tXH35rsrnXon9EPMyrK8++517ocehqrKqVMYQgecBdACayywVo+ms+X1E6VDaV6hoDbK9gZZ9WT3DMIEY6O0gBasri43WvHu7u6f/fmftOqNRpzU44R5HEJYSjGezKbjSTXNkyRZXTkZ1gOhhXYl44gzVvksn4nAi7xWGyNcSKkLUSFEO/X0sEeliIFbXeg+urqiiyLLpyOR1hiZSHHU23MWdjv1MIiArnbu3vSjWoVgqxaOy8IL/EE6QzxA8Hg0/nuKcuS4VwuA7wmDjDGEcwuRkoYi6qyslP76N77ZiniRl2Etmq9Wn+uXtcAedxsBCOC8/xc6iqDXbCxPRqpR5+NU5P3pa++8d/bkSlyvTUzVXOwcjA64X4sbftGvlrstbAV0hUPIWqAtRAQT6lnnlDJTN6lZlI5n0mEURgITTSjxwzQfJq0AUzTLpsZZPwpW1lcXRGdw2OsN+7u7O/NlPl4Y+EFICDl97nQUh4aAWTm1UHsexRYiZXxKKldGnsf9UEGCzHzdBSusUFCcWl2/2Oicb7WZUWWVqmoWQIc9LI2Z5UOEaT1uBEAcHfY0Is7ZzFoJnJOSAoQcwO443QXggyB0no4RAABwCMAH7VrHegwghABiZ6FSihCkjOXM3z8cFD5eWmxDzIXSGFMHEYRIKoUxBd9T+0YQILLWXX39vVtJrYuoz5D946997dHHzi62GyOrWZHKWcmLYqaU9pzhTlWmMqpeq2FCpuP0qDfQxvlhFARBhtmd3rDeagvjRqMJCMI4jEslvSCAEBqjjjfIAEAo8nk0p7nDEJp53RyjY1hKGWlUKjJHbBB6Vqu8yJzjjTh0hQ3DqNJGG4cQocQDVnHOOCWNWuRROhz0TD6zqkLAUI9CDOuBF0QcYsoxJpnAsvSTZuAxJeTm3p6yThR55AfCQuCA+WvAgHOOOAjtB9r/QbIGIdTGAAAhxBBCJbVHOYG2Mor6MYBOV8YCg5DDmBIACDJzDM45ZyGEAEIAkVVQV604lKJImo30IIMWvvT2dS/0ykKWnnjiwoXBYHDjzh3KYbZ/L8RkpdW+P56OZ7m00Ivqnh9OK7k7TIUAQIul7ko1nfR7QxYEyoFMlKxRg0AC6yghFlirtZSVxpAgbI0CxmqtjYOIYMY8jHGRpn7kh6GvkM5lVs3SmPClhVakPVs4Spl2sCxLZ6G2zhgHoQuJZ7TbOzoIjFppNUPiDQdHqJSQIQRdQLiDGGnHAIw9Dwd8jlb5nEljtKwI87SzwKJ5mO/mRQh3nHodmyDwfqHueOWytRYaYCChhGDojNJaaxuFYZlOp0UVRwFhXEthjCEIMAqh0/P5Y3f8Kwg4gKAkDsWBy2SKMYEQ1psLkyrX2BmKhoXRNCrBVDDixdEgzTIId45GGCNEucGenRYu0xhjzILKAYrJ7iztDQYVApTzqsi1w0VRtBLOuV/JshAFpohiEoZ+nmUME8o49gMLoLZWW6elqic1iG1uRF7ODNRxEqw3u8vNpeowdUYbrQkPhDIWY2Us5rycTgLsNZsLkKdyMukXhe9j43HsHGMEWaOUNlJxTAmijLFSSjEeCkzOnXlkazjp57nICsQ9647xSAsBfMhQkLkDmNujh5HjY1TTQogxcA4hIirJ6pFgojeaIkLjgGutkZHOaAycswZ+UGmCc5J6hJzHXZnvszigyPGAF9OceF6aV4zWq6x6982NUhSc1jH1DFIagNbJlUpa6SDjkUNUaCe1BgAQP9JG3N49UKqMo8hgiBgtZYkQV0KqShCCk1oMMcjTbDwaBdyz2khjIYQQYgucARA7KzMhZC4YiBIWdzqdZtLAgS7FbDJWShmoKqIGkzGg1DACME+CBsiKXAAlbW88LdNRp1lb7S4Qa5V1RhsKPIIdRYxgxgI7LdPhbJK0F+I4bhpwMBrjwDPGQoSBAw+Pyc81/m8MQzHGyEHtnDUGWUMIqYwhhES1pD84jPMomtd4EYVWSa0oBBDO18JDB4hzzkIAgfS472DhLKbMS/MUOhJ4NQC9slC1qJWOU0Ah84PxZBY6EtbCQrtMSOEIQxpyrqFzzKMYAQSQxlKpxZVV6Nx0OuacTvt9UfenhSCMBnGIIdFGE0LiMALKWGuBtQghBzGCADoInakRRrFrt6JkqQE9wBB0zjhnsizDFAEI0yzrDQYWQ4uwkIpqlI6ym/JePhs6IziBh5PZcDqpUaqF8CBc6S7VvZpSRhgDESGYSTkOgiBNZwThPMtWFlfGWYEcMBAA68Acrnwgg/8HLlnDxRbwd98AAAAASUVORK5CYII=');
+    `;
+
+    // =========================================================================
+    // EVENT HANDLERS
+    // =========================================================================
+
+    const EventHandlers = {
+        // Initialize all event listeners
+        init() {
+            this.bindNavigation();
+            this.bindIntroSection();          // Section 0
+            this.bindStartModeSection();      // Section 1
+            this.bindAISection();              // Section 2
+            this.bindWritingStyleSection();    // Section 3
+            this.bindPersonaSection();         // Section 4
+            this.bindCharacterSection();       // Section 5
+            this.bindGreetingSection();        // Section 6
+            this.bindOverviewSection();        // Section 7
+            this.bindScrollObserver();
+        },
+
+        // Navigation dots
+        bindNavigation() {
+            document.querySelectorAll('.nav-dot').forEach(dot => {
+                dot.addEventListener('click', () => {
+                    const section = parseInt(dot.dataset.section);
+                    this.scrollToSection(section);
+                });
+            });
+
+            // Next/Back buttons
+            document.querySelectorAll('.btn-next').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const next = parseInt(btn.dataset.next);
+                    this.scrollToSection(next);
+                });
+            });
+
+            document.querySelectorAll('.btn-back').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const back = parseInt(btn.dataset.back);
+                    this.scrollToSection(back);
+                });
+            });
+        },
+
+        // Scroll to a specific section
+        scrollToSection(index) {
+            const sections = document.querySelectorAll('.grp-section');
+            if (sections[index]) {
+                sections[index].scrollIntoView({ behavior: 'smooth' });
+                state.currentSection = index;
+                this.updateNavDots();
+                saveState();
+            }
+        },
+
+        // Update navigation dots state
+        updateNavDots() {
+            document.querySelectorAll('.nav-dot').forEach((dot, i) => {
+                dot.classList.toggle('active', i === state.currentSection);
+                // Mark completed sections
+                if (i < state.currentSection) {
+                    dot.classList.add('completed');
+                }
+            });
+        },
+
+        // Scroll observer for section changes
+        bindScrollObserver() {
+            const sections = document.querySelectorAll('.grp-section');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+                        const index = parseInt(entry.target.dataset.section);
+                        state.currentSection = index;
+                        this.updateNavDots();
+
+                        // Update overview when section 7 is viewed
+                        if (index === 7) {
+                            this.updateOverviewSummary();
+                        }
+
+                        // Validate greeting section when viewed (in case character was just imported)
+                        if (index === 6) {
+                            this.validateGreetingSection();
+                        }
+                    }
+                });
+            }, { threshold: 0.5 });
+
+            sections.forEach(section => observer.observe(section));
+        },
+
+        // Section 0: Introduction events
+        bindIntroSection() {
+            // Introduction section just has a "Let's Begin" button that goes to section 1
+            // Navigation is handled by bindNavigation()
+        },
+
+        // Section 1: Start Mode events
+        bindStartModeSection() {
+            // Start fresh button
+            { const el = document.getElementById('start-fresh-card'); if (el) el.addEventListener('click', () => {
+                log('Starting fresh adventure');
+                // Just proceed to next section
+                this.scrollToSection(2);
+            }); }
+
+            // Continue (import save) button
+            const continueCard = document.getElementById('continue-card');
+            const saveInput = document.getElementById('save-file-input');
+
+            if (continueCard) continueCard.addEventListener('click', () => { if (saveInput) saveInput.click(); });
+
+            // Named function for save file handling (needed for re-binding after clone)
+            const handleSaveFileChange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // Show loading state
+                const statusEl = document.getElementById('load-status');
+                if (statusEl) {
+                    statusEl.style.display = 'block';
+                    statusEl.querySelector('.status-message').textContent = 'Loading save file...';
+                    statusEl.className = 'load-status loading';
+                }
+
+                try {
+                    const text = await FileParser.readAsText(file);
+                    const saveData = JSON.parse(text);
+
+                    // Load the save via Esolite bridge
+                    if (typeof window.kai_json_load === 'function') {
+                        window.kai_json_load(saveData, false);
+
+                        // Update state
+                        state.setupComplete = true;
+                        state.rpModeActive = true;
+
+                        // Try to extract character info from save for the chat header
+                        if (saveData.char_name) {
+                            state.config.character = state.config.character || {};
+                            state.config.character.name = saveData.char_name;
+                        }
+                        if (saveData.char_persona) {
+                            state.config.character = state.config.character || {};
+                            state.config.character.description = saveData.char_persona;
+                        }
+
+                        saveState();
+
+                        // Show success message briefly
+                        if (statusEl) {
+                            statusEl.querySelector('.status-message').textContent = '✓ Save loaded successfully!';
+                            statusEl.className = 'load-status success';
+                        }
+
+                        // Transition to chat mode after brief delay
+                        setTimeout(() => {
+                            hideOverlay();
+                            showSimplifiedChat();
+                        }, 800);
+                    } else {
+                        throw new Error('Esolite save loader not available. Please refresh the page.');
+                    }
+                } catch (err) {
+                    console.error('Save load failed:', err);
+                    if (statusEl) {
+                        statusEl.querySelector('.status-message').textContent = '✕ ' + err.message;
+                        statusEl.className = 'load-status error';
+                    } else {
+                        alert('Failed to load save file: ' + err.message);
+                    }
+                }
+
+                // Reset file input value so the same file can be selected again
+                e.target.value = '';
+            };
+
+            if (saveInput) saveInput.addEventListener('change', handleSaveFileChange);
+        },
+
+        // AI configuration section events
+        bindAISection() {
+            // AI type selection
+            document.querySelectorAll('.ai-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    document.querySelectorAll('.ai-card').forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+
+                    const aiType = card.dataset.ai;
+                    state.config.aiType = aiType;
+
+                    // Show relevant config panel
+                    document.querySelectorAll('.ai-config').forEach(c => c.style.display = 'none');
+                    const configPanel = document.querySelector(`.config-${aiType}`);
+                    if (configPanel) configPanel.style.display = 'block';
+
+                    this.validateAISection();
+                    saveState();
+                });
+            });
+
+            // KoboldCpp test connection
+            { const btn = document.getElementById('test-kobold'); if (btn) btn.addEventListener('click', async () => {
+                const endpoint = document.getElementById('kobold-endpoint').value;
+                const statusEl = document.getElementById('kobold-status');
+
+                statusEl.textContent = 'Testing connection...';
+                statusEl.className = 'connection-status testing';
+
+                try {
+                    const response = await fetch(`${endpoint}/api/v1/model`, {
+                        method: 'GET',
+                        signal: AbortSignal.timeout(5000)
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        statusEl.textContent = `✓ Connected! Model: ${data.result || 'Unknown'}`;
+                        statusEl.className = 'connection-status success';
+                        state.config.endpoint = endpoint;
+                        state.config.model = data.result || '';
+                        this.validateAISection();
+                    } else {
+                        throw new Error('Connection failed');
+                    }
+                } catch (err) {
+                    statusEl.textContent = `✕ Connection failed: ${err.message}`;
+                    statusEl.className = 'connection-status error';
+                }
+                saveState();
+            }); }
+
+            // Cloud provider selection
+            { const el = document.getElementById('cloud-provider'); if (el) el.addEventListener('change', (e) => {
+                const provider = CLOUD_PROVIDERS[e.target.value];
+                state.config.cloudProvider = e.target.value;
+
+                // Show/hide custom endpoint field
+                document.getElementById('custom-endpoint-field').style.display =
+                    provider.needsEndpoint ? 'block' : 'none';
+
+                // Update placeholder
+                document.getElementById('cloud-apikey').placeholder = provider.keyPlaceholder;
+
+                // Update model options
+                const modelSelect = document.getElementById('cloud-model');
+                modelSelect.innerHTML = provider.models.map(m =>
+                    `<option value="${m}">${m}</option>`
+                ).join('');
+
+                this.validateAISection();
+                saveState();
+            }); }
+
+            // API key input
+            { const el = document.getElementById('cloud-apikey'); if (el) el.addEventListener('input', (e) => {
+                state.config.apiKey = e.target.value;
+                this.validateAISection();
+                saveState();
+            }); }
+
+            // Custom endpoint input
+            { const el = document.getElementById('cloud-endpoint'); if (el) el.addEventListener('input', (e) => {
+                state.config.endpoint = e.target.value;
+                this.validateAISection();
+                saveState();
+            }); }
+
+            // Model selection
+            { const el = document.getElementById('cloud-model'); if (el) el.addEventListener('change', (e) => {
+                state.config.model = e.target.value;
+                saveState();
+            }); }
+
+            // Horde API key input
+            { const el = document.getElementById('horde-apikey'); if (el) el.addEventListener('input', (e) => {
+                state.config.hordeApiKey = e.target.value;
+                saveState();
+            }); }
+
+            // Toggle API key visibility (for all toggle buttons)
+            document.querySelectorAll('.toggle-visibility').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const inputWrapper = e.target.closest('.input-with-toggle');
+                    if (inputWrapper) {
+                        const input = inputWrapper.querySelector('input');
+                        if (input) {
+                            const isPassword = input.type === 'password';
+                            input.type = isPassword ? 'text' : 'password';
+                            e.target.textContent = isPassword ? '🙈' : '👁';
+                        }
+                    }
+                });
+            });
+        },
+
+        // Validate AI section and enable/disable next button
+        validateAISection() {
+            let valid = false;
+
+            if (state.config.aiType === 'horde') {
+                valid = true;
+            } else if (state.config.aiType === 'koboldcpp') {
+                valid = state.config.endpoint && state.config.endpoint.length > 0;
+            } else if (state.config.aiType === 'cloud') {
+                const provider = CLOUD_PROVIDERS[state.config.cloudProvider];
+                valid = state.config.apiKey && state.config.apiKey.length > 0;
+                if (provider && provider.needsEndpoint) {
+                    valid = valid && state.config.endpoint && state.config.endpoint.length > 0;
+                }
+            }
+
+            const nextBtn = document.querySelector('.section-ai .btn-next');
+            if (nextBtn) nextBtn.disabled = !valid;
+        },
+
+        // Section 3: Writing Style events
+        bindWritingStyleSection() {
+            const previewTexts = {
+                chat: 'Short, snappy messages perfect for quick back-and-forth conversations. Great for casual chat roleplay.',
+                normal: 'A balanced writing style that provides good detail without being overwhelming. Recommended for most roleplays.',
+                creative: 'Rich, expressive prose with detailed descriptions and longer responses. Ideal for immersive storytelling.'
+            };
+
+            document.querySelectorAll('.style-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    // Deselect all
+                    document.querySelectorAll('.style-card').forEach(c => c.classList.remove('selected'));
+                    // Select clicked
+                    card.classList.add('selected');
+                    // Update state
+                    state.config.writingStyle = card.dataset.style;
+                    saveState();
+
+                    // Update preview text
+                    const previewEl = document.getElementById('style-preview-text');
+                    if (previewEl && previewTexts[card.dataset.style]) {
+                        previewEl.textContent = previewTexts[card.dataset.style];
+                    }
+
+                    log('Writing style selected:', state.config.writingStyle);
+                });
+            });
+        },
+
+        // Section 4: Persona section events
+        bindPersonaSection() {
+            // Modern toggle button switching
+            document.querySelectorAll('.persona-toggle-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const method = btn.dataset.method;
+
+                    // Update toggle button states
+                    document.querySelectorAll('.persona-toggle-btn').forEach(b => {
+                        b.classList.remove('active');
+                        b.setAttribute('aria-selected', 'false');
+                    });
+                    btn.classList.add('active');
+                    btn.setAttribute('aria-selected', 'true');
+
+                    // Update hidden input for form compatibility
+                    const hiddenInput = document.querySelector('input[name="persona-method"]');
+                    if (hiddenInput) hiddenInput.value = method;
+
+                    // Switch panels
+                    document.querySelectorAll('.persona-panel').forEach(panel => {
+                        panel.classList.remove('active');
+                    });
+                    const targetPanel = document.querySelector(`.persona-panel[data-panel="${method}"]`);
+                    if (targetPanel) targetPanel.classList.add('active');
+
+                    this.validatePersonaSection();
+                });
+            });
+
+            // Manual input
+            { const el = document.getElementById('persona-name'); if (el) el.addEventListener('input', (e) => {
+                state.config.persona.name = e.target.value;
+                this.validatePersonaSection();
+                saveState();
+            }); }
+
+            { const el = document.getElementById('persona-description'); if (el) el.addEventListener('input', (e) => {
+                state.config.persona.description = e.target.value;
+                saveState();
+            }); }
+
+            // Persona file import
+            const dropzone = document.getElementById('persona-dropzone');
+            const fileInput = document.getElementById('persona-file-input');
+
+            if (dropzone) dropzone.addEventListener('click', () => { if (fileInput) fileInput.click(); });
+            if (dropzone) dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('drag-over');
+            });
+            if (dropzone) dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('drag-over');
+            });
+            if (dropzone) dropzone.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('drag-over');
+                const file = e.dataTransfer.files[0];
+                if (file) await this.handlePersonaImport(file);
+            });
+
+            if (fileInput) fileInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (file) await this.handlePersonaImport(file);
+            });
+
+            // Remove imported persona
+            { const el = document.getElementById('remove-persona'); if (el) el.addEventListener('click', () => {
+                state.config.persona = { name: '', description: '', avatar: null };
+                document.getElementById('imported-persona').style.display = 'none';
+                document.getElementById('persona-dropzone').style.display = 'block';
+                this.validatePersonaSection();
+                saveState();
+            }); }
+        },
+
+        // Handle persona file import
+        async handlePersonaImport(file) {
+            try {
+                const card = await FileParser.parseFile(file);
+                state.config.persona = {
+                    name: card.name,
+                    description: card.description || card.personality || '',
+                    avatar: card.image || null
+                };
+
+                // Update UI
+                document.getElementById('persona-dropzone').style.display = 'none';
+                document.getElementById('imported-persona').style.display = 'flex';
+                document.getElementById('persona-avatar-preview').src = card.image || '';
+                document.getElementById('imported-persona-name').textContent = card.name;
+                document.getElementById('imported-persona-desc').textContent =
+                    state.config.persona.description.substring(0, 150) + '...';
+
+                this.validatePersonaSection();
+                saveState();
+            } catch (err) {
+                alert('Failed to import persona: ' + err.message);
+            }
+        },
+
+        // Validate persona section
+        validatePersonaSection() {
+            const methodEl = document.querySelector('input[name="persona-method"]');
+            const method = methodEl ? methodEl.value : 'manual';
+            let valid = false;
+
+            // Both methods require a name to be valid
+            valid = state.config.persona.name && state.config.persona.name.length > 0;
+
+            const nextBtn = document.querySelector('.section-persona .btn-next');
+            if (nextBtn) nextBtn.disabled = !valid;
+        },
+
+        // Character section events
+        bindCharacterSection() {
+            const dropzone = document.getElementById('character-dropzone');
+            const fileInput = document.getElementById('character-file-input');
+
+            if (dropzone) dropzone.addEventListener('click', () => { if (fileInput) fileInput.click(); });
+            if (dropzone) dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('drag-over');
+            });
+            if (dropzone) dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('drag-over');
+            });
+            if (dropzone) dropzone.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('drag-over');
+                const file = e.dataTransfer.files[0];
+                if (file) await this.handleCharacterImport(file);
+            });
+
+            if (fileInput) fileInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (file) await this.handleCharacterImport(file);
+            });
+
+            // Remove character
+            { const el = document.getElementById('remove-character'); if (el) el.addEventListener('click', () => {
+                state.config.character = null;
+                state.config.firstMessage = '';
+                document.getElementById('character-preview').style.display = 'none';
+                document.getElementById('character-dropzone').style.display = 'block';
+                this.validateCharacterSection();
+                saveState();
+            }); }
+
+            // Collapsible sections
+            document.querySelectorAll('.collapsible-header').forEach(header => {
+                header.addEventListener('click', () => {
+                    header.parentElement.classList.toggle('collapsed');
+                });
+            });
+        },
+
+        // Handle character file import
+        async handleCharacterImport(file) {
+            try {
+                const card = await FileParser.parseFile(file);
+
+                // Resolve macros with persona name
+                const resolved = resolveCardMacros(card, state.config.persona.name || 'User', card.name);
+                state.config.character = resolved;
+                state.config.firstMessage = resolved.first_mes || '';
+
+                // Update preview UI
+                document.getElementById('character-dropzone').style.display = 'none';
+                document.getElementById('character-preview').style.display = 'block';
+
+                document.getElementById('char-avatar').src = resolved.image || '';
+                document.getElementById('char-name').textContent = resolved.name;
+                document.getElementById('char-creator').textContent =
+                    resolved.creator ? `by ${resolved.creator}` : '';
+                document.getElementById('char-description').textContent =
+                    resolved.description || 'No description';
+                document.getElementById('char-personality').textContent =
+                    resolved.personality || 'Not specified';
+                document.getElementById('char-scenario').textContent =
+                    resolved.scenario || 'Not specified';
+
+                // Handle tags
+                const tagsContainer = document.getElementById('char-tags');
+                tagsContainer.innerHTML = (resolved.tags || [])
+                    .map(t => `<span class="tag">${t}</span>`).join('');
+
+                // Hide empty sections
+                document.getElementById('char-personality-section').style.display =
+                    resolved.personality ? 'block' : 'none';
+                document.getElementById('char-scenario-section').style.display =
+                    resolved.scenario ? 'block' : 'none';
+
+                // Update first message in start section
+                this.updateFirstMessage();
+                this.validateCharacterSection();
+                saveState();
+            } catch (err) {
+                alert('Failed to import character: ' + err.message);
+            }
+        },
+
+        // Validate character section
+        validateCharacterSection() {
+            const valid = state.config.character !== null;
+            const nextBtn = document.querySelector('.section-character .btn-next');
+            if (nextBtn) nextBtn.disabled = !valid;
+        },
+
+        // Section 6: Greeting selection events
+        bindGreetingSection() {
+            // Custom greeting toggle
+            { const el = document.getElementById('use-custom-greeting'); if (el) el.addEventListener('change', (e) => {
+                document.getElementById('custom-greeting-section').style.display =
+                    e.target.checked ? 'block' : 'none';
+                this.validateGreetingSection();
+            }); }
+
+            // Custom greeting input
+            { const el = document.getElementById('custom-greeting-text'); if (el) el.addEventListener('input', (e) => {
+                state.config.firstMessage = e.target.value;
+                saveState();
+                this.validateGreetingSection();
+            }); }
+
+            // Greeting cards will be bound dynamically when character is imported
+        },
+
+        validateGreetingSection() {
+            const cgEl = document.getElementById('use-custom-greeting');
+            const ctEl = document.getElementById('custom-greeting-text');
+            const hasCustom = cgEl ? cgEl.checked : false;
+            const customText = ctEl ? (ctEl.value || '') : '';
+            const hasGreeting = state.config.firstMessage && state.config.firstMessage.length > 0;
+
+            const valid = hasGreeting || (hasCustom && customText.length > 10);
+            const nextBtn = document.querySelector('.section-greeting .btn-next');
+            if (nextBtn) nextBtn.disabled = !valid;
+        },
+
+        // Section 7: Overview and Start events
+        bindOverviewSection() {
+            // Start chat button
+        { const el = document.getElementById('start-chat'); if (el) el.addEventListener('click', () => {
+                this.startChat();
+            }); }
+
+            // Update summary when section is viewed
+            this.updateOverviewSummary();
+        },
+
+        // Update overview summary
+        updateOverviewSummary() {
+            // Update all summary fields
+            document.getElementById('summary-ai').textContent =
+                state.config.aiType ?
+                    (state.config.aiType === 'cloud' ?
+                        ((CLOUD_PROVIDERS[state.config.cloudProvider] && CLOUD_PROVIDERS[state.config.cloudProvider].name) || 'Cloud API') :
+                        (state.config.aiType.charAt(0).toUpperCase() + state.config.aiType.slice(1))) :
+                    'Not configured';
+
+            document.getElementById('summary-style').textContent =
+                state.config.writingStyle ?
+                    ((WRITING_PRESETS[state.config.writingStyle] && WRITING_PRESETS[state.config.writingStyle].name) || 'Normal') :
+                    'Normal';
+
+            document.getElementById('summary-persona').textContent =
+                (state.config.persona && state.config.persona.name) || 'Not set';
+
+            document.getElementById('summary-character').textContent =
+                (state.config.character && state.config.character.name) || 'Not imported';
+
+            document.getElementById('summary-greeting').textContent =
+                state.config.firstMessage ? 'Custom' : 'Default';
+
+            document.getElementById('final-greeting-preview').textContent =
+                state.config.firstMessage || 'Import a character to see the greeting...';
+        },
+
+        // Update first message preview and greeting section
+        updateFirstMessage() {
+            const greetingOptions = document.getElementById('greeting-options');
+            const greetingList = document.getElementById('greeting-list');
+            const greetingsContainer = document.getElementById('greetings-container');
+
+            if (state.config.character) {
+                // Hide the "import character first" message and show greeting list
+                if (greetingOptions) greetingOptions.style.display = 'none';
+                if (greetingList) greetingList.style.display = 'block';
+
+                // Build greeting cards
+                if (greetingsContainer) {
+                    let greetingsHTML = '';
+
+                    // Default greeting
+                    const defaultGreeting = state.config.character.first_mes || 'No greeting available';
+                    greetingsHTML += `
+                        <div class="greeting-card selected" data-greeting="0">
+                            <div class="greeting-label">Default Greeting</div>
+                            <div class="greeting-text">${this.truncateText(defaultGreeting, 200)}</div>
+                        </div>
+                    `;
+
+                    // Alternate greetings
+                    const altGreetings = state.config.character.alternate_greetings || [];
+                    altGreetings.forEach((greeting, i) => {
+                        greetingsHTML += `
+                            <div class="greeting-card" data-greeting="${i + 1}">
+                                <div class="greeting-label">Greeting ${i + 2}</div>
+                                <div class="greeting-text">${this.truncateText(greeting, 200)}</div>
+                            </div>
+                        `;
+                    });
+
+                    greetingsContainer.innerHTML = greetingsHTML;
+
+                    // Bind click handlers for greeting cards
+                    document.querySelectorAll('.greeting-card').forEach(card => {
+                        card.addEventListener('click', () => {
+                            // Deselect all
+                            document.querySelectorAll('.greeting-card').forEach(c => c.classList.remove('selected'));
+                            // Select clicked
+                            card.classList.add('selected');
+
+                            // Update first message
+                            const greetingIndex = parseInt(card.dataset.greeting);
+                            if (greetingIndex === 0) {
+                                state.config.firstMessage = state.config.character.first_mes;
+                            } else {
+                                state.config.firstMessage = altGreetings[greetingIndex - 1];
+                            }
+                            saveState();
+                            this.validateGreetingSection();
+                        });
+                    });
+                }
+            } else {
+                // Show the "import character first" message
+                if (greetingOptions) greetingOptions.style.display = 'block';
+                if (greetingList) greetingList.style.display = 'none';
+            }
+
+            // Update overview summary
+            this.updateOverviewSummary();
+        },
+
+        // Helper to truncate text
+        truncateText(text, maxLength) {
+            if (!text) return '';
+            if (text.length <= maxLength) return text;
+            return text.substring(0, maxLength) + '...';
+        },
+
+        // Start the chat
+        async startChat() {
+            log('Starting chat with config:', state.config);
+
+            try {
+                // Apply all settings to Esolite
+                EsoliteBridge.applyAPIConfig(state.config);
+                EsoliteBridge.applySamplerSettings(state.config.writingStyle);
+                EsoliteBridge.applyPersona(state.config.persona);
+                EsoliteBridge.applyCorpoTheme();
+
+                // Load character directly (bypasses Esolite's dialogs)
+                if (state.config.character) {
+                    EsoliteBridge.loadCharacterDirect(state.config.character, state.config.firstMessage);
+                }
+
+                // Mark setup as complete
+                state.setupComplete = true;
+                saveState();
+
+                // Small delay to let Esolite render
+                await new Promise(r => setTimeout(r, 200));
+
+                // Hide overlay and show simplified chat
+                hideOverlay();
+                showSimplifiedChat();
+
+            } catch (e) {
+                console.error('Failed to start chat:', e);
+                alert('Failed to start chat. Please check your settings and try again.');
+            }
+        }
+    };
+
+    // =========================================================================
+    // SIMPLIFIED CHAT MODE
+    // =========================================================================
+
+    function showSimplifiedChat() {
+        // Ensure Corpo chat style is active in Esolite when entering Easy mode
+        EsoliteBridge.applyCorpoTheme();
+
+        // Add easy mode class to body
+        document.body.classList.add('grp-easy-mode');
+
+        // Force hide corpo left panel via Esolite's own mechanism
+        if (window.eso) {
+            window.eso.forceCompleteHideOfCorpoLeftPanel = true;
+        }
+        // Also try to re-render to apply the change
+        if (typeof window.render_gametext === 'function') {
+            setTimeout(() => window.render_gametext(), 100);
+        }
+
+        // Add custom header if not exists
+        if (!document.getElementById('grp-chat-header')) {
+            const header = UI.createSimplifiedHeader();
+            document.body.appendChild(header);
+        }
+
+        // Update header with character info
+        if (state.config.character) {
+            const avatar = document.getElementById('chat-avatar');
+            const name = document.getElementById('chat-char-name');
+            if (avatar) avatar.src = state.config.character.image || '';
+            if (name) name.textContent = state.config.character.name;
+        }
+
+        // Bind header buttons (no separate return button needed)
+        { const b = document.getElementById('btn-advanced'); if (b) b.addEventListener('click', toggleAdvancedMode); }
+        { const b = document.getElementById('btn-save'); if (b) b.addEventListener('click', async () => {
+            await EsoliteBridge.saveAndDownload();
+        }); }
+        { const b = document.getElementById('btn-restart'); if (b) b.addEventListener('click', showRestartDialog); }
+
+        log('Simplified chat mode activated');
+    }
+
+    function hideSimplifiedChat() {
+        document.body.classList.remove('grp-easy-mode');
+        { const el = document.getElementById('grp-chat-header'); if (el) el.remove(); }
+    }
+
+    function toggleAdvancedMode() {
+        if (state.easyMode) {
+            switchToAdvancedMode();
+        } else {
+            switchToEasyMode();
+        }
+    }
+
+    function switchToEasyMode() {
+        state.easyMode = true;
+        saveState();
+
+        const advBtn = document.getElementById('btn-advanced');
+
+        // Ensure Corpo chat style is active
+        EsoliteBridge.applyCorpoTheme();
+
+        document.body.classList.add('grp-easy-mode');
+
+        // Update button to show current mode
+        if (advBtn) {
+            advBtn.textContent = '🎭';
+            advBtn.title = 'Advanced Mode';
+        }
+
+        // Hide corpo left panel
+        if (window.eso) {
+            window.eso.forceCompleteHideOfCorpoLeftPanel = true;
+        }
+        if (typeof window.render_gametext === 'function') {
+            window.render_gametext();
+        }
+
+        log('Switched to Easy Mode');
+    }
+
+    function switchToAdvancedMode() {
+        state.easyMode = false;
+        saveState();
+
+        const advBtn = document.getElementById('btn-advanced');
+
+        document.body.classList.remove('grp-easy-mode');
+
+        // Update button to show we're in advanced mode
+        if (advBtn) {
+            advBtn.textContent = '📖';
+            advBtn.title = 'Return to Easy Mode';
+        }
+
+        // Remove our simplified header so Esolite top menu is visible
+        { const el = document.getElementById('grp-chat-header'); if (el) el.remove(); }
+
+        // Show corpo left panel again in advanced mode
+        if (window.eso) {
+            window.eso.forceCompleteHideOfCorpoLeftPanel = false;
+        }
+        if (typeof window.render_gametext === 'function') {
+            window.render_gametext();
+        }
+
+        log('Switched to Advanced Mode');
+    }
+
+    function showRestartDialog() {
+        const dialog = UI.createRestartDialog();
+        document.body.appendChild(dialog);
+
+        { const el = document.getElementById('restart-cancel'); if (el) el.addEventListener('click', () => {
+            dialog.remove();
+        }); }
+
+        { const el = document.getElementById('restart-confirm'); if (el) el.addEventListener('click', () => {
+            clearState();
+            EsoliteBridge.resetAllData();
+        }); }
+
+        { const el = dialog.querySelector('.dialog-backdrop'); if (el) el.addEventListener('click', () => {
+            dialog.remove();
+        }); }
+    }
+
+    // =========================================================================
+    // EXIT HANDLING
+    // =========================================================================
+
+    function setupExitHandling() {
+        // Warn before leaving
+        window.addEventListener('beforeunload', (e) => {
+            if (state.setupComplete && !state.justSaved) {
+                e.preventDefault();
+                e.returnValue = 'You have unsaved progress. Are you sure you want to leave?';
+            }
+        });
+    }
+
+    // =========================================================================
+    // OVERLAY CONTROL
+    // =========================================================================
+
+    function showOverlay() {
+        // Inject styles
+        if (!document.getElementById('grp-styles')) {
+            const styleEl = document.createElement('style');
+            styleEl.id = 'grp-styles';
+            styleEl.textContent = STYLES;
+            document.head.appendChild(styleEl);
+        }
+
+        // Create and show overlay
+        const overlay = UI.createLandingPage();
+        document.body.appendChild(overlay);
+
+        // Initialize event handlers
+        EventHandlers.init();
+
+        // Restore previous section if any
+        if (state.currentSection > 0) {
+            setTimeout(() => {
+                EventHandlers.scrollToSection(state.currentSection);
+            }, 100);
+        }
+
+        log('Overlay shown');
+    }
+
+    function hideOverlay() {
+        { const el = document.getElementById('grp-overlay'); if (el) el.remove(); }
+        log('Overlay hidden');
+    }
+
+    // =========================================================================
+    // HEADER BUTTONS
+    // =========================================================================
+
+    function hideGRPHeaderButtons() {
+        { const el = document.getElementById('grpSwitchBtn'); if (el && el.parentElement) el.parentElement.remove(); }
+        { const el = document.getElementById('grpNewBtn'); if (el && el.parentElement) el.parentElement.remove(); }
+    }
+
+    function showGRPHeaderButtons() {
+        // Remove existing buttons if any
+        hideGRPHeaderButtons();
+
+        const navList = document.querySelector("#navbarNavDropdown > ul");
+        if (!navList) {
+            log('Navigation bar not found');
+            return;
+        }
+
+        // Button 1: 🎭 Switch to Guided RPmod UI
+        const switchBtn = document.createElement("span");
+        switchBtn.id = "grpSwitchBtn";
+        switchBtn.title = "Switch to Guided RPmod UI";
+        switchBtn.onclick = () => {
+            log('Switching to Guided RP UI');
+            toggleGRPMode();
+        };
+        switchBtn.style = `
+            display: block;
+            cursor: pointer;
+            font-size: 32px;
+            line-height: 50px;
+            text-align: center;
+            width: 50px;
+            height: 50px;
+        `;
+        switchBtn.textContent = '🎭';
+
+        const switchContainer = document.createElement("li");
+        switchContainer.classList.add("nav-item");
+        switchContainer.appendChild(switchBtn);
+
+        // Button 2: ✨ Start new Guided RPmod
+        const newBtn = document.createElement("span");
+        newBtn.id = "grpNewBtn";
+        newBtn.title = "Start new Guided RPmod";
+        newBtn.onclick = () => {
+            log('Starting new Guided RP session');
+            startNewGRPSession();
+        };
+        newBtn.style = `
+            display: block;
+            cursor: pointer;
+            font-size: 32px;
+            line-height: 50px;
+            text-align: center;
+            width: 50px;
+            height: 50px;
+        `;
+        newBtn.textContent = '✨';
+
+        const newContainer = document.createElement("li");
+        newContainer.classList.add("nav-item");
+        newContainer.appendChild(newBtn);
+
+        // Append both buttons to navigation
+        navList.appendChild(switchContainer);
+        navList.appendChild(newContainer);
+
+        log('Header buttons added');
+    }
+
+    function toggleGRPMode() {
+        // This button acts as a simple Easy/Advanced view toggle.
+        // Enter Easy Mode (corpo simple chat) on first use; no overlay here.
+        if (!state.rpModeActive) {
+            state.rpModeActive = true;
+            state.modActive = true;
+            state.easyMode = true;
+            saveState();
+            showSimplifiedChat();
+            return;
+        }
+
+        // Already in RP mode: toggle between Easy and Advanced views
+        if (state.easyMode) {
+            switchToAdvancedMode();
+        } else {
+            switchToEasyMode();
+            // Ensure simplified header is visible again
+            if (!document.getElementById('grp-chat-header')) {
+                const header = UI.createSimplifiedHeader();
+                document.body.appendChild(header);
+                { const b = document.getElementById('btn-advanced'); if (b) b.addEventListener('click', toggleAdvancedMode); }
+                { const b = document.getElementById('btn-save'); if (b) b.addEventListener('click', async () => {
+                    await EsoliteBridge.saveAndDownload();
+                }); }
+                { const b = document.getElementById('btn-restart'); if (b) b.addEventListener('click', showRestartDialog); }
+            }
+        }
+    }
+
+    function startNewGRPSession() {
+        // Check if there's unsaved progress
+        const hasProgress = state.setupComplete || state.currentSection > 0;
+
+        if (hasProgress) {
+            // Warn user about losing progress
+            if (!confirm('Starting a new chat will lose current progress. Continue?')) {
+                return;
+            }
+        }
+
+        log('Starting fresh Guided RP session');
+
+        // Call Esolite's restart_new_game to clear context/memory but keep AI settings
+        if (typeof window.restart_new_game === 'function') {
+            window.restart_new_game(true, false);
+        }
+
+        // Reset Guided RP state to beginning
+        state.rpModeActive = true;
+        state.modActive = true;
+        state.welcomeShown = false;
+        state.currentSection = 0;
+        state.setupComplete = false;
+        saveState();
+
+        // Ensure simplified header is hidden while running guided overlay
+        hideSimplifiedChat();
+
+        // Show overlay from Introduction section (section 0) only via this button
+        setTimeout(() => showOverlay(), 300);
+    }
+
+    // =========================================================================
+    // INITIALIZATION
+    // =========================================================================
+
+    async function init() {
+        log('Guided RPmod v' + VERSION + ' initializing...');
+
+        // Inject styles immediately to prevent flash of unstyled content
+        if (!document.getElementById('grp-styles')) {
+            const styleEl = document.createElement('style');
+            styleEl.id = 'grp-styles';
+            styleEl.textContent = STYLES;
+            document.head.appendChild(styleEl);
+        }
+
+        // Wait for Esolite to be ready
+        try {
+            await EsoliteBridge.waitForReady();
+        } catch (e) {
+            console.error('Guided RPmod: Failed to initialize Esolite bridge', e);
+            return;
+        }
+
+        // Load previous state
+        loadState();
+
+        // Always show header buttons first
+        showGRPHeaderButtons();
+
+        // Do not auto-open overlay. Only show overlay via ✨ button.
+        // If we were in easy mode previously and setup was complete, resume easy chat.
+        if (state.setupComplete && state.rpModeActive && state.easyMode) {
+            log('Resuming Guided RP easy chat');
+            showSimplifiedChat();
+        } else {
+            log('Guided RPmod ready - use 🎭 for Easy view or ✨ to start guided setup');
+        }
+
+        state.initialized = true;
+        state.modActive = true;
+
+        // Setup exit handling
+        setupExitHandling();
+
+        state.initialized = true;
+        log('Initialization complete');
+    }
+
+    // =========================================================================
+    // GLOBAL API
+    // =========================================================================
+
+    window.GuidedRPmod = {
+        version: VERSION,
+        state: state,
+
+        // Main actions
+        toggleUI: toggleGRPMode,
+        startNew: startNewGRPSession,
+
+        // Direct mode control
+        startGRPMode: () => {
+            state.rpModeActive = true;
+            state.modActive = true;
+            saveState();
+            showOverlay();
+        },
+        hideGRPMode: () => {
+            state.rpModeActive = false;
+            saveState();
+            hideOverlay();
+            showGRPHeaderButtons();
+        },
+
+        // Utility functions
+        clearState: clearState,
+        showSetup: () => {
+            hideSimplifiedChat();
+            state.setupComplete = false;
+            state.rpModeActive = true;
+            saveState();
+            showOverlay();
+        },
+        showButtons: showGRPHeaderButtons,
+        hideButtons: hideGRPHeaderButtons
+    };
+
+    // Start when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
+})();
