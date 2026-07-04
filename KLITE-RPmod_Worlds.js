@@ -1,5 +1,5 @@
 // =============================================================================
-// KLITE RPmod - Wyvern Worlds System (Phase 1-3 foundation)
+// KLITE RPmod - Wyvern Worlds System (Phase 1-5: engine + simulation)
 // -----------------------------------------------------------------------------
 // Adds a graph/state-based "Worlds" retrieval layer on top of Esolite.
 //
@@ -74,6 +74,7 @@
             questState: {},          // { [questId]: 'active'|'done'|stepIndex }
             npcStateOverrides: {},   // { [npcId]: { locationId, mood, ... } }
             completedEventIds: [],   // non-repeatable events already fired
+            lastParsedIndex: 0,      // gametext_arr index up to which tags were applied
             clock: { day: 1, month: 1, year: 1, time: 'morning', season: 'spring', weather: 'clear' }
         };
     }
@@ -143,7 +144,11 @@
     async function loadLibrary() {
         try {
             const raw = await idbLoad(IDB_LIBRARY_KEY);
-            if (raw) { W.library = JSON.parse(raw) || {}; dbg('library loaded', Object.keys(W.library).length, 'worlds'); }
+            if (raw) {
+                W.library = JSON.parse(raw) || {};
+                for (const w of Object.values(W.library)) { try { normalizeWorld(w); } catch (_) {} }
+                dbg('library loaded', Object.keys(W.library).length, 'worlds');
+            }
         } catch (e) { err('loadLibrary failed', e); W.library = {}; }
     }
     async function saveLibrary() {
@@ -236,10 +241,136 @@
     }
 
     // =======================================================================
+    //  STATE MUTATION — timeline, tag parsing, event effects (Phase 4-5)
+    // =======================================================================
+    const TIME_SLOTS = ['morning', 'noon', 'afternoon', 'evening', 'night'];
+    const DAYS_PER_MONTH = 30, MONTHS_PER_YEAR = 12;
+    function deriveSeason(month) {
+        const m = ((Number(month) || 1) - 1) % MONTHS_PER_YEAR; // 0-11
+        if (m <= 1 || m === 11) return 'winter';   // Dec, Jan, Feb
+        if (m <= 4) return 'spring';               // Mar-May
+        if (m <= 7) return 'summer';               // Jun-Aug
+        return 'autumn';                           // Sep-Nov
+    }
+    function advanceClock(slots = 1) {
+        if (!W.runtime) return null;
+        const c = W.runtime.clock;
+        let idx = TIME_SLOTS.indexOf(norm(c.time).toLowerCase());
+        if (idx < 0) idx = 0;
+        for (let i = 0; i < slots; i++) {
+            idx++;
+            if (idx >= TIME_SLOTS.length) {
+                idx = 0;
+                c.day = (Number(c.day) || 1) + 1;
+                if (c.day > DAYS_PER_MONTH) { c.day = 1; c.month = (Number(c.month) || 1) + 1;
+                    if (c.month > MONTHS_PER_YEAR) { c.month = 1; c.year = (Number(c.year) || 1) + 1; } }
+            }
+        }
+        c.time = TIME_SLOTS[idx];
+        c.season = deriveSeason(c.month);
+        dbg('clock advanced ->', `d${c.day} m${c.month} ${c.time} ${c.season}`);
+        return { ...c };
+    }
+
+    function findNpcByName(world, name) {
+        const n = norm(name).toLowerCase(); if (!n) return null;
+        return asArray(world.npcs).find(x => norm(x.name).toLowerCase() === n) || findById(world.npcs, name);
+    }
+    function parseFlagValue(raw) {
+        const v = norm(raw);
+        if (v === '') return true;
+        if (/^(true|yes|on)$/i.test(v)) return true;
+        if (/^(false|no|off)$/i.test(v)) return false;
+        if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
+        return v;
+    }
+    function inventoryAdd(name, qty) {
+        const n = norm(name); if (!n) return;
+        qty = Number(qty) || 1;
+        const inv = W.runtime.inventory;
+        const ex = inv.find(i => norm(i.name).toLowerCase() === n.toLowerCase());
+        if (ex) ex.qty = (Number(ex.qty) || 1) + qty; else inv.push({ id: uid('item'), name: n, qty });
+    }
+    function inventoryRemove(name, qty) {
+        const n = norm(name).toLowerCase(); if (!n) return;
+        const inv = W.runtime.inventory;
+        const i = inv.findIndex(x => norm(x.name).toLowerCase() === n);
+        if (i < 0) return;
+        if (qty && (Number(inv[i].qty) || 1) > Number(qty)) inv[i].qty -= Number(qty);
+        else inv.splice(i, 1);
+    }
+
+    // Parse explicit control tags out of one message. Returns true if state changed.
+    // Supported: <move>, <npcmove>NPC=Loc, <mood>NPC=Mood, <flag>k=v, <unflag>k,
+    //            <give>Item [xN], <take>Item [xN], <quest>id=state,
+    //            <time>slot, <weather>desc, <advance> (advance clock one slot)
+    function parseMutations(text) {
+        const world = activeWorld(); if (!world || !W.runtime) return false;
+        let changed = false;
+        const s = String(text || '');
+        const scan = (re, fn) => { let m; re.lastIndex = 0; while ((m = re.exec(s)) !== null) { try { if (fn(m) !== false) changed = true; } catch (_) {} } };
+
+        scan(/<move>\s*([^<>]+?)\s*<\/move>/gi, m => {
+            const l = findById(world.locations, m[1]) || locationByName(world, m[1]);
+            if (l) { W.runtime.playerLocationId = l.id; return true; } return false;
+        });
+        scan(/<npcmove>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/npcmove>/gi, m => {
+            const npc = findNpcByName(world, m[1]); const l = findById(world.locations, m[2]) || locationByName(world, m[2]);
+            if (npc && l) { (W.runtime.npcStateOverrides[npc.id] = W.runtime.npcStateOverrides[npc.id] || {}).locationId = l.id; return true; } return false;
+        });
+        scan(/<mood>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/mood>/gi, m => {
+            const npc = findNpcByName(world, m[1]);
+            if (npc) { (W.runtime.npcStateOverrides[npc.id] = W.runtime.npcStateOverrides[npc.id] || {}).mood = norm(m[2]); return true; } return false;
+        });
+        scan(/<flag>\s*([^=<>]+?)\s*(?:=\s*([^<>]*?))?\s*<\/flag>/gi, m => { W.runtime.flags[norm(m[1])] = parseFlagValue(m[2]); return true; });
+        scan(/<unflag>\s*([^<>]+?)\s*<\/unflag>/gi, m => { delete W.runtime.flags[norm(m[1])]; return true; });
+        scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || []; inventoryAdd(nm, q); return true; });
+        scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || []; inventoryRemove(nm, q); return true; });
+        scan(/<quest>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/quest>/gi, m => { W.runtime.questState[norm(m[1])] = norm(m[2]); return true; });
+        scan(/<time>\s*([^<>]+?)\s*<\/time>/gi, m => { const t = norm(m[1]).toLowerCase(); if (TIME_SLOTS.includes(t)) { W.runtime.clock.time = t; return true; } return false; });
+        scan(/<weather>\s*([^<>]+?)\s*<\/weather>/gi, m => { W.runtime.clock.weather = norm(m[1]); return true; });
+        scan(/<advance\s*\/?>/gi, () => { advanceClock(1); return true; });
+        return changed;
+    }
+
+    // A single event effect op (used by event definitions' `effects` array).
+    function applyEffect(effect) {
+        if (!effect || typeof effect !== 'object' || !W.runtime) return;
+        const world = activeWorld();
+        switch (norm(effect.type)) {
+            case 'flag': W.runtime.flags[norm(effect.key)] = ('value' in effect) ? effect.value : true; break;
+            case 'unflag': delete W.runtime.flags[norm(effect.key)]; break;
+            case 'give': inventoryAdd(effect.name, effect.qty); break;
+            case 'take': inventoryRemove(effect.name, effect.qty); break;
+            case 'quest': W.runtime.questState[norm(effect.id)] = norm(effect.state); break;
+            case 'move': { const l = findById(world && world.locations, effect.locationId) || locationByName(world, effect.location); if (l) W.runtime.playerLocationId = l.id; break; }
+            case 'advance': advanceClock(Number(effect.slots) || 1); break;
+            default: break;
+        }
+    }
+
+    // Scan any chat messages we haven't parsed yet, apply their tags, advance the
+    // per-turn clock if configured. Called at generation time (before slice build).
+    function processPendingMutations() {
+        if (!W.runtime) return false;
+        const arr = window.gametext_arr;
+        if (!Array.isArray(arr)) return false;
+        const start = Math.max(0, Math.min(Number(W.runtime.lastParsedIndex) || 0, arr.length));
+        let changed = false;
+        for (let i = start; i < arr.length; i++) changed = parseMutations(arr[i]) || changed;
+        const advanced = W.config.advanceClockPerTurn && arr.length > start;
+        W.runtime.lastParsedIndex = arr.length;
+        if (advanced) advanceClock(1);
+        if (changed || advanced) dbg('applied pending mutations; loc=', W.runtime.playerLocationId);
+        return changed || advanced;
+    }
+
+    // =======================================================================
     //  RETRIEVAL ENGINE — computeActiveSlice()
     // =======================================================================
     // Resolve current location: explicit runtime id, else keyword scan of chat.
-    function resolveCurrentLocation(world) {
+    // Only persists the resolved id back to runtime when mutate=true.
+    function resolveCurrentLocation(world, mutate) {
         let loc = findById(world.locations, W.runtime?.playerLocationId);
         if (loc) return loc;
         const ctx = recentContext().toLowerCase();
@@ -248,12 +379,12 @@
             const sorted = asArray(world.locations).slice().sort((a, b) => norm(b.name).length - norm(a.name).length);
             for (const l of sorted) {
                 const n = norm(l.name).toLowerCase();
-                if (n && ctx.includes(n)) { if (W.runtime) W.runtime.playerLocationId = l.id; return l; }
+                if (n && ctx.includes(n)) { if (mutate && W.runtime) W.runtime.playerLocationId = l.id; return l; }
             }
         }
         // fallback: first location
         loc = asArray(world.locations)[0] || null;
-        if (loc && W.runtime && !W.runtime.playerLocationId) W.runtime.playerLocationId = loc.id;
+        if (loc && mutate && W.runtime && !W.runtime.playerLocationId) W.runtime.playerLocationId = loc.id;
         return loc;
     }
 
@@ -278,10 +409,13 @@
     }
 
     // Returns { sections: [{title, priority, text}], location }
-    function computeActiveSlice() {
+    // opts.mutate=true (generation path) allows recording visited/known, persisting
+    // resolved location, and firing event side-effects. Preview passes mutate=false.
+    function computeActiveSlice(opts) {
+        const mutate = !!(opts && opts.mutate);
         const world = activeWorld();
         if (!world || !W.runtime) return { sections: [], location: null };
-        const loc = resolveCurrentLocation(world);
+        const loc = resolveCurrentLocation(world, mutate);
         const sections = [];
         const push = (title, priority, text) => { if (norm(text)) sections.push({ title, priority, text: norm(text) }); };
 
@@ -295,9 +429,17 @@
         push('Current Time', 90,
             `Day ${c.day}, ${c.season} (${c.time}). Weather: ${c.weather}.`);
 
+        // 2b. Player state (runtime) — high priority per spec
+        const stateBits = [];
+        const inv = asArray(W.runtime.inventory).filter(i => i && norm(i.name));
+        if (inv.length) stateBits.push('Inventory: ' + inv.map(i => norm(i.name) + ((Number(i.qty) || 1) > 1 ? ` x${i.qty}` : '')).join(', '));
+        const party = asArray(W.runtime.party).map(id => (findById(world.npcs, id) || {}).name).filter(Boolean);
+        if (party.length) stateBits.push('Party: ' + party.map(norm).join(', '));
+        push('Player State', 85, stateBits.join('\n'));
+
         if (!loc) { return { sections, location: null }; }
         // mark visited
-        if (W.runtime && !asArray(W.runtime.visitedLocationIds).includes(loc.id)) W.runtime.visitedLocationIds.push(loc.id);
+        if (mutate && W.runtime && !asArray(W.runtime.visitedLocationIds).includes(loc.id)) W.runtime.visitedLocationIds.push(loc.id);
 
         // 3. Current location
         const exits = asArray(loc.exits).map(e => norm(e && e.name) || (findById(world.locations, e && e.locationId) || {}).name)
@@ -305,9 +447,11 @@
             .concat(connectedLocations(world, loc, 1).map(l => norm(l.name)));
         const exitsUniq = [...new Set(exits.map(norm).filter(Boolean))];
         let locText = norm(loc.description);
-        if (norm(loc.atmosphere)) locText += `\nAtmosphere: ${norm(loc.atmosphere)}`;
-        if (exitsUniq.length) locText += `\nExits: ${exitsUniq.join(', ')}`;
-        push(`Current Location: ${norm(loc.name)}`, 80, locText);
+        if (norm(loc.atmosphere)) locText += `${locText ? '\n' : ''}Atmosphere: ${norm(loc.atmosphere)}`;
+        if (exitsUniq.length) locText += `${locText ? '\n' : ''}Exits: ${exitsUniq.join(', ')}`;
+        // Always emit the location header (even with an empty body) — location
+        // awareness is the core purpose, the AI must always know where it is.
+        sections.push({ title: `Current Location: ${norm(loc.name)}`, priority: 80, text: locText });
 
         // 4. Nearby NPCs (resident here or scheduled here now)
         const npcsHere = asArray(world.npcs).filter(npc => resolveNpcLocationId(npc) === loc.id ||
@@ -322,7 +466,7 @@
             const mood = npcMood(npc); if (mood) bits.push(`Mood: ${mood}`);
             if (faction) bits.push(`Faction: ${norm(faction.name)}`);
             npcLines.push('- ' + bits.join(' | '));
-            if (W.runtime && !asArray(W.runtime.knownNpcIds).includes(npc.id)) W.runtime.knownNpcIds.push(npc.id);
+            if (mutate && W.runtime && !asArray(W.runtime.knownNpcIds).includes(npc.id)) W.runtime.knownNpcIds.push(npc.id);
         }
         push('Nearby NPCs', 70, npcLines.join('\n'));
 
@@ -331,10 +475,27 @@
         const objLines = objsHere.map(o => '- ' + norm(o.name) + (norm(o.desc) ? `: ${norm(o.desc)}` : ''));
         push('Nearby Objects', 50, objLines.join('\n'));
 
-        // 6. Active events
-        const evLines = asArray(world.events).filter(ev => eventActive(world, ev))
-            .map(ev => '- ' + (norm(ev.name) ? norm(ev.name) + ': ' : '') + norm(ev.description));
+        // 5b. Active quests
+        const questLines = [];
+        for (const [qid, qstate] of Object.entries(W.runtime.questState || {})) {
+            if (norm(qstate).toLowerCase() === 'done' || qstate === false) continue;
+            const qdef = findById(world.quests, qid) || {};
+            const label = norm(qdef.name) || qid;
+            const desc = norm(qdef.description);
+            questLines.push('- ' + label + (norm(qstate) && qstate !== true ? ` [${norm(qstate)}]` : '') + (desc ? `: ${desc}` : ''));
+        }
+        push('Active Quests', 45, questLines.join('\n'));
+
+        // 6. Active events (fire side-effects + mark completed on the generation path)
+        const activeEvents = asArray(world.events).filter(ev => eventActive(world, ev));
+        const evLines = activeEvents.map(ev => '- ' + (norm(ev.name) ? norm(ev.name) + ': ' : '') + norm(ev.description));
         push('Active Events', 40, evLines.join('\n'));
+        if (mutate) {
+            for (const ev of activeEvents) {
+                for (const eff of asArray(ev.effects)) applyEffect(eff);
+                if (!ev.repeatable && ev.id && !asArray(W.runtime.completedEventIds).includes(ev.id)) W.runtime.completedEventIds.push(ev.id);
+            }
+        }
 
         // 7. Relevant lore (local always; global by keyword/always)
         const loreLines = [];
@@ -354,15 +515,15 @@
     }
 
     // Format the slice into labelled text blocks (one per WI entry).
-    function sliceToEntries() {
-        const { sections } = computeActiveSlice();
+    function sliceToEntries(opts) {
+        const { sections } = computeActiveSlice(opts);
         // priority order (higher first), matching spec context priorities
         sections.sort((a, b) => b.priority - a.priority);
         return sections.map(s => ({
             key: '',
             keysecondary: '',
             keyanti: '',
-            content: `[${s.title}]\n${s.text}`,
+            content: s.text ? `[${s.title}]\n${s.text}` : `[${s.title}]`,
             comment: WI_GROUP,
             wigroup: WI_GROUP,
             constant: true,
@@ -397,12 +558,14 @@
     }
 
     // Recompute the active slice and (re)place the managed entries in current_wi.
-    function injectManaged() {
+    // opts.mutate=true (generation path) lets the slice record visited/known and
+    // fire event side-effects. Called with no opts elsewhere (pure render).
+    function injectManaged(opts) {
         try {
             if (!Array.isArray(window.current_wi)) window.current_wi = [];
             removeWorldsEntries();
             if (!W.config.enabled || !activeWorld() || !W.runtime) { refreshWiEditor(); return 0; }
-            const entries = sliceToEntries();
+            const entries = sliceToEntries(opts);
             for (const e of entries) window.current_wi.push(e);
             dbg('injected', entries.length, 'managed WI entries');
             refreshWiEditor();
@@ -445,7 +608,13 @@
         const wrapped = function () {
             let injected = false;
             try {
-                if (W.config.enabled && activeWorld() && W.runtime) { injectManaged(); injected = true; }
+                if (W.config.enabled && activeWorld() && W.runtime) {
+                    // Apply any state-change tags from prior messages, then build
+                    // this turn's slice (mutate: record visited/known, fire events).
+                    processPendingMutations();
+                    injectManaged({ mutate: true });
+                    injected = true;
+                }
             } catch (_) {}
             let ret;
             try {
@@ -501,7 +670,13 @@
                 try { const s = arguments[0]; if (s && s[SAVE_KEY]) pending = s[SAVE_KEY]; } catch (_) {}
                 const res = origLoad.apply(this, arguments);
                 try {
-                    if (pending) { restoreSaveState(pending); syncLive(); }
+                    if (pending) {
+                        restoreSaveState(pending);
+                        // Don't re-apply tags from the loaded chat history; state is
+                        // already baked into the restored runtime.
+                        try { if (W.runtime && Array.isArray(window.gametext_arr)) W.runtime.lastParsedIndex = window.gametext_arr.length; } catch (_) {}
+                        syncLive();
+                    }
                     else {
                         // story without worlds data: ensure no stale managed state leaks in
                         W.config.enabled = false; W.activeWorldId = null; W.runtime = null;
@@ -519,6 +694,160 @@
     // =======================================================================
     //  PUBLIC / CONSOLE API (temporary until the WORLDS panel lands)
     // =======================================================================
+
+    // =======================================================================
+    //  GRAPH EDITING API (used by the node-graph editor UI - Phase 6)
+    // =======================================================================
+    const TYPE_ARRAYS = { location: 'locations', npc: 'npcs', faction: 'factions', object: 'objects', event: 'events', lore: 'globalLore' };
+    // Which primitive field holds a node's "entry" text, per type.
+    const ENTRY_FIELD = { location: 'description', npc: 'description', faction: 'description', object: 'desc', event: 'description', lore: 'content' };
+
+    // Ensure every entity has an id and the arrays exist.
+    function normalizeWorld(world) {
+        if (!world || typeof world !== 'object') return world;
+        for (const t of Object.keys(TYPE_ARRAYS)) {
+            const key = TYPE_ARRAYS[t];
+            world[key] = asArray(world[key]);
+            for (const e of world[key]) { if (e && !e.id) e.id = uid(t); }
+        }
+        world.rules = asArray(world.rules);
+        world.quests = asArray(world.quests);
+        return world;
+    }
+
+    function entityType(world, id) {
+        if (id === '__world__') return 'world';
+        for (const t of Object.keys(TYPE_ARRAYS)) if (findById(world[TYPE_ARRAYS[t]], id)) return t;
+        return null;
+    }
+    function entityById(world, id) {
+        if (id === '__world__') return world;
+        for (const t of Object.keys(TYPE_ARRAYS)) { const e = findById(world[TYPE_ARRAYS[t]], id); if (e) return e; }
+        return null;
+    }
+    function nodeName(type, e) {
+        if (type === 'world') return norm(e.name) || 'World';
+        if (type === 'lore') return norm(e.label) || (norm(e.content).slice(0, 28) || 'Lore');
+        return norm(e.name) || ('New ' + type);
+    }
+    function nodeEntry(type, e) { return norm(e[ENTRY_FIELD[type]] || ''); }
+
+    // Build render-ready {world, nodes[], edges[]} from the active world.
+    function getGraph() {
+        const world = activeWorld();
+        if (!world) return { world: null, nodes: [], edges: [] };
+        normalizeWorld(world);
+        const nodes = [{ id: '__world__', type: 'world', name: nodeName('world', world), entry: norm(world.description), x: world.ui?.x, y: world.ui?.y }];
+        const edges = [];
+        for (const t of Object.keys(TYPE_ARRAYS)) {
+            for (const e of asArray(world[TYPE_ARRAYS[t]])) {
+                nodes.push({ id: e.id, type: t, name: nodeName(t, e), entry: nodeEntry(t, e), x: e.ui?.x, y: e.ui?.y });
+            }
+        }
+        for (const l of asArray(world.locations)) {
+            edges.push({ from: '__world__', to: l.id, kind: 'contains' });
+            for (const cid of asArray(l.connectedLocationIds)) if (findById(world.locations, cid)) edges.push({ from: l.id, to: cid, kind: 'exit' });
+        }
+        for (const n of asArray(world.npcs)) {
+            if (n.homeLocationId && findById(world.locations, n.homeLocationId)) edges.push({ from: n.id, to: n.homeLocationId, kind: 'resident' });
+            if (n.factionId && findById(world.factions, n.factionId)) edges.push({ from: n.id, to: n.factionId, kind: 'faction' });
+        }
+        for (const o of asArray(world.objects)) {
+            if (o.locationId && findById(world.locations, o.locationId)) edges.push({ from: o.id, to: o.locationId, kind: 'in' });
+            if (o.ownerNpcId && findById(world.npcs, o.ownerNpcId)) edges.push({ from: o.id, to: o.ownerNpcId, kind: 'owned' });
+        }
+        for (const ev of asArray(world.events)) for (const lid of asArray(ev.locationIds)) if (findById(world.locations, lid)) edges.push({ from: ev.id, to: lid, kind: 'occurs' });
+        return { world, nodes, edges };
+    }
+
+    function addEntity(type, fields = {}) {
+        const world = activeWorld(); if (!world) throw new Error('no active world');
+        const key = TYPE_ARRAYS[type]; if (!key) throw new Error('bad type ' + type);
+        normalizeWorld(world);
+        const e = { id: uid(type), ui: { x: Number(fields.x) || 300, y: Number(fields.y) || 200 } };
+        if (type === 'lore') e.content = norm(fields.name) || '';
+        else e.name = norm(fields.name) || ('New ' + type);
+        world[key].push(e);
+        dbg('addEntity', type, e.id);
+        return e;
+    }
+
+    // Generic patch merge. Callers pass entity-native fields (name/description/
+    // content/desc/personality/factionId/...). Never touches id.
+    function updateEntity(id, patch) {
+        const world = activeWorld(); if (!world) return null;
+        const e = entityById(world, id); if (!e) return null;
+        for (const [k, v] of Object.entries(patch || {})) { if (k !== 'id') e[k] = v; }
+        return e;
+    }
+
+    function setNodePos(id, x, y) {
+        const e = entityById(activeWorld(), id); if (!e) return;
+        e.ui = e.ui || {}; e.ui.x = Math.round(x); e.ui.y = Math.round(y);
+    }
+
+    function deleteEntity(id) {
+        const world = activeWorld(); if (!world || id === '__world__') return false;
+        const type = entityType(world, id); if (!type) return false;
+        world[TYPE_ARRAYS[type]] = asArray(world[TYPE_ARRAYS[type]]).filter(e => e.id !== id);
+        // scrub references from every other entity
+        for (const l of asArray(world.locations)) {
+            l.connectedLocationIds = asArray(l.connectedLocationIds).filter(x => x !== id);
+            l.npcIds = asArray(l.npcIds).filter(x => x !== id);
+            l.objectIds = asArray(l.objectIds).filter(x => x !== id);
+        }
+        for (const n of asArray(world.npcs)) { if (n.homeLocationId === id) n.homeLocationId = null; if (n.factionId === id) n.factionId = null; }
+        for (const o of asArray(world.objects)) { if (o.locationId === id) o.locationId = null; if (o.ownerNpcId === id) o.ownerNpcId = null; }
+        for (const ev of asArray(world.events)) ev.locationIds = asArray(ev.locationIds).filter(x => x !== id);
+        if (W.runtime && W.runtime.playerLocationId === id) W.runtime.playerLocationId = null;
+        dbg('deleteEntity', id);
+        return true;
+    }
+
+    // Infer the relationship from the two node types and write the id-field.
+    // Returns { kind } on success or throws with a reason if the pair is invalid.
+    function connect(fromId, toId) {
+        const world = activeWorld(); if (!world) throw new Error('no active world');
+        if (fromId === toId) throw new Error('cannot connect a node to itself');
+        const ta = entityType(world, fromId), tb = entityType(world, toId);
+        const a = entityById(world, fromId), b = entityById(world, toId);
+        if (!a || !b) throw new Error('unknown node');
+        const pair = [ta, tb];
+        const is = (x, y) => (ta === x && tb === y) || (ta === y && tb === x);
+        const locOf = () => (ta === 'location' ? a : b);
+        const other = loc => (loc === a ? b : a);
+        if (is('location', 'location')) {
+            a.connectedLocationIds = asArray(a.connectedLocationIds); if (!a.connectedLocationIds.includes(toId)) a.connectedLocationIds.push(toId);
+            b.connectedLocationIds = asArray(b.connectedLocationIds); if (!b.connectedLocationIds.includes(fromId)) b.connectedLocationIds.push(fromId);
+            return { kind: 'exit' };
+        }
+        if (is('npc', 'location')) { const npc = ta === 'npc' ? a : b, loc = locOf(); npc.homeLocationId = loc.id; loc.npcIds = asArray(loc.npcIds); if (!loc.npcIds.includes(npc.id)) loc.npcIds.push(npc.id); return { kind: 'resident' }; }
+        if (is('npc', 'faction')) { const npc = ta === 'npc' ? a : b, fac = ta === 'faction' ? a : b; npc.factionId = fac.id; return { kind: 'faction' }; }
+        if (is('object', 'location')) { const obj = ta === 'object' ? a : b, loc = locOf(); obj.locationId = loc.id; loc.objectIds = asArray(loc.objectIds); if (!loc.objectIds.includes(obj.id)) loc.objectIds.push(obj.id); return { kind: 'in' }; }
+        if (is('object', 'npc')) { const obj = ta === 'object' ? a : b, npc = ta === 'npc' ? a : b; obj.ownerNpcId = npc.id; return { kind: 'owned' }; }
+        if (is('event', 'location')) { const ev = ta === 'event' ? a : b, loc = locOf(); ev.locationIds = asArray(ev.locationIds); if (!ev.locationIds.includes(loc.id)) ev.locationIds.push(loc.id); return { kind: 'occurs' }; }
+        if (is('world', 'location')) return { kind: 'contains' }; // implicit; no-op
+        throw new Error(`no relationship defined between ${ta} and ${tb}`);
+    }
+
+    function disconnect(fromId, toId) {
+        const world = activeWorld(); if (!world) return false;
+        const a = entityById(world, fromId), b = entityById(world, toId);
+        if (!a || !b) return false;
+        // remove any reference in either direction
+        for (const [x, yId] of [[a, toId], [b, fromId]]) {
+            if (Array.isArray(x.connectedLocationIds)) x.connectedLocationIds = x.connectedLocationIds.filter(v => v !== yId);
+            if (Array.isArray(x.npcIds)) x.npcIds = x.npcIds.filter(v => v !== yId);
+            if (Array.isArray(x.objectIds)) x.objectIds = x.objectIds.filter(v => v !== yId);
+            if (Array.isArray(x.locationIds)) x.locationIds = x.locationIds.filter(v => v !== yId);
+            if (x.homeLocationId === yId) x.homeLocationId = null;
+            if (x.factionId === yId) x.factionId = null;
+            if (x.locationId === yId) x.locationId = null;
+            if (x.ownerNpcId === yId) x.ownerNpcId = null;
+        }
+        return true;
+    }
+
     const API = {
         _state: W,
         get config() { return W.config; },
@@ -526,14 +855,18 @@
         get runtime() { return W.runtime; },
         activeWorld,
 
+        // ----- graph editing (for the editor UI) -----
+        getGraph, addEntity, updateEntity, deleteEntity, connect, disconnect, setNodePos,
+        entityById(id) { return entityById(activeWorld(), id); },
+        entityType(id) { return entityType(activeWorld(), id); },
+        async saveActiveWorld() { await saveLibrary(); syncLive(); return true; },
+        async newWorld(name) { const w = normalizeWorld({ id: uid('world'), name: norm(name) || 'New World', description: '', ui: { x: 120, y: 260 } }); W.library[w.id] = w; await saveLibrary(); this.useWorld(w.id); return w.id; },
+
         // ----- world library -----
         async importWorld(world, { activate = true } = {}) {
             if (!world || typeof world !== 'object') throw new Error('world object required');
             if (!world.id) world.id = uid('world');
-            world.locations = asArray(world.locations); world.npcs = asArray(world.npcs);
-            world.factions = asArray(world.factions); world.objects = asArray(world.objects);
-            world.events = asArray(world.events); world.globalLore = asArray(world.globalLore);
-            world.rules = asArray(world.rules);
+            normalizeWorld(world);
             W.library[world.id] = world;
             await saveLibrary();
             if (activate) this.useWorld(world.id);
@@ -567,8 +900,14 @@
             dbg('moved to', loc.name);
             return loc.name;
         },
-        setClock(patch) { if (!W.runtime) W.runtime = defaultRuntime(); Object.assign(W.runtime.clock, patch || {}); syncLive(); return { ...W.runtime.clock }; },
+        setClock(patch) { if (!W.runtime) W.runtime = defaultRuntime(); Object.assign(W.runtime.clock, patch || {}); if (patch && patch.month != null) W.runtime.clock.season = deriveSeason(W.runtime.clock.month); syncLive(); return { ...W.runtime.clock }; },
         setFlag(k, v) { if (!W.runtime) W.runtime = defaultRuntime(); W.runtime.flags[k] = v; syncLive(); return W.runtime.flags; },
+        advanceClock(slots) { const c = advanceClock(Number(slots) || 1); syncLive(); return c; },
+        giveItem(name, qty) { if (!W.runtime) W.runtime = defaultRuntime(); inventoryAdd(name, qty); syncLive(); return W.runtime.inventory; },
+        takeItem(name, qty) { if (!W.runtime) W.runtime = defaultRuntime(); inventoryRemove(name, qty); syncLive(); return W.runtime.inventory; },
+        setQuest(id, state) { if (!W.runtime) W.runtime = defaultRuntime(); W.runtime.questState[norm(id)] = norm(state); syncLive(); return W.runtime.questState; },
+        // Apply control tags from a raw string (as the AI would emit). Returns changed.
+        applyTags(text) { const c = parseMutations(text); syncLive(); return c; },
         refresh() { return injectManaged(); },
 
         // ----- introspection -----
