@@ -20,6 +20,7 @@ This repo contains the monolithic ALPHA implementation of KLITE RPmod. It enhanc
 - Tools and Context Panels give standalone Tools for interaction with the chat history, general tools or interacting with the context of the chat.
 - Images is a direct way to create images from the chat.
 - Character gallery, Filters, Editor and Dialogue to sho details and export and edit the characters.
+- Wyvern Worlds system (in `KLITE-RPmod_Worlds.js` + `KLITE-RPmod_WorldsUI.js`): a graph/state world model (Locations/NPCs/Factions/Objects/Events + timeline/runtime state) that replaces keyword lore with location/time-scoped retrieval, driven by a node-graph editor overlay. See Build & Packaging and the Worlds integration notes below.
 
 ## Security & Sanitization (Hardening Summary)
 
@@ -43,9 +44,35 @@ To prevent execution of arbitrary HTML/JS embedded in character data and to avoi
 ## Files of interest
 - `AGENTS.md` - this file
 - `KLITE-RPmod_ALPHA.js` – main implementation (~18k+ lines)
+- `KLITE-RPmod_Worlds.js` – Wyvern Worlds engine (graph/state world model, retrieval, compile-to-WI injection, simulation, import/export). Self-contained; exposes `window.KLITE_RPMod_Worlds`.
+- `KLITE-RPmod_WorldsUI.js` – Worlds node-graph editor overlay + floating runtime panel + navbar button. Depends on `window.KLITE_RPMod_Worlds`; exposes `window.KLITE_RPMod_WorldsUI`.
+- `Guided_RPmod_esolite.js` – Guided onboarding wizard mod (separate namespace `window.GuidedRPmod`).
+- `build_KLITE-RPmod.js` – build script that concatenates the source modules into the single shippable `KLITE-RPmod.js` (see Build & Packaging below).
+- `KLITE-RPmod.js` – GENERATED single-file usermod bundle. Do NOT edit by hand; edit the sources and re-run the build.
 - `Esobold Esolite a fork of KoboldAI Lite` – Folder with the Esolite UI. It's mainly a monolithic html and javascript index.html with most of the code only some css and javascripts are in subfolders and included at the very end of index.html. That are mostly the Esolite specific parts of the fork. All Lite code is in the index.html. 
 - `Esobold Esolite a fork of KoboldAI Lite/static/js/`- important JS extensions making Esolite
 - `Esobold Esolite a fork of KoboldAI Lite/static/js/characterManager.js` - Data manager functions from Esolite, most relevant backend file for our integration 
+
+## Build & Packaging
+Esolite's mod manager imports exactly ONE JavaScript file, so the mod ships as a single combined usermod, `KLITE-RPmod.js`, generated from the source modules.
+
+- Build command (run from the project root after editing any source module):
+  - `node build_KLITE-RPmod.js`
+- What it does: reads the sources listed in the `MODULES` array of `build_KLITE-RPmod.js`, wraps each in its own `try { ... } catch` block (so one module's runtime error can't stop the others), and writes `KLITE-RPmod.js` with banner comments.
+- Load order (as concatenated by the build):
+  1. `KLITE-RPmod_ALPHA.js`   (main mod core – `window.KLITE_RPMod`)
+  2. `Guided_RPmod_esolite.js` (onboarding – `window.GuidedRPmod`)
+  3. `KLITE-RPmod_Worlds.js`   (Worlds engine – must load before its UI)
+  4. `KLITE-RPmod_WorldsUI.js` (Worlds editor UI)
+- Why it works: every source is a self-contained IIFE with no top-level `return`, so concatenation into one `new Function` body (how Esolite runs usermods) is scope-safe. Cross-module references go through `window.*`, never bare identifiers.
+- To add/remove a module (e.g. drop Guided) edit the `MODULES` array in `build_KLITE-RPmod.js` and rebuild — no other changes needed.
+- Sanity checks after building: `node --check KLITE-RPmod.js` (syntax). The Worlds modules are unit-testable in Node/jsdom by stubbing the host globals (`current_wi`, `gametext_arr`, `generate_savefile`, `kai_json_load`, `prepare_submit_generation`, `update_wi`).
+- Workflow: edit a source module → `node build_KLITE-RPmod.js` → load/refresh `KLITE-RPmod.js` in Esolite. NEVER hand-edit `KLITE-RPmod.js`; changes there are overwritten on the next build.
+
+### Worlds integration notes (for future changes)
+- Injection is "compile-to-WI": the engine computes an active world slice and writes it into the host's `current_wi` as `constant:true` entries tagged `wigroup:'__worlds__'`, letting Esolite's own prepare/submit engine inject them. Default `injectMode` is `transient` (entries added before a generation, removed after when the submit chain is synchronous i.e. websearch off); `persistent` keeps them live. Entries are always stripped from savefiles.
+- `submit_generation` is a host `const` and CANNOT be wrapped; hook `prepare_submit_generation` (a `window` function) instead. `current_wi`/`gametext_arr` are `var` (on `window`); `generate_savefile`/`kai_json_load`/`prepare_submit_generation`/`update_wi` are `function` decls (on `window`).
+- Per-story Worlds runtime state persists via the host savefile object under the key `rpmod_worlds` (engine wraps `generate_savefile`/`kai_json_load`). The static world library persists in IndexedDB under `KLITE_WORLDS_LIBRARY`.
 
 ## Addition
 - `Esobold Esolite a fork of KoboldAI Lite` now has an old and a new version in the project folder. The new folder holds the newest version, the old version the Esolite we initially developed against.

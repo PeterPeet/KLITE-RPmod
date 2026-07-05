@@ -4,8 +4,8 @@
 //
 // Esolite's mod manager imports one JS file, so we concatenate:
 //   1. KLITE-RPmod_ALPHA.js        (main mod: panels, chars, roles, tools)
-//   2. Guided_RPmod_esolite.js     (guided onboarding wizard)
-//   3. KLITE-RPmod_Worlds.js       (Wyvern Worlds engine)
+//   2. KLITE-RPmod_GuidedRP.js     (guided onboarding wizard)
+//   3. KLITE-RPmod_Worlds.js       (Worlds engine)
 //   4. KLITE-RPmod_WorldsUI.js     (Worlds node-graph editor + panel)
 //
 // Each source is already a self-contained IIFE. We wrap each in try/catch so a
@@ -25,9 +25,9 @@ const OUT = path.join(DIR, 'KLITE-RPmod.js');
 // window globals / the load event, so relative order is not critical.
 const MODULES = [
     { file: 'KLITE-RPmod_ALPHA.js',    name: 'KLITE RPmod (ALPHA core)' },
-    { file: 'Guided_RPmod_esolite.js', name: 'Guided RPmod (onboarding)' },
-    { file: 'KLITE-RPmod_Worlds.js',   name: 'Wyvern Worlds engine' },
-    { file: 'KLITE-RPmod_WorldsUI.js', name: 'Wyvern Worlds editor UI' },
+    { file: 'KLITE-RPmod_GuidedRP.js', name: 'Guided RP (onboarding)' },
+    { file: 'KLITE-RPmod_Worlds.js',   name: 'Worlds engine' },
+    { file: 'KLITE-RPmod_WorldsUI.js', name: 'Worlds editor UI' },
 ];
 
 function banner(text) {

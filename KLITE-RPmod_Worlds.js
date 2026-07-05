@@ -1,5 +1,5 @@
 // =============================================================================
-// KLITE RPmod - Wyvern Worlds System (Phase 1-5: engine + simulation)
+// KLITE RPmod - Worlds System (Phase 1-5: engine + simulation)
 // -----------------------------------------------------------------------------
 // Adds a graph/state-based "Worlds" retrieval layer on top of Esolite.
 //
@@ -848,6 +848,101 @@
         return true;
     }
 
+    // Move an entity to a different type, preserving id/name/entry/position.
+    // Type-specific relationship refs are dropped (reconnect in the editor).
+    function changeEntityType(id, newType) {
+        const world = activeWorld(); if (!world) return false;
+        const oldType = entityType(world, id);
+        const e = entityById(world, id);
+        if (!e || !oldType || oldType === 'world' || newType === 'world' || !TYPE_ARRAYS[newType] || oldType === newType) return false;
+        const entry = nodeEntry(oldType, e), name = nodeName(oldType, e);
+        world[TYPE_ARRAYS[oldType]] = asArray(world[TYPE_ARRAYS[oldType]]).filter(x => x.id !== id);
+        const n = { id, ui: e.ui || {} };
+        if (newType === 'lore') { n.content = entry || name; n.label = name; }
+        else { n.name = name; n[ENTRY_FIELD[newType]] = entry; }
+        world[TYPE_ARRAYS[newType]].push(n);
+        dbg('changeEntityType', id, oldType, '->', newType);
+        return true;
+    }
+
+    async function createWorld(name) {
+        const w = normalizeWorld({ id: uid('world'), name: norm(name) || 'New World', description: '', ui: { x: 120, y: 260 } });
+        W.library[w.id] = w;
+        await saveLibrary();
+        W.activeWorldId = w.id;
+        if (!W.runtime) W.runtime = defaultRuntime();
+        return w.id;
+    }
+
+    // =======================================================================
+    //  IMPORT / EXPORT (Phase 7)
+    // =======================================================================
+    // Normalise one entry from any supported WI/lorebook shape.
+    function normWiEntry(e) {
+        if (!e || typeof e !== 'object') return null;
+        const keys = Array.isArray(e.keys) ? e.keys : Array.isArray(e.key) ? e.key : (typeof e.key === 'string' ? e.key.split(',') : []);
+        const sec = Array.isArray(e.secondary_keys) ? e.secondary_keys : (typeof e.keysecondary === 'string' ? e.keysecondary.split(',') : []);
+        const content = norm(e.content);
+        if (!content) return null;
+        return {
+            keys: keys.map(norm).filter(Boolean), secondary: sec.map(norm).filter(Boolean),
+            content, comment: norm(e.comment || e.name || ''), constant: !!e.constant, wigroup: norm(e.wigroup || '')
+        };
+    }
+    // Accepts: Esolite current_wi array, TavernCard character_book {entries:[]|{}},
+    // {character_book}, {data:{character_book}}, or a raw {entries} lorebook.
+    function wiEntriesFrom(data) {
+        if (!data) return [];
+        if (typeof data === 'string') { try { data = JSON.parse(data); } catch (_) { return []; } }
+        if (Array.isArray(data)) return data.map(normWiEntry).filter(Boolean);
+        if (data.entries) { const es = Array.isArray(data.entries) ? data.entries : Object.values(data.entries); return es.map(normWiEntry).filter(Boolean); }
+        if (data.character_book) return wiEntriesFrom(data.character_book);
+        if (data.data && data.data.character_book) return wiEntriesFrom(data.data.character_book);
+        return [];
+    }
+
+    // Import classic WorldInfo / lorebook entries as globalLore nodes. Each becomes
+    // a Lore node (promotable to Location/NPC in the editor). Creates a new world
+    // unless opts.merge and a world is active.
+    async function importLorebook(data, opts = {}) {
+        const entries = wiEntriesFrom(data);
+        if (!entries.length) throw new Error('no WorldInfo / lorebook entries found');
+        let world = opts.merge ? activeWorld() : null;
+        if (!world) { await createWorld(opts.worldName || (data && (data.name || (data.data && data.data.name))) || 'Imported World'); world = activeWorld(); }
+        world.globalLore = asArray(world.globalLore);
+        let gy = 120;
+        for (const e of entries) {
+            world.globalLore.push({
+                id: uid('lore'), content: e.content, keys: e.keys, secondary: e.secondary,
+                label: e.comment || e.keys[0] || 'Lore', always: e.constant, wigroup: e.wigroup,
+                ui: { x: 700, y: gy }
+            });
+            gy += 60;
+        }
+        await saveLibrary(); syncLive();
+        dbg('imported', entries.length, 'lore entries');
+        return entries.length;
+    }
+
+    // Export the world as portable JSON (deep clone).
+    function exportWorld(worldId) {
+        const w = W.library[worldId || W.activeWorldId]; if (!w) return null;
+        return JSON.parse(JSON.stringify(w));
+    }
+    // Down-convert a world to a flat Esolite WI array (vanilla-Lite compatible).
+    function exportWorldAsWI(worldId) {
+        const w = W.library[worldId || W.activeWorldId]; if (!w) return [];
+        const mk = (key, content, comment, constant) => ({ key: norm(key), keysecondary: '', keyanti: '', content, comment: norm(comment), wigroup: '', constant: !!constant, selective: false, probability: 100, widisabled: false });
+        const out = [];
+        for (const l of asArray(w.locations)) out.push(mk(l.name, `[Location: ${norm(l.name)}]${norm(l.description) ? '\n' + norm(l.description) : ''}`, l.name));
+        for (const n of asArray(w.npcs)) out.push(mk(n.name, `[Character: ${norm(n.name)}]${norm(n.personality || n.description) ? '\n' + norm(n.personality || n.description) : ''}`, n.name));
+        for (const f of asArray(w.factions)) out.push(mk(f.name, `[Faction: ${norm(f.name)}]${norm(f.description || f.goals) ? '\n' + norm(f.description || f.goals) : ''}`, f.name));
+        for (const o of asArray(w.objects)) out.push(mk(o.name, `[Object: ${norm(o.name)}]${norm(o.desc) ? '\n' + norm(o.desc) : ''}`, o.name));
+        for (const ev of asArray(w.events)) out.push(mk(ev.name, `[Event: ${norm(ev.name)}]${norm(ev.description) ? '\n' + norm(ev.description) : ''}`, ev.name));
+        for (const gl of asArray(w.globalLore)) out.push(mk(asArray(gl.keys).join(',') || gl.label, norm(gl.content), gl.label, gl.always || gl.constant));
+        return out;
+    }
+
     const API = {
         _state: W,
         get config() { return W.config; },
@@ -856,11 +951,14 @@
         activeWorld,
 
         // ----- graph editing (for the editor UI) -----
-        getGraph, addEntity, updateEntity, deleteEntity, connect, disconnect, setNodePos,
+        getGraph, addEntity, updateEntity, deleteEntity, connect, disconnect, setNodePos, changeEntityType,
         entityById(id) { return entityById(activeWorld(), id); },
         entityType(id) { return entityType(activeWorld(), id); },
         async saveActiveWorld() { await saveLibrary(); syncLive(); return true; },
-        async newWorld(name) { const w = normalizeWorld({ id: uid('world'), name: norm(name) || 'New World', description: '', ui: { x: 120, y: 260 } }); W.library[w.id] = w; await saveLibrary(); this.useWorld(w.id); return w.id; },
+        async newWorld(name) { const id = await createWorld(name); syncLive(); return id; },
+
+        // ----- import / export -----
+        importLorebook, exportWorld, exportWorldAsWI,
 
         // ----- world library -----
         async importWorld(world, { activate = true } = {}) {

@@ -1,5 +1,5 @@
 // =============================================================================
-// KLITE RPmod - Wyvern Worlds System :: Editor UI (Phase 6)
+// KLITE RPmod - Worlds System :: Editor UI (Phase 6)
 // -----------------------------------------------------------------------------
 // A node-graph editor for the Worlds data model, rendered as a full-screen
 // overlay (same pattern as Esolite's TreeViewer: dim layer on document.body,
@@ -240,6 +240,16 @@
             el('span', { style: `background:${TYPE_COLOR[type]};color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;text-transform:capitalize`, text: type }),
             el('span', { style: 'color:#999;font-size:11px', text: '#' + String(S.selectedId).slice(-4) })
         ]));
+        if (type !== 'world') {
+            const tsel = el('select', { style: inputCss(false) + ';cursor:pointer' });
+            for (const tt of TYPES) { const o = el('option', { value: tt, text: 'Type: ' + tt }); if (tt === type) o.selected = true; tsel.appendChild(o); }
+            tsel.addEventListener('change', () => {
+                if (tsel.value !== type && confirm(`Change this node from ${type} to ${tsel.value}? Type-specific connections will be cleared.`)) {
+                    const keep = S.selectedId; API().changeEntityType(keep, tsel.value); reloadGraph(); S.selectedId = keep; draw(); renderInspector();
+                } else renderInspector();
+            });
+            box.appendChild(tsel);
+        }
         for (const [field, label, kind] of (FIELDS[type] || [])) {
             box.appendChild(el('label', { style: 'display:block;color:#aaa;font-size:11px;margin:8px 0 3px', text: label }));
             let cur = ent[field]; if (field === 'keys') cur = Array.isArray(ent.keys) ? ent.keys.join(', ') : (ent.keys || '');
@@ -371,6 +381,46 @@
         modal.appendChild(box); document.body.appendChild(modal);
     }
 
+    // ---- import / export helpers -----------------------------------------
+    function pickFile(cb) {
+        const inp = el('input', { type: 'file', accept: '.json,application/json', style: 'display:none' });
+        inp.addEventListener('change', () => {
+            const f = inp.files && inp.files[0]; if (!f) return;
+            const rd = new FileReader();
+            rd.onload = () => cb(rd.result, f.name);
+            rd.readAsText(f);
+            inp.remove();
+        });
+        document.body.appendChild(inp); inp.click();
+    }
+    function download(filename, text) {
+        const blob = new Blob([text], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = el('a', { href: url, download: filename });
+        document.body.appendChild(a); a.click();
+        setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 100);
+    }
+    function importFlow() {
+        const A = API();
+        pickFile(async (txt, name) => {
+            try {
+                const data = JSON.parse(txt);
+                const merge = A.activeWorld() ? confirm('Merge into the active world?  (Cancel = create a new world)') : false;
+                const count = await A.importLorebook(data, { merge, worldName: (name || '').replace(/\.json$/i, '') });
+                toast(`Imported ${count} lore entr${count === 1 ? 'y' : 'ies'}`);
+                refreshPanel();
+                if (S.overlay) { reloadGraph(); fit(); draw(); }
+            } catch (e) { toast('Import failed: ' + (e.message || e), true); }
+        });
+    }
+    function exportFlow() {
+        const A = API(); const w = A.activeWorld(); if (!w) { toast('No active world', true); return; }
+        const base = (w.name || 'world').replace(/[^\w-]+/g, '_');
+        const choice = confirm('OK = export as World JSON.\nCancel = export as flat WorldInfo (vanilla-Lite).');
+        if (choice) download(base + '.world.json', JSON.stringify(A.exportWorld(), null, 2));
+        else download(base + '.worldinfo.json', JSON.stringify(A.exportWorldAsWI(), null, 2));
+    }
+
     function toast(msg, isErr) {
         const t = el('div', { style: `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:100002;background:${isErr ? '#5a1f1f' : '#243'};color:${isErr ? '#f2b8b8' : '#bfe'};border:1px solid ${isErr ? '#7a2a2a' : '#376'};border-radius:8px;padding:8px 16px;font-size:13px`, text: msg });
         document.body.appendChild(t); setTimeout(() => t.remove(), 2200);
@@ -430,11 +480,16 @@
         sel.addEventListener('change', () => { if (sel.value) { A.useWorld(sel.value); refreshPanel(); } });
         body.appendChild(sel);
 
-        const row = el('div', { style: 'display:flex;gap:6px;margin-bottom:8px' }, [
+        const row = el('div', { style: 'display:flex;gap:6px;margin-bottom:6px' }, [
             el('button', { style: miniBtn(), text: '＋ New', onclick: () => { const n = prompt('New world name:', 'New World'); if (n != null) A.newWorld(n).then(refreshPanel); } }),
             el('button', { style: miniBtn(), text: '✎ Editor', onclick: () => openEditor() })
         ]);
         body.appendChild(row);
+        const row2 = el('div', { style: 'display:flex;gap:6px;margin-bottom:8px' }, [
+            el('button', { style: miniBtn(), text: '⬇ Import', onclick: () => importFlow() }),
+            el('button', { style: miniBtn(), text: '⬆ Export', onclick: () => exportFlow() })
+        ]);
+        body.appendChild(row2);
 
         if (!A.activeWorld()) return;
         // enable toggle

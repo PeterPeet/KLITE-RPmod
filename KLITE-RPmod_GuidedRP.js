@@ -1,5 +1,6 @@
 /**
- * Guided RPmod - Interactive AI Roleplay Guide for Esolite
+ * KLITE-RPmod_GuidedRP.js - Guided RP: Interactive AI Roleplay Guide for Esolite
+ * (formerly Guided_RPmod_esolite.js)
  *
  * This mod provides a guided journey to AI roleplay chat adventures with:
  * - Step-by-step interactive setup
@@ -9,6 +10,7 @@
  * - Greeting selection
  * - Simplified roleplay UI
  *
+ * Global namespace: window.KLITE_RPMod_GuidedRP
  * @version 3.0.0
  * @author KLITE RPmod Team
  */
@@ -5146,7 +5148,7 @@
     // GLOBAL API
     // =========================================================================
 
-    window.GuidedRPmod = {
+    window.KLITE_RPMod_GuidedRP = {
         version: VERSION,
         state: state,
 
