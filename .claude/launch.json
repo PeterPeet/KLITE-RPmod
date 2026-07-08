@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "esolite-rpmod",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "--directory", "Esobold Esolite a fork of KoboldAI Lite very newest", "8747"],
+      "port": 8747
+    }
+  ]
+}

@@ -19,6 +19,11 @@ The mod ships as a single file, `KLITE-RPmod.js`.
 That's it — one file contains everything (main panels, guided onboarding, the Worlds
 engine, and the Worlds editor).
 
+**Try it in one click.** Open the Worlds panel and press **🎁 Load example world** — it
+loads a ready-to-play world (a village, a tavern, a guarded frontier road, quests with
+givers, an event chain, and a bandit encounter), enables it, and drops you in. Just start
+chatting. Everything below explains how to build your own.
+
 ---
 
 ## 2. What you get
@@ -128,6 +133,11 @@ on your next turn, update the world state, and are reflected in the following sl
 | `<time>slot</time>` | `<time>evening</time>` | Set time of day |
 | `<weather>…</weather>` | `<weather>rain</weather>` | Set the weather |
 | `<advance>` | `<advance>` | Advance the clock one step |
+| `<action>text</action>` | `<action>pick the lock</action>` | Fire an action signal (triggers `onAction` events) |
+| `<roll>expr</roll>` | `<roll>1d20+3</roll>` | Roll dice (logged in combat) |
+| `<attack>A-&gt;B</attack>` | `<attack>You-&gt;Goblin</attack>` | Resolve an attack (to-hit vs AC, damage, HP) |
+| `<hp>Name=±N</hp>` | `<hp>Goblin=-4</hp>` | Adjust a combatant's HP |
+| `<check>Name=abi DC</check>` | `<check>You=dex 12</check>` | Ability check vs a DC |
 
 **Time slots:** `morning → noon → afternoon → evening → night`. Advancing past night rolls
 to the next day, and the **season** follows the month automatically.
@@ -140,6 +150,40 @@ to the next day, and the **season** follows the month automatically.
   location, emit `<move>Name</move>`."*
 - Want time to pass automatically every turn? Enable it once in the console:
   `KLITE_RPMod_Worlds.config.advanceClockPerTurn = true`.
+
+---
+
+## 6b. Tabletop-RPG systems
+
+The Worlds panel has four tabs — **Play**, **Quests**, **Combat**, **Editor** — and a
+**Creator ⇄ Player** lens in its header.
+
+**State slots (base / working).** The Play tab keeps two saved states: **base** (your start
+point) and **working** (the live game). Use **Reset** to snap back to base, **Commit** to make
+the current state the new base, and **Swap** to switch which is active. Both travel with your
+save and export.
+
+**Persons = characters.** In the editor, an NPC can be **linked to a character** from your
+CHARS library (its TavernCard text is reused) and given an optional **d20 stat block**
+(abilities, AC, HP, attacks). Stats feed combat and appear in the AI's context near that NPC.
+
+**Quests (WoW-style).** Add **Quest** nodes with a **giver** (`!`) and **turn-in** person
+(`?`) — those markers show on the map and persons. The **Quests tab** is your log: accept,
+complete, turn in, and track quests; hidden quests read `???` to the player until discovered.
+A per-world switch controls whether the **AI** (as GM) sees hidden content or not.
+
+**Triggers & chains.** Events have **triggers** (on enter / time / flag / quest-state / action
+/ another event) and **effects** (set flags, give items, offer quests, move NPCs, fire another
+event…). Effects chain, so you can build sequences like *enter the tavern at night → a courier
+arrives → he offers a delivery quest*. Wire it all visually in the editor.
+
+**Factions & HQs.** Link a **Faction → Location** to give it a visitable **headquarters**.
+
+**Combat (d20 / SRD 5.1).** In the **Combat tab**, pick combatants (quick-add SRD monsters like
+goblin/wolf/skeleton), **Start encounter** to roll initiative, then attack, roll dice, adjust
+HP, and step through turns. The mod is authoritative for the maths; the current combat state
+(round, turn order, HP) is injected so the AI narrates the outcomes. You or the AI can also
+drive combat with the `<attack>`, `<roll>`, `<hp>` and `<check>` tags above.
 
 ---
 

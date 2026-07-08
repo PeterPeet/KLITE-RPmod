@@ -130,6 +130,29 @@ contains `__worlds__` entries.
   it never touches `worldinfo`.
 - The static world library persists in IndexedDB under `KLITE_WORLDS_LIBRARY`.
 
+**RPG engine (extends the Worlds foundation — all in `KLITE-RPmod_Worlds.js`):**
+- **Two-slot runtime.** `runtime = { active, base, working }`; every per-story read/write
+  goes through `rt()` (the active snapshot). Ops: `resetToBase`/`commitToBase`/`swapActive`.
+  Old flat saves are migrated by `toRuntimeContainer()`. `API.runtime` returns the *active
+  snapshot* (back-compat); `API.runtimeSlots`/`activeSlot` expose the container.
+- **Persons = characters.** An `npc` may carry `characterRef` into `KLITE_RPMod.characters`
+  (+ world overlay) and an optional d20 `stats` block; export embeds a `characterSnapshot`.
+- **Quests** are a node type (`world.quests`): giver/turn-in persons (`!`/`?` markers),
+  `hidden`/`hiddenDescription` gated by per-world `ruleset.aiMode` (`gm` vs `player`) +
+  runtime `discovered`. State machine in the snapshot (`questState`, `activeQuestId`).
+- **Trigger bus.** `fireTriggers(signal)` — bounded, loop-safe cascade. Events have
+  `triggers[]` (onTurn/onTime/onEnterLocation/onFlag/onQuestState/onEvent/onAction/manual)
+  + `conditions[]` + `effects[]`; `applyEffect` returns cascade signals so effects chain.
+  Fired at generation (`'turn'`) and from discrete mutations (moveTo/setClock/setFlag/
+  setQuestState) and the `<action>` tag. Events fired this turn inject via `firedEventsBuffer`
+  (reset each generation); trigger-less/`onTurn` events are ambient via `eventActive`.
+- **Combat** (SRD 5.1, CC-BY): deterministic dice (`rollExpr`/`rollD20`) + encounter state
+  in the snapshot (`combat`): initiative, HP, turns. `startEncounter`/`attack`/`nextTurn`/
+  `check`/`damage`/`heal`; injected as a high-priority `Combat` slice section; driven by UI
+  or the `<attack>`/`<roll>`/`<hp>`/`<check>` tags. SRD monster presets in `SRD_TEMPLATES`.
+- **Graph edges added:** faction→location (`hq`), quest→person (`gives`/`turnin`), plus
+  derived chain edges (`onenter`/`onquest`/`affects`/`chains`) for visualising wiring.
+
 **Editor (`KLITE-RPmod_WorldsUI.js`).** Full-screen overlay (same pattern as Esolite's
 `TreeViewer`): node-graph canvas with pan/zoom, a palette, an inspector, and typed
 auto-inferred edges. Drawing an arrow calls `KLITE_RPMod_Worlds.connect(a,b)`, which
