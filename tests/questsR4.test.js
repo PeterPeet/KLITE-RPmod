@@ -242,3 +242,38 @@ test('prerequisites and chains, item-started quests, the full marker set', async
     W.disconnect('q_merchant', 'q_bounty');
     assert.deepEqual(plain(W.getGraph().edges.filter(e => e.kind === 'unlocks')), []);
 });
+
+test('reputation: rewards, tags, effects, triggers and conditions; tiers reach the AI and the Quest log', async (t) => {
+    const { w, W } = await personaWorld(t, { persona: false });
+    const guard = W.reputation().find(r => /Guard/.test(r.name)); assert.ok(guard, 'the example has a guard faction');
+    assert.equal(guard.tier, 'Neutral');
+    // quest reward
+    W.updateEntity('q_merchant', { rewards: [W.parseReward(`rep ${guard.name} +150`)] });
+    assert.equal(W.listQuests('gm').find(q => q.id === 'q_merchant').rewards[0].factionId, guard.id);
+    W.acceptQuest('q_merchant'); W.completeQuest('q_merchant'); W.turnInQuest('q_merchant');
+    assert.equal(W.reputation().find(r => r.id === guard.id).tier, 'Friendly');
+    assert.ok(w.KLITE_RPMod_Log.entries().some(e => new RegExp(`Reputation with ${guard.name} \\+150 — now Friendly\\.`).test(e.what)));
+    // the AI: a reputation section and the attitude of the faction's members
+    assert.match(W.preview(), new RegExp(`\\[Reputation\\]\\n- ${guard.name}: Friendly — welcoming`));
+    // a trigger on reaching Honored; the tag; a condition field
+    const ev = W.addEntity('event', { name: 'Knighted' });
+    W.updateEntity(ev.id, { triggers: [{ type: 'onReputation', factionId: guard.id, tier: 'Honored' }], effects: [{ type: 'flag', key: 'honored', value: true }] });
+    W.applyTags(`<rep>${guard.name}=+400</rep>`);
+    assert.equal(W.reputation().find(r => r.id === guard.id).tier, 'Honored');
+    assert.equal(W.runtime.flags.honored, true, 'onReputation fired');
+    // an event effect lowers another faction's standing, guarded by a tier condition
+    const bandits = W.reputation().find(r => r.id !== guard.id);
+    const raid = W.addEntity('event', { name: 'Raid the camp' });
+    W.updateEntity(raid.id, { triggers: [{ type: 'manual' }], conditions: [{ field: 'tier.' + guard.id, op: '==', value: 'Honored' }], effects: [{ type: 'reputation', factionId: bandits.id, amount: -1200 }] });
+    W.fireTriggers('manual:' + raid.id);
+    const b = W.reputation().find(r => r.id === bandits.id);
+    assert.equal(b.tier, 'Hated'); assert.equal(b.hostile, true);
+    // the Quest log window lists the standings
+    w.KLITE_RPMod_Shell.open('questlog'); await sleep(30);
+    const win = w.document.querySelector('[data-window="questlog"]');
+    assert.equal(win.querySelector(`[data-rep="${guard.id}"] [data-tier]`).textContent, 'Honored');
+    assert.equal(win.querySelector(`[data-rep="${bandits.id}"] [data-tier]`).textContent, 'Hated');
+    // starting reputation of a faction
+    W.updateEntity(bandits.id, { startReputation: -400 });
+    assert.equal(W.reputation().find(r => r.id === bandits.id).value, -1200, 'story standing wins once it exists');
+});

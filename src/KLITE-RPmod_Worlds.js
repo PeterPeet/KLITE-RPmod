@@ -447,6 +447,18 @@ export default function initWorlds() {
         gameLog(`Reputation with ${factionName(factionId)} ${amount > 0 ? '+' : ''}${amount}${after !== before ? ` — now ${after}` : ''}.`, 'quest');
         try { fireTriggers('reputation:' + factionId); } catch (_) {}
     }
+    function factionIdOf(idOrName) {
+        const fs = asArray(activeWorld() && activeWorld().factions); const q = norm(idOrName);
+        const f = fs.find(x => x.id === q) || fs.find(x => QR.sameName(x.name, q)) || fs.find(x => norm(x.name).toLowerCase().includes(q.toLowerCase()) && q.length > 3);
+        return f ? f.id : null;
+    }
+    function reputationList() {
+        return asArray(activeWorld() && activeWorld().factions).map(f => {
+            const value = repValue(f.id); const pr = QR.tierProgress(value); const tier = pr.tier;
+            return { id: f.id, name: norm(f.name), value, tier, next: pr.next, into: pr.into, span: pr.span, effect: QR.tierEffect(tier), hostile: QR.isHostileTier(tier) };
+        });
+    }
+    function personAttitude(npc) { if (!npc || !npc.factionId) return null; const r = reputationList().find(x => x.id === npc.factionId); return r && r.tier !== 'Neutral' ? r : null; }
     function repValue(factionId) {
         const v = rt() && rt().reputation && rt().reputation[factionId];
         if (v != null) return Number(v) || 0;
@@ -603,6 +615,8 @@ export default function initWorlds() {
             default:
                 if (field && field.indexOf('flag.') === 0) return rt()?.flags?.[field.slice(5)];
                 if (field && field.indexOf('quest.') === 0) return rt()?.questState?.[field.slice(6)];
+                if (field && field.indexOf('rep.') === 0) return repValue(factionIdOf(field.slice(4)));
+                if (field && field.indexOf('tier.') === 0) return QR.tierOf(repValue(factionIdOf(field.slice(5)))).toLowerCase();
                 return undefined;
         }
     }
@@ -750,6 +764,8 @@ export default function initWorlds() {
         scan(/<unflag>\s*([^<>]+?)\s*<\/unflag>/gi, m => { delete rt().flags[norm(m[1])]; return true; });
         scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || []; inventoryAdd(nm, q); return true; });
         scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || []; inventoryRemove(nm, q); return true; });
+        // <rep>Royal Guard=+50</rep>: the player's standing with a faction changes
+        scan(/<rep>\s*([^=<>]+?)\s*=\s*([+-]?\d+)\s*<\/rep>/gi, m => { const fid = factionIdOf(m[1]); if (!fid) return false; changeReputation(fid, Number(m[2]), 'tag'); return true; });
         // <talk>Captain Rowan</talk>: the player spoke with this person (quest "talk" objectives)
         scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, m => { const npc = findNpcByName(world, m[1]); if (!npc) return false; questEvent('talk', { personId: npc.id }); return true; });
         // <encounter>Wolf Pack</encounter> (a saved encounter) or <encounter>2 Wolf, Goblin Warrior</encounter>
@@ -784,6 +800,7 @@ export default function initWorlds() {
             case 'advance': advanceClock(Number(effect.slots) || 1); sigs.push('time'); break;
             case 'fireEvent': if (effect.eventId) sigs.push('manual:' + norm(effect.eventId)); break;
             case 'encounter': if (effect.value || effect.encounterId) startSavedEncounter(effect.encounterId || effect.value); break;
+            case 'reputation': { const fid = factionIdOf(effect.factionId); if (fid) changeReputation(fid, Number(effect.amount) || 0, 'event'); break; }
             default: break;
         }
         return sigs;
@@ -818,6 +835,12 @@ export default function initWorlds() {
                 return signal === 'quest:' + norm(trig.questId) + ':' + norm(trig.state) ||
                        (signal === 'turn' && norm(rt().questState[norm(trig.questId)]) === norm(trig.state));
             case 'onEvent': return signal === 'event:' + norm(trig.eventId);
+            // standing with a faction reaches a tier (or better; "Hostile"/"Hated" = or worse)
+            case 'onReputation': {
+                const fid = factionIdOf(trig.factionId); if (!fid || (signal !== 'reputation:' + fid && signal !== 'turn')) return false;
+                const have = QR.tierIndex(QR.tierOf(repValue(fid))), want = QR.tierIndex(trig.tier || 'Friendly');
+                return QR.isHostileTier(trig.tier) ? have <= want : have >= want;
+            }
             case 'onAction': return typeof signal === 'string' && signal.indexOf('action:') === 0 &&
                        (norm(trig.pattern) === '' || signal.slice(7).toLowerCase().includes(norm(trig.pattern).toLowerCase()));
             case 'manual': return signal === 'manual:' + ev.id;
@@ -1360,7 +1383,8 @@ export default function initWorlds() {
             if (npcSeen.has(npc.id)) continue; npcSeen.add(npc.id);
             const faction = findById(world.factions, npc.factionId);
             const marker = personQuestMarker(npc.id, mode);   // ! offers a quest, ? turn-in ready
-            const bits = [(marker ? marker + ' ' : '') + personName(npc)];
+            const att = personAttitude(npc);
+            const bits = [(marker ? marker + ' ' : '') + personName(npc) + (att ? ` (${att.name}: ${att.tier}${att.hostile ? ' — hostile to the player' : ''})` : '')];
             // skip the blurb when the context already describes this character in full
             // (active character / group-chat speaker / persona — see src/context)
             const described = opts && typeof opts.isDescribed === 'function' && opts.isDescribed(personName(npc));
@@ -1393,6 +1417,9 @@ export default function initWorlds() {
             questLines.push(`- ${title} [${st}]${track}` + (desc ? `: ${desc}` : '') + (objs.length ? '\n' + objs.join('\n') : ''));
         }
         push('Active Quests', 45, questLines.join('\n'));
+        // 5c. Standing with factions (only what differs from Neutral)
+        const reps = reputationList().filter(r => r.tier !== 'Neutral');
+        push('Reputation', 42, reps.map(r => `- ${r.name}: ${r.tier}${r.effect ? ` — ${r.effect}` : ''}`).join('\n'));
 
         // 6. Active events — fired this turn (via the trigger bus) + ambient
         // conditional events. Firing/completion is handled by fireTriggers(), not here.
@@ -1969,6 +1996,8 @@ export default function initWorlds() {
         acceptQuest(id, force) { const s = acceptQuest(id, force); syncLive(); return s; },
         questLocks: (id) => questLocks(questById(id)),
         reputationTiers: () => QR.TIERS.map(t => t.name),
+        reputation: () => reputationList(),
+        changeReputation(idOrName, amount) { ensureRuntime(); const fid = factionIdOf(idOrName); if (!fid) return null; changeReputation(fid, Number(amount) || 0, 'api'); syncLive(); return repValue(fid); },
         questMarkerInfo: (personId, mode) => questMarkerInfo(personId, mode || aiMode()),
         completeQuest(id) { const s = setQuestState(id, 'complete'); const q = questById(id); if (s && q) gameLog(`Quest ready to turn in: ${questTitle(q)}.`); syncLive(); return s; },
         // choice: index of the chosen "choose one" reward (array for several choice rewards)

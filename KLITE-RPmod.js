@@ -25263,6 +25263,36 @@ ${char.mes_example}
     const i = TIERS.findIndex((t) => t.name.toLowerCase() === low(name));
     return i < 0 ? 3 : i;
   }
+  function tierProgress(value) {
+    const v = Number(value) || 0;
+    const i = tierIndex(tierOf(v));
+    const cur = TIERS[i], next = TIERS[i + 1] || null;
+    const base = cur.min === -Infinity ? TIERS[1].min - 1e3 : cur.min;
+    return { tier: cur.name, next: next ? next.name : null, into: v - base, span: next ? next.min - base : 0 };
+  }
+  function tierEffect(name) {
+    switch (name) {
+      case "Hated":
+        return "attacks on sight";
+      case "Hostile":
+        return "hostile: refuses to deal with you and may attack";
+      case "Unfriendly":
+        return "cold and distrustful; prices higher";
+      case "Neutral":
+        return "";
+      case "Friendly":
+        return "welcoming; small favours";
+      case "Honored":
+        return "trusted; better prices and access to members-only places";
+      case "Revered":
+        return "deeply trusted; shares secrets";
+      case "Exalted":
+        return "treats you as a hero of the faction";
+      default:
+        return "";
+    }
+  }
+  var isHostileTier = (name) => tierIndex(name) <= tierIndex("Hostile");
 
   // src/KLITE-RPmod_Worlds.js
   function initWorlds() {
@@ -25811,6 +25841,25 @@ ${char.mes_example}
       } catch (_) {
       }
     }
+    function factionIdOf(idOrName) {
+      const fs = asArray(activeWorld() && activeWorld().factions);
+      const q = norm3(idOrName);
+      const f = fs.find((x) => x.id === q) || fs.find((x) => sameName(x.name, q)) || fs.find((x) => norm3(x.name).toLowerCase().includes(q.toLowerCase()) && q.length > 3);
+      return f ? f.id : null;
+    }
+    function reputationList() {
+      return asArray(activeWorld() && activeWorld().factions).map((f) => {
+        const value = repValue(f.id);
+        const pr = tierProgress(value);
+        const tier = pr.tier;
+        return { id: f.id, name: norm3(f.name), value, tier, next: pr.next, into: pr.into, span: pr.span, effect: tierEffect(tier), hostile: isHostileTier(tier) };
+      });
+    }
+    function personAttitude(npc) {
+      if (!npc || !npc.factionId) return null;
+      const r = reputationList().find((x) => x.id === npc.factionId);
+      return r && r.tier !== "Neutral" ? r : null;
+    }
     function repValue(factionId) {
       const v = rt() && rt().reputation && rt().reputation[factionId];
       if (v != null) return Number(v) || 0;
@@ -26023,6 +26072,8 @@ ${char.mes_example}
         default:
           if (field && field.indexOf("flag.") === 0) return rt()?.flags?.[field.slice(5)];
           if (field && field.indexOf("quest.") === 0) return rt()?.questState?.[field.slice(6)];
+          if (field && field.indexOf("rep.") === 0) return repValue(factionIdOf(field.slice(4)));
+          if (field && field.indexOf("tier.") === 0) return tierOf(repValue(factionIdOf(field.slice(5)))).toLowerCase();
           return void 0;
       }
     }
@@ -26251,6 +26302,12 @@ ${char.mes_example}
         inventoryRemove(nm, q);
         return true;
       });
+      scan(/<rep>\s*([^=<>]+?)\s*=\s*([+-]?\d+)\s*<\/rep>/gi, (m) => {
+        const fid = factionIdOf(m[1]);
+        if (!fid) return false;
+        changeReputation(fid, Number(m[2]), "tag");
+        return true;
+      });
       scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, (m) => {
         const npc = findNpcByName(world, m[1]);
         if (!npc) return false;
@@ -26369,6 +26426,11 @@ ${char.mes_example}
         case "encounter":
           if (effect.value || effect.encounterId) startSavedEncounter(effect.encounterId || effect.value);
           break;
+        case "reputation": {
+          const fid = factionIdOf(effect.factionId);
+          if (fid) changeReputation(fid, Number(effect.amount) || 0, "event");
+          break;
+        }
         default:
           break;
       }
@@ -26402,6 +26464,13 @@ ${char.mes_example}
           return signal === "quest:" + norm3(trig.questId) + ":" + norm3(trig.state) || signal === "turn" && norm3(rt().questState[norm3(trig.questId)]) === norm3(trig.state);
         case "onEvent":
           return signal === "event:" + norm3(trig.eventId);
+        // standing with a faction reaches a tier (or better; "Hostile"/"Hated" = or worse)
+        case "onReputation": {
+          const fid = factionIdOf(trig.factionId);
+          if (!fid || signal !== "reputation:" + fid && signal !== "turn") return false;
+          const have = tierIndex(tierOf(repValue(fid))), want = tierIndex(trig.tier || "Friendly");
+          return isHostileTier(trig.tier) ? have <= want : have >= want;
+        }
         case "onAction":
           return typeof signal === "string" && signal.indexOf("action:") === 0 && (norm3(trig.pattern) === "" || signal.slice(7).toLowerCase().includes(norm3(trig.pattern).toLowerCase()));
         case "manual":
@@ -27104,7 +27173,8 @@ ${recent}` : "");
         npcSeen.add(npc.id);
         const faction = findById(world.factions, npc.factionId);
         const marker = personQuestMarker(npc.id, mode2);
-        const bits = [(marker ? marker + " " : "") + personName(npc)];
+        const att = personAttitude(npc);
+        const bits = [(marker ? marker + " " : "") + personName(npc) + (att ? ` (${att.name}: ${att.tier}${att.hostile ? " — hostile to the player" : ""})` : "")];
         const described = opts && typeof opts.isDescribed === "function" && opts.isDescribed(personName(npc));
         const blurb = described ? "" : personBlurb(npc);
         if (blurb) bits.push(blurb);
@@ -27135,6 +27205,8 @@ ${recent}` : "");
         questLines.push(`- ${title} [${st}]${track}` + (desc ? `: ${desc}` : "") + (objs.length ? "\n" + objs.join("\n") : ""));
       }
       push("Active Quests", 45, questLines.join("\n"));
+      const reps = reputationList().filter((r) => r.tier !== "Neutral");
+      push("Reputation", 42, reps.map((r) => `- ${r.name}: ${r.tier}${r.effect ? ` — ${r.effect}` : ""}`).join("\n"));
       const evLines = [];
       const seenEv = /* @__PURE__ */ new Set();
       for (const ev of asArray(world.events)) {
@@ -27853,6 +27925,15 @@ ${recent}` : "");
       },
       questLocks: (id) => questLocks(questById(id)),
       reputationTiers: () => TIERS.map((t) => t.name),
+      reputation: () => reputationList(),
+      changeReputation(idOrName, amount) {
+        ensureRuntime();
+        const fid = factionIdOf(idOrName);
+        if (!fid) return null;
+        changeReputation(fid, Number(amount) || 0, "api");
+        syncLive();
+        return repValue(fid);
+      },
       questMarkerInfo: (personId, mode2) => questMarkerInfo(personId, mode2 || aiMode()),
       completeQuest(id) {
         const s = setQuestState(id, "complete");
@@ -29332,6 +29413,12 @@ ${recent}` : "");
         draw();
       });
       box.appendChild(s);
+      box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px", text: "Starting reputation (Neutral = 0; Friendly 100, Honored 500, Revered 1200, Exalted 2500; Unfriendly −300 … Hated below −1000)" }));
+      const rep = el2("input", { type: "number", step: "50", value: Number(ent.startReputation) || 0, style: inputCss(false) + ";width:8em", "aria-label": "Starting reputation" });
+      rep.addEventListener("change", () => {
+        A.updateEntity(S.selectedId, { startReputation: Number(rep.value) || 0 });
+      });
+      box.appendChild(rep);
     }
     const QSTATES = ["available", "active", "complete", "turnedin", "failed"];
     const TRIGGER_SPEC = {
@@ -29342,7 +29429,8 @@ ${recent}` : "");
       onFlag: [["key", "text"], ["value", "text"]],
       onQuestState: [["questId", "quest"], ["state", "qstate"]],
       onEvent: [["eventId", "event"]],
-      onAction: [["pattern", "text"]]
+      onAction: [["pattern", "text"]],
+      onReputation: [["factionId", "faction"], ["tier", "tier"]]
     };
     const EFFECT_SPEC = {
       flag: [["key", "text"], ["value", "text"]],
@@ -29355,15 +29443,16 @@ ${recent}` : "");
       npcmove: [["npcId", "npc"], ["locationId", "location"]],
       advance: [["slots", "number"]],
       fireEvent: [["eventId", "event"]],
-      encounter: [["value", "text"]]
+      encounter: [["value", "text"]],
       // a saved encounter's name or "2 Wolf, Goblin Warrior"
+      reputation: [["factionId", "faction"], ["amount", "number"]]
     };
     function paramInput(kind, value, onChange) {
       const A = API();
-      if (kind === "time" || kind === "qstate") {
-        const opts = kind === "time" ? TIME_SLOTS_UI : QSTATES;
+      if (kind === "time" || kind === "qstate" || kind === "tier") {
+        const opts = kind === "time" ? TIME_SLOTS_UI : kind === "tier" ? A.reputationTiers() : QSTATES;
         const s = el2("select", { style: inputCss(false) + ";cursor:pointer;flex:1" });
-        s.appendChild(el2("option", { value: "", text: kind === "time" ? "time" : "state" }));
+        s.appendChild(el2("option", { value: "", text: kind === "time" ? "time" : kind === "tier" ? "tier" : "state" }));
         for (const o of opts) {
           const op = el2("option", { value: o, text: o });
           if (value === o) op.selected = true;
@@ -29372,7 +29461,7 @@ ${recent}` : "");
         s.addEventListener("change", () => onChange(s.value));
         return s;
       }
-      if (kind === "location" || kind === "quest" || kind === "event" || kind === "npc") {
+      if (kind === "location" || kind === "quest" || kind === "event" || kind === "npc" || kind === "faction") {
         const nodes = A.getGraph().nodes.filter((n) => n.type === kind);
         const s = el2("select", { style: inputCss(false) + ";cursor:pointer;flex:1" });
         s.appendChild(el2("option", { value: "", text: kind }));
@@ -30084,6 +30173,33 @@ ${recent}` : "");
         }
       }
     }
+    function renderReputation(box) {
+      const A = API();
+      const list2 = A.reputation();
+      if (!list2.length) return;
+      box.appendChild(lbl("Reputation"));
+      for (const r of list2) {
+        const pct = r.span ? Math.max(0, Math.min(100, Math.round(r.into / r.span * 100))) : 100;
+        const card = el2("div", { class: "rpm-card", "data-rep": r.id }, [
+          row2([el2("span", { class: "rpm-grow", style: "font-weight:bold", text: r.name }), el2("span", { class: "rpm-chip " + (r.hostile ? "rpm-chip-danger" : r.tier === "Neutral" ? "" : "rpm-chip-info"), "data-tier": r.tier, text: r.tier })])
+        ]);
+        const bar = el2("div", { class: "rpm-bar", title: r.next ? `${r.into}/${r.span} to ${r.next}` : "highest tier" });
+        bar.appendChild(el2("span", { style: `width:${pct}%;background:${r.hostile ? "var(--rpm-danger)" : "var(--rpm-info)"}` }));
+        card.appendChild(bar);
+        if (r.effect) card.appendChild(muted2(r.effect));
+        if (uiMode() !== "player") card.appendChild(row2([
+          uiBtn("−50", () => {
+            A.changeReputation(r.id, -50);
+            refreshPanel();
+          }, { title: "Lower the standing (creator)" }),
+          uiBtn("+50", () => {
+            A.changeReputation(r.id, 50);
+            refreshPanel();
+          }, { title: "Raise the standing (creator)" })
+        ], "margin-top:4px"));
+        box.appendChild(card);
+      }
+    }
     function renderCombatTab(box) {
       renderCombat(box, () => refreshPanel());
     }
@@ -30225,8 +30341,10 @@ ${recent}` : "");
       sh.registerView(Object.assign({ id: "party", title: "Party", place: "left", order: 10 }, view(renderParty)));
       sh.registerView(Object.assign({ id: "quest-tracker", title: "Quests", place: "left", order: 20 }, view(renderQuestTracker)));
       sh.registerView(Object.assign({ id: "questlog", title: "Quest log", place: "window", window: { width: 380, height: 520 } }, view((c) => {
-        if (API().activeWorld()) renderQuestsTab(c);
-        else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
+        if (API().activeWorld()) {
+          renderQuestsTab(c);
+          renderReputation(c);
+        } else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
       })));
       sh.registerView(Object.assign({ id: "combat", title: "Combat", place: "window", window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
         if (API().activeWorld()) renderCombatTab(c);

@@ -338,6 +338,15 @@ world's state slots does not take them back).
       > yellow ! > grey ? (in progress) > grey ! (level too low) — editor badges grey; the AI only
       hears the yellow ones. `startItem`: the quest appears (and is announced) once the item is
       held. Quest editor: "Requires" (level, quests, flags, reputation) and starting item.
+- [x] **Step 4 — factions & reputation** (2026-09-23): standing per faction in the story
+      (`rt().reputation`, start value `faction.startReputation`), our own tier scale Hated (< −1000)
+      · Hostile · Unfriendly (−300) · Neutral · Friendly (100) · Honored (500) · Revered (1200) ·
+      Exalted (2500). Changed by quest rewards (`rep <faction> +N`), the event effect
+      *reputation*, the tag `<rep>Faction=+N</rep>` and the creator's ±50 buttons; trigger
+      *onReputation* (tier reached; "or worse" for Hostile/Hated) and condition fields `rep.<id>` /
+      `tier.<id>`. Effects: the AI gets a Reputation section (tier + what it means) and each
+      faction member's attitude; members of Hostile/Hated factions are "hostile to the player".
+      Vendors/prices are narrated (no shop system yet). Quest log lists the standings with bars.
 - Full marker set (yellow/grey `!`, yellow/grey `?`).
 - Prerequisites (level, previous quest, flag, reputation); chains; item-started quests.
 - Objective types with counters (kill/collect/talk/visit), auto-progress from tags/events.

@@ -509,6 +509,11 @@ export default function initWorldsUI() {
         for (const l of locs) { const o = el('option', { value: l.id, text: l.name }); if (ent.hqLocationId === l.id) o.selected = true; s.appendChild(o); }
         s.addEventListener('change', () => { A.updateEntity(S.selectedId, { hqLocationId: s.value || null }); reloadGraph(); draw(); });
         box.appendChild(s);
+        // the player's standing when the story starts (quests and events change it)
+        box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px', text: 'Starting reputation (Neutral = 0; Friendly 100, Honored 500, Revered 1200, Exalted 2500; Unfriendly −300 … Hated below −1000)' }));
+        const rep = el('input', { type: 'number', step: '50', value: Number(ent.startReputation) || 0, style: inputCss(false) + ';width:8em', 'aria-label': 'Starting reputation' });
+        rep.addEventListener('change', () => { A.updateEntity(S.selectedId, { startReputation: Number(rep.value) || 0 }); });
+        box.appendChild(rep);
     }
 
     // ---- Event trigger/effect editor (Phase E) ----
@@ -520,7 +525,8 @@ export default function initWorldsUI() {
         onFlag: [['key', 'text'], ['value', 'text']],
         onQuestState: [['questId', 'quest'], ['state', 'qstate']],
         onEvent: [['eventId', 'event']],
-        onAction: [['pattern', 'text']]
+        onAction: [['pattern', 'text']],
+        onReputation: [['factionId', 'faction'], ['tier', 'tier']]
     };
     const EFFECT_SPEC = {
         flag: [['key', 'text'], ['value', 'text']], unflag: [['key', 'text']],
@@ -528,18 +534,19 @@ export default function initWorldsUI() {
         quest: [['questId', 'quest'], ['state', 'qstate']], discover: [['quest', 'quest']],
         move: [['locationId', 'location']], npcmove: [['npcId', 'npc'], ['locationId', 'location']],
         advance: [['slots', 'number']], fireEvent: [['eventId', 'event']],
-        encounter: [['value', 'text']]   // a saved encounter's name or "2 Wolf, Goblin Warrior"
+        encounter: [['value', 'text']],   // a saved encounter's name or "2 Wolf, Goblin Warrior"
+        reputation: [['factionId', 'faction'], ['amount', 'number']]
     };
     function paramInput(kind, value, onChange) {
         const A = API();
-        if (kind === 'time' || kind === 'qstate') {
-            const opts = kind === 'time' ? TIME_SLOTS_UI : QSTATES;
+        if (kind === 'time' || kind === 'qstate' || kind === 'tier') {
+            const opts = kind === 'time' ? TIME_SLOTS_UI : kind === 'tier' ? A.reputationTiers() : QSTATES;
             const s = el('select', { style: inputCss(false) + ';cursor:pointer;flex:1' });
-            s.appendChild(el('option', { value: '', text: kind === 'time' ? 'time' : 'state' }));
+            s.appendChild(el('option', { value: '', text: kind === 'time' ? 'time' : kind === 'tier' ? 'tier' : 'state' }));
             for (const o of opts) { const op = el('option', { value: o, text: o }); if (value === o) op.selected = true; s.appendChild(op); }
             s.addEventListener('change', () => onChange(s.value)); return s;
         }
-        if (kind === 'location' || kind === 'quest' || kind === 'event' || kind === 'npc') {
+        if (kind === 'location' || kind === 'quest' || kind === 'event' || kind === 'npc' || kind === 'faction') {
             const nodes = A.getGraph().nodes.filter(n => n.type === kind);
             const s = el('select', { style: inputCss(false) + ';cursor:pointer;flex:1' });
             s.appendChild(el('option', { value: '', text: kind }));
@@ -1074,6 +1081,26 @@ export default function initWorldsUI() {
         }
     }
 
+    // Standing with every faction of the world (bar within the tier; creator lens can adjust).
+    function renderReputation(box) {
+        const A = API(); const list = A.reputation(); if (!list.length) return;
+        box.appendChild(lbl('Reputation'));
+        for (const r of list) {
+            const pct = r.span ? Math.max(0, Math.min(100, Math.round(r.into / r.span * 100))) : 100;
+            const card = el('div', { class: 'rpm-card', 'data-rep': r.id }, [
+                row([el('span', { class: 'rpm-grow', style: 'font-weight:bold', text: r.name }), el('span', { class: 'rpm-chip ' + (r.hostile ? 'rpm-chip-danger' : r.tier === 'Neutral' ? '' : 'rpm-chip-info'), 'data-tier': r.tier, text: r.tier })]),
+            ]);
+            const bar = el('div', { class: 'rpm-bar', title: r.next ? `${r.into}/${r.span} to ${r.next}` : 'highest tier' });
+            bar.appendChild(el('span', { style: `width:${pct}%;background:${r.hostile ? 'var(--rpm-danger)' : 'var(--rpm-info)'}` }));
+            card.appendChild(bar);
+            if (r.effect) card.appendChild(muted(r.effect));
+            if (uiMode() !== 'player') card.appendChild(row([
+                uiBtn('−50', () => { A.changeReputation(r.id, -50); refreshPanel(); }, { title: 'Lower the standing (creator)' }),
+                uiBtn('+50', () => { A.changeReputation(r.id, 50); refreshPanel(); }, { title: 'Raise the standing (creator)' }),
+            ], 'margin-top:4px'));
+            box.appendChild(card);
+        }
+    }
     // Combat window: src/game/combatView.js (encounter builder + fight).
     function renderCombatTab(box) { renderCombat(box, () => refreshPanel()); }
 
@@ -1166,7 +1193,7 @@ export default function initWorldsUI() {
         sh.registerView(Object.assign({ id: 'party', title: 'Party', place: 'left', order: 10 }, view(renderParty)));
         sh.registerView(Object.assign({ id: 'quest-tracker', title: 'Quests', place: 'left', order: 20 }, view(renderQuestTracker)));
         sh.registerView(Object.assign({ id: 'questlog', title: 'Quest log', place: 'window', window: { width: 380, height: 520 } }, view((c) => {
-            if (API().activeWorld()) renderQuestsTab(c); else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
+            if (API().activeWorld()) { renderQuestsTab(c); renderReputation(c); } else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
         })));
         sh.registerView(Object.assign({ id: 'combat', title: 'Combat', place: 'window', window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
             if (API().activeWorld()) renderCombatTab(c);
