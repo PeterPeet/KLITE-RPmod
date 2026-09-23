@@ -12,7 +12,8 @@
 
 Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
 Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks diffed,
-all present — see ARCHITECTURE §2 "Upgrading the host").
+all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
+`BackupData/`.
 
 ### What works (verified headless 2026-09-23 — `npm test`, 30 tests)
 - Bundle builds (esbuild, ES-module sources); all four modules load (ALPHA core, GuidedRP, Worlds engine, Worlds UI).
