@@ -120,7 +120,7 @@ function createHost({ settings = {} } = {}) {
     host.shell = () => w.KLITE_RPMod_Shell;
     host.api = () => w.KLITE_RPMod_Worlds;
     host.ui = () => w.KLITE_RPMod_WorldsUI;
-    host.worldsEntries = () => w.current_wi.filter(e => e && e.wigroup === '__worlds__');
+    host.worldsEntries = () => w.current_wi.filter(e => e && e.comment === '__rpmod__:worlds');
     host.close = () => { try { w.close(); } catch (_) {} };
     return host;
 }

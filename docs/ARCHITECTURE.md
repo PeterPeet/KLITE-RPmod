@@ -11,12 +11,15 @@
 | `KLITE-RPmod_ALPHA.js` (~17.7k lines) | `window.KLITE_RPMod` | Original mod: right-side panels CHARS / ROLES / TOOLS / CONTEXT / IMAGES, character gallery & editor, personas, group chat, save-bundle embedding, debug system |
 | `KLITE-RPmod_Worlds.js` (~1.6k) | `window.KLITE_RPMod_Worlds` | Worlds engine: world graph, retrieval, injection, runtime state, quests, triggers, combat |
 | `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds views for the shell (World tab, Party/Quests sections, Quest log/Combat/World editor windows) |
+| `context/context.js` | `window.KLITE_RPMod_Context` | **Single owner of per-turn prompt context**: providers, the one `prepare_submit_generation` wrapper, managed WI entries, save stripping (§3.3) |
 | `shell/shell.js`, `windows.js`, `styles.js`, `dom.js` | `window.KLITE_RPMod_Shell` | App shell: docks, view registry, floating windows, design tokens, top-bar button (§4a) |
 | `onboarding/onboarding.js`, `quickStart.js`, `guide.js`, `chapters.js`, `hostGlobals.js` | `window.KLITE_RPMod_Onboarding` | Getting started: RPmod section in Esolite's Quick Start, the Guide window with "Show me", "New here?" card, GuidedRP save passthrough (§4b) |
 
 - **Sources are ES modules** (strict mode). Each exports one default init function
   (`initShell`, `initAlpha`, `initWorlds`, `initWorldsUI`, `initOnboarding`); cross-module
-  access is via `window.*` only. `src/main.js` imports them and calls them (shell first), each in its own `try{…}catch` so one module's runtime error
+  access is via `window.*` only — except `context/context.js`, which ALPHA and Worlds
+  import (`getContext()`); it is a `window.KLITE_RPMod_Context` singleton, so separately
+  bundled copies (tests) share one instance. `src/main.js` imports them and calls them (shell first), each in its own `try{…}catch` so one module's runtime error
   cannot stop the others.
 - **Build** (`scripts/build-bundle.js`, `npm run build`): **esbuild** bundles `src/main.js`
   into one classic-script IIFE, `KLITE-RPmod.js` (repo root). Not minified; ordinary
@@ -111,23 +114,45 @@ Ops: `resetToBase / commitToBase / swapActive / setActiveSlot` (deep clones).
 **`rpmod_worlds`** (wrapped `generate_savefile` / `kai_json_load`). `API.runtime` returns
 the active snapshot (back-compat); `API.runtimeSlots` the container.
 
-### 3.3 Injection ("compile-to-WI")
-Each turn `computeActiveSlice()` builds sections; `sliceToEntries()` turns them into
-`constant:true` WI entries tagged `wigroup:'__worlds__'` pushed into `current_wi`, so
-Esolite's own engine injects them (size cap, context meter, insert position).
+### 3.3 Injection ("compile-to-WI") — owned by `src/context/context.js`
+All per-turn prompt context of RPmod goes through **`KLITE_RPMod_Context`**:
+- **Providers** `register({ id, order, enabled(), collect(ctx), persistent?(),
+  beforeTurn?(), afterTurn?() })`; `collect` returns `[{title, priority, text}]`.
+  Providers run by `order` (low first) and may call `ctx.describe(name)` /
+  `ctx.isDescribed(name)` to avoid repeating a character. Sections are sorted by
+  priority (high first, stable) and become `constant:true` WI entries
+  (`wigroup:'__rpmod__'`, `comment:'__rpmod__:<provider>'`) in `current_wi`, so Esolite's
+  own engine injects them (size cap, context meter, insert position).
+- **Current providers:** `characters` (ALPHA, order 10: persona 88, AI character /
+  group-chat speaker 87) and `worlds` (order 50, the slice below; its NPC line skips the
+  blurb for a described character).
+- **Why not `pending_context_preinjection`:** Esolite treats it as the start of the AI's
+  reply (printed into the output; overwritten in chat mode) — not a context channel.
+- **Turn:** the one wrapper around `prepare_submit_generation` (skipped for host slash
+  commands): `beforeTurn` hooks → `inject({mutate:true})` → host → cleanup → `afterTurn`.
+  `run(fn)` does the same for direct submits (ALPHA group chat); nested turns inject
+  once (depth counter). `install()` is idempotent (other wrappers may sit on top).
+- API: `register/unregister/providers/compose/preview/inject/remove/sync/run/install/
+  inTurn/isManaged`.
+- **Setup data is not context:** ALPHA's Start RP WI entries (`<name>_imported_memory`),
+  "load as scenario" Memory and Esolite's Quick Start write ordinary story data on
+  purpose; the context module does not manage them.
+
+Worlds' part: each turn `computeActiveSlice()` builds the sections.
 Sections (priority, high first): World premise (100, `world.description`), World Rules
 (100), Combat (96), Current Time (90), Player State (85), Current Location (80, always
 emitted), Nearby NPCs (70, with `!`/`?` markers, character blurb, stat line), Nearby
 Objects (50), Active Quests (45), Active Events (40), Relevant Lore (30).
-`config.injectMode`:
+`config.injectMode` (Worlds' `persistent()` for the context):
 - `transient` (default): inject in the prepare wrapper, remove right after — **except**
   when websearch is active or agent mode is enabled (then kept for the turn and refreshed
   next turn).
-- `persistent`: managed entries stay live while enabled.
-Managed entries are **always stripped from every savefile**. Generation flow in the
-wrapper: `processPendingMutations()` (parse new chat tags) → `fireTriggers('turn')` →
-`injectManaged({mutate:true})` → host generation → cleanup → reset fired-events buffer.
-`preview()` is side-effect free.
+- `persistent`: managed entries (all providers') stay live while enabled.
+Managed entries (`__rpmod__`, legacy `__worlds__`) are **always stripped from every
+savefile**. Worlds' turn hooks: `beforeTurn` = `processPendingMutations()` (parse new chat
+tags) → `fireTriggers('turn')`; `afterTurn` = reset fired-events buffer + notify views.
+`W.preview()` is the Worlds part only, `KLITE_RPMod_Context.preview()` everything; both
+side-effect free.
 
 ### 3.4 Chat tags (`parseMutations`)
 `<move>`, `<npcmove>N=L`, `<mood>N=M`, `<flag>k=v`, `<unflag>`, `<give>Item xN`,
@@ -259,10 +284,10 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
 ## 5. ALPHA core (`src/KLITE-RPmod_ALPHA.js`) — overview
 Right-side panels; character gallery/import (TavernCard V2, partial V3) and editor;
 personas; group chat (speaker modes, round robin, talkativeness); quick actions; chapters;
-image generation panel. Saves its own state under savefile key **`rpmod`**. Injects
-character/persona data itself via WI entries with comment suffix `_imported_memory` and
-via `pending_context_preinjection` (`rpmod_prepend_preinjection`) — overlaps with Worlds
-persons (roadmap known issue). Security helpers: `KLITE_RPMod.escapeHtml`,
+image generation panel. Saves its own state under savefile key **`rpmod`**. Per-turn
+persona/character context is its `characters` provider (§3.3). Setup actions still write
+story data: Start RP → WI entries with comment suffix `_imported_memory`; load as scenario
+→ Memory (R2 decides with the character model). Security helpers: `KLITE_RPMod.escapeHtml`,
 `KLITE_RPMod.safeImageHTML`. Debug: `KLITE_RPDebug.on('worlds,chat,…')`.
 
 ## 6. Tests (`tests/`)
@@ -270,7 +295,7 @@ Node's built-in runner + jsdom. `tests/helpers/host.js` builds a fake Esolite ho
 globals in §2, a recording `submit_generation`, `seedRandom` for dice) and loads sources
 via `vm` like a usermod (single `src/` modules are bundled on the fly with esbuild; the
 viewport is 1400×900, `host.resize()` changes it). Suites: `syntax`, `engine`, `quests`,
-`triggers`, `combat`, `shell`, `ui`, `onboarding`, `bundle` (built file end-to-end).
+`triggers`, `combat`, `context`, `shell`, `ui`, `onboarding`, `bundle` (built file end-to-end).
 `host.installFakeQuickStart()` mimics Esolite's Quick Start (top-level `let` bindings +
 popupUtils). The helper uses jsdom's own VM context (`runScripts: 'outside-only'`) so page
 intrinsics behave like a browser. `npm test` runs `scripts/run-tests.js`, which fails if

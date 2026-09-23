@@ -126,7 +126,7 @@ export const CHAPTERS = [
     {
         id: 'ai-view', title: 'What the AI sees',
         blocks: [
-            { p: 'Curious what the game master knows right now? "Preview what the AI sees" in the World tab shows the exact text RPmod adds to this turn: location, people present, active events, quests and combat.' },
+            { p: 'Curious what the game master knows right now? "Preview what the AI sees" in the World tab shows the exact text RPmod adds to this turn: your persona and the AI\'s character (when enabled in Tools), location, people present, active events, quests and combat.' },
             { p: 'If the AI forgets something, check here first: whatever is not in the preview, the AI cannot know.' },
         ],
         show: [{ label: 'Preview button', run: (c) => { c.open('world'); c.highlight(() => [...document.querySelectorAll('#wm-panel button')].find(b => /Preview what the AI sees/.test(b.textContent)), 'Shows the AI\'s view of this turn'); } }],

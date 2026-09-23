@@ -3,6 +3,7 @@
 // Creator: Peter Hauer | GPL-3.0 License
 // https://github.com/PeterPeet/
 // =============================================
+import { getContext } from './context/context.js';
 
 export default function initAlpha() {
     'use strict';
@@ -145,93 +146,49 @@ export default function initAlpha() {
     })();
 
     // =============================================
-    // 0. LIGHTWEIGHT SHIMS FOR CONTEXT/COUNT ACCESS
+    // PER-TURN CHARACTER CONTEXT (provider 'characters' of src/context/context.js)
     // =============================================
-    function rpmod_count_tokens_safe(txt) {
-      try { return (window.count_tokens ? window.count_tokens(String(txt||"")) : Math.ceil(String(txt||"").length/4)); } catch(_) { return Math.ceil(String(txt||"").length/4); }
+    // What the AI gets about the people in the scene each turn:
+    //   • the user's persona — Tools tab, persona enabled + selected
+    //   • the AI character — group chat (Roles enabled): the current speaker;
+    //     otherwise Tools tab, character enabled + selected
+    // Marked as described so Worlds lists the same person without repeating the card.
+    // (pending_context_preinjection is not a context channel: Esolite prints it at the
+    // start of the AI's reply and overwrites it in chat mode.)
+    function cardField(c, f) {
+        if (!c) return '';
+        const v = c[f] ?? c.data?.[f] ?? c.rawData?.data?.[f];
+        return v == null ? '' : String(v).trim();
     }
-    function rpmod_concat_history_safe() {
-      try { return (window.concat_gametext ? window.concat_gametext(true, "","","",false,true) : (Array.isArray(window.gametext_arr)?window.gametext_arr.join(""):"")); } catch(_) { return ""; }
+    function characterContextText(c) {
+        const lines = [];
+        const desc = cardField(c, 'description') || cardField(c, 'content');
+        const pers = cardField(c, 'personality');
+        const scen = cardField(c, 'scenario');
+        if (desc) lines.push('Description: ' + desc);
+        if (pers) lines.push('Personality: ' + pers);
+        if (scen) lines.push('Scenario: ' + scen);
+        return lines.join('\n');
     }
-    function rpmod_get_max_allowed_chars(base) {
-      try {
-        if (typeof window.getMaxAllowedCharacters === 'function' && window.localsettings) {
-          return window.getMaxAllowedCharacters(String(base||""), window.localsettings.max_context_length, window.localsettings.max_length);
-        }
-      } catch(_){ }
-      // Fallback estimate: context minus generation, assume ~3.5 chars/token nominal
-      try {
-        const ls = window.localsettings || { max_context_length: 2048, max_length: 256 };
-        const chars_per_token = 3.5 * ((ls.token_count_multiplier||100) * 0.01);
-        return Math.max(1, Math.floor(((ls.max_context_length - ls.max_length) * chars_per_token)) - 12);
-      } catch(_) { return 2048; }
+    function collectCharacterContext(ctx) {
+        const P = (window.KLITE_RPMod && window.KLITE_RPMod.panels) || {};
+        const tools = P.TOOLS, roles = P.ROLES;
+        const out = [];
+        const add = (c, label, priority) => {
+            const name = cardField(c, 'name');
+            if (!name || ctx.isDescribed(name)) return;
+            out.push({ title: `${label}: ${name}`, priority, text: characterContextText(c) });
+            ctx.describe(name);
+        };
+        if (tools?.personaEnabled && tools.selectedPersona) add(tools.selectedPersona, 'User Character', 88);
+        let aiChar = null;
+        if (roles?.enabled) { try { aiChar = roles.getCurrentSpeaker(); } catch (_) {} }
+        else if (tools?.characterEnabled && tools.selectedCharacter) aiChar = tools.selectedCharacter;
+        if (aiChar) add(aiChar, 'Character', 87);
+        return out;
     }
-    // Prepend into Lite's pending_context_preinjection so our text sits at the end
-    function rpmod_prepend_preinjection(injection) {
-      if (!injection) return;
-      try {
-        const existing = (typeof window.pending_context_preinjection === 'string') ? window.pending_context_preinjection : '';
-        const sep = (existing && !existing.startsWith("\n")) ? "\n\n" : "\n\n";
-        window.pending_context_preinjection = String(injection) + sep + existing;
-      } catch(_) {}
-    }
-
-    // Wrap Lite's chat_submit_generation so regular submit respects ROLES management
-    (function setupSubmitWrapper(){
-      try {
-        // In panels-only mode, do not wrap/alter host submit behavior
-        if (window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.panelsOnly) return;
-        if (typeof window.chat_submit_generation === 'function' && !window._orig_chat_submit_generation) {
-          window._orig_chat_submit_generation = window.chat_submit_generation;
-          window.chat_submit_generation = function(){
-            try {
-              // If ROLES group is enabled, route to the panel's trigger
-              if (KLITE_RPMod?.panels?.ROLES?.enabled) {
-                return KLITE_RPMod.panels.ROLES.triggerCurrentSpeaker();
-              }
-              // Single mode: if persona/character are enabled, build a tail injection
-              const tools = KLITE_RPMod?.panels?.TOOLS;
-              const blocks = [];
-              if (tools?.personaEnabled && tools?.selectedPersona) {
-                const p = tools.selectedPersona;
-                const pdesc = (p.description || p.content || '').trim();
-                const ppers = (p.personality || '').trim();
-                const pparts = [`[User Character: ${(p.name||'').trim()}]`];
-                if (pdesc) pparts.push(`Description: ${pdesc}`);
-                if (ppers) pparts.push(`Personality: ${ppers}`);
-                blocks.push(pparts.join('\n'));
-              }
-              if (tools?.characterEnabled && tools?.selectedCharacter) {
-                const c = tools.selectedCharacter;
-                const cdesc = (c.description || c.content || '').trim();
-                const cpers = (c.personality || '').trim();
-                const cscn = (c.scenario || '').trim();
-                const cn = (c.creator_notes || c.post_history_instructions || '').trim();
-                const cparts = [`[Character: ${(c.name||'').trim()}]`];
-                if (cdesc) cparts.push(`Description: ${cdesc}`);
-                if (cpers) cparts.push(`Personality: ${cpers}`);
-                if (cscn) cparts.push(`Scenario: ${cscn}`);
-                if (cn) cparts.push(`Notes: ${cn}`);
-                blocks.push(cparts.join('\n'));
-                // also align AI name for single mode
-                try { if (window.localsettings) window.localsettings.chatopponent = (c.name||window.localsettings.chatopponent||'AI'); } catch(_){ }
-              }
-              if (blocks.length>0) {
-                const base = (window.current_temp_memory||'') + rpmod_concat_history_safe();
-                const inj = blocks.join('\n\n');
-                const cap = rpmod_get_max_allowed_chars(base);
-                if (base.length + inj.length > cap) {
-                  alert('Character data exceeds available context budget. Reduce character data to proceed.');
-                  return;
-                }
-                rpmod_prepend_preinjection(inj);
-              }
-            } catch(_){ }
-            return window._orig_chat_submit_generation();
-          };
-        }
-      } catch(_){ }
-    })();
+    try { getContext().register({ id: 'characters', order: 10, collect: collectCharacterContext }); }
+    catch (e) { console.warn('[RPMod] context provider registration failed:', e); }
 
     // =============================================
     // 1. COMPLETE CSS WITH ALL PANEL STYLES
@@ -5816,11 +5773,6 @@ export default function initAlpha() {
                 window.submit_generation_button = (...args) => {
                     self.log('generation', 'Submit generation triggered');
 
-                    // Inject character context dynamically
-                    if (self.injectCharacterContext) {
-                        self.injectCharacterContext();
-                    }
-
                     // Handle adventure mode behavior - may cancel generation
                     if (self.handleAdventureMode() === false) {
                         self.log('generation', 'Generation cancelled by adventure mode handler');
@@ -10221,86 +10173,6 @@ export default function initAlpha() {
         },
 
 
-        getCharacterContext() {
-            // Build character context for dynamic injection during generation
-            const parts = [];
-
-            // Helper to compose a rich snippet similar to ROLES injection
-            const buildSnippet = (obj, label) => {
-                if (!obj) return '';
-                const name = (obj.name || '').trim();
-                const desc = (obj.description || obj.content || '').trim();
-                const personality = (obj.personality || '').trim();
-                const scenario = (obj.scenario || '').trim();
-                const notes = (obj.creator_notes || obj.post_history_instructions || '').trim();
-                const lines = [`[${label}: ${name}]`];
-                if (desc) lines.push(`Description: ${desc}`);
-                if (personality) lines.push(`Personality: ${personality}`);
-                if (scenario) lines.push(`Scenario: ${scenario}`);
-                if (notes) lines.push(`Notes: ${notes}`);
-                return lines.join('\n');
-            };
-
-            // Add persona context if enabled and selected
-            if (this.personaEnabled && this.selectedPersona) {
-                parts.push(buildSnippet(this.selectedPersona, 'User Character'));
-            }
-
-            // Add character context if enabled and selected
-            if (this.characterEnabled && this.selectedCharacter) {
-                parts.push(buildSnippet(this.selectedCharacter, 'Character'));
-            }
-
-            return parts.filter(Boolean).join('\n\n');
-        },
-
-        injectCharacterContext() {
-            // Get character context data
-            const characterContext = this.getCharacterContext();
-
-            // Only inject if there's context to add
-            if (!characterContext.trim()) {
-                this.log('generation', 'No character context to inject');
-                return;
-            }
-
-            // Get the input element
-            const input = document.getElementById('input_text');
-            if (!input) {
-                this.log('generation', 'Input element not found, cannot inject character context');
-                return;
-            }
-
-            // Get current input value
-            const currentInput = input.value || '';
-            // Capacity check against available context budget
-            try {
-                const base = (window.current_temp_memory || '') + rpmod_concat_history_safe() + currentInput;
-                const cap = rpmod_get_max_allowed_chars(base);
-                const projected = base.length + characterContext.length;
-                if (projected > cap) {
-                    alert('Character data exceeds available context budget. Reduce character data to proceed.');
-                    return;
-                }
-            } catch(_) {}
-
-            // Inject character context at the beginning of the input
-            // This ensures character context is applied without permanently modifying memory
-            const injectedInput = characterContext + currentInput;
-
-            // Temporarily set the modified input
-            input.value = injectedInput;
-
-            this.log('generation', `Character context injected (${characterContext.length} chars)`);
-            this.log('generation', `Persona enabled: ${this.personaEnabled}, Character enabled: ${this.characterEnabled}`);
-            if (this.selectedPersona) {
-                this.log('generation', `Active persona: ${this.selectedPersona.name}`);
-            }
-            if (this.selectedCharacter) {
-                this.log('generation', `Active character: ${this.selectedCharacter.name}`);
-            }
-        },
-
         editLast() {
             if (window.gametext_arr && gametext_arr.length > 0) {
                 const lastEntry = gametext_arr[gametext_arr.length - 1];
@@ -12214,61 +12086,6 @@ Outline:`
             return this.activeChars[this.currentSpeaker];
         },
 
-        // Build a compact character snippet suitable for tail injection
-        _buildCharacterSnippet(charObj, label) {
-            if (!charObj) return '';
-            const name = (charObj.name || '').trim();
-            const desc = (charObj.description || charObj.content || '').trim();
-            const personality = (charObj.personality || '').trim();
-            const scenario = (charObj.scenario || '').trim();
-            const notes = (charObj.creator_notes || charObj.post_history_instructions || '').trim();
-            const parts = [];
-            parts.push(`[${label}: ${name}]`);
-            if (desc) parts.push(`Description: ${desc}`);
-            if (personality) parts.push(`Personality: ${personality}`);
-            if (scenario) parts.push(`Scenario: ${scenario}`);
-            if (notes) parts.push(`Notes: ${notes}`);
-            return parts.join('\n');
-        },
-
-        // Prepare and set tail injection for current turn; returns {ok:boolean, reason?:string}
-        _prepareTailInjectionForTurn() {
-            try {
-                const speaker = this.getCurrentSpeaker();
-                const personaEnabled = !!KLITE_RPMod.panels.TOOLS?.personaEnabled;
-                const selectedPersona = KLITE_RPMod.panels.TOOLS?.selectedPersona;
-
-                const blocks = [];
-                // User persona (if enabled)
-                if (personaEnabled && selectedPersona) {
-                    blocks.push(this._buildCharacterSnippet(selectedPersona, 'User Character'));
-                } else {
-                    // at minimum annotate the user name if present
-                    const uname = (window.localsettings?.chatname || '').trim();
-                    if (uname) blocks.push(`[User: ${uname}]`);
-                }
-                // AI current speaker
-                if (speaker) {
-                    blocks.push(this._buildCharacterSnippet(speaker, 'Character'));
-                }
-                const injection = blocks.filter(Boolean).join('\n\n');
-
-                // Capacity check using Lite's estimator
-                const base = (window.current_temp_memory||'') + rpmod_concat_history_safe();
-                const cap = rpmod_get_max_allowed_chars(base);
-                const projected = base.length + injection.length;
-                if (projected > cap) {
-                    return { ok:false, reason:'Character data exceeds available context budget. Reduce character data or disable some roles.' };
-                }
-
-                // Prepend into pending_context_preinjection so it becomes part of tail
-                rpmod_prepend_preinjection(injection);
-                return { ok:true };
-            } catch (e) {
-                return { ok:true }; // fail open
-            }
-        },
-
         triggerCurrentSpeaker() {
             KLITE_RPMod.log('group', 'Triggering current speaker via advanced handler');
             const speaker = this.getCurrentSpeaker();
@@ -12318,30 +12135,23 @@ Outline:`
 
             // Do not override group participants list in host; keep chatopponent as full group.
 
-            // Build tail injection for this turn; warn and abort if overflowing
-            const prep = this._prepareTailInjectionForTurn();
-            if (!prep.ok) {
-                try { alert(prep.reason); } catch(_) {}
-                return;
-            }
-
-            // Trigger generation in Lite: align with narrator flow
-            // If same speaker as last turn, prefer a fresh turn routine
-            // Prefer original chat_submit_generation so inputs are piped correctly
-            const callOrig = (fn)=>{ try { return fn(); } catch(_){ return; } };
-            if (this.lastSpeaker === this.currentSpeaker && typeof window.submit_generation === 'function' && !window._orig_chat_submit_generation) {
-                window.submit_generation('');
-            } else if (typeof window._orig_chat_submit_generation === 'function') {
-                callOrig(window._orig_chat_submit_generation);
-            } else if (typeof window.chat_submit_generation === 'function') {
-                window.chat_submit_generation();
-            } else if (typeof window.submit_generation === 'function') {
-                window.submit_generation('');
-            } else if (typeof window.submit_generation_button === 'function') {
-                window.submit_generation_button();
-            } else {
-                KLITE_RPMod.log('panels', 'Generation function unavailable');
-            }
+            // Trigger generation in Lite. The whole dispatch is one context turn
+            // (src/context): the speaker's card, the persona and the Worlds slice are
+            // placed once, also when the call bypasses prepare_submit_generation.
+            // If same speaker as last turn, prefer a fresh turn routine.
+            getContext().run(() => {
+                if (this.lastSpeaker === this.currentSpeaker && typeof window.submit_generation === 'function') {
+                    window.submit_generation('');
+                } else if (typeof window.chat_submit_generation === 'function') {
+                    window.chat_submit_generation();
+                } else if (typeof window.submit_generation === 'function') {
+                    window.submit_generation('');
+                } else if (typeof window.submit_generation_button === 'function') {
+                    window.submit_generation_button();
+                } else {
+                    KLITE_RPMod.log('panels', 'Generation function unavailable');
+                }
+            });
 
             // Update Last marker and history entry
             try {

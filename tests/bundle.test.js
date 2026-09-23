@@ -23,5 +23,5 @@ test('bundle: all modules attach and the Worlds pipeline works end to end', asyn
     assert.equal(h.worldsEntries().length, 0, 'transient cleanup');
     const save = w.generate_savefile();
     assert.ok(save.rpmod_worlds, 'Worlds state embedded in save');
-    assert.ok(!save.worldinfo.some(e => e.wigroup === '__worlds__'), 'no temp WI in save');
+    assert.ok(!save.worldinfo.some(e => e.wigroup === '__rpmod__' || e.wigroup === '__worlds__'), 'no temp WI in save');
 });

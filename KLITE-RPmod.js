@@ -967,6 +967,220 @@ body.rpm-docked #maincontainer {
     else window.addEventListener("load", mount);
   }
 
+  // src/context/context.js
+  var WI_GROUP = "__rpmod__";
+  var LEGACY_GROUPS = ["__worlds__"];
+  var norm = (s) => String(s == null ? "" : s).replace(/\r\n/g, "\n").trim();
+  var charKey = (name) => norm(name).toLowerCase();
+  var isManaged = (e) => !!(e && (e.wigroup === WI_GROUP || LEGACY_GROUPS.includes(e.wigroup)));
+  function getContext() {
+    if (window.KLITE_RPMod_Context) return window.KLITE_RPMod_Context;
+    const api = createContext();
+    window.KLITE_RPMod_Context = api;
+    return api;
+  }
+  function createContext() {
+    "use strict";
+    const providers = /* @__PURE__ */ new Map();
+    let depth = 0;
+    function register(def) {
+      if (!def || !def.id || typeof def.collect !== "function") throw new Error("KLITE_RPMod_Context.register: need { id, collect }");
+      providers.set(def.id, def);
+      return api;
+    }
+    function unregister(id) {
+      providers.delete(id);
+    }
+    function call(p, fn, arg) {
+      try {
+        return typeof p[fn] === "function" ? p[fn](arg) : void 0;
+      } catch (e) {
+        console.error("[RPmod context] provider failed:", p.id, fn, e);
+        return void 0;
+      }
+    }
+    function active() {
+      return [...providers.values()].filter((p) => typeof p.enabled !== "function" || call(p, "enabled")).sort((a, b) => (a.order ?? 100) - (b.order ?? 100) || String(a.id).localeCompare(String(b.id)));
+    }
+    const persistent = () => active().some((p) => call(p, "persistent"));
+    function compose(opts) {
+      const mutate = !!(opts && opts.mutate);
+      const only = opts && opts.provider;
+      const described = /* @__PURE__ */ new Set();
+      const ctx = {
+        mutate,
+        describe(name) {
+          const k = charKey(name);
+          if (k) described.add(k);
+        },
+        isDescribed(name) {
+          return described.has(charKey(name));
+        }
+      };
+      const out = [];
+      for (const p of active()) {
+        const secs = call(p, "collect", ctx);
+        if (only && p.id !== only) continue;
+        for (const s of Array.isArray(secs) ? secs : []) {
+          if (!s || !norm(s.title) && !norm(s.text)) continue;
+          out.push({ provider: p.id, title: norm(s.title), priority: Number(s.priority) || 0, text: norm(s.text) });
+        }
+      }
+      return out.map((s, i) => [s, i]).sort((a, b) => b[0].priority - a[0].priority || a[1] - b[1]).map((x) => x[0]);
+    }
+    const formatSection = (s) => s.text ? s.title ? `[${s.title}]
+${s.text}` : s.text : `[${s.title}]`;
+    function toEntry(s) {
+      return {
+        key: "",
+        keysecondary: "",
+        keyanti: "",
+        content: formatSection(s),
+        comment: WI_GROUP + ":" + s.provider,
+        wigroup: WI_GROUP,
+        constant: true,
+        selective: false,
+        probability: 100,
+        widisabled: false
+      };
+    }
+    function refreshWiEditor() {
+      try {
+        if (typeof window.update_wi !== "function") return;
+        const cont = document.getElementById("wi_tab_container");
+        if (cont && cont.classList && !cont.classList.contains("hidden")) window.update_wi();
+      } catch (_) {
+      }
+    }
+    function remove() {
+      try {
+        if (Array.isArray(window.current_wi)) window.current_wi = window.current_wi.filter((e) => !isManaged(e));
+      } catch (e) {
+        console.error("[RPmod context] remove failed", e);
+      }
+    }
+    function inject(opts) {
+      try {
+        if (!Array.isArray(window.current_wi)) window.current_wi = [];
+        remove();
+        const entries = compose(opts).map(toEntry);
+        for (const e of entries) window.current_wi.push(e);
+        refreshWiEditor();
+        return entries.length;
+      } catch (e) {
+        console.error("[RPmod context] inject failed", e);
+        return 0;
+      }
+    }
+    function sync() {
+      if (depth > 0) return;
+      if (persistent()) inject();
+      else {
+        remove();
+        refreshWiEditor();
+      }
+    }
+    function preview(opts) {
+      return compose(opts).map(formatSection).join("\n\n");
+    }
+    function websearchActive() {
+      try {
+        return !!(window.localsettings && window.localsettings.websearch_enabled && typeof window.is_using_kcpp_with_websearch === "function" && window.is_using_kcpp_with_websearch());
+      } catch (_) {
+        return false;
+      }
+    }
+    function agentModeEnabled() {
+      try {
+        const ls = window.localsettings;
+        return !!(ls && ls.opmode == 4 && ls.agentBehaviour);
+      } catch (_) {
+        return false;
+      }
+    }
+    function isHostSlashCommand() {
+      try {
+        const input = document.getElementById("input_text");
+        const text = input ? String(input.value || "") : "";
+        if (!text.startsWith("/") || typeof window.customtools_sanitize_list !== "function") return false;
+        const name = (text.slice(1).match(/^\S*/) || [""])[0];
+        const tools = window.customtools_sanitize_list(window.localsettings && window.localsettings.custom_tools);
+        return Array.isArray(tools) && tools.some((t) => t && t.name === name && t.userCallable);
+      } catch (_) {
+        return false;
+      }
+    }
+    function runTurn(fn, thisArg, args, skip) {
+      if (depth > 0 || skip) return fn.apply(thisArg, args || []);
+      depth++;
+      const turnProviders = active();
+      try {
+        for (const p of turnProviders) call(p, "beforeTurn");
+        inject({ mutate: true });
+      } catch (_) {
+      }
+      try {
+        return fn.apply(thisArg, args || []);
+      } finally {
+        depth--;
+        try {
+          if (!persistent() && !websearchActive() && !agentModeEnabled()) {
+            remove();
+            refreshWiEditor();
+          }
+          for (const p of turnProviders) call(p, "afterTurn");
+        } catch (_) {
+        }
+      }
+    }
+    function run(fn) {
+      return runTurn(fn, null, [], false);
+    }
+    let hooked = { prepare: false, save: false };
+    function install() {
+      if (!hooked.prepare && typeof window.prepare_submit_generation === "function") {
+        const orig = window.prepare_submit_generation;
+        const wrapped = function() {
+          return runTurn(orig, this, arguments, isHostSlashCommand());
+        };
+        wrapped.__rpmod_context = true;
+        window.prepare_submit_generation = wrapped;
+        hooked.prepare = true;
+      }
+      if (!hooked.save && typeof window.generate_savefile === "function") {
+        hooked.save = true;
+        const origGen = window.generate_savefile;
+        const wrappedGen = function() {
+          const obj = origGen.apply(this, arguments);
+          try {
+            if (obj && Array.isArray(obj.worldinfo)) obj.worldinfo = obj.worldinfo.filter((e) => !isManaged(e));
+          } catch (_) {
+          }
+          return obj;
+        };
+        wrappedGen.__rpmod_context = true;
+        window.generate_savefile = wrappedGen;
+      }
+      return hooked.prepare;
+    }
+    const api = {
+      WI_GROUP,
+      register,
+      unregister,
+      providers: () => active().map((p) => p.id),
+      compose,
+      preview,
+      inject,
+      remove,
+      sync,
+      run,
+      install,
+      inTurn: () => depth > 0,
+      isManaged
+    };
+    return api;
+  }
+
   // src/KLITE-RPmod_ALPHA.js
   function initAlpha() {
     "use strict";
@@ -1128,100 +1342,47 @@ body.rpm-docked #maincontainer {
       } catch (_) {
       }
     })();
-    function rpmod_count_tokens_safe(txt) {
-      try {
-        return window.count_tokens ? window.count_tokens(String(txt || "")) : Math.ceil(String(txt || "").length / 4);
-      } catch (_) {
-        return Math.ceil(String(txt || "").length / 4);
-      }
+    function cardField(c, f) {
+      if (!c) return "";
+      const v = c[f] ?? c.data?.[f] ?? c.rawData?.data?.[f];
+      return v == null ? "" : String(v).trim();
     }
-    function rpmod_concat_history_safe() {
-      try {
-        return window.concat_gametext ? window.concat_gametext(true, "", "", "", false, true) : Array.isArray(window.gametext_arr) ? window.gametext_arr.join("") : "";
-      } catch (_) {
-        return "";
-      }
+    function characterContextText(c) {
+      const lines = [];
+      const desc = cardField(c, "description") || cardField(c, "content");
+      const pers = cardField(c, "personality");
+      const scen = cardField(c, "scenario");
+      if (desc) lines.push("Description: " + desc);
+      if (pers) lines.push("Personality: " + pers);
+      if (scen) lines.push("Scenario: " + scen);
+      return lines.join("\n");
     }
-    function rpmod_get_max_allowed_chars(base) {
-      try {
-        if (typeof window.getMaxAllowedCharacters === "function" && window.localsettings) {
-          return window.getMaxAllowedCharacters(String(base || ""), window.localsettings.max_context_length, window.localsettings.max_length);
+    function collectCharacterContext(ctx) {
+      const P = window.KLITE_RPMod && window.KLITE_RPMod.panels || {};
+      const tools = P.TOOLS, roles = P.ROLES;
+      const out = [];
+      const add = (c, label, priority) => {
+        const name = cardField(c, "name");
+        if (!name || ctx.isDescribed(name)) return;
+        out.push({ title: `${label}: ${name}`, priority, text: characterContextText(c) });
+        ctx.describe(name);
+      };
+      if (tools?.personaEnabled && tools.selectedPersona) add(tools.selectedPersona, "User Character", 88);
+      let aiChar = null;
+      if (roles?.enabled) {
+        try {
+          aiChar = roles.getCurrentSpeaker();
+        } catch (_) {
         }
-      } catch (_) {
-      }
-      try {
-        const ls = window.localsettings || { max_context_length: 2048, max_length: 256 };
-        const chars_per_token = 3.5 * ((ls.token_count_multiplier || 100) * 0.01);
-        return Math.max(1, Math.floor((ls.max_context_length - ls.max_length) * chars_per_token) - 12);
-      } catch (_) {
-        return 2048;
-      }
+      } else if (tools?.characterEnabled && tools.selectedCharacter) aiChar = tools.selectedCharacter;
+      if (aiChar) add(aiChar, "Character", 87);
+      return out;
     }
-    function rpmod_prepend_preinjection(injection) {
-      if (!injection) return;
-      try {
-        const existing = typeof window.pending_context_preinjection === "string" ? window.pending_context_preinjection : "";
-        const sep = existing && !existing.startsWith("\n") ? "\n\n" : "\n\n";
-        window.pending_context_preinjection = String(injection) + sep + existing;
-      } catch (_) {
-      }
+    try {
+      getContext().register({ id: "characters", order: 10, collect: collectCharacterContext });
+    } catch (e) {
+      console.warn("[RPMod] context provider registration failed:", e);
     }
-    (function setupSubmitWrapper() {
-      try {
-        if (window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.panelsOnly) return;
-        if (typeof window.chat_submit_generation === "function" && !window._orig_chat_submit_generation) {
-          window._orig_chat_submit_generation = window.chat_submit_generation;
-          window.chat_submit_generation = function() {
-            try {
-              if (KLITE_RPMod?.panels?.ROLES?.enabled) {
-                return KLITE_RPMod.panels.ROLES.triggerCurrentSpeaker();
-              }
-              const tools = KLITE_RPMod?.panels?.TOOLS;
-              const blocks = [];
-              if (tools?.personaEnabled && tools?.selectedPersona) {
-                const p = tools.selectedPersona;
-                const pdesc = (p.description || p.content || "").trim();
-                const ppers = (p.personality || "").trim();
-                const pparts = [`[User Character: ${(p.name || "").trim()}]`];
-                if (pdesc) pparts.push(`Description: ${pdesc}`);
-                if (ppers) pparts.push(`Personality: ${ppers}`);
-                blocks.push(pparts.join("\n"));
-              }
-              if (tools?.characterEnabled && tools?.selectedCharacter) {
-                const c = tools.selectedCharacter;
-                const cdesc = (c.description || c.content || "").trim();
-                const cpers = (c.personality || "").trim();
-                const cscn = (c.scenario || "").trim();
-                const cn = (c.creator_notes || c.post_history_instructions || "").trim();
-                const cparts = [`[Character: ${(c.name || "").trim()}]`];
-                if (cdesc) cparts.push(`Description: ${cdesc}`);
-                if (cpers) cparts.push(`Personality: ${cpers}`);
-                if (cscn) cparts.push(`Scenario: ${cscn}`);
-                if (cn) cparts.push(`Notes: ${cn}`);
-                blocks.push(cparts.join("\n"));
-                try {
-                  if (window.localsettings) window.localsettings.chatopponent = c.name || window.localsettings.chatopponent || "AI";
-                } catch (_) {
-                }
-              }
-              if (blocks.length > 0) {
-                const base = (window.current_temp_memory || "") + rpmod_concat_history_safe();
-                const inj = blocks.join("\n\n");
-                const cap = rpmod_get_max_allowed_chars(base);
-                if (base.length + inj.length > cap) {
-                  alert("Character data exceeds available context budget. Reduce character data to proceed.");
-                  return;
-                }
-                rpmod_prepend_preinjection(inj);
-              }
-            } catch (_) {
-            }
-            return window._orig_chat_submit_generation();
-          };
-        }
-      } catch (_) {
-      }
-    })();
     try {
       if (typeof window.niko_square === "undefined") window.niko_square = "";
     } catch (_) {
@@ -6687,9 +6848,6 @@ ${parts.join("\n")})))`;
           const self = this;
           window.submit_generation_button = (...args) => {
             self.log("generation", "Submit generation triggered");
-            if (self.injectCharacterContext) {
-              self.injectCharacterContext();
-            }
             if (self.handleAdventureMode() === false) {
               self.log("generation", "Generation cancelled by adventure mode handler");
               return;
@@ -10585,63 +10743,6 @@ ${parts.join("\n")})))`;
         } catch (_) {
         }
       },
-      getCharacterContext() {
-        const parts = [];
-        const buildSnippet = (obj, label) => {
-          if (!obj) return "";
-          const name = (obj.name || "").trim();
-          const desc = (obj.description || obj.content || "").trim();
-          const personality = (obj.personality || "").trim();
-          const scenario = (obj.scenario || "").trim();
-          const notes = (obj.creator_notes || obj.post_history_instructions || "").trim();
-          const lines = [`[${label}: ${name}]`];
-          if (desc) lines.push(`Description: ${desc}`);
-          if (personality) lines.push(`Personality: ${personality}`);
-          if (scenario) lines.push(`Scenario: ${scenario}`);
-          if (notes) lines.push(`Notes: ${notes}`);
-          return lines.join("\n");
-        };
-        if (this.personaEnabled && this.selectedPersona) {
-          parts.push(buildSnippet(this.selectedPersona, "User Character"));
-        }
-        if (this.characterEnabled && this.selectedCharacter) {
-          parts.push(buildSnippet(this.selectedCharacter, "Character"));
-        }
-        return parts.filter(Boolean).join("\n\n");
-      },
-      injectCharacterContext() {
-        const characterContext = this.getCharacterContext();
-        if (!characterContext.trim()) {
-          this.log("generation", "No character context to inject");
-          return;
-        }
-        const input = document.getElementById("input_text");
-        if (!input) {
-          this.log("generation", "Input element not found, cannot inject character context");
-          return;
-        }
-        const currentInput = input.value || "";
-        try {
-          const base = (window.current_temp_memory || "") + rpmod_concat_history_safe() + currentInput;
-          const cap = rpmod_get_max_allowed_chars(base);
-          const projected = base.length + characterContext.length;
-          if (projected > cap) {
-            alert("Character data exceeds available context budget. Reduce character data to proceed.");
-            return;
-          }
-        } catch (_) {
-        }
-        const injectedInput = characterContext + currentInput;
-        input.value = injectedInput;
-        this.log("generation", `Character context injected (${characterContext.length} chars)`);
-        this.log("generation", `Persona enabled: ${this.personaEnabled}, Character enabled: ${this.characterEnabled}`);
-        if (this.selectedPersona) {
-          this.log("generation", `Active persona: ${this.selectedPersona.name}`);
-        }
-        if (this.selectedCharacter) {
-          this.log("generation", `Active character: ${this.selectedCharacter.name}`);
-        }
-      },
       editLast() {
         if (window.gametext_arr && gametext_arr.length > 0) {
           const lastEntry = gametext_arr[gametext_arr.length - 1];
@@ -12298,51 +12399,6 @@ ${examples}`;
       getCurrentSpeaker() {
         return this.activeChars[this.currentSpeaker];
       },
-      // Build a compact character snippet suitable for tail injection
-      _buildCharacterSnippet(charObj, label) {
-        if (!charObj) return "";
-        const name = (charObj.name || "").trim();
-        const desc = (charObj.description || charObj.content || "").trim();
-        const personality = (charObj.personality || "").trim();
-        const scenario = (charObj.scenario || "").trim();
-        const notes = (charObj.creator_notes || charObj.post_history_instructions || "").trim();
-        const parts = [];
-        parts.push(`[${label}: ${name}]`);
-        if (desc) parts.push(`Description: ${desc}`);
-        if (personality) parts.push(`Personality: ${personality}`);
-        if (scenario) parts.push(`Scenario: ${scenario}`);
-        if (notes) parts.push(`Notes: ${notes}`);
-        return parts.join("\n");
-      },
-      // Prepare and set tail injection for current turn; returns {ok:boolean, reason?:string}
-      _prepareTailInjectionForTurn() {
-        try {
-          const speaker = this.getCurrentSpeaker();
-          const personaEnabled = !!KLITE_RPMod.panels.TOOLS?.personaEnabled;
-          const selectedPersona = KLITE_RPMod.panels.TOOLS?.selectedPersona;
-          const blocks = [];
-          if (personaEnabled && selectedPersona) {
-            blocks.push(this._buildCharacterSnippet(selectedPersona, "User Character"));
-          } else {
-            const uname = (window.localsettings?.chatname || "").trim();
-            if (uname) blocks.push(`[User: ${uname}]`);
-          }
-          if (speaker) {
-            blocks.push(this._buildCharacterSnippet(speaker, "Character"));
-          }
-          const injection = blocks.filter(Boolean).join("\n\n");
-          const base = (window.current_temp_memory || "") + rpmod_concat_history_safe();
-          const cap = rpmod_get_max_allowed_chars(base);
-          const projected = base.length + injection.length;
-          if (projected > cap) {
-            return { ok: false, reason: "Character data exceeds available context budget. Reduce character data or disable some roles." };
-          }
-          rpmod_prepend_preinjection(injection);
-          return { ok: true };
-        } catch (e) {
-          return { ok: true };
-        }
-      },
       triggerCurrentSpeaker() {
         KLITE_RPMod.log("group", "Triggering current speaker via advanced handler");
         const speaker = this.getCurrentSpeaker();
@@ -12377,34 +12433,19 @@ ${examples}`;
           }
         } catch (_) {
         }
-        const prep = this._prepareTailInjectionForTurn();
-        if (!prep.ok) {
-          try {
-            alert(prep.reason);
-          } catch (_) {
+        getContext().run(() => {
+          if (this.lastSpeaker === this.currentSpeaker && typeof window.submit_generation === "function") {
+            window.submit_generation("");
+          } else if (typeof window.chat_submit_generation === "function") {
+            window.chat_submit_generation();
+          } else if (typeof window.submit_generation === "function") {
+            window.submit_generation("");
+          } else if (typeof window.submit_generation_button === "function") {
+            window.submit_generation_button();
+          } else {
+            KLITE_RPMod.log("panels", "Generation function unavailable");
           }
-          return;
-        }
-        const callOrig = (fn) => {
-          try {
-            return fn();
-          } catch (_) {
-            return;
-          }
-        };
-        if (this.lastSpeaker === this.currentSpeaker && typeof window.submit_generation === "function" && !window._orig_chat_submit_generation) {
-          window.submit_generation("");
-        } else if (typeof window._orig_chat_submit_generation === "function") {
-          callOrig(window._orig_chat_submit_generation);
-        } else if (typeof window.chat_submit_generation === "function") {
-          window.chat_submit_generation();
-        } else if (typeof window.submit_generation === "function") {
-          window.submit_generation("");
-        } else if (typeof window.submit_generation_button === "function") {
-          window.submit_generation_button();
-        } else {
-          KLITE_RPMod.log("panels", "Generation function unavailable");
-        }
+        });
         try {
           const idx = this.currentSpeaker;
           this.lastSpeaker = idx;
@@ -17221,7 +17262,7 @@ ${char.mes_example}
   function initWorlds() {
     "use strict";
     if (window.KLITE_RPMod_Worlds) return;
-    const WI_GROUP = "__worlds__";
+    const LEGACY_WI_GROUP = "__worlds__";
     const IDB_LIBRARY_KEY = "KLITE_WORLDS_LIBRARY";
     const SAVE_KEY = "rpmod_worlds";
     const NEIGHBOR_DEPTH = 1;
@@ -17322,7 +17363,7 @@ ${char.mes_example}
       }
     }
     const asArray = (v) => Array.isArray(v) ? v : [];
-    const norm = (s) => String(s == null ? "" : s).trim();
+    const norm2 = (s) => String(s == null ? "" : s).trim();
     function uid(prefix) {
       return (prefix || "id") + "_" + Math.random().toString(36).slice(2, 9);
     }
@@ -17335,10 +17376,10 @@ ${char.mes_example}
       return null;
     }
     function locationByName(world, name) {
-      const n = norm(name).toLowerCase();
+      const n = norm2(name).toLowerCase();
       if (!n) return null;
       for (const l of asArray(world.locations)) {
-        if (norm(l.name).toLowerCase() === n) return l;
+        if (norm2(l.name).toLowerCase() === n) return l;
       }
       return null;
     }
@@ -17432,15 +17473,15 @@ ${char.mes_example}
       if (ov && ov.locationId) return ov.locationId;
       const sched = asArray(npc.schedule);
       if (sched.length && rt()?.clock) {
-        const t = norm(rt().clock.time).toLowerCase();
-        const hit = sched.find((row) => norm(row.time).toLowerCase() === t);
+        const t = norm2(rt().clock.time).toLowerCase();
+        const hit = sched.find((row) => norm2(row.time).toLowerCase() === t);
         if (hit && hit.locationId) return hit.locationId;
       }
       return npc.homeLocationId || npc.currentLocationId || npc.defaultState && npc.defaultState.locationId || null;
     }
     function npcMood(npc) {
       const ov = rt()?.npcStateOverrides?.[npc.id];
-      return norm(ov?.mood || npc.defaultState?.mood || npc.mood || "");
+      return norm2(ov?.mood || npc.defaultState?.mood || npc.mood || "");
     }
     function characterLibrary() {
       try {
@@ -17457,8 +17498,8 @@ ${char.mes_example}
         let hit = null;
         if (ref.id) hit = lib.find((c) => c && c.id === ref.id);
         if (!hit && ref.name) {
-          const n = norm(ref.name).toLowerCase();
-          hit = lib.find((c) => norm(c && c.name).toLowerCase() === n);
+          const n = norm2(ref.name).toLowerCase();
+          hit = lib.find((c) => norm2(c && c.name).toLowerCase() === n);
         }
         if (hit) return hit;
         if (person.characterSnapshot) return person.characterSnapshot;
@@ -17466,13 +17507,13 @@ ${char.mes_example}
       return null;
     }
     function personName(person) {
-      return norm(person && person.name) || norm(resolveCharacter(person)?.name) || "Unnamed";
+      return norm2(person && person.name) || norm2(resolveCharacter(person)?.name) || "Unnamed";
     }
     function personBlurb(person, maxLen = 160) {
-      let t = norm(person && person.description) || norm(person && person.personality);
+      let t = norm2(person && person.description) || norm2(person && person.personality);
       if (!t) {
         const c = resolveCharacter(person);
-        t = norm(c && (c.personality || c.description));
+        t = norm2(c && (c.personality || c.description));
       }
       if (t.length > maxLen) t = t.slice(0, maxLen - 1) + "…";
       return t;
@@ -17522,7 +17563,7 @@ ${char.mes_example}
       const s = normalizeStats(stats);
       const abil = ABILITIES.map((a) => `${a.toUpperCase()} ${s.abilities[a]}(${fmtMod(abilityMod(s.abilities[a]))})`).join(" ");
       const init2 = s.initiativeMod || abilityMod(s.abilities.dex);
-      const atk = asArray(s.attacks).map((a) => norm(a && a.name)).filter(Boolean).join(", ");
+      const atk = asArray(s.attacks).map((a) => norm2(a && a.name)).filter(Boolean).join(", ");
       return `AC ${s.ac}, HP ${s.hpMax}, ${abil}, Init ${fmtMod(init2)}` + (atk ? `; Attacks: ${atk}` : "");
     }
     const QUEST_STATES = ["available", "active", "complete", "turnedin", "failed"];
@@ -17550,7 +17591,7 @@ ${char.mes_example}
     }
     function questDescription(q, mode2) {
       const revealed = mode2 === "gm" || mode2 === "creator" || !q.hiddenDescription || isDiscovered("descriptions", q.id);
-      return revealed ? norm(q.description) : norm(q.hiddenDescription) || "???";
+      return revealed ? norm2(q.description) : norm2(q.hiddenDescription) || "???";
     }
     function personQuestMarker(personId, mode2) {
       const world = activeWorld();
@@ -17580,7 +17621,7 @@ ${char.mes_example}
         const giver = findById(world.npcs, q.giverPersonId), turnin = findById(world.npcs, q.turninPersonId);
         return {
           id: q.id,
-          title: norm(q.title) || norm(q.name) || "Quest",
+          title: norm2(q.title) || norm2(q.name) || "Quest",
           description: questDescription(q, mode2),
           hidden: !!q.hidden,
           state: questStateOf(q),
@@ -17595,13 +17636,13 @@ ${char.mes_example}
     }
     function factValue(field) {
       const c = rt()?.clock || {};
-      switch (norm(field)) {
+      switch (norm2(field)) {
         case "time":
-          return norm(c.time).toLowerCase();
+          return norm2(c.time).toLowerCase();
         case "season":
-          return norm(c.season).toLowerCase();
+          return norm2(c.season).toLowerCase();
         case "weather":
-          return norm(c.weather).toLowerCase();
+          return norm2(c.weather).toLowerCase();
         case "day":
           return Number(c.day) || 0;
         case "month":
@@ -17620,7 +17661,7 @@ ${char.mes_example}
       if (!cond || typeof cond !== "object") return true;
       const lhs = factValue(cond.field);
       const rhs = typeof cond.value === "string" ? cond.value.toLowerCase() : cond.value;
-      switch (norm(cond.op) || "==") {
+      switch (norm2(cond.op) || "==") {
         case "==":
           return lhs == rhs;
         case "!=":
@@ -17661,7 +17702,7 @@ ${char.mes_example}
     function advanceClock(slots = 1) {
       if (!rt()) return null;
       const c = rt().clock;
-      let idx = TIME_SLOTS.indexOf(norm(c.time).toLowerCase());
+      let idx = TIME_SLOTS.indexOf(norm2(c.time).toLowerCase());
       if (idx < 0) idx = 0;
       for (let i = 0; i < slots; i++) {
         idx++;
@@ -17684,12 +17725,12 @@ ${char.mes_example}
       return { ...c };
     }
     function findNpcByName(world, name) {
-      const n = norm(name).toLowerCase();
+      const n = norm2(name).toLowerCase();
       if (!n) return null;
-      return asArray(world.npcs).find((x) => norm(x.name).toLowerCase() === n) || findById(world.npcs, name);
+      return asArray(world.npcs).find((x) => norm2(x.name).toLowerCase() === n) || findById(world.npcs, name);
     }
     function parseFlagValue(raw) {
-      const v = norm(raw);
+      const v = norm2(raw);
       if (v === "") return true;
       if (/^(true|yes|on)$/i.test(v)) return true;
       if (/^(false|no|off)$/i.test(v)) return false;
@@ -17697,19 +17738,19 @@ ${char.mes_example}
       return v;
     }
     function inventoryAdd(name, qty) {
-      const n = norm(name);
+      const n = norm2(name);
       if (!n) return;
       qty = Number(qty) || 1;
       const inv = rt().inventory;
-      const ex = inv.find((i) => norm(i.name).toLowerCase() === n.toLowerCase());
+      const ex = inv.find((i) => norm2(i.name).toLowerCase() === n.toLowerCase());
       if (ex) ex.qty = (Number(ex.qty) || 1) + qty;
       else inv.push({ id: uid("item"), name: n, qty });
     }
     function inventoryRemove(name, qty) {
-      const n = norm(name).toLowerCase();
+      const n = norm2(name).toLowerCase();
       if (!n) return;
       const inv = rt().inventory;
-      const i = inv.findIndex((x) => norm(x.name).toLowerCase() === n);
+      const i = inv.findIndex((x) => norm2(x.name).toLowerCase() === n);
       if (i < 0) return;
       if (qty && (Number(inv[i].qty) || 1) > Number(qty)) inv[i].qty -= Number(qty);
       else inv.splice(i, 1);
@@ -17749,35 +17790,35 @@ ${char.mes_example}
       scan(/<mood>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/mood>/gi, (m) => {
         const npc = findNpcByName(world, m[1]);
         if (npc) {
-          (rt().npcStateOverrides[npc.id] = rt().npcStateOverrides[npc.id] || {}).mood = norm(m[2]);
+          (rt().npcStateOverrides[npc.id] = rt().npcStateOverrides[npc.id] || {}).mood = norm2(m[2]);
           return true;
         }
         return false;
       });
       scan(/<flag>\s*([^=<>]+?)\s*(?:=\s*([^<>]*?))?\s*<\/flag>/gi, (m) => {
-        rt().flags[norm(m[1])] = parseFlagValue(m[2]);
+        rt().flags[norm2(m[1])] = parseFlagValue(m[2]);
         return true;
       });
       scan(/<unflag>\s*([^<>]+?)\s*<\/unflag>/gi, (m) => {
-        delete rt().flags[norm(m[1])];
+        delete rt().flags[norm2(m[1])];
         return true;
       });
       scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, (m) => {
-        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || [];
+        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm2(m[1])) || [];
         inventoryAdd(nm, q);
         return true;
       });
       scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, (m) => {
-        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || [];
+        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm2(m[1])) || [];
         inventoryRemove(nm, q);
         return true;
       });
       scan(/<quest>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/quest>/gi, (m) => {
-        rt().questState[norm(m[1])] = norm(m[2]);
+        rt().questState[norm2(m[1])] = norm2(m[2]);
         return true;
       });
       scan(/<time>\s*([^<>]+?)\s*<\/time>/gi, (m) => {
-        const t = norm(m[1]).toLowerCase();
+        const t = norm2(m[1]).toLowerCase();
         if (TIME_SLOTS.includes(t)) {
           rt().clock.time = t;
           return true;
@@ -17785,7 +17826,7 @@ ${char.mes_example}
         return false;
       });
       scan(/<weather>\s*([^<>]+?)\s*<\/weather>/gi, (m) => {
-        rt().clock.weather = norm(m[1]);
+        rt().clock.weather = norm2(m[1]);
         return true;
       });
       scan(/<advance\s*\/?>/gi, () => {
@@ -17794,7 +17835,7 @@ ${char.mes_example}
       });
       scan(/<action>\s*([^<>]+?)\s*<\/action>/gi, (m) => {
         try {
-          fireTriggers("action:" + norm(m[1]));
+          fireTriggers("action:" + norm2(m[1]));
         } catch (_) {
         }
         return true;
@@ -17828,14 +17869,14 @@ ${char.mes_example}
       if (!effect || typeof effect !== "object" || !rt()) return [];
       const world = activeWorld();
       const sigs = [];
-      switch (norm(effect.type)) {
+      switch (norm2(effect.type)) {
         case "flag":
-          rt().flags[norm(effect.key)] = "value" in effect ? effect.value : true;
-          sigs.push("flag:" + norm(effect.key));
+          rt().flags[norm2(effect.key)] = "value" in effect ? effect.value : true;
+          sigs.push("flag:" + norm2(effect.key));
           break;
         case "unflag":
-          delete rt().flags[norm(effect.key)];
-          sigs.push("flag:" + norm(effect.key));
+          delete rt().flags[norm2(effect.key)];
+          sigs.push("flag:" + norm2(effect.key));
           break;
         case "give":
           inventoryAdd(effect.name, effect.qty);
@@ -17844,16 +17885,16 @@ ${char.mes_example}
           inventoryRemove(effect.name, effect.qty);
           break;
         case "quest": {
-          const id = norm(effect.id || effect.questId);
-          const st = norm(effect.state) || "available";
+          const id = norm2(effect.id || effect.questId);
+          const st = norm2(effect.state) || "available";
           rt().questState[id] = st;
           sigs.push("quest:" + id + ":" + st);
           break;
         }
         case "discover": {
-          if (effect.quest) discover("quests", norm(effect.quest));
-          if (effect.description) discover("descriptions", norm(effect.description));
-          if (effect.event) discover("events", norm(effect.event));
+          if (effect.quest) discover("quests", norm2(effect.quest));
+          if (effect.description) discover("descriptions", norm2(effect.description));
+          if (effect.event) discover("events", norm2(effect.event));
           break;
         }
         case "move": {
@@ -17875,7 +17916,7 @@ ${char.mes_example}
           sigs.push("time");
           break;
         case "fireEvent":
-          if (effect.eventId) sigs.push("manual:" + norm(effect.eventId));
+          if (effect.eventId) sigs.push("manual:" + norm2(effect.eventId));
           break;
         default:
           break;
@@ -17890,28 +17931,28 @@ ${char.mes_example}
     }
     function triggerMatches(trig, signal, ev) {
       const c = rt() && rt().clock || {};
-      switch (norm(trig.type)) {
+      switch (norm2(trig.type)) {
         case "onTurn":
           return signal === "turn";
         case "onTime":
           if (signal !== "turn" && signal !== "time") return false;
-          if (trig.time && norm(trig.time).toLowerCase() !== norm(c.time).toLowerCase()) return false;
-          if (trig.season && norm(trig.season).toLowerCase() !== norm(c.season).toLowerCase()) return false;
+          if (trig.time && norm2(trig.time).toLowerCase() !== norm2(c.time).toLowerCase()) return false;
+          if (trig.season && norm2(trig.season).toLowerCase() !== norm2(c.season).toLowerCase()) return false;
           if (trig.day != null && Number(trig.day) !== Number(c.day)) return false;
           return true;
         case "onEnterLocation":
           return signal === "enter:" + trig.locationId || signal === "turn" && rt().playerLocationId === trig.locationId;
         case "onFlag": {
-          if (signal !== "flag:" + norm(trig.key) && signal !== "turn") return false;
-          const v = rt().flags[norm(trig.key)];
+          if (signal !== "flag:" + norm2(trig.key) && signal !== "turn") return false;
+          const v = rt().flags[norm2(trig.key)];
           return "value" in trig ? v == trig.value : !!v;
         }
         case "onQuestState":
-          return signal === "quest:" + norm(trig.questId) + ":" + norm(trig.state) || signal === "turn" && norm(rt().questState[norm(trig.questId)]) === norm(trig.state);
+          return signal === "quest:" + norm2(trig.questId) + ":" + norm2(trig.state) || signal === "turn" && norm2(rt().questState[norm2(trig.questId)]) === norm2(trig.state);
         case "onEvent":
-          return signal === "event:" + norm(trig.eventId);
+          return signal === "event:" + norm2(trig.eventId);
         case "onAction":
-          return typeof signal === "string" && signal.indexOf("action:") === 0 && (norm(trig.pattern) === "" || signal.slice(7).toLowerCase().includes(norm(trig.pattern).toLowerCase()));
+          return typeof signal === "string" && signal.indexOf("action:") === 0 && (norm2(trig.pattern) === "" || signal.slice(7).toLowerCase().includes(norm2(trig.pattern).toLowerCase()));
         case "manual":
           return signal === "manual:" + ev.id;
         default:
@@ -17961,7 +18002,7 @@ ${char.mes_example}
       return 1 + Math.floor(Math.random() * Math.max(1, Number(sides) || 20));
     }
     function rollExpr(expr) {
-      const s = norm(expr).toLowerCase().replace(/\s+/g, "");
+      const s = norm2(expr).toLowerCase().replace(/\s+/g, "");
       const rolls = [];
       let total = 0;
       const re = /([+-]?)(\d*)d(\d+)|([+-]?\d+)/g;
@@ -17993,7 +18034,7 @@ ${char.mes_example}
       return normalizeStats(p && p.stats || {});
     }
     function combatantName(id) {
-      if (id === "__player__") return norm(playerCombatCfg().name) || "You";
+      if (id === "__player__") return norm2(playerCombatCfg().name) || "You";
       const p = entityById(activeWorld(), id);
       return p ? personName(p) : String(id);
     }
@@ -18006,12 +18047,12 @@ ${char.mes_example}
       dbg("combat:", msg);
     }
     function resolveCombatant(name) {
-      const n = norm(name).toLowerCase();
+      const n = norm2(name).toLowerCase();
       if (!n) return null;
       if (n === "you" || n === "player" || n === "self") return "__player__";
       const cb = getCombat();
       if (cb) {
-        const hit = cb.order.find((o) => norm(o.name).toLowerCase() === n);
+        const hit = cb.order.find((o) => norm2(o.name).toLowerCase() === n);
         if (hit) return hit.id;
       }
       const npc = findNpcByName(activeWorld(), name);
@@ -18101,7 +18142,7 @@ ${char.mes_example}
     }
     function abilityCheck(id, ability, dc, mode2) {
       const st = combatantStats(id);
-      const ab = norm(ability).toLowerCase();
+      const ab = norm2(ability).toLowerCase();
       const mod = abilityMod(st.abilities[ab] != null ? st.abilities[ab] : 10);
       const r = rollD20(mod, mode2);
       const success = r.total >= Number(dc);
@@ -18137,9 +18178,9 @@ ${recent}` : "");
       if (loc) return loc;
       const ctx = recentContext().toLowerCase();
       if (ctx) {
-        const sorted = asArray(world.locations).slice().sort((a, b) => norm(b.name).length - norm(a.name).length);
+        const sorted = asArray(world.locations).slice().sort((a, b) => norm2(b.name).length - norm2(a.name).length);
         for (const l of sorted) {
-          const n = norm(l.name).toLowerCase();
+          const n = norm2(l.name).toLowerCase();
           if (n && ctx.includes(n)) {
             if (mutate && rt()) rt().playerLocationId = l.id;
             return l;
@@ -18179,11 +18220,11 @@ ${recent}` : "");
       const loc = resolveCurrentLocation(world, mutate);
       const sections = [];
       const push = (title, priority, text) => {
-        if (norm(text)) sections.push({ title, priority, text: norm(text) });
+        if (norm2(text)) sections.push({ title, priority, text: norm2(text) });
       };
-      push("World: " + nodeName("world", world), 100, norm(world.description));
+      push("World: " + nodeName("world", world), 100, norm2(world.description));
       if (W.config.insertRules) {
-        const rules = asArray(world.rules).map(norm).filter(Boolean).join("\n");
+        const rules = asArray(world.rules).map(norm2).filter(Boolean).join("\n");
         push("World Rules", 100, rules);
       }
       const c = rt().clock || {};
@@ -18193,24 +18234,24 @@ ${recent}` : "");
         `Day ${c.day}, ${c.season} (${c.time}). Weather: ${c.weather}.`
       );
       const stateBits = [];
-      const inv = asArray(rt().inventory).filter((i) => i && norm(i.name));
-      if (inv.length) stateBits.push("Inventory: " + inv.map((i) => norm(i.name) + ((Number(i.qty) || 1) > 1 ? ` x${i.qty}` : "")).join(", "));
+      const inv = asArray(rt().inventory).filter((i) => i && norm2(i.name));
+      if (inv.length) stateBits.push("Inventory: " + inv.map((i) => norm2(i.name) + ((Number(i.qty) || 1) > 1 ? ` x${i.qty}` : "")).join(", "));
       const party = asArray(rt().party).map((id) => (findById(world.npcs, id) || {}).name).filter(Boolean);
-      if (party.length) stateBits.push("Party: " + party.map(norm).join(", "));
+      if (party.length) stateBits.push("Party: " + party.map(norm2).join(", "));
       push("Player State", 85, stateBits.join("\n"));
       push("Combat", 96, combatText());
       if (!loc) {
         return { sections, location: null };
       }
       if (mutate && rt() && !asArray(rt().visitedLocationIds).includes(loc.id)) rt().visitedLocationIds.push(loc.id);
-      const exits = asArray(loc.exits).map((e) => norm(e && e.name) || (findById(world.locations, e && e.locationId) || {}).name).filter(Boolean).concat(connectedLocations(world, loc, 1).map((l) => norm(l.name)));
-      const exitsUniq = [...new Set(exits.map(norm).filter(Boolean))];
-      let locText = norm(loc.description);
-      if (norm(loc.atmosphere)) locText += `${locText ? "\n" : ""}Atmosphere: ${norm(loc.atmosphere)}`;
+      const exits = asArray(loc.exits).map((e) => norm2(e && e.name) || (findById(world.locations, e && e.locationId) || {}).name).filter(Boolean).concat(connectedLocations(world, loc, 1).map((l) => norm2(l.name)));
+      const exitsUniq = [...new Set(exits.map(norm2).filter(Boolean))];
+      let locText = norm2(loc.description);
+      if (norm2(loc.atmosphere)) locText += `${locText ? "\n" : ""}Atmosphere: ${norm2(loc.atmosphere)}`;
       if (exitsUniq.length) locText += `${locText ? "\n" : ""}Exits: ${exitsUniq.join(", ")}`;
-      const hqFactions = asArray(world.factions).filter((f) => f.hqLocationId === loc.id).map((f) => norm(f.name)).filter(Boolean);
+      const hqFactions = asArray(world.factions).filter((f) => f.hqLocationId === loc.id).map((f) => norm2(f.name)).filter(Boolean);
       if (hqFactions.length) locText += `${locText ? "\n" : ""}Headquarters of: ${hqFactions.join(", ")}`;
-      sections.push({ title: `Current Location: ${norm(loc.name)}`, priority: 80, text: locText });
+      sections.push({ title: `Current Location: ${norm2(loc.name)}`, priority: 80, text: locText });
       const npcsHere = asArray(world.npcs).filter((npc) => resolveNpcLocationId(npc) === loc.id || asArray(loc.npcIds).includes(npc.id));
       const npcSeen = /* @__PURE__ */ new Set();
       const npcLines = [];
@@ -18221,126 +18262,94 @@ ${recent}` : "");
         const faction = findById(world.factions, npc.factionId);
         const marker = personQuestMarker(npc.id, mode2);
         const bits = [(marker ? marker + " " : "") + personName(npc)];
-        const blurb = personBlurb(npc);
+        const described = opts && typeof opts.isDescribed === "function" && opts.isDescribed(personName(npc));
+        const blurb = described ? "" : personBlurb(npc);
         if (blurb) bits.push(blurb);
         const md = npcMood(npc);
         if (md) bits.push(`Mood: ${md}`);
-        if (faction) bits.push(`Faction: ${norm(faction.name)}`);
+        if (faction) bits.push(`Faction: ${norm2(faction.name)}`);
         if (npc.stats) bits.push(statSummary(npc.stats));
         npcLines.push("- " + bits.join(" | "));
         if (mutate && rt() && !asArray(rt().knownNpcIds).includes(npc.id)) rt().knownNpcIds.push(npc.id);
       }
       push("Nearby NPCs", 70, npcLines.join("\n"));
       const objsHere = asArray(world.objects).filter((o) => o.locationId === loc.id || asArray(loc.objectIds).includes(o.id));
-      const objLines = objsHere.map((o) => "- " + norm(o.name) + (norm(o.desc) ? `: ${norm(o.desc)}` : ""));
+      const objLines = objsHere.map((o) => "- " + norm2(o.name) + (norm2(o.desc) ? `: ${norm2(o.desc)}` : ""));
       push("Nearby Objects", 50, objLines.join("\n"));
       const questLines = [];
       for (const q of asArray(world.quests)) {
         const st = questStateOf(q);
         if (st !== "active" && st !== "complete") continue;
         if (!questVisible(q, mode2)) continue;
-        const title = norm(q.title) || norm(q.name) || "Quest";
+        const title = norm2(q.title) || norm2(q.name) || "Quest";
         const track = rt().activeQuestId === q.id ? " [tracked]" : "";
         const desc = questDescription(q, mode2);
-        const objs = asArray(q.objectives).filter((o) => questVisible(q, mode2) && !o.hidden).map((o) => `    ${rt().questObjectives?.[q.id]?.[o.id] ? "☑" : "☐"} ${norm(o.text)}`).filter(Boolean);
+        const objs = asArray(q.objectives).filter((o) => questVisible(q, mode2) && !o.hidden).map((o) => `    ${rt().questObjectives?.[q.id]?.[o.id] ? "☑" : "☐"} ${norm2(o.text)}`).filter(Boolean);
         questLines.push(`- ${title} [${st}]${track}` + (desc ? `: ${desc}` : "") + (objs.length ? "\n" + objs.join("\n") : ""));
       }
       push("Active Quests", 45, questLines.join("\n"));
       const evLines = [];
       const seenEv = /* @__PURE__ */ new Set();
       for (const ev of asArray(world.events)) {
-        const ambient = !asArray(ev.triggers).length || asArray(ev.triggers).some((t) => norm(t.type) === "onTurn");
+        const ambient = !asArray(ev.triggers).length || asArray(ev.triggers).some((t) => norm2(t.type) === "onTurn");
         const show = firedEventsBuffer.includes(ev.id) || ambient && eventActive(world, ev);
         if (!show || seenEv.has(ev.id)) continue;
         if (ev.hidden && mode2 === "player" && !isDiscovered("events", ev.id)) continue;
         seenEv.add(ev.id);
-        evLines.push("- " + (norm(ev.name) ? norm(ev.name) + ": " : "") + norm(ev.description));
+        evLines.push("- " + (norm2(ev.name) ? norm2(ev.name) + ": " : "") + norm2(ev.description));
       }
       push("Active Events", 40, evLines.join("\n"));
       const loreLines = [];
       for (const ll of asArray(loc.localLore)) {
-        const t = norm(typeof ll === "string" ? ll : ll.content);
+        const t = norm2(typeof ll === "string" ? ll : ll.content);
         if (t) loreLines.push(t);
       }
       const ctx = recentContext().toLowerCase();
       for (const gl of asArray(world.globalLore)) {
-        const content = norm(typeof gl === "string" ? gl : gl.content);
+        const content = norm2(typeof gl === "string" ? gl : gl.content);
         if (!content) continue;
         const always = gl && (gl.always || gl.constant);
-        const keys = asArray(gl && gl.keys).map((k) => norm(k).toLowerCase()).filter(Boolean);
+        const keys = asArray(gl && gl.keys).map((k) => norm2(k).toLowerCase()).filter(Boolean);
         const hit = always || keys.length && keys.some((k) => ctx.includes(k));
         if (hit) loreLines.push(content);
       }
       push("Relevant Lore", 30, loreLines.join("\n"));
       return { sections, location: loc };
     }
-    function sliceToEntries(opts) {
-      const { sections } = computeActiveSlice(opts);
-      sections.sort((a, b) => b.priority - a.priority);
-      return sections.map((s) => ({
-        key: "",
-        keysecondary: "",
-        keyanti: "",
-        content: s.text ? `[${s.title}]
-${s.text}` : `[${s.title}]`,
-        comment: WI_GROUP,
-        wigroup: WI_GROUP,
-        constant: true,
-        selective: false,
-        probability: 100,
-        widisabled: false
-      }));
-    }
     function previewSlice() {
-      return sliceToEntries().map((e) => e.content).join("\n\n");
+      return getContext().preview({ provider: "worlds" });
+    }
+    function registerProvider() {
+      getContext().register({
+        id: "worlds",
+        order: 50,
+        enabled: () => !!(W.config.enabled && activeWorld() && rt()),
+        persistent: () => W.config.injectMode === "persistent",
+        // apply state-change tags from prior messages, then run the trigger bus
+        // for this turn (onTurn/onTime/onEnter/… + chains) before the slice is built
+        beforeTurn: () => {
+          processPendingMutations();
+          try {
+            fireTriggers("turn");
+          } catch (_) {
+          }
+        },
+        collect: (ctx) => computeActiveSlice({ mutate: ctx.mutate, isDescribed: ctx.isDescribed }).sections,
+        // the fired-events buffer is consumed by this turn's slice
+        afterTurn: () => {
+          firedEventsBuffer = [];
+          notifyChange();
+        }
+      });
     }
     function removeWorldsEntries() {
-      try {
-        if (!Array.isArray(window.current_wi)) return;
-        window.current_wi = window.current_wi.filter((w) => !(w && w.wigroup === WI_GROUP));
-      } catch (e) {
-        err("removeWorldsEntries failed", e);
-      }
+      getContext().sync();
     }
     function injectManaged(opts) {
-      try {
-        if (!Array.isArray(window.current_wi)) window.current_wi = [];
-        removeWorldsEntries();
-        if (!W.config.enabled || !activeWorld() || !rt()) {
-          refreshWiEditor();
-          return 0;
-        }
-        const entries = sliceToEntries(opts);
-        for (const e of entries) window.current_wi.push(e);
-        dbg("injected", entries.length, "managed WI entries");
-        refreshWiEditor();
-        return entries.length;
-      } catch (e) {
-        err("injectManaged failed", e);
-        return 0;
-      }
-    }
-    function websearchActive() {
-      try {
-        return !!(window.localsettings && window.localsettings.websearch_enabled && typeof window.is_using_kcpp_with_websearch === "function" && window.is_using_kcpp_with_websearch());
-      } catch (_) {
-        return false;
-      }
-    }
-    function agentModeEnabled() {
-      try {
-        const ls = window.localsettings;
-        return !!(ls && ls.opmode == 4 && ls.agentBehaviour);
-      } catch (_) {
-        return false;
-      }
+      return getContext().inject(opts);
     }
     function syncLive() {
-      if (W.config.injectMode === "persistent") injectManaged();
-      else {
-        removeWorldsEntries();
-        refreshWiEditor();
-      }
+      getContext().sync();
       notifyChange();
     }
     let changeQueued = false;
@@ -18365,59 +18374,6 @@ ${s.text}` : `[${s.title}]`,
       } catch (_) {
       }
     }
-    function isHostSlashCommand() {
-      try {
-        const input = document.getElementById("input_text");
-        const text = input ? String(input.value || "") : "";
-        if (!text.startsWith("/") || typeof window.customtools_sanitize_list !== "function") return false;
-        const name = (text.slice(1).match(/^\S*/) || [""])[0];
-        const tools = window.customtools_sanitize_list(window.localsettings && window.localsettings.custom_tools);
-        return asArray(tools).some((t) => t && t.name === name && t.userCallable);
-      } catch (_) {
-        return false;
-      }
-    }
-    function installPrepareWrapper() {
-      if (typeof window.prepare_submit_generation !== "function") return false;
-      if (window.prepare_submit_generation.__worlds_wrapped) return true;
-      const orig = window.prepare_submit_generation;
-      const wrapped = function() {
-        let injected = false;
-        try {
-          if (W.config.enabled && activeWorld() && rt() && !isHostSlashCommand()) {
-            processPendingMutations();
-            try {
-              fireTriggers("turn");
-            } catch (_) {
-            }
-            injectManaged({ mutate: true });
-            injected = true;
-          }
-        } catch (_) {
-        }
-        let ret;
-        try {
-          ret = orig.apply(this, arguments);
-        } finally {
-          try {
-            if (injected && W.config.injectMode === "transient" && !websearchActive() && !agentModeEnabled()) {
-              removeWorldsEntries();
-              refreshWiEditor();
-            }
-            if (injected) {
-              firedEventsBuffer = [];
-              notifyChange();
-            }
-          } catch (_) {
-          }
-        }
-        return ret;
-      };
-      wrapped.__worlds_wrapped = true;
-      window.prepare_submit_generation = wrapped;
-      dbg("prepare_submit_generation wrapped");
-      return true;
-    }
     function installSaveWrappers() {
       if (typeof window.generate_savefile === "function" && !window.generate_savefile.__worlds_wrapped) {
         const origGen = window.generate_savefile;
@@ -18425,7 +18381,7 @@ ${s.text}` : `[${s.title}]`,
           const obj = origGen.apply(this, arguments);
           try {
             if (obj && Array.isArray(obj.worldinfo)) {
-              obj.worldinfo = obj.worldinfo.filter((w) => !(w && w.wigroup === WI_GROUP));
+              obj.worldinfo = obj.worldinfo.filter((w) => !(w && w.wigroup === LEGACY_WI_GROUP));
             }
             const st = collectSaveState();
             if (obj && st) obj[SAVE_KEY] = st;
@@ -18502,20 +18458,20 @@ ${s.text}` : `[${s.title}]`,
       return null;
     }
     function nodeName(type, e) {
-      if (type === "world") return norm(e.name) || "World";
-      if (type === "lore") return norm(e.label) || (norm(e.content).slice(0, 28) || "Lore");
-      if (type === "npc") return norm(e.name) || norm(resolveCharacter(e)?.name) || "New npc";
-      if (type === "quest") return norm(e.title) || norm(e.name) || "New quest";
-      return norm(e.name) || "New " + type;
+      if (type === "world") return norm2(e.name) || "World";
+      if (type === "lore") return norm2(e.label) || (norm2(e.content).slice(0, 28) || "Lore");
+      if (type === "npc") return norm2(e.name) || norm2(resolveCharacter(e)?.name) || "New npc";
+      if (type === "quest") return norm2(e.title) || norm2(e.name) || "New quest";
+      return norm2(e.name) || "New " + type;
     }
     function nodeEntry(type, e) {
-      return norm(e[ENTRY_FIELD[type]] || "");
+      return norm2(e[ENTRY_FIELD[type]] || "");
     }
     function getGraph() {
       const world = activeWorld();
       if (!world) return { world: null, nodes: [], edges: [] };
       normalizeWorld(world);
-      const nodes = [{ id: "__world__", type: "world", name: nodeName("world", world), entry: norm(world.description), x: world.ui?.x, y: world.ui?.y }];
+      const nodes = [{ id: "__world__", type: "world", name: nodeName("world", world), entry: norm2(world.description), x: world.ui?.x, y: world.ui?.y }];
       const edges = [];
       for (const t of Object.keys(TYPE_ARRAYS)) {
         for (const e of asArray(world[TYPE_ARRAYS[t]])) {
@@ -18542,13 +18498,13 @@ ${s.text}` : `[${s.title}]`,
       }
       for (const ev of asArray(world.events)) {
         for (const t of asArray(ev.triggers)) {
-          if (norm(t.type) === "onQuestState" && findById(world.quests, t.questId)) edges.push({ from: t.questId, to: ev.id, kind: "onquest" });
-          if (norm(t.type) === "onEnterLocation" && findById(world.locations, t.locationId)) edges.push({ from: t.locationId, to: ev.id, kind: "onenter" });
+          if (norm2(t.type) === "onQuestState" && findById(world.quests, t.questId)) edges.push({ from: t.questId, to: ev.id, kind: "onquest" });
+          if (norm2(t.type) === "onEnterLocation" && findById(world.locations, t.locationId)) edges.push({ from: t.locationId, to: ev.id, kind: "onenter" });
         }
         for (const eff of asArray(ev.effects)) {
           const qid = eff.questId || eff.quest;
-          if ((norm(eff.type) === "quest" || norm(eff.type) === "discover") && findById(world.quests, qid)) edges.push({ from: ev.id, to: qid, kind: "affects" });
-          if (norm(eff.type) === "fireEvent" && findById(world.events, eff.eventId)) edges.push({ from: ev.id, to: eff.eventId, kind: "chains" });
+          if ((norm2(eff.type) === "quest" || norm2(eff.type) === "discover") && findById(world.quests, qid)) edges.push({ from: ev.id, to: qid, kind: "affects" });
+          if (norm2(eff.type) === "fireEvent" && findById(world.events, eff.eventId)) edges.push({ from: ev.id, to: eff.eventId, kind: "chains" });
         }
       }
       return { world, nodes, edges };
@@ -18560,9 +18516,9 @@ ${s.text}` : `[${s.title}]`,
       if (!key) throw new Error("bad type " + type);
       normalizeWorld(world);
       const e = { id: uid(type), ui: { x: Number(fields.x) || 300, y: Number(fields.y) || 200 } };
-      if (type === "lore") e.content = norm(fields.name) || "";
-      else if (type === "quest") e.title = norm(fields.title || fields.name) || "New quest";
-      else e.name = norm(fields.name) || "New " + type;
+      if (type === "lore") e.content = norm2(fields.name) || "";
+      else if (type === "quest") e.title = norm2(fields.title || fields.name) || "New quest";
+      else e.name = norm2(fields.name) || "New " + type;
       world[key].push(e);
       dbg("addEntity", type, e.id);
       return e;
@@ -18725,7 +18681,7 @@ ${s.text}` : `[${s.title}]`,
       return true;
     }
     async function createWorld(name) {
-      const w = normalizeWorld({ id: uid("world"), name: norm(name) || "New World", description: "", ui: { x: 120, y: 260 } });
+      const w = normalizeWorld({ id: uid("world"), name: norm2(name) || "New World", description: "", ui: { x: 120, y: 260 } });
       W.library[w.id] = w;
       await saveLibrary();
       W.activeWorldId = w.id;
@@ -18736,15 +18692,15 @@ ${s.text}` : `[${s.title}]`,
       if (!e || typeof e !== "object") return null;
       const keys = Array.isArray(e.keys) ? e.keys : Array.isArray(e.key) ? e.key : typeof e.key === "string" ? e.key.split(",") : [];
       const sec = Array.isArray(e.secondary_keys) ? e.secondary_keys : typeof e.keysecondary === "string" ? e.keysecondary.split(",") : [];
-      const content = norm(e.content);
+      const content = norm2(e.content);
       if (!content) return null;
       return {
-        keys: keys.map(norm).filter(Boolean),
-        secondary: sec.map(norm).filter(Boolean),
+        keys: keys.map(norm2).filter(Boolean),
+        secondary: sec.map(norm2).filter(Boolean),
         content,
-        comment: norm(e.comment || e.name || ""),
+        comment: norm2(e.comment || e.name || ""),
         constant: !!e.constant,
-        wigroup: norm(e.wigroup || "")
+        wigroup: norm2(e.wigroup || "")
       };
     }
     function wiEntriesFrom(data) {
@@ -18808,14 +18764,14 @@ ${s.text}` : `[${s.title}]`,
     function exportWorldAsWI(worldId) {
       const w = W.library[worldId || W.activeWorldId];
       if (!w) return [];
-      const mk = (key, content, comment, constant) => ({ key: norm(key), keysecondary: "", keyanti: "", content, comment: norm(comment), wigroup: "", constant: !!constant, selective: false, probability: 100, widisabled: false });
+      const mk = (key, content, comment, constant) => ({ key: norm2(key), keysecondary: "", keyanti: "", content, comment: norm2(comment), wigroup: "", constant: !!constant, selective: false, probability: 100, widisabled: false });
       const out = [];
-      for (const l of asArray(w.locations)) out.push(mk(l.name, `[Location: ${norm(l.name)}]${norm(l.description) ? "\n" + norm(l.description) : ""}`, l.name));
-      for (const n of asArray(w.npcs)) out.push(mk(n.name, `[Character: ${norm(n.name)}]${norm(n.personality || n.description) ? "\n" + norm(n.personality || n.description) : ""}`, n.name));
-      for (const f of asArray(w.factions)) out.push(mk(f.name, `[Faction: ${norm(f.name)}]${norm(f.description || f.goals) ? "\n" + norm(f.description || f.goals) : ""}`, f.name));
-      for (const o of asArray(w.objects)) out.push(mk(o.name, `[Object: ${norm(o.name)}]${norm(o.desc) ? "\n" + norm(o.desc) : ""}`, o.name));
-      for (const ev of asArray(w.events)) out.push(mk(ev.name, `[Event: ${norm(ev.name)}]${norm(ev.description) ? "\n" + norm(ev.description) : ""}`, ev.name));
-      for (const gl of asArray(w.globalLore)) out.push(mk(asArray(gl.keys).join(",") || gl.label, norm(gl.content), gl.label, gl.always || gl.constant));
+      for (const l of asArray(w.locations)) out.push(mk(l.name, `[Location: ${norm2(l.name)}]${norm2(l.description) ? "\n" + norm2(l.description) : ""}`, l.name));
+      for (const n of asArray(w.npcs)) out.push(mk(n.name, `[Character: ${norm2(n.name)}]${norm2(n.personality || n.description) ? "\n" + norm2(n.personality || n.description) : ""}`, n.name));
+      for (const f of asArray(w.factions)) out.push(mk(f.name, `[Faction: ${norm2(f.name)}]${norm2(f.description || f.goals) ? "\n" + norm2(f.description || f.goals) : ""}`, f.name));
+      for (const o of asArray(w.objects)) out.push(mk(o.name, `[Object: ${norm2(o.name)}]${norm2(o.desc) ? "\n" + norm2(o.desc) : ""}`, o.name));
+      for (const ev of asArray(w.events)) out.push(mk(ev.name, `[Event: ${norm2(ev.name)}]${norm2(ev.description) ? "\n" + norm2(ev.description) : ""}`, ev.name));
+      for (const gl of asArray(w.globalLore)) out.push(mk(asArray(gl.keys).join(",") || gl.label, norm2(gl.content), gl.label, gl.always || gl.constant));
       return out;
     }
     const EXAMPLE_WORLD = {
@@ -18954,9 +18910,9 @@ ${s.text}` : `[${s.title}]`,
         const p = entityById(activeWorld(), personId);
         if (!p) return false;
         const lib = characterLibrary();
-        const c = lib.find((x) => x && (x.id === idOrName || norm(x.name).toLowerCase() === norm(idOrName).toLowerCase()));
-        p.characterRef = c ? { source: "library", id: c.id, name: c.name } : { source: "library", name: norm(idOrName) };
-        if (c && (!norm(p.name) || p.name === "New npc")) p.name = c.name;
+        const c = lib.find((x) => x && (x.id === idOrName || norm2(x.name).toLowerCase() === norm2(idOrName).toLowerCase()));
+        p.characterRef = c ? { source: "library", id: c.id, name: c.name } : { source: "library", name: norm2(idOrName) };
+        if (c && (!norm2(p.name) || p.name === "New npc")) p.name = c.name;
         return true;
       },
       unlinkCharacter(personId) {
@@ -19203,7 +19159,6 @@ ${s.text}` : `[${s.title}]`,
       disable() {
         W.config.enabled = false;
         removeWorldsEntries();
-        refreshWiEditor();
         dbg("disabled");
         return true;
       },
@@ -19268,7 +19223,7 @@ ${s.text}` : `[${s.title}]`,
       },
       // Fire a named action signal (for onAction event triggers), e.g. from chat.
       fireAction(text) {
-        const f = fireTriggers("action:" + norm(text));
+        const f = fireTriggers("action:" + norm2(text));
         syncLive();
         return f;
       },
@@ -19294,7 +19249,7 @@ ${s.text}` : `[${s.title}]`,
       },
       setQuest(id, state) {
         ensureRuntime();
-        rt().questState[norm(id)] = norm(state);
+        rt().questState[norm2(id)] = norm2(state);
         syncLive();
         return rt().questState;
       },
@@ -19322,7 +19277,8 @@ ${s.text}` : `[${s.title}]`,
       if (W.ready) return;
       await loadLibrary();
       installSaveWrappers();
-      const okPrepare = installPrepareWrapper();
+      registerProvider();
+      const okPrepare = getContext().install();
       W.ready = true;
       try {
         if (W.config.enabled) syncLive();
@@ -20135,12 +20091,13 @@ ${s.text}` : `[${s.title}]`,
       draw();
     }
     function showPreview() {
-      const txt = API().preview() || "(nothing — enable the world and set a location)";
+      const ctx = window.KLITE_RPMod_Context;
+      const txt = (ctx ? ctx.preview() : API().preview()) || "(nothing — enable the world and set a location, or enable a persona/character)";
       const modal = el2("div", { class: "rpm-themed", style: "position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center", onclick: (ev) => {
         if (ev.target === modal) modal.remove();
       } });
       const box = el2("div", { role: "dialog", "aria-label": "What the AI will see", style: "width:min(760px,92vw);max-height:80%;display:flex;flex-direction:column;overflow:hidden;background:var(--rpm-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:var(--rpm-radius-lg);box-shadow:var(--rpm-shadow)" }, [
-        el2("div", { style: "padding:8px 10px;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);font-weight:bold", text: "What the AI will see (current runtime slice)" }),
+        el2("div", { style: "padding:8px 10px;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);font-weight:bold", text: "What RPmod adds to the prompt this turn" }),
         el2("pre", { style: "flex:1;overflow:auto;white-space:pre-wrap;color:var(--rpm-fg);background:var(--rpm-bg-chat);border:1px solid var(--rpm-border);border-radius:var(--rpm-radius);padding:10px;margin:10px;font-size:var(--rpm-fs-sm);line-height:1.5;font-family:ui-monospace,monospace", text: txt }),
         el2("div", { style: "display:flex;justify-content:center;padding:8px;border-top:1px solid var(--rpm-border)" }, [el2("button", { type: "button", class: "btn btn-primary rpm-btn", style: "min-width:80px", text: "Close", onclick: () => modal.remove() })])
       ]);
@@ -20936,7 +20893,7 @@ ${s.text}` : `[${s.title}]`,
       id: "ai-view",
       title: "What the AI sees",
       blocks: [
-        { p: 'Curious what the game master knows right now? "Preview what the AI sees" in the World tab shows the exact text RPmod adds to this turn: location, people present, active events, quests and combat.' },
+        { p: `Curious what the game master knows right now? "Preview what the AI sees" in the World tab shows the exact text RPmod adds to this turn: your persona and the AI's character (when enabled in Tools), location, people present, active events, quests and combat.` },
         { p: "If the AI forgets something, check here first: whatever is not in the preview, the AI cannot know." }
       ],
       show: [{ label: "Preview button", run: (c) => {

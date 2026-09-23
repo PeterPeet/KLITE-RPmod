@@ -600,10 +600,12 @@ export default function initWorldsUI() {
     }
 
     function showPreview() {
-        const txt = API().preview() || '(nothing — enable the world and set a location)';
+        // everything RPmod adds this turn (Worlds slice + persona/character), not just Worlds
+        const ctx = window.KLITE_RPMod_Context;
+        const txt = (ctx ? ctx.preview() : API().preview()) || '(nothing — enable the world and set a location, or enable a persona/character)';
         const modal = el('div', { class: 'rpm-themed', style: 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center', onclick: (ev) => { if (ev.target === modal) modal.remove(); } });
         const box = el('div', { role: 'dialog', 'aria-label': 'What the AI will see', style: 'width:min(760px,92vw);max-height:80%;display:flex;flex-direction:column;overflow:hidden;background:var(--rpm-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:var(--rpm-radius-lg);box-shadow:var(--rpm-shadow)' }, [
-            el('div', { style: 'padding:8px 10px;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);font-weight:bold', text: 'What the AI will see (current runtime slice)' }),
+            el('div', { style: 'padding:8px 10px;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);font-weight:bold', text: 'What RPmod adds to the prompt this turn' }),
             el('pre', { style: 'flex:1;overflow:auto;white-space:pre-wrap;color:var(--rpm-fg);background:var(--rpm-bg-chat);border:1px solid var(--rpm-border);border-radius:var(--rpm-radius);padding:10px;margin:10px;font-size:var(--rpm-fs-sm);line-height:1.5;font-family:ui-monospace,monospace' , text: txt }),
             el('div', { style: 'display:flex;justify-content:center;padding:8px;border-top:1px solid var(--rpm-border)' }, [el('button', { type: 'button', class: 'btn btn-primary rpm-btn', style: 'min-width:80px', text: 'Close', onclick: () => modal.remove() })])
         ]);

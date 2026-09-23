@@ -116,7 +116,7 @@ test('injection lifecycle: transient, websearch, agent mode, persistent, saves',
     W.config.injectMode = 'persistent'; W.refresh();
     assert.ok(h.worldsEntries().length > 0, 'persistent: entries live');
     const save = w.generate_savefile();
-    assert.equal(save.worldinfo.filter(e => e.wigroup === '__worlds__').length, 0, 'saves strip managed entries');
+    assert.equal(save.worldinfo.filter(e => e.wigroup === '__rpmod__' || e.wigroup === '__worlds__').length, 0, 'saves strip managed entries');
     assert.ok(save.worldinfo.some(e => e.content === 'classic entry'));
     assert.ok(save.rpmod_worlds, 'runtime embedded in save');
     W.disable();

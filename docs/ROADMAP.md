@@ -15,8 +15,10 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 67 tests)
-- Bundle builds (esbuild, ES-module sources); modules: app shell, ALPHA core, Worlds engine, Worlds UI, onboarding.
+### What works (verified headless 2026-09-23 — `npm test`, 73 tests)
+- Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
+- **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
+  and AI character (Tools tab / group-chat speaker) now actually reach the AI.
 - **Worlds engine:** graph world model (locations, NPCs/persons, factions, objects,
   events, quests, lore), compile-to-WI injection (transient/persistent, websearch- and
   agent-mode-safe), per-turn active slice, 16 chat tags, import/export, example world
@@ -65,9 +67,12 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
    read. Intended for combat sides + victory detection (R5).
 2. **Chat tags remain visible** in the chat text (parsed, not stripped) (R6).
 3. ~~Worlds panel overlaps ALPHA's right panel~~ — fixed by the shell (2026-09-23).
-4. **Two systems inject character data** — ALPHA (persona/character via WI
-   `_imported_memory` entries and `pending_context_preinjection`) and Worlds persons. Need
-   one owner (R1/R2).
+4. ~~Two systems inject character data~~ — one owner since 2026-09-23 (`src/context/`).
+   Left for R2: ALPHA's **Start RP** still writes per-character WI entries
+   (`<name>_imported_memory`, keyword-triggered) and "load as scenario" writes Memory. These
+   are deliberate, user-editable story data, so the context module does not touch them.
+   With group chat on, a speaker can therefore appear twice (card from the context +
+   keyword-triggered WI). The R2 character model decides which one stays.
 5. **Never play-tested with a real AI backend** (only headless + page load).
 6. `index.rpmod.html` boots the bundle at `window.load` (later than the usermod path); verify
    top-bar icon layout matches the usermod install.
@@ -156,8 +161,20 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
       windows gained **maximize/restore** (button or title-bar double-click, remembered).
       Narrow windows/phones stack palette strip → canvas → inspector. Live-checked in
       Esolite at 1024×768 and 375×812.
-- **Next:** single context-injection owner; ALPHA's own character library vs Esolite's
-  Library (overlap Jaxxks pointed out — decide in R2); icon set.
+- [x] **Single context-injection owner** (2026-09-23): `src/context/context.js`
+      (`KLITE_RPMod_Context`) owns the one `prepare_submit_generation` wrapper and the one
+      channel (constant WI entries, wigroup `__rpmod__`, transient/persistent, websearch-
+      and agent-safe, stripped from saves). Providers: **worlds** (the slice) and
+      **characters** (ALPHA persona + AI character / group-chat speaker). A character
+      described in full is only listed under Nearby NPCs. Found and removed three ALPHA
+      paths that never reached the AI: group-chat text in `pending_context_preinjection`
+      (Esolite overwrites it in chat mode and prints it into the reply otherwise), the
+      Tools persona/character injection (hooked on the wrong object; would have written
+      into the input box) and the panels-only-disabled `chat_submit_generation` wrapper.
+      Group-chat triggers run as one context turn (`run`). Known issue 4 resolved.
+      Live-checked the hook chain in Esolite (no backend).
+- **Next:** ALPHA's own character library vs Esolite's Library (overlap Jaxxks pointed
+  out — decide in R2); icon set.
 - App shell: docked sidebars + a window manager for sheet, quest log, compendium, combat,
   editor, map; one entry point in the Esolite top bar.
 - Design system: tokens (color, type, spacing) bound to Esolite's theme variables,

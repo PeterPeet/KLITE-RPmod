@@ -216,8 +216,13 @@ drive combat with the `<attack>`, `<roll>`, `<hp>` and `<check>` tags above.
 
 ## 7. What the AI actually sees
 
-Click **Preview** in the editor (or run `KLITE_RPMod_Worlds.preview()` in the console) to
-see the assembled slice, e.g.:
+Everything RPmod adds to the prompt comes from one place and is added fresh for each
+turn: the world slice, plus your **persona** and the **AI character** when you've enabled
+them in the **Tools** tab (in group chat, the character whose turn it is). A character
+described there in full is only *listed* under Nearby NPCs, not repeated.
+
+Click **👁 Preview what the AI sees** in the World tab (or **Preview** in the editor, or
+run `KLITE_RPMod_Context.preview()` in the console) to see it all, e.g.:
 
 ```
 [World Rules]
@@ -225,6 +230,9 @@ Medieval fantasy tone.
 
 [Current Time]
 Day 1, spring (morning). Weather: clear.
+
+[User Character: Mira]
+Description: A ranger from the north.
 
 [Current Location: Village]
 A small farming village.
@@ -237,8 +245,11 @@ Exits: Forest Road
 The King rules from the distant capital.
 ```
 
-Sections are prioritised (rules, time, player state, location, NPCs, objects, events,
-lore) and trimmed to fit your context budget, so the important things survive.
+Sections are prioritised (rules, time, persona/character, player state, location, NPCs,
+objects, events, lore). They go in as Esolite World Info entries, so Esolite's context
+meter counts them and its World Info budget applies. They are never saved into your story.
+Things you set up on purpose (characters loaded into Memory or World Info with **Start
+RP**, Esolite's Quick Start) stay ordinary story data you can edit.
 
 ---
 
