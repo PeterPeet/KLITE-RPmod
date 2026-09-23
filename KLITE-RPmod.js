@@ -25232,6 +25232,17 @@ ${char.mes_example}
     const t = norm2(o && o.text);
     return objectiveKind(o) === "kill" || objectiveKind(o) === "collect" ? `${t} (${st.current}/${st.needed})` : t;
   }
+  function unmetPrerequisites(q, facts) {
+    const p = q && q.prerequisites || {};
+    const out = [];
+    if (Number(p.level) > 1 && (Number(facts.level) || 1) < Number(p.level)) out.push(`Requires level ${p.level}`);
+    for (const id of p.quests || []) if (facts.questState(id) !== "turnedin") out.push(`Requires the quest "${facts.questTitle && facts.questTitle(id) || id}"`);
+    for (const k2 of p.flags || []) if (!facts.flag(k2)) out.push(`Requires: ${k2}`);
+    if (p.reputation && p.reputation.factionId && p.reputation.tier) {
+      if (tierIndex(facts.tierOf(p.reputation.factionId)) < tierIndex(p.reputation.tier)) out.push(`Requires ${p.reputation.tier} with ${facts.factionName && facts.factionName(p.reputation.factionId) || p.reputation.factionId}`);
+    }
+    return out;
+  }
   var TIERS = [
     { name: "Hated", min: -Infinity },
     { name: "Hostile", min: -1e3 },
@@ -25247,6 +25258,10 @@ ${char.mes_example}
     let t = TIERS[0];
     for (const x of TIERS) if (v >= x.min) t = x;
     return t.name;
+  }
+  function tierIndex(name) {
+    const i = TIERS.findIndex((t) => t.name.toLowerCase() === low(name));
+    return i < 0 ? 3 : i;
   }
 
   // src/KLITE-RPmod_Worlds.js
@@ -25692,19 +25707,51 @@ ${char.mes_example}
     function questVisible(q, mode2) {
       if (!q) return false;
       if (mode2 === "gm" || mode2 === "creator") return true;
-      return !q.hidden || isDiscovered("quests", q.id);
+      if (q.hidden && !isDiscovered("quests", q.id)) return false;
+      if (q.startItem && questStateOf(q) === "available" && !isDiscovered("quests", q.id) && itemCount(q.startItem) <= 0) return false;
+      return true;
+    }
+    function questFacts() {
+      return {
+        level: partyInfo().level,
+        questState: (id) => {
+          const q = questById(id);
+          return q ? questStateOf(q) : "";
+        },
+        flag: (k2) => {
+          const v = rt() && rt().flags ? rt().flags[k2] : void 0;
+          return v != null && v !== false && v !== "false" && v !== 0;
+        },
+        tierOf: (fid) => tierOf(repValue(fid)),
+        questTitle: (id) => questTitle(questById(id)),
+        factionName
+      };
+    }
+    function questLocks(q) {
+      return q ? unmetPrerequisites(q, questFacts()) : [];
+    }
+    function onlyLevelLocked(q) {
+      const p = q.prerequisites || {};
+      const locks = questLocks(q);
+      return locks.length > 0 && locks.length === 1 && Number(p.level) > 1 && /^Requires level/.test(locks[0]);
     }
     function questDescription(q, mode2) {
       const revealed = mode2 === "gm" || mode2 === "creator" || !q.hiddenDescription || isDiscovered("descriptions", q.id);
       return revealed ? norm3(q.description) : norm3(q.hiddenDescription) || "???";
     }
     function personQuestMarker(personId, mode2) {
+      const m = questMarkerInfo(personId, mode2);
+      return m && !m.grey ? m.mark : "";
+    }
+    function questMarkerInfo(personId, mode2) {
       const world = activeWorld();
-      if (!world || !personId) return "";
-      const quests = asArray(world.quests);
-      for (const q of quests) if (q.turninPersonId === personId && questStateOf(q) === "complete" && questVisible(q, mode2)) return "?";
-      for (const q of quests) if (q.giverPersonId === personId && questStateOf(q) === "available" && questVisible(q, mode2)) return "!";
-      return "";
+      if (!world || !personId) return null;
+      const quests = asArray(world.quests).filter((q) => questVisible(q, mode2));
+      if (quests.some((q) => q.turninPersonId === personId && questStateOf(q) === "complete")) return { mark: "?", grey: false };
+      if (quests.some((q) => q.giverPersonId === personId && questStateOf(q) === "available" && !questLocks(q).length)) return { mark: "!", grey: false };
+      if (quests.some((q) => q.turninPersonId === personId && questStateOf(q) === "active")) return { mark: "?", grey: true };
+      if (quests.some((q) => q.giverPersonId === personId && questStateOf(q) === "available" && onlyLevelLocked(q))) return { mark: "!", grey: true };
+      return null;
     }
     function questTitle(q) {
       return norm3(q && (q.title || q.name)) || "Quest";
@@ -25788,9 +25835,14 @@ ${char.mes_example}
     function questById(id) {
       return findById(activeWorld() && activeWorld().quests, id);
     }
-    function acceptQuest(id) {
+    function acceptQuest(id, force) {
       const q = questById(id);
       if (!q) return null;
+      const locks = questLocks(q);
+      if (locks.length && !force) {
+        gameLog(`Cannot accept "${questTitle(q)}" yet: ${locks.join("; ")}.`);
+        return null;
+      }
       const s = setQuestState(id, "active");
       if (s) gameLog(`Quest accepted: ${questTitle(q)}.`);
       return s;
@@ -25869,6 +25921,12 @@ ${char.mes_example}
       try {
         const here = rt().playerLocationId;
         for (const q of asArray(w.quests)) {
+          if (!q.startItem || questStateOf(q) !== "available" || isDiscovered("quests", q.id) || itemCount(q.startItem) <= 0) continue;
+          discover("quests", q.id);
+          discover("descriptions", q.id);
+          gameLog(`The ${norm3(q.startItem)} starts a quest: ${questTitle(q)}.`);
+        }
+        for (const q of asArray(w.quests)) {
           const st = questStateOf(q);
           if (st !== "active" && st !== "complete") continue;
           const objs = asArray(q.objectives);
@@ -25922,7 +25980,7 @@ ${char.mes_example}
       const world = activeWorld();
       if (!world) return [];
       mode2 = mode2 || "gm";
-      return asArray(world.quests).filter((q) => questVisible(q, mode2)).map((q) => {
+      return asArray(world.quests).filter((q) => questVisible(q, mode2) && !(mode2 === "player" && questStateOf(q) === "available" && questLocks(q).length && !onlyLevelLocked(q))).map((q) => {
         const giver = findById(world.npcs, q.giverPersonId), turnin = findById(world.npcs, q.turninPersonId);
         return {
           id: q.id,
@@ -25938,7 +25996,10 @@ ${char.mes_example}
             const os = objectiveStatusOf(q, o);
             return { ...o, kind: objectiveKind(o), ...os, label: objectiveLabel(o, os) };
           }),
-          marker: personQuestMarker(q.giverPersonId, mode2) || personQuestMarker(q.turninPersonId, mode2)
+          marker: personQuestMarker(q.giverPersonId, mode2) || personQuestMarker(q.turninPersonId, mode2),
+          locks: questLocks(q),
+          startItem: norm3(q.startItem) || "",
+          prerequisites: q.prerequisites || null
         };
       });
     }
@@ -27296,6 +27357,7 @@ ${recent}` : "");
       for (const q of asArray(world.quests)) {
         if (q.giverPersonId && findById(world.npcs, q.giverPersonId)) edges.push({ from: q.id, to: q.giverPersonId, kind: "gives" });
         if (q.turninPersonId && findById(world.npcs, q.turninPersonId)) edges.push({ from: q.id, to: q.turninPersonId, kind: "turnin" });
+        for (const pid of asArray(q.prerequisites && q.prerequisites.quests)) if (findById(world.quests, pid)) edges.push({ from: pid, to: q.id, kind: "unlocks" });
       }
       for (const ev of asArray(world.events)) {
         for (const t of asArray(ev.triggers)) {
@@ -27438,6 +27500,12 @@ ${recent}` : "");
         q.giverPersonId = npc.id;
         return { kind: "gives" };
       }
+      if (ta === "quest" && tb === "quest") {
+        b.prerequisites = Object.assign({}, b.prerequisites || {});
+        b.prerequisites.quests = asArray(b.prerequisites.quests);
+        if (!b.prerequisites.quests.includes(a.id)) b.prerequisites.quests.push(a.id);
+        return { kind: "unlocks" };
+      }
       if (is("world", "location")) return { kind: "contains" };
       throw new Error(`no relationship defined between ${ta} and ${tb}`);
     }
@@ -27458,6 +27526,7 @@ ${recent}` : "");
         if (x.ownerNpcId === yId) x.ownerNpcId = null;
         if (x.giverPersonId === yId) x.giverPersonId = null;
         if (x.turninPersonId === yId) x.turninPersonId = null;
+        if (x.prerequisites && Array.isArray(x.prerequisites.quests)) x.prerequisites.quests = x.prerequisites.quests.filter((v) => v !== yId);
       }
       return true;
     }
@@ -27777,11 +27846,14 @@ ${recent}` : "");
         syncLive();
         return s;
       },
-      acceptQuest(id) {
-        const s = acceptQuest(id);
+      acceptQuest(id, force) {
+        const s = acceptQuest(id, force);
         syncLive();
         return s;
       },
+      questLocks: (id) => questLocks(questById(id)),
+      reputationTiers: () => TIERS.map((t) => t.name),
+      questMarkerInfo: (personId, mode2) => questMarkerInfo(personId, mode2 || aiMode()),
       completeQuest(id) {
         const s = setQuestState(id, "complete");
         const q = questById(id);
@@ -28752,13 +28824,14 @@ ${recent}` : "");
         g.appendChild(name);
         g.appendChild(type);
         if (n.type === "npc") {
-          let mk = "";
+          let info = null;
           try {
-            mk = API().personQuestMarker(n.id) || "";
+            info = API().questMarkerInfo(n.id);
           } catch (_) {
           }
+          const mk = info ? info.mark : "";
           if (mk) {
-            g.appendChild(svg("circle", { cx: w - 10, cy: 10, r: 9, style: `fill:${mk === "!" ? "var(--rpm-quest)" : "var(--rpm-success)"}`, stroke: "#1b1b1b", "stroke-width": 1.5 }));
+            g.appendChild(svg("circle", { cx: w - 10, cy: 10, r: 9, "data-marker": mk + (info.grey ? "-grey" : ""), style: `fill:${info.grey ? "var(--rpm-fg-muted)" : mk === "!" ? "var(--rpm-quest)" : "var(--rpm-success)"}`, stroke: "#1b1b1b", "stroke-width": 1.5 }));
             const mt = svg("text", { x: w - 10, y: 14, "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "#1b1b1b" });
             mt.textContent = mk;
             g.appendChild(mt);
@@ -28946,7 +29019,10 @@ ${recent}` : "");
       }
       if (type === "world") renderWorldExtras(box, ent);
       if (type === "npc") renderPersonExtras(box, ent);
-      if (type === "quest") renderQuestExtras(box, ent);
+      if (type === "quest") {
+        renderQuestExtras(box, ent);
+        renderQuestPrereqs(box, ent);
+      }
       if (type === "event") renderEventExtras(box, ent);
       if (type === "faction") renderFactionExtras(box, ent);
       const conns = S.G.edges.filter((e) => (e.from === S.selectedId || e.to === S.selectedId) && e.kind !== "contains");
@@ -29170,6 +29246,63 @@ ${recent}` : "");
           renderInspector();
         } }, [icon("plus", 15)])
       ]));
+    }
+    function renderQuestPrereqs(box, ent) {
+      const A = API();
+      const pre = Object.assign({ level: 0, quests: [], flags: [], reputation: null }, ent.prerequisites || {});
+      const save = (patch) => {
+        A.updateEntity(S.selectedId, { prerequisites: Object.assign({}, pre, patch) });
+        reloadGraph();
+        draw();
+        renderInspector();
+      };
+      const lblx = (t) => el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:10px 0 3px", text: t });
+      box.appendChild(lblx("Requires (all must be met)"));
+      const lvl = el2("input", { type: "number", min: "0", max: "20", value: pre.level || "", placeholder: "level", style: inputCss(false) + ";width:5em", "aria-label": "Required level" });
+      lvl.addEventListener("change", () => save({ level: Math.max(0, Math.min(20, Number(lvl.value) || 0)) }));
+      box.appendChild(el2("div", { style: "display:flex;gap:6px;align-items:center" }, [el2("span", { class: "rpm-muted", text: "Level" }), lvl]));
+      const chip = (text, onRemove) => el2("span", { class: "rpm-chip", style: "display:inline-flex;gap:4px;align-items:center;margin:3px 3px 0 0" }, [text, el2("span", { style: "cursor:pointer;color:var(--rpm-danger)", text: "×", onclick: onRemove })]);
+      const quests = A.getGraph().nodes.filter((n) => n.type === "quest" && n.id !== S.selectedId);
+      const qWrap = el2("div", {});
+      for (const id of pre.quests) qWrap.appendChild(chip("Quest: " + ((quests.find((n) => n.id === id) || {}).name || id), () => save({ quests: pre.quests.filter((x) => x !== id) })));
+      for (const k2 of pre.flags) qWrap.appendChild(chip("Flag: " + k2, () => save({ flags: pre.flags.filter((x) => x !== k2) })));
+      if (pre.reputation) qWrap.appendChild(chip(`${pre.reputation.tier} with ${(A.getGraph().nodes.find((n) => n.id === pre.reputation.factionId) || {}).name || pre.reputation.factionId}`, () => save({ reputation: null })));
+      box.appendChild(qWrap);
+      const qs = el2("select", { style: inputCss(false), "aria-label": "Required quest" });
+      qs.appendChild(el2("option", { value: "", text: "+ earlier quest (turned in)…" }));
+      for (const n of quests) if (!pre.quests.includes(n.id)) qs.appendChild(el2("option", { value: n.id, text: n.name }));
+      qs.addEventListener("change", () => {
+        if (qs.value) save({ quests: pre.quests.concat(qs.value) });
+      });
+      box.appendChild(el2("div", { style: "margin-top:4px" }, [qs]));
+      const fIn = el2("input", { type: "text", placeholder: "+ flag that must be set, e.g. metRowan", style: inputCss(false), "aria-label": "Required flag" });
+      fIn.addEventListener("change", () => {
+        const k2 = fIn.value.trim();
+        if (k2 && !pre.flags.includes(k2)) save({ flags: pre.flags.concat(k2) });
+      });
+      box.appendChild(el2("div", { style: "margin-top:4px" }, [fIn]));
+      const factions = A.getGraph().nodes.filter((n) => n.type === "faction");
+      if (factions.length) {
+        const fs = el2("select", { style: inputCss(false) + ";width:auto", "aria-label": "Required reputation faction" });
+        fs.appendChild(el2("option", { value: "", text: "+ reputation with…" }));
+        for (const f of factions) fs.appendChild(el2("option", { value: f.id, text: f.name }));
+        const ts = el2("select", { style: inputCss(false) + ";width:auto", "aria-label": "Required reputation tier" });
+        for (const t of A.reputationTiers()) {
+          const o = el2("option", { value: t, text: t });
+          if (t === "Friendly") o.selected = true;
+          ts.appendChild(o);
+        }
+        const add = el2("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", title: "Add reputation requirement", "aria-label": "Add reputation requirement", onclick: () => {
+          if (fs.value) save({ reputation: { factionId: fs.value, tier: ts.value } });
+        } }, [icon("plus", 15)]);
+        box.appendChild(el2("div", { style: "display:flex;gap:5px;margin-top:4px;flex-wrap:wrap" }, [fs, ts, add]));
+      }
+      box.appendChild(lblx("Started by an item (the quest appears when the player gets it)"));
+      const si = el2("input", { type: "text", value: ent.startItem || "", placeholder: "e.g. Torn Map", style: inputCss(false), "aria-label": "Starting item" });
+      si.addEventListener("change", () => {
+        A.updateEntity(S.selectedId, { startItem: si.value.trim() || null });
+      });
+      box.appendChild(si);
     }
     function renderWorldExtras(box, ent) {
       const A = API();
@@ -29927,7 +30060,9 @@ ${recent}` : "");
             if (disabled) b.disabled = true;
             return b;
           };
-          if (st === "available") ctl.appendChild(act("Accept", () => A.acceptQuest(q.id), "success"));
+          if (q.startItem) card.appendChild(el2("span", { class: "rpm-chip rpm-chip-info", style: "margin-top:3px", text: "Started by: " + q.startItem }));
+          if (st === "available" && q.locks && q.locks.length) card.appendChild(el2("div", { class: "rpm-muted", "data-locks": q.id, style: "margin-top:3px" }, q.locks.map((t) => el2("div", { text: "🔒 " + t }))));
+          if (st === "available") ctl.appendChild(act("Accept", () => A.acceptQuest(q.id), "success", q.locks && q.locks.length > 0));
           if (st === "active") {
             ctl.appendChild(act("Complete", () => A.completeQuest(q.id), "success"));
             ctl.appendChild(act(q.active ? "Untrack" : "Track", () => A.setActiveQuest(q.active ? null : q.id)));

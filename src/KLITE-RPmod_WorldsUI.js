@@ -131,9 +131,10 @@ export default function initWorldsUI() {
             g.appendChild(name); g.appendChild(type);
             // WoW-style quest marker badge on giver / turn-in persons
             if (n.type === 'npc') {
-                let mk = ''; try { mk = API().personQuestMarker(n.id) || ''; } catch (_) {}
+                let info = null; try { info = API().questMarkerInfo(n.id); } catch (_) {}
+                const mk = info ? info.mark : '';
                 if (mk) {
-                    g.appendChild(svg('circle', { cx: w - 10, cy: 10, r: 9, style: `fill:${mk === '!' ? 'var(--rpm-quest)' : 'var(--rpm-success)'}`, stroke: '#1b1b1b', 'stroke-width': 1.5 }));
+                    g.appendChild(svg('circle', { cx: w - 10, cy: 10, r: 9, 'data-marker': mk + (info.grey ? '-grey' : ''), style: `fill:${info.grey ? 'var(--rpm-fg-muted)' : mk === '!' ? 'var(--rpm-quest)' : 'var(--rpm-success)'}`, stroke: '#1b1b1b', 'stroke-width': 1.5 }));
                     const mt = svg('text', { x: w - 10, y: 14, 'font-size': 13, 'font-weight': 700, 'text-anchor': 'middle', fill: '#1b1b1b' }); mt.textContent = mk;
                     g.appendChild(mt);
                 }
@@ -285,7 +286,7 @@ export default function initWorldsUI() {
         }
         if (type === 'world') renderWorldExtras(box, ent);
         if (type === 'npc') renderPersonExtras(box, ent);
-        if (type === 'quest') renderQuestExtras(box, ent);
+        if (type === 'quest') { renderQuestExtras(box, ent); renderQuestPrereqs(box, ent); }
         if (type === 'event') renderEventExtras(box, ent);
         if (type === 'faction') renderFactionExtras(box, ent);
         // connections
@@ -445,6 +446,46 @@ export default function initWorldsUI() {
                 A.updateEntity(S.selectedId, { objectives: ob }); renderInspector();
             } }, [icon('plus', 15)])
         ]));
+    }
+    // Quest prerequisites (level, earlier quests, flags, reputation) and a starting item.
+    function renderQuestPrereqs(box, ent) {
+        const A = API();
+        const pre = Object.assign({ level: 0, quests: [], flags: [], reputation: null }, ent.prerequisites || {});
+        const save = (patch) => { A.updateEntity(S.selectedId, { prerequisites: Object.assign({}, pre, patch) }); reloadGraph(); draw(); renderInspector(); };
+        const lblx = (t) => el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:10px 0 3px', text: t });
+        box.appendChild(lblx('Requires (all must be met)'));
+        const lvl = el('input', { type: 'number', min: '0', max: '20', value: pre.level || '', placeholder: 'level', style: inputCss(false) + ';width:5em', 'aria-label': 'Required level' });
+        lvl.addEventListener('change', () => save({ level: Math.max(0, Math.min(20, Number(lvl.value) || 0)) }));
+        box.appendChild(el('div', { style: 'display:flex;gap:6px;align-items:center' }, [el('span', { class: 'rpm-muted', text: 'Level' }), lvl]));
+        const chip = (text, onRemove) => el('span', { class: 'rpm-chip', style: 'display:inline-flex;gap:4px;align-items:center;margin:3px 3px 0 0' }, [text, el('span', { style: 'cursor:pointer;color:var(--rpm-danger)', text: '×', onclick: onRemove })]);
+        const quests = A.getGraph().nodes.filter(n => n.type === 'quest' && n.id !== S.selectedId);
+        const qWrap = el('div', {});
+        for (const id of pre.quests) qWrap.appendChild(chip('Quest: ' + ((quests.find(n => n.id === id) || {}).name || id), () => save({ quests: pre.quests.filter(x => x !== id) })));
+        for (const k of pre.flags) qWrap.appendChild(chip('Flag: ' + k, () => save({ flags: pre.flags.filter(x => x !== k) })));
+        if (pre.reputation) qWrap.appendChild(chip(`${pre.reputation.tier} with ${(A.getGraph().nodes.find(n => n.id === pre.reputation.factionId) || {}).name || pre.reputation.factionId}`, () => save({ reputation: null })));
+        box.appendChild(qWrap);
+        const qs = el('select', { style: inputCss(false), 'aria-label': 'Required quest' });
+        qs.appendChild(el('option', { value: '', text: '+ earlier quest (turned in)…' }));
+        for (const n of quests) if (!pre.quests.includes(n.id)) qs.appendChild(el('option', { value: n.id, text: n.name }));
+        qs.addEventListener('change', () => { if (qs.value) save({ quests: pre.quests.concat(qs.value) }); });
+        box.appendChild(el('div', { style: 'margin-top:4px' }, [qs]));
+        const fIn = el('input', { type: 'text', placeholder: '+ flag that must be set, e.g. metRowan', style: inputCss(false), 'aria-label': 'Required flag' });
+        fIn.addEventListener('change', () => { const k = fIn.value.trim(); if (k && !pre.flags.includes(k)) save({ flags: pre.flags.concat(k) }); });
+        box.appendChild(el('div', { style: 'margin-top:4px' }, [fIn]));
+        const factions = A.getGraph().nodes.filter(n => n.type === 'faction');
+        if (factions.length) {
+            const fs = el('select', { style: inputCss(false) + ';width:auto', 'aria-label': 'Required reputation faction' });
+            fs.appendChild(el('option', { value: '', text: '+ reputation with…' }));
+            for (const f of factions) fs.appendChild(el('option', { value: f.id, text: f.name }));
+            const ts = el('select', { style: inputCss(false) + ';width:auto', 'aria-label': 'Required reputation tier' });
+            for (const t of A.reputationTiers()) { const o = el('option', { value: t, text: t }); if (t === 'Friendly') o.selected = true; ts.appendChild(o); }
+            const add = el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', title: 'Add reputation requirement', 'aria-label': 'Add reputation requirement', onclick: () => { if (fs.value) save({ reputation: { factionId: fs.value, tier: ts.value } }); } }, [icon('plus', 15)]);
+            box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:4px;flex-wrap:wrap' }, [fs, ts, add]));
+        }
+        box.appendChild(lblx('Started by an item (the quest appears when the player gets it)'));
+        const si = el('input', { type: 'text', value: ent.startItem || '', placeholder: 'e.g. Torn Map', style: inputCss(false), 'aria-label': 'Starting item' });
+        si.addEventListener('change', () => { A.updateEntity(S.selectedId, { startItem: si.value.trim() || null }); });
+        box.appendChild(si);
     }
     // World root extras: the World Rules list (one rule per line) — these are what the AI
     // sees as [World Rules]. Bound to world.rules; blank lines are trimmed at injection.
@@ -1017,7 +1058,9 @@ export default function initWorldsUI() {
                 }
                 const ctl = el('div', { class: 'rpm-row', style: 'flex-wrap:wrap;margin-top:6px' });
                 const act = (t, fn, variant, disabled) => { const b = uiBtn(t, () => { fn(); refreshPanel(); }, { variant }); if (disabled) b.disabled = true; return b; };
-                if (st === 'available') ctl.appendChild(act('Accept', () => A.acceptQuest(q.id), 'success'));
+                if (q.startItem) card.appendChild(el('span', { class: 'rpm-chip rpm-chip-info', style: 'margin-top:3px', text: 'Started by: ' + q.startItem }));
+                if (st === 'available' && q.locks && q.locks.length) card.appendChild(el('div', { class: 'rpm-muted', 'data-locks': q.id, style: 'margin-top:3px' }, q.locks.map(t => el('div', { text: '🔒 ' + t }))));
+                if (st === 'available') ctl.appendChild(act('Accept', () => A.acceptQuest(q.id), 'success', q.locks && q.locks.length > 0));
                 if (st === 'active') { ctl.appendChild(act('Complete', () => A.completeQuest(q.id), 'success')); ctl.appendChild(act(q.active ? 'Untrack' : 'Track', () => A.setActiveQuest(q.active ? null : q.id))); ctl.appendChild(act('Abandon', () => { if (confirm(`Abandon "${q.title}"? Its progress is lost; you can accept it again.`)) A.abandonQuest(q.id); })); ctl.appendChild(act('Fail', () => A.failQuest(q.id), 'danger')); }
                 if (st === 'complete') {
                     const needs = A.questNeedsChoice(q.id) && !A.rewardsPaid(q.id);

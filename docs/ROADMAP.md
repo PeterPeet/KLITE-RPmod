@@ -331,6 +331,13 @@ world's state slots does not take them back).
       there; a zone counts its places). All done → "ready to turn in"; a collect objective lost
       again → back to active. Quest log (tick manual objectives) and tracker show counters;
       editor adds objectives by kind with target and count. Item stacks merge singular/plural.
+- [x] **Step 3 — prerequisites, chains, item-started quests, marker set** (2026-09-23): level,
+      earlier quests (turned in), flags, reputation tier; linking quest → quest in the editor makes
+      a chain ("unlocks" edge). Accept refuses (with the reason in the log); the player sees a
+      level-locked quest greyed, other locked quests not at all. Markers: yellow ? (turn in here)
+      > yellow ! > grey ? (in progress) > grey ! (level too low) — editor badges grey; the AI only
+      hears the yellow ones. `startItem`: the quest appears (and is announced) once the item is
+      held. Quest editor: "Requires" (level, quests, flags, reputation) and starting item.
 - Full marker set (yellow/grey `!`, yellow/grey `?`).
 - Prerequisites (level, previous quest, flag, reputation); chains; item-started quests.
 - Objective types with counters (kill/collect/talk/visit), auto-progress from tags/events.

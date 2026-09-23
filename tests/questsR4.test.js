@@ -201,3 +201,44 @@ test('Quest log and tracker show objectives with counters; manual ones can be ti
     const tracker = doc.querySelector('[data-section="quest-tracker"]');
     assert.match(tracker.textContent, /☑ Search the Forest Road[\s\S]*☐ Defeat 3 Wolf \(0\/3\)/);
 });
+
+test('prerequisites and chains, item-started quests, the full marker set', async (t) => {
+    const { W, w, C } = await personaWorld(t, { level: 1 });
+    // chain: the bounty needs the merchant quest turned in (editor link quest → quest)
+    W.connect('q_merchant', 'q_bounty');
+    assert.deepEqual(plain(W.questLocks('q_bounty')), ['Requires the quest "The Missing Merchant"']);
+    assert.ok(W.getGraph().edges.some(e => e.from === 'q_merchant' && e.to === 'q_bounty' && e.kind === 'unlocks'));
+    assert.equal(W.acceptQuest('q_bounty'), null, 'locked');
+    assert.ok(!W.listQuests('player').some(q => q.id === 'q_bounty'), 'hidden from the player until unlocked');
+    assert.deepEqual(plain(W.questMarkerInfo('npc_rowan', 'player')), null, 'no marker for a chained quest');
+    // merchant: Bram gives it (yellow !), Rowan takes it (grey ? while in progress, yellow ? when done)
+    assert.deepEqual(plain(W.questMarkerInfo('npc_bram')), { mark: '!', grey: false });
+    W.acceptQuest('q_merchant');
+    assert.deepEqual(plain(W.questMarkerInfo('npc_rowan')), { mark: '?', grey: true });
+    W.completeQuest('q_merchant');
+    assert.deepEqual(plain(W.questMarkerInfo('npc_rowan')), { mark: '?', grey: false });
+    W.turnInQuest('q_merchant');
+    assert.deepEqual(plain(W.questLocks('q_bounty')), []);
+    assert.deepEqual(plain(W.questMarkerInfo('npc_rowan')), { mark: '!', grey: false }, 'the next quest in the chain');
+    // level: grey ! until the level is reached
+    W.updateEntity('q_bounty', { prerequisites: { level: 3, quests: ['q_merchant'] } });
+    assert.deepEqual(plain(W.questMarkerInfo('npc_rowan')), { mark: '!', grey: true });
+    assert.equal(W.personQuestMarker('npc_rowan'), '', 'the AI only hears about yellow markers');
+    assert.ok(W.listQuests('player').some(q => q.id === 'q_bounty' && q.locks.length === 1), 'level-locked quests are shown (greyed)');
+    await C.saveSheet('Kara', Object.assign({}, await C.loadSheet('Kara'), { level: 3 }));
+    assert.deepEqual(plain(W.questMarkerInfo('npc_rowan')), { mark: '!', grey: false });
+    // flags
+    W.updateEntity('q_bounty', { prerequisites: { flags: ['metRowan'] } });
+    assert.equal(W.acceptQuest('q_bounty'), null);
+    assert.ok(w.KLITE_RPMod_Log.entries().some(e => /Cannot accept "Bandit Bounty" yet: Requires: metRowan\./.test(e.what)));
+    W.setFlag('metRowan', true);
+    assert.equal(W.acceptQuest('q_bounty'), 'active');
+    // item-started quest: appears when the item is picked up
+    const q = W.addEntity('quest', { name: 'The Torn Map' }); W.updateEntity(q.id, { title: 'The Torn Map', startItem: 'Torn Map' });
+    assert.ok(!W.listQuests('player').some(x => x.id === q.id));
+    W.applyTags('<give>Torn Map</give>');
+    assert.ok(W.listQuests('player').some(x => x.id === q.id && x.startItem === 'Torn Map'));
+    assert.ok(w.KLITE_RPMod_Log.entries().some(e => /The Torn Map starts a quest: The Torn Map\./.test(e.what)));
+    W.disconnect('q_merchant', 'q_bounty');
+    assert.deepEqual(plain(W.getGraph().edges.filter(e => e.kind === 'unlocks')), []);
+});

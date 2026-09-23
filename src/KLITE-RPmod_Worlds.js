@@ -374,8 +374,26 @@ export default function initWorlds() {
     function questVisible(q, mode) {
         if (!q) return false;
         if (mode === 'gm' || mode === 'creator') return true;
-        return !q.hidden || isDiscovered('quests', q.id);
+        if (q.hidden && !isDiscovered('quests', q.id)) return false;
+        // an item-started quest shows up once the player holds the item (or has taken it)
+        if (q.startItem && questStateOf(q) === 'available' && !isDiscovered('quests', q.id) && itemCount(q.startItem) <= 0) return false;
+        return true;
     }
+    // ---- prerequisites (level, earlier quests, flags, reputation) ----
+    function questFacts() {
+        return {
+            level: partyInfo().level,
+            questState: (id) => { const q = questById(id); return q ? questStateOf(q) : ''; },
+            flag: (k) => { const v = rt() && rt().flags ? rt().flags[k] : undefined; return v != null && v !== false && v !== 'false' && v !== 0; },
+            tierOf: (fid) => QR.tierOf(repValue(fid)),
+            questTitle: (id) => questTitle(questById(id)),
+            factionName,
+        };
+    }
+    function questLocks(q) { return q ? QR.unmetPrerequisites(q, questFacts()) : []; }
+    // Only the level is missing → shown as "available later" (grey !); anything else hides it
+    // from the player until it is met (chains).
+    function onlyLevelLocked(q) { const p = q.prerequisites || {}; const locks = questLocks(q); return locks.length > 0 && locks.length === 1 && Number(p.level) > 1 && /^Requires level/.test(locks[0]); }
     // The description to show a given viewer (real vs hidden/??? until discovered).
     function questDescription(q, mode) {
         const revealed = (mode === 'gm' || mode === 'creator') || !q.hiddenDescription || isDiscovered('descriptions', q.id);
@@ -384,11 +402,19 @@ export default function initWorlds() {
     // WoW-style marker for a person: '?' = has a completable turn-in, '!' = offers
     // an available quest. '' otherwise.
     function personQuestMarker(personId, mode) {
-        const world = activeWorld(); if (!world || !personId) return '';
-        const quests = asArray(world.quests);
-        for (const q of quests) if (q.turninPersonId === personId && questStateOf(q) === 'complete' && questVisible(q, mode)) return '?';
-        for (const q of quests) if (q.giverPersonId === personId && questStateOf(q) === 'available' && questVisible(q, mode)) return '!';
-        return '';
+        const m = questMarkerInfo(personId, mode);
+        return m && !m.grey ? m.mark : '';
+    }
+    // Full marker set: yellow ? (ready to turn in here) > yellow ! (can be accepted) >
+    // grey ? (accepted, in progress, turn in here) > grey ! (available later: level too low).
+    function questMarkerInfo(personId, mode) {
+        const world = activeWorld(); if (!world || !personId) return null;
+        const quests = asArray(world.quests).filter(q => questVisible(q, mode));
+        if (quests.some(q => q.turninPersonId === personId && questStateOf(q) === 'complete')) return { mark: '?', grey: false };
+        if (quests.some(q => q.giverPersonId === personId && questStateOf(q) === 'available' && !questLocks(q).length)) return { mark: '!', grey: false };
+        if (quests.some(q => q.turninPersonId === personId && questStateOf(q) === 'active')) return { mark: '?', grey: true };
+        if (quests.some(q => q.giverPersonId === personId && questStateOf(q) === 'available' && onlyLevelLocked(q))) return { mark: '!', grey: true };
+        return null;
     }
     function questTitle(q) { return norm(q && (q.title || q.name)) || 'Quest'; }
     function factionName(id) { const f = findById(activeWorld() && activeWorld().factions, id); return f ? norm(f.name) : id; }
@@ -438,8 +464,10 @@ export default function initWorlds() {
         return state;
     }
     function questById(id) { return findById(activeWorld() && activeWorld().quests, id); }
-    function acceptQuest(id) {
+    function acceptQuest(id, force) {
         const q = questById(id); if (!q) return null;
+        const locks = questLocks(q);
+        if (locks.length && !force) { gameLog(`Cannot accept "${questTitle(q)}" yet: ${locks.join('; ')}.`); return null; }
         const s = setQuestState(id, 'active');
         if (s) gameLog(`Quest accepted: ${questTitle(q)}.`);
         return s;
@@ -501,6 +529,12 @@ export default function initWorlds() {
         progressing = true;
         try {
             const here = rt().playerLocationId;
+            // an item that starts a quest: the quest appears (and is announced) once held
+            for (const q of asArray(w.quests)) {
+                if (!q.startItem || questStateOf(q) !== 'available' || isDiscovered('quests', q.id) || itemCount(q.startItem) <= 0) continue;
+                discover('quests', q.id); discover('descriptions', q.id);
+                gameLog(`The ${norm(q.startItem)} starts a quest: ${questTitle(q)}.`);
+            }
             for (const q of asArray(w.quests)) {
                 const st = questStateOf(q); if (st !== 'active' && st !== 'complete') continue;
                 const objs = asArray(q.objectives); if (!objs.length) continue;
@@ -539,7 +573,8 @@ export default function initWorlds() {
     function listQuests(mode) {
         const world = activeWorld(); if (!world) return [];
         mode = mode || 'gm';
-        return asArray(world.quests).filter(q => questVisible(q, mode)).map(q => {
+        // the player does not see quests locked by more than their level (chains)
+        return asArray(world.quests).filter(q => questVisible(q, mode) && !(mode === 'player' && questStateOf(q) === 'available' && questLocks(q).length && !onlyLevelLocked(q))).map(q => {
             const giver = findById(world.npcs, q.giverPersonId), turnin = findById(world.npcs, q.turninPersonId);
             return {
                 id: q.id, title: norm(q.title) || norm(q.name) || 'Quest',
@@ -548,7 +583,8 @@ export default function initWorlds() {
                 giver: giver ? personName(giver) : '', turnin: turnin ? personName(turnin) : '',
                 rewards: asArray(q.rewards),
                 objectives: asArray(q.objectives).filter(o => mode !== 'player' || !o.hidden).map(o => { const os = objectiveStatusOf(q, o); return { ...o, kind: QR.objectiveKind(o), ...os, label: QR.objectiveLabel(o, os) }; }),
-                marker: personQuestMarker(q.giverPersonId, mode) || personQuestMarker(q.turninPersonId, mode)
+                marker: personQuestMarker(q.giverPersonId, mode) || personQuestMarker(q.turninPersonId, mode),
+                locks: questLocks(q), startItem: norm(q.startItem) || '', prerequisites: q.prerequisites || null
             };
         });
     }
@@ -1583,6 +1619,7 @@ export default function initWorlds() {
         for (const q of asArray(world.quests)) {
             if (q.giverPersonId && findById(world.npcs, q.giverPersonId)) edges.push({ from: q.id, to: q.giverPersonId, kind: 'gives' });
             if (q.turninPersonId && findById(world.npcs, q.turninPersonId)) edges.push({ from: q.id, to: q.turninPersonId, kind: 'turnin' });
+            for (const pid of asArray(q.prerequisites && q.prerequisites.quests)) if (findById(world.quests, pid)) edges.push({ from: pid, to: q.id, kind: 'unlocks' });
         }
         // Derived chain edges (visualise trigger/effect wiring)
         for (const ev of asArray(world.events)) {
@@ -1670,6 +1707,11 @@ export default function initWorlds() {
         if (is('object', 'npc')) { const obj = ta === 'object' ? a : b, npc = ta === 'npc' ? a : b; obj.ownerNpcId = npc.id; return { kind: 'owned' }; }
         if (is('event', 'location')) { const ev = ta === 'event' ? a : b, loc = locOf(); ev.locationIds = asArray(ev.locationIds); if (!ev.locationIds.includes(loc.id)) ev.locationIds.push(loc.id); return { kind: 'occurs' }; }
         if (is('quest', 'npc')) { const q = ta === 'quest' ? a : b, npc = ta === 'npc' ? a : b; if (!q.giverPersonId) { q.giverPersonId = npc.id; return { kind: 'gives' }; } if (!q.turninPersonId) { q.turninPersonId = npc.id; return { kind: 'turnin' }; } q.giverPersonId = npc.id; return { kind: 'gives' }; }
+        if (ta === 'quest' && tb === 'quest') {   // chain: the second quest requires the first
+            b.prerequisites = Object.assign({}, b.prerequisites || {}); b.prerequisites.quests = asArray(b.prerequisites.quests);
+            if (!b.prerequisites.quests.includes(a.id)) b.prerequisites.quests.push(a.id);
+            return { kind: 'unlocks' };
+        }
         if (is('world', 'location')) return { kind: 'contains' }; // implicit; no-op
         throw new Error(`no relationship defined between ${ta} and ${tb}`);
     }
@@ -1691,6 +1733,7 @@ export default function initWorlds() {
             if (x.ownerNpcId === yId) x.ownerNpcId = null;
             if (x.giverPersonId === yId) x.giverPersonId = null;
             if (x.turninPersonId === yId) x.turninPersonId = null;
+            if (x.prerequisites && Array.isArray(x.prerequisites.quests)) x.prerequisites.quests = x.prerequisites.quests.filter(v => v !== yId);
         }
         return true;
     }
@@ -1923,7 +1966,10 @@ export default function initWorlds() {
         parseReward: (text) => QR.parseReward(text, (n) => { const f = asArray(activeWorld() && activeWorld().factions).find(x => QR.sameName(x.name, n) || x.id === n); return f ? f.id : null; }),
         questState(id) { const q = findById(activeWorld() && activeWorld().quests, id); return q ? questStateOf(q) : null; },
         setQuestState(id, state) { const s = setQuestState(id, state); syncLive(); return s; },
-        acceptQuest(id) { const s = acceptQuest(id); syncLive(); return s; },
+        acceptQuest(id, force) { const s = acceptQuest(id, force); syncLive(); return s; },
+        questLocks: (id) => questLocks(questById(id)),
+        reputationTiers: () => QR.TIERS.map(t => t.name),
+        questMarkerInfo: (personId, mode) => questMarkerInfo(personId, mode || aiMode()),
         completeQuest(id) { const s = setQuestState(id, 'complete'); const q = questById(id); if (s && q) gameLog(`Quest ready to turn in: ${questTitle(q)}.`); syncLive(); return s; },
         // choice: index of the chosen "choose one" reward (array for several choice rewards)
         turnInQuest(id, choice) { const s = turnInQuest(id, choice); syncLive(); return s; },
