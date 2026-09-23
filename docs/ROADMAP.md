@@ -10,6 +10,10 @@
 
 ## Current state
 
+**Next: R7** (world map of dungeons & towns — see [design/R7-world-map.md](design/R7-world-map.md)).
+Done since R1: R2 characters (🟨: spells open), R5 combat (🟨), R4 quests & world (✅). R3
+(compendium, spells) and R6 (chat power features) are still to do.
+
 Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
 Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks diffed,
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
@@ -419,33 +423,25 @@ Acceptance: build a "medium" encounter, fight it through victory and through def
 Acceptance: run a session using only slash commands and quick replies; export a world
 as a lorebook and re-import it.
 
-### R7 — World map: dungeons & towns, room by room ⬜ (revised 2026-09-23)
-Owner's decisions: no VTT. Room-by-room movement; towns work the same with places (market, temple
-garden, adventurers' guild, bathhouse — whatever the creator adds). World state is the truth; the
-grid/board is derived and drawn by RPmod, the LLM never writes coordinates. Dungeons from the
-editor, a generator and the AI during play. Combat gets distance bands.
-Planned steps:
-1. **Place model:** rooms/places = locations inside a dungeon or town (R4 zones); connections with
-   direction (N/E/S/W/up/down), type (door, corridor, stairs, secret passage, open) and door state
-   (open/closed/locked/barred, material); features as objects (furniture, container, trap, light);
-   environment per place (light, fire, water); exploration per story (unknown → known →
-   discovered → visited; secrets found by a Search check vs DC).
-2. **AI interface:** tags by name — create rooms, doors, open/close/unlock, search, light — and a
-   context section: current place, exits with door states, visible things, a small ASCII minimap
-   of explored places (read-only for the AI).
-3. **Layout + board:** RPmod lays places out on a grid from their directions (corridors routed),
-   stored and adjustable in the editor; a Map window draws the board (dungeon and town styles,
-   theme-bound), fog over unexplored places, markers for you/persons/monsters/doors; click a place
-   to move there.
-4. **Generator:** "new dungeon" (size, theme, seed) → rooms, corridors, a secret room, contents;
-   the AI names and describes them.
-5. **Distance bands in combat:** close / near / far / out; move action = one band (Dash = two);
-   melee only at close, ranged at near/far (long range = disadvantage, ranged at close =
-   disadvantage), leaving close provokes an opportunity attack unless Disengage; monsters pick
-   bands by their attacks; cover (+2/+5 AC) and hiding (Invisible) from the SRD.
+### R7 — World map: dungeons & towns, room by room ⬜ (revised 2026-09-23) — NEXT
+**Design: [docs/design/R7-world-map.md](design/R7-world-map.md)** (decisions, data model, AI
+interface, UI, generator, distance bands, AI-capability analysis). Owner's decisions: no VTT;
+room-by-room movement, towns as places; location kinds `location` / `dungeon` / `town`; a
+dungeon/town is one node in the world graph with its own **dungeon/town editor over the world
+editor**; rooms stay locations (`parentId`) hidden from the world graph; world state is the truth,
+the board is derived (the LLM never writes coordinates); dungeons from editor, generator and AI;
+**mini-map** for the player; combat distance bands.
+Steps:
+1. Location kinds + dungeon/town editor (board, rooms, connections/doors, inspector; data model
+   incl. exploration state, migrations, tests).
+2. Mini-map + room-by-room movement (door rules, refusals in the log, AI context section; parse
+   tags on reply arrival — known issue 12).
+3. AI tags + exploration (go/open/close/unlock/search/room/door/light; fog; secrets by Search).
+4. Generator (dungeons and towns).
+5. Distance bands in combat (close/near/far/out, move actions, cover, hiding).
 Acceptance: build a small dungeon and a town in the editor, generate a second dungeon, let the AI
-add a room with a locked door, explore room by room with fog on the board, find a secret door by
-searching, and fight an encounter using distance bands and cover.
+add a room with a locked door, explore room by room with fog on the mini-map, find a secret door
+by searching, and fight an encounter using distance bands and cover.
 
 ## Working agreement
 1. Plan the phase (or item) briefly; confirm scope with the owner when unclear.

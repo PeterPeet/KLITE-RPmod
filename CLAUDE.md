@@ -11,6 +11,7 @@ JavaScript usermod.
 2. [docs/USERSTORY.md](docs/USERSTORY.md) — the product vision, locked decisions, copyright guardrails.
 3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — internals and the Esolite host constraints.
 4. [USER_GUIDE.md](USER_GUIDE.md) — end-user documentation (keep in sync with features).
+5. `docs/design/` — design of the active phase when it has one (R7: [docs/design/R7-world-map.md](docs/design/R7-world-map.md)).
 
 ## Commands
 ```
@@ -27,7 +28,7 @@ npm run icons        # after changing the icon list: regenerates src/shell/icons
   into one file. **Edit here.**
 - `KLITE-RPmod.js` — **generated** bundle (committed for users). Never hand-edit.
 - `scripts/` — build scripts. `tests/` — test suite (`tests/helpers/host.js` = fake Esolite host).
-- `docs/` — USERSTORY, ROADMAP, ARCHITECTURE, diagrams, `exports/` (guide PDFs/HTML).
+- `docs/` — USERSTORY, ROADMAP, ARCHITECTURE, `design/` (phase designs), diagrams, `exports/` (guide PDFs/HTML).
 - `Esobold Esolite a fork of KoboldAI Lite RMv1.35.0/` — Esolite host reference (read-only, **supported version 1.35.0**).
 - `BackupData/` — archived material (old host copy, old AGENTS.md, specs). Not built.
 
