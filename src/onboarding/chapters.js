@@ -135,7 +135,7 @@ export const CHAPTERS = [
         id: 'characters', title: 'Characters, roles & tools',
         blocks: [
             { list: [
-                'Chars — your character collection: import cards, edit, search.',
+                'Chars — import cards and jump into your character gallery (full screen: browse, search, play, edit).',
                 'Roles — who plays whom: your persona and the AI\'s character(s), including group chats.',
                 'Scenario — set up the scene for a story.',
                 'Tools — context analysis, image generation, memory and more.',

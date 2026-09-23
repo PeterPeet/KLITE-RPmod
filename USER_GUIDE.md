@@ -54,9 +54,10 @@ chatting. Everything below explains how to build your own.
 
 - **Chars / Roles / Scenario / Tools tabs** (right panel): manage characters, personas and
   groups, scenarios, context tools, and image generation.
-- **Your characters live in Esolite's Library.** The **Chars** tab is RPmod's gallery view
-  of that same Library (portraits, tags, ratings, search); importing, editing or deleting
-  there changes the Library. *Fixed 2026-09-23:* with Esolite 1.35, an older RPmod version
+- **Your characters live in Esolite's Library.** The **Chars** tab imports cards (drop zone),
+  makes a backup, creates a card with **New Character** and lists your characters (favorites
+  first); **Open character gallery** or a name opens the full-screen gallery (below), where you
+  browse, search, play, edit and build. Importing, editing or deleting changes the Library. *Fixed 2026-09-23:* with Esolite 1.35, an older RPmod version
   hid characters you edited or imported in the Chars tab from the Library (their data was
   kept). RPmod now puts such characters back on the list automatically when the page
   loads; if a name was taken meanwhile, the returned one gets `_1` appended.
@@ -202,7 +203,8 @@ Filter with the tag chips, search, sort (favorites, name, rating, has sheet, siz
 between **Large / Medium / Small / List**; your choice is remembered. Click a character for
 the full card (description, personality, scenario, first message, example dialogue, creator
 notes, sheet) and the actions **Play as (persona)**, **AI plays (chat with)**, **Character
-sheet**, **Edit**, **Download**, **Favorite** and **Delete**. Make the window smaller with
+sheet**, **Edit**, **Download**, **Favorite** and **Delete**. **Import** (next to *New
+character*) adds cards (PNG, WebP, JSON) with Esolite's own importer. Make the window smaller with
 the restore button if you want it next to the chat; it remembers that.
 
 **Character builder (SRD 5.2.1, levels 1–3).** **New character** in the gallery (or **Build

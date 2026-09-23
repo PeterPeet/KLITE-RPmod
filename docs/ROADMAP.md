@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 118 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 119 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -103,7 +103,9 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
     `KLITE_RPMod.characters` is a gallery view rebuilt from it (plus RPmod-only rating/
     talkativeness/tag cache in `characters_v3`). Remaining (R2): gallery ids are list
     positions — key RPmod extras and links by the Library `id`; ALPHA still polls every
-    5 s (`rebuildFromEsolite`) instead of only reacting to Esolite's events.
+    5 s (`rebuildFromEsolite`) instead of only reacting to Esolite's events. ALPHA's gallery
+    grid/filter/sort code in `panels.CHARS` is now unused (fallback only) — remove it with the
+    ALPHA cleanup (known issues 8, 10).
 16. **Esolite 1.35 Library internals used by RPmod** (`resolveCharacterNameAndId`,
     `upsertCharacterMetadata`, `updateCharacterListFromAll`, `findCharacterMetaByName`,
     `getNextAutoincrementName`, `STORAGE_PREFIX`, `allCharacterNames`): recheck on every host
@@ -272,8 +274,13 @@ play test with a real backend, owner's decision 2026-09-23).
       ALPHA's gallery happened to hold the text. Card edits refresh it (`klite:library-change`).
       Worlds' player sheet now follows the *enabled* persona (as the AI context already did).
       Live-checked in Esolite.
+- [x] **ALPHA's Chars tab → gallery** (2026-09-23): the tab keeps import (drop zone), backup
+      and ALPHA's card editor (**New Character**, the gallery's **Edit**) and lists the Library's
+      characters (favorites first) as shortcuts into the gallery; ALPHA's second gallery grid is
+      no longer shown (its code stays as a fallback until ALPHA's CHARS code is removed). The
+      gallery gained **Import** (Esolite's importer) and refreshes on Library writes. Live-checked.
 - **Next (R2):** spells from the SRD spell list (pick cantrips/prepared spells — with R3's
-  compendium), levels 4+ (ASI/feats), ALPHA's Chars tab → gallery.
+  compendium), levels 4+ (ASI/feats), SillyTavern import round trip.
 - One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,
   background, abilities, proficiencies, skills, saves, AC, HP, speed, equipment,
   inventory, spells, features). Migration from existing `characterRef` + `stats`.

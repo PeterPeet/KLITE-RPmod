@@ -159,6 +159,7 @@ export default function initGallery() {
             Object.entries(SIZES).map(([k, t]) => chip(t, prefs.size === k, () => { prefs.size = k; savePrefs(); render(); }, { role: 'radio', 'aria-checked': String(prefs.size === k) })));
         root.appendChild(el('div', { class: 'rpm-gal-bar' }, [
             window.KLITE_RPMod_Builder ? el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon rpm-success', 'data-gal-action': 'new', onclick: () => window.KLITE_RPMod_Builder.open() }, [iconText('plus', 'New character')]) : null,
+            canImport() ? el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', 'data-gal-action': 'import', title: 'Import character cards (PNG, WebP, JSON) into the Library', onclick: () => importCards() }, [iconText('upload', 'Import')]) : null,
             el('div', { class: 'rpm-gal-sorts' }, Object.entries(SORTS).map(([k, t]) => chip(t, prefs.sort === k, () => { prefs.sort = k; savePrefs(); render(); }))),
             search, sizeSel,
         ]));
@@ -335,6 +336,30 @@ export default function initGallery() {
         try { const data = await get(name); if (data) dl(data.fileName, data.b64Url); } catch (e) { console.error('[RPmod gallery] download failed', e); }
     }
 
+    // ---- import ------------------------------------------------------------------------
+    // Esolite's own file prompt and import functions (via ALPHA's import handler, the same
+    // path as the Chars tab). Esolite saves asynchronously, so watch the list for the result.
+    const importHandler = () => window.KLITE_RPMod?.panels?.CHARS?.processEsoliteImportResult;
+    const canImport = () => typeof window.promptUserForLocalFile === 'function' && typeof importHandler() === 'function';
+    const listSignature = () => metas().map(m => `${m.id}:${m.name}`).join('|');
+    function watchList(before, ms = 10000) {
+        const start = Date.now();
+        const tick = () => {
+            if (listSignature() !== before) { if (V.box) render(); return; }
+            if (Date.now() - start < ms) setTimeout(tick, 400);
+        };
+        setTimeout(tick, 200);
+    }
+    function importCards() {
+        if (!canImport()) return false;
+        window.promptUserForLocalFile(async (result) => {
+            const before = listSignature();
+            try { await importHandler().call(window.KLITE_RPMod.panels.CHARS, result); } catch (_) {}
+            watchList(before);
+        }, ['.png', '.webp', '.json'], true);
+        return true;
+    }
+
     // ---- window ------------------------------------------------------------------------
     function register() {
         const sh = Shell(); if (!sh) return false;
@@ -345,6 +370,15 @@ export default function initGallery() {
         });
         sh.addDockAction('right', { id: 'gallery', title: 'Character gallery (full screen)', icon: 'layout-grid', onClick: () => api.open() });
         window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && V.detail && V.box && !document.querySelector('.popupcontainer:not(.hidden)')) closeDetail(); });
+        // RPmod wrote or deleted a card (ALPHA editor, sheet, import): drop its cached summary
+        window.addEventListener('klite:library-change', (e) => {
+            const d = (e && e.detail) || {};
+            const edit = d.name && !d.deleted && (!d.oldName || d.oldName === d.name) && V.grid && [...V.grid.children].some(c => c.getAttribute && c.getAttribute('data-name') === d.name);
+            if (edit) { loadRecord(d.name).then(() => updateCard(d.name)).catch(() => {}); return; }   // same card, new content
+            for (const n of [d.name, d.oldName]) if (n) { delete index[n]; images.delete(n); }
+            saveJSON(INDEX_KEY, index);
+            if (V.box) render();   // added, renamed or deleted
+        });
         window.addEventListener('klite:sheet-change', (e) => { const n = e.detail && e.detail.name; if (n && V.box) loadRecord(n).then(() => updateCard(n)).catch(() => {}); });
         return true;
     }
@@ -361,6 +395,7 @@ export default function initGallery() {
             return true;
         },
         refresh: () => render(),
+        importCards,
         summarize, _index: index,
     };
     window.KLITE_RPMod_Gallery = api;

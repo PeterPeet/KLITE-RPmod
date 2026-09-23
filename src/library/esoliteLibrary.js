@@ -157,8 +157,9 @@ export async function loadCharacter(name) {
         return r && r.data && typeof r.data === 'object' && !Array.isArray(r.data) ? r : null;
     } catch (_) { return null; }
 }
-// Names of all Library characters (type Character).
-export function characterNames() { return list().filter(m => m && m.name && (m.type || 'Character') === 'Character').map(m => m.name); }
+// Library entries of type Character ({ id, name, favorite, thumbnail? }), and their names.
+export function characterList() { return list().filter(m => m && m.name && (m.type || 'Character') === 'Character'); }
+export function characterNames() { return characterList().map(m => m.name); }
 
 export async function deleteCharacter(name) {
     const meta = findMetaByName(name);
@@ -230,7 +231,7 @@ export async function recoverOrphans() {
 export default function initLibrary() {
     'use strict';
     if (window.KLITE_RPMod_Library) return;
-    const api = { saveCharacter, deleteCharacter, loadCharacter, characterNames, findOrphans, recoverOrphans, isOrphanRecord, embedCardInImage, stripCardChunks, v2Card };
+    const api = { saveCharacter, deleteCharacter, loadCharacter, characterNames, characterList, findOrphans, recoverOrphans, isOrphanRecord, embedCardInImage, stripCardChunks, v2Card };
     window.KLITE_RPMod_Library = api;
 
     // Recovery runs once per page load, after Esolite has loaded and migrated its list.

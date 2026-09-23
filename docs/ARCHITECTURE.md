@@ -374,6 +374,16 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
   http(s). Actions: ALPHA `TOOLS.usePersona/useCharacter`, `CHARS.setEditMode('edit')`,
   Esolite `toggleCharacterFavorite`, `getDownloadDataFromManager` + `downloadB64URL`, Library
   `deleteCharacter`. Opens maximized unless the user sized it (`userSized` in window geometry).
+  **Import** (`importCards`): Esolite's `promptUserForLocalFile` + ALPHA's
+  `CHARS.processEsoliteImportResult` (Esolite's `convertTavernPng`/`getTavernExifJSON`/
+  `saveCharacterDataToIndexDB`); Esolite saves asynchronously, so the gallery watches the list
+  (≤10 s) and re-renders. `klite:library-change` refreshes the edited card (or re-renders on
+  add/rename/delete).
+- **ALPHA's Chars tab** points to the gallery: with `KLITE_RPMod_Gallery` present it renders
+  import/backup, **New Character** (ALPHA's card editor) and `renderGalleryLauncher()` (count +
+  up to 12 Library names, favorites first, from `KLITE_RPMod_Library.characterList()`; action
+  `open-gallery`); ALPHA's own grid (`renderInlineGallery`) remains only as the fallback. The tab
+  re-renders on `klite:library-change`.
 - **SRD data** (`src/data/srd52.js`, generated, 114 KB): `SRD.{attribution, classes, backgrounds,
   species, feats, weapons, armor, xp, standardArray, pointBuy, languages, alignments}`.
   Regenerate with `python3 scripts/extract-srd.py` (pypdf; PDF in `docs/reference/`, git-ignored).

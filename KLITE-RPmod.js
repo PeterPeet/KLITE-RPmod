@@ -1640,8 +1640,11 @@ ${s.text}` : s.text : `[${s.title}]`;
       return null;
     }
   }
+  function characterList() {
+    return list().filter((m) => m && m.name && (m.type || "Character") === "Character");
+  }
   function characterNames() {
-    return list().filter((m) => m && m.name && (m.type || "Character") === "Character").map((m) => m.name);
+    return characterList().map((m) => m.name);
   }
   async function deleteCharacter(name) {
     const meta = findMetaByName(name);
@@ -1716,7 +1719,7 @@ ${s.text}` : s.text : `[${s.title}]`;
   function initLibrary() {
     "use strict";
     if (window.KLITE_RPMod_Library) return;
-    const api = { saveCharacter, deleteCharacter, loadCharacter, characterNames, findOrphans, recoverOrphans, isOrphanRecord, embedCardInImage, stripCardChunks, v2Card };
+    const api = { saveCharacter, deleteCharacter, loadCharacter, characterNames, characterList, findOrphans, recoverOrphans, isOrphanRecord, embedCardInImage, stripCardChunks, v2Card };
     window.KLITE_RPMod_Library = api;
     let tries = 0;
     const attempt = async () => {
@@ -11365,6 +11368,13 @@ ${parts.join("\n")})))`;
         }
       }
     };
+    window.addEventListener("klite:library-change", () => {
+      try {
+        const C = KLITE_RPMod.panels.CHARS;
+        if (KLITE_RPMod.state?.tabs?.right === "CHARS" && (!C.editMode || C.editMode === "none") && document.getElementById("content-right")) KLITE_RPMod.loadPanel("right", "CHARS");
+      } catch (_) {
+      }
+    });
     (function watchPersona(T) {
       const store = { selectedPersona: T.selectedPersona, personaEnabled: T.personaEnabled };
       const current = () => store.personaEnabled && store.selectedPersona && store.selectedPersona.name || "";
@@ -13620,7 +13630,36 @@ ${examples}`;
                         ${t.button("Backup the Characters", "secondary", "export-chars")}
                     </div>`
         )}
-                
+                ${window.KLITE_RPMod_Gallery ? this.renderGalleryLauncher() : this.renderInlineGallery(filteredChars, charCount)}
+            `;
+      },
+      // The full-screen gallery (src/characters/gallery.js) is the place to browse: the tab
+      // keeps import/backup and lists the characters (favorites first) as shortcuts into it.
+      renderGalleryLauncher() {
+        let all = [];
+        try {
+          all = window.KLITE_RPMod_Library?.characterList?.() || [];
+        } catch (_) {
+        }
+        if (!all.length) all = (KLITE_RPMod.characters || []).filter((c) => c && c.name);
+        const favs = new Set(all.filter((m) => m.favorite).map((m) => m.name));
+        const sorted = all.slice().sort((a, b) => favs.has(b.name) - favs.has(a.name) || String(a.name).localeCompare(String(b.name)));
+        const shown = sorted.slice(0, 12);
+        const rows = shown.map((c) => `<button type="button" class="klite-btn secondary rpm-chars-link" data-action="open-gallery" data-char-name="${this.escapeHTML(c.name)}" style="width:100%;text-align:left;margin-bottom:4px;">${favs.has(c.name) ? "★ " : ""}${this.escapeHTML(c.name)}</button>`).join("");
+        const more = sorted.length > shown.length ? `<div class="klite-muted" style="font-size:11px;">and ${sorted.length - shown.length} more in the gallery</div>` : "";
+        return t.section(
+          "Character Gallery",
+          `<div class="klite-buttons-fill klite-mb">
+                        <button type="button" class="klite-btn primary" data-action="open-gallery" style="width:100%;padding:12px;">Open character gallery (${all.length})</button>
+                    </div>
+                    <div class="klite-muted" style="font-size:11px;margin-bottom:6px;">Browse, search, play, edit and build characters in the full-screen gallery. Click a name to open its page.</div>
+                    ${rows || '<div class="klite-muted">No characters yet — import a card above.</div>'}
+                    ${more}`
+        );
+      },
+      // ALPHA's own gallery grid (used when the RPmod gallery is not available).
+      renderInlineGallery(filteredChars, charCount) {
+        return `
                 ${t.section(
           "Character Management",
           `<div class="klite-char-controls">
@@ -13972,6 +14011,10 @@ ${examples}`;
           }
         },
         "export-chars": () => KLITE_RPMod.panels.CHARS.exportCharactersAsZip?.(),
+        "open-gallery": (e) => {
+          const name = e?.target?.closest?.("[data-char-name]")?.dataset?.charName || "";
+          window.KLITE_RPMod_Gallery?.open(name || void 0);
+        },
         "server-saves": async () => {
           try {
             if (typeof window.showServerSavesPopup === "function") {
@@ -21698,7 +21741,7 @@ ${recent}` : "");
       title: "Characters, roles & tools",
       blocks: [
         { list: [
-          "Chars — your character collection: import cards, edit, search.",
+          "Chars — import cards and jump into your character gallery (full screen: browse, search, play, edit).",
           "Roles — who plays whom: your persona and the AI's character(s), including group chats.",
           "Scenario — set up the scene for a story.",
           "Tools — context analysis, image generation, memory and more."
@@ -23534,6 +23577,7 @@ OK = save and close · Cancel = close and discard them`);
       );
       root.appendChild(el("div", { class: "rpm-gal-bar" }, [
         window.KLITE_RPMod_Builder ? el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon rpm-success", "data-gal-action": "new", onclick: () => window.KLITE_RPMod_Builder.open() }, [iconText("plus", "New character")]) : null,
+        canImport() ? el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", "data-gal-action": "import", title: "Import character cards (PNG, WebP, JSON) into the Library", onclick: () => importCards() }, [iconText("upload", "Import")]) : null,
         el("div", { class: "rpm-gal-sorts" }, Object.entries(SORTS).map(([k2, t]) => chip(t, prefs.sort === k2, () => {
           prefs.sort = k2;
           savePrefs();
@@ -23785,6 +23829,32 @@ OK = save and close · Cancel = close and discard them`);
         console.error("[RPmod gallery] download failed", e);
       }
     }
+    const importHandler = () => window.KLITE_RPMod?.panels?.CHARS?.processEsoliteImportResult;
+    const canImport = () => typeof window.promptUserForLocalFile === "function" && typeof importHandler() === "function";
+    const listSignature = () => metas().map((m) => `${m.id}:${m.name}`).join("|");
+    function watchList(before, ms = 1e4) {
+      const start = Date.now();
+      const tick = () => {
+        if (listSignature() !== before) {
+          if (V.box) render();
+          return;
+        }
+        if (Date.now() - start < ms) setTimeout(tick, 400);
+      };
+      setTimeout(tick, 200);
+    }
+    function importCards() {
+      if (!canImport()) return false;
+      window.promptUserForLocalFile(async (result) => {
+        const before = listSignature();
+        try {
+          await importHandler().call(window.KLITE_RPMod.panels.CHARS, result);
+        } catch (_) {
+        }
+        watchList(before);
+      }, [".png", ".webp", ".json"], true);
+      return true;
+    }
     function register() {
       const sh = Shell();
       if (!sh) return false;
@@ -23811,6 +23881,21 @@ OK = save and close · Cancel = close and discard them`);
       window.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && V.detail && V.box && !document.querySelector(".popupcontainer:not(.hidden)")) closeDetail();
       });
+      window.addEventListener("klite:library-change", (e) => {
+        const d = e && e.detail || {};
+        const edit = d.name && !d.deleted && (!d.oldName || d.oldName === d.name) && V.grid && [...V.grid.children].some((c) => c.getAttribute && c.getAttribute("data-name") === d.name);
+        if (edit) {
+          loadRecord(d.name).then(() => updateCard(d.name)).catch(() => {
+          });
+          return;
+        }
+        for (const n of [d.name, d.oldName]) if (n) {
+          delete index[n];
+          images.delete(n);
+        }
+        saveJSON(INDEX_KEY, index);
+        if (V.box) render();
+      });
       window.addEventListener("klite:sheet-change", (e) => {
         const n = e.detail && e.detail.name;
         if (n && V.box) loadRecord(n).then(() => updateCard(n)).catch(() => {
@@ -23831,6 +23916,7 @@ OK = save and close · Cancel = close and discard them`);
         return true;
       },
       refresh: () => render(),
+      importCards,
       summarize,
       _index: index
     };

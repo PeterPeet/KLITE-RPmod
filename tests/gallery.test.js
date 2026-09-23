@@ -78,3 +78,39 @@ test('gallery: detail page with the full card; actions use ALPHA persona/charact
     const card = $(w, '.rpm-gal-card[data-name="Bram"]');
     assert.equal(card.querySelector('.rpm-gal-badge-you').textContent, 'You', 'persona badge');
 });
+
+test('Chars tab points to the gallery; gallery imports through Esolite and follows Library writes', async (t) => {
+    const h = await galleryHost(t); const w = h.window;
+    // ALPHA's Chars tab (its panel is not built in jsdom: render + action directly)
+    const CH = w.KLITE_RPMod.panels.CHARS;
+    w.KLITE_RPMod.characters = [];   // ALPHA's copy may lag; the tab reads the Library list
+    w.__lib().find(m => m.name === 'Mira').favorite = true;
+    const tab = w.document.createElement('div'); tab.innerHTML = CH.render();
+    const launcher = [...tab.querySelectorAll('[data-action="open-gallery"]')];
+    assert.match(launcher[0].textContent, /Open character gallery \(3\)/, 'launcher with the count');
+    assert.deepEqual(launcher.slice(1).map(b => b.textContent), ['★ Mira', 'Bram', 'Lia'], 'favorites first');
+    assert.equal(tab.querySelector('#char-gallery'), null, 'no second gallery grid in the tab');
+    assert.ok(tab.querySelector('#char-upload-zone'), 'import zone kept');
+    CH.actions['open-gallery']({ target: launcher[1] }); await sleep(80);
+    assert.ok($(w, '[data-window="gallery"]'), 'gallery opened');
+    assert.ok($(w, '.rpm-gal-detail'), 'on Mira\'s page');
+
+    // Import: Esolite's file prompt + import function; Esolite saves asynchronously
+    const prompted = [];
+    w.promptUserForLocalFile = (cb, exts) => { prompted.push(exts); cb({ fileName: 'Kira.json', ext: '.json', plaintext: JSON.stringify({ spec: 'chara_card_v2', spec_version: '2.0', data: { name: 'Kira', description: 'A thief.' } }) }); };
+    w.saveCharacterDataToIndexDB = (_img, data) => { setTimeout(() => w.__addEsoCharacter(data.data.name, data.data), 100); };
+    w.KLITE_RPMod_Gallery.refresh();   // Esolite's prompt exists from the start in the real page
+    const importBtn = $(w, '[data-gal-action="import"]');
+    assert.ok(importBtn, 'Import button in the gallery bar');
+    click(importBtn, w);
+    assert.deepEqual(plainArr(prompted[0]), ['.png', '.webp', '.json']);
+    await sleep(900);
+    assert.ok($(w, '.rpm-gal-card[data-name="Kira"]'), 'new card shows once Esolite saved it');
+
+    // an edit written through RPmod's Library adapter refreshes that card
+    const L = w.KLITE_RPMod_Library; const r = await L.loadCharacter('Lia');
+    await L.saveCharacter({ inner: Object.assign({}, r.data, { creator_notes: 'Sings of old wars.' }), oldName: 'Lia' });
+    await sleep(80);
+    assert.equal($(w, '.rpm-gal-card[data-name="Lia"] .rpm-gal-tagline').textContent, 'Sings of old wars.');
+});
+const plainArr = (a) => JSON.parse(JSON.stringify(a));

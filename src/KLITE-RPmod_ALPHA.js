@@ -10235,6 +10235,13 @@ export default function initAlpha() {
             }
         },
     };
+    // The Chars tab lists Library characters: re-render it when RPmod wrote or deleted one.
+    window.addEventListener('klite:library-change', () => {
+        try {
+            const C = KLITE_RPMod.panels.CHARS;
+            if (KLITE_RPMod.state?.tabs?.right === 'CHARS' && (!C.editMode || C.editMode === 'none') && document.getElementById('content-right')) KLITE_RPMod.loadPanel('right', 'CHARS');
+        } catch (_) {}
+    });
     // Announce persona changes (many code paths assign selectedPersona / personaEnabled):
     // `klite:persona-change` on window, detail { name } ('' when none). Used by the shell's
     // Party section.
@@ -12857,7 +12864,34 @@ Outline:`
                         ${t.button('Backup the Characters', 'secondary', 'export-chars')}
                     </div>`
             )}
-                
+                ${window.KLITE_RPMod_Gallery ? this.renderGalleryLauncher() : this.renderInlineGallery(filteredChars, charCount)}
+            `;
+        },
+
+        // The full-screen gallery (src/characters/gallery.js) is the place to browse: the tab
+        // keeps import/backup and lists the characters (favorites first) as shortcuts into it.
+        renderGalleryLauncher() {
+            // Esolite's Library list is the master (ALPHA's own copy is rebuilt from it later)
+            let all = [];
+            try { all = window.KLITE_RPMod_Library?.characterList?.() || []; } catch (_) {}
+            if (!all.length) all = (KLITE_RPMod.characters || []).filter(c => c && c.name);
+            const favs = new Set(all.filter(m => m.favorite).map(m => m.name));
+            const sorted = all.slice().sort((a, b) => (favs.has(b.name) - favs.has(a.name)) || String(a.name).localeCompare(String(b.name)));
+            const shown = sorted.slice(0, 12);
+            const rows = shown.map(c => `<button type="button" class="klite-btn secondary rpm-chars-link" data-action="open-gallery" data-char-name="${this.escapeHTML(c.name)}" style="width:100%;text-align:left;margin-bottom:4px;">${favs.has(c.name) ? '★ ' : ''}${this.escapeHTML(c.name)}</button>`).join('');
+            const more = sorted.length > shown.length ? `<div class="klite-muted" style="font-size:11px;">and ${sorted.length - shown.length} more in the gallery</div>` : '';
+            return t.section('Character Gallery',
+                `<div class="klite-buttons-fill klite-mb">
+                        <button type="button" class="klite-btn primary" data-action="open-gallery" style="width:100%;padding:12px;">Open character gallery (${all.length})</button>
+                    </div>
+                    <div class="klite-muted" style="font-size:11px;margin-bottom:6px;">Browse, search, play, edit and build characters in the full-screen gallery. Click a name to open its page.</div>
+                    ${rows || '<div class="klite-muted">No characters yet — import a card above.</div>'}
+                    ${more}`);
+        },
+
+        // ALPHA's own gallery grid (used when the RPmod gallery is not available).
+        renderInlineGallery(filteredChars, charCount) {
+            return `
                 ${t.section('Character Management',
                 `<div class="klite-char-controls">
                         <input type="text" id="char-search" placeholder="Search characters..." 
@@ -13181,6 +13215,10 @@ Outline:`
                 } catch(_) {}
             },
             'export-chars': () => KLITE_RPMod.panels.CHARS.exportCharactersAsZip?.(),
+            'open-gallery': (e) => {
+                const name = e?.target?.closest?.('[data-char-name]')?.dataset?.charName || '';
+                window.KLITE_RPMod_Gallery?.open(name || undefined);
+            },
             'server-saves': async () => {
                 try {
                     if (typeof window.showServerSavesPopup === 'function') {
