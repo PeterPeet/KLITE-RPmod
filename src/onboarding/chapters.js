@@ -144,8 +144,9 @@ export const CHAPTERS = [
         show: [{ label: 'Chars tab', run: (c) => { c.open('chars'); c.highlight('#rpm-dock-right', 'Characters, roles, scenario and tools'); } }],
     },
     {
-        id: 'sheet', title: 'Character sheets & dice',
+        id: 'sheet', title: 'Characters, sheets & dice',
         blocks: [
+            { p: 'The Character gallery shows your whole Library full screen, with big portraits: open it with the grid button in the right panel\'s header. Filter by tag, search, sort, and switch between large, medium, small and list views. Click a character for the full card and to play as them, let the AI play them, open their sheet, edit, download or favorite them.' },
             { p: 'Every character in your Library can have a character sheet: abilities, saving throws, skills, armor class, hit points, attacks, inventory and coins. The sheet is stored inside the character card, so it travels with the card when you export it.' },
             { list: [
                 'Open it with "Character sheet" in the Party section (it starts with your persona) and pick any character at the top.',
@@ -155,7 +156,10 @@ export const CHAPTERS = [
             ] },
             { tip: 'Your persona\'s sheet (level, class, HP, AC, skills, inventory) is part of what the AI knows about you.' },
         ],
-        show: [{ label: 'Character sheet', run: (c) => { c.open('sheet'); c.highlight('[data-window="sheet"]', 'Click a bonus to roll'); } }],
+        show: [
+            { label: 'Character gallery', run: (c) => { c.highlight('[data-action="gallery"]', 'Opens your characters full screen'); } },
+            { label: 'Character sheet', run: (c) => { c.open('sheet'); c.highlight('[data-window="sheet"]', 'Click a bonus to roll'); } },
+        ],
     },
     {
         id: 'look', title: 'Look & colours',

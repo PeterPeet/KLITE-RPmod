@@ -13,6 +13,7 @@
 | `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds views for the shell (World tab, Party/Quests sections, Quest log/Combat/World editor windows) |
 | `context/context.js` | `window.KLITE_RPMod_Context` | **Single owner of per-turn prompt context**: providers, the one `prepare_submit_generation` wrapper, managed WI entries, save stripping (§3.3) |
 | `characters/sheet.js`, `store.js`, `characters.js` | `window.KLITE_RPMod_Characters` | d20 sheet model (pure), load/save on the card, Character sheet window (§5b) |
+| `characters/gallery.js` | `window.KLITE_RPMod_Gallery` | Full-screen character gallery over Esolite's Library (§5b) |
 | `game/log.js` | `window.KLITE_RPMod_Log` | Dice roller + per-story game log; context provider `gamelog` (§5b) |
 | `settings/settings.js` | `window.KLITE_RPMod_Settings` | "RPmod" tab in Esolite's Settings dialog; modules register options (§4c) |
 | `library/esoliteLibrary.js` | `window.KLITE_RPMod_Library` | Writes characters through Esolite's own Library (id-based since 1.35); recovers characters an older RPmod hid (§5a) |
@@ -351,6 +352,16 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
   entries (≤200) in the savefile key `rpmod_log` (reset on loading a story without it);
   context provider `gamelog` (order 60, priority 92) lists rolls since the last reply
   (`afterTurn` marks them consumed); left-dock section `gamelog` ("Dice log").
+- **Gallery** (`gallery.js`, window `gallery`, right-dock action `gallery`): reads the Library
+  list (`allCharacterNames`: names, ids, thumbnails, favorites); records load lazily per
+  visible card (IntersectionObserver, 2 in parallel; in order without IO) via
+  `loadCharacter`; text summary (`summarize`: creator, tagline from creator notes or the
+  first sentence, tags, token estimate chars/4, sheet class/level) cached in
+  `localStorage['KLITE.gallery.index']`; prefs `KLITE.gallery`. Untrusted text:
+  `plainText` (DOMParser, script/style removed) + `textContent`; images only data:/blob:/
+  http(s). Actions: ALPHA `TOOLS.usePersona/useCharacter`, `CHARS.setEditMode('edit')`,
+  Esolite `toggleCharacterFavorite`, `getDownloadDataFromManager` + `downloadB64URL`, Library
+  `deleteCharacter`. Opens maximized unless the user sized it (`userSized` in window geometry).
 - **Uses:** ALPHA's `characters` provider appends the sheet summary; Worlds'
   `combatantStats`/slice fall back to the linked card's sheet (`cardSheetStats`) and the
   persona sheet for the player (`personaSheetStats`); Worlds' character lookup falls back to

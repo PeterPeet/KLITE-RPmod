@@ -50,14 +50,14 @@ export function createWindowManager({ layer, getGeom, setGeom, onClose, canClose
     function fullGeom() { const vp = viewport(); return { x: 0, y: 0, w: vp.w, h: vp.h }; }
 
     // Maximize fills the viewport; the normal geometry is kept and comes back on restore.
-    function setMaximized(win, on) {
+    function setMaximized(win, on, userAction = false) {
         win.max = !!on;
         win.el.classList.toggle('rpm-maximized', win.max);
         win.maxBtn.setAttribute('aria-pressed', String(win.max));
         win.maxBtn.title = win.max ? 'Restore' : 'Maximize';
         win.maxBtn.replaceChildren(icon(win.max ? ICONS.restore : ICONS.maximize, 14));
         applyGeom(win, win.max ? fullGeom() : clampGeom(win.normal, win.opts));
-        setGeom(win.id, Object.assign({}, win.normal, { max: win.max }));
+        setGeom(win.id, Object.assign({}, win.normal, { max: win.max }, userAction ? { userSized: true } : {}));
     }
 
     function focus(id) {
@@ -100,11 +100,12 @@ export function createWindowManager({ layer, getGeom, setGeom, onClose, canClose
         focus(opts.id);
 
         // after a move/resize the current geometry becomes the normal one
-        const settle = () => { win.normal = win.geom; setGeom(opts.id, Object.assign({}, win.geom, { max: false })); };
+        // userSized: the user moved/resized it (views may then respect a smaller window)
+        const settle = () => { win.normal = win.geom; setGeom(opts.id, Object.assign({}, win.geom, { max: false, userSized: true })); };
         node.addEventListener(EV.down, () => focus(opts.id), true);
         closeBtn.addEventListener('click', (e) => { e.stopPropagation(); close(opts.id); });
-        maxBtn.addEventListener('click', (e) => { e.stopPropagation(); setMaximized(win, !win.max); });
-        head.addEventListener('dblclick', (e) => { if (!e.target.closest('button')) setMaximized(win, !win.max); });
+        maxBtn.addEventListener('click', (e) => { e.stopPropagation(); setMaximized(win, !win.max, true); });
+        head.addEventListener('dblclick', (e) => { if (!e.target.closest('button')) setMaximized(win, !win.max, true); });
         head.addEventListener(EV.down, (e) => {
             if (e.button > 0 || e.target.closest('button') || win.max) return;
             const g0 = win.geom;

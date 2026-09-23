@@ -8335,6 +8335,56 @@ export default function initAlpha() {
 
     // TOOLS Panel (formerly PLAY_RP)
     KLITE_RPMod.panels.TOOLS = {
+        // The AI's character (1:1 chat) / the user's persona — used by the selection dialogs
+        // and by the RPmod character gallery (src/characters/gallery.js).
+        useCharacter(char) {
+            KLITE_RPMod.panels.TOOLS.selectedCharacter = char;
+            KLITE_RPMod.panels.TOOLS.characterEnabled = true;
+            // No longer append character data to memory; WI-based flow is used
+            // Also prefill Create Scenario panel from this character (1:1 chat case)
+            try { KLITE_RPMod.populateScenarioFromCharacter(char); } catch(_) {}
+            // Apply character extras (avatar/name, context)
+            KLITE_RPMod.panels.TOOLS.applyCharacterData(char);
+
+            // Refresh currently active right panel (TOOLS/ROLES/SCENARIO) without switching
+            const active = KLITE_RPMod.state?.tabs?.right;
+            if (active === 'TOOLS' || active === 'ROLES' || active === 'SCENARIO') KLITE_RPMod.loadPanel('right', active);
+            // Character application confirmed by UI state change
+        },
+        usePersona(char) {
+            const tools = this;
+            tools.selectedPersona = char;
+            tools.personaEnabled = true;
+
+            // No longer append persona data to memory; WI-based flow is used
+
+            // Update user avatar with persona image if available (best-effort)
+            try {
+                if (typeof KLITE_RPMod.updateUserAvatar === 'function') {
+                    KLITE_RPMod.updateUserAvatar(char?.avatar || char?.image || null);
+                }
+            } catch(_) {}
+
+            // Update chatname to selected persona name
+            try {
+                if (window.localsettings && char?.name) {
+                    window.localsettings.chatname = char.name;
+                    window.save_settings?.();
+                }
+                const userNameInput = document.getElementById('rp-user-name');
+                if (userNameInput && char?.name) userNameInput.value = char.name;
+            } catch(_) {}
+
+            // Update character context and persist selection
+            tools.updateCharacterContext();
+            try { tools.saveSettings?.(); } catch(_) {}
+
+            // Refresh visible panel so tiles update immediately
+            try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
+            const active2 = KLITE_RPMod.state?.tabs?.right;
+            if (active2 === 'TOOLS' || active2 === 'ROLES') KLITE_RPMod.loadPanel('right', active2);
+        },
+
         rules: '',
         personaEnabled: false,
         characterEnabled: false,
@@ -8881,55 +8931,10 @@ export default function initAlpha() {
             'apply-persona': () => KLITE_RPMod.panels.TOOLS.applyPersona(),
             'apply-character': () => KLITE_RPMod.panels.TOOLS.applyCharacter(),
             'select-character': () => {
-                KLITE_RPMod.showUnifiedCharacterModal('single-select', (char) => {
-                    KLITE_RPMod.panels.TOOLS.selectedCharacter = char;
-                    KLITE_RPMod.panels.TOOLS.characterEnabled = true;
-                    // No longer append character data to memory; WI-based flow is used
-                    // Also prefill Create Scenario panel from this character (1:1 chat case)
-                    try { KLITE_RPMod.populateScenarioFromCharacter(char); } catch(_) {}
-                    // Apply character extras (avatar/name, context)
-                    KLITE_RPMod.panels.TOOLS.applyCharacterData(char);
-
-                    // Refresh currently active right panel (TOOLS/ROLES/SCENARIO) without switching
-                    const active = KLITE_RPMod.state?.tabs?.right;
-                    if (active === 'TOOLS' || active === 'ROLES' || active === 'SCENARIO') KLITE_RPMod.loadPanel('right', active);
-                    // Character application confirmed by UI state change
-                });
+                KLITE_RPMod.showUnifiedCharacterModal('single-select', (char) => KLITE_RPMod.panels.TOOLS.useCharacter(char));
             },
             'select-persona': () => {
-                KLITE_RPMod.showUnifiedCharacterModal('single-select', (char) => {
-                    const tools = KLITE_RPMod.panels.TOOLS;
-                    tools.selectedPersona = char;
-                    tools.personaEnabled = true;
-
-                    // No longer append persona data to memory; WI-based flow is used
-
-                    // Update user avatar with persona image if available (best-effort)
-                    try {
-                        if (typeof KLITE_RPMod.updateUserAvatar === 'function') {
-                            KLITE_RPMod.updateUserAvatar(char?.avatar || char?.image || null);
-                        }
-                    } catch(_) {}
-
-                    // Update chatname to selected persona name
-                    try {
-                        if (window.localsettings && char?.name) {
-                            window.localsettings.chatname = char.name;
-                            window.save_settings?.();
-                        }
-                        const userNameInput = document.getElementById('rp-user-name');
-                        if (userNameInput && char?.name) userNameInput.value = char.name;
-                    } catch(_) {}
-
-                    // Update character context and persist selection
-                    tools.updateCharacterContext();
-                    try { tools.saveSettings?.(); } catch(_) {}
-
-                    // Refresh visible panel so tiles update immediately
-                    try { KLITE_RPMod.panels.ROLES?.refresh?.(); } catch(_) {}
-                    const active2 = KLITE_RPMod.state?.tabs?.right;
-                    if (active2 === 'TOOLS' || active2 === 'ROLES') KLITE_RPMod.loadPanel('right', active2);
-                });
+                KLITE_RPMod.showUnifiedCharacterModal('single-select', (char) => KLITE_RPMod.panels.TOOLS.usePersona(char));
             },
             'remove-persona': () => KLITE_RPMod.panels.TOOLS.removePersona(),
             'remove-character': () => KLITE_RPMod.panels.TOOLS.removeCharacter(),

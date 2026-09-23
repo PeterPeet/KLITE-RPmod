@@ -300,6 +300,82 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
     .rpm-sheet-list { grid-template-columns: 1fr; }
 }
 
+/* ---- character gallery (window "gallery"): big portrait cards, text on the image ----
+   Text over portraits is white on a dark gradient in every theme (like the images it sits on). */
+.rpm-gal-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; position: relative; padding: 12px; }
+.rpm-gal { --gal-w: 300px; display: flex; flex-direction: column; gap: 10px; }
+.rpm-gal-medium { --gal-w: 220px; }
+.rpm-gal-small { --gal-w: 160px; }
+.rpm-gal-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rpm-gal-sorts, .rpm-gal-sizes, .rpm-gal-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.rpm-gal-search { flex: 1 1 220px; min-width: 160px; }
+.rpm-gal-chip {
+    border: 1px solid var(--rpm-border); background: var(--rpm-bg-alt); color: var(--rpm-fg); border-radius: 999px;
+    padding: 4px 12px; font: inherit; font-size: var(--rpm-fs-sm); font-weight: bold; cursor: pointer; white-space: nowrap;
+}
+.rpm-gal-chip:hover { border-color: var(--rpm-border-hi); }
+.rpm-gal-chip.rpm-on { background: var(--rpm-accent-bg-hi); color: var(--rpm-accent-fg-hi); border-color: var(--rpm-border-hi); }
+.rpm-gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--gal-w), 1fr)); gap: 14px; }
+.rpm-gal-empty { padding: 24px 0; }
+.rpm-gal-card {
+    position: relative; aspect-ratio: 2 / 3; border-radius: 12px; overflow: hidden; cursor: pointer;
+    background: var(--rpm-bg-alt); border: 1px solid var(--rpm-border); box-shadow: var(--rpm-shadow);
+    transition: transform .15s ease, border-color .15s ease;
+}
+.rpm-gal-card:hover, .rpm-gal-card:focus-visible { transform: translateY(-3px); border-color: var(--rpm-border-hi); outline: none; }
+.rpm-gal-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.rpm-gal-noimg { display: flex; align-items: center; justify-content: center; font-size: 64px; font-weight: bold; color: var(--rpm-fg-muted); background: var(--rpm-bg-alt); }
+.rpm-gal-badges { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; }
+.rpm-gal-badge { background: rgba(0, 0, 0, .7); color: #fff; border-radius: 999px; padding: 2px 9px; font-size: 11px; font-weight: bold; }
+.rpm-gal-badge-you { background: var(--rpm-quest); color: #1b1b1b; }
+.rpm-gal-badge-sheet { background: rgba(20, 90, 60, .85); }
+.rpm-gal-info {
+    position: absolute; left: 0; right: 0; bottom: 0; padding: 48px 12px 10px; color: #fff;
+    background: linear-gradient(to top, rgba(0, 0, 0, .94) 0%, rgba(0, 0, 0, .78) 50%, rgba(0, 0, 0, 0) 100%);
+    display: flex; flex-direction: column; gap: 3px;
+}
+.rpm-gal-name { font-size: 1.3em; font-weight: 800; line-height: 1.15; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+.rpm-gal-creator { font-size: .85em; opacity: .85; }
+.rpm-gal-tagline { font-size: .88em; opacity: .9; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rpm-gal-cardtags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.rpm-gal-tag { background: rgba(255, 255, 255, .16); border-radius: 6px; padding: 1px 7px; font-size: 11px; font-weight: bold; }
+.rpm-gal-stats { display: flex; align-items: center; gap: 8px; font-size: 11px; opacity: .85; margin-top: 3px; }
+.rpm-gal-stars { color: #f3c64a; letter-spacing: 1px; }
+.rpm-gal-fav { color: #ff7a8a; }
+.rpm-gal-small .rpm-gal-tagline, .rpm-gal-small .rpm-gal-cardtags, .rpm-gal-small .rpm-gal-creator { display: none; }
+.rpm-gal-small .rpm-gal-name { font-size: 1.05em; }
+/* list view: one row per character */
+.rpm-gal-list .rpm-gal-grid { grid-template-columns: 1fr; gap: 6px; }
+.rpm-gal-list .rpm-gal-card { aspect-ratio: auto; display: flex; align-items: center; min-height: 72px; box-shadow: none; }
+.rpm-gal-list .rpm-gal-img { position: static; width: 56px; height: 72px; flex: none; }
+.rpm-gal-list .rpm-gal-info { position: static; background: none; color: var(--rpm-fg); padding: 6px 12px; flex: 1; min-width: 0; }
+.rpm-gal-list .rpm-gal-name { font-size: 1.05em; text-shadow: none; }
+.rpm-gal-list .rpm-gal-tag { background: var(--rpm-bg); border: 1px solid var(--rpm-border); }
+.rpm-gal-list .rpm-gal-badges { position: static; order: 3; margin-right: 10px; }
+.rpm-gal-list .rpm-gal-noimg { width: 56px; height: 72px; font-size: 28px; }
+/* detail page */
+.rpm-gal-detail { position: absolute; inset: 0; z-index: 3; overflow: auto; padding: 12px; background: var(--rpm-bg); }
+.rpm-gal-back { margin-bottom: 10px; }
+.rpm-gal-detail-body { display: grid; grid-template-columns: minmax(240px, 38%) 1fr; gap: 20px; align-items: start; }
+.rpm-gal-portrait { position: sticky; top: 0; }
+.rpm-gal-portrait img, .rpm-gal-portrait .rpm-gal-noimg { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 12px; border: 1px solid var(--rpm-border); display: block; }
+.rpm-gal-about { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rpm-gal-title { margin: 0; font-size: 1.8em; font-weight: 800; color: var(--rpm-fg-hi); }
+.rpm-gal-lead { margin: 4px 0; font-size: 1.05em; }
+.rpm-gal-about .rpm-gal-tag { background: var(--rpm-bg-alt); border: 1px solid var(--rpm-border); color: var(--rpm-fg); }
+.rpm-gal-actions { flex-wrap: wrap; margin: 6px 0; }
+.rpm-gal-rate { display: flex; gap: 2px; }
+.rpm-gal-star { font-size: 18px; color: var(--rpm-fg-muted); }
+.rpm-gal-star.rpm-on { color: #f3c64a; }
+.rpm-gal-sec { border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); padding: 6px 10px; background: var(--rpm-bg-alt); }
+.rpm-gal-sec > summary { cursor: pointer; font-weight: bold; }
+.rpm-gal-text { white-space: pre-wrap; margin-top: 6px; line-height: 1.5; overflow-wrap: anywhere; }
+@container (max-width: 640px) {
+    .rpm-gal-detail-body { grid-template-columns: 1fr; }
+    .rpm-gal-portrait { position: static; max-width: 320px; }
+    .rpm-gal { --gal-w: 150px; }
+}
+
 /* ---- "Show me" spotlight (outside the shell layer, above everything) ---- */
 .rpm-spot-ring {
     position: fixed; z-index: 100003; pointer-events: none; border-radius: 8px;

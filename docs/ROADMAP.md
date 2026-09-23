@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 101 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 105 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -234,9 +234,19 @@ play test with a real backend, owner's decision 2026-09-23).
       block, the player uses the persona sheet. Portrait PNG: old card chunks stripped, V2
       card embedded (Esolite appends chunks and embeds only the inner object — tell
       Jaxxks). Live-checked in Esolite.
-- **Next (R2):** builder (SRD 5.2 species/classes/backgrounds, levels 1–3), XP + level-up,
-  sheet in the Chars gallery (gallery rebuild — owner to confirm), Party section shows the
-  persona's HP/AC; person blurbs from linked cards (ALPHA's gallery view has no card text).
+- [x] **Character gallery** (2026-09-23, owner: new view, "I want to see my characters",
+      big images like wyvern.chat, full screen): `src/characters/gallery.js` — window
+      `gallery` (opens maximized, remembers a user-chosen smaller size), Wyvern-style cards
+      (2:3 portrait, name/creator/tagline/tags/tokens over a dark gradient, badges You/AI/
+      sheet), sizes Large/Medium/Small/List (ALPHA's views), search, sort, tag chips with
+      counts, detail page (full card text, rating, actions: play as persona, AI plays, sheet,
+      edit via ALPHA's editor, download/favorite via Esolite, delete). Lazy loading of records
+      and full images (IntersectionObserver), summary cache `KLITE.gallery.index`. ALPHA's
+      selection logic extracted to `TOOLS.usePersona/useCharacter`. Live-checked.
+- **Next (R2):** builder (SRD 5.2.1 downloaded to `docs/reference/`, git-ignored) —
+  species/classes/backgrounds, levels 1–3; XP + level-up; Party section shows the persona's
+  HP/AC; person blurbs from linked cards (ALPHA's gallery view has no card text); ALPHA's
+  Chars tab can later point to the gallery.
 - One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,
   background, abilities, proficiencies, skills, saves, AC, HP, speed, equipment,
   inventory, spells, features). Migration from existing `characterRef` + `stats`.

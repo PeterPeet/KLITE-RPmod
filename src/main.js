@@ -16,6 +16,7 @@ import initLibrary from './library/esoliteLibrary.js';
 import initSettings from './settings/settings.js';
 import initGameLog from './game/log.js';
 import initCharacters from './characters/characters.js';
+import initGallery from './characters/gallery.js';
 
 const MODULES = [
     ['shell/shell.js', initShell],
@@ -23,6 +24,7 @@ const MODULES = [
     ['library/esoliteLibrary.js', initLibrary],
     ['game/log.js', initGameLog],
     ['characters/characters.js', initCharacters],
+    ['characters/gallery.js', initGallery],
     ['KLITE-RPmod_ALPHA.js', initAlpha],
     ['KLITE-RPmod_Worlds.js', initWorlds],
     ['KLITE-RPmod_WorldsUI.js', initWorldsUI],

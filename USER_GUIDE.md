@@ -194,6 +194,16 @@ to the next day, and the **season** follows the month automatically.
 
 ## 6b. Tabletop-RPG systems
 
+**Character gallery.** The grid button in the right panel's header opens your whole
+Library **full screen**: big portrait cards with name, creator, tagline, tags and size
+(tokens) on the image, badges for *You* (your persona), *AI* and a sheet's class and level.
+Filter with the tag chips, search, sort (favorites, name, rating, has sheet, size) and switch
+between **Large / Medium / Small / List**; your choice is remembered. Click a character for
+the full card (description, personality, scenario, first message, example dialogue, creator
+notes, sheet) and the actions **Play as (persona)**, **AI plays (chat with)**, **Character
+sheet**, **Edit**, **Download**, **Favorite** and **Delete**. Make the window smaller with
+the restore button if you want it next to the chat; it remembers that.
+
 **Character sheets.** Every character in your Library can have a d20 sheet (SRD 5.2 rules):
 species, class, level, background, the six abilities, saving throws, the 18 skills
 (proficient or expertise), AC, speed, HP, attacks, inventory, coins, features and notes.
