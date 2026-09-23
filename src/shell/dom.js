@@ -34,6 +34,8 @@ export const ICONS = {
     // two sidebars around a centre column
     shell: ['M3 4h18v16H3z', 'M8 4v16', 'M16 4v16'],
     close: ['M6 6l12 12', 'M18 6L6 18'],
+    maximize: 'M5 5h14v14H5z',
+    restore: ['M8 8h11v11H8z', 'M5 16V5h11'],
     chevronLeft: 'M15 6l-6 6 6 6',
     chevronRight: 'M9 6l6 6-6 6',
     chevronDown: 'M6 9l6 6 6-6',

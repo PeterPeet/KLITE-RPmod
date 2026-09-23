@@ -152,6 +152,11 @@ ${Object.entries(RPMOD_THEME_DEFAULTS).map(([k, v]) => `    ${k}: ${v};`).join('
     position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none;
     background: linear-gradient(135deg, transparent 50%, var(--rpm-border) 50%, var(--rpm-border) 60%, transparent 60%, transparent 70%, var(--rpm-border) 70%, var(--rpm-border) 80%, transparent 80%);
 }
+#rpm-shell .rpm-window-body-flush { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.rpm-window.rpm-maximized { border-radius: 0; }
+.rpm-window.rpm-maximized .rpm-window-head { cursor: default; }
+.rpm-window.rpm-maximized .rpm-window-grip { display: none; }
+#rpm-shell.rpm-compact .rpm-window-head [data-winbtn="max"] { display: none; }
 #rpm-shell.rpm-compact .rpm-window { left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; border-radius: 0; }
 #rpm-shell.rpm-compact .rpm-window-head { cursor: default; }
 #rpm-shell.rpm-compact .rpm-window-grip { display: none; }
@@ -219,6 +224,36 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
     .rpm-guide { grid-template-columns: 1fr; }
     .rpm-guide-toc { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--rpm-border); padding: 0 0 6px; }
     .rpm-guide-toc-item { white-space: nowrap; }
+}
+
+/* ---- World editor (window "editor"): toolbar, palette rail | canvas | inspector ---- */
+.wm-editor { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; font-family: var(--rpm-font); }
+.wm-ed-toolbar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: var(--rpm-s2); padding: 6px 10px;
+    background: var(--rpm-bg-alt); border-bottom: 1px solid var(--rpm-border); font-weight: bold;
+}
+.wm-ed-toolbar .rpm-input { width: 230px; max-width: 40%; }
+.wm-ed-body { flex: 1 1 auto; min-height: 0; display: flex; overflow: hidden; }
+.wm-ed-rail { flex: 0 0 170px; padding: 10px; overflow: auto; border-right: 1px solid var(--rpm-border); }
+.wm-ed-label { color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); font-weight: bold; margin: 0 0 6px; }
+.wm-ed-palette { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--rpm-border); }
+.wm-ed-add {
+    display: block; width: 100%; text-align: left; color: #fff; border: none; border-radius: var(--rpm-radius);
+    padding: 6px 9px; font-size: var(--rpm-fs-sm); font-weight: bold; cursor: pointer; text-transform: capitalize;
+}
+.wm-ed-tools { display: flex; gap: 6px; }
+.wm-ed-help { color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); margin-top: 8px; line-height: 1.5; }
+.wm-ed-canvas { flex: 1 1 auto; min-width: 0; min-height: 0; display: block; background: var(--rpm-bg-chat); touch-action: none; }
+.wm-ed-insp { flex: 0 0 280px; padding: 12px; overflow: auto; border-left: 1px solid var(--rpm-border); }
+/* narrow window or phone: palette becomes a strip on top, inspector goes below the canvas */
+@container (max-width: 720px) {
+    .wm-ed-body { flex-direction: column; }
+    .wm-ed-rail { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--rpm-border); padding: 6px 8px; }
+    .wm-ed-rail .wm-ed-label, .wm-ed-help { display: none; }
+    .wm-ed-palette { flex-direction: row; margin: 0; padding: 0 8px 0 0; border-bottom: 0; border-right: 1px solid var(--rpm-border); }
+    .wm-ed-add { width: auto; white-space: nowrap; }
+    .wm-ed-canvas { flex: 1 1 55%; }
+    .wm-ed-insp { flex: 0 1 45%; border-left: 0; border-top: 1px solid var(--rpm-border); }
 }
 
 /* ---- "Show me" spotlight (outside the shell layer, above everything) ---- */

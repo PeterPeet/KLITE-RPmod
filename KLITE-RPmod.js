@@ -145,6 +145,11 @@ ${Object.entries(RPMOD_THEME_DEFAULTS).map(([k, v]) => `    ${k}: ${v};`).join("
     position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none;
     background: linear-gradient(135deg, transparent 50%, var(--rpm-border) 50%, var(--rpm-border) 60%, transparent 60%, transparent 70%, var(--rpm-border) 70%, var(--rpm-border) 80%, transparent 80%);
 }
+#rpm-shell .rpm-window-body-flush { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.rpm-window.rpm-maximized { border-radius: 0; }
+.rpm-window.rpm-maximized .rpm-window-head { cursor: default; }
+.rpm-window.rpm-maximized .rpm-window-grip { display: none; }
+#rpm-shell.rpm-compact .rpm-window-head [data-winbtn="max"] { display: none; }
 #rpm-shell.rpm-compact .rpm-window { left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; border-radius: 0; }
 #rpm-shell.rpm-compact .rpm-window-head { cursor: default; }
 #rpm-shell.rpm-compact .rpm-window-grip { display: none; }
@@ -212,6 +217,36 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
     .rpm-guide { grid-template-columns: 1fr; }
     .rpm-guide-toc { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--rpm-border); padding: 0 0 6px; }
     .rpm-guide-toc-item { white-space: nowrap; }
+}
+
+/* ---- World editor (window "editor"): toolbar, palette rail | canvas | inspector ---- */
+.wm-editor { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; font-family: var(--rpm-font); }
+.wm-ed-toolbar {
+    display: flex; align-items: center; flex-wrap: wrap; gap: var(--rpm-s2); padding: 6px 10px;
+    background: var(--rpm-bg-alt); border-bottom: 1px solid var(--rpm-border); font-weight: bold;
+}
+.wm-ed-toolbar .rpm-input { width: 230px; max-width: 40%; }
+.wm-ed-body { flex: 1 1 auto; min-height: 0; display: flex; overflow: hidden; }
+.wm-ed-rail { flex: 0 0 170px; padding: 10px; overflow: auto; border-right: 1px solid var(--rpm-border); }
+.wm-ed-label { color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); font-weight: bold; margin: 0 0 6px; }
+.wm-ed-palette { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--rpm-border); }
+.wm-ed-add {
+    display: block; width: 100%; text-align: left; color: #fff; border: none; border-radius: var(--rpm-radius);
+    padding: 6px 9px; font-size: var(--rpm-fs-sm); font-weight: bold; cursor: pointer; text-transform: capitalize;
+}
+.wm-ed-tools { display: flex; gap: 6px; }
+.wm-ed-help { color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); margin-top: 8px; line-height: 1.5; }
+.wm-ed-canvas { flex: 1 1 auto; min-width: 0; min-height: 0; display: block; background: var(--rpm-bg-chat); touch-action: none; }
+.wm-ed-insp { flex: 0 0 280px; padding: 12px; overflow: auto; border-left: 1px solid var(--rpm-border); }
+/* narrow window or phone: palette becomes a strip on top, inspector goes below the canvas */
+@container (max-width: 720px) {
+    .wm-ed-body { flex-direction: column; }
+    .wm-ed-rail { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--rpm-border); padding: 6px 8px; }
+    .wm-ed-rail .wm-ed-label, .wm-ed-help { display: none; }
+    .wm-ed-palette { flex-direction: row; margin: 0; padding: 0 8px 0 0; border-bottom: 0; border-right: 1px solid var(--rpm-border); }
+    .wm-ed-add { width: auto; white-space: nowrap; }
+    .wm-ed-canvas { flex: 1 1 55%; }
+    .wm-ed-insp { flex: 0 1 45%; border-left: 0; border-top: 1px solid var(--rpm-border); }
 }
 
 /* ---- "Show me" spotlight (outside the shell layer, above everything) ---- */
@@ -288,6 +323,8 @@ body.rpm-docked #maincontainer {
     // two sidebars around a centre column
     shell: ["M3 4h18v16H3z", "M8 4v16", "M16 4v16"],
     close: ["M6 6l12 12", "M18 6L6 18"],
+    maximize: "M5 5h14v14H5z",
+    restore: ["M8 8h11v11H8z", "M5 16V5h11"],
     chevronLeft: "M15 6l-6 6 6 6",
     chevronRight: "M9 6l6 6-6 6",
     chevronDown: "M6 9l6 6 6-6"
@@ -322,11 +359,28 @@ body.rpm-docked #maincontainer {
     }
     function initialGeom(opts) {
       const saved = getGeom(opts.id);
-      if (saved && [saved.x, saved.y, saved.w, saved.h].every(Number.isFinite)) return saved;
+      if (saved && [saved.x, saved.y, saved.w, saved.h].every(Number.isFinite)) return { x: saved.x, y: saved.y, w: saved.w, h: saved.h };
       const vp = viewport();
+      if (opts.large) {
+        const w2 = Math.min(vp.w - 48, 1500), h2 = Math.max(opts.minHeight, vp.h - 96);
+        return { x: (vp.w - w2) / 2, y: 64, w: w2, h: h2 };
+      }
       const w = opts.width, h = opts.height;
       const off = cascade++ % 6 * 28;
       return { x: (vp.w - w) / 2 + off, y: Math.max(40, (vp.h - h) / 3) + off, w, h };
+    }
+    function fullGeom() {
+      const vp = viewport();
+      return { x: 0, y: 0, w: vp.w, h: vp.h };
+    }
+    function setMaximized(win, on) {
+      win.max = !!on;
+      win.el.classList.toggle("rpm-maximized", win.max);
+      win.maxBtn.setAttribute("aria-pressed", String(win.max));
+      win.maxBtn.title = win.max ? "Restore" : "Maximize";
+      win.maxBtn.replaceChildren(icon(win.max ? ICONS.restore : ICONS.maximize, 14));
+      applyGeom(win, win.max ? fullGeom() : clampGeom(win.normal, win.opts));
+      setGeom(win.id, Object.assign({}, win.normal, { max: win.max }));
     }
     function focus(id) {
       const win = wins.get(id);
@@ -357,41 +411,48 @@ body.rpm-docked #maincontainer {
         return wins.get(opts.id);
       }
       const title = el("span", { class: "rpm-window-title", text: opts.title });
-      const closeBtn = el("button", { class: "rpm-iconbtn", type: "button", title: "Close", "aria-label": "Close " + opts.title }, [icon(ICONS.close, 16)]);
-      const head = el("div", { class: "rpm-window-head" }, [title, closeBtn]);
-      const body = el("div", { class: "rpm-window-body" });
+      const maxBtn = el("button", { class: "rpm-iconbtn", type: "button", title: "Maximize", "aria-label": "Maximize " + opts.title, "aria-pressed": "false", "data-winbtn": "max" }, [icon(ICONS.maximize, 14)]);
+      const closeBtn = el("button", { class: "rpm-iconbtn", type: "button", title: "Close", "aria-label": "Close " + opts.title, "data-winbtn": "close" }, [icon(ICONS.close, 16)]);
+      const head = el("div", { class: "rpm-window-head" }, [title, maxBtn, closeBtn]);
+      const body = el("div", { class: "rpm-window-body" + (opts.flush ? " rpm-window-body-flush" : "") });
       const grip = el("div", { class: "rpm-window-grip", title: "Resize" });
       const node = el("section", { class: "rpm-window", role: "dialog", "aria-label": opts.title, "data-window": opts.id }, [head, body, grip]);
-      const win = { id: opts.id, el: node, body, opts, geom: null };
+      const win = { id: opts.id, el: node, body, opts, geom: null, normal: null, max: false, maxBtn };
       wins.set(opts.id, win);
       layer.appendChild(node);
-      applyGeom(win, clampGeom(initialGeom(opts), opts));
+      const saved = getGeom(opts.id);
+      win.normal = clampGeom(initialGeom(opts), opts);
+      applyGeom(win, win.normal);
       focus(opts.id);
+      const settle = () => {
+        win.normal = win.geom;
+        setGeom(opts.id, Object.assign({}, win.geom, { max: false }));
+      };
       node.addEventListener(EV.down, () => focus(opts.id), true);
       closeBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         close(opts.id);
       });
+      maxBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setMaximized(win, !win.max);
+      });
+      head.addEventListener("dblclick", (e) => {
+        if (!e.target.closest("button")) setMaximized(win, !win.max);
+      });
       head.addEventListener(EV.down, (e) => {
-        if (e.button > 0 || e.target.closest("button")) return;
+        if (e.button > 0 || e.target.closest("button") || win.max) return;
         const g0 = win.geom;
-        track(
-          e,
-          (dx, dy) => applyGeom(win, clampGeom({ x: g0.x + dx, y: g0.y + dy, w: g0.w, h: g0.h }, opts)),
-          () => setGeom(opts.id, win.geom)
-        );
+        track(e, (dx, dy) => applyGeom(win, clampGeom({ x: g0.x + dx, y: g0.y + dy, w: g0.w, h: g0.h }, opts)), settle);
       });
       grip.addEventListener(EV.down, (e) => {
-        if (e.button > 0) return;
+        if (e.button > 0 || win.max) return;
         e.stopPropagation();
         const g0 = win.geom;
-        track(
-          e,
-          (dx, dy) => applyGeom(win, clampGeom({ x: g0.x, y: g0.y, w: g0.w + dx, h: g0.h + dy }, opts)),
-          () => setGeom(opts.id, win.geom)
-        );
+        track(e, (dx, dy) => applyGeom(win, clampGeom({ x: g0.x, y: g0.y, w: g0.w + dx, h: g0.h + dy }, opts)), settle);
       });
-      setGeom(opts.id, win.geom);
+      if (saved && saved.max) setMaximized(win, true);
+      else setGeom(opts.id, Object.assign({}, win.geom, { max: false }));
       return win;
     }
     function close(id) {
@@ -409,13 +470,21 @@ body.rpm-docked #maincontainer {
       return true;
     }
     function reclampAll() {
-      for (const win of wins.values()) applyGeom(win, clampGeom(win.geom, win.opts));
+      for (const win of wins.values()) {
+        win.normal = clampGeom(win.normal, win.opts);
+        applyGeom(win, win.max ? fullGeom() : win.normal);
+      }
     }
     return {
       open,
       close,
       focus,
       reclampAll,
+      maximize: (id, on = true) => {
+        const win = wins.get(id);
+        if (win) setMaximized(win, on);
+        return !!win;
+      },
       isOpen: (id) => wins.has(id),
       get: (id) => wins.get(id) || null,
       list: () => [...wins.keys()]
@@ -609,6 +678,8 @@ body.rpm-docked #maincontainer {
       }
     }
     function shouldRestoreWindow(id) {
+      const v = views.get(id);
+      if (v && v.def.window && v.def.window.restore === false) return false;
       return !compact && !!(layout.windows[id] && layout.windows[id].open);
     }
     function openView(id) {
@@ -746,10 +817,16 @@ body.rpm-docked #maincontainer {
           layout.windows[id] = Object.assign({}, layout.windows[id], { open: false });
           saveLayout();
           const v = views.get(id);
-          if (v) {
-            v.container = null;
-            v.mounted = false;
+          if (!v) return;
+          if (v.container && typeof v.def.unmount === "function") {
+            try {
+              v.def.unmount(v.container, api);
+            } catch (e) {
+              console.error("[RPmod shell] view unmount failed:", id, e);
+            }
           }
+          v.container = null;
+          v.mounted = false;
         }
       });
       for (const place of ["left", "right"]) for (const v of sortedViews(place)) placeView(v);
@@ -875,6 +952,7 @@ body.rpm-docked #maincontainer {
         const v = views.get(id);
         return !!(v && isVisible(v) && (v.def.place !== "right" || open.right) && (v.def.place !== "left" || open.left));
       },
+      maximize: (id, on = true) => !!(wm && wm.maximize(id, on)),
       setDockOpen,
       toggleDock,
       addDockAction,
@@ -19315,7 +19393,7 @@ ${s.text}` : `[${s.title}]`,
       while (node && node.firstChild) node.removeChild(node.firstChild);
     }
     const S = {
-      overlay: null,
+      root: null,
       gEdges: null,
       gNodes: null,
       svgRoot: null,
@@ -19510,7 +19588,7 @@ ${s.text}` : `[${s.title}]`,
     function setTool(t) {
       S.tool = t;
       S.linkSource = null;
-      S.overlay.querySelectorAll("[data-tool]").forEach((b) => b.style.outline = b.getAttribute("data-tool") === t ? "2px solid var(--rpm-fg-hi)" : "none");
+      S.root.querySelectorAll("[data-tool]").forEach((b) => b.style.outline = b.getAttribute("data-tool") === t ? "2px solid var(--rpm-fg-hi)" : "none");
       draw();
     }
     function fit() {
@@ -19527,7 +19605,7 @@ ${s.text}` : `[${s.title}]`,
       updateZoomLabel();
     }
     function updateZoomLabel() {
-      const z = S.overlay && S.overlay.querySelector("#wm-zoom");
+      const z = S.root && S.root.querySelector("#wm-zoom");
       if (z) z.textContent = Math.round(S.scale * 100) + "%";
     }
     const FIELDS = {
@@ -19962,10 +20040,9 @@ ${s.text}` : `[${s.title}]`,
     function btn(label, onclick, variant) {
       return el2("button", { type: "button", class: "btn btn-primary rpm-btn" + (variant ? " rpm-" + variant : ""), text: label, onclick });
     }
-    function buildOverlay() {
+    function buildEditor() {
       const A = API();
-      const overlay = el2("div", { id: "wm-overlay", style: "position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-family:var(--rpm-font)", class: "rpm-themed" });
-      const panel = el2("div", { role: "dialog", "aria-label": "Worlds editor", style: "width:94%;height:92%;background:var(--rpm-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:var(--rpm-radius-lg);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--rpm-shadow)" });
+      const root = el2("div", { id: "wm-editor", class: "wm-editor" });
       S.worldNameInput = el2("input", { type: "text", class: "form-control rpm-input", "aria-label": "World name", style: "width:230px;font-size:var(--rpm-fs)" });
       S.worldNameInput.value = A.activeWorld() && A.activeWorld().name || "";
       S.worldNameInput.addEventListener("input", () => {
@@ -19976,7 +20053,7 @@ ${s.text}` : `[${s.title}]`,
           draw();
         }
       });
-      const header = el2("div", { style: "display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);font-weight:bold" }, [
+      const header = el2("div", { class: "wm-ed-toolbar" }, [
         el2("span", { text: "World" }),
         S.worldNameInput,
         el2("div", { style: "flex:1" }),
@@ -19996,22 +20073,24 @@ ${s.text}` : `[${s.title}]`,
         btn("Save", async () => {
           await A.saveActiveWorld();
           toast("World saved");
-        }, "success"),
-        btn("✕", () => closeEditor())
+        }, "success")
       ]);
-      const rail = el2("div", { style: "width:170px;background:var(--rpm-bg);border-right:1px solid var(--rpm-border);padding:10px;overflow:auto" });
-      rail.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin-bottom:6px", text: "Add node" }));
-      for (const t of TYPES) rail.appendChild(el2("button", {
-        style: `display:block;width:100%;text-align:left;background:${TYPE_COLOR[t]};color:#fff;border:none;border-radius:var(--rpm-radius);padding:6px 9px;font-size:var(--rpm-fs-sm);font-weight:bold;cursor:pointer;margin-bottom:5px;text-transform:capitalize`,
+      const rail = el2("div", { class: "wm-ed-rail" });
+      rail.appendChild(el2("div", { class: "wm-ed-label", text: "Add node" }));
+      const palette = el2("div", { class: "wm-ed-palette" });
+      for (const t of TYPES) palette.appendChild(el2("button", {
+        type: "button",
+        class: "wm-ed-add",
+        style: `background:${TYPE_COLOR[t]}`,
         text: "＋ " + t,
         onclick: () => addNodeCentered(t)
       }));
-      rail.appendChild(el2("div", { style: "height:1px;background:var(--rpm-border);margin:10px 0" }));
-      rail.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin-bottom:6px", text: "Tool" }));
-      const tools = el2("div", { style: "display:flex;gap:6px" }, ["select", "link", "pan"].map((t) => el2("button", { type: "button", "data-tool": t, class: "btn btn-primary rpm-btn", style: "flex:1;text-transform:capitalize", text: t, onclick: () => setTool(t) })));
+      rail.appendChild(palette);
+      rail.appendChild(el2("div", { class: "wm-ed-label", text: "Tool" }));
+      const tools = el2("div", { class: "wm-ed-tools" }, ["select", "link", "pan"].map((t) => el2("button", { type: "button", "data-tool": t, class: "btn btn-primary rpm-btn", style: "flex:1;text-transform:capitalize", text: t, onclick: () => setTool(t) })));
       rail.appendChild(tools);
-      rail.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:10px;margin-top:8px;line-height:1.5", text: "Select: move nodes. Link: click two nodes to connect. Pan/empty-drag: move canvas. Wheel: zoom." }));
-      const svgRoot = svg("svg", { style: "flex:1;background:var(--rpm-bg-chat);display:block" });
+      rail.appendChild(el2("div", { class: "wm-ed-help", text: "Select: move nodes. Link: click two nodes to connect. Pan/empty-drag: move canvas. Wheel: zoom." }));
+      const svgRoot = svg("svg", { class: "wm-ed-canvas" });
       const defs = svg("defs");
       const marker = svg("marker", { id: "wm-arrow", markerWidth: 9, markerHeight: 9, refX: 8, refY: 3, orient: "auto" });
       const mpath = svg("path", { d: "M0,0 L8,3 L0,6 Z", style: "fill:var(--rpm-fg-muted)" });
@@ -20029,15 +20108,14 @@ ${s.text}` : `[${s.title}]`,
         if (ev.target === svgRoot || ev.target === bg) onCanvasDown(ev);
       });
       svgRoot.addEventListener("wheel", onWheel, { passive: false });
-      const inspector = el2("div", { style: "width:280px;background:var(--rpm-bg);border-left:1px solid var(--rpm-border);padding:12px;overflow:auto" });
+      const inspector = el2("div", { class: "wm-ed-insp" });
       inspector.appendChild(el2("div", { style: "color:var(--rpm-fg);font-size:var(--rpm-fs);font-weight:bold;margin-bottom:8px", text: "Inspector" }));
       const inspBody = el2("div");
       inspector.appendChild(inspBody);
-      const body = el2("div", { style: "flex:1;display:flex;overflow:hidden" }, [rail, svgRoot, inspector]);
-      panel.appendChild(header);
-      panel.appendChild(body);
-      overlay.appendChild(panel);
-      S.overlay = overlay;
+      const body = el2("div", { class: "wm-ed-body" }, [rail, svgRoot, inspector]);
+      root.appendChild(header);
+      root.appendChild(body);
+      S.root = root;
       S.header = header;
       S.svgRoot = svgRoot;
       S.viewport = viewport;
@@ -20046,7 +20124,7 @@ ${s.text}` : `[${s.title}]`,
       S.inspector = inspBody;
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
-      return overlay;
+      return root;
     }
     function addNodeCentered(type) {
       const r = S.svgRoot.getBoundingClientRect();
@@ -20110,10 +20188,11 @@ ${s.text}` : `[${s.title}]`,
           const count = await A.importLorebook(data, { merge, worldName: (name || "").replace(/\.json$/i, "") });
           toast(`Imported ${count} lore entr${count === 1 ? "y" : "ies"}`);
           refreshPanel();
-          if (S.overlay) {
+          if (S.root) {
             reloadGraph();
             fit();
             draw();
+            renderInspector();
           }
         } catch (e) {
           toast("Import failed: " + (e.message || e), true);
@@ -20149,21 +20228,48 @@ ${s.text}` : `[${s.title}]`,
         A.newWorld(name).then(() => openEditor());
         return;
       }
-      if (S.overlay) closeEditor();
-      document.body.appendChild(buildOverlay());
-      reloadGraph();
-      setTool("select");
-      draw();
-      renderInspector();
-      setTimeout(() => fit(), 30);
+      const sh = Shell();
+      if (S.root) {
+        S.selectedId = null;
+        S.linkSource = null;
+        resetEditor();
+      }
+      if (sh) sh.open("editor");
     }
     function closeEditor() {
+      const sh = Shell();
+      if (sh) sh.close("editor");
+    }
+    function mountEditor(container) {
+      const A = API();
+      if (!A || !A.activeWorld()) {
+        container.appendChild(el2("div", { class: "rpm-view-pad" }, [
+          el2("p", { class: "rpm-muted", text: "No world loaded. Create one or load the example from the World tab." }),
+          uiBtn("Create a world", () => openEditor())
+        ]));
+        return;
+      }
+      container.appendChild(buildEditor());
+      resetEditor();
+    }
+    function resetEditor() {
+      if (S.worldNameInput) S.worldNameInput.value = API().activeWorld() && API().activeWorld().name || "";
+      reloadGraph();
+      setTool(S.tool || "select");
+      draw();
+      renderInspector();
+      setTimeout(() => {
+        if (S.root) fit();
+      }, 30);
+    }
+    function unmountEditor() {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
-      if (S.overlay) S.overlay.remove();
-      S.overlay = null;
+      S.root = null;
       S.selectedId = null;
       S.linkSource = null;
+      S.drag = null;
+      S.pan = null;
       try {
         refreshPanel();
       } catch (_) {
@@ -20612,6 +20718,14 @@ ${s.text}` : `[${s.title}]`,
         if (API().activeWorld()) renderCombatTab(c);
         else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
       })));
+      sh.registerView({
+        id: "editor",
+        title: "World editor",
+        place: "window",
+        window: { large: true, flush: true, minWidth: 320, minHeight: 300, restore: false },
+        mount: mountEditor,
+        unmount: unmountEditor
+      });
     }
     function init() {
       const sh = Shell();
@@ -20788,10 +20902,16 @@ ${s.text}` : `[${s.title}]`,
           "A person can reuse a character card from your library."
         ] }
       ],
-      show: [{ label: "Editor button", run: (c) => {
-        c.open("world");
-        c.highlight('#wm-panel button[title="Build your world as a node graph"]', "Opens the world editor");
-      } }]
+      show: [
+        { label: "Editor button", run: (c) => {
+          c.open("world");
+          c.highlight('#wm-panel button[title="Build your world as a node graph"]', "Opens the world editor");
+        } },
+        { label: "Editor window", run: (c) => {
+          c.open("editor");
+          c.highlight('[data-window="editor"] [data-winbtn="max"]', "Maximize for more room; drag the title bar to move it");
+        } }
+      ]
     },
     {
       id: "tags",

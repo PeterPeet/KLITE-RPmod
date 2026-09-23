@@ -18,8 +18,10 @@ The mod ships as a single file, `KLITE-RPmod.js`.
      and *Quests* (your active quests, `?` when ready to turn in).
    - **Right panel (tools)** — tabs **World** (the Worlds panel), **Chars**, **Roles**,
      **Scenario** and **Tools**.
-   - Bigger views — **Quest log**, **Combat** — open as **floating windows** you can drag
-     (title bar), resize (bottom-right corner) and close; they remember where you left them.
+   - Bigger views — **Quest log**, **Combat**, **World editor**, **Guide** — open as
+     **floating windows** you can drag (title bar), resize (bottom-right corner), maximize
+     (square button or double-click the title bar) and close; they remember where you left
+     them.
    - The **panels button** in Esolite's top bar (icon with two sidebars) shows/hides both
      panels; the small tabs at the screen edges bring a hidden panel back.
 
@@ -79,7 +81,9 @@ WorldInfo pipeline — you don't have to manage any of that; it's automatic.
 ## 4. Building a world (the editor)
 
 Open the editor with **✎ Editor** in the right panel's **World** tab.
-(No world yet? It'll offer to create one.)
+(No world yet? It'll offer to create one.) It opens as a large window over the chat —
+maximize it for the most room, or make it smaller and keep playing next to it. On narrow
+screens the palette becomes a strip on top and the inspector moves below the canvas.
 
 ![Worlds editor layout](docs/editor-layout.svg)
 

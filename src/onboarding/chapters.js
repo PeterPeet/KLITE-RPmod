@@ -100,7 +100,10 @@ export const CHAPTERS = [
                 'A person can reuse a character card from your library.',
             ] },
         ],
-        show: [{ label: 'Editor button', run: (c) => { c.open('world'); c.highlight('#wm-panel button[title="Build your world as a node graph"]', 'Opens the world editor'); } }],
+        show: [
+            { label: 'Editor button', run: (c) => { c.open('world'); c.highlight('#wm-panel button[title="Build your world as a node graph"]', 'Opens the world editor'); } },
+            { label: 'Editor window', run: (c) => { c.open('editor'); c.highlight('[data-window="editor"] [data-winbtn="max"]', 'Maximize for more room; drag the title bar to move it'); } },
+        ],
     },
     {
         id: 'tags', title: 'Changing the world from chat',

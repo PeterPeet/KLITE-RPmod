@@ -1,11 +1,10 @@
 // =============================================================================
 // KLITE RPmod - Worlds System :: Editor UI (Phase 6)
 // -----------------------------------------------------------------------------
-// A node-graph editor for the Worlds data model, rendered as a full-screen
-// overlay (same pattern as Esolite's TreeViewer: dim layer on document.body,
-// wheel-zoom, drag-pan, close button), plus the Worlds views of the app shell
-// (src/shell/): the right-dock "World" tab, the left-dock Party and Quests sections,
-// and the Quest log / Combat windows.
+// A node-graph editor for the Worlds data model, shown in a large shell window
+// ("World editor": wheel-zoom, drag-pan, maximize), plus the Worlds views of the app
+// shell (src/shell/): the right-dock "World" tab, the left-dock Party and Quests
+// sections, and the Quest log / Combat windows.
 //
 // Nodes are colour-coded world entities (Location/NPC/Faction/Object/Event/Lore
 // + the World root). Edges are the id-reference fields: drawing an arrow calls
@@ -53,7 +52,7 @@ export default function initWorldsUI() {
 
     // ---- editor state -----------------------------------------------------
     const S = {
-        overlay: null, gEdges: null, gNodes: null, svgRoot: null, viewport: null,
+        root: null, gEdges: null, gNodes: null, svgRoot: null, viewport: null,
         inspector: null, header: null, worldNameInput: null,
         scale: 1, tx: 60, ty: 40,
         tool: 'select', selectedId: null, linkSource: null,
@@ -209,7 +208,7 @@ export default function initWorldsUI() {
 
     function setTool(t) {
         S.tool = t; S.linkSource = null;
-        S.overlay.querySelectorAll('[data-tool]').forEach(b => b.style.outline = (b.getAttribute('data-tool') === t ? '2px solid var(--rpm-fg-hi)' : 'none'));
+        S.root.querySelectorAll('[data-tool]').forEach(b => b.style.outline = (b.getAttribute('data-tool') === t ? '2px solid var(--rpm-fg-hi)' : 'none'));
         draw();
     }
 
@@ -225,7 +224,7 @@ export default function initWorldsUI() {
         S.ty = -minY * S.scale + (ch - (maxY - minY) * S.scale) / 2;
         applyViewport(); updateZoomLabel();
     }
-    function updateZoomLabel() { const z = S.overlay && S.overlay.querySelector('#wm-zoom'); if (z) z.textContent = Math.round(S.scale * 100) + '%'; }
+    function updateZoomLabel() { const z = S.root && S.root.querySelector('#wm-zoom'); if (z) z.textContent = Math.round(S.scale * 100) + '%'; }
 
     // =======================================================================
     //  INSPECTOR
@@ -523,21 +522,20 @@ export default function initWorldsUI() {
     function parseReward(s) { s = String(s || '').trim(); if (!s) return null; const xp = /^(\d+)\s*xp$/i.exec(s); if (xp) return { type: 'xp', xp: Number(xp[1]) }; const m = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(s); return { type: 'item', item: (m[1] || s).trim(), qty: Number(m[2]) || 1 }; }
 
     // =======================================================================
-    //  OVERLAY CHROME
+    //  EDITOR CHROME (inside the shell window "editor")
     // =======================================================================
     // editor toolbar button: Esolite .btn-primary (variant: 'success' | 'danger')
     function btn(label, onclick, variant) { return el('button', { type: 'button', class: 'btn btn-primary rpm-btn' + (variant ? ' rpm-' + variant : ''), text: label, onclick }); }
 
-    function buildOverlay() {
+    function buildEditor() {
         const A = API();
-        const overlay = el('div', { id: 'wm-overlay', style: 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-family:var(--rpm-font)', class: 'rpm-themed' });
-        const panel = el('div', { role: 'dialog', 'aria-label': 'Worlds editor', style: 'width:94%;height:92%;background:var(--rpm-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:var(--rpm-radius-lg);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--rpm-shadow)' });
+        const root = el('div', { id: 'wm-editor', class: 'wm-editor' });
 
         // header
         S.worldNameInput = el('input', { type: 'text', class: 'form-control rpm-input', 'aria-label': 'World name', style: 'width:230px;font-size:var(--rpm-fs)' });
         S.worldNameInput.value = (A.activeWorld() && A.activeWorld().name) || '';
         S.worldNameInput.addEventListener('input', () => { A.updateEntity('__world__', { name: S.worldNameInput.value }); const n = nodeById('__world__'); if (n) { n.name = S.worldNameInput.value; draw(); } });
-        const header = el('div', { style: 'display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);font-weight:bold' }, [
+        const header = el('div', { class: 'wm-ed-toolbar' }, [
             el('span', { text: 'World' }), S.worldNameInput,
             el('div', { style: 'flex:1' }),
             btn('−', () => { S.scale = Math.max(0.2, S.scale / 1.1); applyViewport(); updateZoomLabel(); }),
@@ -545,26 +543,26 @@ export default function initWorldsUI() {
             btn('+', () => { S.scale = Math.min(3, S.scale * 1.1); applyViewport(); updateZoomLabel(); }),
             btn('Fit', () => fit()),
             btn('Preview', () => showPreview()),
-            btn('Save', async () => { await A.saveActiveWorld(); toast('World saved'); }, 'success'),
-            btn('✕', () => closeEditor())
+            btn('Save', async () => { await A.saveActiveWorld(); toast('World saved'); }, 'success')
         ]);
 
         // palette + tools rail
-        const rail = el('div', { style: 'width:170px;background:var(--rpm-bg);border-right:1px solid var(--rpm-border);padding:10px;overflow:auto' });
-        rail.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin-bottom:6px', text: 'Add node' }));
-        for (const t of TYPES) rail.appendChild(el('button', {
-            style: `display:block;width:100%;text-align:left;background:${TYPE_COLOR[t]};color:#fff;border:none;border-radius:var(--rpm-radius);padding:6px 9px;font-size:var(--rpm-fs-sm);font-weight:bold;cursor:pointer;margin-bottom:5px;text-transform:capitalize`,
+        const rail = el('div', { class: 'wm-ed-rail' });
+        rail.appendChild(el('div', { class: 'wm-ed-label', text: 'Add node' }));
+        const palette = el('div', { class: 'wm-ed-palette' });
+        for (const t of TYPES) palette.appendChild(el('button', {
+            type: 'button', class: 'wm-ed-add', style: `background:${TYPE_COLOR[t]}`,
             text: '＋ ' + t, onclick: () => addNodeCentered(t)
         }));
-        rail.appendChild(el('div', { style: 'height:1px;background:var(--rpm-border);margin:10px 0' }));
-        rail.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin-bottom:6px', text: 'Tool' }));
-        const tools = el('div', { style: 'display:flex;gap:6px' }, ['select', 'link', 'pan'].map(t =>
+        rail.appendChild(palette);
+        rail.appendChild(el('div', { class: 'wm-ed-label', text: 'Tool' }));
+        const tools = el('div', { class: 'wm-ed-tools' }, ['select', 'link', 'pan'].map(t =>
             el('button', { type: 'button', 'data-tool': t, class: 'btn btn-primary rpm-btn', style: 'flex:1;text-transform:capitalize', text: t, onclick: () => setTool(t) })));
         rail.appendChild(tools);
-        rail.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:10px;margin-top:8px;line-height:1.5', text: 'Select: move nodes. Link: click two nodes to connect. Pan/empty-drag: move canvas. Wheel: zoom.' }));
+        rail.appendChild(el('div', { class: 'wm-ed-help', text: 'Select: move nodes. Link: click two nodes to connect. Pan/empty-drag: move canvas. Wheel: zoom.' }));
 
         // canvas
-        const svgRoot = svg('svg', { style: 'flex:1;background:var(--rpm-bg-chat);display:block' });
+        const svgRoot = svg('svg', { class: 'wm-ed-canvas' });
         const defs = svg('defs');
         const marker = svg('marker', { id: 'wm-arrow', markerWidth: 9, markerHeight: 9, refX: 8, refY: 3, orient: 'auto' });
         const mpath = svg('path', { d: 'M0,0 L8,3 L0,6 Z', style: 'fill:var(--rpm-fg-muted)' }); marker.appendChild(mpath); defs.appendChild(marker);
@@ -578,21 +576,20 @@ export default function initWorldsUI() {
         svgRoot.addEventListener('wheel', onWheel, { passive: false });
 
         // inspector
-        const inspector = el('div', { style: 'width:280px;background:var(--rpm-bg);border-left:1px solid var(--rpm-border);padding:12px;overflow:auto' });
+        const inspector = el('div', { class: 'wm-ed-insp' });
         inspector.appendChild(el('div', { style: 'color:var(--rpm-fg);font-size:var(--rpm-fs);font-weight:bold;margin-bottom:8px', text: 'Inspector' }));
         const inspBody = el('div');
         inspector.appendChild(inspBody);
 
-        const body = el('div', { style: 'flex:1;display:flex;overflow:hidden' }, [rail, svgRoot, inspector]);
-        panel.appendChild(header); panel.appendChild(body);
-        overlay.appendChild(panel);
+        const body = el('div', { class: 'wm-ed-body' }, [rail, svgRoot, inspector]);
+        root.appendChild(header); root.appendChild(body);
 
-        S.overlay = overlay; S.header = header; S.svgRoot = svgRoot; S.viewport = viewport;
+        S.root = root; S.header = header; S.svgRoot = svgRoot; S.viewport = viewport;
         S.gEdges = gEdges; S.gNodes = gNodes; S.inspector = inspBody;
 
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onUp);
-        return overlay;
+        return root;
     }
 
     function addNodeCentered(type) {
@@ -646,7 +643,7 @@ export default function initWorldsUI() {
                 const count = await A.importLorebook(data, { merge, worldName: (name || '').replace(/\.json$/i, '') });
                 toast(`Imported ${count} lore entr${count === 1 ? 'y' : 'ies'}`);
                 refreshPanel();
-                if (S.overlay) { reloadGraph(); fit(); draw(); }
+                if (S.root) { reloadGraph(); fit(); draw(); renderInspector(); }
             } catch (e) { toast('Import failed: ' + (e.message || e), true); }
         });
     }
@@ -666,6 +663,8 @@ export default function initWorldsUI() {
     // =======================================================================
     //  OPEN / CLOSE
     // =======================================================================
+    // The editor is the shell window view "editor" (large, maximizable). openEditor()
+    // creates a world first if there is none, then opens (or re-focuses and reloads) it.
     function openEditor() {
         const A = API();
         if (!A) { alert('Worlds engine not loaded'); return; }
@@ -675,17 +674,34 @@ export default function initWorldsUI() {
             A.newWorld(name).then(() => openEditor());
             return;
         }
-        if (S.overlay) closeEditor();
-        document.body.appendChild(buildOverlay());
-        reloadGraph(); setTool('select'); draw(); renderInspector();
-        // start reasonably framed
-        setTimeout(() => fit(), 30);
+        const sh = Shell();
+        if (S.root) { S.selectedId = null; S.linkSource = null; resetEditor(); }
+        if (sh) sh.open('editor');
     }
-    function closeEditor() {
+    function closeEditor() { const sh = Shell(); if (sh) sh.close('editor'); }
+
+    function mountEditor(container) {
+        const A = API();
+        if (!A || !A.activeWorld()) {
+            container.appendChild(el('div', { class: 'rpm-view-pad' }, [
+                el('p', { class: 'rpm-muted', text: 'No world loaded. Create one or load the example from the World tab.' }),
+                uiBtn('Create a world', () => openEditor())
+            ]));
+            return;
+        }
+        container.appendChild(buildEditor());
+        resetEditor();
+    }
+    function resetEditor() {
+        if (S.worldNameInput) S.worldNameInput.value = (API().activeWorld() && API().activeWorld().name) || '';
+        reloadGraph(); setTool(S.tool || 'select'); draw(); renderInspector();
+        // start reasonably framed (after the window has its size)
+        setTimeout(() => { if (S.root) fit(); }, 30);
+    }
+    function unmountEditor() {
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
-        if (S.overlay) S.overlay.remove();
-        S.overlay = null; S.selectedId = null; S.linkSource = null;
+        S.root = null; S.selectedId = null; S.linkSource = null; S.drag = null; S.pan = null;
         try { refreshPanel(); } catch (_) {}
     }
 
@@ -1019,6 +1035,9 @@ export default function initWorldsUI() {
         sh.registerView(Object.assign({ id: 'combat', title: 'Combat', place: 'window', window: { width: 360, height: 560 } }, view((c) => {
             if (API().activeWorld()) renderCombatTab(c); else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
         })));
+        // not restored at startup: the world library loads asynchronously
+        sh.registerView({ id: 'editor', title: 'World editor', place: 'window', window: { large: true, flush: true, minWidth: 320, minHeight: 300, restore: false },
+            mount: mountEditor, unmount: unmountEditor });
     }
 
     function init() {

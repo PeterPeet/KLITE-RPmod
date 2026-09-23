@@ -147,7 +147,7 @@ function findButton(root, re) { return buttons(root).find(b => re.test(b.textCon
 function texts(root) { return [...root.querySelectorAll('*')].map(e => e.textContent); }
 function selectNode(host, id) {
     const w = host.window;
-    const g = [...w.document.querySelectorAll('#wm-overlay g[data-id]')].find(n => n.getAttribute('data-id') === id);
+    const g = [...w.document.querySelectorAll('#wm-editor g[data-id]')].find(n => n.getAttribute('data-id') === id);
     if (!g) throw new Error('node not in editor: ' + id);
     g.dispatchEvent(new w.MouseEvent('mousedown', { bubbles: true }));
     w.dispatchEvent(new w.MouseEvent('mouseup', {}));

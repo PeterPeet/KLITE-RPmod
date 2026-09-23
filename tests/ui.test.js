@@ -1,6 +1,6 @@
 'use strict';
 // Worlds UI in jsdom: shell views (World tab, Party/Quests sections, Quest log and
-// Combat windows) + the editor overlay.
+// Combat windows) + the world editor window.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createHost, click, findButton, texts, selectNode, sleep } = require('./helpers/host');
@@ -67,7 +67,7 @@ test('editor: World Rules + Description on the root node', async (t) => {
     await W.loadExample();
     h.ui().openEditor();
     selectNode(h, '__world__');
-    const ov = w.document.getElementById('wm-overlay');
+    const ov = w.document.getElementById('wm-editor');
     assert.ok([...ov.querySelectorAll('label')].some(l => l.textContent === 'Description'));
     const rules = [...ov.querySelectorAll('textarea')].find(ta => /Medieval low-fantasy/.test(ta.value));
     assert.ok(rules, 'World Rules editor shows existing rules');
@@ -85,7 +85,7 @@ test('editor: event triggers, person character link, themed preview', async (t) 
     const p = W.addEntity('npc', { name: '' });
     W.enable();
     h.ui().openEditor();
-    const ov = () => w.document.getElementById('wm-overlay');
+    const ov = () => w.document.getElementById('wm-editor');
 
     selectNode(h, ev.id);
     assert.ok(texts(ov()).some(s => /Triggers/.test(s)));
@@ -108,4 +108,34 @@ test('editor: event triggers, person character link, themed preview', async (t) 
     const showPreview = src.slice(src.indexOf('function showPreview'), src.indexOf('function showPreview') + 1500);
     assert.match(showPreview, /el\('pre', \{ style: '[^']*background:var\(--rpm-bg-chat\)/, 'preview <pre> declares a themed background');
     assert.ok(pre.closest('.rpm-themed'), 'preview modal carries the theme token scope');
+});
+
+test('editor: opens as a large shell window, reopens without duplicates, cleans up on close', async (t) => {
+    const h = await uiHost(t); const w = h.window; const doc = w.document; const W = h.api();
+    await W.loadExample();
+    h.ui().openEditor();
+    const win = doc.querySelector('[data-window="editor"]');
+    assert.ok(win, 'editor is a shell window');
+    assert.ok(win.closest('#rpm-shell'), 'inside the shell layer, not a body overlay');
+    assert.ok(doc.getElementById('wm-editor').closest('.rpm-window-body-flush'));
+    assert.ok(parseInt(win.style.width, 10) >= 1300, 'large by default');
+    assert.equal(doc.getElementById('wm-overlay'), null, 'old overlay gone');
+    assert.ok(doc.querySelectorAll('#wm-editor g[data-id]').length > 5, 'graph drawn');
+
+    selectNode(h, '__world__');
+    h.ui().openEditor();   // again: same window, reloaded, selection reset
+    assert.equal(doc.querySelectorAll('[data-window="editor"]').length, 1);
+    assert.equal(doc.querySelectorAll('#wm-editor').length, 1);
+    assert.match(doc.getElementById('wm-editor').textContent, /Select a node to edit/);
+
+    h.ui().closeEditor();
+    assert.equal(doc.querySelector('[data-window="editor"]'), null);
+    assert.equal(h.shell().layout().windows.editor.open, false);
+    // listeners removed: a stray mouse move after close must not throw
+    w.dispatchEvent(new w.MouseEvent('mousemove', { clientX: 5, clientY: 5 }));
+
+    // World tab button opens it too
+    h.shell().open('world');
+    click(findButton(doc.getElementById('wm-panel'), /Editor/), w);
+    assert.ok(doc.querySelector('[data-window="editor"]'));
 });

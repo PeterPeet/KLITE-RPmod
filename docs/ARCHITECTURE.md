@@ -10,7 +10,7 @@
 |---|---|---|
 | `KLITE-RPmod_ALPHA.js` (~17.7k lines) | `window.KLITE_RPMod` | Original mod: right-side panels CHARS / ROLES / TOOLS / CONTEXT / IMAGES, character gallery & editor, personas, group chat, save-bundle embedding, debug system |
 | `KLITE-RPmod_Worlds.js` (~1.6k) | `window.KLITE_RPMod_Worlds` | Worlds engine: world graph, retrieval, injection, runtime state, quests, triggers, combat |
-| `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds views for the shell (World tab, Party/Quests sections, Quest log/Combat windows) + node-graph editor overlay |
+| `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds views for the shell (World tab, Party/Quests sections, Quest log/Combat/World editor windows) |
 | `shell/shell.js`, `windows.js`, `styles.js`, `dom.js` | `window.KLITE_RPMod_Shell` | App shell: docks, view registry, floating windows, design tokens, top-bar button (§4a) |
 | `onboarding/onboarding.js`, `quickStart.js`, `guide.js`, `chapters.js`, `hostGlobals.js` | `window.KLITE_RPMod_Onboarding` | Getting started: RPmod section in Esolite's Quick Start, the Guide window with "Show me", "New here?" card, GuidedRP save passthrough (§4b) |
 
@@ -180,11 +180,17 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
   Right-dock views mount on first show (or at once with `eager`); hidden views are marked
   dirty by `refresh(ids)` and re-render when shown; `refresh(ids, {soft:true})` skips a view
   while the user types in it. A throwing view shows an error box, the shell keeps working.
-  API: `open(id)`, `close(id)`, `refresh`, `setDockOpen/toggleDock/dockOpen`, `mode`, `layout`.
+  Window views may add `unmount(container)` (called on close) and `window: { width, height,
+  minWidth, minHeight, large, flush, restore }` — `large` opens nearly full-screen,
+  `flush` drops the body padding (view lays itself out), `restore:false` never reopens it
+  at startup.
+  API: `open(id)`, `close(id)`, `maximize(id, on)`, `refresh`, `setDockOpen/toggleDock/dockOpen`, `mode`, `layout`.
 - **Windows** (`windows.js`): drag by title bar, resize by grip (min size), click raises,
-  clamped so the title bar stays on screen; pointer events (mouse fallback).
+  clamped so the title bar stays on screen; **maximize/restore** (button `[data-winbtn=max]`
+  or title-bar double-click; the normal geometry is kept and `max` is saved); pointer
+  events (mouse fallback).
 - **Persistence:** `localStorage['KLITE.shell.layout']` — dock open/width, saved tab (only
-  explicit clicks), collapsed sections, window geometry/open. Per-browser convenience;
+  explicit clicks), collapsed sections, window geometry/open/max. Per-browser convenience;
   corrupt data falls back to defaults.
 - **Look & feel = Esolite's own** (`styles.js`). No RPmod palette: `--rpm-*` tokens are
   aliases of Esolite's `--theme_color_*` / `--theme_font_*` (1.35 names, older names, then
@@ -238,10 +244,12 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
   New/Example/Import/Export, Creator⇄Player lens `localStorage['KLITE.worlds.uiMode']`,
   window launchers, enable, state slots, location, time/weather, flags, inventory,
   preview); left sections **Party** and **Quests** (tracker); windows **Quest log** (GM/player
-  AI mode) and **Combat** (builder with SRD quick-add, live tracker). All re-render on the
+  AI mode), **Combat** (builder with SRD quick-add, live tracker) and **World editor**. All re-render on the
   engine's `klite:worlds-change` window event (coalesced, fired from `syncLive()` and after
   each generation).
-- **Editor overlay** (`#wm-overlay`): hand-rolled SVG canvas (no libraries): pan/zoom,
+- **World editor** (window view `editor`, root `#wm-editor`, CSS `.wm-ed-*` in
+  `shell/styles.js`, stacks vertically under a 720 px container query; global mouse
+  listeners are removed in `unmount`): hand-rolled SVG canvas (no libraries): pan/zoom,
   palette, Select/Link tools, typed auto-inferred edges via `connect()`, derived chain
   edges, `!`/`?` badges, inspector with per-type extras (world rules, person
   character-link + stat block, quest giver/turn-in/rewards/objectives, event

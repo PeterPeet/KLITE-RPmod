@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 65 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 67 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Worlds engine:** graph world model (locations, NPCs/persons, factions, objects,
   events, quests, lore), compile-to-WI injection (transient/persistent, websearch- and
@@ -27,8 +27,8 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
   per-world `aiMode` (gm/player).
 - **Trigger bus:** event triggers/conditions/effects with chains; faction HQs.
 - **Combat:** dice, initiative, attack vs AC, HP, checks, 6 SRD **5.1** monster presets.
-- **UI:** node-graph editor overlay; tabbed Worlds panel (Play/Quests/Combat/Editor);
-  Creator/Player lens; navbar button.
+- **UI (in the app shell):** World tab, Party + Quests sections, Quest log / Combat /
+  World editor (node graph) windows; Creator/Player lens.
 - **Delivery:** usermod bundle, or `index.rpmod.html` that autoloads the mod after
   Esolite's `load` event.
 - ALPHA (unchanged since 2026-05): CHARS/ROLES/TOOLS/CONTEXT/IMAGES panels, card import
@@ -150,9 +150,14 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
       `BackupData/legacy/`, `guided_rp` save blocks preserved). Live-checked in Esolite.
 - [x] Test runner guard: `npm test` fails if fewer tests ran than `tests/.test-count`
       (a test file had been ending early without any failure).
-- **Next:** editor overlay → large window; single context-injection owner; ALPHA's own
-  character library vs Esolite's Library (overlap Jaxxks pointed out — decide in R2);
-  icon set.
+- [x] **World editor is a shell window** (2026-09-23): the full-screen `#wm-overlay` is
+      gone; view `editor` opens large (`window.large`), edge to edge (`flush`), is not
+      restored at startup (`restore:false`) and cleans up via the new `unmount` hook. All
+      windows gained **maximize/restore** (button or title-bar double-click, remembered).
+      Narrow windows/phones stack palette strip → canvas → inspector. Live-checked in
+      Esolite at 1024×768 and 375×812.
+- **Next:** single context-injection owner; ALPHA's own character library vs Esolite's
+  Library (overlap Jaxxks pointed out — decide in R2); icon set.
 - App shell: docked sidebars + a window manager for sheet, quest log, compendium, combat,
   editor, map; one entry point in the Esolite top bar.
 - Design system: tokens (color, type, spacing) bound to Esolite's theme variables,

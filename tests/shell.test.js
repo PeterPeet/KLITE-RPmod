@@ -123,10 +123,57 @@ test('windows: open, focus, drag (clamped), resize, close; geometry remembered',
     $(h, '[data-window="win"]').dispatchEvent(P('pointerdown', 1, 1));
     assert.ok(z('win') > z('win2'));
 
-    click(win.querySelector('.rpm-window-head button'), w);
+    click(win.querySelector('[data-winbtn="close"]'), w);
     assert.equal($(h, '[data-window="win"]'), null, 'closed');
     assert.equal(sh.layout().windows.win.open, false);
     assert.equal(sh.layout().windows.win.w, 240, 'geometry kept after close');
+});
+
+test('windows: maximize/restore, large + flush options, unmount hook, restore:false', async (t) => {
+    const h = await shellHost(t); const sh = h.shell(); const w = h.window; addViews(sh);
+    sh.open('win');
+    const win = $(h, '[data-window="win"]');
+    const maxBtn = win.querySelector('[data-winbtn="max"]');
+    click(maxBtn, w);
+    assert.ok(win.classList.contains('rpm-maximized'));
+    assert.equal(win.style.width, '1400px'); assert.equal(win.style.left, '0px');
+    assert.equal(maxBtn.getAttribute('aria-pressed'), 'true');
+    assert.equal(sh.layout().windows.win.max, true);
+    assert.equal(sh.layout().windows.win.w, 300, 'normal geometry kept while maximized');
+    // dragging a maximized window does nothing
+    const P = (type, x, y) => new w.PointerEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
+    win.querySelector('.rpm-window-head').dispatchEvent(P('pointerdown', 100, 100));
+    w.dispatchEvent(P('pointermove', 300, 300)); w.dispatchEvent(P('pointerup', 300, 300));
+    assert.equal(win.style.left, '0px');
+    // double-click on the title bar restores
+    win.querySelector('.rpm-window-title').dispatchEvent(new w.MouseEvent('dblclick', { bubbles: true }));
+    assert.ok(!win.classList.contains('rpm-maximized'));
+    assert.equal(win.style.width, '300px');
+    assert.equal(sh.layout().windows.win.max, false);
+
+    // large + flush, unmount on close, never restored at startup
+    const log = [];
+    sh.registerView({ id: 'big', title: 'Big', place: 'window', window: { large: true, flush: true, restore: false },
+        mount: (c) => log.push('mount'), unmount: (c) => log.push('unmount:' + !!c) });
+    sh.open('big');
+    const big = $(h, '[data-window="big"]');
+    assert.ok(parseInt(big.style.width, 10) >= 1300, 'large window fills most of the screen');
+    assert.ok(big.querySelector('.rpm-window-body-flush'));
+    sh.maximize('big');
+    const saved = h.window.localStorage.getItem('KLITE.shell.layout');
+    sh.close('big');
+    assert.deepEqual(log, ['mount', 'unmount:true']);
+
+    const h2 = createHost(); t.after(h2.close);
+    const saved2 = JSON.parse(saved); saved2.windows.big.open = true;
+    h2.window.localStorage.setItem('KLITE.shell.layout', JSON.stringify(saved2));
+    h2.load('shell'); h2.window.dispatchEvent(new h2.window.Event('load')); await sleep(10);
+    addViews(h2.shell());
+    h2.shell().registerView({ id: 'big', title: 'Big', place: 'window', window: { large: true, restore: false }, mount: () => {} });
+    assert.equal(h2.window.document.querySelector('[data-window="big"]'), null, 'restore:false window stays closed');
+    assert.ok(h2.window.document.querySelector('[data-window="win"]'), 'other window restored');
+    h2.shell().open('big');
+    assert.ok(h2.window.document.querySelector('[data-window="big"]').classList.contains('rpm-maximized'), 'maximized state remembered');
 });
 
 test('layout persists across reloads (localStorage) and survives corrupt data', async (t) => {

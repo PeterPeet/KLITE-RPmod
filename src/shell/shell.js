@@ -65,7 +65,11 @@ export default function initShell() {
     //         update?(container, api), window?: { width, height, minWidth, minHeight },
     //         eager?: true — right-dock view mounts at once instead of on first show,
     //         show?(container, api) — called every time a right-dock view becomes the
-    //         selected tab (after mount/update) }
+    //         selected tab (after mount/update),
+    //         unmount?(container, api) — window views: called when the window closes
+    //         (remove global listeners etc.) }
+    // def.window may also carry { large, flush } (see windows.js) and restore: false —
+    // do not reopen the window at startup even if it was open last time.
     function registerView(def) {
         if (!def || !def.id || !PLACES.has(def.place) || typeof def.mount !== 'function') {
             throw new Error('KLITE_RPMod_Shell.registerView: need { id, place: left|right|window, mount }');
@@ -198,7 +202,11 @@ export default function initShell() {
 
     // Windows left open last time come back on load — except on phones, where a window
     // is full-screen and would hide the chat at startup.
-    function shouldRestoreWindow(id) { return !compact && !!(layout.windows[id] && layout.windows[id].open); }
+    function shouldRestoreWindow(id) {
+        const v = views.get(id);
+        if (v && v.def.window && v.def.window.restore === false) return false;
+        return !compact && !!(layout.windows[id] && layout.windows[id].open);
+    }
 
     function openView(id) {
         const v = views.get(id); if (!v) return false;
@@ -315,7 +323,11 @@ export default function initShell() {
             setGeom: (id, g) => { layout.windows[id] = Object.assign({}, layout.windows[id], g, { open: true }); saveLayout(); },
             onClose: (id) => {
                 layout.windows[id] = Object.assign({}, layout.windows[id], { open: false }); saveLayout();
-                const v = views.get(id); if (v) { v.container = null; v.mounted = false; }
+                const v = views.get(id); if (!v) return;
+                if (v.container && typeof v.def.unmount === 'function') {
+                    try { v.def.unmount(v.container, api); } catch (e) { console.error('[RPmod shell] view unmount failed:', id, e); }
+                }
+                v.container = null; v.mounted = false;
             },
         });
 
@@ -421,6 +433,7 @@ export default function initShell() {
         registerView, unregisterView,
         open: openView, close: closeView, refresh,
         isOpen: (id) => { const v = views.get(id); return !!(v && isVisible(v) && (v.def.place !== 'right' || open.right) && (v.def.place !== 'left' || open.left)); },
+        maximize: (id, on = true) => !!(wm && wm.maximize(id, on)),
         setDockOpen, toggleDock, addDockAction,
         dockOpen: (side) => !!open[side],
         mode: () => mode,
