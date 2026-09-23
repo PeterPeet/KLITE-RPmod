@@ -369,6 +369,28 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
     .rpm-gal { --gal-w: 150px; }
 }
 
+/* ---- character builder (window "builder") ---- */
+.rpm-bld { display: flex; flex-direction: column; gap: 10px; }
+.rpm-bld-steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.rpm-bld-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.rpm-bld-card {
+    text-align: left; border: 1px solid var(--rpm-border); background: var(--rpm-bg-alt); color: var(--rpm-fg);
+    border-radius: var(--rpm-radius-lg); padding: 10px 12px; cursor: pointer; font: inherit;
+}
+.rpm-bld-card:hover { border-color: var(--rpm-border-hi); }
+.rpm-bld-card.rpm-on { border-color: var(--rpm-border-hi); background: var(--rpm-accent-bg-hi); color: var(--rpm-accent-fg-hi); }
+.rpm-bld-card-title { font-weight: bold; font-size: 1.05em; }
+.rpm-bld-detail { border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius-lg); padding: 10px 12px; background: var(--rpm-bg); display: flex; flex-direction: column; gap: 6px; }
+.rpm-bld-detail h3 { margin: 0; font-size: 1.1em; color: var(--rpm-fg-hi); }
+.rpm-bld-p { margin: 0; line-height: 1.5; }
+.rpm-bld-text { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; line-height: 1.5; }
+.rpm-bld-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 2px 12px; }
+.rpm-bld-check { display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; }
+.rpm-bld-primary { border-color: var(--rpm-border-hi); }
+.rpm-bld-errors { margin: 0; padding: 8px 8px 8px 28px; border: 1px solid var(--rpm-danger); border-radius: var(--rpm-radius); color: var(--rpm-fg); }
+.rpm-bld-nav { position: sticky; bottom: 0; padding: 8px 0; background: var(--rpm-bg); border-top: 1px solid var(--rpm-border); }
+.rpm-bld-attr { font-size: var(--rpm-fs-sm); margin: 0; }
+
 /* ---- "Show me" spotlight (outside the shell layer, above everything) ---- */
 .rpm-spot-ring {
     position: fixed; z-index: 100003; pointer-events: none; border-radius: 8px;
@@ -21604,6 +21626,7 @@ ${recent}` : "");
           "Every roll goes into the Dice log on the left, and the AI sees the rolls made since its last reply.",
           "Changes are a draft until you press Save (or turn on autosave in Settings → RPmod). Revert undoes them."
         ] },
+        { p: 'New characters: "New character" in the gallery (or "Build with the SRD rules" on an empty sheet) opens the character builder — class, background, species, ability scores, skills, equipment — for levels 1 to 3. "Level up" on the sheet takes a built character to the next level and keeps what they own.' },
         { tip: "Your persona's sheet (level, class, HP, AC, skills, inventory) is part of what the AI knows about you." }
       ],
       show: [
@@ -22502,7 +22525,15 @@ ${recent}` : "");
       speed: 30,
       hp: { max: 10, current: 10, temp: 0 },
       attacks: [],
-      // [{ name, ability: 'str'|'dex'|…, proficient, damage: '1d8+3', notes }]
+      // [{ name, ability: 'str'|'dex'|…, proficient, bonus (extra to hit), damage: '1d8+3', notes }]
+      spellcasting: null,
+      // { ability, cantrips, prepared, slots: [per spell level], pact } (from the builder)
+      proficiencies: "",
+      // weapons / armor / tools / languages (text)
+      acNote: "",
+      // how AC is made up, e.g. "Chain Mail + Shield"
+      build: null,
+      // builder choices (builder-rules.js) — used for level up
       inventory: [],
       // [{ name, qty, notes }]
       coins: { cp: 0, sp: 0, gp: 0, pp: 0 },
@@ -22515,7 +22546,7 @@ ${recent}` : "");
     const s = Object.assign({}, raw && typeof raw === "object" ? raw : {});
     s.version = SHEET_VERSION;
     s.level = clamp(int(s.level, 1), 1, 20);
-    for (const k2 of ["className", "species", "background", "alignment", "features", "notes"]) s[k2] = str(s[k2]);
+    for (const k2 of ["className", "species", "background", "alignment", "features", "notes", "proficiencies", "acNote"]) s[k2] = str(s[k2]);
     s.xp = Math.max(0, int(s.xp, 0));
     const ab = Object.assign({}, d.abilities, s.abilities && typeof s.abilities === "object" ? s.abilities : {});
     for (const a of ABILITIES) ab[a] = clamp(int(ab[a], 10), 1, 30);
@@ -22537,6 +22568,7 @@ ${recent}` : "");
       name: str(a.name),
       ability: ABILITIES.includes(a.ability) ? a.ability : "str",
       proficient: a.proficient !== false,
+      bonus: int(a.bonus, 0),
       damage: str(a.damage),
       notes: str(a.notes)
     }));
@@ -22544,6 +22576,20 @@ ${recent}` : "");
     const coins = Object.assign({}, d.coins, s.coins && typeof s.coins === "object" ? s.coins : {});
     for (const c of Object.keys(d.coins)) coins[c] = Math.max(0, int(coins[c], 0));
     s.coins = coins;
+    if (s.spellcasting && typeof s.spellcasting === "object" && ABILITIES.includes(s.spellcasting.ability)) {
+      const sc = s.spellcasting;
+      s.spellcasting = {
+        ability: sc.ability,
+        pact: !!sc.pact,
+        cantrips: Math.max(0, int(sc.cantrips, 0)),
+        prepared: Math.max(0, int(sc.prepared, 0)),
+        slots: (Array.isArray(sc.slots) ? sc.slots : []).map((n) => Math.max(0, int(n, 0))).slice(0, 9),
+        slotLevel: int(sc.slotLevel, 0) || void 0,
+        used: (Array.isArray(sc.used) ? sc.used : []).map((n) => Math.max(0, int(n, 0))).slice(0, 9),
+        spells: str(sc.spells)
+      };
+    } else s.spellcasting = null;
+    if (!s.build || typeof s.build !== "object") s.build = null;
     return s;
   }
   function derive(sheet) {
@@ -22552,8 +22598,9 @@ ${recent}` : "");
     const mods = Object.fromEntries(ABILITIES.map((a) => [a, abilityMod(s.abilities[a])]));
     const saves = Object.fromEntries(ABILITIES.map((a) => [a, mods[a] + (s.saves.includes(a) ? pb : 0)]));
     const skills = Object.fromEntries(SKILLS.map((k2) => [k2.id, mods[k2.ability] + (s.skills[k2.id] || 0) * pb]));
-    const attacks = s.attacks.map((a) => ({ ...a, toHit: mods[a.ability] + (a.proficient ? pb : 0) }));
-    return { sheet: s, pb, mods, saves, skills, attacks, initiative: mods.dex, passivePerception: 10 + skills.perception };
+    const attacks = s.attacks.map((a) => ({ ...a, toHit: mods[a.ability] + (a.proficient ? pb : 0) + (a.bonus || 0) }));
+    const spell = s.spellcasting ? { ...s.spellcasting, saveDC: 8 + mods[s.spellcasting.ability] + pb, attack: mods[s.spellcasting.ability] + pb } : null;
+    return { sheet: s, pb, mods, saves, skills, attacks, spell, initiative: mods.dex, passivePerception: 10 + skills.perception };
   }
   function readSheet(inner) {
     const ext = inner && inner.extensions && inner.extensions[EXT_KEY];
@@ -22602,6 +22649,7 @@ ${recent}` : "");
     ];
     const prof = SKILLS.filter((k2) => s.skills[k2.id]).map((k2) => `${k2.name} ${fmt(d.skills[k2.id])}`);
     if (prof.length) lines.push("Skills: " + prof.join(", "));
+    if (d.spell) lines.push(`Spellcasting (${d.spell.ability.toUpperCase()}): save DC ${d.spell.saveDC}, spell attack ${fmt(d.spell.attack)}` + (d.spell.slots.length ? `, slots ${d.spell.slots.map((n, i) => n ? `L${i + 1}×${n}` : "").filter(Boolean).join(" ")}` : "") + (d.spell.spells ? `; spells: ${d.spell.spells}` : ""));
     if (s.inventory.length) lines.push("Inventory: " + s.inventory.map((i) => i.name + (i.qty > 1 ? ` x${i.qty}` : "")).join(", "));
     const coins = Object.entries(s.coins).filter(([, v]) => v > 0).map(([k2, v]) => `${v} ${k2}`);
     if (coins.length) lines.push("Coins: " + coins.join(", "));
@@ -22866,7 +22914,10 @@ ${recent}` : "");
       }
       if (!V.draft) {
         root.appendChild(el("p", { class: "rpm-muted", text: `${V.name} has no character sheet yet.` }));
-        const row = el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, [btn("Create sheet", () => createSheet(null), { icon: "plus" })]);
+        const row = el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, [
+          window.KLITE_RPMod_Builder ? btn("Build with the SRD rules", () => window.KLITE_RPMod_Builder.open({ target: V.name, name: V.name }), { icon: "sparkles", title: "Step-by-step builder: class, background, species, abilities, skills, equipment" }) : null,
+          btn("Create sheet", () => createSheet(null), { icon: "plus", title: "An empty sheet you fill in yourself" })
+        ]);
         const ws = worldStatsFor(V.name);
         if (ws) row.appendChild(btn("Create from world stats", () => createSheet(fromCombatStats(ws)), { title: "Use the d20 stat block this person has in the active world" }));
         root.appendChild(row);
@@ -22897,7 +22948,13 @@ ${recent}` : "");
           V.draft.background = v;
         })))
       ]));
-      root.appendChild(el("div", { class: "rpm-muted", style: "margin:2px 0 6px", text: `Proficiency bonus ${fmt(D.pb)} · XP ${s.xp}` }));
+      root.appendChild(el("div", { class: "rpm-row", style: "margin:2px 0 6px;flex-wrap:wrap" }, [
+        el("span", { class: "rpm-muted rpm-grow", text: `Proficiency bonus ${fmt(D.pb)} · XP ${s.xp}${s.alignment ? " · " + s.alignment : ""}` }),
+        s.build && s.level < 3 && window.KLITE_RPMod_Builder ? btn("Level up", () => {
+          if (dirty() && !confirm("Level up uses the saved sheet; discard unsaved changes?")) return;
+          window.KLITE_RPMod_Builder.levelUp(V.name);
+        }, { icon: "sparkles", title: `Rebuild at level ${s.level + 1} with the builder (keeps inventory, coins and notes)` }) : null
+      ]));
       root.appendChild(heading("Abilities"));
       root.appendChild(el("div", { class: "rpm-sheet-abilities" }, ABILITIES.map((a) => el("div", { class: "rpm-sheet-ability" }, [
         el("div", { class: "rpm-label", text: ABILITY_NAMES[a] }),
@@ -22917,6 +22974,7 @@ ${recent}` : "");
         field("Initiative", btn(fmt(D.initiative), () => rollD20("Initiative", D.initiative, "initiative"), { roll: "initiative", title: "Roll initiative" })),
         field("Passive Perception", el("div", { class: "rpm-sheet-static", text: String(D.passivePerception) }))
       ]));
+      if (s.acNote) root.appendChild(el("div", { class: "rpm-muted", text: "AC: " + s.acNote }));
       root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
         field("HP", numIn(s.hp.current, set((v) => {
           V.draft.hp.current = v;
@@ -23003,6 +23061,45 @@ ${recent}` : "");
         V.draft.attacks.push({ name: n, ability: "str", proficient: true, damage: "1d8", notes: "" });
         edited();
       }, { icon: "plus", title: "Add attack" })]));
+      if (D.spell) {
+        const sp = D.spell;
+        root.appendChild(heading("Spellcasting"));
+        root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
+          field("Ability", el("div", { class: "rpm-sheet-static", text: ABILITY_NAMES[sp.ability] })),
+          field("Save DC", el("div", { class: "rpm-sheet-static", text: String(sp.saveDC) })),
+          field("Spell attack", btn(fmt(sp.attack), () => rollD20("Spell attack", sp.attack, "attack"), { roll: "spell-attack", title: "Roll a spell attack" })),
+          field("Cantrips / prepared", el("div", { class: "rpm-sheet-static", text: `${sp.cantrips} / ${sp.prepared}` }))
+        ]));
+        const slotRow = el("div", { class: "rpm-row", style: "flex-wrap:wrap;margin-top:4px" });
+        sp.slots.forEach((n, i) => {
+          if (!n) return;
+          const used = sp.used && sp.used[i] || 0;
+          slotRow.appendChild(el("span", { class: "rpm-label", text: `${sp.pact ? "Pact slots" : "Level " + (i + 1)}:` }));
+          for (let k2 = 0; k2 < n; k2++) {
+            const c = el("input", { type: "checkbox", "aria-label": `${sp.pact ? "Pact" : "Level " + (i + 1)} slot ${k2 + 1} used` });
+            c.checked = k2 < used;
+            c.addEventListener("change", () => {
+              const u = V.draft.spellcasting.used = V.draft.spellcasting.used || [];
+              u[i] = [...slotRow.querySelectorAll(`input[data-slot="${i}"]`)].filter((x) => x.checked).length;
+              edited();
+            });
+            c.setAttribute("data-slot", String(i));
+            slotRow.appendChild(c);
+          }
+        });
+        if (slotRow.children.length) root.appendChild(slotRow);
+        const spells = el("textarea", { class: "form-control rpm-input", rows: 2, "aria-label": "Cantrips and prepared spells", placeholder: "Cantrips and prepared spells, e.g. Fire Bolt, Magic Missile" });
+        spells.value = sp.spells || "";
+        spells.addEventListener("change", () => {
+          V.draft.spellcasting.spells = spells.value;
+          edited();
+        });
+        root.appendChild(spells);
+      }
+      if (s.proficiencies) {
+        root.appendChild(heading("Proficiencies"));
+        root.appendChild(el("div", { class: "rpm-gal-text", text: s.proficiencies }));
+      }
       root.appendChild(heading("Inventory"));
       s.inventory.forEach((it, i) => root.appendChild(el("div", { class: "rpm-sheet-line" }, [
         textIn(it.name, set((v) => {
@@ -23303,6 +23400,7 @@ OK = save and close · Cancel = close and discard them`);
         }, { role: "radio", "aria-checked": String(prefs.size === k2) }))
       );
       root.appendChild(el("div", { class: "rpm-gal-bar" }, [
+        window.KLITE_RPMod_Builder ? el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon rpm-success", "data-gal-action": "new", onclick: () => window.KLITE_RPMod_Builder.open() }, [iconText("plus", "New character")]) : null,
         el("div", { class: "rpm-gal-sorts" }, Object.entries(SORTS).map(([k2, t]) => chip(t, prefs.sort === k2, () => {
           prefs.sort = k2;
           savePrefs();
@@ -23612,6 +23710,3476 @@ OK = save and close · Cancel = close and discard them`);
     else window.addEventListener("load", attempt);
   }
 
+  // src/data/srd52.js
+  var SRD = {
+    "attribution": 'This work includes material from the System Reference Document 5.2.1 ("SRD 5.2.1") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.',
+    "source": "SRD 5.2.1",
+    "standardArray": [
+      15,
+      14,
+      13,
+      12,
+      10,
+      8
+    ],
+    "pointBuy": {
+      "budget": 27,
+      "costs": {
+        "8": 0,
+        "9": 1,
+        "10": 2,
+        "11": 3,
+        "12": 4,
+        "13": 5,
+        "14": 7,
+        "15": 9
+      }
+    },
+    "xp": [
+      0,
+      300,
+      900,
+      2700,
+      6500,
+      14e3,
+      23e3,
+      34e3,
+      48e3,
+      64e3,
+      85e3,
+      1e5,
+      12e4,
+      14e4,
+      165e3,
+      195e3,
+      225e3,
+      265e3,
+      305e3,
+      355e3
+    ],
+    "languages": {
+      "standard": [
+        "Common Sign Language",
+        "Draconic",
+        "Dwarvish",
+        "Elvish",
+        "Giant",
+        "Gnomish",
+        "Goblin",
+        "Halfling",
+        "Orc"
+      ],
+      "rare": [
+        "Abyssal",
+        "Celestial",
+        "Deep Speech",
+        "Druidic",
+        "Infernal",
+        "Primordial",
+        "Sylvan",
+        "Thieves' Cant",
+        "Undercommon"
+      ]
+    },
+    "alignments": [
+      "Lawful Good",
+      "Neutral Good",
+      "Chaotic Good",
+      "Lawful Neutral",
+      "Neutral",
+      "Chaotic Neutral",
+      "Lawful Evil",
+      "Neutral Evil",
+      "Chaotic Evil"
+    ],
+    "classes": {
+      "barbarian": {
+        "name": "Barbarian",
+        "primary": [
+          "str"
+        ],
+        "hitDie": 12,
+        "saves": [
+          "str",
+          "con"
+        ],
+        "skills": {
+          "choose": 2,
+          "options": [
+            "animal_handling",
+            "athletics",
+            "intimidation",
+            "nature",
+            "perception",
+            "survival"
+          ]
+        },
+        "weapons": "Simple and Martial weapons",
+        "armor": "Light and Medium armor and Shields",
+        "tools": "",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Greataxe",
+              "4 Handaxes",
+              "Explorer's Pack"
+            ],
+            "gp": 15
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 75
+          }
+        ],
+        "standardArray": {
+          "str": 15,
+          "dex": 13,
+          "con": 14,
+          "int": 10,
+          "wis": 12,
+          "cha": 8
+        },
+        "subclass": "Path of the Berserker",
+        "columns": {
+          "1": {
+            "rages": 2,
+            "rageDamage": 2,
+            "weaponMastery": 2
+          },
+          "2": {
+            "rages": 2,
+            "rageDamage": 2,
+            "weaponMastery": 2
+          },
+          "3": {
+            "rages": 3,
+            "rageDamage": 2,
+            "weaponMastery": 2
+          }
+        },
+        "features": [
+          {
+            "level": 1,
+            "name": "Rage",
+            "text": [
+              "You can imbue yourself with a primal power called Rage, a force that grants you extraordinary might and resilience. You can enter it as a Bonus Action if you aren't wearing Heavy armor.",
+              "You can enter your Rage the number of times shown for your Barbarian level in the Rages column of the Barbarian Features table. You regain one expended use when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest.",
+              "While active, your Rage follows the rules below.",
+              "Damage Resistance. You have Resistance to Bludgeoning, Piercing, and Slashing damage.",
+              "Rage Damage. When you make an attack using Strength—with either a weapon or an Unarmed Strike—and deal damage to the target, you gain a bonus to the damage that increases as you gain levels as a Barbarian, as shown in the Rage Damage column of the Barbarian Features table.",
+              "Strength Advantage. You have Advantage on Strength checks and Strength saving throws.",
+              "No Concentration or Spells. You can't maintain Concentration, and you can't cast spells.",
+              "Duration. The Rage lasts until the end of your next turn, and it ends early if you don Heavy armor or have the Incapacitated condition. If your Rage is still active on your next turn, you can extend the Rage for another round by doing one of the following:",
+              "• Make an attack roll against an enemy.",
+              "• Force an enemy to make a saving throw.",
+              "• Take a Bonus Action to extend your Rage. Each time the Rage is extended, it lasts until the end of your next turn. You can maintain a Rage for up to 10 minutes."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Unarmored Defense",
+            "text": [
+              "While you aren't wearing any armor, your base Armor Class equals 10 plus your Dexterity and Constitution modifiers. You can use a Shield and still gain this benefit."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Weapon Mastery",
+            "text": [
+              "Your training with weapons allows you to use the mastery properties of two kinds of Simple or Martial Melee weapons of your choice, such as Greataxes and Handaxes. Whenever you finish a Long Rest, you can practice weapon drills and change one of those weapon choices.",
+              "When you reach certain Barbarian levels, you gain the ability to use the mastery properties of more kinds of weapons, as shown in the Weapon Mastery column of the Barbarian Features table."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Danger Sense",
+            "text": [
+              "You gain an uncanny sense of when things aren't as they should be, giving you an edge when you dodge perils. You have Advantage on Dexterity saving throws unless you have the Incapacitated condition."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Reckless Attack",
+            "text": [
+              "You can throw aside all concern for defense to attack with increased ferocity. When you make your first attack roll on your turn, you can decide to attack recklessly. Doing so gives you Advantage on attack rolls using Strength until the start of your next turn, but attack rolls against you have Advantage during that time."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Barbarian Subclass",
+            "text": [
+              "You gain a Barbarian subclass of your choice. The Path of the Berserker subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Barbarian levels. For the rest of your career, you gain each of your subclass's features that are of your Barbarian level or lower."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Primal Knowledge",
+            "text": [
+              "You gain proficiency in another skill of your choice from the skill list available to Barbarians at level 1.",
+              "In addition, while your Rage is active, you can channel primal power when you attempt certain tasks; whenever you make an ability check using one of the following skills, you can make it as a Strength check even if it normally uses a different ability: Acrobatics, Intimidation, Perception, Stealth, or Survival. When you use this ability, your Strength represents primal power coursing through you, honing your agility, bearing, and senses."
+            ]
+          }
+        ],
+        "subclassFeatures": [
+          {
+            "level": 3,
+            "name": "Frenzy",
+            "text": [
+              "If you use Reckless Attack while your Rage is active, you deal extra damage to the first target you hit on your turn with a Strength-based attack. To determine the extra damage, roll a number of d6s equal to your Rage Damage bonus, and add them together. The damage has the same type as the weapon or Unarmed Strike used for the attack."
+            ]
+          }
+        ],
+        "subclassIntro": [
+          "Path of the Berserker Channel Rage into Violent Fury Barbarians who walk the Path of the Berserker direct their Rage primarily toward violence. Their path is one of untrammeled fury, and they thrill in the chaos of battle as they allow their Rage to seize and empower them."
+        ]
+      },
+      "bard": {
+        "name": "Bard",
+        "primary": [
+          "cha"
+        ],
+        "hitDie": 8,
+        "saves": [
+          "dex",
+          "cha"
+        ],
+        "skills": {
+          "choose": 3,
+          "options": "any"
+        },
+        "weapons": "Simple weapons",
+        "armor": "Light armor",
+        "tools": "Choose 3 Musical Instruments",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Leather Armor",
+              "2 Daggers",
+              "Musical Instrument of your choice",
+              "Entertainer's Pack"
+            ],
+            "gp": 19
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 90
+          }
+        ],
+        "standardArray": {
+          "str": 8,
+          "dex": 14,
+          "con": 12,
+          "int": 13,
+          "wis": 10,
+          "cha": 15
+        },
+        "subclass": "College of Lore",
+        "spellcasting": {
+          "ability": "cha",
+          "levels": {
+            "1": {
+              "cantrips": 2,
+              "prepared": 4,
+              "slots": [
+                2
+              ]
+            },
+            "2": {
+              "cantrips": 2,
+              "prepared": 5,
+              "slots": [
+                3
+              ]
+            },
+            "3": {
+              "cantrips": 2,
+              "prepared": 6,
+              "slots": [
+                4,
+                2
+              ]
+            }
+          }
+        },
+        "columns": {
+          "1": {
+            "bardicDie": "d6"
+          },
+          "2": {
+            "bardicDie": "d6"
+          },
+          "3": {
+            "bardicDie": "d6"
+          }
+        },
+        "features": [
+          {
+            "level": 1,
+            "name": "Bardic Inspiration",
+            "text": [
+              "You can supernaturally inspire others through words, music, or dance. This inspiration is represented by your Bardic Inspiration die, which is a d6.",
+              "Using Bardic Inspiration. As a Bonus Action, you can inspire another creature within 60 feet of yourself who can see or hear you. That creature gains one of your Bardic Inspiration dice. A creature can have only one Bardic Inspiration die at a time.",
+              "Once within the next hour when the creature fails a D20 Test, the creature can roll the Bardic Inspiration die and add the number rolled to the d20, potentially turning the failure into a success. A Bardic Inspiration die is expended when it's rolled.",
+              "Number of Uses. You can confer a Bardic Inspiration die a number of times equal to your Charisma modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.",
+              "At Higher Levels. Your Bardic Inspiration die changes when you reach certain Bard levels, as shown in the Bardic Die column of the Bard Features table. The die becomes a d8 at level 5, a d10 at level 10, and a d12 at level 15."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Spellcasting",
+            "text": [
+              `You have learned to cast spells through your bardic arts. See "Spells" for the rules on spellcasting. The information below details how you use those rules with Bard spells, which appear in the Bard spell list later in the class's description.`,
+              "Cantrips. You know two cantrips of your choice from the Bard spell list. Dancing Lights and Vicious Mockery are recommended.",
+              "Whenever you gain a Bard level, you can replace one of your cantrips with another cantrip of your choice from the Bard spell list.",
+              "When you reach Bard levels 4 and 10, you learn another cantrip of your choice from the Bard spell list, as shown in the Cantrips column of the Bard Features table.",
+              "Spell Slots. The Bard Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.",
+              "Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose four level 1 spells from the Bard spell list. Charm Person, Color Spray, Dissonant Whispers, and Healing Word are recommended.",
+              "The number of spells on your list increases as you gain Bard levels, as shown in the Prepared Spells column of the Bard Features table. Whenever that number increases, choose additional spells from the Bard spell list until the number of spells on your list matches the number on the table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 3 Bard, your list of prepared spells can include six spells of levels 1 and 2 in any combination.",
+              "If another Bard feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Bard spells for you.",
+              "Changing Your Prepared Spells. Whenever you gain a Bard level, you can replace one spell on your list with another Bard spell for which you have spell slots.",
+              "Spellcasting Ability. Charisma is your spellcasting ability for your Bard spells.",
+              "Spellcasting Focus. You can use a Musical Instrument as a Spellcasting Focus for your Bard spells."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Expertise",
+            "text": [
+              'You gain Expertise (see "Rules Glossary") in two of your skill proficiencies of your choice. Performance and Persuasion are recommended if you have proficiency in them.',
+              "At Bard level 9, you gain Expertise in two more of your skill proficiencies of your choice."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Jack of All Trades",
+            "text": [
+              "You can add half your Proficiency Bonus (round down) to any ability check you make that uses a skill proficiency you lack and that doesn't otherwise use your Proficiency Bonus.",
+              "For example, if you make a Strength (Athletics) check and lack Athletics proficiency, you can add half your Proficiency Bonus to the check."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Bard Subclass",
+            "text": [
+              "You gain a Bard subclass of your choice. The College of Lore subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Bard levels. For the rest of your career, you gain each of your subclass's features that are of your Bard level or lower."
+            ]
+          }
+        ],
+        "subclassFeatures": [
+          {
+            "level": 3,
+            "name": "Bonus Proficiencies",
+            "text": [
+              "You gain proficiency with three skills of your choice."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Cutting Words",
+            "text": [
+              "You learn to use your wit to supernaturally distract, confuse, and otherwise sap the confidence and competence of others. When a creature that you can see within 60 feet of yourself makes a damage roll or succeeds on an ability check or attack roll, you can take a Reaction to expend one use of your Bardic Inspiration; roll your Bardic Inspiration die, and subtract the number rolled from the creature's roll, reducing the damage or potentially turning the success into a failure."
+            ]
+          }
+        ],
+        "subclassIntro": [
+          "College of Lore Plumb the Depths of Magical Knowledge Bards of the College of Lore collect spells and secrets from diverse sources, such as scholarly tomes, mystical rites, and peasant tales. The college's members gather in libraries and universities to share their lore with one another. They also meet at festivals or affairs of state, where they can expose corruption, unravel lies, and poke fun at self-important figures of authority."
+        ]
+      },
+      "cleric": {
+        "name": "Cleric",
+        "primary": [
+          "wis"
+        ],
+        "hitDie": 8,
+        "saves": [
+          "wis",
+          "cha"
+        ],
+        "skills": {
+          "choose": 2,
+          "options": [
+            "history",
+            "insight",
+            "medicine",
+            "persuasion",
+            "religion"
+          ]
+        },
+        "weapons": "Simple weapons",
+        "armor": "Light and Medium armor and Shields",
+        "tools": "",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Chain Shirt",
+              "Shield",
+              "Mace",
+              "Holy Symbol",
+              "Priest's Pack"
+            ],
+            "gp": 7
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 110
+          }
+        ],
+        "standardArray": {
+          "str": 14,
+          "dex": 8,
+          "con": 13,
+          "int": 10,
+          "wis": 15,
+          "cha": 12
+        },
+        "subclass": "Life Domain",
+        "spellcasting": {
+          "ability": "wis",
+          "levels": {
+            "1": {
+              "cantrips": 3,
+              "prepared": 4,
+              "slots": [
+                2
+              ]
+            },
+            "2": {
+              "cantrips": 3,
+              "prepared": 5,
+              "slots": [
+                3
+              ]
+            },
+            "3": {
+              "cantrips": 3,
+              "prepared": 6,
+              "slots": [
+                4,
+                2
+              ]
+            }
+          }
+        },
+        "columns": {
+          "2": {
+            "channelDivinity": 2
+          },
+          "3": {
+            "channelDivinity": 2
+          }
+        },
+        "features": [
+          {
+            "level": 1,
+            "name": "Spellcasting",
+            "text": [
+              `You have learned to cast spells through prayer and meditation. See "Spells" for the rules on spellcasting. The information below details how you use those rules with Cleric spells, which appear on the Cleric spell list later in the class's description.`,
+              "Cantrips. You know three cantrips of your choice from the Cleric spell list. Guidance, Sacred Flame, and Thaumaturgy are recommended.",
+              "Whenever you gain a Cleric level, you can replace one of your cantrips with another cantrip of your choice from the Cleric spell list.",
+              "When you reach Cleric levels 4 and 10, you learn another cantrip of your choice from the Cleric spell list, as shown in the Cantrips column of the Cleric Features table.",
+              "Spell Slots. The Cleric Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.",
+              "Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose four level 1 spells from the Cleric spell list. Bless, Cure Wounds, Guiding Bolt, and Shield of Faith are recommended.",
+              "The number of spells on your list increases as you gain Cleric levels, as shown in the Prepared Spells column of the Cleric Features table. Whenever that number increases, choose additional spells from the Cleric spell list until the number of spells on your list matches the number on the table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 3 Cleric, your list of prepared spells can include six spells of levels 1 and 2 in any combination.",
+              "If another Cleric feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Cleric spells for you.",
+              "Changing Your Prepared Spells. Whenever you finish a Long Rest, you can change your list of prepared spells, replacing any of the spells there with other Cleric spells for which you have spell slots.",
+              "Spellcasting Ability. Wisdom is your spellcasting ability for your Cleric spells.",
+              "Spellcasting Focus. You can use a Holy Symbol as a Spellcasting Focus for your Cleric spells."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Divine Order",
+            "text": [
+              "You have dedicated yourself to one of the following sacred roles of your choice.",
+              "Protector. Trained for battle, you gain proficiency with Martial weapons and training with Heavy armor.",
+              "Thaumaturge. You know one extra cantrip from the Cleric spell list. In addition, your mystical connection to the divine gives you a bonus to your Intelligence (Arcana or Religion) checks. The bonus equals your Wisdom modifier (minimum of +1)."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Channel Divinity",
+            "text": [
+              "You can channel divine energy directly from the Outer Planes to fuel magical effects. You start with two such effects: Divine Spark and Turn Undead, each of which is described below. Each time you use this class's Channel Divinity, choose which Channel Divinity effect from this class to create. You gain additional effect options at higher Cleric levels.",
+              "You can use this class's Channel Divinity twice. You regain one of its expended uses when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest. You gain additional uses when you reach certain Cleric levels, as shown in the Channel Divinity column of the Cleric Features table.",
+              "If a Channel Divinity effect requires a saving throw, the DC equals the spell save DC from this class's Spellcasting feature.",
+              "Divine Spark. As a Magic action, you point your Holy Symbol at another creature you can see within 30 feet of yourself and focus divine energy at it. Roll 1d8 and add your Wisdom modifier. You either restore Hit Points to the creature equal to that total or force the creature to make a Constitution saving throw. On a failed save, the creature takes Necrotic or Radiant damage (your choice) equal to that total. On a successful save, the creature takes half as much damage (round down).",
+              "You roll an additional d8 when you reach Cleric levels 7 (2d8), 13 (3d8), and 18 (4d8).",
+              "Turn Undead. As a Magic action, you present your Holy Symbol and censure Undead creatures. Each Undead of your choice within 30 feet of you must make a Wisdom saving throw. If the creature fails its save, it has the Frightened and Incapacitated conditions for 1 minute. For that duration, it tries to move as far from you as it can on its turns. This effect ends early on the creature if it takes any damage, if you have the Incapacitated condition, or if you die."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Cleric Subclass",
+            "text": [
+              "You gain a Cleric subclass of your choice. The Life Domain subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Cleric levels. For the rest of your career, you gain each of your subclass's features that are of your Cleric level or lower."
+            ]
+          }
+        ],
+        "subclassFeatures": [
+          {
+            "level": 3,
+            "name": "Disciple of Life",
+            "text": [
+              "When a spell you cast with a spell slot restores Hit Points to a creature, that creature regains additional Hit Points on the turn you cast the spell. The additional Hit Points equal 2 plus the spell slot's level."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Life Domain Spells",
+            "text": [
+              "Your connection to this divine domain ensures you always have certain spells ready. When you reach a Cleric level specified in the Life Domain Spells table, you thereafter always have the listed spells prepared. Life Domain Spells Cleric Level Prepared Spells 3 Aid, Bless, Cure Wounds, Lesser Restoration 5 Mass Healing Word, Revivify 7 Aura of Life, Death Ward 9 Greater Restoration, Mass Cure Wounds"
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Preserve Life",
+            "text": [
+              "As a Magic action, you present your Holy Symbol and expend a use of your Channel Divinity to evoke healing energy that can restore a number of Hit Points equal to five times your Cleric level. Choose Bloodied creatures within 30 feet of yourself (which can include you), and divide those Hit Points among them. This feature can restore a creature to no more than half its Hit Point maximum."
+            ]
+          }
+        ],
+        "subclassIntro": [
+          "Soothe the Hurts of the World The Life Domain focuses on the positive energy that helps sustain all life in the multiverse. Clerics who tap into this domain are masters of healing, using that life force to cure many hurts.",
+          "Existence itself relies on the positive energy associated with this domain, so a Cleric of almost any religious tradition might choose it. This domain is particularly associated with agricultural deities, gods of healing or endurance, and gods of home and community. Religious orders of healing also seek the magic of this domain."
+        ]
+      },
+      "druid": {
+        "name": "Druid",
+        "primary": [
+          "wis"
+        ],
+        "hitDie": 8,
+        "saves": [
+          "int",
+          "wis"
+        ],
+        "skills": {
+          "choose": 2,
+          "options": [
+            "animal_handling",
+            "arcana",
+            "insight",
+            "medicine",
+            "nature",
+            "perception",
+            "religion",
+            "survival"
+          ]
+        },
+        "weapons": "Simple weapons",
+        "armor": "Light armor and Shields",
+        "tools": "Herbalism Kit",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Leather Armor",
+              "Shield",
+              "Sickle",
+              "Druidic Focus (Quarterstaff)",
+              "Explorer's Pack",
+              "Herbalism Kit"
+            ],
+            "gp": 9
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 50
+          }
+        ],
+        "standardArray": {
+          "str": 8,
+          "dex": 12,
+          "con": 14,
+          "int": 13,
+          "wis": 15,
+          "cha": 10
+        },
+        "subclass": "Circle of the Land",
+        "spellcasting": {
+          "ability": "wis",
+          "levels": {
+            "1": {
+              "cantrips": 2,
+              "prepared": 4,
+              "slots": [
+                2
+              ]
+            },
+            "2": {
+              "cantrips": 2,
+              "prepared": 5,
+              "slots": [
+                3
+              ]
+            },
+            "3": {
+              "cantrips": 2,
+              "prepared": 6,
+              "slots": [
+                4,
+                2
+              ]
+            }
+          }
+        },
+        "columns": {
+          "2": {
+            "wildShape": 2
+          },
+          "3": {
+            "wildShape": 2
+          }
+        },
+        "features": [
+          {
+            "level": 1,
+            "name": "Spellcasting",
+            "text": [
+              `You have learned to cast spells through studying the mystical forces of nature. See "Spells" for the rules on spellcasting. The information below details how you use those rules with Druid spells, which appear on the Druid spell list later in the class's description.`,
+              "Cantrips. You know two cantrips of your choice from the Druid spell list. Druidcraft and Produce Flame are recommended.",
+              "Whenever you gain a Druid level, you can replace one of your cantrips with another cantrip of your choice from the Druid spell list.",
+              "When you reach Druid levels 4 and 10, you learn another cantrip of your choice from the Druid spell list, as shown in the Cantrips column of the Druid Features table.",
+              "Spell Slots. The Druid Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.",
+              "Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose four level 1 spells from the Druid spell list. Animal Friendship, Cure Wounds, Faerie Fire, and Thunderwave are recommended.",
+              "The number of spells on your list increases as you gain Druid levels, as shown in the Prepared Spells column of the Druid Features table. Whenever that number increases, choose additional spells from the Druid spell list until the number of spells on your list matches the number on the table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 3 Druid, your list of prepared spells can include six spells of levels 1 and 2 in any combination.",
+              "If another Druid feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Druid spells for you.",
+              "Changing Your Prepared Spells. Whenever you finish a Long Rest, you can change your list of prepared spells, replacing any of the spells with other Druid spells for which you have spell slots.",
+              "Spellcasting Ability. Wisdom is your spellcasting ability for your Druid spells.",
+              "Spellcasting Focus. You can use a Druidic Focus as a Spellcasting Focus for your Druid spells."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Druidic",
+            "text": [
+              "You know Druidic, the secret language of Druids. While learning this ancient tongue, you also unlocked the magic of communicating with animals; you always have the Speak with Animals spell prepared.",
+              "You can use Druidic to leave hidden messages. You and others who know Druidic automatically spot such a message. Others spot the message's presence with a successful DC 15 Intelligence (Investigation) check but can't decipher it without magic."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Primal Order",
+            "text": [
+              "You have dedicated yourself to one of the following sacred roles of your choice.",
+              "Magician. You know one extra cantrip from the Druid spell list. In addition, your mystical connection to nature gives you a bonus to your Intelligence (Arcana or Nature) checks. The bonus equals your Wisdom modifier (minimum bonus of +1).",
+              "Warden. Trained for battle, you gain proficiency with Martial weapons and training with Medium armor."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Wild Shape",
+            "text": [
+              'The power of nature allows you to assume the form of an animal. As a Bonus Action, you shape-shift into a Beast form that you have learned for this feature (see "Known Forms" below). You stay in that form for a number of hours equal to half your Druid level or until you use Wild Shape again, have the Incapacitated condition, or die. You can also leave the form early as a Bonus Action.',
+              "Number of Uses. You can use Wild Shape twice. You regain one expended use when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest.",
+              "You gain additional uses when you reach certain Druid levels, as shown in the Wild Shape column of the Druid Features table.",
+              'Known Forms. You know four Beast forms for this feature, chosen from among Beast stat blocks that have a maximum Challenge Rating of 1/4 and that lack a Fly Speed (see "Animals" in "Monsters" for stat block options). The Rat, Riding Horse, Spider, and Wolf are recommended. Whenever you finish a Long Rest, you can replace one of your known forms with another eligible form.',
+              "When you reach certain Druid levels, your number of known forms and the maximum Challenge Rating for those forms increases, as shown in the Beast Shapes table. In addition, starting at level 8, you can adopt a form that has a Fly Speed.",
+              "When choosing known forms, you may look in other sources for eligible Beasts if the Game Master permits you to do so. Beast Shapes Druid Level Known Forms Max CR Fly Speed 2 4 1/4 No 4 6 1/2 No 8 8 1 Yes",
+              "Rules While Shape-Shifted. While in a form, you retain your personality, memories, and ability to speak, and the following rules apply: Temporary Hit Points. When you assume a Wild Shape form, you gain a number of Temporary Hit Points equal to your Druid level. Game Statistics. Your game statistics are replaced by the Beast's stat block, but you retain your creature type; Hit Points; Hit Point Dice; Intelligence, Wisdom, and Charisma scores; class features; languages; and feats. You also retain your skill and saving throw proficiencies and use your Proficiency Bonus for them, in addition to gaining the proficiencies of the creature. If a skill or saving throw modifier in the Beast's stat block is higher than yours, use the one in the stat block. No Spellcasting. You can't cast spells, but shapeshifting doesn't break your Concentration or otherwise interfere with a spell you've already cast. Objects. Your ability to handle objects is determined by the form's limbs rather than your own. In addition, you choose whether your equipment falls in your space, merges into your new form, or is worn by it. Worn equipment functions as normal, but the GM decides whether it's practical for the new form to wear a piece of equipment based on the creature's size and shape. Your equipment doesn't change size or shape to match the new form, and any equipment that the new form can't wear must either fall to the ground or merge with the form. Equipment that merges with the form has no effect while you're in that form."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Wild Companion",
+            "text": [
+              "You can summon a nature spirit that assumes an animal form to aid you. As a Magic action, you can expend a spell slot or a use of Wild Shape to cast the Find Familiar spell without Material components.",
+              "When you cast the spell in this way, the familiar is Fey and disappears when you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Druid Subclass",
+            "text": [
+              "You gain a Druid subclass of your choice. The Circle of the Land subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Druid levels. For the rest of your career, you gain each of your subclass's features that are of your Druid level or lower."
+            ]
+          }
+        ],
+        "subclassFeatures": [
+          {
+            "level": 3,
+            "name": "Circle of the Land Spells",
+            "text": [
+              "Whenever you finish a Long Rest, choose one type of land: arid, polar, temperate, or tropical. Consult the table below that corresponds to the chosen type; you have the spells listed for your Druid level and lower prepared. Arid Land Druid Level Circle Spells 3 Blur, Burning Hands, Fire Bolt 5 Fireball 7 Blight 9 Wall of Stone Polar Land Druid Level Circle Spells 3 Fog Cloud, Hold Person, Ray of Frost 5 Sleet Storm 7 Ice Storm 9 Cone of Cold Temperate Land Druid Level Circle Spells 3 Misty Step, Shocking Grasp, Sleep 5 Lightning Bolt 7 Freedom of Movement 9 Tree Stride Tropical Land Druid Level Circle Spells 3 Acid Splash, Ray of Sickness, Web 5 Stinking Cloud 7 Polymorph 9 Insect Plague"
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Land's Aid",
+            "text": [
+              "As a Magic action, you can expend a use of your Wild Shape and choose a point within 60 feet of yourself. Vitality-giving flowers and life-draining thorns appear for a moment in a 10-foot-radius Sphere centered on that point. Each creature of your choice in the Sphere must make a Constitution saving throw against your spell save DC, taking 2d6 Necrotic damage on a failed save or half as much damage on a successful one. One creature of your choice in that area regains 2d6 Hit Points.",
+              "The damage and healing increase by 1d6 when you reach Druid levels 10 (3d6) and 14 (4d6)."
+            ]
+          }
+        ],
+        "subclassIntro": [
+          "Circle of the Land Celebrate Connection to the Natural World The Circle of the Land comprises mystics and sages who safeguard ancient knowledge and rites. These Druids meet within sacred circles of trees or standing stones to whisper primal secrets in Druidic. The circle's wisest members preside as the chief priests of their communities."
+        ]
+      },
+      "fighter": {
+        "name": "Fighter",
+        "primary": [
+          "str",
+          "dex"
+        ],
+        "hitDie": 10,
+        "saves": [
+          "str",
+          "con"
+        ],
+        "skills": {
+          "choose": 2,
+          "options": [
+            "acrobatics",
+            "animal_handling",
+            "athletics",
+            "history",
+            "insight",
+            "intimidation",
+            "persuasion",
+            "perception",
+            "survival"
+          ]
+        },
+        "weapons": "Simple and Martial weapons",
+        "armor": "Light, Medium, and Heavy armor and Shields",
+        "tools": "",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Chain Mail",
+              "Greatsword",
+              "Flail",
+              "8 Javelins",
+              "Dungeoneer's Pack"
+            ],
+            "gp": 4
+          },
+          {
+            "id": "B",
+            "items": [
+              "Studded Leather Armor",
+              "Scimitar",
+              "Shortsword",
+              "Longbow",
+              "20 Arrows",
+              "Quiver",
+              "Dungeoneer's Pack"
+            ],
+            "gp": 11
+          },
+          {
+            "id": "C",
+            "items": [],
+            "gp": 155
+          }
+        ],
+        "standardArray": {
+          "str": 15,
+          "dex": 14,
+          "con": 13,
+          "int": 8,
+          "wis": 10,
+          "cha": 12
+        },
+        "subclass": "Champion",
+        "columns": {
+          "1": {
+            "secondWind": 2,
+            "weaponMastery": 3
+          },
+          "2": {
+            "secondWind": 2,
+            "weaponMastery": 3
+          },
+          "3": {
+            "secondWind": 2,
+            "weaponMastery": 3
+          }
+        },
+        "features": [
+          {
+            "level": 1,
+            "name": "Fighting Style",
+            "text": [
+              'You have honed your martial prowess and gain a Fighting Style feat of your choice (see "Feats"). Defense is recommended.',
+              "Whenever you gain a Fighter level, you can replace the feat you chose with a different Fighting Style feat."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Second Wind",
+            "text": [
+              "You have a limited well of physical and mental stamina that you can draw on. As a Bonus Action, you can use it to regain Hit Points equal to 1d10 plus your Fighter level.",
+              "You can use this feature twice. You regain one expended use when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest.",
+              "When you reach certain Fighter levels, you gain more uses of this feature, as shown in the Second Wind column of the Fighter Features table."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Weapon Mastery",
+            "text": [
+              "Your training with weapons allows you to use the mastery properties of three kinds of Simple or Martial weapons of your choice. Whenever you finish a Long Rest, you can practice weapon drills and change one of those weapon choices.",
+              "When you reach certain Fighter levels, you gain the ability to use the mastery properties of more kinds of weapons, as shown in the Weapon Mastery column of the Fighter Features table."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Action Surge",
+            "text": [
+              "You can push yourself beyond your normal limits for a moment. On your turn, you can take one additional action, except the Magic action.",
+              "Once you use this feature, you can't do so again until you finish a Short or Long Rest. Starting at level 17, you can use it twice before a rest but only once on a turn."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Tactical Mind",
+            "text": [
+              "You have a mind for tactics on and off the battlefield. When you fail an ability check, you can expend a use of your Second Wind to push yourself toward success. Rather than regaining Hit Points, you roll 1d10 and add the number rolled to the ability check, potentially turning it into a success. If the check still fails, this use of Second Wind isn't expended."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Fighter Subclass",
+            "text": [
+              "You gain a Fighter subclass of your choice. The Champion subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Fighter levels. For the rest of your career, you gain each of your subclass's features that are of your Fighter level or lower."
+            ]
+          }
+        ],
+        "subclassFeatures": [
+          {
+            "level": 3,
+            "name": "Improved Critical",
+            "text": [
+              "Your attack rolls with weapons and Unarmed Strikes can score a Critical Hit on a roll of 19 or 20 on the d20."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Remarkable Athlete",
+            "text": [
+              "Thanks to your athleticism, you have Advantage on Initiative rolls and Strength (Athletics) checks.",
+              "In addition, immediately after you score a Critical Hit, you can move up to half your Speed without provoking Opportunity Attacks."
+            ]
+          }
+        ],
+        "subclassIntro": [
+          "Pursue Physical Excellence in Combat A Champion focuses on the development of martial prowess in a relentless pursuit of victory. Champions combine rigorous training with physical excellence to deal devastating blows, withstand peril, and garner glory. Whether in athletic contests or bloody battle, Champions strive for the crown of the victor."
+        ]
+      },
+      "monk": {
+        "name": "Monk",
+        "primary": [
+          "dex",
+          "wis"
+        ],
+        "hitDie": 8,
+        "saves": [
+          "str",
+          "dex"
+        ],
+        "skills": {
+          "choose": 2,
+          "options": [
+            "acrobatics",
+            "athletics",
+            "history",
+            "insight",
+            "religion",
+            "stealth"
+          ]
+        },
+        "weapons": "Simple weapons and Martial weapons that have the Light property",
+        "armor": "None",
+        "tools": "Choose one type of Artisan's Tools or Musical Instrument",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Spear",
+              "5 Daggers",
+              "Artisan's Tools or Musical Instrument (as chosen)",
+              "Explorer's Pack"
+            ],
+            "gp": 11
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 50
+          }
+        ],
+        "standardArray": {
+          "str": 12,
+          "dex": 15,
+          "con": 13,
+          "int": 10,
+          "wis": 14,
+          "cha": 8
+        },
+        "subclass": "Warrior of the Open Hand",
+        "columns": {
+          "1": {
+            "martialArts": "1d6"
+          },
+          "2": {
+            "martialArts": "1d6",
+            "focusPoints": 2,
+            "unarmoredMovement": 10
+          },
+          "3": {
+            "martialArts": "1d6",
+            "focusPoints": 3,
+            "unarmoredMovement": 10
+          }
+        },
+        "features": [
+          {
+            "level": 1,
+            "name": "Martial Arts",
+            "text": [
+              "Your practice of martial arts gives you mastery of combat styles that use your Unarmed Strike and Monk weapons, which are the following:",
+              "• Simple Melee weapons",
+              "• Martial Melee weapons that have the Light property You gain the following benefits while you are unarmed or wielding only Monk weapons and you aren't wearing armor or wielding a Shield.",
+              "Bonus Unarmed Strike. You can make an Unarmed Strike as a Bonus Action.",
+              "Martial Arts Die. You can roll 1d6 in place of the normal damage of your Unarmed Strike or Monk weapons. This die changes as you gain Monk levels, as shown in the Martial Arts column of the Monk Features table.",
+              "Dexterous Attacks. You can use your Dexterity modifier instead of your Strength modifier for the attack and damage rolls of your Unarmed Strikes and Monk weapons. In addition, when you use the Grapple or Shove option of your Unarmed Strike, you can use your Dexterity modifier instead of your Strength modifier to determine the save DC."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Unarmored Defense",
+            "text": [
+              "While you aren't wearing armor or wielding a Shield, your base Armor Class equals 10 plus your Dexterity and Wisdom modifiers."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Monk's Focus",
+            "text": [
+              "Your focus and martial training allow you to harness a well of extraordinary energy within yourself. This energy is represented by Focus Points. Your Monk level determines the number of points you have, as shown in the Focus Points column of the Monk Features table.",
+              "You can expend these points to enhance or fuel certain Monk features. You start knowing three such features: Flurry of Blows, Patient Defense, and Step of the Wind, each of which is detailed below.",
+              "When you expend a Focus Point, it is unavailable until you finish a Short or Long Rest, at the end of which you regain all your expended points.",
+              "Some features that use Focus Points require your target to make a saving throw. The save DC equals 8 plus your Wisdom modifier and Proficiency Bonus.",
+              "Flurry of Blows. You can expend 1 Focus Point to make two Unarmed Strikes as a Bonus Action.",
+              "Patient Defense. You can take the Disengage action as a Bonus Action. Alternatively, you can expend 1 Focus Point to take both the Disengage and the Dodge actions as a Bonus Action.",
+              "Step of the Wind. You can take the Dash action as a Bonus Action. Alternatively, you can expend 1 Focus Point to take both the Disengage and Dash actions as a Bonus Action, and your jump distance is doubled for the turn."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Unarmored Movement",
+            "text": [
+              "Your speed increases by 10 feet while you aren't wearing armor or wielding a Shield. This bonus increases when you reach certain Monk levels, as shown on the Monk Features table."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Uncanny Metabolism",
+            "text": [
+              "When you roll Initiative, you can regain all expended Focus Points. When you do so, roll your Martial Arts die, and regain a number of Hit Points equal to your Monk level plus the number rolled.",
+              "Once you use this feature, you can't use it again until you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Deflect Attacks",
+            "text": [
+              "When an attack roll hits you and its damage includes Bludgeoning, Piercing, or Slashing damage, you can take a Reaction to reduce the attack's total damage against you. The reduction equals 1d10 plus your Dexterity modifier and Monk level.",
+              "If you reduce the damage to 0, you can expend 1 Focus Point to redirect some of the attack's force. If you do so, choose a creature you can see within 5 feet of yourself if the attack was a melee attack or a creature you can see within 60 feet of yourself that isn't behind Total Cover if the attack was a ranged attack. That creature must succeed on a Dexterity saving throw or take damage equal to two rolls of your Martial Arts die plus your Dexterity modifier. The damage is the same type dealt by the attack."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Monk Subclass",
+            "text": [
+              "You gain a Monk subclass of your choice. The Warrior of the Open Hand subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Monk levels. For the rest of your career, you gain each of your subclass's features that are of your Monk level or lower."
+            ]
+          }
+        ],
+        "subclassFeatures": [
+          {
+            "level": 3,
+            "name": "Open Hand Technique",
+            "text": [
+              "Whenever you hit a creature with an attack granted by your Flurry of Blows, you can impose one of the following effects on that target.",
+              "Addle. The target can't make Opportunity Attacks until the start of its next turn.",
+              "Push. The target must succeed on a Strength saving throw or be pushed up to 15 feet away from you.",
+              "Topple. The target must succeed on a Dexterity saving throw or have the Prone condition."
+            ]
+          }
+        ],
+        "subclassIntro": [
+          "Open Hand Master Unarmed Combat Techniques Warriors of the Open Hand are masters of unarmed combat. They learn techniques to push and trip their opponents and manipulate their own energy to protect themselves from harm."
+        ]
+      },
+      "paladin": {
+        "name": "Paladin",
+        "primary": [
+          "str",
+          "cha"
+        ],
+        "hitDie": 10,
+        "saves": [
+          "wis",
+          "cha"
+        ],
+        "skills": {
+          "choose": 2,
+          "options": [
+            "athletics",
+            "insight",
+            "intimidation",
+            "medicine",
+            "persuasion",
+            "religion"
+          ]
+        },
+        "weapons": "Simple and Martial weapons",
+        "armor": "Light, Medium, and Heavy armor and Shields",
+        "tools": "",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Chain Mail",
+              "Shield",
+              "Longsword",
+              "6 Javelins",
+              "Holy Symbol",
+              "Priest's Pack"
+            ],
+            "gp": 9
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 150
+          }
+        ],
+        "standardArray": {
+          "str": 15,
+          "dex": 10,
+          "con": 13,
+          "int": 8,
+          "wis": 12,
+          "cha": 14
+        },
+        "subclass": "Oath of Devotion",
+        "spellcasting": {
+          "ability": "cha",
+          "levels": {
+            "1": {
+              "cantrips": 0,
+              "prepared": 2,
+              "slots": [
+                2
+              ]
+            },
+            "2": {
+              "cantrips": 0,
+              "prepared": 3,
+              "slots": [
+                2
+              ]
+            },
+            "3": {
+              "cantrips": 0,
+              "prepared": 4,
+              "slots": [
+                3
+              ]
+            }
+          }
+        },
+        "columns": {
+          "3": {
+            "channelDivinity": 2
+          }
+        },
+        "features": [
+          {
+            "level": 1,
+            "name": "Lay On Hands",
+            "text": [
+              "Your blessed touch can heal wounds. You have a pool of healing power that replenishes when you finish a Long Rest. With that pool, you can restore a total number of Hit Points equal to five times your Paladin level. BrEakinG your oatH A Paladin tries to hold to the highest standards of conduct, but even the most dedicated are fallible. Sometimes a Paladin transgresses their oath.",
+              "A Paladin who has broken a vow typically seeks absolution, spending an all-night vigil as a sign of penitence or undertaking a fast. After a rite of forgiveness, the Paladin starts fresh.",
+              "If your Paladin unrepentantly violates their oath, talk to your GM. Your Paladin should probably take a more appropriate subclass or even abandon the class and adopt another one.",
+              "As a Bonus Action, you can touch a creature (which could be yourself) and draw power from the pool of healing to restore a number of Hit Points to that creature, up to the maximum amount remaining in the pool.",
+              "You can also expend 5 Hit Points from the pool of healing power to remove the Poisoned condition from the creature; those points don't also restore Hit Points to the creature."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Spellcasting",
+            "text": [
+              `You have learned to cast spells through prayer and meditation. See "Spells" for the rules on spellcasting. The information below details how you use those rules with Paladin spells, which appear in the Paladin spell list later in the class's description.`,
+              "Spell Slots. The Paladin Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.",
+              "Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose two level 1 Paladin spells. Heroism and Searing Smite are recommended.",
+              "The number of spells on your list increases as you gain Paladin levels, as shown in the Prepared Spells column of the Paladin Features table. Whenever that number increases, choose additional Paladin spells until the number of spells on your list matches the number in the Paladin Features table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 5 Paladin, your list of prepared spells can include six Paladin spells of level 1 or 2 in any combination.",
+              "If another Paladin feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Paladin spells for you.",
+              "Changing Your Prepared Spells. Whenever you finish a Long Rest, you can replace one spell on your list with another Paladin spell for which you have spell slots.",
+              "Spellcasting Ability. Charisma is your spellcasting ability for your Paladin spells.",
+              "Spellcasting Focus. You can use a Holy Symbol as a Spellcasting Focus for your Paladin spells."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Weapon Mastery",
+            "text": [
+              "Your training with weapons allows you to use the mastery properties of two kinds of weapons of your choice with which you have proficiency, such as Longswords and Javelins.",
+              "Whenever you finish a Long Rest, you can change the kinds of weapons you chose. For example, you could switch to using the mastery properties of Halberds and Flails."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Fighting Style",
+            "text": [
+              'You gain a Fighting Style feat of your choice (see "Feats" for feats). Instead of choosing one of those feats, you can choose the option below.',
+              "Blessed Warrior. You learn two Cleric cantrips of your choice (see the Cleric class's section for a list of Cleric spells). Guidance and Sacred Flame are recommended. The chosen cantrips count as Paladin spells for you, and Charisma is your spellcasting ability for them. Whenever you gain a Paladin level, you can replace one of these cantrips with another Cleric cantrip."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Paladin's Smite",
+            "text": [
+              "You always have the Divine Smite spell prepared. In addition, you can cast it without expending a spell slot, but you must finish a Long Rest before you can cast it in this way again."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Channel Divinity",
+            "text": [
+              "You can channel divine energy directly from the Outer Planes, using it to fuel magical effects. You start with one such effect: Divine Sense, which is described below. Other Paladin features give additional Channel Divinity effect options. Each time you use this class's Channel Divinity, you choose which effect from this class to create.",
+              "You can use this class's Channel Divinity twice. You regain one of its expended uses when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest. You gain an additional use when you reach Paladin level 11.",
+              "If a Channel Divinity effect requires a saving throw, the DC equals the spell save DC from this class's Spellcasting feature.",
+              "Divine Sense. As a Bonus Action, you can open your awareness to detect Celestials, Fiends, and Undead. For the next 10 minutes or until you have the Incapacitated condition, you know the location of any creature of those types within 60 feet of yourself, and you know its creature type. Within the same radius, you also detect the presence of any place or object that has been consecrated or desecrated, as with the Hallow spell."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Paladin Subclass",
+            "text": [
+              "You gain a Paladin subclass of your choice. The Oath of Devotion subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Paladin levels. For the rest of your career, you gain each of your subclass's features that are of your Paladin level or lower."
+            ]
+          }
+        ],
+        "subclassFeatures": [
+          {
+            "level": 3,
+            "name": "Oath of Devotion Spells",
+            "text": [
+              "The magic of your oath ensures you always have certain spells ready; when you reach a Paladin level specified in the Oath of Devotion Spells table, you thereafter always have the listed spells prepared. Oath of Devotion Spells Paladin Level Spells 3 Protection from Evil and Good, Shield of Faith 5 Aid, Zone of Truth 9 Beacon of Hope, Dispel Magic 13 Freedom of Movement, Guardian of Faith 17 Commune, Flame Strike"
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Sacred Weapon",
+            "text": [
+              "When you take the Attack action, you can expend one use of your Channel Divinity to imbue one Melee weapon that you are holding with positive energy. For 10 minutes or until you use this feature again, you add your Charisma modifier to attack rolls you make with that weapon (minimum bonus of +1), and each time you hit with it, you cause it to deal its normal damage type or Radiant damage.",
+              "The weapon also emits Bright Light in a 20-foot radius and Dim Light 20 feet beyond that.",
+              "You can end this effect early (no action required). This effect also ends if you aren't carrying the weapon."
+            ]
+          }
+        ],
+        "subclassIntro": [
+          "Uphold the Ideals of Justice and Order The Oath of Devotion binds Paladins to the ideals of justice and order. These Paladins meet the archetype of the knight in shining armor. They hold themselves to the highest standards of conduct, and some—for better or worse—hold the rest of the world to the same standards.",
+          "Many who swear this oath are devoted to gods of law and good and use their gods' tenets as the measure of personal devotion. Others hold angels as their ideals and incorporate images of angelic wings into their helmets or coats of arms."
+        ]
+      },
+      "ranger": {
+        "name": "Ranger",
+        "primary": [
+          "dex",
+          "wis"
+        ],
+        "hitDie": 10,
+        "saves": [
+          "str",
+          "dex"
+        ],
+        "skills": {
+          "choose": 3,
+          "options": [
+            "animal_handling",
+            "athletics",
+            "insight",
+            "investigation",
+            "nature",
+            "perception",
+            "stealth",
+            "survival"
+          ]
+        },
+        "weapons": "Simple and Martial weapons",
+        "armor": "Light and Medium armor and Shields",
+        "tools": "",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Studded Leather Armor",
+              "Scimitar",
+              "Shortsword",
+              "Longbow",
+              "20 Arrows",
+              "Quiver",
+              "Druidic Focus (sprig of mistletoe)",
+              "Explorer's Pack"
+            ],
+            "gp": 7
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 150
+          }
+        ],
+        "standardArray": {
+          "str": 12,
+          "dex": 15,
+          "con": 13,
+          "int": 8,
+          "wis": 14,
+          "cha": 10
+        },
+        "subclass": "Hunter",
+        "spellcasting": {
+          "ability": "wis",
+          "levels": {
+            "1": {
+              "cantrips": 0,
+              "prepared": 2,
+              "slots": [
+                2
+              ]
+            },
+            "2": {
+              "cantrips": 0,
+              "prepared": 3,
+              "slots": [
+                2
+              ]
+            },
+            "3": {
+              "cantrips": 0,
+              "prepared": 4,
+              "slots": [
+                3
+              ]
+            }
+          }
+        },
+        "columns": {
+          "1": {
+            "favoredEnemy": 2
+          },
+          "2": {
+            "favoredEnemy": 2
+          },
+          "3": {
+            "favoredEnemy": 2
+          }
+        },
+        "features": [
+          {
+            "level": 1,
+            "name": "Spellcasting",
+            "text": [
+              `You have learned to channel the magical essence of nature to cast spells. See "Spells" for the rules on spellcasting. The information below details how you use those rules with Ranger spells, which appear in the Ranger spell list later in the class's description.`,
+              "Spell Slots. The Ranger Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.",
+              "Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose two level 1 Ranger spells. Cure Wounds and Ensnaring Strike are recommended.",
+              "The number of spells on your list increases as you gain Ranger levels, as shown in the Prepared Spells column of the Ranger Features table. Whenever that number increases, choose additional Ranger spells until the number of spells on your list matches the number in the Ranger Features table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 5 Ranger, your list of prepared spells can include six Ranger spells of level 1 or 2 in any combination.",
+              "If another Ranger feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Ranger spells for you.",
+              "Changing Your Prepared Spells. Whenever you finish a Long Rest, you can replace one spell on your list with another Ranger spell for which you have spell slots.",
+              "Spellcasting Ability. Wisdom is your spellcasting ability for your Ranger spells.",
+              "Spellcasting Focus. You can use a Druidic Focus as a Spellcasting Focus for your Ranger spells."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Favored Enemy",
+            "text": [
+              "You always have the Hunter's Mark spell prepared. You can cast it twice without expending a spell slot, and you regain all expended uses of this ability when you finish a Long Rest.",
+              "The number of times you can cast the spell without a spell slot increases when you reach certain Ranger levels, as shown in the Favored Enemy column of the Ranger Features table."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Weapon Mastery",
+            "text": [
+              "Your training with weapons allows you to use the mastery properties of two kinds of weapons of your choice with which you have proficiency, such as Longbows and Shortswords.",
+              "Whenever you finish a Long Rest, you can change the kinds of weapons you chose. For example, you could switch to using the mastery properties of Scimitars and Longswords."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Deft Explorer",
+            "text": [
+              "Thanks to your travels, you gain the following benefits.",
+              "Expertise. Choose one of your skill proficiencies with which you lack Expertise. You gain Expertise in that skill.",
+              'Languages. You know two languages of your choice from the language tables in "Character Creation."'
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Fighting Style",
+            "text": [
+              'You gain a Fighting Style feat of your choice (see "Feats"). Instead of choosing one of those feats, you can choose the option below.',
+              "Druidic Warrior. You learn two Druid cantrips of your choice (see the Druid class's section for a list of Druid spells). Guidance and Starry Wisp are recommended. The chosen cantrips count as Ranger spells for you, and Wisdom is your spellcasting ability for them. Whenever you gain a Ranger level, you can replace one of these cantrips with another Druid cantrip."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Ranger Subclass",
+            "text": [
+              "You gain a Ranger subclass of your choice. The Hunter subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Ranger levels. For the rest of your career, you gain each of your subclass's features that are of your Ranger level or lower."
+            ]
+          }
+        ],
+        "subclassFeatures": [
+          {
+            "level": 3,
+            "name": "Hunter's Lore",
+            "text": [
+              "You can call on the forces of nature to reveal certain strengths and weaknesses of your prey. While a creature is marked by your Hunter's Mark, you know whether that creature has any Immunities, Resistances, or Vulnerabilities, and if the creature has any, you know what they are."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Hunter's Prey",
+            "text": [
+              "You gain one of the following feature options of your choice. Whenever you finish a Short or Long Rest, you can replace the chosen option with the other one.",
+              "Colossus Slayer. Your tenacity can wear down even the most resilient foes. When you hit a creature with a weapon, the weapon deals an extra 1d8 damage to the target if it's missing any of its Hit Points. You can deal this extra damage only once per turn.",
+              "Horde Breaker. Once on each of your turns when you make an attack with a weapon, you can make another attack with the same weapon against a different creature that is within 5 feet of the original target, that is within the weapon's range, and that you haven't attacked this turn."
+            ]
+          }
+        ],
+        "subclassIntro": [
+          "Protect Nature and People from Destruction You stalk prey in the wilds and elsewhere, using your abilities as a Hunter to protect nature and people everywhere from forces that would destroy them."
+        ]
+      },
+      "rogue": {
+        "name": "Rogue",
+        "primary": [
+          "dex"
+        ],
+        "hitDie": 8,
+        "saves": [
+          "dex",
+          "int"
+        ],
+        "skills": {
+          "choose": 4,
+          "options": [
+            "acrobatics",
+            "athletics",
+            "deception",
+            "insight",
+            "intimidation",
+            "investigation",
+            "perception",
+            "persuasion",
+            "sleight_of_hand",
+            "stealth"
+          ]
+        },
+        "weapons": "Simple weapons and Martial weapons that have the Finesse or Light property",
+        "armor": "Light armor",
+        "tools": "Thieves' Tools",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Leather Armor",
+              "2 Daggers",
+              "Shortsword",
+              "Shortbow",
+              "20 Arrows",
+              "Quiver",
+              "Thieves' Tools",
+              "Burglar's Pack"
+            ],
+            "gp": 8
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 100
+          }
+        ],
+        "standardArray": {
+          "str": 12,
+          "dex": 15,
+          "con": 13,
+          "int": 14,
+          "wis": 10,
+          "cha": 8
+        },
+        "subclass": "Thief",
+        "columns": {
+          "1": {
+            "sneakAttack": "1d6"
+          },
+          "2": {
+            "sneakAttack": "1d6"
+          },
+          "3": {
+            "sneakAttack": "2d6"
+          }
+        },
+        "features": [
+          {
+            "level": 1,
+            "name": "Expertise",
+            "text": [
+              "You gain Expertise in two of your skill proficiencies of your choice. Sleight of Hand and Stealth are recommended if you have proficiency in them.",
+              "At Rogue level 6, you gain Expertise in two more of your skill proficiencies of your choice."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Sneak Attack",
+            "text": [
+              "You know how to strike subtly and exploit a foe's distraction. Once per turn, you can deal an extra 1d6 damage to one creature you hit with an attack roll if you have Advantage on the roll and the attack uses a Finesse or a Ranged weapon. The extra damage's type is the same as the weapon's type.",
+              "You don't need Advantage on the attack roll if at least one of your allies is within 5 feet of the target, the ally doesn't have the Incapacitated condition, and you don't have Disadvantage on the attack roll.",
+              "The extra damage increases as you gain Rogue levels, as shown in the Sneak Attack column of the Rogue Features table."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Thieves' Cant",
+            "text": [
+              `You picked up various languages in the communities where you plied your roguish talents. You know Thieves' Cant and one other language of your choice, which you choose from the language tables in "Character Creation."`
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Weapon Mastery",
+            "text": [
+              "Your training with weapons allows you to use the mastery properties of two kinds of weapons of your choice with which you have proficiency, such as Daggers and Shortbows.",
+              "Whenever you finish a Long Rest, you can change the kinds of weapons you chose. For example, you could switch to using the mastery properties of Scimitars and Shortswords."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Cunning Action",
+            "text": [
+              "Your quick thinking and agility allow you to move and act quickly. On your turn, you can take one of the following actions as a Bonus Action: Dash, Disengage, or Hide."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Rogue Subclass",
+            "text": [
+              "You gain a Rogue subclass of your choice. The Thief subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Rogue levels. For the rest of your career, you gain each of your subclass's features that are of your Rogue level or lower."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Steady Aim",
+            "text": [
+              "As a Bonus Action, you give yourself Advantage on your next attack roll on the current turn. You can use this feature only if you haven't moved during this turn, and after you use it, your Speed is 0 until the end of the current turn."
+            ]
+          }
+        ],
+        "subclassFeatures": [
+          {
+            "level": 3,
+            "name": "Fast Hands",
+            "text": [
+              "As a Bonus Action, you can do one of the following.",
+              "Sleight of Hand. Make a Dexterity (Sleight of Hand) check to pick a lock or disarm a trap with Thieves' Tools or to pick a pocket.",
+              "Use an Object. Take the Utilize action, or take the Magic action to use a magic item that requires that action."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Second-Story Work",
+            "text": [
+              "You've trained to get into especially hard-to-reach places, granting you these benefits.",
+              "Climber. You gain a Climb Speed equal to your Speed.",
+              "Jumper. You can determine your jump distance using your Dexterity rather than your Strength."
+            ]
+          }
+        ],
+        "subclassIntro": [
+          "Hunt for Treasure as a Classic Adventurer A mix of burglar, treasure hunter, and explorer, you are the epitome of an adventurer. In addition to improving your agility and stealth, you gain abilities useful for delving into ruins and getting maximum benefit from the magic items you find there."
+        ]
+      },
+      "sorcerer": {
+        "name": "Sorcerer",
+        "primary": [
+          "cha"
+        ],
+        "hitDie": 6,
+        "saves": [
+          "con",
+          "cha"
+        ],
+        "skills": {
+          "choose": 2,
+          "options": [
+            "arcana",
+            "deception",
+            "insight",
+            "intimidation",
+            "persuasion",
+            "religion"
+          ]
+        },
+        "weapons": "Simple weapons",
+        "armor": "None",
+        "tools": "",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Spear",
+              "2 Daggers",
+              "Arcane Focus (crystal)",
+              "Dungeoneer's Pack"
+            ],
+            "gp": 28
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 50
+          }
+        ],
+        "standardArray": {
+          "str": 10,
+          "dex": 13,
+          "con": 14,
+          "int": 8,
+          "wis": 12,
+          "cha": 15
+        },
+        "subclass": "Draconic Sorcery",
+        "spellcasting": {
+          "ability": "cha",
+          "levels": {
+            "1": {
+              "cantrips": 4,
+              "prepared": 2,
+              "slots": [
+                2
+              ]
+            },
+            "2": {
+              "cantrips": 4,
+              "prepared": 4,
+              "slots": [
+                3
+              ]
+            },
+            "3": {
+              "cantrips": 4,
+              "prepared": 6,
+              "slots": [
+                4,
+                2
+              ]
+            }
+          }
+        },
+        "columns": {
+          "2": {
+            "sorceryPoints": 2
+          },
+          "3": {
+            "sorceryPoints": 3
+          }
+        },
+        "features": [
+          {
+            "level": 1,
+            "name": "Spellcasting",
+            "text": [
+              `Drawing from your innate magic, you can cast spells. See "Spells" for the rules on spellcasting. The information below details how you use those rules with Sorcerer spells, which appear in the Sorcerer spell list later in the class's description.`,
+              "Cantrips. You know four Sorcerer cantrips of your choice. Light, Prestidigitation, Shocking Grasp, and Sorcerous Burst are recommended. Whenever you gain a Sorcerer level, you can replace one of your cantrips from this feature with another Sorcerer cantrip of your choice.",
+              "When you reach Sorcerer levels 4 and 10, you learn another Sorcerer cantrip of your choice, as shown in the Cantrips column of the Sorcerer Features table.",
+              "Spell Slots. The Sorcerer Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.",
+              "Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose two level 1 Sorcerer spells. Burning Hands and Detect Magic are recommended.",
+              "The number of spells on your list increases as you gain Sorcerer levels, as shown in the Prepared Spells column of the Sorcerer Features table. Whenever that number increases, choose additional Sorcerer spells until the number of spells on your list matches the number in the Sorcerer Features table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 3 Sorcerer, your list of prepared spells can include six Sorcerer spells of level 1 or 2 in any combination.",
+              "If another Sorcerer feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Sorcerer spells for you.",
+              "Changing Your Prepared Spells. Whenever you gain a Sorcerer level, you can replace one spell on your list with another Sorcerer spell for which you have spell slots.",
+              "Spellcasting Ability. Charisma is your spellcasting ability for your Sorcerer spells.",
+              "Spellcasting Focus. You can use an Arcane Focus as a Spellcasting Focus for your Sorcerer spells."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Innate Sorcery",
+            "text": [
+              "An event in your past left an indelible mark on you, infusing you with simmering magic. As a Bonus Action, you can unleash that magic for 1 minute, during which you gain the following benefits:",
+              "• The spell save DC of your Sorcerer spells increases by 1.",
+              "• You have Advantage on the attack rolls of Sorcerer spells you cast. You can use this feature twice, and you regain all expended uses of it when you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Font of Magic",
+            "text": [
+              "You can tap into the wellspring of magic within yourself. This wellspring is represented by Sorcery Points, which allow you to create a variety of magical effects.",
+              "You have 2 Sorcery Points, and you gain more as you reach higher levels, as shown in the Sorcery Points column of the Sorcerer Features table. You can't have more Sorcery Points than the number shown in the table for your level. You regain all expended Sorcery Points when you finish a Long Rest.",
+              "You can use your Sorcery Points to fuel the options below, along with other features, such as Metamagic, that use those points.",
+              "Converting Spell Slots to Sorcery Points. You can expend a spell slot to gain a number of Sorcery Points equal to the slot's level (no action required).",
+              "Creating Spell Slots. As a Bonus Action, you can transform unexpended Sorcery Points into one spell slot. The Creating Spell Slots table shows the cost of creating a spell slot of a given level, and it lists the minimum Sorcerer level you must be to create a slot. You can create a spell slot no higher than level 5.",
+              "Any spell slot you create with this feature vanishes when you finish a Long Rest. Creating Spell Slots Spell Slot Level Sorcery Point Cost Min. Sorcerer Level 1 2 2 2 3 3 3 5 5 4 6 7 5 7 9"
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Metamagic",
+            "text": [
+              `Because your magic flows from within, you can alter your spells to suit your needs; you gain two Metamagic options of your choice from "Meta magic Options" later in this class's description. You use the chosen options to temporarily modify spells you cast. To use an option, you must spend the number of Sorcery Points that it costs.`,
+              "You can use only one Metamagic option on a spell when you cast it unless otherwise noted in one of those options.",
+              "Whenever you gain a Sorcerer level, you can replace one of your Metamagic options with one you don't know. You gain two more options at Sorcerer level 10 and two more at Sorcerer level 17."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Sorcerer Subclass",
+            "text": [
+              "You gain a Sorcerer subclass of your choice. The Draconic Sorcery subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Sorcerer levels. For the rest of your career, you gain each of your subclass's features that are of your Sorcerer level or lower."
+            ]
+          }
+        ],
+        "subclassFeatures": [
+          {
+            "level": 3,
+            "name": "Draconic Resilience",
+            "text": [
+              "The magic in your body manifests physical traits of your draconic gift. Your Hit Point maximum increases by 3, and it increases by 1 whenever you gain another Sorcerer level.",
+              "Parts of you are also covered by dragon-like scales. While you aren't wearing armor, your base Armor Class equals 10 plus your Dexterity and Charisma modifiers."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Draconic Spells",
+            "text": [
+              "When you reach a Sorcerer level specified in the Draconic Spells table, you thereafter always have the listed spells prepared. Draconic Spells Sorcerer Level Spells 3 Alter Self, Chromatic Orb, Command, Dragon's Breath 5 Fear, Fly 7 Arcane Eye, Charm Monster 9 Legend Lore, Summon Dragon"
+            ]
+          }
+        ],
+        "subclassIntro": [
+          "Sorcery Breathe the Magic of Dragons Your innate magic comes from the gift of a dragon. Perhaps an ancient dragon facing death bequeathed some of its magical power to you or your ancestor. You might have absorbed magic from a site infused with dragons' power. Or perhaps you handled a treasure taken from a dragon's hoard that was steeped in draconic power. Or you might have a dragon for an ancestor."
+        ]
+      },
+      "warlock": {
+        "name": "Warlock",
+        "primary": [
+          "cha"
+        ],
+        "hitDie": 8,
+        "saves": [
+          "wis",
+          "cha"
+        ],
+        "skills": {
+          "choose": 2,
+          "options": [
+            "arcana",
+            "deception",
+            "history",
+            "intimidation",
+            "investigation",
+            "nature",
+            "religion"
+          ]
+        },
+        "weapons": "Simple weapons",
+        "armor": "Light armor",
+        "tools": "",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Leather Armor",
+              "Sickle",
+              "2 Daggers",
+              "Arcane Focus (orb)",
+              "Book (occult lore)",
+              "Scholar's Pack"
+            ],
+            "gp": 15
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 100
+          }
+        ],
+        "standardArray": {
+          "str": 8,
+          "dex": 14,
+          "con": 13,
+          "int": 12,
+          "wis": 10,
+          "cha": 15
+        },
+        "subclass": "Fiend Patron",
+        "spellcasting": {
+          "ability": "cha",
+          "pact": true,
+          "levels": {
+            "1": {
+              "cantrips": 2,
+              "prepared": 2,
+              "slots": [
+                1
+              ],
+              "slotLevel": 1
+            },
+            "2": {
+              "cantrips": 2,
+              "prepared": 3,
+              "slots": [
+                2
+              ],
+              "slotLevel": 1
+            },
+            "3": {
+              "cantrips": 2,
+              "prepared": 4,
+              "slots": [
+                0,
+                2
+              ],
+              "slotLevel": 2
+            }
+          }
+        },
+        "columns": {
+          "1": {
+            "invocations": 1
+          },
+          "2": {
+            "invocations": 3
+          },
+          "3": {
+            "invocations": 3
+          }
+        },
+        "features": [
+          {
+            "level": 1,
+            "name": "Eldritch Invocations",
+            "text": [
+              `You have unearthed Eldritch Invocations, pieces of forbidden knowledge that imbue you with an abiding magical ability or other lessons. You gain one invocation of your choice, such as Pact of the Tome. Invocations are described in the "Eldritch Invocation Options" section later in this class's description.`,
+              "Prerequisites. If an invocation has a prerequisite, you must meet it to learn that invocation. For example, if an invocation requires you to be a level 5+ Warlock, you can select the invocation once you reach Warlock level 5.",
+              "Replacing and Gaining Invocations. Whenever you gain a Warlock level, you can replace one of your invocations with another one for which you qualify. You can't replace an invocation if it's a prerequisite for another invocation that you have.",
+              "When you gain certain Warlock levels, you gain more invocations of your choice, as shown in the Invocations column of the Warlock Features table.",
+              "You can't pick the same invocation more than once unless its description says otherwise."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Pact Magic",
+            "text": [
+              `Through occult ceremony, you have formed a pact with a mysterious entity to gain magical powers. The entity is a voice in the shadows—its identity unclear—but its boon to you is concrete: the ability to cast spells. See "Spells" for the rules on spellcasting. The information below details how you use those rules with Warlock spells, which appear in the Warlock spell list later in the class's description.`,
+              "Cantrips. You know two Warlock cantrips of your choice. Eldritch Blast and Prestidigitation are recommended. Whenever you gain a Warlock level, you can replace one of your cantrips from this feature with another Warlock cantrip of your choice.",
+              "When you reach Warlock levels 4 and 10, you learn another Warlock cantrip of your choice, as shown in the Cantrips column of the Warlock Features table.",
+              "Spell Slots. The Warlock Features table shows how many spell slots you have to cast your Warlock spells of levels 1–5. The table also shows the level of those slots, all of which are the same level. You regain all expended Pact Magic spell slots when you finish a Short or Long Rest.",
+              "For example, when you're a level 5 Warlock, you have two level 3 spell slots. To cast the level 1 spell Charm Person, you must spend one of those slots, and you cast it as a level 3 spell.",
+              "Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose two level 1 Warlock spells. Charm Person and Hex are recommended.",
+              "The number of spells on your list increases as you gain Warlock levels, as shown in the Prepared Spells column of the Warlock Features table. Whenever that number increases, choose additional Warlock spells until the number of spells on your list matches the number in the table. The chosen spells must be of a level no higher than what's shown in the table's Slot Level column for your level. When you reach level 6, for example, you learn a new Warlock spell, which can be of levels 1–3.",
+              "If another Warlock feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Warlock spells for you.",
+              "Changing Your Prepared Spells. Whenever you gain a Warlock level, you can replace one spell on your list with another Warlock spell of an eligible level.",
+              "Spellcasting Ability. Charisma is the spellcasting ability for your Warlock spells.",
+              "Spellcasting Focus. You can use an Arcane Focus as a Spellcasting Focus for your Warlock spells."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Magical Cunning",
+            "text": [
+              "You can perform an esoteric rite for 1 minute. At the end of it, you regain expended Pact Magic spell slots but no more than a number equal to half your maximum (round up). Once you use this feature, you can't do so again until you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Warlock Subclass",
+            "text": [
+              "You gain a Warlock subclass of your choice. The Fiend Patron subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Warlock levels. For the rest of your career, you gain each of your subclass's features that are of your Warlock level or lower."
+            ]
+          }
+        ],
+        "subclassFeatures": [
+          {
+            "level": 3,
+            "name": "Dark One's Blessing",
+            "text": [
+              "When you reduce an enemy to 0 Hit Points, you gain Temporary Hit Points equal to your Charisma modifier plus your Warlock level (minimum of 1 Temporary Hit Point). You also gain this benefit if someone else reduces an enemy within 10 feet of you to 0 Hit Points."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Fiend Spells",
+            "text": [
+              "The magic of your patron ensures you always have certain spells ready; when you reach a Warlock level specified in the Fiend Spells table, you thereafter always have the listed spells prepared. Fiend Spells Warlock Level Spells 3 Burning Hands, Command, Scorching Ray, Suggestion 5 Fireball, Stinking Cloud 7 Fire Shield, Wall of Fire 9 Geas, Insect Plague"
+            ]
+          }
+        ],
+        "subclassIntro": [
+          "Make a Deal with the Lower Planes Your pact draws on the Lower Planes, the realms of perdition. You might forge a bargain with a demon lord, an archdevil, or another fiend that is especially mighty. That patron's aims are evil—the corruption or destruction of all things, ultimately including you—and your path is defined by the extent to which you strive against those aims."
+        ]
+      },
+      "wizard": {
+        "name": "Wizard",
+        "primary": [
+          "int"
+        ],
+        "hitDie": 6,
+        "saves": [
+          "int",
+          "wis"
+        ],
+        "skills": {
+          "choose": 2,
+          "options": [
+            "arcana",
+            "history",
+            "insight",
+            "investigation",
+            "medicine",
+            "nature",
+            "religion"
+          ]
+        },
+        "weapons": "Simple weapons",
+        "armor": "None",
+        "tools": "",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "2 Daggers",
+              "Arcane Focus (Quarterstaff)",
+              "Robe",
+              "Spellbook",
+              "Scholar's Pack"
+            ],
+            "gp": 5
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 55
+          }
+        ],
+        "standardArray": {
+          "str": 8,
+          "dex": 12,
+          "con": 13,
+          "int": 15,
+          "wis": 14,
+          "cha": 10
+        },
+        "subclass": "Evoker",
+        "spellcasting": {
+          "ability": "int",
+          "levels": {
+            "1": {
+              "cantrips": 3,
+              "prepared": 4,
+              "slots": [
+                2
+              ]
+            },
+            "2": {
+              "cantrips": 3,
+              "prepared": 5,
+              "slots": [
+                3
+              ]
+            },
+            "3": {
+              "cantrips": 3,
+              "prepared": 6,
+              "slots": [
+                4,
+                2
+              ]
+            }
+          }
+        },
+        "columns": {},
+        "features": [
+          {
+            "level": 1,
+            "name": "Spellcasting",
+            "text": [
+              `As a student of arcane magic, you have learned to cast spells. See "Spells" for the rules on spellcasting. The information below details how you use those rules with Wizard spells, which appear in the Wizard spell list later in the class's description.`,
+              "Cantrips. You know three Wizard cantrips of your choice. Light, Mage Hand, and Ray of Frost are recommended. Whenever you finish a Long Rest, you can replace one of your cantrips from this feature with another Wizard cantrip of your choice. ExpandinG and rEplacinG a spEllBook The spells you add to your spellbook as you gain levels reflect your ongoing magical research, but you might find other spells during your adventures that you can add to the book. You could discover a Wizard spell on a Spell Scroll, for example, and then copy it into your spellbook.",
+              "Copying a Spell into the Book. When you find a level 1+ Wizard spell, you can copy it into your spellbook if it's of a level you can prepare and if you have time to copy it. For each level of the spell, the transcription takes 2 hours and costs 50 GP. Afterward you can prepare the spell like the other spells in your spellbook.",
+              "Copying the Book. You can copy a spell from your spellbook into another book. This is like copying a new spell into your spellbook but faster, since you already know how to cast the spell. You need spend only 1 hour and 10 GP for each level of the copied spell.",
+              "If you lose your spellbook, you can use the same procedure to transcribe the Wizard spells that you have prepared into a new spellbook. Filling out the remainder of the new book requires you to find new spells to do so. For this reason, many wizards keep a backup spellbook.",
+              "When you reach Wizard levels 4 and 10, you learn another Wizard cantrip of your choice, as shown in the Cantrips column of the Wizard Features table.",
+              "Spellbook. Your wizardly apprenticeship culminated in the creation of a unique book: your spellbook. It is a Tiny object that weighs 3 pounds, contains 100 pages, and can be read only by you or someone casting Identify. You determine the book's appearance and materials, such as a gilt-edged tome or a collection of vellum bound with twine.",
+              "The book contains the level 1+ spells you know. It starts with six level 1 Wizard spells of your choice. Detect Magic, Feather Fall, Mage Armor, Magic Missile, Sleep, and Thunderwave are recommended.",
+              "Whenever you gain a Wizard level after 1, add two Wizard spells of your choice to your spellbook. Each of these spells must be of a level for which you have spell slots, as shown in the Wizard Features table. The spells are the culmination of arcane research you do regularly.",
+              "Spell Slots. The Wizard Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.",
+              "Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To do so, choose four spells from your spellbook. The chosen spells must be of a level for which you have spell slots.",
+              "The number of spells on your list increases as you gain Wizard levels, as shown in the Prepared Spells column of the Wizard Features table. Whenever that number increases, choose additional Wizard spells until the number of spells on your list matches the number in the table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 3 Wizard, your list of prepared spells can include six spells of levels 1 and 2 in any combination, chosen from your spellbook.",
+              "If another Wizard feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Wizard spells for you.",
+              "Changing Your Prepared Spells. Whenever you finish a Long Rest, you can change your list of prepared spells, replacing any of the spells there with spells from your spellbook.",
+              "Spellcasting Ability. Intelligence is your spellcasting ability for your Wizard spells.",
+              "Spellcasting Focus. You can use an Arcane Focus or your spellbook as a Spellcasting Focus for your Wizard spells."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Ritual Adept",
+            "text": [
+              "You can cast any spell as a Ritual if that spell has the Ritual tag and the spell is in your spellbook. You needn't have the spell prepared, but you must read from the book to cast a spell in this way."
+            ]
+          },
+          {
+            "level": 1,
+            "name": "Arcane Recovery",
+            "text": [
+              "You can regain some of your magical energy by studying your spellbook. When you finish a Short Rest, you can choose expended spell slots to recover. The spell slots can have a combined level equal to no more than half your Wizard level (round up), and none of the slots can be level 6 or higher. For example, if you're a level 4 Wizard, you can recover up to two levels' worth of spell slots, regaining either one level 2 spell slot or two level 1 spell slots.",
+              "Once you use this feature, you can't do so again until you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 2,
+            "name": "Scholar",
+            "text": [
+              "While studying magic, you also specialized in another field of study. Choose one of the following skills in which you have proficiency: Arcana, History, Investigation, Medicine, Nature, or Religion. You have Expertise in the chosen skill."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Wizard Subclass",
+            "text": [
+              "You gain a Wizard subclass of your choice. The Evoker subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Wizard levels. For the rest of your career, you gain each of your subclass's features that are of your Wizard level or lower."
+            ]
+          }
+        ],
+        "subclassFeatures": [
+          {
+            "level": 3,
+            "name": "Evocation Savant",
+            "text": [
+              "Choose two Wizard spells from the Evocation school, each of which must be no higher than level 2, and add them to your spellbook for free.",
+              "In addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Evocation school to your spellbook for free. The chosen spell must be of a level for which you have spell slots."
+            ]
+          },
+          {
+            "level": 3,
+            "name": "Potent Cantrip",
+            "text": [
+              "Your damaging cantrips affect even creatures that avoid the brunt of the effect. When you cast a cantrip at a creature and you miss with the attack roll or the target succeeds on a saving throw against the cantrip, the target takes half the cantrip's damage (if any) but suffers no additional effect from the cantrip."
+            ]
+          }
+        ],
+        "subclassIntro": [
+          "Create Explosive Elemental Effects Your studies focus on magic that creates powerful elemental effects such as bitter cold, searing flame, rolling thunder, crackling lightning, and burning acid. Some Evokers find employment in military forces, serving as artillery to blast armies from afar. Others use their power to protect others, while some seek their own gain."
+        ]
+      }
+    },
+    "backgrounds": {
+      "acolyte": {
+        "name": "Acolyte",
+        "abilities": [
+          "int",
+          "wis",
+          "cha"
+        ],
+        "feat": "Magic Initiate (Cleric)",
+        "skills": [
+          "insight",
+          "religion"
+        ],
+        "tool": "Calligrapher's Supplies",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Calligrapher's Supplies",
+              "Book (prayers)",
+              "Holy Symbol",
+              "Parchment (10 sheets)",
+              "Robe"
+            ],
+            "gp": 8
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 50
+          }
+        ]
+      },
+      "criminal": {
+        "name": "Criminal",
+        "abilities": [
+          "dex",
+          "con",
+          "int"
+        ],
+        "feat": "Alert",
+        "skills": [
+          "sleight_of_hand",
+          "stealth"
+        ],
+        "tool": "Thieves' Tools",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "2 Daggers",
+              "Thieves' Tools",
+              "Crowbar",
+              "2 Pouches",
+              "Traveler's Clothes"
+            ],
+            "gp": 16
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 50
+          }
+        ]
+      },
+      "sage": {
+        "name": "Sage",
+        "abilities": [
+          "con",
+          "int",
+          "wis"
+        ],
+        "feat": "Magic Initiate (Wizard)",
+        "skills": [
+          "arcana",
+          "history"
+        ],
+        "tool": "Calligrapher's Supplies",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Quarterstaff",
+              "Calligrapher's Supplies",
+              "Book (history)",
+              "Parchment (8 sheets)",
+              "Robe"
+            ],
+            "gp": 8
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 50
+          }
+        ]
+      },
+      "soldier": {
+        "name": "Soldier",
+        "abilities": [
+          "str",
+          "dex",
+          "con"
+        ],
+        "feat": "Savage Attacker",
+        "skills": [
+          "athletics",
+          "intimidation"
+        ],
+        "tool": "Choose one kind of Gaming Set",
+        "equipment": [
+          {
+            "id": "A",
+            "items": [
+              "Spear",
+              "Shortbow",
+              "20 Arrows",
+              "Gaming Set (same as above)",
+              "Healer's Kit",
+              "Quiver",
+              "Traveler's Clothes"
+            ],
+            "gp": 14
+          },
+          {
+            "id": "B",
+            "items": [],
+            "gp": 50
+          }
+        ]
+      }
+    },
+    "species": {
+      "dragonborn": {
+        "name": "Dragonborn",
+        "size": "Medium (about 5–7 feet tall)",
+        "speed": 30,
+        "traits": [
+          {
+            "name": "Draconic Ancestry",
+            "text": [
+              "Your lineage stems from a dragon progenitor. Choose the kind of dragon from the Draconic Ancestors table. Your choice affects your Breath Weapon and Damage Resistance traits as well as your appearance. Draconic Ancestors Dragon Damage Type Dragon Damage Type Black Acid Gold Fire Blue Lightning Green Poison Brass Fire Red Fire Bronze Lightning Silver Cold Copper Acid White Cold"
+            ]
+          },
+          {
+            "name": "Breath Weapon",
+            "text": [
+              "When you take the Attack action on your turn, you can replace one of your attacks with an exhalation of magical energy in either a 15-foot Cone or a 30-foot Line that is 5 feet wide (choose the shape each time). Each creature in that area must make a Dexterity saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus). On a failed save, a creature takes 1d10 damage of the type determined by your Draconic Ancestry trait. On a successful save, a creature takes half as much damage. This damage increases by 1d10 when you reach character levels 5 (2d10), 11 (3d10), and 17 (4d10).",
+              "You can use this Breath Weapon a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+            ]
+          },
+          {
+            "name": "Damage Resistance",
+            "text": [
+              "You have Resistance to the damage type determined by your Draconic Ancestry trait."
+            ]
+          },
+          {
+            "name": "Darkvision",
+            "text": [
+              "You have Darkvision with a range of 60 feet."
+            ]
+          },
+          {
+            "name": "Draconic Flight",
+            "text": [
+              "When you reach character level 5, you can channel draconic magic to give yourself temporary flight. As a Bonus Action, you sprout spectral wings on your back that last for 10 minutes or until you retract the wings (no action required) or have the Incapacitated condition. During that time, you have a Fly Speed equal to your Speed. Your wings appear to be made of the same energy as your Breath Weapon. Once you use this trait, you can't use it again until you finish a Long Rest."
+            ]
+          }
+        ]
+      },
+      "dwarf": {
+        "name": "Dwarf",
+        "size": "Medium (about 4–5 feet tall)",
+        "speed": 30,
+        "traits": [
+          {
+            "name": "Darkvision",
+            "text": [
+              "You have Darkvision with a range of 120 feet."
+            ]
+          },
+          {
+            "name": "Dwarven Resilience",
+            "text": [
+              "You have Resistance to Poison damage. You also have Advantage on saving throws you make to avoid or end the Poisoned condition."
+            ]
+          },
+          {
+            "name": "Dwarven Toughness",
+            "text": [
+              "Your Hit Point maximum increases by 1, and it increases by 1 again whenever you gain a level."
+            ]
+          },
+          {
+            "name": "Stonecunning",
+            "text": [
+              "As a Bonus Action, you gain Tremorsense with a range of 60 feet for 10 minutes. You must be on a stone surface or touching a stone surface to use this Tremorsense. The stone can be natural or worked.",
+              "You can use this Bonus Action a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+            ]
+          }
+        ]
+      },
+      "elf": {
+        "name": "Elf",
+        "size": "Medium (about 5–6 feet tall)",
+        "speed": 30,
+        "traits": [
+          {
+            "name": "Darkvision",
+            "text": [
+              "You have Darkvision with a range of 60 feet."
+            ]
+          },
+          {
+            "name": "Elven Lineage",
+            "text": [
+              "You are part of a lineage that grants you supernatural abilities. Choose a lineage from the Elven Lineages table. You gain the level 1 benefit of that lineage.",
+              "When you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.",
+              "Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage)."
+            ]
+          },
+          {
+            "name": "Fey Ancestry",
+            "text": [
+              "You have Advantage on saving throws you make to avoid or end the Charmed condition."
+            ]
+          },
+          {
+            "name": "Keen Senses",
+            "text": [
+              "You have proficiency in the Insight, Perception, or Survival skill."
+            ]
+          },
+          {
+            "name": "Trance",
+            "text": [
+              "You don't need to sleep, and magic can't put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness."
+            ]
+          }
+        ]
+      },
+      "gnome": {
+        "name": "Gnome",
+        "size": "Small (about 3–4 feet tall)",
+        "speed": 30,
+        "traits": [
+          {
+            "name": "Darkvision",
+            "text": [
+              "You have Darkvision with a range of 60 feet."
+            ]
+          },
+          {
+            "name": "Gnomish Cunning",
+            "text": [
+              "You have Advantage on Intelligence, Wisdom, and Charisma saving throws."
+            ]
+          },
+          {
+            "name": "Gnomish Lineage",
+            "text": [
+              "You are part of a lineage that grants you supernatural abilities. Choose one of the following options; whichever one you choose, Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage): Forest Gnome. You know the Minor Illusion cantrip. You also always have the Speak with Animals spell prepared. You can cast it without a spell slot a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. You can also use any spell slots you have to cast the spell. Rock Gnome. You know the Mending and Prestidigitation cantrips. In addition, you can spend 10 minutes casting Prestidigitation to create a Tiny clockwork device (AC 5, 1 HP), such as a toy, fire starter, or music box. When you create the device, you determine its function by choosing one effect from Prestidigitation ; the device produces that effect whenever you or another creature takes a Bonus Action to activate it with a touch. If the chosen effect has options within it, you choose one of those options for the device when you create it. For example, if you choose the spell's ignite-extinguish effect, you determine whether the device ignites or extinguishes fire; the device doesn't do both. You can have three such devices in existence at a time, and each falls apart 8 hours after its creation or when you dismantle it with a touch as a Utilize action."
+            ]
+          }
+        ]
+      },
+      "goliath": {
+        "name": "Goliath",
+        "size": "Medium (about 7–8 feet tall)",
+        "speed": 35,
+        "traits": [
+          {
+            "name": "Giant Ancestry",
+            "text": [
+              "You are descended from Giants. Choose one of the following benefits—a supernatural boon from your ancestry; you can use the chosen benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest: Cloud's Jaunt (Cloud Giant). As a Bonus Action, you magically teleport up to 30 feet to an unoccupied space you can see. Fire's Burn (Fire Giant). When you hit a target with an attack roll and deal damage to it, you can also deal 1d10 Fire damage to that target. Frost's Chill (Frost Giant). When you hit a target with an attack roll and deal damage to it, you can also deal 1d6 Cold damage to that target and reduce its Speed by 10 feet until the start of your next turn. Hill's Tumble (Hill Giant). When you hit a Large or smaller creature with an attack roll and deal damage to it, you can give that target the Prone condition. Stone's Endurance (Stone Giant). When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total. Elven Lineages Lineage Level 1 Level 3 Level 5 Drow The range of your Darkvision increases to 120 feet. You also know the Dancing Lights cantrip. Faerie Fire Darkness High Elf You know the Prestidigitation cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list. Detect Magic Misty Step Wood Elf Your Speed increases to 35 feet. You also know the Druidcraft cantrip. Longstrider Pass without Trace Storm's Thunder (Storm Giant). When you take damage from a creature within 60 feet of you, you can take a Reaction to deal 1d8 Thunder damage to that creature."
+            ]
+          },
+          {
+            "name": "Large Form",
+            "text": [
+              "Starting at character level 5, you can change your size to Large as a Bonus Action if you're in a big enough space. This transformation lasts for 10 minutes or until you end it (no action required). For that duration, you have Advantage on Strength checks, and your Speed increases by 10 feet. Once you use this trait, you can't use it again until you finish a Long Rest."
+            ]
+          },
+          {
+            "name": "Powerful Build",
+            "text": [
+              "You have Advantage on any ability check you make to end the Grappled condition. You also count as one size larger when determining your carrying capacity."
+            ]
+          }
+        ]
+      },
+      "halfling": {
+        "name": "Halfling",
+        "size": "Small (about 2–3 feet tall)",
+        "speed": 30,
+        "traits": [
+          {
+            "name": "Brave",
+            "text": [
+              "You have Advantage on saving throws you make to avoid or end the Frightened condition."
+            ]
+          },
+          {
+            "name": "Halfling Nimbleness",
+            "text": [
+              "You can move through the space of any creature that is a size larger than you, but you can't stop in the same space."
+            ]
+          },
+          {
+            "name": "Luck",
+            "text": [
+              "When you roll a 1 on the d20 of a D20 Test, you can reroll the die, and you must use the new roll."
+            ]
+          },
+          {
+            "name": "Naturally Stealthy",
+            "text": [
+              "You can take the Hide action even when you are obscured only by a creature that is at least one size larger than you."
+            ]
+          }
+        ]
+      },
+      "human": {
+        "name": "Human",
+        "size": "Medium (about 4–7 feet tall) or Small (about 2–4 feet tall)",
+        "speed": 30,
+        "traits": [
+          {
+            "name": "Resourceful",
+            "text": [
+              "You gain Heroic Inspiration whenever you finish a Long Rest."
+            ]
+          },
+          {
+            "name": "Skillful",
+            "text": [
+              "You gain proficiency in one skill of your choice."
+            ]
+          },
+          {
+            "name": "Versatile",
+            "text": [
+              'You gain an Origin feat of your choice (see "Feats"). Skilled is recommended.'
+            ]
+          }
+        ]
+      },
+      "orc": {
+        "name": "Orc",
+        "size": "Medium (about 6–7 feet tall)",
+        "speed": 30,
+        "traits": [
+          {
+            "name": "Adrenaline Rush",
+            "text": [
+              "You can take the Dash action as a Bonus Action. When you do so, you gain a number of Temporary Hit Points equal to your Proficiency Bonus.",
+              "You can use this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Short or Long Rest."
+            ]
+          },
+          {
+            "name": "Darkvision",
+            "text": [
+              "You have Darkvision with a range of 120 feet."
+            ]
+          },
+          {
+            "name": "Relentless Endurance",
+            "text": [
+              "When you are reduced to 0 Hit Points but not killed outright, you can drop to 1 Hit Point instead. Once you use this trait, you can't do so again until you finish a Long Rest."
+            ]
+          }
+        ]
+      },
+      "tiefling": {
+        "name": "Tiefling",
+        "size": "Medium (about 4–7 feet tall) or Small (about 3–4 feet tall)",
+        "speed": 30,
+        "traits": [
+          {
+            "name": "Darkvision",
+            "text": [
+              "You have Darkvision with a range of 60 feet."
+            ]
+          },
+          {
+            "name": "Fiendish Legacy",
+            "text": [
+              "You are the recipient of a legacy that grants you supernatural abilities. Choose a legacy from the Fiendish Legacies table. You gain the level 1 benefit of the chosen legacy.",
+              "When you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.",
+              "Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the legacy)."
+            ]
+          },
+          {
+            "name": "Otherworldly Presence",
+            "text": [
+              "You know the Thaumaturgy cantrip. When you cast it with this trait, the spell uses the same spellcasting ability you use for your Fiendish Legacy trait. Fiendish Legacies Legacy Level 1 Level 3 Level 5 Abyssal You have Resistance to Poison damage. You also know the Poison Spray cantrip. Ray of Sickness Hold Person Chthonic You have Resistance to Necrotic damage. You also know the Chill Touch cantrip. False Life Ray of Enfeeblement Infernal You have Resistance to Fire damage. You also know the Fire Bolt cantrip. Hellish Rebuke Darkness"
+            ]
+          }
+        ]
+      }
+    },
+    "feats": {
+      "Alert": {
+        "name": "Alert",
+        "category": "Origin Feat",
+        "text": [
+          "You gain the following benefits.",
+          "Initiative Proficiency. When you roll Initiative, you can add your Proficiency Bonus to the roll.",
+          "Initiative Swap. Immediately after you roll Initiative, you can swap your Initiative with the Initiative of one willing ally in the same combat. You can't make this swap if you or the ally has the Incapacitated condition."
+        ]
+      },
+      "Magic Initiate": {
+        "name": "Magic Initiate",
+        "category": "Origin Feat",
+        "text": [
+          "You gain the following benefits.",
+          "Two Cantrips. You learn two cantrips of your choice from the Cleric, Druid, or Wizard spell list. Intelligence, Wisdom, or Charisma is your spellcasting ability for this feat's spells (choose when you select this feat).",
+          "Level 1 Spell. Choose a level 1 spell from the same list you selected for this feat's cantrips. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have.",
+          "Spell Change. Whenever you gain a new level, you can replace one of the spells you chose for this feat with a different spell of the same level from the chosen spell list.",
+          "Repeatable. You can take this feat more than once, but you must choose a different spell list each time."
+        ]
+      },
+      "Savage Attacker": {
+        "name": "Savage Attacker",
+        "category": "Origin Feat",
+        "text": [
+          "You've trained to deal particularly damaging strikes. Once per turn when you hit a target with a weapon, you can roll the weapon's damage dice twice and use either roll against the target."
+        ]
+      },
+      "Skilled": {
+        "name": "Skilled",
+        "category": "Origin Feat",
+        "text": [
+          "You gain proficiency in any combination of three skills or tools of your choice.",
+          "Repeatable. You can take this feat more than once."
+        ]
+      },
+      "Ability Score Improvement": {
+        "name": "Ability Score Improvement",
+        "category": "General Feat (Prerequisite: Level 4+)",
+        "text": [
+          "Increase one ability score of your choice by 2, or increase two ability scores of your choice by 1. This feat can't increase an ability score above 20.",
+          "Repeatable. You can take this feat more than once."
+        ]
+      },
+      "Grappler": {
+        "name": "Grappler",
+        "category": "General Feat (Prerequisite: Level 4+, Strength or Dexterity 13+)",
+        "text": [
+          "You gain the following benefits.",
+          "Ability Score Increase. Increase your Strength or Dexterity score by 1, to a maximum of 20.",
+          "Punch and Grab. When you hit a creature with an Unarmed Strike as part of the Attack action on your turn, you can use both the Damage and the Grapple option. You can use this benefit only once per turn.",
+          "Attack Advantage. You have Advantage on attack rolls against a creature Grappled by you.",
+          "Fast Wrestler. You don't have to spend extra movement to move a creature Grappled by you if the creature is your size or smaller."
+        ]
+      },
+      "Archery": {
+        "name": "Archery",
+        "category": "Fighting Style Feat (Prerequisite: Fighting Style Feature)",
+        "text": [
+          "You gain a +2 bonus to attack rolls you make with Ranged weapons."
+        ]
+      },
+      "Defense": {
+        "name": "Defense",
+        "category": "Fighting Style Feat (Prerequisite: Fighting Style Feature)",
+        "text": [
+          "While you're wearing Light, Medium, or Heavy armor, you gain a +1 bonus to Armor Class."
+        ]
+      },
+      "Great Weapon Fighting": {
+        "name": "Great Weapon Fighting",
+        "category": "Fighting Style Feat (Prerequisite: Fighting Style Feature)",
+        "text": [
+          "When you roll damage for an attack you make with a Melee weapon that you are holding with two hands, you can treat any 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or Versatile property to gain this benefit."
+        ]
+      },
+      "Two-Weapon Fighting": {
+        "name": "Two-Weapon Fighting",
+        "category": "Fighting Style Feat (Prerequisite: Fighting Style Feature)",
+        "text": [
+          "When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren't already adding it to the damage."
+        ]
+      }
+    },
+    "weapons": {
+      "Club": {
+        "damage": "1d4",
+        "type": "Bludgeoning",
+        "properties": "Light",
+        "mastery": "Slow",
+        "category": "simple melee"
+      },
+      "Dagger": {
+        "damage": "1d4",
+        "type": "Piercing",
+        "properties": "Finesse, Light, Thrown (Range 20/60)",
+        "mastery": "Nick",
+        "category": "simple melee"
+      },
+      "Greatclub": {
+        "damage": "1d8",
+        "type": "Bludgeoning",
+        "properties": "Two-Handed",
+        "mastery": "Push",
+        "category": "simple melee"
+      },
+      "Handaxe": {
+        "damage": "1d6",
+        "type": "Slashing",
+        "properties": "Light, Thrown (Range 20/60)",
+        "mastery": "Vex",
+        "category": "simple melee"
+      },
+      "Javelin": {
+        "damage": "1d6",
+        "type": "Piercing",
+        "properties": "Thrown (Range 30/120)",
+        "mastery": "Slow",
+        "category": "simple melee"
+      },
+      "Light Hammer": {
+        "damage": "1d4",
+        "type": "Bludgeoning",
+        "properties": "Light, Thrown (Range 20/60)",
+        "mastery": "Nick",
+        "category": "simple melee"
+      },
+      "Mace": {
+        "damage": "1d6",
+        "type": "Bludgeoning",
+        "properties": "",
+        "mastery": "Sap",
+        "category": "simple melee"
+      },
+      "Quarterstaff": {
+        "damage": "1d6",
+        "type": "Bludgeoning",
+        "properties": "Versatile (1d8)",
+        "mastery": "Topple",
+        "category": "simple melee"
+      },
+      "Sickle": {
+        "damage": "1d4",
+        "type": "Slashing",
+        "properties": "Light",
+        "mastery": "Nick",
+        "category": "simple melee"
+      },
+      "Spear": {
+        "damage": "1d6",
+        "type": "Piercing",
+        "properties": "Thrown (Range 20/60), Versatile (1d8)",
+        "mastery": "Sap",
+        "category": "simple melee"
+      },
+      "Dart": {
+        "damage": "1d4",
+        "type": "Piercing",
+        "properties": "Finesse, Thrown (Range 20/60)",
+        "mastery": "Vex",
+        "category": "simple ranged"
+      },
+      "Light Crossbow": {
+        "damage": "1d8",
+        "type": "Piercing",
+        "properties": "Ammunition (Range 80/320; Bolt), Loading, Two-Handed",
+        "mastery": "Slow",
+        "category": "simple ranged"
+      },
+      "Shortbow": {
+        "damage": "1d6",
+        "type": "Piercing",
+        "properties": "Ammunition (Range 80/320; Arrow), Two-Handed",
+        "mastery": "Vex",
+        "category": "simple ranged"
+      },
+      "Sling": {
+        "damage": "1d4",
+        "type": "Bludgeoning",
+        "properties": "Ammunition (Range 30/120; Bullet)",
+        "mastery": "Slow",
+        "category": "simple ranged"
+      },
+      "Battleaxe": {
+        "damage": "1d8",
+        "type": "Slashing",
+        "properties": "Versatile (1d10)",
+        "mastery": "Topple",
+        "category": "martial melee"
+      },
+      "Flail": {
+        "damage": "1d8",
+        "type": "Bludgeoning",
+        "properties": "",
+        "mastery": "Sap",
+        "category": "martial melee"
+      },
+      "Glaive": {
+        "damage": "1d10",
+        "type": "Slashing",
+        "properties": "Heavy, Reach, Two-Handed",
+        "mastery": "Graze",
+        "category": "martial melee"
+      },
+      "Greataxe": {
+        "damage": "1d12",
+        "type": "Slashing",
+        "properties": "Heavy, Two-Handed",
+        "mastery": "Cleave",
+        "category": "martial melee"
+      },
+      "Greatsword": {
+        "damage": "2d6",
+        "type": "Slashing",
+        "properties": "Heavy, Two-Handed",
+        "mastery": "Graze",
+        "category": "martial melee"
+      },
+      "Halberd": {
+        "damage": "1d10",
+        "type": "Slashing",
+        "properties": "Heavy, Reach, Two-Handed",
+        "mastery": "Cleave",
+        "category": "martial melee"
+      },
+      "Lance": {
+        "damage": "1d10",
+        "type": "Piercing",
+        "properties": "Heavy, Reach, Two-Handed (unless mounted)",
+        "mastery": "Topple",
+        "category": "martial melee"
+      },
+      "Longsword": {
+        "damage": "1d8",
+        "type": "Slashing",
+        "properties": "Versatile (1d10)",
+        "mastery": "Sap",
+        "category": "martial melee"
+      },
+      "Maul": {
+        "damage": "2d6",
+        "type": "Bludgeoning",
+        "properties": "Heavy, Two-Handed",
+        "mastery": "Topple",
+        "category": "martial melee"
+      },
+      "Morningstar": {
+        "damage": "1d8",
+        "type": "Piercing",
+        "properties": "",
+        "mastery": "Sap",
+        "category": "martial melee"
+      },
+      "Pike": {
+        "damage": "1d10",
+        "type": "Piercing",
+        "properties": "Heavy, Reach, Two-Handed",
+        "mastery": "Push",
+        "category": "martial melee"
+      },
+      "Rapier": {
+        "damage": "1d8",
+        "type": "Piercing",
+        "properties": "Finesse",
+        "mastery": "Vex",
+        "category": "martial melee"
+      },
+      "Scimitar": {
+        "damage": "1d6",
+        "type": "Slashing",
+        "properties": "Finesse, Light",
+        "mastery": "Nick",
+        "category": "martial melee"
+      },
+      "Shortsword": {
+        "damage": "1d6",
+        "type": "Piercing",
+        "properties": "Finesse, Light",
+        "mastery": "Vex",
+        "category": "martial melee"
+      },
+      "Trident": {
+        "damage": "1d8",
+        "type": "Piercing",
+        "properties": "Thrown (Range 20/60), Versatile (1d10)",
+        "mastery": "Topple",
+        "category": "martial melee"
+      },
+      "Warhammer": {
+        "damage": "1d8",
+        "type": "Bludgeoning",
+        "properties": "Versatile (1d10)",
+        "mastery": "Push",
+        "category": "martial melee"
+      },
+      "War Pick": {
+        "damage": "1d8",
+        "type": "Piercing",
+        "properties": "Versatile (1d10)",
+        "mastery": "Sap",
+        "category": "martial melee"
+      },
+      "Whip": {
+        "damage": "1d4",
+        "type": "Slashing",
+        "properties": "Finesse, Reach",
+        "mastery": "Slow",
+        "category": "martial melee"
+      },
+      "Blowgun": {
+        "damage": "1",
+        "type": "Piercing",
+        "properties": "Ammunition (Range 25/100; Needle), Loading",
+        "mastery": "Vex",
+        "category": "martial ranged"
+      },
+      "Hand Crossbow": {
+        "damage": "1d6",
+        "type": "Piercing",
+        "properties": "Ammunition (Range 30/120; Bolt), Light, Loading",
+        "mastery": "Vex",
+        "category": "martial ranged"
+      },
+      "Heavy Crossbow": {
+        "damage": "1d10",
+        "type": "Piercing",
+        "properties": "Ammunition (Range 100/400; Bolt), Heavy, Loading, Two-Handed",
+        "mastery": "Push",
+        "category": "martial ranged"
+      },
+      "Longbow": {
+        "damage": "1d8",
+        "type": "Piercing",
+        "properties": "Ammunition (Range 150/600; Arrow), Heavy, Two-Handed",
+        "mastery": "Slow",
+        "category": "martial ranged"
+      },
+      "Musket": {
+        "damage": "1d12",
+        "type": "Piercing",
+        "properties": "Ammunition (Range 40/120; Bullet), Loading, Two-Handed",
+        "mastery": "Slow",
+        "category": "martial ranged"
+      },
+      "Pistol": {
+        "damage": "1d10",
+        "type": "Piercing",
+        "properties": "Ammunition (Range 30/90; Bullet), Loading",
+        "mastery": "Vex",
+        "category": "martial ranged"
+      }
+    },
+    "armor": {
+      "Padded Armor": {
+        "category": "light",
+        "base": 11,
+        "dexCap": null
+      },
+      "Leather Armor": {
+        "category": "light",
+        "base": 11,
+        "dexCap": null
+      },
+      "Studded Leather Armor": {
+        "category": "light",
+        "base": 12,
+        "dexCap": null
+      },
+      "Hide Armor": {
+        "category": "medium",
+        "base": 12,
+        "dexCap": 2
+      },
+      "Chain Shirt": {
+        "category": "medium",
+        "base": 13,
+        "dexCap": 2
+      },
+      "Scale Mail": {
+        "category": "medium",
+        "base": 14,
+        "dexCap": 2
+      },
+      "Breastplate": {
+        "category": "medium",
+        "base": 14,
+        "dexCap": 2
+      },
+      "Half Plate Armor": {
+        "category": "medium",
+        "base": 15,
+        "dexCap": 2
+      },
+      "Ring Mail": {
+        "category": "heavy",
+        "base": 14,
+        "dexCap": 0
+      },
+      "Chain Mail": {
+        "category": "heavy",
+        "base": 16,
+        "dexCap": 0
+      },
+      "Splint Armor": {
+        "category": "heavy",
+        "base": 17,
+        "dexCap": 0
+      },
+      "Plate Armor": {
+        "category": "heavy",
+        "base": 18,
+        "dexCap": 0
+      }
+    }
+  };
+
+  // src/characters/builder-rules.js
+  var MAX_LEVEL = 3;
+  var SKILL_IDS2 = SKILLS.map((s) => s.id);
+  function pointBuyCost(scores) {
+    const c = SRD.pointBuy.costs;
+    let total = 0;
+    for (const a of ABILITIES) {
+      const v = Number(scores && scores[a]);
+      if (!(v in c)) return Infinity;
+      total += c[v];
+    }
+    return total;
+  }
+  function isStandardArray(scores) {
+    const got = ABILITIES.map((a) => Number(scores && scores[a])).sort((x, y) => y - x);
+    return JSON.stringify(got) === JSON.stringify(SRD.standardArray);
+  }
+  function backgroundBonus(bg, bonus) {
+    const out = Object.fromEntries(ABILITIES.map((a) => [a, 0]));
+    if (!bg) return out;
+    if (bonus && bonus.all) {
+      for (const a of bg.abilities) out[a] += 1;
+      return out;
+    }
+    if (bonus && bg.abilities.includes(bonus.plus2)) out[bonus.plus2] += 2;
+    if (bonus && bg.abilities.includes(bonus.plus1) && bonus.plus1 !== bonus.plus2) out[bonus.plus1] += 1;
+    return out;
+  }
+  function finalAbilities(choices) {
+    const bg = SRD.backgrounds[choices.background];
+    const inc = backgroundBonus(bg, choices.bgBonus);
+    return Object.fromEntries(ABILITIES.map((a) => [a, Math.min(20, (Number(choices.scores && choices.scores[a]) || 10) + inc[a])]));
+  }
+  function skillPicks(choices) {
+    const cls = SRD.classes[choices.class];
+    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const n = { class: cls ? cls.skills.choose : 0, species: 0, extra: 0 };
+    if (choices.species === "human") n.species = 1;
+    if (choices.class === "barbarian" && level >= 3) n.extra += 1;
+    if (choices.species === "human" && choices.originFeat === "Skilled") n.extra += 3;
+    return n;
+  }
+  function classSkillOptions(choices) {
+    const cls = SRD.classes[choices.class];
+    if (!cls) return [];
+    return cls.skills.options === "any" ? SKILL_IDS2.slice() : cls.skills.options.slice();
+  }
+  function speciesSkillOptions(choices) {
+    if (choices.species === "elf") return ["insight", "perception", "survival"];
+    if (choices.species === "human") return SKILL_IDS2.slice();
+    return [];
+  }
+  function expertisePicks(choices) {
+    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    if (choices.class === "rogue") return 2;
+    if (choices.class === "bard" && level >= 2) return 2;
+    return 0;
+  }
+  function fightingStyleAt(choices) {
+    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    return choices.class === "fighter" && level >= 1 || (choices.class === "paladin" || choices.class === "ranger") && level >= 2;
+  }
+  var FIGHTING_STYLES = ["Archery", "Defense", "Great Weapon Fighting", "Two-Weapon Fighting"];
+  function proficientSkills(choices) {
+    const bg = SRD.backgrounds[choices.background];
+    const set = new Set(bg ? bg.skills : []);
+    for (const s of [].concat(choices.classSkills || [], choices.speciesSkills || [], choices.extraSkills || [])) if (SKILL_IDS2.includes(s)) set.add(s);
+    return [...set];
+  }
+  function validate(choices) {
+    const errs = [];
+    const cls = SRD.classes[choices.class], bg = SRD.backgrounds[choices.background], sp = SRD.species[choices.species];
+    if (!cls) errs.push("Choose a class.");
+    if (!bg) errs.push("Choose a background.");
+    if (!sp) errs.push("Choose a species.");
+    if (choices.method === "standard" && !isStandardArray(choices.scores)) errs.push("Assign each number of the standard array (15, 14, 13, 12, 10, 8) once.");
+    if (choices.method === "pointbuy") {
+      const cost = pointBuyCost(choices.scores);
+      if (cost > SRD.pointBuy.budget) errs.push(`Point buy: ${cost === Infinity ? "scores must be 8–15" : cost + " of 27 points spent"}.`);
+    }
+    if (bg && !(choices.bgBonus && (choices.bgBonus.all || choices.bgBonus.plus2 && choices.bgBonus.plus1 && choices.bgBonus.plus2 !== choices.bgBonus.plus1))) errs.push("Choose how the background increases your ability scores.");
+    const picks = skillPicks(choices);
+    const cs = (choices.classSkills || []).filter((s) => classSkillOptions(choices).includes(s));
+    if (cls && cs.length !== picks.class) errs.push(`Choose ${picks.class} class skill${picks.class === 1 ? "" : "s"}.`);
+    if (picks.species && (choices.speciesSkills || []).length !== picks.species) errs.push("Choose the skill from your species.");
+    if (choices.species === "elf" && (choices.speciesSkills || []).length !== 1) errs.push("Choose the Keen Senses skill (Insight, Perception or Survival).");
+    if (picks.extra && (choices.extraSkills || []).length !== picks.extra) errs.push(`Choose ${picks.extra} more skill${picks.extra === 1 ? "" : "s"}.`);
+    const exp = expertisePicks(choices);
+    if (exp && (choices.expertise || []).filter((s) => proficientSkills(choices).includes(s)).length !== exp) errs.push(`Choose ${exp} skills for Expertise (from your proficiencies).`);
+    if (fightingStyleAt(choices) && !FIGHTING_STYLES.includes(choices.fightingStyle)) errs.push("Choose a Fighting Style.");
+    if (!String(choices.name || "").trim()) errs.push("Give your character a name.");
+    return errs;
+  }
+  function parseItem(text) {
+    const m = /^(\d+)\s+(.+)$/.exec(String(text).trim());
+    let qty = 1, name = String(text).trim();
+    if (m) {
+      qty = Number(m[1]);
+      name = m[2];
+    }
+    if (qty > 1) {
+      const candidates = [name.replace(/s$/, ""), name.replace(/es$/, ""), name.replace(/ies$/, "y")];
+      const known = candidates.find((c) => SRD.weapons[c] || /^(Arrow|Bolt|Needle|Bullet|Pouch|Sheet)$/.test(c));
+      if (known) name = known;
+    }
+    return { name, qty };
+  }
+  function startingItems(choices) {
+    const cls = SRD.classes[choices.class], bg = SRD.backgrounds[choices.background];
+    const pick = (list2, id) => (list2 || []).find((o) => o.id === id) || (list2 || [])[0];
+    const ce = cls ? pick(cls.equipment, choices.classEquipment) : null;
+    const be = bg ? pick(bg.equipment, choices.backgroundEquipment) : null;
+    const items = [...ce ? ce.items : [], ...be ? be.items : []].map(parseItem);
+    const merged = [];
+    for (const it of items) {
+      const hit = merged.find((x) => x.name === it.name);
+      if (hit) hit.qty += it.qty;
+      else merged.push({ ...it, notes: "" });
+    }
+    return { items: merged, gp: (ce ? ce.gp : 0) + (be ? be.gp : 0) };
+  }
+  function weaponProficient(cls, weapon, name) {
+    if (!cls || !weapon) return false;
+    if (weapon.category.startsWith("simple")) return true;
+    if (/Martial/.test(cls.weapons) && !/that have/.test(cls.weapons)) return true;
+    if (cls.name === "Monk") return /Light/.test(weapon.properties) && weapon.category === "martial melee";
+    if (cls.name === "Rogue") return /(Finesse|Light)/.test(weapon.properties);
+    return false;
+  }
+  function armorClass(abilities, items, cls, sheetExtras) {
+    const dex = abilityMod(abilities.dex);
+    const names = items.map((i) => i.name);
+    const armorName = names.find((n) => SRD.armor[n]);
+    const shield = names.includes("Shield") ? 2 : 0;
+    const options = [];
+    if (armorName) {
+      const a = SRD.armor[armorName];
+      const dexPart = a.dexCap === 0 ? 0 : a.dexCap == null ? dex : Math.min(dex, a.dexCap);
+      options.push({ ac: a.base + dexPart + shield + (sheetExtras.defense ? 1 : 0), how: armorName + (shield ? " + Shield" : "") + (sheetExtras.defense ? " + Defense" : "") });
+    } else {
+      options.push({ ac: 10 + dex + shield, how: "No armor" + (shield ? " + Shield" : "") });
+      if (cls && cls.name === "Barbarian") options.push({ ac: 10 + dex + abilityMod(abilities.con) + shield, how: "Unarmored Defense" + (shield ? " + Shield" : "") });
+      if (cls && cls.name === "Monk" && !shield) options.push({ ac: 10 + dex + abilityMod(abilities.wis), how: "Unarmored Defense" });
+      if (sheetExtras.draconic) options.push({ ac: 10 + dex + abilityMod(abilities.cha) + shield, how: "Draconic Resilience" + (shield ? " + Shield" : "") });
+    }
+    return options.sort((x, y) => y.ac - x.ac)[0];
+  }
+  function attacksFor(abilities, items, cls, style) {
+    const out = [];
+    for (const it of items) {
+      const w = SRD.weapons[it.name];
+      if (!w) continue;
+      const ranged = w.category.endsWith("ranged");
+      const finesse = /Finesse/.test(w.properties);
+      let ability = ranged ? "dex" : "str";
+      if (finesse && abilityMod(abilities.dex) > abilityMod(abilities.str)) ability = "dex";
+      if (cls && cls.name === "Monk" && !ranged && abilityMod(abilities.dex) > abilityMod(abilities.str) && (w.category === "simple melee" || /Light/.test(w.properties))) ability = "dex";
+      const mod = abilityMod(abilities[ability]);
+      const bonusHit = ranged && style === "Archery" ? 2 : 0;
+      out.push({
+        name: it.name,
+        ability,
+        proficient: weaponProficient(cls, w, it.name),
+        damage: w.damage + (mod ? (mod > 0 ? "+" : "") + mod : ""),
+        notes: [w.type, w.properties, w.mastery && "Mastery: " + w.mastery, bonusHit && "+2 to hit (Archery)"].filter(Boolean).join(" · "),
+        hitBonus: bonusHit
+      });
+    }
+    return out;
+  }
+  function firstSentence(paras) {
+    const t = paras && paras[0] || "";
+    const m = /^(.{20,220}?[.!?])(\s|$)/.exec(t);
+    return m ? m[1] : t.slice(0, 220);
+  }
+  function featureList(choices) {
+    const cls = SRD.classes[choices.class], bg = SRD.backgrounds[choices.background], sp = SRD.species[choices.species];
+    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const out = [];
+    if (cls) {
+      for (const f of cls.features) if (f.level <= level && !/ Subclass$/.test(f.name)) out.push({ name: f.name, source: `${cls.name} ${f.level}`, text: f.text });
+      if (level >= 3) for (const f of cls.subclassFeatures) out.push({ name: f.name, source: `${cls.subclass} 3`, text: f.text });
+    }
+    if (sp) for (const t of sp.traits) out.push({ name: t.name, source: sp.name, text: t.text });
+    const featName = bg && bg.feat.replace(/ \(.+\)$/, "");
+    if (bg && SRD.feats[featName]) out.push({ name: bg.feat, source: bg.name + " (Origin feat)", text: SRD.feats[featName].text });
+    if (choices.species === "human" && choices.originFeat && SRD.feats[choices.originFeat]) out.push({ name: choices.originFeat, source: "Human (Versatile)", text: SRD.feats[choices.originFeat].text });
+    if (fightingStyleAt(choices) && SRD.feats[choices.fightingStyle]) out.push({ name: choices.fightingStyle, source: "Fighting Style", text: SRD.feats[choices.fightingStyle].text });
+    return out;
+  }
+  function hitPoints(choices, abilities) {
+    const cls = SRD.classes[choices.class];
+    if (!cls) return 1;
+    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const con = abilityMod(abilities.con);
+    let hp = cls.hitDie + con;
+    for (let l = 2; l <= level; l++) hp += Math.max(1, cls.hitDie / 2 + 1 + con);
+    if (choices.species === "dwarf") hp += level;
+    return Math.max(1, hp);
+  }
+  function buildSheet(choices, previous) {
+    const cls = SRD.classes[choices.class], bg = SRD.backgrounds[choices.background], sp = SRD.species[choices.species];
+    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const abilities = finalAbilities(choices);
+    const { items, gp } = startingItems(choices);
+    const style = fightingStyleAt(choices) ? choices.fightingStyle : "";
+    const ac = armorClass(abilities, items, cls, { defense: style === "Defense", draconic: choices.class === "sorcerer" && level >= 3 });
+    const skills = {};
+    for (const s of proficientSkills(choices)) skills[s] = 1;
+    for (const s of choices.expertise || []) if (skills[s]) skills[s] = 2;
+    let speed = sp ? sp.speed : 30;
+    if (choices.species === "elf" && /Wood Elf/.test(choices.speciesOption || "")) speed = 35;
+    const armorWorn = items.some((i) => SRD.armor[i.name]);
+    if (choices.class === "monk" && level >= 2 && !armorWorn && !items.some((i) => i.name === "Shield")) speed += 10;
+    const hp = hitPoints(choices, abilities);
+    const feats = featureList(choices);
+    const spell = cls && cls.spellcasting;
+    const prevInv = previous && Array.isArray(previous.inventory) ? previous.inventory : null;
+    const sheet = {
+      level,
+      className: cls ? cls.name + (level >= 3 ? ` (${cls.subclass})` : "") : "",
+      species: sp ? sp.name + (choices.speciesOption ? ` (${choices.speciesOption})` : "") : "",
+      background: bg ? bg.name : "",
+      alignment: choices.alignment || "",
+      xp: Math.max(previous ? Number(previous.xp) || 0 : 0, SRD.xp[level - 1]),
+      abilities,
+      saves: cls ? cls.saves.slice() : [],
+      skills,
+      ac: ac.ac,
+      speed,
+      hp: { max: hp, current: previous && previous.hp ? Math.min(hp, (Number(previous.hp.current) || 0) + (hp - (Number(previous.hp.max) || hp))) : hp, temp: 0 },
+      attacks: attacksFor(abilities, items, cls, style).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
+      // level up keeps what the character owns now; a new character gets the starting equipment
+      inventory: prevInv || items,
+      coins: previous && previous.coins ? previous.coins : { cp: 0, sp: 0, gp, pp: 0 },
+      features: feats.map((f) => `• ${f.name} (${f.source}): ${firstSentence(f.text)}`).join("\n"),
+      notes: previous && previous.notes ? previous.notes : "",
+      acNote: ac.how,
+      proficiencies: [
+        cls && `Weapons: ${cls.weapons}`,
+        cls && `Armor: ${cls.armor}`,
+        [cls && cls.tools, bg && bg.tool].filter(Boolean).length ? `Tools: ${[cls && cls.tools, bg && bg.tool].filter(Boolean).join("; ")}` : "",
+        `Languages: Common${(choices.languages || []).length ? ", " + choices.languages.join(", ") : ""}${choices.class === "rogue" ? ", Thieves' Cant" : ""}${choices.class === "druid" ? ", Druidic" : ""}`
+      ].filter(Boolean).join("\n"),
+      spellcasting: spell ? Object.assign({ ability: spell.ability, pact: !!spell.pact }, spell.levels[level]) : null,
+      build: Object.assign({}, choices, { level, source: SRD.source })
+    };
+    return normalizeSheet(sheet);
+  }
+  function nextLevelChoices(sheet) {
+    const b = sheet && sheet.build;
+    if (!b || !SRD.classes[b.class]) return null;
+    const level = Number(sheet.level) || 1;
+    if (level >= MAX_LEVEL) return null;
+    return Object.assign({}, b, { level: level + 1 });
+  }
+
+  // src/characters/builder.js
+  var STEPS = [["class", "Class"], ["background", "Background"], ["species", "Species"], ["abilities", "Abilities"], ["skills", "Skills & choices"], ["equipment", "Equipment"], ["review", "Details & review"]];
+  var SKILL_NAME = Object.fromEntries(SKILLS.map((s) => [s.id, s.name]));
+  var SPECIES_OPTIONS = {
+    dragonborn: { label: "Draconic ancestry", options: ["Black (Acid)", "Blue (Lightning)", "Brass (Fire)", "Bronze (Lightning)", "Copper (Acid)", "Gold (Fire)", "Green (Poison)", "Red (Fire)", "Silver (Cold)", "White (Cold)"] },
+    elf: { label: "Elven lineage", options: ["Drow", "High Elf", "Wood Elf"] },
+    gnome: { label: "Gnomish lineage", options: ["Forest Gnome", "Rock Gnome"] },
+    goliath: { label: "Giant ancestry", options: ["Cloud's Jaunt (Cloud Giant)", "Fire's Burn (Fire Giant)", "Frost's Chill (Frost Giant)", "Hill's Tumble (Hill Giant)", "Stone's Endurance (Stone Giant)", "Storm's Thunder (Storm Giant)"] },
+    human: { label: "Size", options: ["Medium", "Small"] },
+    tiefling: { label: "Fiendish legacy", options: ["Abyssal", "Chthonic", "Infernal"] }
+  };
+  var ORIGIN_FEATS = ["Alert", "Magic Initiate", "Savage Attacker", "Skilled"];
+  function initBuilder() {
+    "use strict";
+    if (window.KLITE_RPMod_Builder) return;
+    const fresh = () => ({ level: 1, method: "standard", scores: { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 }, classSkills: [], speciesSkills: [], extraSkills: [], expertise: [], languages: [], classEquipment: "A", backgroundEquipment: "A", alignment: "" });
+    const V = { box: null, step: 0, c: fresh(), target: "", levelUp: null, previous: null, busy: false };
+    const Shell = () => window.KLITE_RPMod_Shell;
+    const para = (t) => el("p", { class: "rpm-bld-p", text: t });
+    function texts(paragraphs, max) {
+      return el("div", { class: "rpm-bld-text" }, (paragraphs || []).slice(0, max || 99).map(para));
+    }
+    function details(title, body, open) {
+      return el("details", { class: "rpm-gal-sec", open: open ? "" : null }, [el("summary", { text: title }), body]);
+    }
+    function btn(text, onclick, opts) {
+      opts = opts || {};
+      return el("button", { type: "button", class: "btn btn-primary rpm-btn" + (opts.icon ? " rpm-btn-icon" : "") + (opts.cls ? " " + opts.cls : ""), disabled: opts.disabled ? "" : null, "data-bld": opts.id, onclick }, opts.icon ? [iconText(opts.icon, text)] : [text]);
+    }
+    function pickCard(id, title, sub, selected, onclick) {
+      return el("button", { type: "button", class: "rpm-bld-card" + (selected ? " rpm-on" : ""), "aria-pressed": String(!!selected), "data-pick": id, onclick }, [
+        el("div", { class: "rpm-bld-card-title", text: title }),
+        sub ? el("div", { class: "rpm-muted", text: sub }) : null
+      ]);
+    }
+    function checkList(options, chosen, limit, onChange, label) {
+      const set2 = new Set(chosen || []);
+      return el("div", { class: "rpm-bld-checks", role: "group", "aria-label": label }, options.map((o) => {
+        const id = typeof o === "string" ? o : o.id, name = typeof o === "string" ? SKILL_NAME[o] || o : o.name;
+        const cb = el("input", { type: "checkbox", "data-check": id });
+        cb.checked = set2.has(id);
+        cb.disabled = !cb.checked && set2.size >= limit;
+        cb.addEventListener("change", () => {
+          if (cb.checked) set2.add(id);
+          else set2.delete(id);
+          onChange([...set2]);
+        });
+        return el("label", { class: "rpm-bld-check" }, [cb, " " + name]);
+      }));
+    }
+    function select(options, value, onChange, label) {
+      const s = el("select", { class: "form-control rpm-input", "aria-label": label });
+      s.appendChild(el("option", { value: "", text: "— choose —" }));
+      for (const o of options) {
+        const v = typeof o === "string" ? o : o.value;
+        const t = typeof o === "string" ? o : o.text;
+        const op = el("option", { value: v, text: t });
+        if (v === value) op.selected = true;
+        s.appendChild(op);
+      }
+      s.addEventListener("change", () => onChange(s.value));
+      return s;
+    }
+    const set = (k2, v) => {
+      V.c[k2] = v;
+      render();
+    };
+    function stepClass(root) {
+      const lvl = el("div", { class: "rpm-row" }, [el("span", { class: "rpm-label", text: "Level" }), ...[1, 2, 3].map((n) => btn(String(n), () => set("level", n), { cls: V.c.level === n ? "rpm-on" : "", id: "level-" + n }))]);
+      root.appendChild(lvl);
+      root.appendChild(el("div", { class: "rpm-bld-grid" }, Object.entries(SRD.classes).map(([id, c2]) => pickCard(id, c2.name, `d${c2.hitDie} · ${c2.primary.map((a) => ABILITY_NAMES[a]).join(" & ")}`, V.c.class === id, () => {
+        V.c.classSkills = [];
+        V.c.expertise = [];
+        V.c.fightingStyle = void 0;
+        V.c.classEquipment = "A";
+        set("class", id);
+      }))));
+      const c = SRD.classes[V.c.class];
+      if (!c) return;
+      const lines = [
+        `Hit Point Die: d${c.hitDie} · Saving throws: ${c.saves.map((a) => ABILITY_NAMES[a]).join(", ")}`,
+        `Skills: choose ${c.skills.choose} ${c.skills.options === "any" ? "of any skills" : "from " + c.skills.options.map((s) => SKILL_NAME[s]).join(", ")}`,
+        `Weapons: ${c.weapons} · Armor: ${c.armor}${c.tools ? " · Tools: " + c.tools : ""}`,
+        `Subclass at level 3: ${c.subclass}`
+      ];
+      root.appendChild(el("div", { class: "rpm-bld-detail" }, [
+        el("h3", { text: c.name }),
+        ...lines.map(para),
+        ...c.features.filter((f) => f.level <= V.c.level && !/ Subclass$/.test(f.name)).map((f) => details(`Level ${f.level}: ${f.name}`, texts(f.text))),
+        ...V.c.level >= 3 ? c.subclassFeatures.map((f) => details(`${c.subclass}: ${f.name}`, texts(f.text))) : []
+      ]));
+    }
+    function stepBackground(root) {
+      root.appendChild(el("div", { class: "rpm-bld-grid" }, Object.entries(SRD.backgrounds).map(([id, b2]) => pickCard(id, b2.name, `${b2.abilities.map((a) => a.toUpperCase()).join(", ")} · ${b2.feat}`, V.c.background === id, () => {
+        V.c.bgBonus = null;
+        V.c.backgroundEquipment = "A";
+        set("background", id);
+      }))));
+      const b = SRD.backgrounds[V.c.background];
+      if (!b) return;
+      const feat = SRD.feats[b.feat.replace(/ \(.+\)$/, "")];
+      root.appendChild(el("div", { class: "rpm-bld-detail" }, [
+        el("h3", { text: b.name }),
+        para(`Ability scores: ${b.abilities.map((a) => ABILITY_NAMES[a]).join(", ")} (increase one by 2 and another by 1, or all three by 1)`),
+        para(`Skills: ${b.skills.map((s) => SKILL_NAME[s]).join(", ")} · Tool: ${b.tool}`),
+        feat ? details("Origin feat: " + b.feat, texts(feat.text), true) : null
+      ]));
+    }
+    function stepSpecies(root) {
+      root.appendChild(el("div", { class: "rpm-bld-grid" }, Object.entries(SRD.species).map(([id, s2]) => pickCard(id, s2.name, `${s2.size.split(" (")[0]} · ${s2.speed} ft`, V.c.species === id, () => {
+        V.c.speciesOption = "";
+        V.c.speciesSkills = [];
+        V.c.originFeat = void 0;
+        V.c.extraSkills = [];
+        set("species", id);
+      }))));
+      const s = SRD.species[V.c.species];
+      if (!s) return;
+      const opt = SPECIES_OPTIONS[V.c.species];
+      root.appendChild(el("div", { class: "rpm-bld-detail" }, [
+        el("h3", { text: s.name }),
+        para(`Size: ${s.size} · Speed: ${s.speed} feet`),
+        opt ? el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: opt.label }), select(opt.options, V.c.speciesOption, (v) => set("speciesOption", v), opt.label)]) : null,
+        V.c.species === "human" ? el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: "Versatile: Origin feat (Skilled is recommended)" }), select(ORIGIN_FEATS, V.c.originFeat, (v) => {
+          V.c.extraSkills = [];
+          set("originFeat", v);
+        }, "Origin feat")]) : null,
+        ...s.traits.map((t) => details(t.name, texts(t.text)))
+      ]));
+    }
+    function stepAbilities(root) {
+      const cls = SRD.classes[V.c.class], bg = SRD.backgrounds[V.c.background];
+      root.appendChild(el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, [
+        ...[["standard", "Standard array"], ["pointbuy", "Point buy (27)"], ["roll", "Roll 4d6"]].map(([m, t]) => btn(t, () => {
+          V.c.method = m;
+          if (m === "pointbuy") V.c.scores = Object.fromEntries(ABILITIES.map((a) => [a, 8]));
+          if (m === "standard") V.c.scores = cls ? Object.assign({}, cls.standardArray) : { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
+          if (m === "roll") V.c.scores = Object.fromEntries(ABILITIES.map((a) => [a, roll4d6()]));
+          render();
+        }, { cls: V.c.method === m ? "rpm-on" : "", id: "method-" + m })),
+        cls && V.c.method === "standard" ? btn(`Suggested for ${cls.name}`, () => {
+          V.c.scores = Object.assign({}, cls.standardArray);
+          render();
+        }, { id: "suggest" }) : null
+      ]));
+      if (V.c.method === "pointbuy") {
+        const cost = pointBuyCost(V.c.scores);
+        root.appendChild(el("div", { class: "rpm-muted", text: `Points spent: ${cost === Infinity ? "—" : cost} of 27 (scores 8–15)` }));
+      }
+      const inc = backgroundBonus(bg, V.c.bgBonus), fin = finalAbilities(V.c);
+      root.appendChild(el("div", { class: "rpm-sheet-abilities" }, ABILITIES.map((a) => {
+        let input;
+        if (V.c.method === "standard") input = select(SRD.standardArray.map(String), String(V.c.scores[a] || ""), (v) => {
+          V.c.scores[a] = Number(v);
+          render();
+        }, ABILITY_NAMES[a] + " score");
+        else {
+          input = el("input", { type: "number", class: "form-control rpm-input", min: V.c.method === "pointbuy" ? 8 : 3, max: V.c.method === "pointbuy" ? 15 : 18, "aria-label": ABILITY_NAMES[a] + " score" });
+          input.value = V.c.scores[a];
+          input.addEventListener("change", () => {
+            V.c.scores[a] = Number(input.value);
+            render();
+          });
+        }
+        return el("div", { class: "rpm-sheet-ability" + (cls && cls.primary.includes(a) ? " rpm-bld-primary" : "") }, [
+          el("div", { class: "rpm-label", text: ABILITY_NAMES[a] }),
+          input,
+          el("div", { class: "rpm-muted", text: inc[a] ? `+${inc[a]} → ${fin[a]} (${fmt(abilityMod(fin[a]))})` : `${fin[a]} (${fmt(abilityMod(fin[a]))})` })
+        ]);
+      })));
+      if (!bg) {
+        root.appendChild(para("Choose a background to apply its ability score increase."));
+        return;
+      }
+      const b = V.c.bgBonus || {};
+      const opts = bg.abilities.map((a) => ({ value: a, text: ABILITY_NAMES[a] }));
+      root.appendChild(el("div", { class: "rpm-bld-detail" }, [
+        el("h3", { text: `${bg.name}: ability score increase` }),
+        el("label", { class: "rpm-bld-check" }, [(() => {
+          const r = el("input", { type: "checkbox", "data-check": "bg-all" });
+          r.checked = !!b.all;
+          r.addEventListener("change", () => {
+            V.c.bgBonus = r.checked ? { all: true } : {};
+            render();
+          });
+          return r;
+        })(), ` +1 to ${bg.abilities.map((a) => ABILITY_NAMES[a]).join(", ")}`]),
+        b.all ? null : el("div", { class: "rpm-sheet-grid4" }, [
+          el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: "+2" }), select(opts, b.plus2, (v) => {
+            V.c.bgBonus = Object.assign({}, b, { plus2: v });
+            render();
+          }, "+2 ability")]),
+          el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: "+1" }), select(opts, b.plus1, (v) => {
+            V.c.bgBonus = Object.assign({}, b, { plus1: v });
+            render();
+          }, "+1 ability")])
+        ])
+      ]));
+    }
+    function roll4d6() {
+      const d = [0, 0, 0, 0].map(() => 1 + Math.floor(Math.random() * 6)).sort((a, b) => b - a);
+      return d[0] + d[1] + d[2];
+    }
+    function stepSkills(root) {
+      const picks = skillPicks(V.c), bg = SRD.backgrounds[V.c.background];
+      if (bg) root.appendChild(para(`From your background: ${bg.skills.map((s) => SKILL_NAME[s]).join(", ")}`));
+      const clsOpts = classSkillOptions(V.c).filter((s) => !(bg && bg.skills.includes(s)));
+      if (picks.class) root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: `Class skills — choose ${picks.class}` }), checkList(clsOpts, V.c.classSkills, picks.class, (v) => set("classSkills", v), "Class skills")]));
+      const taken = new Set(proficientSkills(Object.assign({}, V.c, { speciesSkills: [] })));
+      const spOpts = speciesSkillOptions(V.c).filter((s) => !taken.has(s) || (V.c.speciesSkills || []).includes(s));
+      if (spOpts.length) root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: V.c.species === "elf" ? "Keen Senses — choose 1" : "Skillful — choose 1" }), checkList(spOpts, V.c.speciesSkills, 1, (v) => set("speciesSkills", v), "Species skill")]));
+      if (picks.extra) {
+        const taken2 = new Set(proficientSkills(Object.assign({}, V.c, { extraSkills: [] })));
+        const src = [V.c.class === "barbarian" && V.c.level >= 3 ? "Primal Knowledge (Barbarian skill list)" : null, V.c.originFeat === "Skilled" ? "Skilled feat (3)" : null].filter(Boolean).join(" + ");
+        const opts = (V.c.class === "barbarian" && V.c.originFeat !== "Skilled" ? classSkillOptions(V.c) : SKILLS.map((s) => s.id)).filter((s) => !taken2.has(s) || (V.c.extraSkills || []).includes(s));
+        root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: `More skills — choose ${picks.extra}` }), el("div", { class: "rpm-muted", text: src }), checkList(opts, V.c.extraSkills, picks.extra, (v) => set("extraSkills", v), "More skills")]));
+      }
+      const exp = expertisePicks(V.c);
+      if (exp) root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: `Expertise — choose ${exp} of your skills` }), checkList(proficientSkills(V.c), V.c.expertise, exp, (v) => set("expertise", v), "Expertise")]));
+      if (fightingStyleAt(V.c)) root.appendChild(el("div", { class: "rpm-bld-detail" }, [
+        el("h3", { text: "Fighting Style" }),
+        el("div", { class: "rpm-bld-grid" }, FIGHTING_STYLES.map((f) => pickCard(f, f, (SRD.feats[f] ? SRD.feats[f].text[0] : "").slice(0, 90), V.c.fightingStyle === f, () => set("fightingStyle", f))))
+      ]));
+      root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: "Languages — Common plus two" }), checkList(SRD.languages.standard, V.c.languages, 2, (v) => set("languages", v), "Languages")]));
+    }
+    function stepEquipment(root) {
+      const cls = SRD.classes[V.c.class], bg = SRD.backgrounds[V.c.background];
+      const opt = (list2, key, title) => el("div", { class: "rpm-bld-detail" }, [el("h3", { text: title }), el("div", { class: "rpm-bld-grid" }, list2.map((o) => pickCard(o.id, `Option ${o.id}`, o.items.length ? `${o.items.join(", ")}, ${o.gp} GP` : `${o.gp} GP (buy your own)`, V.c[key] === o.id, () => set(key, o.id))))]);
+      if (V.levelUp) {
+        root.appendChild(para("Leveling up keeps your current inventory and coins."));
+        return;
+      }
+      if (cls) root.appendChild(opt(cls.equipment, "classEquipment", `${cls.name} equipment`));
+      if (bg) root.appendChild(opt(bg.equipment, "backgroundEquipment", `${bg.name} equipment`));
+    }
+    function stepReview(root) {
+      const names = characterNames();
+      const name = el("input", { type: "text", class: "form-control rpm-input fullScreenTextEditExclude", "aria-label": "Character name", placeholder: "Name" });
+      name.value = V.c.name || "";
+      name.addEventListener("change", () => {
+        V.c.name = name.value.trim();
+        render();
+      });
+      if (!V.levelUp) root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
+        el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: "Name" }), name]),
+        el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: "Alignment" }), select(SRD.alignments, V.c.alignment, (v) => set("alignment", v), "Alignment")]),
+        el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: "Put the sheet on" }), select([{ value: "", text: "a new character" }, ...names.map((n) => ({ value: n, text: n }))], V.target, (v) => {
+          V.target = v;
+          if (v && !V.c.name) V.c.name = v;
+          render();
+        }, "Target character")])
+      ]));
+      const errs = validate(V.c);
+      const s = buildSheet(V.c, V.previous);
+      const d = derive(s);
+      root.appendChild(el("div", { class: "rpm-bld-detail" }, [
+        el("h3", { text: `${V.c.name || "(unnamed)"} — ${s.species} ${s.className} ${s.level}` }),
+        para(`HP ${s.hp.max} · AC ${s.ac} (${s.acNote}) · Speed ${s.speed} ft · Initiative ${fmt(d.initiative)} · Proficiency ${fmt(d.pb)} · Passive Perception ${d.passivePerception}`),
+        para(ABILITIES.map((a) => `${a.toUpperCase()} ${s.abilities[a]} (${fmt(d.mods[a])})`).join(" · ")),
+        para("Saving throws: " + s.saves.map((a) => `${ABILITY_NAMES[a]} ${fmt(d.saves[a])}`).join(", ")),
+        para("Skills: " + SKILLS.filter((k2) => s.skills[k2.id]).map((k2) => `${k2.name} ${fmt(d.skills[k2.id])}${s.skills[k2.id] === 2 ? " (expertise)" : ""}`).join(", ")),
+        d.attacks.length ? para("Attacks: " + d.attacks.map((a) => `${a.name} ${fmt(a.toHit)} (${a.damage})`).join(", ")) : null,
+        d.spell ? para(`Spellcasting: ${ABILITY_NAMES[d.spell.ability]}, save DC ${d.spell.saveDC}, attack ${fmt(d.spell.attack)}, ${d.spell.cantrips} cantrips, ${d.spell.prepared} prepared spells, slots ${d.spell.slots.map((n, i) => n ? `level ${i + 1}: ${n}` : "").filter(Boolean).join(", ")}. Choose your spells on the sheet.`) : null,
+        details("Features", el("div", { class: "rpm-gal-text", text: s.features }))
+      ]));
+      if (errs.length) root.appendChild(el("ul", { class: "rpm-bld-errors", role: "alert" }, errs.map((e) => el("li", { text: e }))));
+    }
+    async function create() {
+      const errs = validate(V.c);
+      if (errs.length) {
+        render();
+        return;
+      }
+      V.busy = true;
+      render();
+      try {
+        let name;
+        if (V.levelUp) {
+          const C = window.KLITE_RPMod_Characters;
+          await C.saveSheet(V.levelUp, buildSheet(V.c, V.previous));
+          name = V.levelUp;
+        } else if (V.target) {
+          const C = window.KLITE_RPMod_Characters;
+          const existing = await C.loadSheet(V.target).catch(() => null);
+          if (existing && !confirm(`${V.target} already has a character sheet. Replace it?`)) {
+            V.busy = false;
+            render();
+            return;
+          }
+          await C.saveSheet(V.target, buildSheet(Object.assign({}, V.c, { name: V.target })));
+          name = V.target;
+        } else {
+          const s = buildSheet(V.c);
+          const inner = writeSheet({
+            name: V.c.name,
+            description: `${V.c.name} is a ${s.species.toLowerCase()} ${SRD.classes[V.c.class].name.toLowerCase()} (${s.background.toLowerCase()} background).`,
+            personality: "",
+            scenario: "",
+            first_mes: "",
+            mes_example: "",
+            creator: "RPmod character builder",
+            creator_notes: `Level ${s.level} ${s.species} ${s.className}, built with the SRD 5.2.1 rules.`,
+            tags: ["RPmod", SRD.classes[V.c.class].name, SRD.species[V.c.species].name],
+            extensions: {}
+          }, s);
+          const res = await saveCharacter({ inner });
+          name = res.name;
+        }
+        V.busy = false;
+        try {
+          window.KLITE_RPMod?.panels?.CHARS?.rebuildFromEsolite?.();
+        } catch (_) {
+        }
+        Shell()?.close("builder", { force: true });
+        window.KLITE_RPMod_Characters?.open(name);
+      } catch (e) {
+        V.busy = false;
+        alert("Could not save the character: " + (e.message || e));
+        render();
+      }
+    }
+    function render() {
+      const box = V.box;
+      if (!box) return;
+      const scrollTop = box.scrollTop;
+      clear(box);
+      const root = el("div", { class: "rpm-bld" });
+      box.appendChild(root);
+      const steps = V.levelUp ? STEPS.filter(([id2]) => id2 === "class" || id2 === "skills" || id2 === "review") : STEPS;
+      if (V.step >= steps.length) V.step = steps.length - 1;
+      root.appendChild(el("ol", { class: "rpm-bld-steps" }, steps.map(([id2, t], i) => el("li", {}, [el("button", { type: "button", class: "rpm-gal-chip" + (i === V.step ? " rpm-on" : ""), "aria-current": i === V.step ? "step" : null, "data-step": id2, text: `${i + 1}. ${t}`, onclick: () => {
+        V.step = i;
+        render();
+      } })]))));
+      if (V.levelUp) root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: `Level up: ${V.levelUp} → level ${V.c.level}` }), para('Your new features are listed below. Make any new choices on the "Skills & choices" step, then confirm on the last step.')]));
+      const body = el("div", { class: "rpm-bld-body" });
+      root.appendChild(body);
+      const id = steps[V.step][0];
+      ({ class: stepClass, background: stepBackground, species: stepSpecies, abilities: stepAbilities, skills: stepSkills, equipment: stepEquipment, review: stepReview })[id](body);
+      const last = V.step === steps.length - 1;
+      root.appendChild(el("div", { class: "rpm-row rpm-bld-nav" }, [
+        btn("Back", () => {
+          V.step = Math.max(0, V.step - 1);
+          render();
+        }, { icon: "arrow-left", disabled: V.step === 0, id: "back" }),
+        el("span", { class: "rpm-grow" }),
+        last ? btn(V.busy ? "Saving…" : V.levelUp ? "Level up" : "Create character", () => create(), { cls: "rpm-success rpm-lg", disabled: V.busy || validate(V.c).length > 0, id: "create" }) : btn("Next", () => {
+          V.step++;
+          render();
+        }, { cls: "rpm-lg", id: "next" })
+      ]));
+      root.appendChild(el("p", { class: "rpm-muted rpm-bld-attr", text: SRD.attribution }));
+      box.scrollTop = V.shownStep === id ? scrollTop : 0;
+      V.shownStep = id;
+    }
+    function register() {
+      const sh = Shell();
+      if (!sh) return false;
+      sh.registerView({
+        id: "builder",
+        title: "Character builder (SRD 5.2.1)",
+        place: "window",
+        window: { width: 820, height: 720, minWidth: 320, minHeight: 360, flush: true, restore: false },
+        mount: (c) => {
+          V.box = el("div", { class: "rpm-gal-scroll" });
+          c.appendChild(V.box);
+          render();
+        },
+        unmount: () => {
+          V.box = null;
+        }
+      });
+      return true;
+    }
+    const api = {
+      open(opts) {
+        opts = opts || {};
+        V.step = 0;
+        V.target = opts.target || "";
+        V.levelUp = null;
+        V.previous = null;
+        V.c = fresh();
+        if (opts.name) V.c.name = opts.name;
+        Shell()?.open("builder");
+        return true;
+      },
+      // Level up a character whose sheet came from the builder.
+      async levelUp(name) {
+        const C = window.KLITE_RPMod_Characters;
+        const sheet = C ? await C.loadSheet(name) : null;
+        const next = nextLevelChoices(sheet);
+        if (!next) {
+          alert(sheet && sheet.build ? "The builder covers levels 1–3 for now." : "This sheet was not made with the builder; edit it by hand.");
+          return false;
+        }
+        V.c = next;
+        V.levelUp = name;
+        V.previous = sheet;
+        V.target = name;
+        V.step = 0;
+        Shell()?.open("builder");
+        render();
+        return true;
+      },
+      _state: V
+    };
+    window.KLITE_RPMod_Builder = api;
+    let tries = 0;
+    const attempt = () => {
+      if (!register() && ++tries < 120) setTimeout(attempt, 250);
+    };
+    if (document.readyState === "complete") attempt();
+    else window.addEventListener("load", attempt);
+  }
+
   // src/main.js
   var MODULES = [
     ["shell/shell.js", initShell],
@@ -23620,6 +27188,7 @@ OK = save and close · Cancel = close and discard them`);
     ["game/log.js", initGameLog],
     ["characters/characters.js", initCharacters],
     ["characters/gallery.js", initGallery],
+    ["characters/builder.js", initBuilder],
     ["KLITE-RPmod_ALPHA.js", initAlpha],
     ["KLITE-RPmod_Worlds.js", initWorlds],
     ["KLITE-RPmod_WorldsUI.js", initWorldsUI],

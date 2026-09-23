@@ -12,3 +12,4 @@ node_modules/
 
 # SRD 5.2.1 reference PDF (downloaded, CC-BY-4.0; data extracted into src/)
 docs/reference/*.pdf
+__pycache__/

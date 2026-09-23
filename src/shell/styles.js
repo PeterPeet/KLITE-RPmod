@@ -376,6 +376,28 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
     .rpm-gal { --gal-w: 150px; }
 }
 
+/* ---- character builder (window "builder") ---- */
+.rpm-bld { display: flex; flex-direction: column; gap: 10px; }
+.rpm-bld-steps { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.rpm-bld-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+.rpm-bld-card {
+    text-align: left; border: 1px solid var(--rpm-border); background: var(--rpm-bg-alt); color: var(--rpm-fg);
+    border-radius: var(--rpm-radius-lg); padding: 10px 12px; cursor: pointer; font: inherit;
+}
+.rpm-bld-card:hover { border-color: var(--rpm-border-hi); }
+.rpm-bld-card.rpm-on { border-color: var(--rpm-border-hi); background: var(--rpm-accent-bg-hi); color: var(--rpm-accent-fg-hi); }
+.rpm-bld-card-title { font-weight: bold; font-size: 1.05em; }
+.rpm-bld-detail { border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius-lg); padding: 10px 12px; background: var(--rpm-bg); display: flex; flex-direction: column; gap: 6px; }
+.rpm-bld-detail h3 { margin: 0; font-size: 1.1em; color: var(--rpm-fg-hi); }
+.rpm-bld-p { margin: 0; line-height: 1.5; }
+.rpm-bld-text { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; line-height: 1.5; }
+.rpm-bld-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 2px 12px; }
+.rpm-bld-check { display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; }
+.rpm-bld-primary { border-color: var(--rpm-border-hi); }
+.rpm-bld-errors { margin: 0; padding: 8px 8px 8px 28px; border: 1px solid var(--rpm-danger); border-radius: var(--rpm-radius); color: var(--rpm-fg); }
+.rpm-bld-nav { position: sticky; bottom: 0; padding: 8px 0; background: var(--rpm-bg); border-top: 1px solid var(--rpm-border); }
+.rpm-bld-attr { font-size: var(--rpm-fs-sm); margin: 0; }
+
 /* ---- "Show me" spotlight (outside the shell layer, above everything) ---- */
 .rpm-spot-ring {
     position: fixed; z-index: 100003; pointer-events: none; border-radius: 8px;

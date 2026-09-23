@@ -160,7 +160,9 @@ export default function initCharacters() {
         if (!V.name) { root.appendChild(el('p', { class: 'rpm-muted', text: 'Choose a character from your Library. Their sheet is stored inside the character card, so it travels with it when you export the card.' })); return; }
         if (!V.draft) {
             root.appendChild(el('p', { class: 'rpm-muted', text: `${V.name} has no character sheet yet.` }));
-            const row = el('div', { class: 'rpm-row', style: 'flex-wrap:wrap' }, [btn('Create sheet', () => createSheet(null), { icon: 'plus' })]);
+            const row = el('div', { class: 'rpm-row', style: 'flex-wrap:wrap' }, [
+                window.KLITE_RPMod_Builder ? btn('Build with the SRD rules', () => window.KLITE_RPMod_Builder.open({ target: V.name, name: V.name }), { icon: 'sparkles', title: 'Step-by-step builder: class, background, species, abilities, skills, equipment' }) : null,
+                btn('Create sheet', () => createSheet(null), { icon: 'plus', title: 'An empty sheet you fill in yourself' })]);
             const ws = worldStatsFor(V.name);
             if (ws) row.appendChild(btn('Create from world stats', () => createSheet(fromCombatStats(ws)), { title: 'Use the d20 stat block this person has in the active world' }));
             root.appendChild(row);
@@ -182,7 +184,13 @@ export default function initCharacters() {
             field('Level', numIn(s.level, set(v => { V.draft.level = v; }), { min: 1, max: 20 })),
             field('Background', textIn(s.background, set(v => { V.draft.background = v; }))),
         ]));
-        root.appendChild(el('div', { class: 'rpm-muted', style: 'margin:2px 0 6px', text: `Proficiency bonus ${fmt(D.pb)} · XP ${s.xp}` }));
+        root.appendChild(el('div', { class: 'rpm-row', style: 'margin:2px 0 6px;flex-wrap:wrap' }, [
+            el('span', { class: 'rpm-muted rpm-grow', text: `Proficiency bonus ${fmt(D.pb)} · XP ${s.xp}${s.alignment ? ' · ' + s.alignment : ''}` }),
+            s.build && s.level < 3 && window.KLITE_RPMod_Builder ? btn('Level up', () => {
+                if (dirty() && !confirm('Level up uses the saved sheet; discard unsaved changes?')) return;
+                window.KLITE_RPMod_Builder.levelUp(V.name);
+            }, { icon: 'sparkles', title: `Rebuild at level ${s.level + 1} with the builder (keeps inventory, coins and notes)` }) : null,
+        ]));
 
         // abilities
         root.appendChild(heading('Abilities'));
@@ -200,6 +208,7 @@ export default function initCharacters() {
             field('Initiative', btn(fmt(D.initiative), () => rollD20('Initiative', D.initiative, 'initiative'), { roll: 'initiative', title: 'Roll initiative' })),
             field('Passive Perception', el('div', { class: 'rpm-sheet-static', text: String(D.passivePerception) })),
         ]));
+        if (s.acNote) root.appendChild(el('div', { class: 'rpm-muted', text: 'AC: ' + s.acNote }));
         root.appendChild(el('div', { class: 'rpm-sheet-grid4' }, [
             field('HP', numIn(s.hp.current, set(v => { V.draft.hp.current = v; }), { 'aria-label': 'Current hit points' })),
             field('HP max', numIn(s.hp.max, set(v => { V.draft.hp.max = v; }))),
@@ -242,6 +251,37 @@ export default function initCharacters() {
         root.appendChild(el('div', { class: 'rpm-row', style: 'margin-top:4px' }, [atkName, btn('', () => {
             const n = atkName.value.trim(); if (!n) return; V.draft.attacks.push({ name: n, ability: 'str', proficient: true, damage: '1d8', notes: '' }); edited();
         }, { icon: 'plus', title: 'Add attack' })]));
+
+        // spellcasting (from the builder)
+        if (D.spell) {
+            const sp = D.spell;
+            root.appendChild(heading('Spellcasting'));
+            root.appendChild(el('div', { class: 'rpm-sheet-grid4' }, [
+                field('Ability', el('div', { class: 'rpm-sheet-static', text: ABILITY_NAMES[sp.ability] })),
+                field('Save DC', el('div', { class: 'rpm-sheet-static', text: String(sp.saveDC) })),
+                field('Spell attack', btn(fmt(sp.attack), () => rollD20('Spell attack', sp.attack, 'attack'), { roll: 'spell-attack', title: 'Roll a spell attack' })),
+                field('Cantrips / prepared', el('div', { class: 'rpm-sheet-static', text: `${sp.cantrips} / ${sp.prepared}` })),
+            ]));
+            const slotRow = el('div', { class: 'rpm-row', style: 'flex-wrap:wrap;margin-top:4px' });
+            sp.slots.forEach((n, i) => {
+                if (!n) return;
+                const used = (sp.used && sp.used[i]) || 0;
+                slotRow.appendChild(el('span', { class: 'rpm-label', text: `${sp.pact ? 'Pact slots' : 'Level ' + (i + 1)}:` }));
+                for (let k = 0; k < n; k++) {
+                    const c = el('input', { type: 'checkbox', 'aria-label': `${sp.pact ? 'Pact' : 'Level ' + (i + 1)} slot ${k + 1} used` });
+                    c.checked = k < used;
+                    c.addEventListener('change', () => { const u = (V.draft.spellcasting.used = V.draft.spellcasting.used || []); u[i] = [...slotRow.querySelectorAll(`input[data-slot="${i}"]`)].filter(x => x.checked).length; edited(); });
+                    c.setAttribute('data-slot', String(i));
+                    slotRow.appendChild(c);
+                }
+            });
+            if (slotRow.children.length) root.appendChild(slotRow);
+            const spells = el('textarea', { class: 'form-control rpm-input', rows: 2, 'aria-label': 'Cantrips and prepared spells', placeholder: 'Cantrips and prepared spells, e.g. Fire Bolt, Magic Missile' });
+            spells.value = sp.spells || '';
+            spells.addEventListener('change', () => { V.draft.spellcasting.spells = spells.value; edited(); });
+            root.appendChild(spells);
+        }
+        if (s.proficiencies) { root.appendChild(heading('Proficiencies')); root.appendChild(el('div', { class: 'rpm-gal-text', text: s.proficiencies })); }
 
         // inventory + coins
         root.appendChild(heading('Inventory'));

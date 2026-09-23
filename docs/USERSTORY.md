@@ -25,7 +25,7 @@ catalogue below is in scope unless marked optional or listed under non-goals.
 | Topic | Decision | Consequence |
 |---|---|---|
 | Platform | **Inside Esolite**, as one unified app shell | Esolite stays the LLM/prompt engine (backends, instruct templates, WorldInfo pipeline, RAG/TextDB, TTS, image gen). We ship one usermod file (`KLITE-RPmod.js`) or the integrated `index.rpmod.html`. |
-| Ruleset | **SRD 5.2** (2024 rules), CC-BY-4.0 | All rules data, monsters, spells, items come from SRD 5.2 with attribution. Existing SRD 5.1 monster presets must be replaced. |
+| Ruleset | **SRD 5.2.1** (2024 rules), CC-BY-4.0 | All rules data, monsters, spells, items come from SRD 5.2.1 (official PDF, downloaded 2026-09-23 to `docs/reference/`, git-ignored; extracted by `scripts/extract-srd.py`) with its exact attribution statement and no other attribution to Wizards. Existing SRD 5.1 monster presets must be replaced. |
 | Play mode | **Solo, AI as DM** | One local user. The AI narrates and plays NPCs; the mod is authoritative for dice, HP, quest state, etc. A Creator mode exists for authoring. No multiplayer. |
 | Map / VTT | **Later** (roadmap phase R7) | Build characters, quests and combat first. |
 | Host version | **Esolite RMv1.35.0** (2026-09-23) | Reference folder `Esobold Esolite a fork of KoboldAI Lite RMv1.35.0/`; upgrades follow ARCHITECTURE §2. |
@@ -108,7 +108,8 @@ Standard practice, not legal advice.
 - **Mechanics may be reimplemented; expression may not be copied.** Rules systems and UI
   *concepts* (a quest log with objectives, an initiative tracker) are fine. Art, icons,
   logos, fonts, UI textures, names and lore are not.
-- **D&D:** only SRD content (we use **SRD 5.2**, CC-BY-4.0) with the required attribution.
+- **D&D:** only SRD content (we use **SRD 5.2.1**, CC-BY-4.0) with the required attribution:
+  > This work includes material from the System Reference Document 5.2.1 ("SRD 5.2.1") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.
   No "D&D", "Dungeons & Dragons" or "D&D Beyond" branding; no non-SRD monsters,
   spells or settings.
 - **World of Warcraft:** `!`/`?` markers and quest-log conventions are generic; no

@@ -158,6 +158,7 @@ export default function initGallery() {
         const sizeSel = el('div', { class: 'rpm-gal-sizes', role: 'radiogroup', 'aria-label': 'Card size' },
             Object.entries(SIZES).map(([k, t]) => chip(t, prefs.size === k, () => { prefs.size = k; savePrefs(); render(); }, { role: 'radio', 'aria-checked': String(prefs.size === k) })));
         root.appendChild(el('div', { class: 'rpm-gal-bar' }, [
+            window.KLITE_RPMod_Builder ? el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon rpm-success', 'data-gal-action': 'new', onclick: () => window.KLITE_RPMod_Builder.open() }, [iconText('plus', 'New character')]) : null,
             el('div', { class: 'rpm-gal-sorts' }, Object.entries(SORTS).map(([k, t]) => chip(t, prefs.sort === k, () => { prefs.sort = k; savePrefs(); render(); }))),
             search, sizeSel,
         ]));

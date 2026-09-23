@@ -204,7 +204,21 @@ notes, sheet) and the actions **Play as (persona)**, **AI plays (chat with)**, *
 sheet**, **Edit**, **Download**, **Favorite** and **Delete**. Make the window smaller with
 the restore button if you want it next to the chat; it remembers that.
 
-**Character sheets.** Every character in your Library can have a d20 sheet (SRD 5.2 rules):
+**Character builder (SRD 5.2.1, levels 1–3).** **New character** in the gallery (or **Build
+with the SRD rules** on a character without a sheet) walks you through the official
+character-creation steps: **Class** (12 classes with their level 1–3 features and the SRD
+subclass at level 3), **Background** (Acolyte, Criminal, Sage, Soldier — ability increases,
+origin feat, skills, tool), **Species** (Dragonborn, Dwarf, Elf, Gnome, Goliath, Halfling,
+Human, Orc, Tiefling — with lineage/ancestry choices), **Abilities** (standard array with a
+per-class suggestion, point buy with the 27-point budget, or 4d6), **Skills & choices**
+(class skills, species skill, expertise, fighting style, languages), **Equipment** (the class
+and background packages or gold) and **Details & review**, which shows HP, AC, attacks,
+skills and spellcasting before anything is saved. It creates a new character in your
+Library with the sheet on its card, or puts the sheet on an existing character. **Level up**
+on a built sheet rebuilds it one level higher (up to 3 for now), asks only what is new and
+keeps inventory, coins and notes. Every option shows its rules text from the SRD.
+
+**Character sheets.** Every character in your Library can have a d20 sheet (SRD 5.2.1 rules):
 species, class, level, background, the six abilities, saving throws, the 18 skills
 (proficient or expertise), AC, speed, HP, attacks, inventory, coins, features and notes.
 Open it with **Character sheet** in the left panel's *Party* section. It starts with your
@@ -357,3 +371,11 @@ W.exportWorldAsWI();              // flat WorldInfo array
   or the console for now.
 - **Start over for a chat** — just toggle the world off, or switch to a different world in
   the panel.
+
+---
+
+## Credits
+
+This work includes material from the System Reference Document 5.2.1 ("SRD 5.2.1") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.
+
+Icons: Lucide (ISC license; some icons derived from Feather, MIT license).

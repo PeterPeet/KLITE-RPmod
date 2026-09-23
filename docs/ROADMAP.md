@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 105 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 116 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -243,10 +243,26 @@ play test with a real backend, owner's decision 2026-09-23).
       edit via ALPHA's editor, download/favorite via Esolite, delete). Lazy loading of records
       and full images (IntersectionObserver), summary cache `KLITE.gallery.index`. ALPHA's
       selection logic extracted to `TOOLS.usePersona/useCharacter`. Live-checked.
-- **Next (R2):** builder (SRD 5.2.1 downloaded to `docs/reference/`, git-ignored) —
-  species/classes/backgrounds, levels 1–3; XP + level-up; Party section shows the persona's
-  HP/AC; person blurbs from linked cards (ALPHA's gallery view has no card text); ALPHA's
-  Chars tab can later point to the gallery.
+- [x] **SRD 5.2.1 data** (2026-09-23): official PDF downloaded (owner's request) to
+      `docs/reference/` (git-ignored); `scripts/extract-srd.py` (pypdf) → `src/data/srd52.js`
+      (114 KB): 12 classes (core traits, level 1–3 features, SRD subclass, spell progression,
+      standard-array suggestion), 4 backgrounds, 9 species with traits, origin + fighting
+      style feats, weapons, armor, XP table, languages, alignments, exact attribution.
+- [x] **Character builder + level up (levels 1–3)** (2026-09-23): `builder-rules.js` (pure:
+      standard array / point buy / 4d6, background +2/+1 or +1/+1/+1 capped at 20, skills incl.
+      Human/Elf/Barbarian/Skilled picks, expertise, fighting styles, HP with fixed per-level
+      values and Dwarven Toughness, AC from armor/shield/Unarmored Defense/Draconic Resilience
+      /Defense, speed incl. Wood Elf and Unarmored Movement, weapon attacks with finesse and
+      proficiency, starting equipment + coins, spellcasting incl. Pact Magic, feature list),
+      `builder.js` (7-step window, SRD texts, review, create new Library character or sheet
+      on an existing one), sheet: spellcasting section (DC, spell attack roll, slot tracking,
+      spells text), proficiencies, AC note, **Level up**. Choices stored in `sheet.build`.
+      Acceptance "build a level-1 character end to end, roll from the sheet, level up" covered
+      by tests + live check; "export and re-import as a card" relies on the portrait/V2 card
+      embedding (tested) — a real import round trip in SillyTavern is still to do.
+- **Next (R2):** spells from the SRD spell list (pick cantrips/prepared spells — with R3's
+  compendium), levels 4+ (ASI/feats), Party section shows the persona's HP/AC, person
+  blurbs from linked cards, ALPHA's Chars tab → gallery.
 - One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,
   background, abilities, proficiencies, skills, saves, AC, HP, speed, equipment,
   inventory, spells, features). Migration from existing `characterRef` + `stats`.

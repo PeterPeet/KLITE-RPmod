@@ -40,7 +40,8 @@ npm run icons        # after changing the icon list: regenerates src/shell/icons
 - **Security:** character/world data is untrusted — build DOM with
   `createElement`/`textContent` or escape (`KLITE_RPMod.escapeHtml`); external images via
   `KLITE_RPMod.safeImageHTML`.
-- **Copyright:** only SRD 5.2 (CC-BY-4.0) game content; no Wizards/Blizzard/Roll20/
+- **Copyright:** only SRD 5.2.1 (CC-BY-4.0) game content, with its exact attribution
+  statement (`SRD.attribution` in `src/data/srd52.js`) and no other attribution to Wizards; no Wizards/Blizzard/Roll20/
   Foundry/Owlbear assets or branding; reimplement ideas, never copy AGPL/proprietary code
   (details in USERSTORY.md).
 - **Enhance Esolite, don't replace it:** reuse its backends, templates, WorldInfo
