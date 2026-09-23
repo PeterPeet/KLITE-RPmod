@@ -14,13 +14,14 @@ const FILES = {
     shell: 'src/shell/shell.js',
     worlds: 'src/KLITE-RPmod_Worlds.js',
     worldsUI: 'src/KLITE-RPmod_WorldsUI.js',
+    onboarding: 'src/onboarding/onboarding.js',
     bundle: 'KLITE-RPmod.js',
 };
 
 function createHost({ settings = {} } = {}) {
     const dom = new JSDOM(
         '<!DOCTYPE html><html><head></head><body><div id="maincontainer"><nav id="navbarNavDropdown"><ul></ul></nav><div id="gametext"></div></div></body></html>',
-        { pretendToBeVisual: true, url: 'http://localhost/' });
+        { pretendToBeVisual: true, url: 'http://localhost/', runScripts: 'outside-only' });
     const w = dom.window;
     // desktop-sized viewport (jsdom defaults to 1024x768); tests can call host.resize()
     Object.defineProperty(w, 'innerWidth', { value: 1400, writable: true, configurable: true });
@@ -48,7 +49,9 @@ function createHost({ settings = {} } = {}) {
     };
     w.prepare_submit_generation = () => w.submit_generation('');
 
-    const ctx = vm.createContext(w);
+    // jsdom's own VM context: page intrinsics (Function, eval) belong to the window realm,
+    // so `new Function` code sees top-level let bindings of other scripts, as in a browser.
+    const ctx = dom.getInternalVMContext();
     host.load = (...keys) => {
         for (const k of keys) {
             const rel = FILES[k] || k;
@@ -57,6 +60,35 @@ function createHost({ settings = {} } = {}) {
         return host;
     };
     host.eval = (code) => vm.runInContext(code, ctx);
+
+    // Stand-in for Esolite's Quick Start (static/js/characterManager.js): like the real
+    // one, its functions are top-level `let` bindings (not window properties) and the popup
+    // content lives in popupUtils.contentElem. Records calls in window.__qs.
+    host.installFakeQuickStart = () => host.eval(`
+        var __qs = { applied: 0, cleared: 0 };
+        let popupUtils = {
+            contentElem: null,
+            reset() { const o = document.getElementById('popupContainer'); if (o) o.remove(); this.contentElem = null; return this; },
+        };
+        let clearAllQuickStartSelections = () => { __qs.cleared++; };
+        let applyQuickStartSelection = async () => { __qs.applied++; };
+        let showQuickStartPopup = () => {
+            popupUtils.reset();
+            const pop = document.createElement('div'); pop.id = 'popupContainer';
+            const content = document.createElement('div'); content.className = 'popupContent';
+            const contents = document.createElement('div'); contents.textContent = 'Quick Start';
+            content.appendChild(contents); pop.appendChild(content);
+            const footer = document.createElement('div'); footer.className = 'popupfooter';
+            const confirm = document.createElement('button'); confirm.textContent = 'Confirm';
+            confirm.onclick = async () => { popupUtils.reset(); await applyQuickStartSelection(); };
+            const clear = document.createElement('button'); clear.textContent = 'Clear all';
+            clear.onclick = () => { clearAllQuickStartSelections(); showQuickStartPopup(); };
+            footer.append(confirm, clear); pop.appendChild(footer);
+            document.body.appendChild(pop);
+            popupUtils.contentElem = content;
+        };
+        window.showQuickStartPopup = showQuickStartPopup;
+    `);
 
     // Deterministic Math.random inside the page context (for dice tests).
     host.seedRandom = (values) => {

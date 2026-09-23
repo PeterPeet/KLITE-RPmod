@@ -11,7 +11,9 @@ test('bundle: all modules attach and the Worlds pipeline works end to end', asyn
     await h.ready({ ui: true });
     const w = h.window; const W = h.api();
     assert.equal(w.KLITE_RPMod_LOADED, true, 'ALPHA core ran');
-    assert.equal(typeof w.KLITE_RPMod_GuidedRP, 'object', 'GuidedRP attached');
+    assert.equal(typeof w.KLITE_RPMod_Onboarding, 'object', 'onboarding attached');
+    assert.equal(w.KLITE_RPMod_GuidedRP, undefined, 'retired GuidedRP is not bundled');
+    assert.equal(w.document.getElementById('grpSwitchBtn'), null, 'no GuidedRP top-bar icons');
     assert.ok(w.KLITE_RPMod_WorldsUI, 'Worlds UI attached');
 
     await W.loadExample();

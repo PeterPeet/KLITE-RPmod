@@ -1,7 +1,7 @@
 # KLITE RPmod — User Guide
 
 KLITE RPmod adds roleplay tooling to **Esobold Esolite** (a KoboldAI Lite fork):
-character panels, a guided "Easy mode" for beginners, and the **Worlds** system —
+character panels, a built-in **Guide** for newcomers, and the **Worlds** system —
 a living, graph-based world your story can move through. This guide focuses on using it,
 with an emphasis on the **in-chat Worlds commands**.
 
@@ -29,8 +29,16 @@ The mod ships as a single file, `KLITE-RPmod.js`.
      theme you choose in Esolite. In Esolite's *Theme colours* editor you'll also find
      RPmod's own colours (**Rpmod quest / danger / success / info**) to adjust.
 
-That's it — one file contains everything (main panels, guided onboarding, the Worlds
-engine, and the Worlds editor).
+That's it — one file contains everything (panels, the Guide, the Worlds engine, and the
+Worlds editor).
+
+**New here?** The Adventure panel shows a **New here?** card on your first visit:
+- **📖 Open the Guide** — short chapters on everything RPmod does, each with **Show me**
+  buttons that open and highlight the part of the screen being explained. Reopen it any time
+  with the **?** button in the Adventure panel's header.
+- **▶ Quick Start** — Esolite's own session starter. RPmod adds an **RPmod world** section
+  to it: choose a world (for example **Eldoria**, the ready-made example) together with
+  characters from your Library, press **Confirm**, and you start in that world.
 
 **Try it in one click.** In the right panel's **World** tab, press **🎁 Load example world** — it
 loads a ready-to-play world (a village, a tavern, a guarded frontier road, quests with
@@ -43,8 +51,9 @@ chatting. Everything below explains how to build your own.
 
 - **Chars / Roles / Scenario / Tools tabs** (right panel): manage characters, personas and
   groups, scenarios, context tools, and image generation.
-- **Guided RP** — a beginner-friendly step-by-step setup overlay (toggleable with an
-  Advanced mode for the full interface).
+- **Guide** — RPmod's built-in tutorial (see *New here?* above). The older *Guided RP*
+  setup overlay has been retired; Esolite's **Quick Start** plus the Guide replace it.
+  Stories saved with Guided RP keep their data.
 - **Worlds** — the focus of this guide, below.
 
 ---

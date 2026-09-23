@@ -197,6 +197,44 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-bar > span { display: block; height: 100%; }
 .rpm-log { background: var(--rpm-bg-chat); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); padding: 6px; font-size: var(--rpm-fs-sm); max-height: 140px; overflow: auto; line-height: 1.5; }
 
+/* ---- RPmod Guide window ---- */
+.rpm-guide { display: grid; grid-template-columns: 180px 1fr; gap: 14px; min-height: 100%; }
+.rpm-guide-toc { display: flex; flex-direction: column; gap: 3px; border-right: 1px solid var(--rpm-border); padding-right: 10px; }
+.rpm-guide-toc-item {
+    text-align: left; padding: 5px 8px; border-radius: var(--rpm-radius); border: 1px solid transparent;
+    background: transparent; color: var(--rpm-fg); cursor: pointer; font-size: var(--rpm-fs-sm);
+}
+.rpm-guide-toc-item:hover { background: var(--rpm-bg-alt); }
+.rpm-guide-toc-item[aria-current="page"] { background: var(--rpm-accent-bg-hi); color: var(--rpm-accent-fg-hi); border-color: var(--rpm-border-hi); font-weight: bold; }
+.rpm-guide-body { min-width: 0; line-height: 1.5; }
+.rpm-guide-title { margin: 2px 0 10px; font-size: var(--rpm-fs-lg); font-weight: bold; color: var(--rpm-fg-hi); }
+.rpm-guide-nav { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--rpm-border); }
+.rpm-guide-table { border-collapse: collapse; width: 100%; margin: 0 0 10px; font-size: var(--rpm-fs-sm); }
+.rpm-guide-table th, .rpm-guide-table td { border: 1px solid var(--rpm-border); padding: 4px 6px; text-align: left; vertical-align: top; }
+.rpm-guide-table th { background: var(--rpm-accent-bg); color: var(--rpm-accent-fg); }
+.rpm-guide-table code { background: transparent; color: var(--rpm-fg-hi); padding: 0; white-space: nowrap; }
+/* narrow window (or phone): chapter list becomes a scrolling strip on top */
+.rpm-window-body { container-type: inline-size; }
+@container (max-width: 520px) {
+    .rpm-guide { grid-template-columns: 1fr; }
+    .rpm-guide-toc { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--rpm-border); padding: 0 0 6px; }
+    .rpm-guide-toc-item { white-space: nowrap; }
+}
+
+/* ---- "Show me" spotlight (outside the shell layer, above everything) ---- */
+.rpm-spot-ring {
+    position: fixed; z-index: 100003; pointer-events: none; border-radius: 8px;
+    border: 3px solid var(--rpm-fg-hi); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+    animation: rpm-spot-pulse 1.2s ease-in-out infinite alternate;
+}
+@keyframes rpm-spot-pulse { from { outline: 0 solid transparent; } to { outline: 6px solid color-mix(in srgb, var(--rpm-fg-hi) 35%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .rpm-spot-ring { animation: none; } }
+.rpm-spot-note {
+    position: fixed; z-index: 100004; max-width: 280px; padding: 8px 12px;
+    background: var(--rpm-bg); color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi);
+    border-radius: var(--rpm-radius-lg); box-shadow: var(--rpm-shadow); font-family: var(--rpm-font); font-size: var(--rpm-fs);
+}
+
 /* ---- Esolite layout: docked mode pushes the host column in ---- */
 body.rpm-docked #maincontainer {
     margin-left: var(--rpm-push-left, 0px) !important;

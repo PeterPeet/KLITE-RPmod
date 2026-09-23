@@ -5,15 +5,21 @@ const test = require('node:test');
 const fs = require('fs');
 const { execFileSync } = require('child_process');
 const path = require('path');
-const esbuild = require('esbuild');
+const os = require('os');
 const { ROOT } = require('./helpers/host');
 
 const sources = fs.readdirSync(path.join(ROOT, 'src'), { recursive: true }).filter(f => f.endsWith('.js'));
 
+// Node's own parser on a temporary .mjs copy (module = strict mode). Deliberately no
+// esbuild service here: its long-lived child process made this file end early under
+// --test-force-exit, silently dropping the remaining tests.
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rpmod-syntax-'));
+test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 for (const f of sources) {
     test(`syntax (ES module): src/${f}`, () => {
-        esbuild.transformSync(fs.readFileSync(path.join(ROOT, 'src', f), 'utf8'),
-            { format: 'esm', loader: 'js', logLevel: 'silent' });
+        const copy = path.join(tmp, f.replace(/[\\/]/g, '__').replace(/\.js$/, '.mjs'));
+        fs.copyFileSync(path.join(ROOT, 'src', f), copy);
+        execFileSync(process.execPath, ['--check', copy], { stdio: 'pipe' });
     });
 }
 
@@ -34,7 +40,7 @@ for (const f of sources) {
             if (seen.has(m[1])) dups.push(`${m[1]} (lines ${seen.get(m[1])} and ${i + 1})`);
             else seen.set(m[1], i + 1);
         });
-        if (f === 'KLITE-RPmod_ALPHA.js' || f === 'KLITE-RPmod_GuidedRP.js') {
+        if (f === 'KLITE-RPmod_ALPHA.js') {
             if (dups.length) t.diagnostic('legacy duplicates: ' + dups.join(', '));
             return;   // legacy modules: reported, not enforced (see ROADMAP known issues)
         }

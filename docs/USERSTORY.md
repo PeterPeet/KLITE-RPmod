@@ -32,7 +32,7 @@ catalogue below is in scope unless marked optional or listed under non-goals.
 | Shell layout | **Two docked sidebars** around Esolite's chat (2026-09-23) | Left: party/character + quest tracker. Right: tabbed tools. |
 | Big views | **Floating windows** (2026-09-23) | Sheet, quest log, compendium, combat, editor, map: draggable, resizable, several open, positions remembered. |
 | Visual style | **Neutral, matches Esolite** (2026-09-23) | Design tokens bound to Esolite's `--theme_color_*`; no separate theme. |
-| Onboarding | **GuidedRP → first-run flow in the shell** (2026-09-23) | "Start a session": pick world, character, mode; reuses GuidedRP logic. |
+| Onboarding | **Build on Esolite's Quick Start (Jaxxks) + RPmod Guide** (2026-09-23, revised) | No RPmod setup wizard: RPmod adds an "RPmod world" section to Esolite's Quick Start and ships a reading-first **Guide** with "Show me" highlights. GuidedRP retired. Official extension hook proposed to Jaxxks (`docs/proposals/`). |
 
 ## Feature catalogue (target state)
 

@@ -9,13 +9,13 @@
 | Source (`src/`) | Namespace | Role |
 |---|---|---|
 | `KLITE-RPmod_ALPHA.js` (~17.7k lines) | `window.KLITE_RPMod` | Original mod: right-side panels CHARS / ROLES / TOOLS / CONTEXT / IMAGES, character gallery & editor, personas, group chat, save-bundle embedding, debug system |
-| `KLITE-RPmod_GuidedRP.js` (~5.2k) | `window.KLITE_RPMod_GuidedRP` | Beginner onboarding overlay (8-step setup, Easy/Advanced) |
 | `KLITE-RPmod_Worlds.js` (~1.6k) | `window.KLITE_RPMod_Worlds` | Worlds engine: world graph, retrieval, injection, runtime state, quests, triggers, combat |
 | `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds views for the shell (World tab, Party/Quests sections, Quest log/Combat windows) + node-graph editor overlay |
 | `shell/shell.js`, `windows.js`, `styles.js`, `dom.js` | `window.KLITE_RPMod_Shell` | App shell: docks, view registry, floating windows, design tokens, top-bar button (§4a) |
+| `onboarding/onboarding.js`, `quickStart.js`, `guide.js`, `chapters.js`, `hostGlobals.js` | `window.KLITE_RPMod_Onboarding` | Getting started: RPmod section in Esolite's Quick Start, the Guide window with "Show me", "New here?" card, GuidedRP save passthrough (§4b) |
 
 - **Sources are ES modules** (strict mode). Each exports one default init function
-  (`initShell`, `initAlpha`, `initGuidedRP`, `initWorlds`, `initWorldsUI`); cross-module
+  (`initShell`, `initAlpha`, `initWorlds`, `initWorldsUI`, `initOnboarding`); cross-module
   access is via `window.*` only. `src/main.js` imports them and calls them (shell first), each in its own `try{…}catch` so one module's runtime error
   cannot stop the others.
 - **Build** (`scripts/build-bundle.js`, `npm run build`): **esbuild** bundles `src/main.js`
@@ -29,8 +29,7 @@
   `npm run build:index`): writes `index.rpmod.html` into the host folder (original
   `index.html` untouched) and copies the bundle next to it. The injected loader appends
   `KLITE-RPmod.js?v=<build time>` **after `window.load`** — a parse-time `<script>` would
-  run before Esolite's init and break top-bar placement (GuidedRP boots on
-  `DOMContentLoaded`, ALPHA hooks the top bar). The `?v=` query busts the browser cache.
+  run before Esolite's init and break top-bar placement (ALPHA hooks the top bar). The `?v=` query busts the browser cache.
   Injection point: before the **last** `<!-- EsoLite modifications end -->` marker (it
   occurs twice). Both outputs are generated and git-ignored.
 
@@ -209,6 +208,31 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
   modals like Esolite's (`.klite-modal` now fully styled in panels-only mode).
 - **Top bar:** one `#rpm-navbtn` in `#navbarNavDropdown > ul` toggles the docks.
 
+## 4b. Onboarding (`src/onboarding/`)
+- **Principle:** Esolite's **Quick Start** (Jaxxks, `static/js/characterManager.js`) is the
+  way to begin a session; RPmod extends it instead of shipping its own wizard. GuidedRP is
+  retired (source in `BackupData/legacy/`).
+- **Quick Start extension** (`quickStart.js`): extensions `{ id, label, helpText,
+  render(container, rerender), hasSelection(), apply(), clear() }`. Uses
+  `window.quickStartExtensions.register` if Esolite provides it (proposal:
+  `docs/proposals/quick-start-extensions.md`); otherwise an **adapter** wraps the top-level
+  `let` bindings `showQuickStartPopup` / `applyQuickStartSelection` /
+  `clearAllQuickStartSelections` through `hostGlobals.js` (`new Function` code runs in the
+  page's global scope and can read/reassign such bindings — they are not on `window`).
+  RPmod's apply runs after Esolite's. Section "RPmod world": choose a Worlds world or the
+  example; apply = `useWorld`/`loadExample` + `enable` + first location if none + show the
+  World tab.
+- **Guide** (`guide.js`, content `chapters.js`): window view `guide`; chapters of
+  paragraphs/lists/tables/tips rendered as text; `show` actions get `{ open, highlight,
+  hostCall, navLink }`. `highlight()` draws a ring + note (`.rpm-spot-*`, z-index above
+  everything), ends on click, Escape or after 6 s. Chapter remembered in
+  `localStorage['KLITE.guide.chapter']`.
+- **Entry points:** "New here?" left-dock section (dismiss →
+  `localStorage['KLITE.onboarding.welcome']='dismissed'`), `?` dock action
+  (`KLITE_RPMod_Shell.addDockAction`), "What is RPmod?" in the Quick Start section.
+- **GuidedRP save passthrough:** remembers `guided_rp` from a loaded save and re-attaches
+  it on `generate_savefile` so old stories keep it.
+
 ## 4. Worlds UI (`src/KLITE-RPmod_WorldsUI.js`)
 - **Shell views:** right tab **World** (`#wm-panel`: world selector,
   New/Example/Import/Export, Creator⇄Player lens `localStorage['KLITE.worlds.uiMode']`,
@@ -238,6 +262,10 @@ Node's built-in runner + jsdom. `tests/helpers/host.js` builds a fake Esolite ho
 globals in §2, a recording `submit_generation`, `seedRandom` for dice) and loads sources
 via `vm` like a usermod (single `src/` modules are bundled on the fly with esbuild; the
 viewport is 1400×900, `host.resize()` changes it). Suites: `syntax`, `engine`, `quests`,
-`triggers`, `combat`, `shell`, `ui`, `bundle` (built file end-to-end). Known jsdom limits: no layout (stubbed
+`triggers`, `combat`, `shell`, `ui`, `onboarding`, `bundle` (built file end-to-end).
+`host.installFakeQuickStart()` mimics Esolite's Quick Start (top-level `let` bindings +
+popupUtils). The helper uses jsdom's own VM context (`runScripts: 'outside-only'`) so page
+intrinsics behave like a browser. `npm test` runs `scripts/run-tests.js`, which fails if
+fewer tests ran than `tests/.test-count` (guards against a test file ending early). Known jsdom limits: no layout (stubbed
 `getBoundingClientRect`); its CSS parser rejects some valid combined style strings; arrays
 from the page realm need value comparison, not `deepStrictEqual`.

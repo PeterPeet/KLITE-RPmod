@@ -21,8 +21,9 @@ npm test             # rebuilds, then runs all tests (node:test + jsdom)
 ```
 
 ## Layout
-- `src/` — ES-module sources (ALPHA core, GuidedRP, Worlds engine, Worlds UI) + `main.js`
-  entry; esbuild bundles them into one file. **Edit here.**
+- `src/` — ES-module sources: `shell/` (app shell), ALPHA core, Worlds engine, Worlds UI,
+  `onboarding/` (Quick Start extension + Guide) + `main.js` entry; esbuild bundles them
+  into one file. **Edit here.**
 - `KLITE-RPmod.js` — **generated** bundle (committed for users). Never hand-edit.
 - `scripts/` — build scripts. `tests/` — test suite (`tests/helpers/host.js` = fake Esolite host).
 - `docs/` — USERSTORY, ROADMAP, ARCHITECTURE, diagrams, `exports/` (guide PDFs/HTML).

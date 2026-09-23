@@ -15,8 +15,8 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 51 tests)
-- Bundle builds (esbuild, ES-module sources); all four modules load (ALPHA core, GuidedRP, Worlds engine, Worlds UI).
+### What works (verified headless 2026-09-23 — `npm test`, 65 tests)
+- Bundle builds (esbuild, ES-module sources); modules: app shell, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Worlds engine:** graph world model (locations, NPCs/persons, factions, objects,
   events, quests, lore), compile-to-WI injection (transient/persistent, websearch- and
   agent-mode-safe), per-turn active slice, 16 chat tags, import/export, example world
@@ -72,7 +72,7 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
 6. `index.rpmod.html` boots the bundle at `window.load` (later than the usermod path); verify
    top-bar icon layout matches the usermod install.
 7. Monster presets are SRD **5.1**; decision is SRD **5.2** (R3).
-8. ALPHA is a 17.7k-line monolith; GuidedRP 5.2k lines; three independent UI systems.
+8. ALPHA is a 17.7k-line monolith (its panels now live in the shell, its code does not yet).
 9. `<take>Item</take>` **without a count removes the whole stack**, while `<give>Item</give>`
    adds one — asymmetric; decide the intended semantics (R4 or R6). Covered by a test.
 10. **Six duplicate object keys in ALPHA** (esbuild warns on every build):
@@ -88,6 +88,12 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
     The views refresh then (via `klite:worlds-change`). Parse on reply arrival in R6.
 13. **ALPHA inner markup** still carries many inline styles (sizes/spacing); colours follow
     the theme via its variables, but spacing is not yet on the shell's scale.
+14. **Quick Start adapter depends on Esolite internals** (`showQuickStartPopup`,
+    `applyQuickStartSelection`, `clearAllQuickStartSelections`, `popupUtils.contentElem`).
+    Falls back gracefully (no RPmod section) if they change; goes away once Esolite adopts
+    `window.quickStartExtensions` (proposal sent via the owner).
+15. **Two character libraries**: ALPHA's (`KLITE_RPMod.characters`) and Esolite's Library
+    (`characterManager.js`, used by Quick Start). Overlap noted by Jaxxks; resolve in R2.
 
 ## Phases
 
@@ -135,15 +141,22 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
       `--theme_color_rpmod_*` and show up in Esolite's theme editor. ALPHA's sub-tabs are
       shell tabs (Chars/Roles/Scenario/Tools). Live-checked in "Default (Cedo)", "Tako"
       and "Light Sand". Test guard against duplicate function names added.
-- **Next:** replace GuidedRP (decided 2026-09-23) with (a) a **first-run setup** that gets
-  a newcomer to Esobold chatting fast and (b) a **guided tutorial** of RPmod's features;
-  then editor overlay → large window; single context-injection owner; icon set.
+- [x] **Onboarding (2026-09-23):** builds on Esolite's **Quick Start** (Jaxxks) instead of a
+      wizard — RPmod adds an "RPmod world" section (adapter now; official hook proposed in
+      `docs/proposals/quick-start-extensions.md`). New **RPmod Guide** window (11 chapters,
+      "Show me" highlights), "New here?" card and `?` button. **GuidedRP retired** (source in
+      `BackupData/legacy/`, `guided_rp` save blocks preserved). Live-checked in Esolite.
+- [x] Test runner guard: `npm test` fails if fewer tests ran than `tests/.test-count`
+      (a test file had been ending early without any failure).
+- **Next:** editor overlay → large window; single context-injection owner; ALPHA's own
+  character library vs Esolite's Library (overlap Jaxxks pointed out — decide in R2);
+  icon set.
 - App shell: docked sidebars + a window manager for sheet, quest log, compendium, combat,
   editor, map; one entry point in the Esolite top bar.
 - Design system: tokens (color, type, spacing) bound to Esolite's theme variables,
   neutral look matching Esolite; icon set (Lucide, ISC) bundled offline.
 - Migrate the Worlds panel and editor into the shell; migrate ALPHA panels one by one;
-  decide GuidedRP's place (onboarding flow inside the shell).
+  onboarding on top of Esolite's Quick Start + RPmod Guide (GuidedRP retired).
 - **Single context-injection owner** (resolve known issue 4).
 Acceptance: no overlapping panels; all existing features reachable from the shell; tests
 green; live check in `index.rpmod.html`.

@@ -279,15 +279,18 @@ export default function initShell() {
         const body = el('div', { class: 'rpm-dock-body' });
         const dock = el('aside', { class: 'rpm-dock rpm-dock-' + side, id: 'rpm-dock-' + side, 'aria-label': side === 'left' ? 'RPmod adventure panel' : 'RPmod tools panel' }, [head, body]);
         let tabs = null;
+        const actions = el('div', { class: 'rpm-dock-actions', style: 'display:flex;gap:2px' });
         if (side === 'left') {
             head.appendChild(el('span', { class: 'rpm-title', text: 'Adventure' }));
+            head.appendChild(actions);
             head.appendChild(closeBtn);
         } else {
             head.appendChild(closeBtn);
             tabs = el('div', { class: 'rpm-tabs', role: 'tablist', 'aria-label': 'RPmod tools' });
             head.appendChild(tabs);
+            head.appendChild(actions);
         }
-        return { dock, body, tabs };
+        return { dock, body, tabs, actions };
     }
 
     function mount() {
@@ -304,7 +307,8 @@ export default function initShell() {
         const root = el('div', { id: 'rpm-shell' }, [L.dock, R.dock, hl, hr, layer]);
         document.body.appendChild(root);
 
-        dom = { root, left: L.dock, right: R.dock, leftBody: L.body, rightBody: R.body, tabs: R.tabs, handle_left: hl, handle_right: hr, layer, navBtn: null };
+        dom = { root, left: L.dock, right: R.dock, leftBody: L.body, rightBody: R.body, tabs: R.tabs, actions_left: L.actions, actions_right: R.actions, handle_left: hl, handle_right: hr, layer, navBtn: null };
+        for (const a of dockActions) renderDockAction(a);
         wm = createWindowManager({
             layer,
             getGeom: (id) => layout.windows[id] || null,
@@ -329,6 +333,21 @@ export default function initShell() {
 
         installNavButton();
         adoptAlphaPanel();
+    }
+
+    // ---- small header buttons (e.g. the Guide's "?") ------------------------------
+    const dockActions = [];
+    function addDockAction(side, action) {
+        if (!action || !action.id || (side !== 'left' && side !== 'right') || typeof action.onClick !== 'function') return;
+        if (dockActions.some(a => a.id === action.id)) return;
+        const a = Object.assign({ side }, action);
+        dockActions.push(a);
+        if (dom) renderDockAction(a);
+    }
+    function renderDockAction(a) {
+        const b = el('button', { class: 'rpm-iconbtn', type: 'button', title: a.title || a.id, 'aria-label': a.title || a.id, 'data-action': a.id, text: a.label || '•', style: 'font-weight:bold' });
+        b.addEventListener('click', () => { try { a.onClick(); } catch (e) { console.error('[RPmod shell] action failed:', a.id, e); } });
+        dom['actions_' + a.side].appendChild(b);
     }
 
     // ---- Esolite top bar: the single RPmod entry point ------------------------
@@ -402,7 +421,7 @@ export default function initShell() {
         registerView, unregisterView,
         open: openView, close: closeView, refresh,
         isOpen: (id) => { const v = views.get(id); return !!(v && isVisible(v) && (v.def.place !== 'right' || open.right) && (v.def.place !== 'left' || open.left)); },
-        setDockOpen, toggleDock,
+        setDockOpen, toggleDock, addDockAction,
         dockOpen: (side) => !!open[side],
         mode: () => mode,
         views: () => [...views.keys()],
