@@ -91,7 +91,9 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
 14. **Quick Start adapter depends on Esolite internals** (`showQuickStartPopup`,
     `applyQuickStartSelection`, `clearAllQuickStartSelections`, `popupUtils.contentElem`).
     Falls back gracefully (no RPmod section) if they change; goes away once Esolite adopts
-    `window.quickStartExtensions` (proposal sent via the owner).
+    `window.quickStartExtensions` — implemented for Esobold on branch
+    `quickstart-extensions` (fork PeterPeet/esobold), PR pending. RPmod already prefers the
+    hook (verified live).
 15. **Two character libraries**: ALPHA's (`KLITE_RPMod.characters`) and Esolite's Library
     (`characterManager.js`, used by Quick Start). Overlap noted by Jaxxks; resolve in R2.
 

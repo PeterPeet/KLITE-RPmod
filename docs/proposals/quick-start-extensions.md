@@ -2,6 +2,12 @@
 
 *For Jaxxks (Esolite / Esobold maintainer), from the KLITE RPmod project, 2026-09-23.*
 
+**Status:** implemented as commit `78e971ffb` on branch `quickstart-extensions` (based on
+`remoteManagement` @ `2c3aed53d`), one file: `embd_res/js/characterManager.js` (+74 lines).
+Verified in the browser: with RPmod the section appears via the hook, counts in "Selected
+items", applies after the built-in roles and is cleared by "Clear all"; without RPmod
+Quick Start is unchanged (same sections, no errors). Pull request: pending.
+
 ## Why
 
 Esolite's **Quick Start** (`static/js/characterManager.js`) is the natural place for a user
