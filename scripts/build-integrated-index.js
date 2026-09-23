@@ -18,7 +18,9 @@ const fs = require('fs');
 const path = require('path');
 
 const DIR = path.join(__dirname, '..');   // repo root
-const ESO_DIR = path.join(DIR, 'Esobold Esolite a fork of KoboldAI Lite very newest');
+// The supported Esolite version. When upgrading the host, add the new folder, diff the
+// hooks listed in docs/ARCHITECTURE.md §2, then change this line.
+const ESO_DIR = path.join(DIR, 'Esobold Esolite a fork of KoboldAI Lite RMv1.35.0');
 const SRC_HTML = path.join(ESO_DIR, 'index.html');
 const OUT_HTML = path.join(ESO_DIR, 'index.rpmod.html');
 const BUNDLE = path.join(DIR, 'KLITE-RPmod.js');

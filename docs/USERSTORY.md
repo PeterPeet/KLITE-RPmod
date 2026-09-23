@@ -28,6 +28,11 @@ catalogue below is in scope unless marked optional or listed under non-goals.
 | Ruleset | **SRD 5.2** (2024 rules), CC-BY-4.0 | All rules data, monsters, spells, items come from SRD 5.2 with attribution. Existing SRD 5.1 monster presets must be replaced. |
 | Play mode | **Solo, AI as DM** | One local user. The AI narrates and plays NPCs; the mod is authoritative for dice, HP, quest state, etc. A Creator mode exists for authoring. No multiplayer. |
 | Map / VTT | **Later** (roadmap phase R7) | Build characters, quests and combat first. |
+| Host version | **Esolite RMv1.35.0** (2026-09-23) | Reference folder `Esobold Esolite a fork of KoboldAI Lite RMv1.35.0/`; upgrades follow ARCHITECTURE §2. |
+| Shell layout | **Two docked sidebars** around Esolite's chat (2026-09-23) | Left: party/character + quest tracker. Right: tabbed tools. |
+| Big views | **Floating windows** (2026-09-23) | Sheet, quest log, compendium, combat, editor, map: draggable, resizable, several open, positions remembered. |
+| Visual style | **Neutral, matches Esolite** (2026-09-23) | Design tokens bound to Esolite's `--theme_color_*`; no separate theme. |
+| Onboarding | **GuidedRP → first-run flow in the shell** (2026-09-23) | "Start a session": pick world, character, mode; reuses GuidedRP logic. |
 
 ## Feature catalogue (target state)
 

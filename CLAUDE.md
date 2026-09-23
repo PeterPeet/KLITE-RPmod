@@ -26,7 +26,7 @@ npm test             # rebuilds, then runs all tests (node:test + jsdom)
 - `KLITE-RPmod.js` — **generated** bundle (committed for users). Never hand-edit.
 - `scripts/` — build scripts. `tests/` — test suite (`tests/helpers/host.js` = fake Esolite host).
 - `docs/` — USERSTORY, ROADMAP, ARCHITECTURE, diagrams, `exports/` (guide PDFs/HTML).
-- `Esobold Esolite a fork of KoboldAI Lite very newest/` — Esolite host reference (read-only).
+- `Esobold Esolite a fork of KoboldAI Lite RMv1.35.0/` — Esolite host reference (read-only, **supported version 1.35.0**).
 - `BackupData/` — archived material (old host copy, old AGENTS.md, specs). Not built.
 
 ## Rules

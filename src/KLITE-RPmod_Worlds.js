@@ -960,6 +960,20 @@ export default function initWorlds() {
         } catch (_) {}
     }
 
+    // Is the pending input one of Esolite's own slash commands (a user-callable custom
+    // tool, Esolite >= 1.35)? The host runs the tool and returns without generating, so
+    // it must not count as a game turn (no triggers, no slice, buffer kept).
+    function isHostSlashCommand() {
+        try {
+            const input = document.getElementById('input_text');
+            const text = input ? String(input.value || '') : '';
+            if (!text.startsWith('/') || typeof window.customtools_sanitize_list !== 'function') return false;
+            const name = (text.slice(1).match(/^\S*/) || [''])[0];
+            const tools = window.customtools_sanitize_list(window.localsettings && window.localsettings.custom_tools);
+            return asArray(tools).some(t => t && t.name === name && t.userCallable);
+        } catch (_) { return false; }
+    }
+
     function installPrepareWrapper() {
         if (typeof window.prepare_submit_generation !== 'function') return false;
         if (window.prepare_submit_generation.__worlds_wrapped) return true;
@@ -967,7 +981,7 @@ export default function initWorlds() {
         const wrapped = function () {
             let injected = false;
             try {
-                if (W.config.enabled && activeWorld() && rt()) {
+                if (W.config.enabled && activeWorld() && rt() && !isHostSlashCommand()) {
                     // Apply state-change tags from prior messages, run the trigger bus
                     // for this turn (onTurn/onTime/onEnter/… + chains), then build the slice.
                     processPendingMutations();

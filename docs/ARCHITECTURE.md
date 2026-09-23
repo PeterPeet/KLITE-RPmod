@@ -36,7 +36,7 @@
 
 ## 2. Host integration (Esolite) — hard-won facts
 
-Host reference: `Esobold Esolite a fork of KoboldAI Lite very newest/` (monolithic
+Host reference: `Esobold Esolite a fork of KoboldAI Lite RMv1.35.0/` (monolithic
 `index.html` + `static/js/*`). Vanilla KoboldAI Lite provides the same core globals, so
 the Worlds modules also run there.
 
@@ -59,6 +59,23 @@ Gotchas:
   the agent cycle; the tool loop then calls `submit_generation("")` directly (bypassing
   any prepare hook). Our wrapper wraps agent.js's version (loaded earlier).
 - **Websearch** makes the chain async.
+- **Slash commands (1.35+):** `prepare_submit_generation` first checks whether the input is
+  `/name …` for a user-callable custom tool (`localsettings.custom_tools`,
+  `customtools_sanitize_list`); if so it runs the tool and returns **without generating**.
+  Our Worlds wrapper skips turn processing in that case (`isHostSlashCommand`). R6 should
+  register RPmod slash commands as such custom tools instead of parsing its own.
+- **Group chat (1.35+):** speaker choice goes through `groupchat_reply_order(names)` and
+  names through `sanitize_groupchat_participant_name`; memory gains
+  `get_groupchat_context_memory()`. Relevant when ALPHA's speaker modes are migrated.
+
+### Upgrading the host
+1. Add the new Esolite folder next to the current one (`Esobold Esolite a fork of KoboldAI
+   Lite RMv<x.y.z>/`).
+2. Diff the globals in the table above (`prepare_submit_generation`, `submit_generation`,
+   `generate_savefile`, `kai_json_load`, `update_wi`, the injection marker
+   `<!-- EsoLite modifications end -->`, `static/js/agent.js` override) between versions.
+3. Change `ESO_DIR` in `scripts/build-integrated-index.js` and `.claude/launch.json`, run
+   `npm test` and `npm run build:index`, live-check, update docs.
 - Esolite has a global CSS rule `pre{background-color:#f5f5f5}` — always set explicit
   backgrounds on our `<pre>` elements.
 - ALPHA installs a **consent `Proxy` on `window.localsettings`**

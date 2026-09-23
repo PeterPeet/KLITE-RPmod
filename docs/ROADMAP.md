@@ -11,8 +11,10 @@
 ## Current state
 
 Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
+Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks diffed,
+all present — see ARCHITECTURE §2 "Upgrading the host").
 
-### What works (verified headless 2026-09-23 — `npm test`, 29 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 30 tests)
 - Bundle builds (esbuild, ES-module sources); all four modules load (ALPHA core, GuidedRP, Worlds engine, Worlds UI).
 - **Worlds engine:** graph world model (locations, NPCs/persons, factions, objects,
   events, quests, lore), compile-to-WI injection (transient/persistent, websearch- and
@@ -76,6 +78,10 @@ Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
     `updateSubmitBtn`, `setMode`, `loadSettings`, `saveSettings`, `extractTalkativeness`,
     `importWorldInfoEntry`. The last definition wins (always has); the earlier ones are dead
     code. Remove them when those ALPHA panels migrate into the shell (R1).
+11. **Host bug (Esolite 1.35.0, not ours):** the plain `index.html` logs
+    `SyntaxError: Identifier 'lastPendingResponse' has already been declared`
+    (`static/js/postSubmitHandler.js`). Seen with and without the mod; no visible effect so
+    far. Recheck on the next host upgrade.
 
 ## Phases
 
@@ -100,11 +106,20 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
 - [x] Convert sources to ES modules bundled with **esbuild** into the same single file
       (2026-09-23). Sloppy-mode audit: nothing to fix — all four sources already ran as
       `'use strict'` IIFEs with no code outside them. Live-checked in `index.rpmod.html`.
-- **Next:** design the shell layout with the owner, then build it.
+- [x] Host upgraded to Esolite RMv1.35.0; Worlds no longer treats Esolite's new slash
+      commands as game turns (test).
+- [x] Shell layout decided with the owner (2026-09-23): **two docked sidebars** (left:
+      party/character + quest tracker; right: tabbed tools) around Esolite's chat;
+      bigger views (sheet, quest log, compendium, combat, editor, map) as **floating
+      windows** (drag, resize, several open, positions remembered); **neutral style
+      matching Esolite** (bind to its `--theme_color_*` variables); GuidedRP becomes a
+      **first-run "start a session" flow** inside the shell.
+- **Next:** build the shell skeleton (sidebars + window manager + top-bar entry), then
+  migrate the Worlds panel/editor into it.
 - App shell: docked sidebars + a window manager for sheet, quest log, compendium, combat,
   editor, map; one entry point in the Esolite top bar.
-- Design system: tokens (color, type, spacing), light/dark following Esolite's theme,
-  original fantasy-toned style; icon set (Lucide, ISC) bundled offline.
+- Design system: tokens (color, type, spacing) bound to Esolite's theme variables,
+  neutral look matching Esolite; icon set (Lucide, ISC) bundled offline.
 - Migrate the Worlds panel and editor into the shell; migrate ALPHA panels one by one;
   decide GuidedRP's place (onboarding flow inside the shell).
 - **Single context-injection owner** (resolve known issue 4).

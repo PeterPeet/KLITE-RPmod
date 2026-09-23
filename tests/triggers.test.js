@@ -75,3 +75,23 @@ test('hidden events respect aiMode; onTime events fire on the generation turn', 
     await w.prepare_submit_generation();
     assert.match(h.prompt, /Night Market/);
 });
+
+test('an Esolite slash command (user-callable custom tool) is not a game turn', async (t) => {
+    const h = await exampleHost(); t.after(h.close);
+    const W = h.api(); const w = h.window;
+    W.activeWorld().events.push({ id: 'ev_tick', name: 'Tick', triggers: [{ type: 'onTurn' }],
+        effects: [{ type: 'flag', key: 'ticked', value: true }], repeatable: true });
+    // host >= 1.35: slash commands run a custom tool and return without generating
+    w.localsettings.custom_tools = [{ name: 'roll', userCallable: true }];
+    w.customtools_sanitize_list = (tools) => tools || [];
+    const input = w.document.createElement('textarea'); input.id = 'input_text';
+    w.document.body.appendChild(input);
+
+    input.value = '/roll 1d20';
+    await w.prepare_submit_generation();
+    assert.ok(!W.runtime.flags.ticked, 'slash command did not fire turn triggers');
+
+    input.value = '/unknown text';   // not a registered tool -> normal turn
+    await w.prepare_submit_generation();
+    assert.equal(W.runtime.flags.ticked, true, 'a normal message is a turn');
+});
