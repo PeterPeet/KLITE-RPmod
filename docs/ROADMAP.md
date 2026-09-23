@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 30 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 42 tests)
 - Bundle builds (esbuild, ES-module sources); all four modules load (ALPHA core, GuidedRP, Worlds engine, Worlds UI).
 - **Worlds engine:** graph world model (locations, NPCs/persons, factions, objects,
   events, quests, lore), compile-to-WI injection (transient/persistent, websearch- and
@@ -64,7 +64,7 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
 1. **"Monster / NPC combatant" flag does nothing** — stored (`stats.isMonster`) but never
    read. Intended for combat sides + victory detection (R5).
 2. **Chat tags remain visible** in the chat text (parsed, not stripped) (R6).
-3. **Worlds panel overlaps ALPHA's right panel** on screen (R1 shell fixes).
+3. ~~Worlds panel overlaps ALPHA's right panel~~ — fixed by the shell (2026-09-23).
 4. **Two systems inject character data** — ALPHA (persona/character via WI
    `_imported_memory` entries and `pending_context_preinjection`) and Worlds persons. Need
    one owner (R1/R2).
@@ -83,6 +83,11 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
     `SyntaxError: Identifier 'lastPendingResponse' has already been declared`
     (`static/js/postSubmitHandler.js`). Seen with and without the mod; no visible effect so
     far. Recheck on the next host upgrade.
+12. **World state changed by AI chat tags reaches the UI only at the next send** — tags are
+    parsed in `processPendingMutations()` at generation time, not when the reply arrives.
+    The views refresh then (via `klite:worlds-change`). Parse on reply arrival in R6.
+13. **ALPHA inner UI** still uses its own styles (bound to older theme names, fine in 1.35)
+    and its own CHARS/ROLES/SCENARIO/TOOLS sub-tab bar inside the Characters tab.
 
 ## Phases
 
@@ -115,8 +120,18 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
       windows** (drag, resize, several open, positions remembered); **neutral style
       matching Esolite** (bind to its `--theme_color_*` variables); GuidedRP becomes a
       **first-run "start a session" flow** inside the shell.
-- **Next:** build the shell skeleton (sidebars + window manager + top-bar entry), then
-  migrate the Worlds panel/editor into it.
+- [x] Shell skeleton (2026-09-23, `src/shell/`): left/right docks (docked ⇄ overlay ⇄
+      compact), view registry, floating window manager, layout persistence, `--rpm-*`
+      design tokens bound to Esolite's theme, single top-bar button. Live-checked in
+      Esolite 1.35 at 1440×900 and 375×812, dark theme + simulated light theme.
+- [x] Worlds migrated: World tab (right), Party + Quests tracker (left), Quest log + Combat
+      windows; views refresh on the engine's new `klite:worlds-change` event. Old floating
+      `#wm-panel` and 🌐 navbar button removed.
+- [x] ALPHA's right panel adopted as the **Characters** tab (no more overlap — known
+      issue 3 fixed).
+- **Next:** editor overlay → large window; split ALPHA's four sub-tabs into shell views;
+  move ALPHA/GuidedRP top-bar icons (🎭 ✨) behind the shell button; GuidedRP first-run
+  flow; single context-injection owner; icon set.
 - App shell: docked sidebars + a window manager for sheet, quest log, compendium, combat,
   editor, map; one entry point in the Esolite top bar.
 - Design system: tokens (color, type, spacing) bound to Esolite's theme variables,

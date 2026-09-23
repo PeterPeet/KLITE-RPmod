@@ -13,13 +13,24 @@ The mod ships as a single file, `KLITE-RPmod.js`.
 
 1. In Esolite, open the **mod manager** (settings → user mod).
 2. Load / paste `KLITE-RPmod.js` and enable it. Reload when prompted.
-3. After it loads you'll see the existing RPmod panels, plus a **🌐 Worlds** button in the
-   navbar and a small **Worlds panel** in the bottom-right corner.
+3. After it loads, RPmod sits around the chat:
+   - **Left panel (Adventure)** — *Party* (who you are, where, what time; combat status)
+     and *Quests* (your active quests, `?` when ready to turn in).
+   - **Right panel (tools)** — tabs **World** (the Worlds panel) and **Characters**
+     (characters, roles, scenario and tools).
+   - Bigger views — **Quest log**, **Combat** — open as **floating windows** you can drag
+     (title bar), resize (bottom-right corner) and close; they remember where you left them.
+   - The **panels button** in Esolite's top bar (icon with two sidebars) shows/hides both
+     panels; the small tabs at the screen edges bring a hidden panel back.
+
+   On wide screens the panels sit beside the chat; on small screens they slide over it
+   (one at a time), and on phones windows fill the screen. Colours follow your Esolite
+   theme.
 
 That's it — one file contains everything (main panels, guided onboarding, the Worlds
 engine, and the Worlds editor).
 
-**Try it in one click.** Open the Worlds panel and press **🎁 Load example world** — it
+**Try it in one click.** In the right panel's **World** tab, press **🎁 Load example world** — it
 loads a ready-to-play world (a village, a tavern, a guarded frontier road, quests with
 givers, an event chain, and a bandit encounter), enables it, and drops you in. Just start
 chatting. Everything below explains how to build your own.
@@ -28,8 +39,8 @@ chatting. Everything below explains how to build your own.
 
 ## 2. What you get
 
-- **Right-side panels** — CHARS, ROLES, TOOLS, CONTEXT, IMAGES: manage characters,
-  personas and groups, context tools, and image generation.
+- **Characters tab** (right panel) — MANAGE CHARS, SELECT ROLES, CREATE SCENARIO, USE TOOLS:
+  manage characters, personas and groups, context tools, and image generation.
 - **Guided RP** — a beginner-friendly step-by-step setup overlay (toggleable with an
   Advanced mode for the full interface).
 - **Worlds** — the focus of this guide, below.
@@ -56,7 +67,7 @@ WorldInfo pipeline — you don't have to manage any of that; it's automatic.
 
 ## 4. Building a world (the editor)
 
-Open the editor with the **🌐 navbar button** or **Open editor** in the Worlds panel.
+Open the editor with **✎ Editor** in the right panel's **World** tab.
 (No world yet? It'll offer to create one.)
 
 ![Worlds editor layout](docs/editor-layout.svg)
@@ -97,7 +108,7 @@ rejected.
 
 ## 5. Playing with a world
 
-From the **Worlds panel** (bottom-right):
+From the **World** tab in the right panel:
 
 - Pick a world from the dropdown (or **＋ New**).
 - **Enable for this story** — turns the world on for the current chat. (Off = Esolite
@@ -155,10 +166,11 @@ to the next day, and the **season** follows the month automatically.
 
 ## 6b. Tabletop-RPG systems
 
-The Worlds panel has four tabs — **Play**, **Quests**, **Combat**, **Editor** — and a
-**Creator ⇄ Player** lens in its header.
+The **World** tab shows the live game state (enable, state slots, location, time, flags,
+inventory) and has buttons for the **Quest log** and **Combat** windows and the **Editor**,
+plus a **Creator ⇄ Player** lens in its header.
 
-**State slots (base / working).** The Play tab keeps two saved states: **base** (your start
+**State slots (base / working).** The World tab keeps two saved states: **base** (your start
 point) and **working** (the live game). Use **Reset** to snap back to base, **Commit** to make
 the current state the new base, and **Swap** to switch which is active. Both travel with your
 save and export.
@@ -168,7 +180,7 @@ CHARS library (its TavernCard text is reused) and given an optional **d20 stat b
 (abilities, AC, HP, attacks). Stats feed combat and appear in the AI's context near that NPC.
 
 **Quests (WoW-style).** Add **Quest** nodes with a **giver** (`!`) and **turn-in** person
-(`?`) — those markers show on the map and persons. The **Quests tab** is your log: accept,
+(`?`) — those markers show on the map and persons. The **Quest log** window is your log: accept,
 complete, turn in, and track quests; hidden quests read `???` to the player until discovered.
 A per-world switch controls whether the **AI** (as GM) sees hidden content or not.
 
@@ -179,7 +191,7 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
 
 **Factions & HQs.** Link a **Faction → Location** to give it a visitable **headquarters**.
 
-**Combat (d20 / SRD 5.1).** In the **Combat tab**, pick combatants (quick-add SRD monsters like
+**Combat (d20 / SRD 5.1).** In the **Combat** window, pick combatants (quick-add SRD monsters like
 goblin/wolf/skeleton), **Start encounter** to roll initiative, then attack, roll dice, adjust
 HP, and step through turns. The mod is authoritative for the maths; the current combat state
 (round, turn order, HP) is injected so the AI narrates the outcomes. You or the AI can also
@@ -217,7 +229,7 @@ lore) and trimmed to fit your context budget, so the important things survive.
 
 ## 8. Import & export
 
-In the **Worlds panel**:
+In the **World** tab:
 
 - **⬇ Import** — load a classic WorldInfo / lorebook / TavernCard `character_book` JSON.
   Entries become **Lore** nodes you can promote to Locations/NPCs in the editor. You'll be

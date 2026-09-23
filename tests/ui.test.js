@@ -1,5 +1,6 @@
 'use strict';
-// Worlds UI (panel + editor overlay) in jsdom.
+// Worlds UI in jsdom: shell views (World tab, Party/Quests sections, Quest log and
+// Combat windows) + the editor overlay.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createHost, click, findButton, texts, selectNode, sleep } = require('./helpers/host');
@@ -7,19 +8,21 @@ const { createHost, click, findButton, texts, selectNode, sleep } = require('./h
 async function uiHost(t) {
     const h = createHost(); t.after(h.close);
     h.window.KLITE_RPMod = { characters: [{ id: 'c1', name: 'Captain Rowan', personality: 'stern' }] };
-    h.load('worlds', 'worldsUI');
+    h.load('shell', 'worlds', 'worldsUI');
     await h.ready({ ui: true });
     return h;
 }
 
-test('panel: example button, tabs, creator/player lens, state slots', async (t) => {
+test('World tab: example button, window launchers, creator/player lens, state slots', async (t) => {
     const h = await uiHost(t); const w = h.window; const doc = w.document; const W = h.api();
-    assert.ok(doc.getElementById('wm-navbtn'), 'navbar button');
+    assert.ok(doc.getElementById('rpm-navbtn'), 'single shell entry in the top bar');
+    assert.equal(doc.getElementById('wm-navbtn'), null, 'no separate Worlds navbar button');
     const panel = () => doc.getElementById('wm-panel');
+    assert.ok(panel().closest('#rpm-dock-right'), 'World view lives in the right dock');
     click(findButton(panel(), /Load example world/), w);
     await sleep(80);
     assert.ok(W.activeWorld() && W.isEnabled(), 'example loaded + enabled');
-    for (const tab of ['Play', 'Quests', 'Combat', 'Editor']) assert.ok(findButton(panel(), new RegExp('^' + tab + '$')), tab + ' tab');
+    for (const b of [/Quest log/, /Combat/, /Editor/]) assert.ok(findButton(panel(), b), String(b));
     assert.ok(findButton(panel(), /Reset/) && findButton(panel(), /Commit/) && findButton(panel(), /Swap/));
     const chip = [...panel().querySelectorAll('span')].find(s => s.textContent === 'Creator');
     click(chip, w);
@@ -27,21 +30,36 @@ test('panel: example button, tabs, creator/player lens, state slots', async (t) 
     assert.equal(w.localStorage.getItem('KLITE.worlds.uiMode'), 'player');
 });
 
-test('quest log and combat tab', async (t) => {
+test('quest log + combat windows, quest tracker and party sections stay in sync', async (t) => {
     const h = await uiHost(t); const w = h.window; const doc = w.document; const W = h.api();
     await W.loadExample(); h.ui().refreshPanel();
     const panel = () => doc.getElementById('wm-panel');
-    click(findButton(panel(), /^Quests$/), w);
-    assert.ok(texts(panel()).some(s => /The Missing Merchant/.test(s)));
-    click(findButton(panel(), /^Accept$/), w);
+    const win = (id) => doc.querySelector(`[data-window="${id}"]`);
+    const tracker = () => doc.querySelector('[data-section="quest-tracker"]');
+
+    click(findButton(panel(), /Quest log/), w);
+    assert.ok(win('questlog'), 'quest log window');
+    assert.ok(texts(win('questlog')).some(s => /The Missing Merchant/.test(s)));
+    assert.ok(!texts(tracker()).some(s => /The Missing Merchant/.test(s)), 'not tracked before accepting');
+    click(findButton(win('questlog'), /^Accept$/), w);
     assert.equal(W.questState('q_merchant'), 'active');
-    click(findButton(panel(), /^Combat$/), w);
-    assert.ok(findButton(panel(), /Start encounter/));
+    assert.ok(tracker().querySelector('[data-quest="q_merchant"]'), 'tracker shows the accepted quest');
+
+    click(findButton(panel(), /Combat/), w);
+    assert.ok(findButton(win('combat'), /Start encounter/));
     W.startEncounter(['npc_kell']); h.ui().refreshPanel();
-    click(findButton(panel(), /^Combat$/), w);
-    assert.ok(texts(panel()).some(s => /Round 1/.test(s)));
-    click(findButton(panel(), /End/), w);
+    assert.ok(texts(win('combat')).some(s => /Round 1/.test(s)));
+    assert.ok(findButton(doc.querySelector('[data-section="party"]'), /Round 1/), 'party shows combat status');
+    click(findButton(win('combat'), /End/), w);
     assert.equal(W.getCombat(), null);
+});
+
+test('engine changes outside the UI (chat tags, API) refresh the views', async (t) => {
+    const h = await uiHost(t); const doc = h.window.document; const W = h.api();
+    await W.loadExample(); h.ui().refreshPanel();
+    W.moveTo('Forest Road');
+    await sleep(30);
+    assert.match(doc.querySelector('[data-party="location"]').textContent, /Forest Road/);
 });
 
 test('editor: World Rules + Description on the root node', async (t) => {

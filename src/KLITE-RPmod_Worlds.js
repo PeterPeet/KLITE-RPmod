@@ -947,6 +947,19 @@ export default function initWorlds() {
     function syncLive() {
         if (W.config.injectMode === 'persistent') injectManaged();
         else { removeWorldsEntries(); refreshWiEditor(); }
+        notifyChange();
+    }
+
+    // Tell UIs (shell views) that world/runtime state changed. Coalesced: many
+    // mutations in one tick produce one 'klite:worlds-change' event on window.
+    let changeQueued = false;
+    function notifyChange() {
+        if (changeQueued) return;
+        changeQueued = true;
+        setTimeout(() => {
+            changeQueued = false;
+            try { window.dispatchEvent(new CustomEvent('klite:worlds-change')); } catch (_) {}
+        }, 0);
     }
 
     // Keep the host WI editor panel in sync if it happens to be visible.
@@ -1005,7 +1018,7 @@ export default function initWorlds() {
                         removeWorldsEntries();
                         refreshWiEditor();
                     }
-                    if (injected) firedEventsBuffer = []; // consumed by this turn's slice
+                    if (injected) { firedEventsBuffer = []; notifyChange(); } // buffer consumed by this turn's slice
                 } catch (_) {}
             }
             return ret;

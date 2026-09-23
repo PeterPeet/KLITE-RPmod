@@ -11,6 +11,7 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
 const FILES = {
+    shell: 'src/shell/shell.js',
     worlds: 'src/KLITE-RPmod_Worlds.js',
     worldsUI: 'src/KLITE-RPmod_WorldsUI.js',
     bundle: 'KLITE-RPmod.js',
@@ -18,9 +19,12 @@ const FILES = {
 
 function createHost({ settings = {} } = {}) {
     const dom = new JSDOM(
-        '<!DOCTYPE html><html><head></head><body><nav id="navbarNavDropdown"><ul></ul></nav></body></html>',
+        '<!DOCTYPE html><html><head></head><body><div id="maincontainer"><nav id="navbarNavDropdown"><ul></ul></nav><div id="gametext"></div></div></body></html>',
         { pretendToBeVisual: true, url: 'http://localhost/' });
     const w = dom.window;
+    // desktop-sized viewport (jsdom defaults to 1024x768); tests can call host.resize()
+    Object.defineProperty(w, 'innerWidth', { value: 1400, writable: true, configurable: true });
+    Object.defineProperty(w, 'innerHeight', { value: 900, writable: true, configurable: true });
     w.alert = () => {}; w.confirm = () => true; w.prompt = () => 'Test';
     // jsdom has no layout; the editor needs a canvas size
     w.Element.prototype.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 560, right: 800, bottom: 560 });
@@ -76,6 +80,12 @@ function createHost({ settings = {} } = {}) {
         throw new Error('mod did not become ready');
     };
 
+    host.resize = async (width, height = w.innerHeight) => {
+        w.innerWidth = width; w.innerHeight = height;
+        w.dispatchEvent(new w.Event('resize'));
+        await sleep(120);   // shell debounces resize
+    };
+    host.shell = () => w.KLITE_RPMod_Shell;
     host.api = () => w.KLITE_RPMod_Worlds;
     host.ui = () => w.KLITE_RPMod_WorldsUI;
     host.worldsEntries = () => w.current_wi.filter(e => e && e.wigroup === '__worlds__');

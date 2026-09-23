@@ -8,7 +8,7 @@ const path = require('path');
 const esbuild = require('esbuild');
 const { ROOT } = require('./helpers/host');
 
-const sources = fs.readdirSync(path.join(ROOT, 'src')).filter(f => f.endsWith('.js'));
+const sources = fs.readdirSync(path.join(ROOT, 'src'), { recursive: true }).filter(f => f.endsWith('.js'));
 
 for (const f of sources) {
     test(`syntax (ES module): src/${f}`, () => {

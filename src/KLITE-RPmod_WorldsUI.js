@@ -3,8 +3,9 @@
 // -----------------------------------------------------------------------------
 // A node-graph editor for the Worlds data model, rendered as a full-screen
 // overlay (same pattern as Esolite's TreeViewer: dim layer on document.body,
-// wheel-zoom, drag-pan, close button), plus a compact floating runtime panel and
-// a navbar launch button.
+// wheel-zoom, drag-pan, close button), plus the Worlds views of the app shell
+// (src/shell/): the right-dock "World" tab, the left-dock Party and Quests sections,
+// and the Quest log / Combat windows.
 //
 // Nodes are colour-coded world entities (Location/NPC/Faction/Object/Event/Lore
 // + the World root). Edges are the id-reference fields: drawing an arrow calls
@@ -632,7 +633,7 @@ export default function initWorldsUI() {
     function loadExampleFlow() {
         const A = API();
         if (A.hasExample() && !confirm('Reload the example world? Changes you made to it will be discarded.')) return;
-        A.loadExample().then(() => { S.tab = 'play'; refreshPanel(); toast('Example world loaded — enabled & ready. Just start chatting!'); });
+        A.loadExample().then(() => { refreshPanel(); toast('Example world loaded — enabled & ready. Just start chatting!'); });
     }
     function importFlow() {
         const A = API();
@@ -687,44 +688,45 @@ export default function initWorldsUI() {
     }
 
     // =======================================================================
-    //  FLOATING RUNTIME PANEL
+    //  SHELL VIEWS — right-dock "World" tab, left-dock sections, windows
+    //  (the app shell in src/shell/ owns placement; see registerViews below)
     // =======================================================================
     let panelEl = null;
     const TIME_SLOTS_UI = ['morning', 'noon', 'afternoon', 'evening', 'night'];
-    function miniBtn() { return 'flex:1;background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:5px;font-size:11px;cursor:pointer'; }
-    function selCss() { return 'width:100%;box-sizing:border-box;background:#262626;color:#eee;border:1px solid #3a3a3a;border-radius:6px;padding:5px;font-size:12px'; }
-    function lbl(t) { return el('label', { style: 'display:block;color:#999;font-size:11px;margin:8px 0 3px', text: t }); }
+    const VIEW_IDS = ['world', 'party', 'quest-tracker', 'questlog', 'combat'];
+    function miniBtn() { return 'flex:1;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:5px;font-size:11px;cursor:pointer'; }
+    function selCss() { return 'width:100%;box-sizing:border-box;background:var(--rpm-input-bg);color:var(--rpm-input-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:5px;font-size:12px'; }
+    function lbl(t) { return el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:11px;margin:8px 0 3px', text: t }); }
 
     function uiMode() { if (!S.uiMode) { try { S.uiMode = localStorage.getItem('KLITE.worlds.uiMode') || 'creator'; } catch (_) { S.uiMode = 'creator'; } } return S.uiMode; }
     function setUiMode(m) { S.uiMode = m; try { localStorage.setItem('KLITE.worlds.uiMode', m); } catch (_) {} }
 
-    function buildPanel() {
-        const p = el('div', { id: 'wm-panel', style: 'position:fixed;right:14px;bottom:14px;z-index:99998;width:300px;max-height:76vh;display:flex;flex-direction:column;background:#1e1e1e;border:1px solid #3a3a3a;border-radius:10px;font-family:system-ui,sans-serif;box-shadow:0 6px 22px rgba(0,0,0,.45)' });
-        const body = el('div', { style: 'padding:10px;overflow:auto' });
-        p.appendChild(body);
-        panelEl = p; panelEl._body = body;
-        if (!S.tab) S.tab = 'play';
-        refreshPanel();
-        return p;
+    function Shell() { return window.KLITE_RPMod_Shell; }
+    function openView(id) { const sh = Shell(); if (sh) sh.open(id); }
+
+    // Re-render every Worlds view; hidden ones re-render when they are shown.
+    function refreshPanel(opts) { const sh = Shell(); if (sh) sh.refresh(VIEW_IDS, opts); else renderPanel(); }
+
+    function mountPanel(container) {
+        panelEl = el('div', { id: 'wm-panel', class: 'rpm-view-pad' });
+        container.appendChild(panelEl);
+        renderPanel();
     }
 
-    function refreshPanel() {
+    function renderPanel() {
         if (!panelEl) return;
-        const A = API(); const body = panelEl._body; clear(body);
+        const A = API(); const body = panelEl; clear(body);
 
-        // ---- header: title + creator/player lens + collapse ----
+        // ---- header: creator/player lens ----
         const mode = uiMode();
-        const header = el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:8px' }, [
-            el('span', { style: 'color:#eee;font-size:13px;font-weight:500;flex:1', text: '🌐 Worlds' }),
+        body.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:8px' }, [
+            el('span', { style: 'color:var(--rpm-fg);font-size:13px;font-weight:600;flex:1', text: 'Worlds' }),
             el('span', {
                 title: 'Toggle Creator / Player view', style: `cursor:pointer;font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${mode === 'creator' ? '#7a5a2a' : '#2a5a7a'};color:${mode === 'creator' ? '#f0c68a' : '#8ac6f0'};background:${mode === 'creator' ? '#3a2e1a' : '#1a2e3a'}`,
                 text: mode === 'creator' ? 'Creator' : 'Player',
                 onclick: () => { setUiMode(mode === 'creator' ? 'player' : 'creator'); refreshPanel(); }
-            }),
-            el('span', { style: 'cursor:pointer;color:#888;font-size:14px', text: S.panelCollapsed ? '▢' : '—', onclick: () => { S.panelCollapsed = !S.panelCollapsed; refreshPanel(); } })
-        ]);
-        body.appendChild(header);
-        if (S.panelCollapsed) return;
+            })
+        ]));
 
         // ---- world selector + new ----
         const worlds = A.listWorlds();
@@ -741,70 +743,94 @@ export default function initWorldsUI() {
         ]));
 
         if (!A.activeWorld()) {
-            body.appendChild(el('div', { style: 'color:#aaa;font-size:11px;margin:6px 0 8px', text: 'New here? Load the ready-to-play example and just start chatting.' }));
+            body.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px;margin:6px 0 8px', text: 'New here? Load the ready-to-play example and just start chatting.' }));
             body.appendChild(el('button', {
-                style: 'width:100%;background:#1f3a4a;color:#bfe;border:1px solid #2a6a8a;border-radius:6px;padding:8px;font-size:12px;cursor:pointer',
+                style: 'width:100%;background:var(--rpm-accent-bg-hi);color:var(--rpm-accent-fg);border:1px solid var(--rpm-border-hi);border-radius:6px;padding:8px;font-size:12px;cursor:pointer',
                 text: '🎁 Load example world',
                 onclick: () => loadExampleFlow()
             }));
             return;
         }
 
-        // ---- tab bar ----
-        const tabs = [['play', 'Play'], ['quests', 'Quests'], ['combat', 'Combat'], ['editor', 'Editor']];
-        const bar = el('div', { style: 'display:flex;gap:4px;margin-bottom:10px;border-bottom:1px solid #333;padding-bottom:6px' });
-        for (const [id, label] of tabs) {
-            const on = S.tab === id;
-            bar.appendChild(el('button', {
-                style: `flex:1;font-size:11px;padding:5px 2px;border-radius:6px;cursor:pointer;border:1px solid ${on ? '#4a7ab0' : '#3a3a3a'};background:${on ? '#1c3450' : '#242424'};color:${on ? '#bfe' : '#bbb'}`,
-                text: label, onclick: () => { S.tab = id; refreshPanel(); }
-            }));
+        // ---- bigger views open as floating windows / the editor overlay ----
+        body.appendChild(el('div', { style: 'display:flex;gap:6px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--rpm-border)' }, [
+            el('button', { style: miniBtn(), text: '📜 Quest log', onclick: () => openView('questlog') }),
+            el('button', { style: miniBtn(), text: '⚔ Combat', onclick: () => openView('combat') }),
+            el('button', { style: miniBtn(), title: 'Build your world as a node graph', text: '✎ Editor', onclick: () => openEditor() })
+        ]));
+        renderPlayTab(body);
+    }
+
+    // ---- left dock: party (player, place, time, combat status) ----
+    function renderParty(box) {
+        const A = API(); const world = A.activeWorld();
+        if (!world) {
+            box.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
+            box.appendChild(el('button', { class: 'rpm-btn', style: 'margin-top:8px;width:100%', text: 'Choose a world', onclick: () => openView('world') }));
+            return;
         }
-        body.appendChild(bar);
-
-        const content = el('div');
-        body.appendChild(content);
-        if (S.tab === 'play') renderPlayTab(content);
-        else if (S.tab === 'editor') renderEditorTab(content);
-        else if (S.tab === 'quests') renderQuestsTab(content);
-        else if (S.tab === 'combat') renderCombatTab(content);
+        const player = (world.ruleset && world.ruleset.player) || {};
+        const rt = A.runtime || {};
+        const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
+        const c = rt.clock || {};
+        box.appendChild(el('div', { style: 'font-weight:600;font-size:13px', text: player.name || 'You' }));
+        box.appendChild(el('div', { class: 'rpm-muted', 'data-party': 'location', style: 'margin-top:2px', text: '📍 ' + (loc ? (loc.name || loc.id) : 'nowhere') }));
+        box.appendChild(el('div', { class: 'rpm-muted', text: `🕑 Day ${c.day || 1}, ${c.time || '—'}${c.weather ? ' · ' + c.weather : ''}` }));
+        const cb = A.getCombat();
+        if (cb && cb.active) {
+            const cur = cb.order[cb.turnIndex];
+            const hp = cb.hp.__player__, max = cb.maxHp.__player__;
+            box.appendChild(el('button', { class: 'rpm-btn', style: 'margin-top:8px;width:100%;border-color:var(--rpm-danger)', text: `⚔ Round ${cb.round} · ${cur ? cur.name : ''}${hp != null ? ` · HP ${hp}/${max}` : ''}`, onclick: () => openView('combat') }));
+        }
     }
 
-    function renderStubTab(box, title, msg) {
-        box.appendChild(el('div', { style: 'color:#aaa;font-size:12px;font-weight:500;margin-bottom:4px', text: title }));
-        box.appendChild(el('div', { style: 'color:#777;font-size:11px', text: msg }));
+    // ---- left dock: quest tracker (active + ready to turn in) ----
+    function renderQuestTracker(box) {
+        const A = API();
+        if (!A.activeWorld()) { box.appendChild(el('div', { class: 'rpm-muted', text: 'No quests yet.' })); return; }
+        const quests = A.listQuests(uiMode() === 'player' ? 'player' : 'creator')
+            .filter(q => q.state === 'active' || q.state === 'complete')
+            .sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
+        if (!quests.length) box.appendChild(el('div', { class: 'rpm-muted', text: 'No active quests.' }));
+        for (const q of quests) {
+            const ready = q.state === 'complete';
+            box.appendChild(el('div', { 'data-quest': q.id, style: `padding:4px 0 4px 8px;margin-bottom:4px;border-left:2px solid ${q.active ? 'var(--rpm-quest)' : 'var(--rpm-border)'}` }, [
+                el('div', { style: 'font-size:12px;font-weight:600' }, [ready ? el('span', { style: 'color:var(--rpm-quest)', text: '? ' }) : null, q.title]),
+                ready && q.turnin ? el('div', { class: 'rpm-muted', text: 'Turn in to ' + q.turnin }) : null
+            ]));
+        }
+        box.appendChild(el('button', { class: 'rpm-btn', style: 'margin-top:6px;width:100%', text: '📜 Open quest log', onclick: () => openView('questlog') }));
     }
-
     function renderQuestsTab(box) {
         const A = API();
         const mode = uiMode() === 'player' ? 'player' : 'creator';
         // per-world AI mode selector (gm vs player-facing)
         const aiRow = el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:8px' }, [
-            el('span', { style: 'color:#999;font-size:11px;flex:1', text: 'AI sees hidden content:' })
+            el('span', { style: 'color:var(--rpm-fg-muted);font-size:11px;flex:1', text: 'AI sees hidden content:' })
         ]);
-        const aiSel = el('select', { style: 'background:#262626;color:#eee;border:1px solid #3a3a3a;border-radius:6px;padding:3px 6px;font-size:11px' });
+        const aiSel = el('select', { style: 'background:var(--rpm-input-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 6px;font-size:11px' });
         for (const [v, t] of [['gm', 'GM (all)'], ['player', 'Player (visible only)']]) { const o = el('option', { value: v, text: t }); if (A.getAiMode() === v) o.selected = true; aiSel.appendChild(o); }
         aiSel.addEventListener('change', () => { A.setAiMode(aiSel.value); });
         aiRow.appendChild(aiSel); box.appendChild(aiRow);
 
         const quests = A.listQuests(mode);
-        if (!quests.length) { box.appendChild(el('div', { style: 'color:#777;font-size:11px', text: 'No quests visible. Add Quest nodes in the editor.' })); return; }
+        if (!quests.length) { box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px', text: 'No quests visible. Add Quest nodes in the editor.' })); return; }
         const groups = [['available', 'Available'], ['active', 'Active'], ['complete', 'Ready to turn in'], ['turnedin', 'Completed'], ['failed', 'Failed']];
         for (const [st, label] of groups) {
             const inGroup = quests.filter(q => q.state === st);
             if (!inGroup.length) continue;
-            box.appendChild(el('div', { style: 'color:#aaa;font-size:11px;font-weight:500;margin:10px 0 4px', text: label }));
+            box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px;font-weight:500;margin:10px 0 4px', text: label }));
             for (const q of inGroup) {
-                const card = el('div', { style: `background:#242424;border:1px solid ${q.active ? '#4a7ab0' : '#3a3a3a'};border-radius:8px;padding:7px 9px;margin-bottom:5px` });
+                const card = el('div', { style: `background:var(--rpm-bg-alt);border:1px solid ${q.active ? '#4a7ab0' : 'var(--rpm-border)'};border-radius:8px;padding:7px 9px;margin-bottom:5px` });
                 card.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px' }, [
-                    el('span', { style: 'color:#eee;font-size:12px;font-weight:500;flex:1' }, [(q.marker ? q.marker + ' ' : '') + q.title, q.hidden ? el('span', { style: 'color:#c98;font-size:9px;margin-left:5px', text: 'hidden' }) : null]),
+                    el('span', { style: 'color:var(--rpm-fg);font-size:12px;font-weight:500;flex:1' }, [(q.marker ? q.marker + ' ' : '') + q.title, q.hidden ? el('span', { style: 'color:#c98;font-size:9px;margin-left:5px', text: 'hidden' }) : null]),
                     q.active ? el('span', { style: 'font-size:9px;color:#8ac6f0', text: '● tracked' }) : null
                 ]));
-                if (q.description) card.appendChild(el('div', { style: 'color:#aaa;font-size:11px;margin-top:2px', text: q.description }));
-                if (q.giver || q.turnin) card.appendChild(el('div', { style: 'color:#888;font-size:10px;margin-top:2px', text: (q.giver ? `From: ${q.giver}` : '') + (q.turnin ? `  Turn-in: ${q.turnin}` : '') }));
+                if (q.description) card.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px;margin-top:2px', text: q.description }));
+                if (q.giver || q.turnin) card.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:10px;margin-top:2px', text: (q.giver ? `From: ${q.giver}` : '') + (q.turnin ? `  Turn-in: ${q.turnin}` : '') }));
                 // controls
                 const ctl = el('div', { style: 'display:flex;flex-wrap:wrap;gap:4px;margin-top:5px' });
-                const btn = (t, fn) => el('button', { style: 'background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:5px;padding:3px 7px;font-size:10px;cursor:pointer', text: t, onclick: () => { fn(); refreshPanel(); } });
+                const btn = (t, fn) => el('button', { style: 'background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:5px;padding:3px 7px;font-size:10px;cursor:pointer', text: t, onclick: () => { fn(); refreshPanel(); } });
                 if (st === 'available') ctl.appendChild(btn('Accept', () => A.acceptQuest(q.id)));
                 if (st === 'active') { ctl.appendChild(btn('Complete', () => A.completeQuest(q.id))); ctl.appendChild(btn(q.active ? 'Untrack' : 'Track', () => A.setActiveQuest(q.active ? null : q.id))); ctl.appendChild(btn('Fail', () => A.failQuest(q.id))); }
                 if (st === 'complete') ctl.appendChild(btn('Turn in', () => A.turnInQuest(q.id)));
@@ -821,13 +847,13 @@ export default function initWorldsUI() {
         if (cb && cb.active) return renderActiveCombat(box, cb);
 
         // ---- encounter builder ----
-        box.appendChild(el('div', { style: 'color:#aaa;font-size:11px;margin-bottom:6px', text: 'Select combatants for the encounter. NPCs need a stat block (add one in the editor).' }));
+        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px;margin-bottom:6px', text: 'Select combatants for the encounter. NPCs need a stat block (add one in the editor).' }));
         const persons = A.getGraph().nodes.filter(n => n.type === 'npc');
         const chosen = S._encPick || (S._encPick = {});
-        if (!persons.length) box.appendChild(el('div', { style: 'color:#777;font-size:11px', text: 'No persons yet.' }));
+        if (!persons.length) box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px', text: 'No persons yet.' }));
         for (const p of persons) {
             const st = A.getStats(p.id);
-            const row = el('label', { style: 'display:flex;align-items:center;gap:6px;font-size:11px;color:#ddd;padding:2px 0;cursor:pointer' });
+            const row = el('label', { style: 'display:flex;align-items:center;gap:6px;font-size:11px;color:var(--rpm-fg);padding:2px 0;cursor:pointer' });
             const c = el('input', { type: 'checkbox', style: 'cursor:pointer' }); c.checked = !!chosen[p.id];
             c.addEventListener('change', () => { chosen[p.id] = c.checked; });
             row.appendChild(c);
@@ -835,12 +861,12 @@ export default function initWorldsUI() {
             box.appendChild(row);
         }
         // quick-add SRD monster
-        box.appendChild(el('div', { style: 'color:#999;font-size:11px;margin:10px 0 4px', text: 'Quick-add monster (SRD)' }));
+        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px;margin:10px 0 4px', text: 'Quick-add monster (SRD)' }));
         const tRow = el('div', { style: 'display:flex;flex-wrap:wrap;gap:4px' });
-        for (const key of A.listTemplates()) tRow.appendChild(el('button', { style: 'background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:5px;padding:3px 7px;font-size:10px;cursor:pointer', text: key.replace('_', ' '), onclick: () => { const p = A.addPersonFromTemplate(key); S._encPick[p.id] = true; refreshPanel(); } }));
+        for (const key of A.listTemplates()) tRow.appendChild(el('button', { style: 'background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:5px;padding:3px 7px;font-size:10px;cursor:pointer', text: key.replace('_', ' '), onclick: () => { const p = A.addPersonFromTemplate(key); S._encPick[p.id] = true; refreshPanel(); } }));
         box.appendChild(tRow);
         // include player + start
-        const incWrap = el('label', { style: 'display:flex;align-items:center;gap:6px;margin:10px 0;color:#bbb;font-size:11px;cursor:pointer' });
+        const incWrap = el('label', { style: 'display:flex;align-items:center;gap:6px;margin:10px 0;color:var(--rpm-fg-muted);font-size:11px;cursor:pointer' });
         const inc = el('input', { type: 'checkbox', style: 'cursor:pointer' }); inc.checked = S._encPlayer !== false;
         inc.addEventListener('change', () => { S._encPlayer = inc.checked; });
         incWrap.appendChild(inc); incWrap.appendChild(document.createTextNode('Include the player'));
@@ -856,19 +882,19 @@ export default function initWorldsUI() {
         const A = API();
         const cur = cb.order[cb.turnIndex];
         box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:8px' }, [
-            el('span', { style: 'color:#eee;font-size:12px;font-weight:500;flex:1', text: `Round ${cb.round}` }),
+            el('span', { style: 'color:var(--rpm-fg);font-size:12px;font-weight:500;flex:1', text: `Round ${cb.round}` }),
             el('span', { style: 'font-size:10px;color:#f2c8b8;background:#5a2e1f;border-radius:10px;padding:2px 8px', text: '▶ ' + cur.name })
         ]));
         // roster with HP bars
         for (const o of cb.order) {
             const hp = cb.hp[o.id], max = cb.maxHp[o.id] || 1, pct = Math.max(0, Math.min(100, Math.round(hp / max * 100)));
             const down = hp <= 0;
-            const row = el('div', { style: `background:#242424;border:1px solid ${o.id === cur.id ? '#7a452a' : '#3a3a3a'};border-radius:6px;padding:4px 8px;margin-bottom:4px;${down ? 'opacity:.5' : ''}` });
-            row.appendChild(el('div', { style: 'display:flex;justify-content:space-between;font-size:11px;color:#ddd' }, [
+            const row = el('div', { style: `background:var(--rpm-bg-alt);border:1px solid ${o.id === cur.id ? '#7a452a' : 'var(--rpm-border)'};border-radius:6px;padding:4px 8px;margin-bottom:4px;${down ? 'opacity:.5' : ''}` });
+            row.appendChild(el('div', { style: 'display:flex;justify-content:space-between;font-size:11px;color:var(--rpm-fg)' }, [
                 el('span', {}, [(o.id === cur.id ? '▶ ' : '') + o.name + (down ? ' (down)' : '')]),
-                el('span', { style: 'color:#999', text: `${hp}/${max} · init ${o.init}` })
+                el('span', { style: 'color:var(--rpm-fg-muted)', text: `${hp}/${max} · init ${o.init}` })
             ]));
-            const bar = el('div', { style: 'height:5px;background:#111;border-radius:3px;margin-top:3px;overflow:hidden' });
+            const bar = el('div', { style: 'height:5px;background:var(--rpm-bg-outer);border-radius:3px;margin-top:3px;overflow:hidden' });
             bar.appendChild(el('div', { style: `height:100%;width:${pct}%;background:${pct > 50 ? '#3b8f4f' : pct > 25 ? '#b8912a' : '#a33'}` }));
             row.appendChild(bar);
             box.appendChild(row);
@@ -893,15 +919,10 @@ export default function initWorldsUI() {
             el('button', { style: miniBtn() + ';color:#f2b8b8;border-color:#7a2a2a;background:#3a1f1f', text: '✕ End', onclick: () => { A.endEncounter(); refreshPanel(); } })
         ]));
         // log
-        box.appendChild(el('div', { style: 'color:#999;font-size:10px;font-weight:500;margin:10px 0 3px', text: 'Combat log' }));
-        const log = el('div', { style: 'background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:6px;font-size:10px;color:#bbb;max-height:120px;overflow:auto;line-height:1.5' });
+        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:10px;font-weight:500;margin:10px 0 3px', text: 'Combat log' }));
+        const log = el('div', { style: 'background:var(--rpm-bg-outer);border:1px solid var(--rpm-border);border-radius:6px;padding:6px;font-size:10px;color:var(--rpm-fg-muted);max-height:120px;overflow:auto;line-height:1.5' });
         for (const line of (cb.log || []).slice(-8)) log.appendChild(el('div', { text: line }));
         box.appendChild(log);
-    }
-
-    function renderEditorTab(box) {
-        box.appendChild(el('div', { style: 'color:#aaa;font-size:11px;margin-bottom:8px', text: 'Build your world as a node graph — locations, people, factions, objects, events and lore.' }));
-        box.appendChild(el('button', { style: 'width:100%;background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:8px;font-size:12px;cursor:pointer', text: '✎ Open graph editor', onclick: () => openEditor() }));
     }
 
     function renderPlayTab(box) {
@@ -909,16 +930,16 @@ export default function initWorldsUI() {
         // enable toggle
         const enabled = A.isEnabled();
         box.appendChild(el('button', {
-            style: `width:100%;box-sizing:border-box;border-radius:6px;padding:7px;font-size:12px;cursor:pointer;margin-bottom:10px;border:1px solid ${enabled ? '#2a7a45' : '#444'};background:${enabled ? '#1f4a2e' : '#2a2a2a'};color:${enabled ? '#b8f2c8' : '#ccc'}`,
+            style: `width:100%;box-sizing:border-box;border-radius:6px;padding:7px;font-size:12px;cursor:pointer;margin-bottom:10px;border:1px solid ${enabled ? '#2a7a45' : 'var(--rpm-border)'};background:${enabled ? '#1f4a2e' : '#2a2a2a'};color:${enabled ? '#b8f2c8' : '#ccc'}`,
             text: enabled ? '● Enabled for this story' : '○ Enable for this story',
             onclick: () => { enabled ? A.disable() : A.enable(); refreshPanel(); }
         }));
 
         // ---- state slots (base / working) ----
         const slot = A.activeSlot || 'working';
-        const slotBox = el('div', { style: 'background:#242424;border:1px solid #3a3a3a;border-radius:8px;padding:8px;margin-bottom:10px' });
+        const slotBox = el('div', { style: 'background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:8px;padding:8px;margin-bottom:10px' });
         slotBox.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:6px' }, [
-            el('span', { style: 'color:#999;font-size:11px;flex:1', text: 'State slot' }),
+            el('span', { style: 'color:var(--rpm-fg-muted);font-size:11px;flex:1', text: 'State slot' }),
             el('span', { style: `font-size:10px;padding:2px 8px;border-radius:10px;background:${slot === 'working' ? '#1c3450' : '#3a2e1a'};color:${slot === 'working' ? '#8ac6f0' : '#f0c68a'}`, text: slot === 'working' ? 'WORKING (live)' : 'BASE (start)' })
         ]));
         slotBox.appendChild(el('div', { style: 'display:flex;gap:5px' }, [
@@ -938,7 +959,7 @@ export default function initWorldsUI() {
             for (const l of locs) { const o = el('option', { value: l.id, text: l.name }); if (A.runtime && A.runtime.playerLocationId === l.id) o.selected = true; msel.appendChild(o); }
             msel.addEventListener('change', () => { try { if (msel.value) A.moveTo(msel.value); refreshPanel(); } catch (_) {} });
             box.appendChild(msel);
-        } else box.appendChild(el('div', { style: 'color:#777;font-size:11px', text: 'No locations yet — add some in the editor.' }));
+        } else box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px', text: 'No locations yet — add some in the editor.' }));
 
         // ---- time / weather ----
         const c = (A.runtime && A.runtime.clock) || {};
@@ -948,9 +969,9 @@ export default function initWorldsUI() {
         for (const t of TIME_SLOTS_UI) { const o = el('option', { value: t, text: t }); if ((c.time || '') === t) o.selected = true; tsel.appendChild(o); }
         tsel.addEventListener('change', () => { A.setClock({ time: tsel.value }); refreshPanel(); });
         timeRow.appendChild(tsel);
-        timeRow.appendChild(el('button', { title: 'Advance time one step', style: 'background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer', text: '⏭', onclick: () => { A.advanceClock(1); refreshPanel(); } }));
+        timeRow.appendChild(el('button', { title: 'Advance time one step', style: 'background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer', text: '⏭', onclick: () => { A.advanceClock(1); refreshPanel(); } }));
         box.appendChild(timeRow);
-        box.appendChild(el('div', { style: 'color:#888;font-size:10px;margin:4px 0 2px', text: `Day ${c.day || 1}, month ${c.month || 1} · ${c.season || ''}` }));
+        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:10px;margin:4px 0 2px', text: `Day ${c.day || 1}, month ${c.month || 1} · ${c.season || ''}` }));
         const wIn = el('input', { type: 'text', value: c.weather || '', placeholder: 'weather', style: selCss() });
         wIn.addEventListener('change', () => { A.setClock({ weather: wIn.value }); });
         box.appendChild(wIn);
@@ -959,69 +980,72 @@ export default function initWorldsUI() {
         box.appendChild(lbl('Flags'));
         const flags = (A.runtime && A.runtime.flags) || {};
         const fkeys = Object.keys(flags);
-        if (!fkeys.length) box.appendChild(el('div', { style: 'color:#777;font-size:11px', text: 'none' }));
+        if (!fkeys.length) box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px', text: 'none' }));
         for (const k of fkeys) {
-            box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:#242424;border:1px solid #3a3a3a;border-radius:6px;padding:3px 8px;margin-top:3px' }, [
-                el('span', { style: 'flex:1;color:#ddd;font-size:11px' }, [k + ' = ', el('span', { style: 'color:#8ac6f0', text: String(flags[k]) })]),
+            box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px' }, [
+                el('span', { style: 'flex:1;color:var(--rpm-fg);font-size:11px' }, [k + ' = ', el('span', { style: 'color:#8ac6f0', text: String(flags[k]) })]),
                 el('span', { style: 'cursor:pointer;color:#e66;font-size:13px', text: '×', onclick: () => { A.unsetFlag(k); refreshPanel(); } })
             ]));
         }
         const fk = el('input', { type: 'text', placeholder: 'key', style: selCss() + ';flex:2' });
         const fv = el('input', { type: 'text', placeholder: 'value', style: selCss() + ';flex:1' });
         box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px' }, [fk, fv,
-            el('button', { style: 'background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer', text: '＋', onclick: () => { const k = fk.value.trim(); if (!k) return; A.setFlag(k, parseVal(fv.value)); refreshPanel(); } })
+            el('button', { style: 'background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer', text: '＋', onclick: () => { const k = fk.value.trim(); if (!k) return; A.setFlag(k, parseVal(fv.value)); refreshPanel(); } })
         ]));
 
         // ---- inventory ----
         box.appendChild(lbl('Inventory'));
         const inv = (A.runtime && A.runtime.inventory) || [];
-        if (!inv.length) box.appendChild(el('div', { style: 'color:#777;font-size:11px', text: 'empty' }));
+        if (!inv.length) box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px', text: 'empty' }));
         for (const it of inv) {
-            box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:#242424;border:1px solid #3a3a3a;border-radius:6px;padding:3px 8px;margin-top:3px' }, [
-                el('span', { style: 'flex:1;color:#ddd;font-size:11px', text: it.name + (it.qty > 1 ? ` ×${it.qty}` : '') }),
+            box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px' }, [
+                el('span', { style: 'flex:1;color:var(--rpm-fg);font-size:11px', text: it.name + (it.qty > 1 ? ` ×${it.qty}` : '') }),
                 el('span', { style: 'cursor:pointer;color:#9c9;font-size:13px', text: '＋', onclick: () => { A.giveItem(it.name, 1); refreshPanel(); } }),
                 el('span', { style: 'cursor:pointer;color:#e66;font-size:13px', text: '−', onclick: () => { A.takeItem(it.name, 1); refreshPanel(); } })
             ]));
         }
         const iIn = el('input', { type: 'text', placeholder: 'item name', style: selCss() });
         box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px' }, [iIn,
-            el('button', { style: 'background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer', text: '＋', onclick: () => { const n = iIn.value.trim(); if (!n) return; A.giveItem(n, 1); refreshPanel(); } })
+            el('button', { style: 'background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer', text: '＋', onclick: () => { const n = iIn.value.trim(); if (!n) return; A.giveItem(n, 1); refreshPanel(); } })
         ]));
 
         // ---- what the AI sees ----
-        box.appendChild(el('button', { style: 'width:100%;margin-top:12px;background:#242424;color:#9cf;border:1px solid #345;border-radius:6px;padding:6px;font-size:11px;cursor:pointer', text: '👁 Preview what the AI sees', onclick: () => showPreview() }));
+        box.appendChild(el('button', { style: 'width:100%;margin-top:12px;background:var(--rpm-bg-alt);color:#9cf;border:1px solid #345;border-radius:6px;padding:6px;font-size:11px;cursor:pointer', text: '👁 Preview what the AI sees', onclick: () => showPreview() }));
     }
     function parseVal(raw) { const v = String(raw || '').trim(); if (v === '') return true; if (/^(true|false)$/i.test(v)) return /true/i.test(v); if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v); return v; }
 
     // =======================================================================
-    //  NAVBAR BUTTON (mirrors TreeViewer.showOpenButton pattern)
+    //  INIT — register views with the app shell
     // =======================================================================
-    function installNavbarButton() {
-        try {
-            const ul = document.querySelector('#navbarNavDropdown > ul');
-            if (!ul || document.getElementById('wm-navbtn')) return false;
-            const li = el('li', { class: 'nav-item' });
-            const b = el('span', { id: 'wm-navbtn', title: 'Worlds editor', style: 'display:block;cursor:pointer;height:42px;width:42px;line-height:42px;text-align:center;font-size:20px;color:#7fd', text: '🌐', onclick: () => openEditor() });
-            li.appendChild(b); ul.appendChild(li);
-            return true;
-        } catch (_) { return false; }
+    function registerViews(sh) {
+        const view = (render) => ({ mount: render, update: (c) => { clear(c); render(c); } });
+        sh.registerView({ id: 'world', title: 'World', place: 'right', order: 10, mount: mountPanel, update: () => renderPanel() });
+        sh.registerView(Object.assign({ id: 'party', title: 'Party', place: 'left', order: 10 }, view(renderParty)));
+        sh.registerView(Object.assign({ id: 'quest-tracker', title: 'Quests', place: 'left', order: 20 }, view(renderQuestTracker)));
+        sh.registerView(Object.assign({ id: 'questlog', title: 'Quest log', place: 'window', window: { width: 380, height: 520 } }, view((c) => {
+            if (API().activeWorld()) renderQuestsTab(c); else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
+        })));
+        sh.registerView(Object.assign({ id: 'combat', title: 'Combat', place: 'window', window: { width: 360, height: 560 } }, view((c) => {
+            if (API().activeWorld()) renderCombatTab(c); else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
+        })));
     }
 
-    // =======================================================================
-    //  INIT
-    // =======================================================================
     function init() {
+        const sh = Shell();
         // expose openers on the engine API for convenience
-        try { window.KLITE_RPMod_Worlds.openEditor = openEditor; window.KLITE_RPMod_Worlds.showPanel = () => { if (!panelEl) document.body.appendChild(buildPanel()); else refreshPanel(); }; } catch (_) {}
-        installNavbarButton();
-        if (!panelEl) document.body.appendChild(buildPanel());
+        try { window.KLITE_RPMod_Worlds.openEditor = openEditor; window.KLITE_RPMod_Worlds.showPanel = () => sh.open('world'); } catch (_) {}
+        registerViews(sh);
+        // engine state changed (chat tags, triggers, API calls) -> re-render, but never
+        // under the user's cursor while they type
+        window.addEventListener('klite:worlds-change', () => { try { refreshPanel({ soft: true }); } catch (_) {} });
     }
 
     function whenReady() {
         let tries = 0;
         const timer = setInterval(() => {
             tries++;
-            if (window.KLITE_RPMod_Worlds && typeof window.KLITE_RPMod_Worlds.getGraph === 'function') { clearInterval(timer); try { init(); } catch (e) { console.error('[WorldsUI]', e); } }
+            const engineReady = window.KLITE_RPMod_Worlds && typeof window.KLITE_RPMod_Worlds.getGraph === 'function';
+            if (engineReady && window.KLITE_RPMod_Shell) { clearInterval(timer); try { init(); } catch (e) { console.error('[WorldsUI]', e); } }
             else if (tries > 300) clearInterval(timer);
         }, 100);
     }

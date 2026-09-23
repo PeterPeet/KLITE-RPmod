@@ -11,12 +11,12 @@
 | `KLITE-RPmod_ALPHA.js` (~17.7k lines) | `window.KLITE_RPMod` | Original mod: right-side panels CHARS / ROLES / TOOLS / CONTEXT / IMAGES, character gallery & editor, personas, group chat, save-bundle embedding, debug system |
 | `KLITE-RPmod_GuidedRP.js` (~5.2k) | `window.KLITE_RPMod_GuidedRP` | Beginner onboarding overlay (8-step setup, Easy/Advanced) |
 | `KLITE-RPmod_Worlds.js` (~1.6k) | `window.KLITE_RPMod_Worlds` | Worlds engine: world graph, retrieval, injection, runtime state, quests, triggers, combat |
-| `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds panel (Play/Quests/Combat/Editor tabs) + node-graph editor overlay + navbar button |
+| `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds views for the shell (World tab, Party/Quests sections, Quest log/Combat windows) + node-graph editor overlay |
+| `shell/shell.js`, `windows.js`, `styles.js`, `dom.js` | `window.KLITE_RPMod_Shell` | App shell: docks, view registry, floating windows, design tokens, top-bar button (§4a) |
 
 - **Sources are ES modules** (strict mode). Each exports one default init function
-  (`initAlpha`, `initGuidedRP`, `initWorlds`, `initWorldsUI`) whose body is the former IIFE;
-  cross-module access is still via `window.*` only. `src/main.js` imports all four and calls
-  them in the order above, each in its own `try{…}catch` so one module's runtime error
+  (`initShell`, `initAlpha`, `initGuidedRP`, `initWorlds`, `initWorldsUI`); cross-module
+  access is via `window.*` only. `src/main.js` imports them and calls them (shell first), each in its own `try{…}catch` so one module's runtime error
   cannot stop the others.
 - **Build** (`scripts/build-bundle.js`, `npm run build`): **esbuild** bundles `src/main.js`
   into one classic-script IIFE, `KLITE-RPmod.js` (repo root). Not minified; ordinary
@@ -168,11 +168,41 @@ by SRD 5.2 in R3).
 factions (2 HQs), 3 quests (one hidden), 3 events (courier chain on quest accept, night
 ambush, hidden omen). Sets the authored start as the base slot and enables the world.
 
+## 4a. App shell (`src/shell/`)
+- **Layout:** `#rpm-shell` is one fixed layer at **z-index 2** (below Esolite popups, z 3)
+  holding the left dock (`#rpm-dock-left`, stacked collapsible sections), the right dock
+  (`#rpm-dock-right`, tabs), edge handles and the window layer. **Docked** mode (viewport ≥
+  left + right + 560 px) pushes Esolite's `#maincontainer` in via margins
+  (`--rpm-push-left/right`); **overlay** mode turns docks into drawers (one at a time,
+  Escape closes); **compact** (< 600 px) makes windows full-screen and does not restore
+  them on load.
+- **Views:** modules call `KLITE_RPMod_Shell.registerView({ id, title, place:
+  'left'|'right'|'window', order, mount(container), update?(container), window?, eager? })`.
+  Right-dock views mount on first show (or at once with `eager`); hidden views are marked
+  dirty by `refresh(ids)` and re-render when shown; `refresh(ids, {soft:true})` skips a view
+  while the user types in it. A throwing view shows an error box, the shell keeps working.
+  API: `open(id)`, `close(id)`, `refresh`, `setDockOpen/toggleDock/dockOpen`, `mode`, `layout`.
+- **Windows** (`windows.js`): drag by title bar, resize by grip (min size), click raises,
+  clamped so the title bar stays on screen; pointer events (mouse fallback).
+- **Persistence:** `localStorage['KLITE.shell.layout']` — dock open/width, saved tab (only
+  explicit clicks), collapsed sections, window geometry/open. Per-browser convenience;
+  corrupt data falls back to defaults.
+- **Design tokens** (`styles.js`): `--rpm-*` colours bound to Esolite's `--theme_color_*`
+  (1.35 names, older names, then neutral defaults), spacing `--rpm-s1…s4`, type
+  `--rpm-fs-*`, `--rpm-radius`. New UI must use these, not hard-coded colours.
+- **ALPHA adoption:** the shell moves ALPHA's `#panel-right` (built async) into the
+  "Characters" tab (eager) and neutralises its fixed positioning/collapse via CSS. ALPHA's
+  event delegation (`closest('#panel-right')`) keeps working.
+- **Top bar:** one `#rpm-navbtn` in `#navbarNavDropdown > ul` toggles the docks.
+
 ## 4. Worlds UI (`src/KLITE-RPmod_WorldsUI.js`)
-- **Floating panel** (bottom-right, `#wm-panel`): world selector, New/Example/Import/Export,
-  Creator⇄Player lens (`localStorage['KLITE.worlds.uiMode']`), tabs Play (enable, state
-  slots, location, time/weather, flags, inventory, preview), Quests (log, GM/player AI
-  mode), Combat (builder with SRD quick-add, live tracker), Editor.
+- **Shell views:** right tab **World** (`#wm-panel`: world selector,
+  New/Example/Import/Export, Creator⇄Player lens `localStorage['KLITE.worlds.uiMode']`,
+  window launchers, enable, state slots, location, time/weather, flags, inventory,
+  preview); left sections **Party** and **Quests** (tracker); windows **Quest log** (GM/player
+  AI mode) and **Combat** (builder with SRD quick-add, live tracker). All re-render on the
+  engine's `klite:worlds-change` window event (coalesced, fired from `syncLive()` and after
+  each generation).
 - **Editor overlay** (`#wm-overlay`): hand-rolled SVG canvas (no libraries): pan/zoom,
   palette, Select/Link tools, typed auto-inferred edges via `connect()`, derived chain
   edges, `!`/`?` badges, inspector with per-type extras (world rules, person
@@ -192,7 +222,8 @@ persons (roadmap known issue). Security helpers: `KLITE_RPMod.escapeHtml`,
 ## 6. Tests (`tests/`)
 Node's built-in runner + jsdom. `tests/helpers/host.js` builds a fake Esolite host (the
 globals in §2, a recording `submit_generation`, `seedRandom` for dice) and loads sources
-via `vm` like a usermod. Suites: `syntax`, `engine`, `quests`, `triggers`, `combat`, `ui`,
-`bundle` (built file end-to-end). Known jsdom limits: no layout (stubbed
+via `vm` like a usermod (single `src/` modules are bundled on the fly with esbuild; the
+viewport is 1400×900, `host.resize()` changes it). Suites: `syntax`, `engine`, `quests`,
+`triggers`, `combat`, `shell`, `ui`, `bundle` (built file end-to-end). Known jsdom limits: no layout (stubbed
 `getBoundingClientRect`); its CSS parser rejects some valid combined style strings; arrays
 from the page realm need value comparison, not `deepStrictEqual`.
