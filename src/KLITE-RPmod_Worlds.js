@@ -816,16 +816,19 @@ export default function initWorlds() {
     function combatDamage(targetId, amount) {
         const cb = getCombat(); if (!cb) return;
         if (isV2(cb) && isDown(cb, targetId) && deathOf(cb, targetId)) { hitWhileDown(targetId, false); checkOutcome(); return 0; }
-        const left = setHp(targetId, (cb.hp[targetId] != null ? cb.hp[targetId] : combatantStats(targetId).hpMax) - Number(amount));
-        combatLog(`${combatantName(targetId)} takes ${amount} damage → HP ${left}/${cb.maxHp[targetId]}${left <= 0 ? ' (down!)' : ''}`);
+        const from = cb.hp[targetId] != null ? cb.hp[targetId] : combatantStats(targetId).hpMax;
+        const next = Math.max(0, from - Number(amount));
+        combatLog(`${combatantName(targetId)} takes ${amount} damage → HP ${next}/${cb.maxHp[targetId]}${next <= 0 ? ' (down!)' : ''}`);
+        const left = setHp(targetId, next);
         checkOutcome();
         return left;
     }
     function combatHeal(targetId, amount) {
         const cb = getCombat(); if (!cb) return;
         const d = deathOf(cb, targetId); if (d && d.dead) { combatLog(`${combatantName(targetId)} is dead and cannot be healed.`); return cb.hp[targetId]; }
-        const left = setHp(targetId, (cb.hp[targetId] || 0) + Number(amount));
-        combatLog(`${combatantName(targetId)} heals ${amount} → HP ${left}/${cb.maxHp[targetId]}`);
+        const next = Math.min(cb.maxHp[targetId] || 999, (cb.hp[targetId] || 0) + Number(amount));
+        combatLog(`${combatantName(targetId)} heals ${amount} → HP ${next}/${cb.maxHp[targetId]}`);
+        const left = setHp(targetId, next);
         checkOutcome();
         return left;
     }
@@ -842,23 +845,24 @@ export default function initWorlds() {
         const how = `${m.mode ? ` (${m.mode === 'adv' ? 'advantage' : 'disadvantage'}${m.why.length ? ': ' + m.why.join(', ') : ''})` : ''}`;
         const A = combatantName(attackerId), T = combatantName(targetId);
         if (isV2(cb)) cb.lastTarget[attackerId] = targetId;
-        if (hit.fumble) { combatLog(`${A} attacks ${T} with ${atk.name}${how}: natural 1 — miss.`); return { hit: false, fumble: true, roll: hit.total }; }
+        if (hit.fumble) { combatLog(`Miss (natural 1): ${A} → ${T} with ${atk.name}${how}.`); return { hit: false, fumble: true, roll: hit.total }; }
         if (hit.total >= tSt.ac || hit.crit) {
             const crit = hit.crit || m.autoCrit;
             if (isV2(cb) && isDown(cb, targetId) && deathOf(cb, targetId)) {
-                combatLog(`${A} ${crit ? 'CRITS' : 'hits'} ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}).`);
+                combatLog(`${crit ? 'Critical hit' : 'Hit'}: ${A} → ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}).`);
                 hitWhileDown(targetId, crit); checkOutcome();
                 return { hit: true, crit, roll: hit.total, ac: tSt.ac, damage: 0, targetHp: 0 };
             }
             const base = rollExpr(atk.damage || '1d6'); let dmg = base.total;
             if (crit) dmg += rollDiceOnly(atk.damage || '1d6');   // crit: roll the damage dice twice
             dmg = Math.max(1, dmg);
-            const left = setHp(targetId, (cb.hp[targetId] != null ? cb.hp[targetId] : tSt.hpMax) - dmg);
-            combatLog(`${A} ${crit ? 'CRITS' : 'hits'} ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}) for ${dmg}${atk.type ? ' ' + atk.type.toLowerCase() : ''} damage → HP ${left}/${cb.maxHp[targetId]}${left <= 0 ? ' (down!)' : ''}`);
+            const next = Math.max(0, (cb.hp[targetId] != null ? cb.hp[targetId] : tSt.hpMax) - dmg);
+            combatLog(`${crit ? 'Critical hit' : 'Hit'}: ${A} → ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}), ${dmg}${atk.type ? ' ' + atk.type.toLowerCase() : ''} damage → HP ${next}/${cb.maxHp[targetId]}${next <= 0 ? ' (down!)' : ''}`);
+            const left = setHp(targetId, next);
             checkOutcome();
             return { hit: true, crit, roll: hit.total, ac: tSt.ac, damage: dmg, targetHp: left };
         }
-        combatLog(`${A} misses ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}).`);
+        combatLog(`Miss: ${A} → ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}).`);
         return { hit: false, roll: hit.total, ac: tSt.ac };
     }
     function rollDiceOnly(expr) { let t = 0; for (const m of String(expr).replace(/\s+/g, '').matchAll(/(\d*)d(\d+)/g)) for (let i = 0; i < (Number(m[1]) || 1); i++) t += rollDie(Number(m[2])); return t; }
@@ -869,7 +873,7 @@ export default function initWorlds() {
         const r = savingThrow(targetId, act.save, act.dc, { quiet: true });
         let dmg = act.damage ? rollExpr(act.damage).total : 0;
         if (r.success) dmg = act.half ? Math.floor(dmg / 2) : 0;
-        combatLog(`${combatantName(attackerId)} uses ${act.name}: ${combatantName(targetId)} ${act.save.toUpperCase()} save ${r.total} vs DC ${act.dc} — ${r.success ? 'success' : 'failure'}${dmg ? `, ${dmg} ${act.type ? act.type.toLowerCase() + ' ' : ''}damage` : ''}.`);
+        combatLog(`${combatantName(attackerId)} → ${combatantName(targetId)}: ${act.name}, ${act.save.toUpperCase()} save ${r.total} vs DC ${act.dc} — ${r.success ? 'success' : 'failure'}${dmg ? `, ${dmg} ${act.type ? act.type.toLowerCase() + ' ' : ''}damage` : ''}.`);
         if (dmg) { if (isDown(cb, targetId) && deathOf(cb, targetId)) hitWhileDown(targetId, false); else setHp(targetId, (cb.hp[targetId] || 0) - dmg); }
         checkOutcome();
         return { ...r, damage: dmg };
@@ -1107,6 +1111,12 @@ export default function initWorlds() {
 
         // 2c. Combat state (top priority when an encounter is active)
         push('Combat', 96, combatText());
+        // 2d. How the AI (as GM) starts a fight — RPmod then runs it (outside of combat only)
+        if (!(getCombat() && getCombat().active)) {
+            const saved = asArray(world.encounters).map(e => e.name).filter(Boolean);
+            push('Starting a fight', 20, 'When a fight breaks out, write <encounter>2 Wolf, Goblin Warrior</encounter> (SRD monster names and counts)' +
+                (saved.length ? ` or the name of a prepared encounter (${saved.slice(0, 8).join(', ')})` : '') + '. RPmod then rolls initiative and every attack; you narrate the results.');
+        }
 
         if (!loc) { return { sections, location: null }; }
         // mark visited
@@ -1747,7 +1757,7 @@ export default function initWorlds() {
         startEncounter(ids, opts) { const c = startEncounter(ids, opts); syncLive(); return c; },
         endEncounter() { endEncounter(); syncLive(); return true; },
         getCombat, combatText, combatantStats, combatantName, resolveCombatant,
-        attack(a, t, i) { const r = combatAttack(a, t, i); syncLive(); return r; },
+        attack(a, t, i, opts) { const r = combatAttack(a, t, i, opts || {}); syncLive(); return r; },
         damage(id, n) { const r = combatDamage(id, n); syncLive(); return r; },
         heal(id, n) { const r = combatHeal(id, n); syncLive(); return r; },
         nextTurn() { const r = nextTurn(); syncLive(); return r; },

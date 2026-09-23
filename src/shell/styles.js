@@ -294,6 +294,21 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-log-line { font-size: var(--rpm-fs-sm); padding: 2px 0; border-bottom: 1px solid var(--rpm-border); }
 .rpm-log-crit { color: var(--rpm-success); font-weight: bold; }
 .rpm-log-fumble { color: var(--rpm-danger); }
+/* combat window (src/game/combatView.js) */
+.rpm-cb select.form-control { width: auto; max-width: 100%; }
+.rpm-cb-meter { position: relative; height: 10px; background: var(--rpm-bg-outer); border-radius: 5px; margin: 6px 0 2px; overflow: hidden; }
+.rpm-cb-fill { display: block; height: 100%; background: var(--rpm-info); }
+.rpm-cb-fill.rpm-cb-moderate { background: var(--rpm-quest); }
+.rpm-cb-fill.rpm-cb-high, .rpm-cb-fill.rpm-cb-beyond { background: var(--rpm-danger); }
+.rpm-cb-tick { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--rpm-fg-muted); opacity: .7; }
+.rpm-cb-list { max-height: 220px; overflow: auto; border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); margin-top: 4px; }
+.rpm-cb-item { display: flex; gap: 6px; align-items: center; padding: 3px 6px; border-bottom: 1px solid var(--rpm-border); font-size: var(--rpm-fs-sm); }
+.rpm-cb-item > .rpm-grow { flex: 1 1 0; min-width: 0; }
+.rpm-cb-outcome.rpm-cb-victory { border-color: var(--rpm-success); }
+.rpm-cb-outcome.rpm-cb-defeat { border-color: var(--rpm-danger); }
+.rpm-cb-turn { margin-top: 10px; border-color: var(--rpm-border-hi); }
+.rpm-cb-tools { margin-top: 10px; }
+.rpm-cb-tools > summary { cursor: pointer; color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); }
 @container (max-width: 520px) {
     .rpm-sheet-abilities { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .rpm-sheet-grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }

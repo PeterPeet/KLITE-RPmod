@@ -287,6 +287,21 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-log-line { font-size: var(--rpm-fs-sm); padding: 2px 0; border-bottom: 1px solid var(--rpm-border); }
 .rpm-log-crit { color: var(--rpm-success); font-weight: bold; }
 .rpm-log-fumble { color: var(--rpm-danger); }
+/* combat window (src/game/combatView.js) */
+.rpm-cb select.form-control { width: auto; max-width: 100%; }
+.rpm-cb-meter { position: relative; height: 10px; background: var(--rpm-bg-outer); border-radius: 5px; margin: 6px 0 2px; overflow: hidden; }
+.rpm-cb-fill { display: block; height: 100%; background: var(--rpm-info); }
+.rpm-cb-fill.rpm-cb-moderate { background: var(--rpm-quest); }
+.rpm-cb-fill.rpm-cb-high, .rpm-cb-fill.rpm-cb-beyond { background: var(--rpm-danger); }
+.rpm-cb-tick { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--rpm-fg-muted); opacity: .7; }
+.rpm-cb-list { max-height: 220px; overflow: auto; border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); margin-top: 4px; }
+.rpm-cb-item { display: flex; gap: 6px; align-items: center; padding: 3px 6px; border-bottom: 1px solid var(--rpm-border); font-size: var(--rpm-fs-sm); }
+.rpm-cb-item > .rpm-grow { flex: 1 1 0; min-width: 0; }
+.rpm-cb-outcome.rpm-cb-victory { border-color: var(--rpm-success); }
+.rpm-cb-outcome.rpm-cb-defeat { border-color: var(--rpm-danger); }
+.rpm-cb-turn { margin-top: 10px; border-color: var(--rpm-border-hi); }
+.rpm-cb-tools { margin-top: 10px; }
+.rpm-cb-tools > summary { cursor: pointer; color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); }
 @container (max-width: 520px) {
     .rpm-sheet-abilities { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .rpm-sheet-grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -880,13 +895,13 @@ body.rpm-docked #maincontainer {
       const list2 = sortedViews("right");
       const active = currentTab();
       for (const v of list2) {
-        const sel = v.def.id === active;
-        v.tab = el("button", { class: "rpm-tab", type: "button", role: "tab", "aria-selected": String(sel), "aria-controls": "rpm-view-" + v.def.id, "data-tab": v.def.id, text: v.def.title || v.def.id });
+        const sel2 = v.def.id === active;
+        v.tab = el("button", { class: "rpm-tab", type: "button", role: "tab", "aria-selected": String(sel2), "aria-controls": "rpm-view-" + v.def.id, "data-tab": v.def.id, text: v.def.title || v.def.id });
         v.tab.addEventListener("click", () => selectTab(v.def.id));
         dom.tabs.appendChild(v.tab);
-        v.container.classList.toggle("rpm-active", sel);
-        if (sel && (!v.mounted || v.dirty)) mountOrUpdate(v);
-        if (sel && v.def.id !== shownTab) callShow(v);
+        v.container.classList.toggle("rpm-active", sel2);
+        if (sel2 && (!v.mounted || v.dirty)) mountOrUpdate(v);
+        if (sel2 && v.def.id !== shownTab) callShow(v);
       }
     }
     function callShow(v) {
@@ -904,11 +919,11 @@ body.rpm-docked #maincontainer {
         saveLayout();
       }
       for (const v of sortedViews("right")) {
-        const sel = v.def.id === id;
-        if (v.tab) v.tab.setAttribute("aria-selected", String(sel));
-        if (v.container) v.container.classList.toggle("rpm-active", sel);
-        if (sel && (!v.mounted || v.dirty)) mountOrUpdate(v);
-        if (sel && id !== shownTab) callShow(v);
+        const sel2 = v.def.id === id;
+        if (v.tab) v.tab.setAttribute("aria-selected", String(sel2));
+        if (v.container) v.container.classList.toggle("rpm-active", sel2);
+        if (sel2 && (!v.mounted || v.dirty)) mountOrUpdate(v);
+        if (sel2 && id !== shownTab) callShow(v);
       }
     }
     function mountOrUpdate(v) {
@@ -1145,7 +1160,7 @@ body.rpm-docked #maincontainer {
         if (document.getElementById("rpm-navbtn")) return true;
         const ul = document.querySelector("#navbarNavDropdown > ul");
         if (!ul) return false;
-        const btn = el("a", {
+        const btn2 = el("a", {
           id: "rpm-navbtn",
           href: "#",
           role: "button",
@@ -1154,7 +1169,7 @@ body.rpm-docked #maincontainer {
           "aria-pressed": "false",
           style: "display:flex;align-items:center;gap:6px"
         }, [icon(ICONS.shell, 16), el("span", { text: "RPmod" })]);
-        btn.addEventListener("click", (e) => {
+        btn2.addEventListener("click", (e) => {
           e.preventDefault();
           const anyOpen = open.left || open.right;
           if (mode2 === "overlay") setDockOpen("right", !anyOpen);
@@ -1163,8 +1178,8 @@ body.rpm-docked #maincontainer {
             setDockOpen("right", !anyOpen);
           }
         });
-        ul.appendChild(el("li", { class: "nav-item" }, [btn]));
-        dom.navBtn = btn;
+        ul.appendChild(el("li", { class: "nav-item" }, [btn2]));
+        dom.navBtn = btn2;
         applyLayout();
         return true;
       };
@@ -1954,7 +1969,7 @@ ${s.text}` : s.text : `[${s.title}]`;
       const P = window.KLITE_RPMod && window.KLITE_RPMod.panels || {};
       const tools = P.TOOLS, roles = P.ROLES;
       const out = [];
-      const add = (c, label, priority) => {
+      const add = (c, label2, priority) => {
         const name = cardField(c, "name");
         if (!name || ctx.isDescribed(name)) return;
         let sheet = "";
@@ -1962,7 +1977,7 @@ ${s.text}` : s.text : `[${s.title}]`;
           sheet = window.KLITE_RPMod_Characters?.summaryFor(name) || "";
         } catch (_) {
         }
-        out.push({ title: `${label}: ${name}`, priority, text: [characterContextText(c), sheet && "Character sheet: " + sheet].filter(Boolean).join("\n") });
+        out.push({ title: `${label2}: ${name}`, priority, text: [characterContextText(c), sheet && "Character sheet: " + sheet].filter(Boolean).join("\n") });
         ctx.describe(name);
       };
       if (tools?.personaEnabled && tools.selectedPersona) add(tools.selectedPersona, "User Character", 88);
@@ -4758,31 +4773,31 @@ ${s.text}` : s.text : `[${s.title}]`;
                 ${options.map((o) => `<option value="${o.value}" ${o.selected ? "selected" : ""}>${o.text}</option>`).join("")}
             </select>
         `,
-      checkbox: (id, label, checked = false) => `
+      checkbox: (id, label2, checked = false) => `
             <label style="display: flex; align-items: center; gap: 2px; cursor: pointer;">
                 <input type="checkbox" id="${id}" ${checked ? "checked" : ""}>
-                <span>${label}</span>
+                <span>${label2}</span>
             </label>
         `,
       row: (content) => `<div class="klite-row">${content}</div>`,
       muted: (text) => `<div class="klite-muted">${text}</div>`,
-      slider: (id, min, max, value, label = "") => `
+      slider: (id, min, max, value, label2 = "") => `
             <div>
-                ${label ? `<label for="${id}" style="display: block; margin-bottom: 5px; font-size: 12px;">${label}</label>` : ""}
+                ${label2 ? `<label for="${id}" style="display: block; margin-bottom: 5px; font-size: 12px;">${label2}</label>` : ""}
                 <input type="range" id="${id}" class="klite-slider" min="${min}" max="${max}" value="${value}">
             </div>
         `
     };
     try {
       document.addEventListener("click", (ev) => {
-        const btn = ev.target && ev.target.closest ? ev.target.closest('[data-action="rpmod-load-image"]') : null;
-        if (!btn) return;
+        const btn2 = ev.target && ev.target.closest ? ev.target.closest('[data-action="rpmod-load-image"]') : null;
+        if (!btn2) return;
         ev.preventDefault();
         try {
-          const url = btn.getAttribute("data-url") || "";
-          const alt = btn.getAttribute("data-alt") || "";
-          const style = btn.getAttribute("data-style") || "";
-          const wrap = btn.closest(".klite-safe-image") || btn.parentElement;
+          const url = btn2.getAttribute("data-url") || "";
+          const alt = btn2.getAttribute("data-alt") || "";
+          const style = btn2.getAttribute("data-style") || "";
+          const wrap = btn2.closest(".klite-safe-image") || btn2.parentElement;
           if (!url || !wrap) return;
           const img = document.createElement("img");
           img.loading = "lazy";
@@ -4795,8 +4810,8 @@ ${s.text}` : s.text : `[${s.title}]`;
           img.src = url;
           const blocked = wrap.querySelector(".klite-image-blocked");
           if (blocked) blocked.replaceWith(img);
-          else wrap.insertBefore(img, btn);
-          btn.remove();
+          else wrap.insertBefore(img, btn2);
+          btn2.remove();
         } catch (_) {
         }
       });
@@ -5209,10 +5224,10 @@ ${parts.join("\n")})))`;
       // Map host image provider mode (number or string) to human-readable label
       getGenerationMode(mode2) {
         try {
-          const sel = document.getElementById("generate_images_mode");
-          if (sel && sel.options && sel.options.length) {
-            const val = mode2 ?? window.localsettings?.generate_images_mode ?? sel.value;
-            const match = Array.from(sel.options).find((o) => String(o.value) === String(val));
+          const sel2 = document.getElementById("generate_images_mode");
+          if (sel2 && sel2.options && sel2.options.length) {
+            const val = mode2 ?? window.localsettings?.generate_images_mode ?? sel2.value;
+            const match = Array.from(sel2.options).find((o) => String(o.value) === String(val));
             if (match) return (match.text || "").trim();
           }
         } catch (_) {
@@ -6676,21 +6691,21 @@ ${parts.join("\n")})))`;
               (wrap2 || pane).appendChild(dbg);
               try {
                 const btnRow = dbg.querySelector("#rpmod-debug-all")?.parentElement || null;
-                const row = document.createElement("div");
-                row.style.display = "flex";
-                row.style.alignItems = "center";
-                row.style.gap = "8px";
-                row.style.margin = "6px 0";
+                const row2 = document.createElement("div");
+                row2.style.display = "flex";
+                row2.style.alignItems = "center";
+                row2.style.gap = "8px";
+                row2.style.margin = "6px 0";
                 const cb = document.createElement("input");
                 cb.type = "checkbox";
                 cb.id = "rpmod-debug-restore-console";
                 cb.checked = localStorage.getItem("rpmod_enable_console_restore") === "1" || !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.enableConsoleRestore);
                 const sp = document.createElement("span");
                 sp.textContent = "Restore console (iframe workaround)";
-                row.appendChild(cb);
-                row.appendChild(sp);
-                if (btnRow && dbg.contains(btnRow)) dbg.insertBefore(row, btnRow);
-                else dbg.appendChild(row);
+                row2.appendChild(cb);
+                row2.appendChild(sp);
+                if (btnRow && dbg.contains(btnRow)) dbg.insertBefore(row2, btnRow);
+                else dbg.appendChild(row2);
               } catch (_) {
               }
               const topicsFromLevels2 = () => {
@@ -6845,21 +6860,21 @@ ${parts.join("\n")})))`;
             const dbgBox = wrap.querySelector("#rpmod-debug-settings");
             const btnRow = wrap.querySelector("#rpmod-debug-all")?.parentElement || null;
             if (dbgBox) {
-              const row = document.createElement("div");
-              row.style.display = "flex";
-              row.style.alignItems = "center";
-              row.style.gap = "8px";
-              row.style.margin = "6px 0";
+              const row2 = document.createElement("div");
+              row2.style.display = "flex";
+              row2.style.alignItems = "center";
+              row2.style.gap = "8px";
+              row2.style.margin = "6px 0";
               const cb2 = document.createElement("input");
               cb2.type = "checkbox";
               cb2.id = "rpmod-debug-restore-console";
               cb2.checked = localStorage.getItem("rpmod_enable_console_restore") === "1" || !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.enableConsoleRestore);
               const sp2 = document.createElement("span");
               sp2.textContent = "Restore console (iframe workaround)";
-              row.appendChild(cb2);
-              row.appendChild(sp2);
-              if (btnRow && dbgBox.contains(btnRow)) dbgBox.insertBefore(row, btnRow);
-              else dbgBox.appendChild(row);
+              row2.appendChild(cb2);
+              row2.appendChild(sp2);
+              if (btnRow && dbgBox.contains(btnRow)) dbgBox.insertBefore(row2, btnRow);
+              else dbgBox.appendChild(row2);
             }
           } catch (_) {
           }
@@ -7147,7 +7162,7 @@ ${parts.join("\n")})))`;
                 }
               },
               init() {
-                const sel = document.getElementById("scene-autogen");
+                const sel2 = document.getElementById("scene-autogen");
                 const cb = document.getElementById("scene-detect");
                 const applyAutogenToHost = (val) => {
                   try {
@@ -7171,11 +7186,11 @@ ${parts.join("\n")})))`;
                   } catch (_) {
                   }
                 };
-                if (sel) {
+                if (sel2) {
                   const hostSel = document.getElementById("img_autogen_type");
                   const initVal = hostSel?.value ?? String(window.localsettings?.img_autogen_type ?? "0");
-                  sel.value = String(initVal);
-                  sel.addEventListener("change", () => applyAutogenToHost(sel.value));
+                  sel2.value = String(initVal);
+                  sel2.addEventListener("change", () => applyAutogenToHost(sel2.value));
                 }
                 if (cb) {
                   const hostCb = document.getElementById("img_gen_from_instruct");
@@ -7225,7 +7240,7 @@ ${parts.join("\n")})))`;
                   try {
                     const hostSel = document.getElementById("img_autogen_type");
                     const hostCb = document.getElementById("img_gen_from_instruct");
-                    if (sel && hostSel && sel.value !== String(hostSel.value)) sel.value = String(hostSel.value);
+                    if (sel2 && hostSel && sel2.value !== String(hostSel.value)) sel2.value = String(hostSel.value);
                     if (cb && hostCb && cb.checked !== !!hostCb.checked) cb.checked = !!hostCb.checked;
                   } catch (_) {
                   }
@@ -7752,11 +7767,11 @@ ${parts.join("\n")})))`;
                   }
                 }]
               ];
-              for (const [label, handler] of defaults) {
+              for (const [label2, handler] of defaults) {
                 const a = document.createElement("a");
                 a.className = "nav-link mainnav";
                 a.href = "#";
-                a.textContent = label;
+                a.textContent = label2;
                 a.onclick = (e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -7890,16 +7905,16 @@ ${parts.join("\n")})))`;
         window.submit_generation_button?.();
       },
       updateSubmitBtn() {
-        const btn = document.getElementById("btn-submit");
-        if (btn) {
+        const btn2 = document.getElementById("btn-submit");
+        if (btn2) {
           if (this.state.generating) {
-            btn.textContent = this.state.mobile.enabled ? "⏹️" : "Abort";
-            btn.classList.add("danger");
+            btn2.textContent = this.state.mobile.enabled ? "⏹️" : "Abort";
+            btn2.classList.add("danger");
           } else {
-            btn.textContent = this.state.mobile.enabled ? "🚀" : "Submit";
-            btn.classList.remove("danger");
+            btn2.textContent = this.state.mobile.enabled ? "🚀" : "Submit";
+            btn2.classList.remove("danger");
           }
-          this.log("state", `Submit button updated: ${btn.textContent}`);
+          this.log("state", `Submit button updated: ${btn2.textContent}`);
         }
       },
       resetRPModState(keepMemory = false) {
@@ -7975,13 +7990,13 @@ ${parts.join("\n")})))`;
             }
           }
         }
-        const btn = document.getElementById("btn-edit");
+        const btn2 = document.getElementById("btn-edit");
         const isEditMode = checkbox?.checked;
-        if (btn) {
+        if (btn2) {
           if (isEditMode) {
-            btn.classList.add("active");
+            btn2.classList.add("active");
           } else {
-            btn.classList.remove("active");
+            btn2.classList.remove("active");
           }
         }
         const chatDisplay = document.getElementById("chat-display");
@@ -8075,11 +8090,11 @@ ${parts.join("\n")})))`;
             document.getElementById("btn-2-mobile-chat"),
             document.getElementById("btn-3-mobile-chat")
           ];
-          bottomButtons.forEach((btn) => {
-            if (btn) btn.classList.remove("adventure-active");
+          bottomButtons.forEach((btn2) => {
+            if (btn2) btn2.classList.remove("adventure-active");
           });
-          mobileButtons.forEach((btn) => {
-            if (btn) btn.classList.remove("adventure-active");
+          mobileButtons.forEach((btn2) => {
+            if (btn2) btn2.classList.remove("adventure-active");
           });
           this.log("state", `Cleared adventure highlighting from all buttons when leaving adventure mode to ${mode2}`);
         }
@@ -8114,9 +8129,9 @@ ${parts.join("\n")})))`;
         if (!isRealChange) {
           return;
         }
-        modeButtons.forEach((btn) => btn.classList.remove("active"));
+        modeButtons.forEach((btn2) => btn2.classList.remove("active"));
         if (targetBtns.length > 0) {
-          targetBtns.forEach((btn) => btn.classList.add("active"));
+          targetBtns.forEach((btn2) => btn2.classList.add("active"));
           this.quickButtonState.activeButton = buttonNumber;
           this.quickButtonState.lastActiveMode = targetMode;
           this.log("panels", `Quick button ${buttonNumber} activated (for mode ${targetMode}) - updated ${targetBtns.length} button(s)`);
@@ -8143,8 +8158,8 @@ ${parts.join("\n")})))`;
           4: ["ME AS AI", "AI AS ME", "NARRATOR"]
           // Same as mode 3 for Instruct
         };
-        (labels[mode2] || labels[3]).forEach((label, i) => {
-          if (btns[i]) btns[i].textContent = label;
+        (labels[mode2] || labels[3]).forEach((label2, i) => {
+          if (btns[i]) btns[i].textContent = label2;
         });
         this.updateMobileModeClass(mode2);
       },
@@ -9766,7 +9781,7 @@ ${parts.join("\n")})))`;
                 }
               },
               init() {
-                const sel = document.getElementById("scene-autogen");
+                const sel2 = document.getElementById("scene-autogen");
                 const cb = document.getElementById("scene-detect");
                 const applyAutogenToHost = (val) => {
                   try {
@@ -9790,11 +9805,11 @@ ${parts.join("\n")})))`;
                   } catch (_) {
                   }
                 };
-                if (sel) {
+                if (sel2) {
                   const hostSel = document.getElementById("img_autogen_type");
                   const initVal = hostSel?.value ?? String(window.localsettings?.img_autogen_type ?? "0");
-                  sel.value = String(initVal);
-                  sel.addEventListener("change", () => applyAutogenToHost(sel.value));
+                  sel2.value = String(initVal);
+                  sel2.addEventListener("change", () => applyAutogenToHost(sel2.value));
                 }
                 if (cb) {
                   const hostCb = document.getElementById("img_gen_from_instruct");
@@ -9815,11 +9830,11 @@ ${parts.join("\n")})))`;
                     if (mEl) mEl.textContent = modeTxt;
                     if (mdlEl) mdlEl.textContent = modelTxt;
                     try {
-                      const sel2 = document.getElementById("scene-autogen");
+                      const sel3 = document.getElementById("scene-autogen");
                       const cb2 = document.getElementById("scene-detect");
                       const hostSel = document.getElementById("img_autogen_type");
                       const hostCb = document.getElementById("img_gen_from_instruct");
-                      if (sel2 && hostSel && sel2.value !== String(hostSel.value)) sel2.value = String(hostSel.value);
+                      if (sel3 && hostSel && sel3.value !== String(hostSel.value)) sel3.value = String(hostSel.value);
                       if (cb2 && hostCb && cb2.checked !== !!hostCb.checked) cb2.checked = !!hostCb.checked;
                     } catch (_) {
                     }
@@ -10622,8 +10637,8 @@ ${parts.join("\n")})))`;
               KLITE_RPMod.updateSliderDisplays(key, value, "rp");
             }
           });
-          document.querySelectorAll('[data-action^="preset-"]').forEach((btn) => {
-            btn.classList.toggle("active", btn.dataset.action === `preset-${preset}`);
+          document.querySelectorAll('[data-action^="preset-"]').forEach((btn2) => {
+            btn2.classList.toggle("active", btn2.dataset.action === `preset-${preset}`);
           });
           window.save_settings?.();
         }
@@ -12436,11 +12451,11 @@ ${examples}`;
               const tools = KLITE_RPMod.panels.TOOLS;
               const chatname = (window.localsettings?.chatname || "User").trim();
               if (tools?.selectedPersona && chatname) {
-                const sel = tools.selectedPersona;
-                const personaCardName = sel.name;
+                const sel2 = tools.selectedPersona;
+                const personaCardName = sel2.name;
                 let userScenario = "";
                 try {
-                  userScenario = String(sel.scenario || sel.rawData?.data?.scenario || sel.data?.scenario || "").trim();
+                  userScenario = String(sel2.scenario || sel2.rawData?.data?.scenario || sel2.data?.scenario || "").trim();
                 } catch (_) {
                 }
                 if (!userScenario && personaCardName) {
@@ -14816,8 +14831,8 @@ ${examples}`;
                     <option value="">All Tags</option>
                     ${uniqueTags.map((tag) => {
             const t2 = KLITE_RPMod.panels.CHARS.escapeHTML(String(tag));
-            const sel = currentValue === tag ? "selected" : "";
-            return `<option value="${t2}" ${sel}>${t2}</option>`;
+            const sel2 = currentValue === tag ? "selected" : "";
+            return `<option value="${t2}" ${sel2}>${t2}</option>`;
           }).join("")}
                 `;
         }
@@ -15827,10 +15842,10 @@ ${characterData.system_prompt}`);
             const option = document.createElement("div");
             option.className = "klite-greeting-option";
             option.style.cssText = "margin-bottom: 15px; padding: 10px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;";
-            const label = KLITE_RPMod.escapeHtml(greeting.label || "");
+            const label2 = KLITE_RPMod.escapeHtml(greeting.label || "");
             const preview = KLITE_RPMod.escapeHtml((greeting.content || "").substring(0, 100) + ((greeting.content || "").length > 100 ? "..." : ""));
             option.innerHTML = `
-                        <strong>${label}</strong>
+                        <strong>${label2}</strong>
                         <div style="margin-top: 5px; color: var(--muted); font-size: 12px;">${preview}</div>
                     `;
             option.addEventListener("click", () => {
@@ -25015,9 +25030,9 @@ ${char.mes_example}
     };
   }
   function budget(level, size) {
-    const row = SRD.xpBudget[Math.min(20, Math.max(1, Number(level) || 1))];
+    const row2 = SRD.xpBudget[Math.min(20, Math.max(1, Number(level) || 1))];
     const n = Math.max(1, Number(size) || 1);
-    return { low: row.low * n, moderate: row.moderate * n, high: row.high * n };
+    return { low: row2.low * n, moderate: row2.moderate * n, high: row2.high * n };
   }
   function difficulty(xp, level, size) {
     const b = budget(level, size);
@@ -25433,7 +25448,7 @@ ${char.mes_example}
       const sched = asArray(npc.schedule);
       if (sched.length && rt()?.clock) {
         const t = norm2(rt().clock.time).toLowerCase();
-        const hit = sched.find((row) => norm2(row.time).toLowerCase() === t);
+        const hit = sched.find((row2) => norm2(row2.time).toLowerCase() === t);
         if (hit && hit.locationId) return hit.locationId;
       }
       return npc.homeLocationId || npc.currentLocationId || npc.defaultState && npc.defaultState.locationId || null;
@@ -26269,8 +26284,10 @@ ${char.mes_example}
         checkOutcome();
         return 0;
       }
-      const left = setHp(targetId, (cb.hp[targetId] != null ? cb.hp[targetId] : combatantStats(targetId).hpMax) - Number(amount));
-      combatLog(`${combatantName(targetId)} takes ${amount} damage → HP ${left}/${cb.maxHp[targetId]}${left <= 0 ? " (down!)" : ""}`);
+      const from = cb.hp[targetId] != null ? cb.hp[targetId] : combatantStats(targetId).hpMax;
+      const next = Math.max(0, from - Number(amount));
+      combatLog(`${combatantName(targetId)} takes ${amount} damage → HP ${next}/${cb.maxHp[targetId]}${next <= 0 ? " (down!)" : ""}`);
+      const left = setHp(targetId, next);
       checkOutcome();
       return left;
     }
@@ -26282,8 +26299,9 @@ ${char.mes_example}
         combatLog(`${combatantName(targetId)} is dead and cannot be healed.`);
         return cb.hp[targetId];
       }
-      const left = setHp(targetId, (cb.hp[targetId] || 0) + Number(amount));
-      combatLog(`${combatantName(targetId)} heals ${amount} → HP ${left}/${cb.maxHp[targetId]}`);
+      const next = Math.min(cb.maxHp[targetId] || 999, (cb.hp[targetId] || 0) + Number(amount));
+      combatLog(`${combatantName(targetId)} heals ${amount} → HP ${next}/${cb.maxHp[targetId]}`);
+      const left = setHp(targetId, next);
       checkOutcome();
       return left;
     }
@@ -26301,13 +26319,13 @@ ${char.mes_example}
       const A = combatantName(attackerId), T = combatantName(targetId);
       if (isV2(cb)) cb.lastTarget[attackerId] = targetId;
       if (hit.fumble) {
-        combatLog(`${A} attacks ${T} with ${atk.name}${how}: natural 1 — miss.`);
+        combatLog(`Miss (natural 1): ${A} → ${T} with ${atk.name}${how}.`);
         return { hit: false, fumble: true, roll: hit.total };
       }
       if (hit.total >= tSt.ac || hit.crit) {
         const crit = hit.crit || m.autoCrit;
         if (isV2(cb) && isDown(cb, targetId) && deathOf(cb, targetId)) {
-          combatLog(`${A} ${crit ? "CRITS" : "hits"} ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}).`);
+          combatLog(`${crit ? "Critical hit" : "Hit"}: ${A} → ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}).`);
           hitWhileDown(targetId, crit);
           checkOutcome();
           return { hit: true, crit, roll: hit.total, ac: tSt.ac, damage: 0, targetHp: 0 };
@@ -26316,12 +26334,13 @@ ${char.mes_example}
         let dmg = base.total;
         if (crit) dmg += rollDiceOnly(atk.damage || "1d6");
         dmg = Math.max(1, dmg);
-        const left = setHp(targetId, (cb.hp[targetId] != null ? cb.hp[targetId] : tSt.hpMax) - dmg);
-        combatLog(`${A} ${crit ? "CRITS" : "hits"} ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}) for ${dmg}${atk.type ? " " + atk.type.toLowerCase() : ""} damage → HP ${left}/${cb.maxHp[targetId]}${left <= 0 ? " (down!)" : ""}`);
+        const next = Math.max(0, (cb.hp[targetId] != null ? cb.hp[targetId] : tSt.hpMax) - dmg);
+        combatLog(`${crit ? "Critical hit" : "Hit"}: ${A} → ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}), ${dmg}${atk.type ? " " + atk.type.toLowerCase() : ""} damage → HP ${next}/${cb.maxHp[targetId]}${next <= 0 ? " (down!)" : ""}`);
+        const left = setHp(targetId, next);
         checkOutcome();
         return { hit: true, crit, roll: hit.total, ac: tSt.ac, damage: dmg, targetHp: left };
       }
-      combatLog(`${A} misses ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}).`);
+      combatLog(`Miss: ${A} → ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}).`);
       return { hit: false, roll: hit.total, ac: tSt.ac };
     }
     function rollDiceOnly(expr) {
@@ -26337,7 +26356,7 @@ ${char.mes_example}
       const r = savingThrow(targetId, act.save, act.dc, { quiet: true });
       let dmg = act.damage ? rollExpr(act.damage).total : 0;
       if (r.success) dmg = act.half ? Math.floor(dmg / 2) : 0;
-      combatLog(`${combatantName(attackerId)} uses ${act.name}: ${combatantName(targetId)} ${act.save.toUpperCase()} save ${r.total} vs DC ${act.dc} — ${r.success ? "success" : "failure"}${dmg ? `, ${dmg} ${act.type ? act.type.toLowerCase() + " " : ""}damage` : ""}.`);
+      combatLog(`${combatantName(attackerId)} → ${combatantName(targetId)}: ${act.name}, ${act.save.toUpperCase()} save ${r.total} vs DC ${act.dc} — ${r.success ? "success" : "failure"}${dmg ? `, ${dmg} ${act.type ? act.type.toLowerCase() + " " : ""}damage` : ""}.`);
       if (dmg) {
         if (isDown(cb, targetId) && deathOf(cb, targetId)) hitWhileDown(targetId, false);
         else setHp(targetId, (cb.hp[targetId] || 0) - dmg);
@@ -26600,6 +26619,10 @@ ${recent}` : "");
       if (party.length) stateBits.push("Party: " + party.map(norm2).join(", "));
       push("Player State", 85, stateBits.join("\n"));
       push("Combat", 96, combatText());
+      if (!(getCombat() && getCombat().active)) {
+        const saved = asArray(world.encounters).map((e) => e.name).filter(Boolean);
+        push("Starting a fight", 20, "When a fight breaks out, write <encounter>2 Wolf, Goblin Warrior</encounter> (SRD monster names and counts)" + (saved.length ? ` or the name of a prepared encounter (${saved.slice(0, 8).join(", ")})` : "") + ". RPmod then rolls initiative and every attack; you narrate the results.");
+      }
       if (!loc) {
         return { sections, location: null };
       }
@@ -27416,8 +27439,8 @@ ${recent}` : "");
       combatantStats,
       combatantName,
       resolveCombatant,
-      attack(a, t, i) {
-        const r = combatAttack(a, t, i);
+      attack(a, t, i, opts) {
+        const r = combatAttack(a, t, i, opts || {});
         syncLive();
         return r;
       },
@@ -27799,6 +27822,362 @@ ${recent}` : "");
     else window.addEventListener("load", whenReady);
   }
 
+  // src/game/combatView.js
+  var AUTO_TURNS_SETTING = "combat_auto_turns";
+  var CR_BANDS = [["", "Any CR"], ["0-0.25", "CR 0–1/4"], ["0.5-1", "CR 1/2–1"], ["2-4", "CR 2–4"], ["5-10", "CR 5–10"], ["11-30", "CR 11+"]];
+  var DIFF_LABEL = { none: "No enemies yet", trivial: "Trivial", low: "Low", moderate: "Moderate", high: "High", beyond: "Beyond High (deadly)" };
+  var U = { monsters: {}, persons: {}, q: "", band: "", name: "", atk: 0, target: "", mode: "", tool: { who: "", amount: 5, cond: "Prone", rounds: 1, action: 0, actTarget: "" } };
+  function renderCombat(box, refresh) {
+    const A = window.KLITE_RPMod_Worlds;
+    const cb = A.getCombat();
+    const root = el("div", { class: "rpm-cb" });
+    box.appendChild(root);
+    if (cb && cb.active) return renderFight(root, cb, A, refresh);
+    return renderBuilder(root, A, refresh);
+  }
+  function autoTurnsOn() {
+    try {
+      const S = window.KLITE_RPMod_Settings;
+      const v = S && S.get(AUTO_TURNS_SETTING);
+      return v !== false;
+    } catch (_) {
+      return true;
+    }
+  }
+  function btn(text, onclick, opts) {
+    opts = opts || {};
+    const cls = "btn btn-primary rpm-btn" + (opts.variant ? " rpm-" + opts.variant : "") + (opts.grow ? " rpm-grow" : "") + (opts.block ? " rpm-block" : "") + (opts.icon ? " rpm-btn-icon" : "") + (opts.on ? " rpm-on" : "");
+    return el("button", { type: "button", class: cls, title: opts.title, "aria-label": opts.label, "data-cb": opts.id, disabled: opts.disabled ? "" : null, onclick }, opts.icon ? [iconText(opts.icon, text)] : [text]);
+  }
+  function sel(options, value, onChange, label2, id) {
+    const s = el("select", { class: "form-control rpm-input", "aria-label": label2, "data-cb": id });
+    for (const o of options) {
+      const op = el("option", { value: o[0], text: o[1] });
+      if (String(o[0]) === String(value)) op.selected = true;
+      s.appendChild(op);
+    }
+    s.addEventListener("change", () => onChange(s.value));
+    return s;
+  }
+  var row = (kids, style) => el("div", { class: "rpm-row", style: "flex-wrap:wrap;" + (style || "") }, kids);
+  var muted = (t, extra) => el("div", Object.assign({ class: "rpm-muted", text: t }, extra || {}));
+  var label = (t) => el("div", { class: "rpm-label", text: t });
+  function hpBar(hp, max) {
+    const pct = max > 0 ? Math.max(0, Math.min(100, Math.round(hp / max * 100))) : 0;
+    const b = el("div", { class: "rpm-bar" });
+    b.appendChild(el("span", { style: `width:${pct}%;background:${pct > 50 ? "var(--rpm-success)" : pct > 25 ? "var(--rpm-quest)" : "var(--rpm-danger)"}` }));
+    return b;
+  }
+  function chosenMonsters() {
+    return Object.entries(U.monsters).filter(([, n]) => n > 0).map(([key, count]) => ({ key, count }));
+  }
+  function renderBuilder(box, A, refresh) {
+    const world = A.activeWorld();
+    const party = A.partyInfo();
+    const xp = A.encounterXp(chosenMonsters()) + Object.entries(U.persons).filter(([, s]) => s === "enemy").reduce((n, [id]) => n + (Number((A.getStats(id) || {}).xp) || 0), 0);
+    const b = A.encounterBudget(party.level, party.size);
+    const diff = A.encounterDifficulty(xp, party.level, party.size);
+    const max = Math.max(b.high * 1.25, xp, 1);
+    const meter = el("div", { class: "rpm-cb-meter", role: "meter", "aria-label": "Encounter difficulty", "aria-valuemin": "0", "aria-valuemax": String(b.high), "aria-valuenow": String(xp), "data-cb": "meter" }, [
+      el("span", { class: "rpm-cb-fill rpm-cb-" + diff, style: `width:${Math.min(100, xp / max * 100)}%` }),
+      ...["low", "moderate", "high"].map((k2) => el("span", { class: "rpm-cb-tick", style: `left:${b[k2] / max * 100}%`, title: `${k2}: ${b[k2]} XP` }))
+    ]);
+    box.appendChild(el("div", { class: "rpm-card" }, [
+      row([el("span", { class: "rpm-heading rpm-grow", text: "New encounter" }), el("span", { class: "rpm-chip " + (diff === "high" || diff === "beyond" ? "rpm-chip-danger" : diff === "moderate" ? "rpm-chip-quest" : "rpm-chip-info"), "data-cb": "difficulty", text: DIFF_LABEL[diff] })]),
+      muted(`Party: level ${party.level}, ${party.size} character${party.size > 1 ? "s" : ""} · budget Low ${b.low} · Moderate ${b.moderate} · High ${b.high} XP`),
+      meter,
+      muted(`${xp} XP in this encounter`, { "data-cb": "xp" })
+    ]));
+    const chosen = chosenMonsters();
+    if (chosen.length) {
+      box.appendChild(label("Monsters"));
+      for (const { key, count } of chosen) {
+        const m = A.monsterStats(key);
+        box.appendChild(row([
+          el("span", { class: "rpm-grow", text: `${m.name} ×${count}` }),
+          el("span", { class: "rpm-muted", text: `CR ${m.cr} · ${m.xp * count} XP` }),
+          btn("−", () => {
+            U.monsters[key] = count - 1;
+            refresh();
+          }, { label: `One ${m.name} less`, id: "less-" + key }),
+          btn("+", () => {
+            U.monsters[key] = count + 1;
+            refresh();
+          }, { label: `One more ${m.name}`, id: "more-" + key })
+        ], "margin-top:4px"));
+      }
+    }
+    box.appendChild(label("Add SRD monsters"));
+    const q = el("input", { type: "search", class: "form-control rpm-input rpm-grow fullScreenTextEditExclude", placeholder: "Search monsters…", "aria-label": "Search monsters", "data-cb": "search" });
+    q.value = U.q;
+    q.addEventListener("input", () => {
+      U.q = q.value;
+      renderList();
+    });
+    box.appendChild(row([q, sel(CR_BANDS, U.band, (v) => {
+      U.band = v;
+      renderList();
+    }, "Challenge rating", "band")]));
+    const list2 = el("div", { class: "rpm-cb-list", "data-cb": "monster-list" });
+    box.appendChild(list2);
+    function renderList() {
+      while (list2.firstChild) list2.removeChild(list2.firstChild);
+      const [lo, hi] = U.band ? U.band.split("-").map(Number) : [0, 99];
+      const qq = U.q.trim().toLowerCase();
+      const hits = A.monsters().filter((m) => m.crValue >= lo && m.crValue <= hi && (!qq || m.name.toLowerCase().includes(qq) || m.type.toLowerCase().includes(qq)));
+      for (const m of hits.slice(0, 40)) {
+        list2.appendChild(el("div", { class: "rpm-cb-item", "data-monster": m.key }, [
+          el("span", { class: "rpm-grow" }, [el("b", { text: m.name }), el("span", { class: "rpm-muted", text: ` · CR ${m.cr} · ${m.xp} XP · ${m.type.split(",")[0]}` })]),
+          btn("Add", () => {
+            U.monsters[m.key] = (U.monsters[m.key] || 0) + 1;
+            refresh();
+          }, { label: "Add " + m.name, id: "add-" + m.key })
+        ]));
+      }
+      if (hits.length > 40) list2.appendChild(muted(`${hits.length - 40} more — refine the search.`));
+      if (!hits.length) list2.appendChild(muted("No monster matches."));
+    }
+    renderList();
+    const persons = world ? A.getGraph().nodes.filter((n) => n.type === "npc") : [];
+    if (persons.length) {
+      box.appendChild(label("Persons of this world"));
+      for (const p of persons) {
+        const st = A.getStats(p.id);
+        const side = U.persons[p.id] || "";
+        box.appendChild(row([
+          el("span", { class: "rpm-grow", text: p.name }),
+          st ? el("span", { class: "rpm-muted", text: `AC ${st.ac} · HP ${st.hpMax}` }) : el("span", { class: "rpm-chip rpm-chip-danger", text: "no stats" }),
+          sel([["", "—"], ["enemy", "Enemy"], ["party", "Ally"]], side, (v) => {
+            if (v) U.persons[p.id] = v;
+            else delete U.persons[p.id];
+            refresh();
+          }, `${p.name}: side`, "side-" + p.id)
+        ], "margin-top:3px"));
+      }
+    }
+    const saved = world ? A.listEncounters() : [];
+    if (saved.length) {
+      box.appendChild(label("Saved encounters"));
+      for (const e of saved) {
+        const d = A.encounterDifficulty(e.xp, party.level, party.size);
+        box.appendChild(row([
+          el("span", { class: "rpm-grow", text: `${e.name} — ${e.monsters.map((m) => `${A.monsterStats(m.key).name} ×${m.count}`).join(", ")}` }),
+          el("span", { class: "rpm-muted", text: `${e.xp} XP · ${DIFF_LABEL[d]}` }),
+          btn("Load", () => {
+            U.monsters = Object.fromEntries(e.monsters.map((m) => [m.key, m.count]));
+            U.persons = Object.fromEntries(e.personIds.map((id) => [id, "enemy"]));
+            U.name = e.name;
+            refresh();
+          }, { id: "load-" + e.id }),
+          btn("Start", () => {
+            A.startSavedEncounter(e.id);
+            afterStart(A);
+            refresh();
+          }, { variant: "danger", id: "start-" + e.id }),
+          btn("", () => {
+            if (confirm(`Delete the encounter "${e.name}"?`)) {
+              A.deleteEncounter(e.id);
+              refresh();
+            }
+          }, { icon: "trash-2", label: "Delete " + e.name, id: "delete-" + e.id })
+        ], "margin-top:3px"));
+      }
+    }
+    const hasAny = chosen.length || Object.keys(U.persons).length;
+    const name = el("input", { type: "text", class: "form-control rpm-input rpm-grow fullScreenTextEditExclude", placeholder: "Name, e.g. Wolf pack", "aria-label": "Encounter name", "data-cb": "name" });
+    name.value = U.name;
+    name.addEventListener("input", () => {
+      U.name = name.value;
+    });
+    if (world) box.appendChild(row([name, btn("Save to world", () => {
+      A.saveEncounter({ name: U.name || "Encounter", monsters: chosen, personIds: Object.keys(U.persons).filter((id) => U.persons[id] === "enemy"), locationId: (A.runtime || {}).playerLocationId || null, difficulty: diff });
+      refresh();
+    }, { disabled: !chosen.length, id: "save" })], "margin-top:12px"));
+    box.appendChild(btn("Start encounter", () => {
+      const ids = Object.keys(U.persons);
+      A.startEncounter(ids, { monsters: chosen, sides: U.persons, difficulty: diff });
+      U.monsters = {};
+      U.persons = {};
+      U.name = "";
+      afterStart(A);
+      refresh();
+    }, { icon: "swords", block: true, variant: "danger", disabled: !hasAny, id: "start" }));
+    box.appendChild(muted("Tip: the AI can start a fight too — it writes <encounter>2 Wolf</encounter> or the name of a saved encounter.", { style: "margin-top:6px" }));
+  }
+  function afterStart(A) {
+    if (autoTurnsOn()) A.runAutoTurns();
+  }
+  function renderFight(box, cb, A, refresh) {
+    const cur = cb.order[cb.turnIndex];
+    const conds = (id) => A.conditionsOf(id);
+    box.appendChild(row([
+      el("span", { class: "rpm-heading rpm-grow", text: `Round ${cb.round}` }),
+      cb.outcome ? null : el("span", { class: "rpm-chip rpm-chip-danger", "data-cb": "turn", text: "▶ " + cur.name })
+    ], "margin-bottom:6px"));
+    if (cb.outcome) {
+      box.appendChild(el("div", { class: "rpm-card rpm-cb-outcome rpm-cb-" + cb.outcome, "data-cb": "outcome" }, [
+        el("div", { class: "rpm-heading", text: cb.outcome === "victory" ? "Victory!" : "Defeat" }),
+        muted(cb.outcome === "victory" ? `${cb.xp || 0} XP earned${cb.persona ? ` — saved to ${cb.persona}'s sheet` : ""}. Send a message so the AI narrates the end of the fight.` : "The party has fallen. Send a message so the AI tells what happens next.")
+      ]));
+    }
+    for (const side of ["party", "enemy"]) {
+      box.appendChild(label(side === "party" ? "Party" : "Enemies"));
+      for (const o of cb.order.filter((x) => (x.side || (x.isPlayer ? "party" : "enemy")) === side)) {
+        const hp = cb.hp[o.id], max = cb.maxHp[o.id] || 1, st = A.combatantStats(o.id);
+        const d = cb.death && cb.death[o.id];
+        const down = hp <= 0;
+        const card = el("div", { class: "rpm-card" + (o.id === cur.id && !cb.outcome ? " rpm-card-hi" : ""), "data-combatant": o.id, style: down ? "opacity:.6" : null }, [
+          row([
+            el("span", { class: "rpm-grow", style: "font-weight:bold", text: o.name }),
+            el("span", { class: "rpm-muted", text: `AC ${st.ac} · init ${o.init}` }),
+            el("span", { "data-cb": "hp", text: `${hp}/${max}` })
+          ]),
+          hpBar(hp, max)
+        ]);
+        const cs = conds(o.id);
+        if (cs.length || d) card.appendChild(row([
+          ...cs.map((c) => btn(`${c.name}${c.rounds ? ` (${c.rounds})` : ""} ×`, () => {
+            A.removeCondition(o.id, c.name);
+            refresh();
+          }, { title: "Remove " + c.name, id: `cond-${o.id}-${c.name}` })),
+          d ? el("span", { class: "rpm-chip " + (d.dead ? "rpm-chip-danger" : "rpm-chip-quest"), "data-cb": "death", text: d.dead ? "dead" : d.stable ? "stable" : `death saves ✓${d.s} ✗${d.f}` }) : null
+        ], "margin-top:4px"));
+        box.appendChild(card);
+      }
+    }
+    if (!cb.outcome) renderTurn(box, cb, cur, A, refresh);
+    box.appendChild(el("details", { class: "rpm-cb-tools" }, [el("summary", { text: "Tools: damage, healing, conditions, special actions" }), toolsPanel(cb, A, refresh)]));
+    box.appendChild(label("Combat log"));
+    const log = el("div", { class: "rpm-log", "data-cb": "log" });
+    for (const line of (cb.log || []).slice(-10)) log.appendChild(el("div", { text: line }));
+    box.appendChild(log);
+    box.appendChild(btn(cb.outcome ? "Close the fight" : "End encounter", () => {
+      if (cb.outcome || confirm("End the fight now (flee / stop)? HP is kept.")) {
+        A.endEncounter();
+        refresh();
+      }
+    }, { icon: "x", block: true, variant: cb.outcome ? null : "danger", id: "end" }));
+  }
+  function renderTurn(box, cb, cur, A, refresh) {
+    const wrap = el("div", { class: "rpm-card rpm-cb-turn", "data-cb": "turn-panel" });
+    box.appendChild(wrap);
+    const endTurn = () => {
+      A.nextTurn();
+      if (autoTurnsOn()) A.runAutoTurns();
+      refresh();
+    };
+    const d = cb.death && cb.death[cur.id];
+    if (cur.isPlayer && d && !d.dead && !d.stable) {
+      wrap.appendChild(muted("You are dying. Roll a death saving throw: 10+ succeeds, 20 brings you back with 1 HP, 1 counts twice."));
+      wrap.appendChild(btn("Roll death save", () => {
+        A.deathSave("__player__");
+        endTurn();
+      }, { icon: "dice-5", block: true, variant: "danger", id: "death-save" }));
+      return;
+    }
+    if (cur.isPlayer || cur.side === "party") {
+      const st = A.combatantStats(cur.id);
+      const foes = cb.order.filter((o) => o.side !== cur.side && cb.hp[o.id] > 0);
+      if (!foes.some((f) => f.id === U.target)) U.target = foes[0] ? foes[0].id : "";
+      const attacks = (st.attacks || []).map((a, i) => [i, `${a.name} (${a.toHit >= 0 ? "+" : ""}${a.toHit}, ${a.damage})`]);
+      if (U.atk >= attacks.length) U.atk = 0;
+      wrap.appendChild(el("div", { style: "font-weight:bold", text: cur.isPlayer ? "Your turn" : `${cur.name}'s turn` }));
+      wrap.appendChild(row([
+        attacks.length ? sel(attacks, U.atk, (v) => {
+          U.atk = Number(v);
+        }, "Weapon", "weapon") : muted("No attacks on the sheet — Unarmed Strike."),
+        sel(foes.map((f) => [f.id, `${f.name} (${cb.hp[f.id]} HP)`]), U.target, (v) => {
+          U.target = v;
+        }, "Target", "target"),
+        sel([["", "Normal"], ["adv", "Advantage"], ["dis", "Disadvantage"]], U.mode, (v) => {
+          U.mode = v;
+        }, "Roll mode", "mode")
+      ], "margin-top:4px"));
+      wrap.appendChild(row([
+        btn("Attack", () => {
+          if (U.target) A.attack(cur.id, U.target, U.atk, { mode: U.mode || void 0 });
+          refresh();
+        }, { icon: "swords", variant: "danger", grow: true, disabled: !foes.length, id: "attack" }),
+        btn("End turn", endTurn, { icon: "arrow-right", grow: true, id: "end-turn" })
+      ], "margin-top:6px"));
+      wrap.appendChild(muted("Then tell the AI in the chat what you do — it narrates the rolls from the log.", { style: "margin-top:4px" }));
+      return;
+    }
+    wrap.appendChild(row([
+      el("span", { class: "rpm-grow", text: `${cur.name}'s turn` }),
+      btn("Run enemy turns", () => {
+        A.runAutoTurns();
+        refresh();
+      }, { icon: "play", variant: "danger", id: "run-enemies" }),
+      btn("Skip", () => {
+        A.nextTurn();
+        refresh();
+      }, { id: "skip" })
+    ]));
+  }
+  function toolsPanel(cb, A, refresh) {
+    const T = U.tool;
+    const people = cb.order.map((o) => [o.id, o.name]);
+    if (!people.some((p) => p[0] === T.who)) T.who = "__player__";
+    const box = el("div", { style: "margin-top:6px" });
+    const amount = el("input", { type: "number", min: "0", class: "form-control rpm-input fullScreenTextEditExclude", style: "width:5em", "aria-label": "Amount", "data-cb": "amount" });
+    amount.value = T.amount;
+    amount.addEventListener("change", () => {
+      T.amount = Math.max(0, Number(amount.value) || 0);
+    });
+    box.appendChild(row([
+      sel(people, T.who, (v) => {
+        T.who = v;
+      }, "Creature", "who"),
+      amount,
+      btn("Damage", () => {
+        A.damage(T.who, T.amount);
+        refresh();
+      }, { variant: "danger", id: "damage" }),
+      btn("Heal", () => {
+        A.heal(T.who, T.amount);
+        refresh();
+      }, { variant: "success", id: "heal" })
+    ]));
+    const rounds = el("input", { type: "number", min: "0", class: "form-control rpm-input fullScreenTextEditExclude", style: "width:4.5em", "aria-label": "Rounds (0 = until removed)", title: "Rounds (0 = until removed)", "data-cb": "rounds" });
+    rounds.value = T.rounds;
+    rounds.addEventListener("change", () => {
+      T.rounds = Math.max(0, Number(rounds.value) || 0);
+    });
+    box.appendChild(row([
+      sel(A.conditionNames().map((c) => [c, c]), T.cond, (v) => {
+        T.cond = v;
+      }, "Condition", "condition"),
+      rounds,
+      btn("Add condition", () => {
+        A.addCondition(T.who, T.cond, T.rounds || null);
+        refresh();
+      }, { id: "add-condition" })
+    ], "margin-top:6px"));
+    const ct = A.conditionText(T.cond);
+    if (ct.length) box.appendChild(muted(ct.slice(0, 3).join(" "), { style: "margin-top:2px" }));
+    const casters = cb.order.filter((o) => (A.combatantStats(o.id).saveActions || []).length && cb.hp[o.id] > 0);
+    if (casters.length) {
+      const opts = [];
+      for (const o of casters) A.combatantStats(o.id).saveActions.forEach((a, i) => opts.push([`${o.id}|${i}`, `${o.name}: ${a.name} (DC ${a.dc} ${a.save.toUpperCase()})`]));
+      if (!opts.some((o) => o[0] === T.action)) T.action = opts[0][0];
+      box.appendChild(row([
+        sel(opts, T.action, (v) => {
+          T.action = v;
+        }, "Special action", "save-action"),
+        sel(people, T.actTarget || "__player__", (v) => {
+          T.actTarget = v;
+        }, "Special action target", "save-target"),
+        btn("Use", () => {
+          const [id, i] = T.action.split("|");
+          A.saveAction(id, T.actTarget || "__player__", Number(i));
+          refresh();
+        }, { id: "use-action" })
+      ], "margin-top:6px"));
+    }
+    return box;
+  }
+
   // src/KLITE-RPmod_WorldsUI.js
   function initWorldsUI() {
     "use strict";
@@ -28102,8 +28481,8 @@ ${recent}` : "");
         });
         box.appendChild(tsel);
       }
-      for (const [field, label, kind] of FIELDS[type] || []) {
-        box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:8px 0 3px", text: label }));
+      for (const [field, label2, kind] of FIELDS[type] || []) {
+        box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:8px 0 3px", text: label2 }));
         let cur = ent[field];
         if (field === "keys") cur = Array.isArray(ent.keys) ? ent.keys.join(", ") : ent.keys || "";
         const input = kind === "area" ? el2("textarea", { style: inputCss(true), rows: 4 }) : el2("input", { type: "text", style: inputCss(false) });
@@ -28133,7 +28512,7 @@ ${recent}` : "");
       for (const e of conns) {
         const otherId = e.from === S.selectedId ? e.to : e.from;
         const other = nodeById(otherId);
-        const row2 = el2("div", { style: "display:flex;align-items:center;justify-content:space-between;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:4px 8px;margin-top:4px" }, [
+        const row3 = el2("div", { style: "display:flex;align-items:center;justify-content:space-between;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:4px 8px;margin-top:4px" }, [
           el2("span", { style: "font-size:var(--rpm-fs-sm);color:var(--rpm-fg)" }, [`→ ${clip(other ? other.name : otherId, 18)} `, el2("span", { style: "color:var(--rpm-fg-muted)", text: e.kind })]),
           el2("span", { style: "cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs);padding:0 4px", text: "×", onclick: () => {
             API().disconnect(e.from, e.to);
@@ -28142,7 +28521,7 @@ ${recent}` : "");
             renderInspector();
           } })
         ]);
-        box.appendChild(row2);
+        box.appendChild(row3);
       }
       if (type !== "world") {
         box.appendChild(el2("button", {
@@ -28218,9 +28597,9 @@ ${recent}` : "");
         grid.appendChild(wrap);
       }
       box.appendChild(grid);
-      const numRow = (label, key) => {
+      const numRow = (label2, key) => {
         const wrap = el2("div", {});
-        wrap.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:10px", text: label }));
+        wrap.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:10px", text: label2 }));
         const inp = el2("input", { type: "number", value: s[key], style: inputCss(false) + ";padding:4px" });
         inp.addEventListener("change", () => {
           A.setStats(S.selectedId, { [key]: Number(inp.value) });
@@ -28254,8 +28633,8 @@ ${recent}` : "");
       hidWrap.appendChild(document.createTextNode("Hidden from player until discovered"));
       box.appendChild(hidWrap);
       const persons = A.getGraph().nodes.filter((n) => n.type === "npc");
-      const personSel = (field, label, marker) => {
-        box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:8px 0 3px" }, [marker + " " + label]));
+      const personSel = (field, label2, marker) => {
+        box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:8px 0 3px" }, [marker + " " + label2]));
         const s = el2("select", { style: inputCss(false) + ";cursor:pointer" });
         s.appendChild(el2("option", { value: "", text: "— none —" }));
         for (const p of persons) {
@@ -28373,7 +28752,9 @@ ${recent}` : "");
       move: [["locationId", "location"]],
       npcmove: [["npcId", "npc"], ["locationId", "location"]],
       advance: [["slots", "number"]],
-      fireEvent: [["eventId", "event"]]
+      fireEvent: [["eventId", "event"]],
+      encounter: [["value", "text"]]
+      // a saved encounter's name or "2 Wolf, Goblin Warrior"
     };
     function paramInput(kind, value, onChange) {
       const A = API();
@@ -28406,10 +28787,10 @@ ${recent}` : "");
       inp.addEventListener("input", () => onChange(kind === "number" ? Number(inp.value) : inp.value));
       return inp;
     }
-    function structuredList(box, label, items, SPEC, onSave) {
-      box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:12px 0 4px", text: label }));
+    function structuredList(box, label2, items, SPEC, onSave) {
+      box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:12px 0 4px", text: label2 }));
       items.forEach((item, i) => {
-        const row2 = el2("div", { style: "background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:5px;margin-bottom:4px" });
+        const row3 = el2("div", { style: "background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:5px;margin-bottom:4px" });
         const head = el2("div", { style: "display:flex;gap:5px;align-items:center" });
         const tsel = el2("select", { style: inputCss(false) + ";cursor:pointer;flex:1" });
         for (const t of Object.keys(SPEC)) {
@@ -28426,7 +28807,7 @@ ${recent}` : "");
           items.splice(i, 1);
           onSave(items);
         } }));
-        row2.appendChild(head);
+        row3.appendChild(head);
         const spec = SPEC[item.type] || [];
         if (spec.length) {
           const prow = el2("div", { style: "display:flex;gap:5px;margin-top:4px" });
@@ -28434,9 +28815,9 @@ ${recent}` : "");
             item[field] = v;
             onSave(items);
           }));
-          row2.appendChild(prow);
+          row3.appendChild(prow);
         }
-        box.appendChild(row2);
+        box.appendChild(row3);
       });
       const firstType = Object.keys(SPEC)[0];
       box.appendChild(el2("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", onclick: () => {
@@ -28447,13 +28828,13 @@ ${recent}` : "");
     function renderEventExtras(box, ent) {
       const A = API();
       const flags = el2("div", { style: "display:flex;gap:14px;margin:12px 0 4px" });
-      const mk = (label, key) => {
+      const mk = (label2, key) => {
         const w = el2("label", { style: "display:flex;align-items:center;gap:5px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer" });
         const c = el2("input", { type: "checkbox", style: "cursor:pointer" });
         c.checked = !!ent[key];
         c.addEventListener("change", () => A.updateEntity(S.selectedId, { [key]: c.checked }));
         w.appendChild(c);
-        w.appendChild(document.createTextNode(label));
+        w.appendChild(document.createTextNode(label2));
         return w;
       };
       flags.appendChild(mk("Hidden", "hidden"));
@@ -28486,8 +28867,8 @@ ${recent}` : "");
       const m = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(s);
       return { type: "item", item: (m[1] || s).trim(), qty: Number(m[2]) || 1 };
     }
-    function btn(label, onclick, variant) {
-      return el2("button", { type: "button", class: "btn btn-primary rpm-btn" + (variant ? " rpm-" + variant : ""), text: label, onclick });
+    function btn2(label2, onclick, variant) {
+      return el2("button", { type: "button", class: "btn btn-primary rpm-btn" + (variant ? " rpm-" + variant : ""), text: label2, onclick });
     }
     function buildEditor() {
       const A = API();
@@ -28506,21 +28887,21 @@ ${recent}` : "");
         el2("span", { text: "World" }),
         S.worldNameInput,
         el2("div", { style: "flex:1" }),
-        btn("−", () => {
+        btn2("−", () => {
           S.scale = Math.max(0.2, S.scale / 1.1);
           applyViewport();
           updateZoomLabel();
         }),
         el2("span", { id: "wm-zoom", style: "font-size:var(--rpm-fs-sm);min-width:42px;text-align:center", text: "100%" }),
-        btn("+", () => {
+        btn2("+", () => {
           S.scale = Math.min(3, S.scale * 1.1);
           applyViewport();
           updateZoomLabel();
         }),
-        btn("Fit", () => fit()),
-        btn("Preview", () => showPreview()),
-        S.revertBtn = btn("Revert", () => revertFlow()),
-        S.saveBtn = btn("Save", () => saveFlow(), "success")
+        btn2("Fit", () => fit()),
+        btn2("Preview", () => showPreview()),
+        S.revertBtn = btn2("Revert", () => revertFlow()),
+        S.saveBtn = btn2("Save", () => saveFlow(), "success")
       ]);
       S.saveBtn.setAttribute("data-save", "world");
       S.revertBtn.setAttribute("data-revert", "world");
@@ -28770,7 +29151,7 @@ ${recent}` : "");
         el2("div", { class: "wm-ed-ask-box rpm-card" }, [
           el2("div", { class: "rpm-heading", text: "Unsaved world changes" }),
           el2("p", { class: "rpm-muted", text: "Save them before closing? Unsaved changes stay in this session until the page reloads; Revert undoes them." }),
-          row([
+          row2([
             uiBtn("Save and close", async () => {
               await API().saveActiveWorld();
               done();
@@ -28806,10 +29187,10 @@ ${recent}` : "");
     function lbl(t) {
       return el2("label", { class: "rpm-label", text: t });
     }
-    function muted(t, extra) {
+    function muted2(t, extra) {
       return el2("div", Object.assign({ class: "rpm-muted", text: t }, extra || {}));
     }
-    function row(kids, style) {
+    function row2(kids, style) {
       return el2("div", { class: "rpm-row", style }, kids);
     }
     function uiMode() {
@@ -28852,7 +29233,7 @@ ${recent}` : "");
       const body = panelEl;
       clear2(body);
       const mode2 = uiMode();
-      body.appendChild(row([
+      body.appendChild(row2([
         el2("span", { class: "rpm-heading rpm-grow", text: "Worlds" }),
         el2("span", {
           role: "button",
@@ -28873,21 +29254,21 @@ ${recent}` : "");
         })
       ], "margin-bottom:8px"));
       const worlds = A.listWorlds();
-      const sel = uiSelect({ "aria-label": "Active world" });
-      sel.appendChild(el2("option", { value: "", text: worlds.length ? "— select world —" : "(no worlds yet)" }));
+      const sel2 = uiSelect({ "aria-label": "Active world" });
+      sel2.appendChild(el2("option", { value: "", text: worlds.length ? "— select world —" : "(no worlds yet)" }));
       for (const w of worlds) {
         const o = el2("option", { value: w.id, text: w.name || w.id });
         if (A.activeWorld() && A.activeWorld().id === w.id) o.selected = true;
-        sel.appendChild(o);
+        sel2.appendChild(o);
       }
-      sel.addEventListener("change", () => {
-        if (sel.value) {
-          A.useWorld(sel.value);
+      sel2.addEventListener("change", () => {
+        if (sel2.value) {
+          A.useWorld(sel2.value);
           refreshPanel();
         }
       });
-      body.appendChild(sel);
-      body.appendChild(row([
+      body.appendChild(sel2);
+      body.appendChild(row2([
         uiBtn("New", () => {
           const n = prompt("New world name:", "New World");
           if (n != null) A.newWorld(n).then(refreshPanel);
@@ -28899,18 +29280,18 @@ ${recent}` : "");
       if (unsaved() && !autosave()) {
         body.appendChild(el2("div", { class: "rpm-card rpm-unsaved-card", "data-unsaved": "world", style: "margin:0 0 8px" }, [
           el2("div", { style: "font-weight:bold;margin-bottom:4px", text: "Unsaved world changes" }),
-          row([
+          row2([
             uiBtn("Save", () => saveFlow().then(refreshPanel), { icon: "check", grow: true, variant: "success" }),
             uiBtn("Revert", () => revertFlow(), { icon: "rotate-ccw", grow: true })
           ])
         ]));
       }
       if (!A.activeWorld()) {
-        body.appendChild(muted("New here? Load the ready-to-play example and just start chatting.", { style: "margin:6px 0 8px" }));
+        body.appendChild(muted2("New here? Load the ready-to-play example and just start chatting.", { style: "margin:6px 0 8px" }));
         body.appendChild(uiBtn("Load example world", () => loadExampleFlow(), { icon: "sparkles", block: true, lg: true }));
         return;
       }
-      body.appendChild(row([
+      body.appendChild(row2([
         uiBtn("Quest log", () => openView("questlog"), { icon: "scroll-text", grow: true }),
         uiBtn("Combat", () => openView("combat"), { icon: "swords", grow: true }),
         uiBtn("Editor", () => openEditor(), { icon: "workflow", grow: true, title: "Build your world as a node graph" })
@@ -28918,7 +29299,7 @@ ${recent}` : "");
       body.appendChild(el2("hr", { class: "rpm-divider" }));
       renderPlayTab(body);
     }
-    function hpBar(cur, max) {
+    function hpBar2(cur, max) {
       const pct = max > 0 ? Math.max(0, Math.min(100, Math.round(cur / max * 100))) : 0;
       const bar = el2("div", { class: "rpm-bar", "data-party": "hpbar", role: "meter", "aria-label": "Hit points", "aria-valuemin": "0", "aria-valuemax": String(max), "aria-valuenow": String(cur) });
       bar.appendChild(el2("span", { style: `width:${pct}%;background:${pct > 50 ? "var(--rpm-success)" : pct > 25 ? "var(--rpm-quest)" : "var(--rpm-danger)"}` }));
@@ -28930,29 +29311,29 @@ ${recent}` : "");
       box.appendChild(el2("div", { class: "rpm-heading", "data-party": "name", text: persona || player.name || "You" }));
       if (!C) return;
       if (!persona) {
-        box.appendChild(muted("No persona chosen — pick the character you play.", { "data-party": "no-persona" }));
+        box.appendChild(muted2("No persona chosen — pick the character you play.", { "data-party": "no-persona" }));
         if (window.KLITE_RPMod_Gallery) box.appendChild(uiBtn("Choose in gallery", () => window.KLITE_RPMod_Gallery.open(), { icon: "layout-grid", block: true, style: "margin:4px 0" }));
         return;
       }
       const sheet = C.cachedSheet(persona);
       if (sheet) {
         const who = [sheet.species, sheet.className ? `${sheet.className} ${sheet.level}` : `Level ${sheet.level}`].filter(Boolean).join(" · ");
-        if (who) box.appendChild(muted(who, { "data-party": "class" }));
+        if (who) box.appendChild(muted2(who, { "data-party": "class" }));
         const inCombat = cb && cb.active && cb.hp && cb.hp.__player__ != null;
         const hp = inCombat ? cb.hp.__player__ : sheet.hp.current;
         const max = inCombat ? cb.maxHp.__player__ : sheet.hp.max;
         const temp = !inCombat && sheet.hp.temp ? ` (+${sheet.hp.temp})` : "";
-        box.appendChild(row([
+        box.appendChild(row2([
           el2("span", { class: "rpm-grow", "data-party": "hp", title: inCombat ? "Hit points in the current fight" : "Hit points on the character sheet", text: `HP ${hp}/${max}${temp}${inCombat ? " ⚔" : ""}` }),
           el2("span", { "data-party": "ac", title: sheet.acNote || "Armor Class", text: `AC ${sheet.ac}` }),
           el2("span", { class: "rpm-muted", "data-party": "speed", text: `${sheet.speed} ft.` })
         ], "margin-top:4px"));
-        box.appendChild(hpBar(hp, max));
+        box.appendChild(hpBar2(hp, max));
         box.appendChild(uiBtn("Character sheet", () => C.open(persona), { icon: "id-card", block: true, style: "margin:6px 0 4px", title: "Abilities, skills, inventory — click values to roll" }));
       } else {
-        if (sheet === null) box.appendChild(muted("No character sheet yet.", { "data-party": "no-sheet" }));
+        if (sheet === null) box.appendChild(muted2("No character sheet yet.", { "data-party": "no-sheet" }));
         const B = window.KLITE_RPMod_Builder;
-        box.appendChild(row([
+        box.appendChild(row2([
           B && sheet === null ? uiBtn("Build", () => B.open({ target: persona, name: persona }), { icon: "sparkles", grow: true, title: "Step-by-step character builder (SRD 5.2.1)" }) : null,
           uiBtn("Character sheet", () => C.open(persona), { icon: "id-card", grow: true })
         ], "margin:4px 0"));
@@ -28965,7 +29346,7 @@ ${recent}` : "");
       const cb = world ? A.getCombat() : null;
       renderPersona(box, player, cb);
       if (!world) {
-        box.appendChild(muted("No world loaded.", { style: "margin-top:6px" }));
+        box.appendChild(muted2("No world loaded.", { style: "margin-top:6px" }));
         box.appendChild(uiBtn("Choose a world", () => openView("world"), { block: true, style: "margin-top:8px" }));
         return;
       }
@@ -28973,7 +29354,7 @@ ${recent}` : "");
       const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
       const c = rt.clock || {};
       box.appendChild(el2("div", { class: "rpm-muted", "data-party": "location", style: "margin-top:2px;display:flex;align-items:center;gap:4px" }, [icon("map-pin", 13), loc ? loc.name || loc.id : "nowhere"]));
-      box.appendChild(muted(`🕑 Day ${c.day || 1}, ${c.time || "—"}${c.weather ? " · " + c.weather : ""}`));
+      box.appendChild(muted2(`🕑 Day ${c.day || 1}, ${c.time || "—"}${c.weather ? " · " + c.weather : ""}`));
       if (cb && cb.active) {
         const cur = cb.order[cb.turnIndex];
         const hp = cb.hp.__player__, max = cb.maxHp.__player__;
@@ -28983,16 +29364,16 @@ ${recent}` : "");
     function renderQuestTracker(box) {
       const A = API();
       if (!A.activeWorld()) {
-        box.appendChild(muted("No quests yet."));
+        box.appendChild(muted2("No quests yet."));
         return;
       }
       const quests = A.listQuests(uiMode() === "player" ? "player" : "creator").filter((q) => q.state === "active" || q.state === "complete").sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
-      if (!quests.length) box.appendChild(muted("No active quests."));
+      if (!quests.length) box.appendChild(muted2("No active quests."));
       for (const q of quests) {
         const ready = q.state === "complete";
         box.appendChild(el2("div", { "data-quest": q.id, class: "rpm-card" + (q.active ? " rpm-card-hi" : "") }, [
           el2("div", { style: "font-weight:bold" }, [ready ? el2("span", { class: "rpm-quest-mark", text: "? " }) : null, q.title]),
-          ready && q.turnin ? muted("Turn in to " + q.turnin) : null
+          ready && q.turnin ? muted2("Turn in to " + q.turnin) : null
         ]));
       }
       box.appendChild(uiBtn("Open quest log", () => openView("questlog"), { icon: "scroll-text", block: true, style: "margin-top:8px" }));
@@ -29009,20 +29390,20 @@ ${recent}` : "");
       aiSel.addEventListener("change", () => {
         A.setAiMode(aiSel.value);
       });
-      box.appendChild(row([el2("span", { class: "rpm-muted rpm-grow", text: "AI sees hidden content:" }), aiSel], "margin-bottom:8px"));
+      box.appendChild(row2([el2("span", { class: "rpm-muted rpm-grow", text: "AI sees hidden content:" }), aiSel], "margin-bottom:8px"));
       const quests = A.listQuests(mode2);
       if (!quests.length) {
-        box.appendChild(muted("No quests visible. Add Quest nodes in the editor."));
+        box.appendChild(muted2("No quests visible. Add Quest nodes in the editor."));
         return;
       }
       const groups = [["available", "Available"], ["active", "Active"], ["complete", "Ready to turn in"], ["turnedin", "Completed"], ["failed", "Failed"]];
-      for (const [st, label] of groups) {
+      for (const [st, label2] of groups) {
         const inGroup = quests.filter((q) => q.state === st);
         if (!inGroup.length) continue;
-        box.appendChild(lbl(label));
+        box.appendChild(lbl(label2));
         for (const q of inGroup) {
           const card = el2("div", { class: "rpm-card" + (q.active ? " rpm-card-hi" : ""), "data-quest": q.id });
-          card.appendChild(row([
+          card.appendChild(row2([
             el2("span", { class: "rpm-grow", style: "font-weight:bold" }, [
               q.marker ? el2("span", { class: "rpm-quest-mark", text: q.marker + " " }) : null,
               q.title,
@@ -29031,7 +29412,7 @@ ${recent}` : "");
             q.active ? el2("span", { class: "rpm-chip rpm-chip-info", text: "● tracked" }) : null
           ]));
           if (q.description) card.appendChild(el2("div", { style: "margin-top:3px", text: q.description }));
-          if (q.giver || q.turnin) card.appendChild(muted((q.giver ? `From: ${q.giver}` : "") + (q.turnin ? `  Turn-in: ${q.turnin}` : ""), { style: "margin-top:2px" }));
+          if (q.giver || q.turnin) card.appendChild(muted2((q.giver ? `From: ${q.giver}` : "") + (q.turnin ? `  Turn-in: ${q.turnin}` : ""), { style: "margin-top:2px" }));
           const ctl = el2("div", { class: "rpm-row", style: "flex-wrap:wrap;margin-top:6px" });
           const act = (t, fn2, variant) => uiBtn(t, () => {
             fn2();
@@ -29051,92 +29432,7 @@ ${recent}` : "");
       }
     }
     function renderCombatTab(box) {
-      const A = API();
-      const cb = A.getCombat();
-      if (cb && cb.active) return renderActiveCombat(box, cb);
-      box.appendChild(muted("Select combatants for the encounter. NPCs need a stat block (add one in the editor).", { style: "margin-bottom:6px" }));
-      const persons = A.getGraph().nodes.filter((n) => n.type === "npc");
-      const chosen = S._encPick || (S._encPick = {});
-      if (!persons.length) box.appendChild(muted("No persons yet."));
-      for (const p of persons) {
-        const st = A.getStats(p.id);
-        const c = el2("input", { type: "checkbox" });
-        c.checked = !!chosen[p.id];
-        c.addEventListener("change", () => {
-          chosen[p.id] = c.checked;
-        });
-        box.appendChild(el2("label", { class: "rpm-row", style: "padding:3px 0;cursor:pointer" }, [
-          c,
-          el2("span", { class: "rpm-grow" }, [p.name, st ? el2("span", { class: "rpm-chip rpm-chip-info", style: "margin-left:6px", text: `AC ${st.ac} HP ${st.hpMax}` }) : el2("span", { class: "rpm-chip rpm-chip-danger", style: "margin-left:6px", text: "no stats" })])
-        ]));
-      }
-      box.appendChild(lbl("Quick-add monster (SRD)"));
-      const tRow = el2("div", { class: "rpm-row", style: "flex-wrap:wrap" });
-      for (const key of A.listTemplates()) tRow.appendChild(uiBtn(key.replace("_", " "), () => {
-        const p = A.addPersonFromTemplate(key);
-        S._encPick[p.id] = true;
-        refreshPanel();
-      }));
-      box.appendChild(tRow);
-      const inc = el2("input", { type: "checkbox" });
-      inc.checked = S._encPlayer !== false;
-      inc.addEventListener("change", () => {
-        S._encPlayer = inc.checked;
-      });
-      box.appendChild(el2("label", { class: "rpm-row", style: "margin:10px 0;cursor:pointer" }, [inc, el2("span", { text: "Include the player" })]));
-      box.appendChild(uiBtn("Start encounter", () => {
-        const ids = Object.keys(chosen).filter((k2) => chosen[k2]);
-        A.startEncounter(ids, { includePlayer: S._encPlayer !== false });
-        S._encPick = {};
-        refreshPanel();
-      }, { icon: "swords", block: true, lg: true, variant: "danger" }));
-    }
-    function renderActiveCombat(box, cb) {
-      const A = API();
-      const cur = cb.order[cb.turnIndex];
-      box.appendChild(row([
-        el2("span", { class: "rpm-heading rpm-grow", text: `Round ${cb.round}` }),
-        el2("span", { class: "rpm-chip rpm-chip-danger", text: "▶ " + cur.name })
-      ], "margin-bottom:8px"));
-      for (const o of cb.order) {
-        const hp = cb.hp[o.id], max = cb.maxHp[o.id] || 1, pct = Math.max(0, Math.min(100, Math.round(hp / max * 100)));
-        const down = hp <= 0;
-        const card = el2("div", { class: "rpm-card" + (o.id === cur.id ? " rpm-card-hi" : ""), style: down ? "opacity:.5" : null });
-        card.appendChild(row([
-          el2("span", { class: "rpm-grow", text: (o.id === cur.id ? "▶ " : "") + o.name + (down ? " (down)" : "") }),
-          el2("span", { class: "rpm-muted", text: `${hp}/${max} · init ${o.init}` })
-        ]));
-        const bar = el2("div", { class: "rpm-bar" });
-        bar.appendChild(el2("span", { style: `width:${pct}%;background:${pct > 50 ? "var(--rpm-success)" : pct > 25 ? "var(--rpm-quest)" : "var(--rpm-danger)"}` }));
-        card.appendChild(bar);
-        box.appendChild(card);
-      }
-      const targets = cb.order.filter((o) => cb.hp[o.id] > 0 && o.id !== cur.id);
-      const tSel = uiSelect({ class: "form-control rpm-input rpm-grow", "aria-label": "Target" });
-      for (const o of targets) tSel.appendChild(el2("option", { value: o.id, text: o.name }));
-      box.appendChild(row([tSel, uiBtn(`${cur.name} attacks`, () => {
-        if (tSel.value) A.attack(cur.id, tSel.value);
-        refreshPanel();
-      }, { icon: "swords", variant: "danger" })], "margin-top:8px"));
-      const rIn = uiInput({ value: "1d20", class: "form-control rpm-input rpm-grow", "aria-label": "Dice expression" });
-      box.appendChild(row([rIn, uiBtn("Roll", () => {
-        A.applyTags(`<roll>${rIn.value}</roll>`);
-        refreshPanel();
-      }, { icon: "dice-5" })], "margin-top:6px"));
-      box.appendChild(row([
-        uiBtn("⏭ Next turn", () => {
-          A.nextTurn();
-          refreshPanel();
-        }, { grow: true }),
-        uiBtn("End", () => {
-          A.endEncounter();
-          refreshPanel();
-        }, { icon: "x", grow: true, variant: "danger" })
-      ], "margin-top:6px"));
-      box.appendChild(lbl("Combat log"));
-      const log = el2("div", { class: "rpm-log" });
-      for (const line of (cb.log || []).slice(-8)) log.appendChild(el2("div", { text: line }));
-      box.appendChild(log);
+      renderCombat(box, () => refreshPanel());
     }
     function renderPlayTab(box) {
       const A = API();
@@ -29147,11 +29443,11 @@ ${recent}` : "");
       }, { block: true, variant: enabled ? "on" : null, style: "margin-bottom:10px" }));
       const slot = A.activeSlot || "working";
       const slotBox = el2("div", { class: "rpm-card", style: "margin-bottom:6px" });
-      slotBox.appendChild(row([
+      slotBox.appendChild(row2([
         el2("span", { class: "rpm-muted rpm-grow", text: "State slot" }),
         el2("span", { class: "rpm-chip " + (slot === "working" ? "rpm-chip-info" : "rpm-chip-quest"), text: slot === "working" ? "WORKING (live)" : "BASE (start)" })
       ], "margin-bottom:6px"));
-      slotBox.appendChild(row([
+      slotBox.appendChild(row2([
         uiBtn("Reset", () => {
           if (confirm("Reset the working state to the base (start) state? Live changes are lost.")) {
             A.resetToBase();
@@ -29189,7 +29485,7 @@ ${recent}` : "");
           }
         });
         box.appendChild(msel);
-      } else box.appendChild(muted("No locations yet — add some in the editor."));
+      } else box.appendChild(muted2("No locations yet — add some in the editor."));
       const c = A.runtime && A.runtime.clock || {};
       box.appendChild(lbl("Time & weather"));
       const tsel = uiSelect({ class: "form-control rpm-input rpm-grow", "aria-label": "Time of day" });
@@ -29202,11 +29498,11 @@ ${recent}` : "");
         A.setClock({ time: tsel.value });
         refreshPanel();
       });
-      box.appendChild(row([tsel, uiBtn("⏭", () => {
+      box.appendChild(row2([tsel, uiBtn("⏭", () => {
         A.advanceClock(1);
         refreshPanel();
       }, { title: "Advance time one step" })]));
-      box.appendChild(muted(`Day ${c.day || 1}, month ${c.month || 1} · ${c.season || ""}`, { style: "margin:4px 0" }));
+      box.appendChild(muted2(`Day ${c.day || 1}, month ${c.month || 1} · ${c.season || ""}`, { style: "margin:4px 0" }));
       const wIn = uiInput({ value: c.weather || "", placeholder: "weather", "aria-label": "Weather" });
       wIn.addEventListener("change", () => {
         A.setClock({ weather: wIn.value });
@@ -29215,7 +29511,7 @@ ${recent}` : "");
       box.appendChild(lbl("Flags"));
       const flags = A.runtime && A.runtime.flags || {};
       const fkeys = Object.keys(flags);
-      if (!fkeys.length) box.appendChild(muted("none"));
+      if (!fkeys.length) box.appendChild(muted2("none"));
       for (const k2 of fkeys) {
         box.appendChild(el2("div", { class: "rpm-card rpm-row" }, [
           el2("span", { class: "rpm-grow" }, [k2 + " = ", el2("span", { style: "color:var(--rpm-fg-hi)", text: String(flags[k2]) })]),
@@ -29227,7 +29523,7 @@ ${recent}` : "");
       }
       const fk = uiInput({ placeholder: "key", class: "form-control rpm-input rpm-grow", "aria-label": "Flag name" });
       const fv = uiInput({ placeholder: "value", class: "form-control rpm-input rpm-grow", "aria-label": "Flag value" });
-      box.appendChild(row([fk, fv, uiBtn("", () => {
+      box.appendChild(row2([fk, fv, uiBtn("", () => {
         const k2 = fk.value.trim();
         if (!k2) return;
         A.setFlag(k2, parseVal(fv.value));
@@ -29235,7 +29531,7 @@ ${recent}` : "");
       }, { icon: "plus", title: "Set flag" })], "margin-top:5px"));
       box.appendChild(lbl("Inventory"));
       const inv = A.runtime && A.runtime.inventory || [];
-      if (!inv.length) box.appendChild(muted("empty"));
+      if (!inv.length) box.appendChild(muted2("empty"));
       for (const it of inv) {
         box.appendChild(el2("div", { class: "rpm-card rpm-row" }, [
           el2("span", { class: "rpm-grow", text: it.name + (it.qty > 1 ? ` ×${it.qty}` : "") }),
@@ -29250,7 +29546,7 @@ ${recent}` : "");
         ]));
       }
       const iIn = uiInput({ placeholder: "item name", class: "form-control rpm-input rpm-grow", "aria-label": "Item name" });
-      box.appendChild(row([iIn, uiBtn("", () => {
+      box.appendChild(row2([iIn, uiBtn("", () => {
         const n = iIn.value.trim();
         if (!n) return;
         A.giveItem(n, 1);
@@ -29277,10 +29573,24 @@ ${recent}` : "");
         if (API().activeWorld()) renderQuestsTab(c);
         else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
       })));
-      sh.registerView(Object.assign({ id: "combat", title: "Combat", place: "window", window: { width: 360, height: 560 } }, view((c) => {
+      sh.registerView(Object.assign({ id: "combat", title: "Combat", place: "window", window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
         if (API().activeWorld()) renderCombatTab(c);
-        else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
+        else {
+          c.appendChild(el2("div", { class: "rpm-muted", text: "Fights happen in a world. Load one (or the example) in the World tab." }));
+          c.appendChild(uiBtn("Open the World tab", () => openView("world"), { block: true, style: "margin-top:8px" }));
+        }
       })));
+      try {
+        window.KLITE_RPMod_Settings?.registerSetting({
+          id: AUTO_TURNS_SETTING,
+          section: "Combat",
+          order: 10,
+          default: true,
+          label: "Run enemy turns automatically",
+          help: 'After you end your turn, RPmod rolls every enemy (and ally) turn until it is your turn again. Off: press "Run enemy turns" yourself.'
+        });
+      } catch (_) {
+      }
       sh.registerView({
         id: "editor",
         title: "World editor",
@@ -29437,11 +29747,13 @@ ${recent}` : "");
       id: "combat",
       title: "Dice & combat",
       blocks: [
-        { p: "RPmod does the maths, the AI tells the story. Combat follows the free d20 rules (SRD): initiative, attack against armour class, damage and hit points." },
+        { p: "RPmod does the maths, the AI tells the story. Combat follows the free SRD 5.2.1 rules: initiative, attacks against armour class, damage, conditions, death saving throws." },
         { list: [
-          "Open Combat, tick the combatants (or quick-add a monster) and start the encounter.",
-          "Attack, roll dice and step through turns; the current round and hit points go to the AI each turn.",
-          "People need a stat block to fight; add one in the world editor."
+          "Open Combat, add SRD monsters (search by name or challenge rating) and watch the difficulty meter: Low, Moderate or High for your level.",
+          "On your turn pick weapon and target and press Attack, then End turn: the enemies act automatically until it is your turn again.",
+          "Then write in the chat what you do — the AI narrates the rolls from the combat log.",
+          "After a victory your HP and the XP earned are saved to your persona's sheet.",
+          "The AI can start a fight too: it writes <encounter>2 Wolf</encounter>."
         ] }
       ],
       show: [{ label: "Combat window", run: (c) => {
@@ -29839,9 +30151,9 @@ ${recent}` : "");
     tile.className = "containAndScaleImage tile quick_start_preview_tile" + (empty ? " quick_start_preview_tile_empty" : "");
     tile.style.backgroundImage = empty ? "url('/static/img/folder.svg')" : "var(--img_esobold)";
     tile.title = name;
-    const label = document.createElement("b");
-    label.textContent = name;
-    tile.appendChild(label);
+    const label2 = document.createElement("b");
+    label2.textContent = name;
+    tile.appendChild(label2);
     if (onClick) tile.addEventListener("click", onClick);
     return tile;
   }
@@ -29985,9 +30297,9 @@ ${recent}` : "");
       async apply() {
         const A = W();
         if (!A) throw new Error("Worlds engine not loaded");
-        const sel = selection;
-        if (sel.id === EXAMPLE_ID && !A.hasExample()) await A.loadExample();
-        else A.useWorld(sel.id);
+        const sel2 = selection;
+        if (sel2.id === EXAMPLE_ID && !A.hasExample()) await A.loadExample();
+        else A.useWorld(sel2.id);
         A.enable();
         if (!(A.runtime && A.runtime.playerLocationId)) {
           const first = A.getGraph().nodes.find((n) => n.type === "location");
@@ -30126,10 +30438,10 @@ ${recent}` : "");
       });
     }
     function boolRow(s) {
-      const label = el("div", { class: "justifyleft settingsmall" }, [s.label + " "]);
-      if (s.help) label.appendChild(el("span", { class: "helpicon", text: "?" }, [el("span", { class: "helptext", text: s.help })]));
+      const label2 = el("div", { class: "justifyleft settingsmall" }, [s.label + " "]);
+      if (s.help) label2.appendChild(el("span", { class: "helpicon", text: "?" }, [el("span", { class: "helptext", text: s.help })]));
       const input = el("input", { type: "checkbox", id: "rpmodset_" + s.id, title: s.label, "data-rpmod-setting": s.id, style: "margin:0px 0px 0px auto;" });
-      return el("div", { class: "settinglabel" }, [label, input]);
+      return el("div", { class: "settinglabel" }, [label2, input]);
     }
     function render() {
       const pane = document.getElementById(PANE_ID);
@@ -30752,13 +31064,13 @@ ${recent}` : "");
         toast(err.message, true);
       }
     }
-    function btn(text, onclick, opts) {
+    function btn2(text, onclick, opts) {
       opts = opts || {};
       const cls = "btn btn-primary rpm-btn" + (opts.icon ? " rpm-btn-icon" : "") + (opts.variant ? " rpm-" + opts.variant : "") + (opts.cls ? " " + opts.cls : "");
       return el("button", { type: "button", class: cls, title: opts.title, "aria-label": opts.label || (text ? null : opts.title), "data-roll": opts.roll, onclick }, opts.icon ? [iconText(opts.icon, text)] : [text]);
     }
-    function field(label, input) {
-      return el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: label }), input]);
+    function field(label2, input) {
+      return el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: label2 }), input]);
     }
     function textIn(value, onChange, props) {
       const i = el("input", Object.assign({ type: "text", class: "form-control rpm-input" }, props || {}));
@@ -30793,9 +31105,9 @@ ${recent}` : "");
       if (!box) return;
       const a = document.activeElement;
       const focusIdx = a && box.contains(a) ? [...box.querySelectorAll(FOCUSABLE)].indexOf(a) : -1;
-      let sel = null;
+      let sel2 = null;
       try {
-        if (a && a.selectionStart != null) sel = [a.selectionStart, a.selectionEnd];
+        if (a && a.selectionStart != null) sel2 = [a.selectionStart, a.selectionEnd];
       } catch (_) {
       }
       renderInto(box);
@@ -30804,7 +31116,7 @@ ${recent}` : "");
       if (!t) return;
       try {
         t.focus({ preventScroll: true });
-        if (sel && t.setSelectionRange) t.setSelectionRange(sel[0], sel[1]);
+        if (sel2 && t.setSelectionRange) t.setSelectionRange(sel2[0], sel2[1]);
         else if (t.tagName === "INPUT" && t.select) t.select();
       } catch (_) {
       }
@@ -30814,20 +31126,20 @@ ${recent}` : "");
       const root = el("div", { class: "rpm-sheet", "data-sheet": V.name || "" });
       box.appendChild(root);
       const names = characterNames();
-      const sel = el("select", { class: "form-control rpm-input rpm-grow", "aria-label": "Character" });
-      sel.appendChild(el("option", { value: "", text: names.length ? "— choose a character —" : "(no characters in the Library)" }));
+      const sel2 = el("select", { class: "form-control rpm-input rpm-grow", "aria-label": "Character" });
+      sel2.appendChild(el("option", { value: "", text: names.length ? "— choose a character —" : "(no characters in the Library)" }));
       for (const n of names) {
         const o = el("option", { value: n, text: n + (n === personaName() ? " (your persona)" : "") });
         if (n === V.name) o.selected = true;
-        sel.appendChild(o);
+        sel2.appendChild(o);
       }
-      sel.addEventListener("change", () => select(sel.value));
-      const head = el("div", { class: "rpm-row" }, [sel]);
+      sel2.addEventListener("change", () => select(sel2.value));
+      const head = el("div", { class: "rpm-row" }, [sel2]);
       if (V.draft) {
         const d = dirty(), auto = autosave();
-        const saveBtn = btn(d ? auto ? "Saving…" : "Save •" : "Saved", () => save(), { variant: "success", title: d ? "Save the sheet into the card" : "All changes saved", cls: d && !auto ? "rpm-unsaved" : "" });
+        const saveBtn = btn2(d ? auto ? "Saving…" : "Save •" : "Saved", () => save(), { variant: "success", title: d ? "Save the sheet into the card" : "All changes saved", cls: d && !auto ? "rpm-unsaved" : "" });
         saveBtn.setAttribute("data-save", "sheet");
-        const revertBtn = btn("Revert", () => revert(), { title: "Undo unsaved changes" });
+        const revertBtn = btn2("Revert", () => revert(), { title: "Undo unsaved changes" });
         revertBtn.setAttribute("data-revert", "sheet");
         revertBtn.hidden = !d || auto;
         head.append(revertBtn, saveBtn);
@@ -30847,13 +31159,13 @@ ${recent}` : "");
       }
       if (!V.draft) {
         root.appendChild(el("p", { class: "rpm-muted", text: `${V.name} has no character sheet yet.` }));
-        const row = el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, [
-          window.KLITE_RPMod_Builder ? btn("Build with the SRD rules", () => window.KLITE_RPMod_Builder.open({ target: V.name, name: V.name }), { icon: "sparkles", title: "Step-by-step builder: class, background, species, abilities, skills, equipment" }) : null,
-          btn("Create sheet", () => createSheet(null), { icon: "plus", title: "An empty sheet you fill in yourself" })
+        const row2 = el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, [
+          window.KLITE_RPMod_Builder ? btn2("Build with the SRD rules", () => window.KLITE_RPMod_Builder.open({ target: V.name, name: V.name }), { icon: "sparkles", title: "Step-by-step builder: class, background, species, abilities, skills, equipment" }) : null,
+          btn2("Create sheet", () => createSheet(null), { icon: "plus", title: "An empty sheet you fill in yourself" })
         ]);
         const ws = worldStatsFor(V.name);
-        if (ws) row.appendChild(btn("Create from world stats", () => createSheet(fromCombatStats(ws)), { title: "Use the d20 stat block this person has in the active world" }));
-        root.appendChild(row);
+        if (ws) row2.appendChild(btn2("Create from world stats", () => createSheet(fromCombatStats(ws)), { title: "Use the d20 stat block this person has in the active world" }));
+        root.appendChild(row2);
         return;
       }
       const D = derive(V.draft);
@@ -30883,7 +31195,7 @@ ${recent}` : "");
       ]));
       root.appendChild(el("div", { class: "rpm-row", style: "margin:2px 0 6px;flex-wrap:wrap" }, [
         el("span", { class: "rpm-muted rpm-grow", text: `Proficiency bonus ${fmt(D.pb)} · XP ${s.xp}${s.alignment ? " · " + s.alignment : ""}` }),
-        s.build && s.level < 20 && window.KLITE_RPMod_Builder ? btn("Level up", () => {
+        s.build && s.level < 20 && window.KLITE_RPMod_Builder ? btn2("Level up", () => {
           if (dirty() && !confirm("Level up uses the saved sheet; discard unsaved changes?")) return;
           window.KLITE_RPMod_Builder.levelUp(V.name);
         }, { icon: "sparkles", title: `Rebuild at level ${s.level + 1} with the builder (keeps inventory, coins and notes)` }) : null
@@ -30891,7 +31203,7 @@ ${recent}` : "");
       root.appendChild(heading("Abilities"));
       root.appendChild(el("div", { class: "rpm-sheet-abilities" }, ABILITIES.map((a) => el("div", { class: "rpm-sheet-ability" }, [
         el("div", { class: "rpm-label", text: ABILITY_NAMES[a] }),
-        btn(fmt(D.mods[a]), () => rollD20(ABILITY_NAMES[a] + " check", D.mods[a], "check"), { title: `Roll a ${ABILITY_NAMES[a]} check`, roll: "check-" + a, cls: "rpm-sheet-mod" }),
+        btn2(fmt(D.mods[a]), () => rollD20(ABILITY_NAMES[a] + " check", D.mods[a], "check"), { title: `Roll a ${ABILITY_NAMES[a]} check`, roll: "check-" + a, cls: "rpm-sheet-mod" }),
         numIn(s.abilities[a], set((v) => {
           V.draft.abilities[a] = v;
         }), { min: 1, max: 30, "aria-label": ABILITY_NAMES[a] + " score" })
@@ -30904,7 +31216,7 @@ ${recent}` : "");
         field("Speed", numIn(s.speed, set((v) => {
           V.draft.speed = v;
         }))),
-        field("Initiative", btn(fmt(D.initiative), () => rollD20("Initiative", D.initiative, "initiative"), { roll: "initiative", title: "Roll initiative" })),
+        field("Initiative", btn2(fmt(D.initiative), () => rollD20("Initiative", D.initiative, "initiative"), { roll: "initiative", title: "Roll initiative" })),
         field("Passive Perception", el("div", { class: "rpm-sheet-static", text: String(D.passivePerception) }))
       ]));
       if (s.acNote) root.appendChild(el("div", { class: "rpm-muted", text: "AC: " + s.acNote }));
@@ -30922,8 +31234,8 @@ ${recent}` : "");
           V.draft.xp = v;
         })))
       ]));
-      const profBox = (checked, onToggle, label) => {
-        const c = el("input", { type: "checkbox", "aria-label": label });
+      const profBox = (checked, onToggle, label2) => {
+        const c = el("input", { type: "checkbox", "aria-label": label2 });
         c.checked = checked;
         c.addEventListener("change", () => onToggle(c.checked));
         return c;
@@ -30934,7 +31246,7 @@ ${recent}` : "");
           V.draft.saves = on ? [...V.draft.saves, a] : V.draft.saves.filter((x) => x !== a);
         }), ABILITY_NAMES[a] + " save proficiency"),
         el("span", { class: "rpm-grow", text: ABILITY_NAMES[a] }),
-        btn(fmt(D.saves[a]), () => rollD20(ABILITY_NAMES[a] + " saving throw", D.saves[a], "save"), { roll: "save-" + a, title: "Roll the saving throw", cls: "rpm-sheet-mod" })
+        btn2(fmt(D.saves[a]), () => rollD20(ABILITY_NAMES[a] + " saving throw", D.saves[a], "save"), { roll: "save-" + a, title: "Roll the saving throw", cls: "rpm-sheet-mod" })
       ]))));
       root.appendChild(heading("Skills"));
       root.appendChild(el("div", { class: "rpm-sheet-list rpm-sheet-skills" }, SKILLS.map((k2) => {
@@ -30956,7 +31268,7 @@ ${recent}` : "");
         return el("div", { class: "rpm-sheet-line" }, [
           tog,
           el("span", { class: "rpm-grow" }, [k2.name + " ", el("span", { class: "rpm-muted", text: k2.ability.toUpperCase() })]),
-          btn(fmt(D.skills[k2.id]), () => rollD20(k2.name + " check", D.skills[k2.id], "skill"), { roll: "skill-" + k2.id, title: "Roll " + k2.name, cls: "rpm-sheet-mod" })
+          btn2(fmt(D.skills[k2.id]), () => rollD20(k2.name + " check", D.skills[k2.id], "skill"), { roll: "skill-" + k2.id, title: "Roll " + k2.name, cls: "rpm-sheet-mod" })
         ]);
       })));
       root.appendChild(heading("Attacks"));
@@ -30979,8 +31291,8 @@ ${recent}` : "");
           textIn(a.damage, set((v) => {
             V.draft.attacks[i].damage = v;
           }), { placeholder: "1d8+3", "aria-label": "Damage dice" }),
-          btn("Hit " + fmt(a.toHit), () => rollD20(a.name + " attack", a.toHit, "attack"), { roll: "attack-" + i, title: "Roll to hit" }),
-          btn("Dmg", () => rollExpr(a.name + " damage", a.damage || "1d4", "damage"), { roll: "damage-" + i, title: "Roll damage (" + (a.damage || "1d4") + ")" }),
+          btn2("Hit " + fmt(a.toHit), () => rollD20(a.name + " attack", a.toHit, "attack"), { roll: "attack-" + i, title: "Roll to hit" }),
+          btn2("Dmg", () => rollExpr(a.name + " damage", a.damage || "1d4", "damage"), { roll: "damage-" + i, title: "Roll damage (" + (a.damage || "1d4") + ")" }),
           el("button", { type: "button", class: "rpm-iconbtn", title: "Remove attack", "aria-label": "Remove " + a.name, onclick: () => {
             V.draft.attacks.splice(i, 1);
             edited();
@@ -30988,7 +31300,7 @@ ${recent}` : "");
         ]));
       });
       const atkName = el("input", { type: "text", class: "form-control rpm-input rpm-grow", placeholder: "e.g. Longsword", "aria-label": "New attack" });
-      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:4px" }, [atkName, btn("", () => {
+      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:4px" }, [atkName, btn2("", () => {
         const n = atkName.value.trim();
         if (!n) return;
         V.draft.attacks.push({ name: n, ability: "str", proficient: true, damage: "1d8", notes: "" });
@@ -31000,7 +31312,7 @@ ${recent}` : "");
         root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
           field("Ability", el("div", { class: "rpm-sheet-static", text: ABILITY_NAMES[sp.ability] })),
           field("Save DC", el("div", { class: "rpm-sheet-static", text: String(sp.saveDC) })),
-          field("Spell attack", btn(fmt(sp.attack), () => rollD20("Spell attack", sp.attack, "attack"), { roll: "spell-attack", title: "Roll a spell attack" })),
+          field("Spell attack", btn2(fmt(sp.attack), () => rollD20("Spell attack", sp.attack, "attack"), { roll: "spell-attack", title: "Roll a spell attack" })),
           field("Cantrips / prepared", el("div", { class: "rpm-sheet-static", text: `${sp.cantrips} / ${sp.prepared}` }))
         ]));
         const slotRow = el("div", { class: "rpm-row", style: "flex-wrap:wrap;margin-top:4px" });
@@ -31047,7 +31359,7 @@ ${recent}` : "");
         } }, [icon("trash-2", 14)])
       ])));
       const itemName = el("input", { type: "text", class: "form-control rpm-input rpm-grow", placeholder: "Add an item", "aria-label": "New item" });
-      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:4px" }, [itemName, btn("", () => {
+      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:4px" }, [itemName, btn2("", () => {
         const n = itemName.value.trim();
         if (!n) return;
         V.draft.inventory.push({ name: n, qty: 1, notes: "" });
@@ -31057,8 +31369,8 @@ ${recent}` : "");
         V.draft.coins[c] = v;
       }), { min: 0 })))));
       root.appendChild(heading("Features & notes"));
-      const area = (value, onChange, label) => {
-        const t = el("textarea", { class: "form-control rpm-input", rows: 3, "aria-label": label });
+      const area = (value, onChange, label2) => {
+        const t = el("textarea", { class: "form-control rpm-input", rows: 3, "aria-label": label2 });
         t.value = value;
         t.addEventListener("change", () => onChange(t.value));
         return t;
@@ -31469,8 +31781,8 @@ OK = save and close · Cancel = close and discard them`);
       const d = V.box && V.box.querySelector(".rpm-gal-detail");
       if (d) d.remove();
     }
-    function actionBtn(label, iconName, onclick, opts) {
-      return el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon" + (opts && opts.variant ? " rpm-" + opts.variant : ""), "data-gal-action": opts && opts.id, onclick }, [iconText(iconName, label)]);
+    function actionBtn(label2, iconName, onclick, opts) {
+      return el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon" + (opts && opts.variant ? " rpm-" + opts.variant : ""), "data-gal-action": opts && opts.id, onclick }, [iconText(iconName, label2)]);
     }
     function charObject(name, rec) {
       const d = rec && rec.data || {};
@@ -31954,9 +32266,9 @@ OK = save and close · Cancel = close and discard them`);
   var COLUMN_LABELS = { rages: "Rages", rageDamage: "Rage Damage", weaponMastery: "Weapon Mastery", bardicDie: "Bardic Inspiration die", channelDivinity: "Channel Divinity", wildShape: "Wild Shape", secondWind: "Second Wind", martialArts: "Martial Arts die", focusPoints: "Focus Points", unarmoredMovement: "Unarmored Movement", favoredEnemy: "Favored Enemy", sneakAttack: "Sneak Attack", sorceryPoints: "Sorcery Points", invocations: "Eldritch Invocations" };
   function classResources(choices) {
     const cls = SRD.classes[choices.class];
-    const row = cls && cls.columns && cls.columns[levelOf(choices)];
-    if (!row) return "";
-    return Object.entries(row).map(([k2, v]) => `${COLUMN_LABELS[k2] || k2} ${k2 === "rageDamage" ? "+" + v : k2 === "unarmoredMovement" ? "+" + v + " ft." : v}`).join(" · ");
+    const row2 = cls && cls.columns && cls.columns[levelOf(choices)];
+    if (!row2) return "";
+    return Object.entries(row2).map(([k2, v]) => `${COLUMN_LABELS[k2] || k2} ${k2 === "rageDamage" ? "+" + v : k2 === "unarmoredMovement" ? "+" + v + " ft." : v}`).join(" · ");
   }
   function featureList(choices) {
     const cls = SRD.classes[choices.class], bg = SRD.backgrounds[choices.background], sp = SRD.species[choices.species];
@@ -32088,7 +32400,7 @@ OK = save and close · Cancel = close and discard them`);
     function details(title, body, open) {
       return el("details", { class: "rpm-gal-sec", open: open ? "" : null }, [el("summary", { text: title }), body]);
     }
-    function btn(text, onclick, opts) {
+    function btn2(text, onclick, opts) {
       opts = opts || {};
       return el("button", { type: "button", class: "btn btn-primary rpm-btn" + (opts.icon ? " rpm-btn-icon" : "") + (opts.cls ? " " + opts.cls : ""), disabled: opts.disabled ? "" : null, "data-bld": opts.id, onclick }, opts.icon ? [iconText(opts.icon, text)] : [text]);
     }
@@ -32098,9 +32410,9 @@ OK = save and close · Cancel = close and discard them`);
         sub ? el("div", { class: "rpm-muted", text: sub }) : null
       ]);
     }
-    function checkList(options, chosen, limit, onChange, label) {
+    function checkList(options, chosen, limit, onChange, label2) {
       const set2 = new Set(chosen || []);
-      return el("div", { class: "rpm-bld-checks", role: "group", "aria-label": label }, options.map((o) => {
+      return el("div", { class: "rpm-bld-checks", role: "group", "aria-label": label2 }, options.map((o) => {
         const id = typeof o === "string" ? o : o.id, name = typeof o === "string" ? SKILL_NAME[o] || o : o.name;
         const cb = el("input", { type: "checkbox", "data-check": id });
         cb.checked = set2.has(id);
@@ -32113,8 +32425,8 @@ OK = save and close · Cancel = close and discard them`);
         return el("label", { class: "rpm-bld-check" }, [cb, " " + name]);
       }));
     }
-    function select(options, value, onChange, label) {
-      const s = el("select", { class: "form-control rpm-input", "aria-label": label });
+    function select(options, value, onChange, label2) {
+      const s = el("select", { class: "form-control rpm-input", "aria-label": label2 });
       s.appendChild(el("option", { value: "", text: "— choose —" }));
       for (const o of options) {
         const v = typeof o === "string" ? o : o.value;
@@ -32201,14 +32513,14 @@ OK = save and close · Cancel = close and discard them`);
     function stepAbilities(root) {
       const cls = SRD.classes[V.c.class], bg = SRD.backgrounds[V.c.background];
       root.appendChild(el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, [
-        ...[["standard", "Standard array"], ["pointbuy", "Point buy (27)"], ["roll", "Roll 4d6"]].map(([m, t]) => btn(t, () => {
+        ...[["standard", "Standard array"], ["pointbuy", "Point buy (27)"], ["roll", "Roll 4d6"]].map(([m, t]) => btn2(t, () => {
           V.c.method = m;
           if (m === "pointbuy") V.c.scores = Object.fromEntries(ABILITIES.map((a) => [a, 8]));
           if (m === "standard") V.c.scores = cls ? Object.assign({}, cls.standardArray) : { str: 15, dex: 14, con: 13, int: 12, wis: 10, cha: 8 };
           if (m === "roll") V.c.scores = Object.fromEntries(ABILITIES.map((a) => [a, roll4d6()]));
           render();
         }, { cls: V.c.method === m ? "rpm-on" : "", id: "method-" + m })),
-        cls && V.c.method === "standard" ? btn(`Suggested for ${cls.name}`, () => {
+        cls && V.c.method === "standard" ? btn2(`Suggested for ${cls.name}`, () => {
           V.c.scores = Object.assign({}, cls.standardArray);
           render();
         }, { id: "suggest" }) : null
@@ -32459,12 +32771,12 @@ OK = save and close · Cancel = close and discard them`);
       ({ class: stepClass, background: stepBackground, species: stepSpecies, abilities: stepAbilities, feats: stepFeats, skills: stepSkills, equipment: stepEquipment, review: stepReview })[id](body);
       const last = V.step === steps.length - 1;
       root.appendChild(el("div", { class: "rpm-row rpm-bld-nav" }, [
-        btn("Back", () => {
+        btn2("Back", () => {
           V.step = Math.max(0, V.step - 1);
           render();
         }, { icon: "arrow-left", disabled: V.step === 0, id: "back" }),
         el("span", { class: "rpm-grow" }),
-        last ? btn(V.busy ? "Saving…" : V.levelUp ? "Level up" : "Create character", () => create(), { cls: "rpm-success rpm-lg", disabled: V.busy || validate(V.c).length > 0, id: "create" }) : btn("Next", () => {
+        last ? btn2(V.busy ? "Saving…" : V.levelUp ? "Level up" : "Create character", () => create(), { cls: "rpm-success rpm-lg", disabled: V.busy || validate(V.c).length > 0, id: "create" }) : btn2("Next", () => {
           V.step++;
           render();
         }, { cls: "rpm-lg", id: "next" })

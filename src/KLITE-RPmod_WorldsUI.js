@@ -16,6 +16,7 @@
 // Depends on window.KLITE_RPMod_Worlds (the data/engine module).
 // =============================================================================
 import { icon, iconText } from './shell/dom.js';
+import { renderCombat, AUTO_TURNS_SETTING } from './game/combatView.js';
 
 export default function initWorldsUI() {
     'use strict';
@@ -462,7 +463,8 @@ export default function initWorldsUI() {
         give: [['name', 'text'], ['qty', 'number']], take: [['name', 'text'], ['qty', 'number']],
         quest: [['questId', 'quest'], ['state', 'qstate']], discover: [['quest', 'quest']],
         move: [['locationId', 'location']], npcmove: [['npcId', 'npc'], ['locationId', 'location']],
-        advance: [['slots', 'number']], fireEvent: [['eventId', 'event']]
+        advance: [['slots', 'number']], fireEvent: [['eventId', 'event']],
+        encounter: [['value', 'text']]   // a saved encounter's name or "2 Wolf, Goblin Warrior"
     };
     function paramInput(kind, value, onChange) {
         const A = API();
@@ -970,79 +972,8 @@ export default function initWorldsUI() {
         }
     }
 
-    function renderCombatTab(box) {
-        const A = API();
-        const cb = A.getCombat();
-        if (cb && cb.active) return renderActiveCombat(box, cb);
-
-        // ---- encounter builder ----
-        box.appendChild(muted('Select combatants for the encounter. NPCs need a stat block (add one in the editor).', { style: 'margin-bottom:6px' }));
-        const persons = A.getGraph().nodes.filter(n => n.type === 'npc');
-        const chosen = S._encPick || (S._encPick = {});
-        if (!persons.length) box.appendChild(muted('No persons yet.'));
-        for (const p of persons) {
-            const st = A.getStats(p.id);
-            const c = el('input', { type: 'checkbox' }); c.checked = !!chosen[p.id];
-            c.addEventListener('change', () => { chosen[p.id] = c.checked; });
-            box.appendChild(el('label', { class: 'rpm-row', style: 'padding:3px 0;cursor:pointer' }, [
-                c,
-                el('span', { class: 'rpm-grow' }, [p.name, st
-                    ? el('span', { class: 'rpm-chip rpm-chip-info', style: 'margin-left:6px', text: `AC ${st.ac} HP ${st.hpMax}` })
-                    : el('span', { class: 'rpm-chip rpm-chip-danger', style: 'margin-left:6px', text: 'no stats' })])
-            ]));
-        }
-        // quick-add SRD monster
-        box.appendChild(lbl('Quick-add monster (SRD)'));
-        const tRow = el('div', { class: 'rpm-row', style: 'flex-wrap:wrap' });
-        for (const key of A.listTemplates()) tRow.appendChild(uiBtn(key.replace('_', ' '), () => { const p = A.addPersonFromTemplate(key); S._encPick[p.id] = true; refreshPanel(); }));
-        box.appendChild(tRow);
-        // include player + start
-        const inc = el('input', { type: 'checkbox' }); inc.checked = S._encPlayer !== false;
-        inc.addEventListener('change', () => { S._encPlayer = inc.checked; });
-        box.appendChild(el('label', { class: 'rpm-row', style: 'margin:10px 0;cursor:pointer' }, [inc, el('span', { text: 'Include the player' })]));
-        box.appendChild(uiBtn('Start encounter', () => { const ids = Object.keys(chosen).filter(k => chosen[k]); A.startEncounter(ids, { includePlayer: S._encPlayer !== false }); S._encPick = {}; refreshPanel(); }, { icon: 'swords', block: true, lg: true, variant: 'danger' }));
-    }
-
-    function renderActiveCombat(box, cb) {
-        const A = API();
-        const cur = cb.order[cb.turnIndex];
-        box.appendChild(row([
-            el('span', { class: 'rpm-heading rpm-grow', text: `Round ${cb.round}` }),
-            el('span', { class: 'rpm-chip rpm-chip-danger', text: '▶ ' + cur.name })
-        ], 'margin-bottom:8px'));
-        // roster with HP bars
-        for (const o of cb.order) {
-            const hp = cb.hp[o.id], max = cb.maxHp[o.id] || 1, pct = Math.max(0, Math.min(100, Math.round(hp / max * 100)));
-            const down = hp <= 0;
-            const card = el('div', { class: 'rpm-card' + (o.id === cur.id ? ' rpm-card-hi' : ''), style: down ? 'opacity:.5' : null });
-            card.appendChild(row([
-                el('span', { class: 'rpm-grow', text: (o.id === cur.id ? '▶ ' : '') + o.name + (down ? ' (down)' : '') }),
-                el('span', { class: 'rpm-muted', text: `${hp}/${max} · init ${o.init}` })
-            ]));
-            const bar = el('div', { class: 'rpm-bar' });
-            bar.appendChild(el('span', { style: `width:${pct}%;background:${pct > 50 ? 'var(--rpm-success)' : pct > 25 ? 'var(--rpm-quest)' : 'var(--rpm-danger)'}` }));
-            card.appendChild(bar);
-            box.appendChild(card);
-        }
-        // attack controls
-        const targets = cb.order.filter(o => cb.hp[o.id] > 0 && o.id !== cur.id);
-        const tSel = uiSelect({ class: 'form-control rpm-input rpm-grow', 'aria-label': 'Target' });
-        for (const o of targets) tSel.appendChild(el('option', { value: o.id, text: o.name }));
-        box.appendChild(row([tSel, uiBtn(`${cur.name} attacks`, () => { if (tSel.value) A.attack(cur.id, tSel.value); refreshPanel(); }, { icon: 'swords', variant: 'danger' })], 'margin-top:8px'));
-        // dice roller
-        const rIn = uiInput({ value: '1d20', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Dice expression' });
-        box.appendChild(row([rIn, uiBtn('Roll', () => { A.applyTags(`<roll>${rIn.value}</roll>`); refreshPanel(); }, { icon: 'dice-5' })], 'margin-top:6px'));
-        // turn/end
-        box.appendChild(row([
-            uiBtn('⏭ Next turn', () => { A.nextTurn(); refreshPanel(); }, { grow: true }),
-            uiBtn('End', () => { A.endEncounter(); refreshPanel(); }, { icon: 'x', grow: true, variant: 'danger' })
-        ], 'margin-top:6px'));
-        // log
-        box.appendChild(lbl('Combat log'));
-        const log = el('div', { class: 'rpm-log' });
-        for (const line of (cb.log || []).slice(-8)) log.appendChild(el('div', { text: line }));
-        box.appendChild(log);
-    }
+    // Combat window: src/game/combatView.js (encounter builder + fight).
+    function renderCombatTab(box) { renderCombat(box, () => refreshPanel()); }
 
     function renderPlayTab(box) {
         const A = API();
@@ -1133,9 +1064,14 @@ export default function initWorldsUI() {
         sh.registerView(Object.assign({ id: 'questlog', title: 'Quest log', place: 'window', window: { width: 380, height: 520 } }, view((c) => {
             if (API().activeWorld()) renderQuestsTab(c); else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
         })));
-        sh.registerView(Object.assign({ id: 'combat', title: 'Combat', place: 'window', window: { width: 360, height: 560 } }, view((c) => {
-            if (API().activeWorld()) renderCombatTab(c); else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
+        sh.registerView(Object.assign({ id: 'combat', title: 'Combat', place: 'window', window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
+            if (API().activeWorld()) renderCombatTab(c);
+            else { c.appendChild(el('div', { class: 'rpm-muted', text: 'Fights happen in a world. Load one (or the example) in the World tab.' })); c.appendChild(uiBtn('Open the World tab', () => openView('world'), { block: true, style: 'margin-top:8px' })); }
         })));
+        try {
+            window.KLITE_RPMod_Settings?.registerSetting({ id: AUTO_TURNS_SETTING, section: 'Combat', order: 10, default: true, label: 'Run enemy turns automatically',
+                help: 'After you end your turn, RPmod rolls every enemy (and ally) turn until it is your turn again. Off: press "Run enemy turns" yourself.' });
+        } catch (_) {}
         // not restored at startup: the world library loads asynchronously
         sh.registerView({ id: 'editor', title: 'World editor', place: 'window', window: { large: true, flush: true, minWidth: 320, minHeight: 300, restore: false },
             mount: mountEditor, unmount: unmountEditor, beforeClose: editorBeforeClose });

@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 124 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 137 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -43,9 +43,9 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
 |---|---|---|
 | D&D Beyond | Step-by-step character builder | ✅ levels 1–20 (spell picking missing) |
 | | Interactive sheet (modifiers, saves, skills, AC) | ✅ click-to-roll, stored in the card |
-| | Rules compendium | 🟡 6 monsters (SRD 5.1) |
-| | Encounter builder with difficulty | 🟡 no XP budget |
-| | Combat tracker | ✅ basic (no conditions, spell slots, death saves) |
+| | Rules compendium | 🟡 data: 330 SRD 5.2.1 monsters, conditions; no compendium window yet (R3) |
+| | Encounter builder with difficulty | ✅ SRD XP budget, 330 monsters, saved encounters |
+| | Combat tracker | ✅ sides, conditions, death saves, auto enemy turns (spell slots not used in combat) |
 | | Click-to-roll + game log | ✅ dice log the AI sees (combat log separate) |
 | | Leveling / XP | 🟡 level up 1–20; XP is not awarded yet |
 | SillyTavern | Character cards V1/V2/V3 | ✅ V2, 🟡 V3 (ALPHA) |
@@ -63,8 +63,8 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
 | VTT | Map, grid, tokens, fog | ❌ (R7) |
 
 ### Known issues / tech debt
-1. **"Monster / NPC combatant" flag does nothing** — stored (`stats.isMonster`) but never
-   read. Intended for combat sides + victory detection (R5).
+1. ~~"Monster / NPC combatant" flag does nothing~~ — decides the combat side since R5 (a monster is
+   never an ally; victory = every enemy down).
 2. **Chat tags remain visible** in the chat text (parsed, not stripped) (R6).
 3. ~~Worlds panel overlaps ALPHA's right panel~~ — fixed by the shell (2026-09-23).
 4. ~~Two systems inject character data~~ — one owner since 2026-09-23 (`src/context/`).
@@ -76,7 +76,7 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
 5. **Never play-tested with a real AI backend** (only headless + page load).
 6. `index.rpmod.html` boots the bundle at `window.load` (later than the usermod path); verify
    top-bar icon layout matches the usermod install.
-7. Monster presets are SRD **5.1**; decision is SRD **5.2** (R3).
+7. ~~Monster presets are SRD 5.1~~ — replaced by the 330 SRD 5.2.1 monsters (R5, 2026-09-23).
 8. ALPHA is a 17.7k-line monolith (its panels now live in the shell, its code does not yet).
 9. `<take>Item</take>` **without a count removes the whole stack**, while `<give>Item</give>`
    adds one — asymmetric; decide the intended semantics (R4 or R6). Covered by a test.
@@ -110,9 +110,8 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
     `upsertCharacterMetadata`, `updateCharacterListFromAll`, `findCharacterMetaByName`,
     `getNextAutoincrementName`, `STORAGE_PREFIX`, `allCharacterNames`): recheck on every host
     upgrade; a small official save/delete API would be a good next proposal to Jaxxks.
-17. **Combat HP and sheet HP are separate:** a fight starts every combatant at full HP (the
-    player at the sheet's maximum, not its current HP) and damage is not written back to the
-    sheet. Decide with R5 (combat ↔ sheet sync, death saves).
+17. ~~Combat HP and sheet HP are separate~~ — the fight starts at the persona sheet's current HP
+    and writes HP/XP back (R5, owner's decision). Companions (world persons) still start at full HP.
 
 ## Phases
 
@@ -336,8 +335,23 @@ the AI narrates; HP and XP are written back to the persona sheet; all SRD monste
       effect, combat events in the game log, persona HP/XP write-back. SRD 5.1 presets replaced
       (known issue 7), `isMonster` now decides sides (known issue 1), combat HP = sheet HP
       (known issue 17).
+- [x] **Step 2 — Combat window** (2026-09-23): encounter builder (XP meter Low/Moderate/High for
+      the party, monster search by name/type/CR, counts, persons as enemies/allies, saved
+      encounters), fight view (party/enemies with HP, AC, conditions, death saves; your turn:
+      weapon, target, advantage → Attack → End turn runs the enemies), tools (damage/heal,
+      conditions with rounds, monster save actions), outcome banner. Setting "Run enemy turns
+      automatically" (default on). AI: "Starting a fight" hint + `<encounter>` tag; event effect
+      *encounter* in the editor. Combat log lines state the cause before the result. Live-checked
+      (a wolf fight to victory in Esolite).
+- **Open (R5):** needs a play test with a real backend (does the AI stick to the logged results?);
+  an Encounter node in the editor graph; spells in combat (spell attack/save DC, slots used from
+  the Combat window); companions' HP kept between fights; monster recharge and legendary actions
+  are manual (Tools); no map, so no range/movement — ranged monsters only prefer melee when they
+  have it. Acceptance "build a Moderate encounter, fight it through victory and through defeat"
+  is covered by tests (`tests/encounter.test.js`) and the live check.
 - Encounter builder with SRD 5.2 XP budget / difficulty; Encounter node linked to
-  locations/events.
+  locations/events. *(done: builder + saved encounters with location + event effect; an
+  Encounter node in the editor graph is still open)*
 - Combat sides from `isMonster` (known issue 1) with victory/defeat detection.
 - Conditions, spell slots/resources, death saves; AI turn hints for monsters.
 - Shared game log (dice + combat), visible to the AI.

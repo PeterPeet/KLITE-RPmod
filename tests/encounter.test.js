@@ -88,7 +88,7 @@ test('encounter with SRD monsters: sides, victory, XP, the AI context and the ga
     const L = w.KLITE_RPMod_Log;
     assert.ok(L.entries().some(e => e.kind === 'combat' && /Victory! All enemies are defeated\. 100 XP earned\./.test(e.what)), 'combat events in the game log');
     await w.prepare_submit_generation();
-    assert.match(h.prompt, /\[Rolls and combat since your last reply\][\s\S]*Goblin Warrior 1 is defeated/);
+    assert.match(h.prompt, /\[Rolls and combat since your last reply\][\s\S]*Goblin Warrior 1 takes 20 damage → HP 0\/10 \(down!\)\n- Goblin Warrior 1 is defeated\./, 'the cause comes before the result');
     assert.equal(W.attack('__player__', gobs[0].id), null, 'no attacks after the outcome');
     W.endEncounter(); assert.equal(W.getCombat(), null);
 });
@@ -128,7 +128,7 @@ test('conditions change attack rolls and wear off; monster turns run until the p
     h.seedRandom([0.1, 0.9, 0.5]);   // two d20s (advantage keeps 19), damage die
     const r = W.attack('__player__', g1);
     assert.equal(r.roll, 19 + 5);
-    assert.match(cb.log.find(l => /Kara hits Goblin Warrior 1/.test(l)), /advantage: target Prone/);
+    assert.match(cb.log.find(l => /Hit: Kara → Goblin Warrior 1/.test(l)), /advantage: target Prone/);
     W.addCondition('__player__', 'Poisoned');
     h.seedRandom([0.9, 0.1, 0.5]);
     assert.equal(W.attack('__player__', g2).roll, 3 + 5, 'poisoned: disadvantage');
@@ -161,7 +161,8 @@ test('saving-throw actions, saved encounters, the <encounter> tag and trigger ef
     assert.equal(W.getCombat().order.filter(o => o.kind === 'monster').length, 3);
     assert.equal(W.getCombat().encounter, enc.id);
     W.endEncounter();
-    // the AI (as GM) starts a fight with a tag
+    // the AI (as GM) is told how to start a fight, and does it with a tag
+    assert.match(W.preview(), /\[Starting a fight\]\nWhen a fight breaks out, write <encounter>2 Wolf, Goblin Warrior<\/encounter>[^\n]*prepared encounter \(Wolf Pack\)/);
     w.gametext_arr.push('Wolves burst from the trees! <encounter>2 Wolf, Goblin Warrior</encounter>');
     await w.prepare_submit_generation();
     const names = plain(W.getCombat().order.map(o => o.name).sort());
@@ -205,4 +206,34 @@ test('persona sheet: the fight starts at its current HP; HP and XP are written b
     assert.ok(w.KLITE_RPMod_Log.entries().some(e => /Kara has enough XP for level 2/.test(e.what)));
     W.endEncounter(); await sleep(30);
     assert.equal((await C.loadSheet('Kara')).xp, 300, 'written once');
+});
+
+test('Combat window: build an encounter with the XP meter, save it, fight it through to victory', async (t) => {
+    const { h, W, w } = await field(t, { hpMax: 40, ac: 18, attacks: [{ name: 'Longsword', toHit: 7, damage: '1d8+30' }] });
+    const doc = w.document;
+    w.KLITE_RPMod_Shell.open('combat'); await sleep(20);
+    const win = () => doc.querySelector('[data-window="combat"]');
+    const $ = (s) => win().querySelector(s);
+    assert.match($('[data-cb="difficulty"]').textContent, /No enemies yet/);
+    const search = $('[data-cb="search"]'); search.value = 'goblin warrior'; search.dispatchEvent(new w.Event('input'));
+    assert.ok($('[data-monster="goblin-warrior"]'), 'search finds the Goblin Warrior');
+    $('[data-cb="add-goblin-warrior"]').click(); await sleep(10);
+    assert.match($('[data-cb="difficulty"]').textContent, /Low/, '50 XP for one level-1 character');
+    $('[data-cb="more-goblin-warrior"]').click(); await sleep(10);
+    assert.match($('[data-cb="difficulty"]').textContent, /High/, '100 XP');
+    $('[data-cb="less-goblin-warrior"]').click(); await sleep(10);
+    const name = $('[data-cb="name"]'); name.value = 'Lone goblin'; name.dispatchEvent(new w.Event('input'));
+    $('[data-cb="save"]').click(); await sleep(10);
+    assert.equal(W.listEncounters()[0].name, 'Lone goblin');
+    h.seedRandom([0.9, 0.1, 0.5]);   // the player wins initiative
+    $('[data-cb="start"]').click(); await sleep(10);
+    assert.ok(W.getCombat() && W.getCombat().active);
+    assert.match($('[data-cb="turn"]').textContent, /Kara/);
+    h.seedRandom([0.9, 0.9, 0.5]);
+    $('[data-cb="attack"]').click(); await sleep(10);
+    assert.equal(W.getCombat().outcome, 'victory');
+    assert.match($('[data-cb="outcome"]').textContent, /Victory![\s\S]*50 XP earned/);
+    $('[data-cb="end"]').click(); await sleep(10);
+    assert.equal(W.getCombat(), null);
+    assert.ok($('[data-cb="start-' + W.listEncounters()[0].id + '"]'), 'saved encounter can be started again');
 });

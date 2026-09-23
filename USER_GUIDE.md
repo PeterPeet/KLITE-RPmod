@@ -179,6 +179,7 @@ on your next turn, update the world state, and are reflected in the following sl
 | `<attack>A-&gt;B</attack>` | `<attack>You-&gt;Goblin</attack>` | Resolve an attack (to-hit vs AC, damage, HP) |
 | `<hp>Name=±N</hp>` | `<hp>Goblin=-4</hp>` | Adjust a combatant's HP |
 | `<check>Name=abi DC</check>` | `<check>You=dex 12</check>` | Ability check vs a DC |
+| `<encounter>…</encounter>` | `<encounter>2 Wolf, Goblin Warrior</encounter>` | Start a fight: SRD monster names with counts, or a saved encounter's name |
 
 **Time slots:** `morning → noon → afternoon → evening → night`. Advancing past night rolls
 to the next day, and the **season** follows the month automatically.
@@ -272,11 +273,35 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
 
 **Factions & HQs.** Link a **Faction → Location** to give it a visitable **headquarters**.
 
-**Combat (d20 / SRD 5.1).** In the **Combat** window, pick combatants (quick-add SRD monsters like
-goblin/wolf/skeleton), **Start encounter** to roll initiative, then attack, roll dice, adjust
-HP, and step through turns. The mod is authoritative for the maths; the current combat state
-(round, turn order, HP) is injected so the AI narrates the outcomes. You or the AI can also
-drive combat with the `<attack>`, `<roll>`, `<hp>` and `<check>` tags above.
+**Combat (SRD 5.2.1).** RPmod rolls, the AI narrates.
+
+- **Build an encounter** in the **Combat** window: search the 330 SRD monsters (by name, type or
+  challenge rating) and add them with counts; add persons of your world as enemies or allies.
+  The **difficulty meter** shows the encounter's XP against your party's budget (SRD table:
+  *Low / Moderate / High* for your persona's level and the number of companions). **Save to
+  world** keeps an encounter for later (start it from the list, from an event with the effect
+  *encounter*, or let the AI start it).
+- **Start encounter** rolls initiative. Enemies who act before you take their turns at once.
+- **Your turn:** choose weapon (from your sheet), target and normal/advantage/disadvantage,
+  press **Attack**, then **End turn** — the enemies' turns are rolled automatically until it is
+  your turn again (switch this off in Settings → RPmod → *Run enemy turns automatically*). Then
+  write in the chat what your character does; the AI narrates from the combat log.
+- **Conditions** (Prone, Poisoned, Restrained, …, from the SRD) change attack rolls
+  (advantage/disadvantage, automatic critical hits against the unconscious) and can run for a
+  number of rounds. Stunned or paralyzed creatures lose their turn. Add them under **Tools**,
+  where you also apply damage or healing and use monsters' special actions (breath weapons:
+  saving throw against the DC, half damage on a success).
+- **Dropping to 0 HP:** you fall unconscious and make **death saving throws** on your turn
+  (10+ succeeds, 1 counts twice, 20 brings you back with 1 HP); damage while down counts as a
+  failure. Three successes = stable, three failures = dead.
+- **Victory** (every enemy down) awards the monsters' XP; **defeat** when no one of the party is
+  standing. Your persona's remaining **HP and the XP are saved to its sheet** (the fight also
+  starts from the sheet's current HP); when you reach the next level's XP, the log says so and
+  **Level up** on the sheet takes you there.
+- **The AI sees** the fight state (party, enemies with HP/AC/conditions, whose turn, the outcome)
+  and every roll since its last reply, with the instruction not to invent results. Outside a
+  fight it is told how to start one: `<encounter>2 Wolf</encounter>`. The older tags `<attack>`,
+  `<roll>`, `<hp>` and `<check>` still work.
 
 ---
 

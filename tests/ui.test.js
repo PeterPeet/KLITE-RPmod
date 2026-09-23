@@ -50,7 +50,7 @@ test('quest log + combat windows, quest tracker and party sections stay in sync'
     W.startEncounter(['npc_kell']); h.ui().refreshPanel();
     assert.ok(texts(win('combat')).some(s => /Round 1/.test(s)));
     assert.ok(findButton(doc.querySelector('[data-section="party"]'), /Round 1/), 'party shows combat status');
-    click(findButton(win('combat'), /End/), w);
+    click(win('combat').querySelector('[data-cb="end"]'), w);   // "End encounter" (not "End turn")
     assert.equal(W.getCombat(), null);
 });
 

@@ -81,11 +81,13 @@ export const CHAPTERS = [
     {
         id: 'combat', title: 'Dice & combat',
         blocks: [
-            { p: 'RPmod does the maths, the AI tells the story. Combat follows the free d20 rules (SRD): initiative, attack against armour class, damage and hit points.' },
+            { p: 'RPmod does the maths, the AI tells the story. Combat follows the free SRD 5.2.1 rules: initiative, attacks against armour class, damage, conditions, death saving throws.' },
             { list: [
-                'Open Combat, tick the combatants (or quick-add a monster) and start the encounter.',
-                'Attack, roll dice and step through turns; the current round and hit points go to the AI each turn.',
-                'People need a stat block to fight; add one in the world editor.',
+                'Open Combat, add SRD monsters (search by name or challenge rating) and watch the difficulty meter: Low, Moderate or High for your level.',
+                'On your turn pick weapon and target and press Attack, then End turn: the enemies act automatically until it is your turn again.',
+                'Then write in the chat what you do — the AI narrates the rolls from the combat log.',
+                'After a victory your HP and the XP earned are saved to your persona\'s sheet.',
+                'The AI can start a fight too: it writes <encounter>2 Wolf</encounter>.',
             ] },
         ],
         show: [{ label: 'Combat window', run: (c) => { c.open('combat'); c.highlight('[data-window="combat"]', 'Encounters and dice'); } }],
