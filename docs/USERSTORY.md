@@ -14,8 +14,8 @@
 > graphically through familiar-but-original UIs, so that I get the ultimate AI roleplay
 > experience.**
 >
-> Optionally, a simplified map / virtual-tabletop system in the spirit of Owlbear Rodeo,
-> MapTool, Roll20 or Foundry VTT.
+> Plus a world map of places — dungeons and towns, room by room — that RPmod draws from the world
+> state (no full virtual tabletop; revised 2026-09-23).
 
 The product is a **wedding of those three platforms**. Every item in the feature
 catalogue below is in scope unless marked optional or listed under non-goals.
@@ -27,7 +27,8 @@ catalogue below is in scope unless marked optional or listed under non-goals.
 | Platform | **Inside Esolite**, as one unified app shell | Esolite stays the LLM/prompt engine (backends, instruct templates, WorldInfo pipeline, RAG/TextDB, TTS, image gen). We ship one usermod file (`KLITE-RPmod.js`) or the integrated `index.rpmod.html`. |
 | Ruleset | **SRD 5.2.1** (2024 rules), CC-BY-4.0 | All rules data, monsters, spells, items come from SRD 5.2.1 (official PDF, downloaded 2026-09-23 to `docs/reference/`, git-ignored; extracted by `scripts/extract-srd.py`) with its exact attribution statement and no other attribution to Wizards. Existing SRD 5.1 monster presets must be replaced. |
 | Play mode | **Solo, AI as DM** | One local user. The AI narrates and plays NPCs; the mod is authoritative for dice, HP, quest state, etc. A Creator mode exists for authoring. No multiplayer. |
-| Map / VTT | **Later** (roadmap phase R7) | Build characters, quests and combat first. |
+| Map / VTT | **No VTT — a world map of places, room by room** (revised 2026-09-23) | The owner does not want a full VTT. R7 represents the world as places the player moves between (dungeon rooms; town places like market, temple garden, adventurers' guild, bathhouse — whatever the creator puts into the world). Same mechanic for dungeons and towns. The world state (rooms, connections with doors, contents, exploration) is the truth; a tile grid/board is **derived** by RPmod and drawn — the LLM never writes coordinates or ASCII, it names places and uses tags. Dungeons come from the editor, a generator, or the AI during play (all three). |
+| Combat distance (R7) | **Distance bands instead of a grid** (2026-09-23) | Close (melee) · Near (ranged) · Far · Out of the fight; one move action = one band (idea of "Ultimate Dungeon Terrain", Dungeon Craft — reimplemented as rules, no material copied). Cover and hiding from the SRD 5.2.1 rules (half/three-quarters cover +2/+5 AC; Hide → Invisible). |
 | Host version | **Esolite RMv1.35.0** (2026-09-23) | Reference folder `Esobold Esolite a fork of KoboldAI Lite RMv1.35.0/`; upgrades follow ARCHITECTURE §2. |
 | Shell layout | **Two docked sidebars** around Esolite's chat (2026-09-23) | Left: party/character + quest tracker. Right: tabbed tools. |
 | Big views | **Floating windows** (2026-09-23) | Sheet, quest log, compendium, combat, editor, map: draggable, resizable, several open, positions remembered. |
@@ -83,12 +84,17 @@ catalogue below is in scope unless marked optional or listed under non-goals.
 - **Factions & reputation** — standing tiers from Hated to Exalted affecting vendors,
   access and hostility.
 
-### Map / VTT (optional — phase R7)
-Inspiration: [Owlbear Rodeo](https://www.owlbear.rodeo),
-[MapTool](https://www.rptools.net/toolbox/maptool/), [Roll20](https://roll20.net),
-[Foundry VTT](https://foundryvtt.com).
-- Map image per location, grid, tokens linked to persons/locations, fog of war, distance
-  measurement, pan/zoom; token positions tied to combat.
+### World map: dungeons & towns (phase R7, revised 2026-09-23)
+Inspiration: HeroQuest-style room-by-room boards, roguelikes (NetHack, Dwarf Fortress) for a
+text-first world state, Dungeon Scrawl for the look of hand-drawn dungeon maps — ideas only.
+- Places the player moves between: dungeon rooms and town places, as world state in the World
+  editor (connections with direction/type/door state, furniture/containers/traps/light,
+  inhabitants) and exploration state per story (unknown → known → discovered → visited; secret
+  doors/rooms found by searching).
+- A board RPmod lays out and draws itself (fog over unexplored places); click a place to go there.
+- The AI builds and changes the map with tags by name (rooms, doors, searching), sees the current
+  place, its exits and a small minimap of what is explored.
+- Combat uses distance bands (close / near / far / out) with move actions, cover and hiding.
 
 ## Experience principles
 - **Graphical first.** Familiar layouts (sheet sections, quest log, initiative tracker,

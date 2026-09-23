@@ -60,7 +60,7 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
 | | Rewards XP/gold/choose-one | ✅ paid to the persona's sheet |
 | | Zones/subzones, hubs, phasing | ✅ |
 | | Factions & reputation | ✅ tiers; effects narrated (no vendors yet) |
-| VTT | Map, grid, tokens, fog | ❌ (R7) |
+| Map | Places room by room, board, fog, distance bands (no VTT) | ❌ (R7, revised) |
 
 ### Known issues / tech debt
 1. ~~"Monster / NPC combatant" flag does nothing~~ — decides the combat side since R5 (a monster is
@@ -419,10 +419,33 @@ Acceptance: build a "medium" encounter, fight it through victory and through def
 Acceptance: run a session using only slash commands and quick replies; export a world
 as a lorebook and re-import it.
 
-### R7 — Map / VTT (optional) ⬜
-- Map image per location, grid, tokens linked to persons, fog of war, measurement,
-  pan/zoom (reuse the editor canvas); token positions tied to combat.
-Acceptance: load a map, place tokens, reveal fog, fight an encounter on it.
+### R7 — World map: dungeons & towns, room by room ⬜ (revised 2026-09-23)
+Owner's decisions: no VTT. Room-by-room movement; towns work the same with places (market, temple
+garden, adventurers' guild, bathhouse — whatever the creator adds). World state is the truth; the
+grid/board is derived and drawn by RPmod, the LLM never writes coordinates. Dungeons from the
+editor, a generator and the AI during play. Combat gets distance bands.
+Planned steps:
+1. **Place model:** rooms/places = locations inside a dungeon or town (R4 zones); connections with
+   direction (N/E/S/W/up/down), type (door, corridor, stairs, secret passage, open) and door state
+   (open/closed/locked/barred, material); features as objects (furniture, container, trap, light);
+   environment per place (light, fire, water); exploration per story (unknown → known →
+   discovered → visited; secrets found by a Search check vs DC).
+2. **AI interface:** tags by name — create rooms, doors, open/close/unlock, search, light — and a
+   context section: current place, exits with door states, visible things, a small ASCII minimap
+   of explored places (read-only for the AI).
+3. **Layout + board:** RPmod lays places out on a grid from their directions (corridors routed),
+   stored and adjustable in the editor; a Map window draws the board (dungeon and town styles,
+   theme-bound), fog over unexplored places, markers for you/persons/monsters/doors; click a place
+   to move there.
+4. **Generator:** "new dungeon" (size, theme, seed) → rooms, corridors, a secret room, contents;
+   the AI names and describes them.
+5. **Distance bands in combat:** close / near / far / out; move action = one band (Dash = two);
+   melee only at close, ranged at near/far (long range = disadvantage, ranged at close =
+   disadvantage), leaving close provokes an opportunity attack unless Disengage; monsters pick
+   bands by their attacks; cover (+2/+5 AC) and hiding (Invisible) from the SRD.
+Acceptance: build a small dungeon and a town in the editor, generate a second dungeon, let the AI
+add a room with a locked door, explore room by room with fog on the board, find a secret door by
+searching, and fight an encounter using distance bands and cover.
 
 ## Working agreement
 1. Plan the phase (or item) briefly; confirm scope with the owner when unclear.
