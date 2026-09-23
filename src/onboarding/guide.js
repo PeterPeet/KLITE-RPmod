@@ -1,6 +1,6 @@
 // RPmod Guide: a readable, chaptered window (shell view 'guide') with "Show me" actions
 // that open and highlight the UI being explained. Content: chapters.js.
-import { el, clear } from '../shell/dom.js';
+import { el, clear, icon, iconText } from '../shell/dom.js';
 import { hostGet } from './hostGlobals.js';
 import { CHAPTERS } from './chapters.js';
 
@@ -98,13 +98,13 @@ export function createGuideView(shell) {
         if (ch.show && ch.show.length) {
             article.appendChild(el('div', { class: 'rpm-label', text: 'Show me' }));
             article.appendChild(el('div', { class: 'rpm-row', style: 'flex-wrap:wrap' }, ch.show.map(s =>
-                el('button', { type: 'button', class: 'btn btn-primary rpm-btn', 'data-show': s.label, text: '👁 ' + s.label, onclick: () => { try { s.run(ctx); } catch (e) { console.error('[RPmod guide]', e); } } }))));
+                el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', 'data-show': s.label, onclick: () => { try { s.run(ctx); } catch (e) { console.error('[RPmod guide]', e); } } }, [iconText('eye', s.label)]))));
         }
         article.appendChild(el('div', { class: 'rpm-row rpm-guide-nav' }, [
-            el('button', { type: 'button', class: 'btn btn-primary rpm-btn', text: '← Back', disabled: idx === 0 ? 'disabled' : null, onclick: () => go(CHAPTERS[idx - 1].id) }),
+            el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', disabled: idx === 0 ? 'disabled' : null, onclick: () => go(CHAPTERS[idx - 1].id) }, [iconText('arrow-left', 'Back')]),
             el('span', { class: 'rpm-grow' }),
             idx < CHAPTERS.length - 1
-                ? el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-lg', text: 'Next: ' + CHAPTERS[idx + 1].title + ' →', onclick: () => go(CHAPTERS[idx + 1].id) })
+                ? el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-lg rpm-btn-icon', onclick: () => go(CHAPTERS[idx + 1].id) }, [el('span', { text: 'Next: ' + CHAPTERS[idx + 1].title }), icon('arrow-right', 15)])
                 : el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-lg', text: 'Done', onclick: () => shell.close('guide') }),
         ]));
 

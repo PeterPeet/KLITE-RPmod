@@ -18,6 +18,7 @@ npm install          # once (dev dependency: jsdom)
 npm run build        # src/* -> KLITE-RPmod.js (the file users load)
 npm run build:index  # -> <host>/index.rpmod.html that autoloads the mod (generated, git-ignored)
 npm test             # rebuilds, then runs all tests (node:test + jsdom)
+npm run icons        # after changing the icon list: regenerates src/shell/icons.js (Lucide)
 ```
 
 ## Layout

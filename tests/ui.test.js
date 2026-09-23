@@ -89,7 +89,7 @@ test('editor: event triggers, person character link, themed preview', async (t) 
 
     selectNode(h, ev.id);
     assert.ok(texts(ov()).some(s => /Triggers/.test(s)));
-    click([...ov().querySelectorAll('button')].filter(b => b.textContent === '＋ add')[0], w);
+    click([...ov().querySelectorAll('button')].filter(b => b.textContent === 'Add')[0], w);
     assert.equal(W.entityById(ev.id).triggers.length, 1);
 
     selectNode(h, p.id);

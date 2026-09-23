@@ -154,6 +154,12 @@ ${Object.entries(RPMOD_THEME_DEFAULTS).map(([k, v]) => `    ${k}: ${v};`).join("
 #rpm-shell.rpm-compact .rpm-window-head { cursor: default; }
 #rpm-shell.rpm-compact .rpm-window-grip { display: none; }
 
+/* ---- icons (Lucide subset, src/shell/icons.js): currentColor strokes ---- */
+.rpm-icon { flex: none; display: inline-block; vertical-align: middle; }
+.rpm-btn.rpm-btn-icon { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.rpm-btn.rpm-btn-icon.rpm-block { display: flex; }
+.wm-ed-add { display: flex; align-items: center; gap: 6px; }
+
 /* ---- controls: Esolite classes + compact sizing ---- */
 /* buttons: class="btn btn-primary rpm-btn" (colours from Esolite's .btn-primary) */
 .rpm-themed .btn.rpm-btn, #rpm-shell .btn.rpm-btn {
@@ -282,6 +288,112 @@ body.rpm-docked #maincontainer {
 #rpm-shell #panel-right .klite-content { flex: 1 1 auto; max-height: none !important; padding: var(--rpm-s3); }
 `;
 
+  // src/shell/icons.js
+  /*! Icons: Lucide v1.43.0 (https://lucide.dev), subset used by KLITE RPmod.
+  
+  ISC License
+  
+  Copyright (c) 2026 Lucide Icons and Contributors
+  
+  Permission to use, copy, modify, and/or distribute this software for any
+  purpose with or without fee is hereby granted, provided that the above
+  copyright notice and this permission notice appear in all copies.
+  
+  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+  
+  ---
+  
+  The following Lucide icons are derived from the Feather project:
+  
+  airplay, alert-circle, alert-octagon, alert-triangle, aperture, arrow-down-circle, arrow-down-left, arrow-down-right, arrow-down, arrow-left-circle, arrow-left, arrow-right-circle, arrow-right, arrow-up-circle, arrow-up-left, arrow-up-right, arrow-up, at-sign, calendar, cast, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-down, chevrons-left, chevrons-right, chevrons-up, circle, clipboard, clock, code, columns, command, compass, corner-down-left, corner-down-right, corner-left-down, corner-left-up, corner-right-down, corner-right-up, corner-up-left, corner-up-right, crosshair, database, divide-circle, divide-square, dollar-sign, download, external-link, feather, frown, hash, headphones, help-circle, info, italic, key, layout, life-buoy, link-2, link, loader, lock, log-in, log-out, maximize, meh, minimize, minimize-2, minus-circle, minus-square, minus, monitor, moon, more-horizontal, more-vertical, move, music, navigation-2, navigation, octagon, pause-circle, percent, plus-circle, plus-square, plus, power, radio, rss, search, server, share, shopping-bag, sidebar, smartphone, smile, square, table-2, tablet, target, terminal, trash-2, trash, triangle, tv, type, upload, x-circle, x-octagon, x-square, x, zoom-in, zoom-out
+  
+  The MIT License (MIT) (for the icons listed above)
+  
+  Copyright (c) 2013-present Cole Bemis
+  
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+  
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+  
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+  */
+  var LUCIDE = {
+    // top-bar RPmod button (two side panels around the chat)
+    "columns-3": [["rect", { "width": "18", "height": "18", "x": "3", "y": "3", "rx": "2" }], ["path", { "d": "M9 3v18" }], ["path", { "d": "M15 3v18" }]],
+    // close
+    "x": [["path", { "d": "M18 6 6 18" }], ["path", { "d": "m6 6 12 12" }]],
+    // hide/show panels
+    "chevron-left": [["path", { "d": "m15 18-6-6 6-6" }]],
+    // hide/show panels
+    "chevron-right": [["path", { "d": "m9 18 6-6-6-6" }]],
+    // collapsible sections
+    "chevron-down": [["path", { "d": "m6 9 6 6 6-6" }]],
+    // maximize window
+    "maximize-2": [["path", { "d": "M15 3h6v6" }], ["path", { "d": "m21 3-7 7" }], ["path", { "d": "m3 21 7-7" }], ["path", { "d": "M9 21H3v-6" }]],
+    // restore window
+    "minimize-2": [["path", { "d": "m14 10 7-7" }], ["path", { "d": "M20 10h-6V4" }], ["path", { "d": "m3 21 7-7" }], ["path", { "d": "M4 14h6v6" }]],
+    // Guide
+    "circle-help": [["circle", { "cx": "12", "cy": "12", "r": "10" }], ["path", { "d": "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" }], ["path", { "d": "M12 17h.01" }]],
+    // open the Guide
+    "book-open": [["path", { "d": "M12 5v16" }], ["path", { "d": "M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" }]],
+    // back
+    "arrow-left": [["path", { "d": "m12 19-7-7 7-7" }], ["path", { "d": "M19 12H5" }]],
+    // next
+    "arrow-right": [["path", { "d": "M5 12h14" }], ["path", { "d": "m12 5 7 7-7 7" }]],
+    // Quick Start
+    "play": [["path", { "d": "M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" }]],
+    // preview what the AI sees
+    "eye": [["path", { "d": "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" }], ["circle", { "cx": "12", "cy": "12", "r": "3" }]],
+    // add
+    "plus": [["path", { "d": "M5 12h14" }], ["path", { "d": "M12 5v14" }]],
+    // example world
+    "sparkles": [["path", { "d": "M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" }], ["path", { "d": "M20 2v4" }], ["path", { "d": "M22 4h-4" }], ["circle", { "cx": "4", "cy": "20", "r": "2" }]],
+    // import
+    "upload": [["path", { "d": "M12 3v12" }], ["path", { "d": "m17 8-5-5-5 5" }], ["path", { "d": "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }]],
+    // export
+    "download": [["path", { "d": "M12 15V3" }], ["path", { "d": "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }], ["path", { "d": "m7 10 5 5 5-5" }]],
+    // quest log
+    "scroll-text": [["path", { "d": "M15 12h-5" }], ["path", { "d": "M15 8h-5" }], ["path", { "d": "M19 17V5a2 2 0 0 0-2-2H4" }], ["path", { "d": "M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" }]],
+    // combat
+    "swords": [["path", { "d": "m13 19 6-6" }], ["path", { "d": "M14.5 17.5 3.586 6.586A2 2 0 013 5.172V3h2.172a2 2 0 011.414.586L17.5 14.5" }], ["path", { "d": "m14.828 6.172 2.586-2.586A2 2 0 0118.828 3H21v2.172a2 2 0 01-.586 1.414l-2.586 2.586" }], ["path", { "d": "m16 16 4 4" }], ["path", { "d": "m19 21 2-2" }], ["path", { "d": "m5 14 4 4" }], ["path", { "d": "m5 21-2-2" }], ["path", { "d": "M7.5 16.5 4 20" }]],
+    // world editor (node graph)
+    "workflow": [["rect", { "width": "8", "height": "8", "x": "3", "y": "3", "rx": "2" }], ["path", { "d": "M7 11v4a2 2 0 0 0 2 2h4" }], ["rect", { "width": "8", "height": "8", "x": "13", "y": "13", "rx": "2" }]],
+    // delete
+    "trash-2": [["path", { "d": "M10 11v6" }], ["path", { "d": "M14 11v6" }], ["path", { "d": "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" }], ["path", { "d": "M3 6h18" }], ["path", { "d": "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }]],
+    // hidden
+    "lock": [["rect", { "width": "18", "height": "11", "x": "3", "y": "11", "rx": "2", "ry": "2" }], ["path", { "d": "M7 11V7a5 5 0 0 1 10 0v4" }]],
+    // faction headquarters
+    "castle": [["path", { "d": "M10 5V3" }], ["path", { "d": "M14 5V3" }], ["path", { "d": "M15 21v-3a3 3 0 0 0-6 0v3" }], ["path", { "d": "M18 3v8" }], ["path", { "d": "M18 5H6" }], ["path", { "d": "M22 11H2" }], ["path", { "d": "M22 9v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9" }], ["path", { "d": "M6 3v8" }]],
+    // location
+    "map-pin": [["path", { "d": "M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0" }], ["circle", { "cx": "12", "cy": "10", "r": "3" }]],
+    // roll
+    "dice-5": [["rect", { "width": "18", "height": "18", "x": "3", "y": "3", "rx": "2", "ry": "2" }], ["path", { "d": "M16 8h.01" }], ["path", { "d": "M8 8h.01" }], ["path", { "d": "M8 16h.01" }], ["path", { "d": "M16 16h.01" }], ["path", { "d": "M12 12h.01" }]],
+    // reset
+    "rotate-ccw": [["path", { "d": "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" }], ["path", { "d": "M3 3v5h5" }]],
+    // commit
+    "check": [["path", { "d": "M20 6 9 17l-5-5" }]],
+    // swap
+    "arrow-left-right": [["path", { "d": "M8 3 4 7l4 4" }], ["path", { "d": "M4 7h16" }], ["path", { "d": "m16 21 4-4-4-4" }], ["path", { "d": "M20 17H4" }]]
+  };
+
   // src/shell/dom.js
   function el(tag, props, kids) {
     const e = document.createElement(tag);
@@ -300,7 +412,8 @@ body.rpm-docked #maincontainer {
   function clear(node) {
     while (node && node.firstChild) node.removeChild(node.firstChild);
   }
-  function icon(paths, size = 18) {
+  var SHAPE_TAGS = /* @__PURE__ */ new Set(["path", "circle", "rect", "line", "polyline", "polygon", "ellipse"]);
+  function icon(shapes, size = 18) {
     const NS = "http://www.w3.org/2000/svg";
     const s = document.createElementNS(NS, "svg");
     s.setAttribute("viewBox", "0 0 24 24");
@@ -312,22 +425,32 @@ body.rpm-docked #maincontainer {
     s.setAttribute("stroke-linecap", "round");
     s.setAttribute("stroke-linejoin", "round");
     s.setAttribute("aria-hidden", "true");
-    for (const d of [].concat(paths)) {
-      const p = document.createElementNS(NS, "path");
-      p.setAttribute("d", d);
-      s.appendChild(p);
+    s.setAttribute("class", "rpm-icon");
+    if (typeof shapes === "string" && LUCIDE[shapes]) shapes = LUCIDE[shapes];
+    for (const item of [].concat(shapes || [])) {
+      const [tag, attrs] = Array.isArray(item) ? item : ["path", { d: item }];
+      if (!SHAPE_TAGS.has(tag)) continue;
+      const e = document.createElementNS(NS, tag);
+      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      s.appendChild(e);
     }
     return s;
   }
+  function iconText(name, text, size = 15) {
+    const frag = document.createDocumentFragment();
+    frag.appendChild(icon(name, size));
+    if (text) frag.appendChild(el("span", { text }));
+    return frag;
+  }
   var ICONS = {
-    // two sidebars around a centre column
-    shell: ["M3 4h18v16H3z", "M8 4v16", "M16 4v16"],
-    close: ["M6 6l12 12", "M18 6L6 18"],
-    maximize: "M5 5h14v14H5z",
-    restore: ["M8 8h11v11H8z", "M5 16V5h11"],
-    chevronLeft: "M15 6l-6 6 6 6",
-    chevronRight: "M9 6l6 6-6 6",
-    chevronDown: "M6 9l6 6 6-6"
+    shell: "columns-3",
+    close: "x",
+    chevronLeft: "chevron-left",
+    chevronRight: "chevron-right",
+    chevronDown: "chevron-down",
+    maximize: "maximize-2",
+    restore: "minimize-2",
+    help: "circle-help"
   };
 
   // src/shell/windows.js
@@ -855,7 +978,7 @@ body.rpm-docked #maincontainer {
       if (dom) renderDockAction(a);
     }
     function renderDockAction(a) {
-      const b = el("button", { class: "rpm-iconbtn", type: "button", title: a.title || a.id, "aria-label": a.title || a.id, "data-action": a.id, text: a.label || "•", style: "font-weight:bold" });
+      const b = a.icon ? el("button", { class: "rpm-iconbtn", type: "button", title: a.title || a.id, "aria-label": a.title || a.id, "data-action": a.id }, [icon(a.icon, 16)]) : el("button", { class: "rpm-iconbtn", type: "button", title: a.title || a.id, "aria-label": a.title || a.id, "data-action": a.id, text: a.label || "•", style: "font-weight:bold" });
       b.addEventListener("click", () => {
         try {
           a.onClick();
@@ -19807,9 +19930,8 @@ ${recent}` : "");
       }
       if (type !== "world") {
         box.appendChild(el2("button", {
-          class: "btn btn-primary rpm-btn rpm-block rpm-danger",
+          class: "btn btn-primary rpm-btn rpm-block rpm-danger rpm-btn-icon",
           style: "margin-top:16px",
-          text: "🗑  Delete node",
           onclick: () => {
             if (confirm("Delete this node?")) {
               API().deleteEntity(S.selectedId);
@@ -19819,7 +19941,7 @@ ${recent}` : "");
               renderInspector();
             }
           }
-        }));
+        }, [iconText("trash-2", "Delete node")]));
       }
     }
     function inputCss(area) {
@@ -19950,21 +20072,21 @@ ${recent}` : "");
       const rIn = el2("input", { type: "text", placeholder: "e.g. Gold Ring x1  or  100 xp", style: inputCss(false) });
       box.appendChild(el2("div", { style: "display:flex;gap:5px;margin-top:5px" }, [
         rIn,
-        el2("button", { type: "button", class: "btn btn-primary rpm-btn", style: "", text: "＋", onclick: () => {
+        el2("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", title: "Add reward", "aria-label": "Add reward", onclick: () => {
           const r = parseReward(rIn.value);
           if (!r) return;
           const rw = asArrayU(ent.rewards);
           rw.push(r);
           A.updateEntity(S.selectedId, { rewards: rw });
           renderInspector();
-        } })
+        } }, [icon("plus", 15)])
       ]));
       box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:10px 0 3px", text: "Objectives" }));
       const objs = asArrayU(ent.objectives);
       for (let i = 0; i < objs.length; i++) {
         const o = objs[i];
         box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px" }, [
-          el2("span", { style: "flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm)", text: (o.hidden ? "🔒 " : "") + (o.text || "") }),
+          el2("span", { style: "flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm);display:flex;align-items:center;gap:4px", title: o.hidden ? "Hidden objective" : null }, [o.hidden ? icon("lock", 12) : null, o.text || ""]),
           el2("span", { style: "cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs)", text: "×", onclick: () => {
             objs.splice(i, 1);
             A.updateEntity(S.selectedId, { objectives: objs });
@@ -19975,14 +20097,14 @@ ${recent}` : "");
       const oIn = el2("input", { type: "text", placeholder: "objective text", style: inputCss(false) });
       box.appendChild(el2("div", { style: "display:flex;gap:5px;margin-top:5px" }, [
         oIn,
-        el2("button", { type: "button", class: "btn btn-primary rpm-btn", style: "", text: "＋", onclick: () => {
+        el2("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", title: "Add objective", "aria-label": "Add objective", onclick: () => {
           const t = oIn.value.trim();
           if (!t) return;
           const ob = asArrayU(ent.objectives);
           ob.push({ id: "obj_" + Math.random().toString(36).slice(2, 7), text: t, hidden: false });
           A.updateEntity(S.selectedId, { objectives: ob });
           renderInspector();
-        } })
+        } }, [icon("plus", 15)])
       ]));
     }
     function renderWorldExtras(box, ent) {
@@ -19998,7 +20120,7 @@ ${recent}` : "");
     }
     function renderFactionExtras(box, ent) {
       const A = API();
-      box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px", text: "🏰 Headquarters (location)" }));
+      box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px;display:flex;align-items:center;gap:4px" }, [icon("castle", 13), "Headquarters (location)"]));
       const locs = A.getGraph().nodes.filter((n) => n.type === "location");
       const s = el2("select", { style: inputCss(false) + ";cursor:pointer" });
       s.appendChild(el2("option", { value: "", text: "— none —" }));
@@ -20101,10 +20223,10 @@ ${recent}` : "");
         box.appendChild(row2);
       });
       const firstType = Object.keys(SPEC)[0];
-      box.appendChild(el2("button", { type: "button", class: "btn btn-primary rpm-btn", style: "", text: "＋ add", onclick: () => {
+      box.appendChild(el2("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", onclick: () => {
         items.push({ type: firstType });
         onSave(items);
-      } }));
+      } }, [iconText("plus", "Add")]));
     }
     function renderEventExtras(box, ent) {
       const A = API();
@@ -20193,9 +20315,8 @@ ${recent}` : "");
         type: "button",
         class: "wm-ed-add",
         style: `background:${TYPE_COLOR[t]}`,
-        text: "＋ " + t,
         onclick: () => addNodeCentered(t)
-      }));
+      }, [iconText("plus", t, 14)]));
       rail.appendChild(palette);
       rail.appendChild(el2("div", { class: "wm-ed-label", text: "Tool" }));
       const tools = el2("div", { class: "wm-ed-tools" }, ["select", "link", "pan"].map((t) => el2("button", { type: "button", "data-tool": t, class: "btn btn-primary rpm-btn", style: "flex:1;text-transform:capitalize", text: t, onclick: () => setTool(t) })));
@@ -20392,8 +20513,9 @@ ${recent}` : "");
     const VIEW_IDS = ["world", "party", "quest-tracker", "questlog", "combat"];
     function uiBtn(text, onclick, opts) {
       opts = opts || {};
-      const cls = "btn btn-primary rpm-btn" + (opts.block ? " rpm-block" : "") + (opts.grow ? " rpm-grow" : "") + (opts.variant ? " rpm-" + opts.variant : "") + (opts.lg ? " rpm-lg" : "");
-      return el2("button", { type: "button", class: cls, title: opts.title, style: opts.style, text, onclick });
+      const cls = "btn btn-primary rpm-btn" + (opts.block ? " rpm-block" : "") + (opts.grow ? " rpm-grow" : "") + (opts.variant ? " rpm-" + opts.variant : "") + (opts.lg ? " rpm-lg" : "") + (opts.icon ? " rpm-btn-icon" : "");
+      if (!opts.icon) return el2("button", { type: "button", class: cls, title: opts.title, style: opts.style, text, onclick });
+      return el2("button", { type: "button", class: cls, title: opts.title, "aria-label": text ? null : opts.title, style: opts.style, onclick }, [iconText(opts.icon, text)]);
     }
     function uiInput(props) {
       return el2("input", Object.assign({ type: "text", class: "form-control rpm-input" }, props));
@@ -20486,23 +20608,23 @@ ${recent}` : "");
       });
       body.appendChild(sel);
       body.appendChild(row([
-        uiBtn("＋ New", () => {
+        uiBtn("New", () => {
           const n = prompt("New world name:", "New World");
           if (n != null) A.newWorld(n).then(refreshPanel);
-        }, { grow: true }),
-        uiBtn("🎁 Example", () => loadExampleFlow(), { grow: true, title: "Load the ready-to-play example world" }),
-        uiBtn("⬇ Import", () => importFlow(), { grow: true }),
-        uiBtn("⬆ Export", () => exportFlow(), { grow: true })
+        }, { icon: "plus", grow: true }),
+        uiBtn("Example", () => loadExampleFlow(), { icon: "sparkles", grow: true, title: "Load the ready-to-play example world" }),
+        uiBtn("Import", () => importFlow(), { icon: "upload", grow: true }),
+        uiBtn("Export", () => exportFlow(), { icon: "download", grow: true })
       ], "margin:6px 0 8px"));
       if (!A.activeWorld()) {
         body.appendChild(muted("New here? Load the ready-to-play example and just start chatting.", { style: "margin:6px 0 8px" }));
-        body.appendChild(uiBtn("🎁 Load example world", () => loadExampleFlow(), { block: true, lg: true }));
+        body.appendChild(uiBtn("Load example world", () => loadExampleFlow(), { icon: "sparkles", block: true, lg: true }));
         return;
       }
       body.appendChild(row([
-        uiBtn("📜 Quest log", () => openView("questlog"), { grow: true }),
-        uiBtn("⚔ Combat", () => openView("combat"), { grow: true }),
-        uiBtn("✎ Editor", () => openEditor(), { grow: true, title: "Build your world as a node graph" })
+        uiBtn("Quest log", () => openView("questlog"), { icon: "scroll-text", grow: true }),
+        uiBtn("Combat", () => openView("combat"), { icon: "swords", grow: true }),
+        uiBtn("Editor", () => openEditor(), { icon: "workflow", grow: true, title: "Build your world as a node graph" })
       ]));
       body.appendChild(el2("hr", { class: "rpm-divider" }));
       renderPlayTab(body);
@@ -20520,7 +20642,7 @@ ${recent}` : "");
       const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
       const c = rt.clock || {};
       box.appendChild(el2("div", { class: "rpm-heading", text: player.name || "You" }));
-      box.appendChild(muted("📍 " + (loc ? loc.name || loc.id : "nowhere"), { "data-party": "location", style: "margin-top:2px" }));
+      box.appendChild(el2("div", { class: "rpm-muted", "data-party": "location", style: "margin-top:2px;display:flex;align-items:center;gap:4px" }, [icon("map-pin", 13), loc ? loc.name || loc.id : "nowhere"]));
       box.appendChild(muted(`🕑 Day ${c.day || 1}, ${c.time || "—"}${c.weather ? " · " + c.weather : ""}`));
       const cb = A.getCombat();
       if (cb && cb.active) {
@@ -20544,7 +20666,7 @@ ${recent}` : "");
           ready && q.turnin ? muted("Turn in to " + q.turnin) : null
         ]));
       }
-      box.appendChild(uiBtn("📜 Open quest log", () => openView("questlog"), { block: true, style: "margin-top:8px" }));
+      box.appendChild(uiBtn("Open quest log", () => openView("questlog"), { icon: "scroll-text", block: true, style: "margin-top:8px" }));
     }
     function renderQuestsTab(box) {
       const A = API();
@@ -20633,12 +20755,12 @@ ${recent}` : "");
         S._encPlayer = inc.checked;
       });
       box.appendChild(el2("label", { class: "rpm-row", style: "margin:10px 0;cursor:pointer" }, [inc, el2("span", { text: "Include the player" })]));
-      box.appendChild(uiBtn("⚔ Start encounter", () => {
+      box.appendChild(uiBtn("Start encounter", () => {
         const ids = Object.keys(chosen).filter((k) => chosen[k]);
         A.startEncounter(ids, { includePlayer: S._encPlayer !== false });
         S._encPick = {};
         refreshPanel();
-      }, { block: true, lg: true, variant: "danger" }));
+      }, { icon: "swords", block: true, lg: true, variant: "danger" }));
     }
     function renderActiveCombat(box, cb) {
       const A = API();
@@ -20663,24 +20785,24 @@ ${recent}` : "");
       const targets = cb.order.filter((o) => cb.hp[o.id] > 0 && o.id !== cur.id);
       const tSel = uiSelect({ class: "form-control rpm-input rpm-grow", "aria-label": "Target" });
       for (const o of targets) tSel.appendChild(el2("option", { value: o.id, text: o.name }));
-      box.appendChild(row([tSel, uiBtn(`⚔ ${cur.name} attacks`, () => {
+      box.appendChild(row([tSel, uiBtn(`${cur.name} attacks`, () => {
         if (tSel.value) A.attack(cur.id, tSel.value);
         refreshPanel();
-      }, { variant: "danger" })], "margin-top:8px"));
+      }, { icon: "swords", variant: "danger" })], "margin-top:8px"));
       const rIn = uiInput({ value: "1d20", class: "form-control rpm-input rpm-grow", "aria-label": "Dice expression" });
-      box.appendChild(row([rIn, uiBtn("🎲 Roll", () => {
+      box.appendChild(row([rIn, uiBtn("Roll", () => {
         A.applyTags(`<roll>${rIn.value}</roll>`);
         refreshPanel();
-      })], "margin-top:6px"));
+      }, { icon: "dice-5" })], "margin-top:6px"));
       box.appendChild(row([
         uiBtn("⏭ Next turn", () => {
           A.nextTurn();
           refreshPanel();
         }, { grow: true }),
-        uiBtn("✕ End", () => {
+        uiBtn("End", () => {
           A.endEncounter();
           refreshPanel();
-        }, { grow: true, variant: "danger" })
+        }, { icon: "x", grow: true, variant: "danger" })
       ], "margin-top:6px"));
       box.appendChild(lbl("Combat log"));
       const log = el2("div", { class: "rpm-log" });
@@ -20701,22 +20823,22 @@ ${recent}` : "");
         el2("span", { class: "rpm-chip " + (slot === "working" ? "rpm-chip-info" : "rpm-chip-quest"), text: slot === "working" ? "WORKING (live)" : "BASE (start)" })
       ], "margin-bottom:6px"));
       slotBox.appendChild(row([
-        uiBtn("↺ Reset", () => {
+        uiBtn("Reset", () => {
           if (confirm("Reset the working state to the base (start) state? Live changes are lost.")) {
             A.resetToBase();
             refreshPanel();
           }
-        }, { grow: true, title: "Discard live changes, back to the start state" }),
-        uiBtn("✔ Commit", () => {
+        }, { icon: "rotate-ccw", grow: true, title: "Discard live changes, back to the start state" }),
+        uiBtn("Commit", () => {
           if (confirm("Set the current working state as the new base (start)?")) {
             A.commitToBase();
             refreshPanel();
           }
-        }, { grow: true, title: "Make the current live state the new start state" }),
-        uiBtn("⇄ Swap", () => {
+        }, { icon: "check", grow: true, title: "Make the current live state the new start state" }),
+        uiBtn("Swap", () => {
           A.swapActive();
           refreshPanel();
-        }, { grow: true, title: "Switch which slot is active" })
+        }, { icon: "arrow-left-right", grow: true, title: "Switch which slot is active" })
       ]));
       box.appendChild(slotBox);
       const g = A.getGraph();
@@ -20776,22 +20898,22 @@ ${recent}` : "");
       }
       const fk = uiInput({ placeholder: "key", class: "form-control rpm-input rpm-grow", "aria-label": "Flag name" });
       const fv = uiInput({ placeholder: "value", class: "form-control rpm-input rpm-grow", "aria-label": "Flag value" });
-      box.appendChild(row([fk, fv, uiBtn("＋", () => {
+      box.appendChild(row([fk, fv, uiBtn("", () => {
         const k = fk.value.trim();
         if (!k) return;
         A.setFlag(k, parseVal(fv.value));
         refreshPanel();
-      }, { title: "Set flag" })], "margin-top:5px"));
+      }, { icon: "plus", title: "Set flag" })], "margin-top:5px"));
       box.appendChild(lbl("Inventory"));
       const inv = A.runtime && A.runtime.inventory || [];
       if (!inv.length) box.appendChild(muted("empty"));
       for (const it of inv) {
         box.appendChild(el2("div", { class: "rpm-card rpm-row" }, [
           el2("span", { class: "rpm-grow", text: it.name + (it.qty > 1 ? ` ×${it.qty}` : "") }),
-          el2("button", { type: "button", class: "rpm-iconbtn", title: "Add one", "aria-label": "Add one " + it.name, style: "color:var(--rpm-success)", text: "＋", onclick: () => {
+          el2("button", { type: "button", class: "rpm-iconbtn", title: "Add one", "aria-label": "Add one " + it.name, style: "color:var(--rpm-success)", onclick: () => {
             A.giveItem(it.name, 1);
             refreshPanel();
-          } }),
+          } }, [icon("plus", 14)]),
           el2("button", { type: "button", class: "rpm-iconbtn", title: "Remove one", "aria-label": "Remove one " + it.name, style: "color:var(--rpm-danger)", text: "−", onclick: () => {
             A.takeItem(it.name, 1);
             refreshPanel();
@@ -20799,13 +20921,13 @@ ${recent}` : "");
         ]));
       }
       const iIn = uiInput({ placeholder: "item name", class: "form-control rpm-input rpm-grow", "aria-label": "Item name" });
-      box.appendChild(row([iIn, uiBtn("＋", () => {
+      box.appendChild(row([iIn, uiBtn("", () => {
         const n = iIn.value.trim();
         if (!n) return;
         A.giveItem(n, 1);
         refreshPanel();
-      }, { title: "Give item" })], "margin-top:5px"));
-      box.appendChild(uiBtn("👁 Preview what the AI sees", () => showPreview(), { block: true, style: "margin-top:12px" }));
+      }, { icon: "plus", title: "Give item" })], "margin-top:5px"));
+      box.appendChild(uiBtn("Preview what the AI sees", () => showPreview(), { icon: "eye", block: true, style: "margin-top:12px" }));
     }
     function parseVal(raw) {
       const v = String(raw || "").trim();
@@ -21189,18 +21311,18 @@ ${recent}` : "");
       ]);
       if (ch.show && ch.show.length) {
         article.appendChild(el("div", { class: "rpm-label", text: "Show me" }));
-        article.appendChild(el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, ch.show.map((s) => el("button", { type: "button", class: "btn btn-primary rpm-btn", "data-show": s.label, text: "👁 " + s.label, onclick: () => {
+        article.appendChild(el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, ch.show.map((s) => el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", "data-show": s.label, onclick: () => {
           try {
             s.run(ctx);
           } catch (e) {
             console.error("[RPmod guide]", e);
           }
-        } }))));
+        } }, [iconText("eye", s.label)]))));
       }
       article.appendChild(el("div", { class: "rpm-row rpm-guide-nav" }, [
-        el("button", { type: "button", class: "btn btn-primary rpm-btn", text: "← Back", disabled: idx === 0 ? "disabled" : null, onclick: () => go(CHAPTERS[idx - 1].id) }),
+        el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", disabled: idx === 0 ? "disabled" : null, onclick: () => go(CHAPTERS[idx - 1].id) }, [iconText("arrow-left", "Back")]),
         el("span", { class: "rpm-grow" }),
-        idx < CHAPTERS.length - 1 ? el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-lg", text: "Next: " + CHAPTERS[idx + 1].title + " →", onclick: () => go(CHAPTERS[idx + 1].id) }) : el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-lg", text: "Done", onclick: () => shell.close("guide") })
+        idx < CHAPTERS.length - 1 ? el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-lg rpm-btn-icon", onclick: () => go(CHAPTERS[idx + 1].id) }, [el("span", { text: "Next: " + CHAPTERS[idx + 1].title }), icon("arrow-right", 15)]) : el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-lg", text: "Done", onclick: () => shell.close("guide") })
       ]));
       box.appendChild(el("div", { class: "rpm-guide" }, [toc, article]));
     }
@@ -21398,7 +21520,7 @@ ${recent}` : "");
       clearInterval(shTimer);
       guide = createGuideView(sh);
       sh.registerView(guide);
-      sh.addDockAction("left", { id: "guide", title: "RPmod Guide", label: "?", onClick: () => api.openGuide() });
+      sh.addDockAction("left", { id: "guide", title: "RPmod Guide", label: "?", icon: "circle-help", onClick: () => api.openGuide() });
       if (!welcomeDismissed()) sh.registerView(welcomeView(sh, api));
     }, 100);
   }
@@ -21418,8 +21540,8 @@ ${recent}` : "");
       mount(box) {
         box.appendChild(el("p", { style: "margin:0 0 8px", text: "RPmod turns Esolite into a tabletop roleplaying game with worlds, quests and dice. Start a session with Esolite's Quick Start, or read the short guide first." }));
         box.appendChild(el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, [
-          el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-grow", text: "📖 Open the Guide", onclick: () => api.openGuide("welcome") }),
-          el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-grow", text: "▶ Quick Start", onclick: () => api.openQuickStart() })
+          el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-grow rpm-btn-icon", onclick: () => api.openGuide("welcome") }, [iconText("book-open", "Open the Guide")]),
+          el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-grow rpm-btn-icon", onclick: () => api.openQuickStart() }, [iconText("play", "Quick Start")])
         ]));
         box.appendChild(el("button", {
           type: "button",

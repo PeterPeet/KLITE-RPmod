@@ -14,9 +14,17 @@ const ROOT = path.join(__dirname, '..');
 const BASELINE = path.join(ROOT, 'tests', '.test-count');
 const files = fs.readdirSync(path.join(ROOT, 'tests')).filter(f => f.endsWith('.test.js')).map(f => path.join('tests', f));
 
-const run = spawnSync(process.execPath, ['--test', '--test-force-exit', ...files], { cwd: ROOT, encoding: 'utf8' });
+// No --test-force-exit: on Node 22 it ends a test file part-way (exit 0) once that file
+// keeps the event loop busy for about a second, silently dropping tests (seen 2026-09-23 with
+// tests/syntax.test.js). A hard timeout guards against a hanging test instead.
+const TIMEOUT_MS = 180000;
+const run = spawnSync(process.execPath, ['--test', ...files], { cwd: ROOT, encoding: 'utf8', timeout: TIMEOUT_MS });
 process.stdout.write(run.stdout || '');
 process.stderr.write(run.stderr || '');
+if (run.error && run.error.code === 'ETIMEDOUT') {
+    console.error(`\n✖ the test run did not finish within ${TIMEOUT_MS / 1000} s (a test keeps the process alive?)`);
+    process.exit(1);
+}
 
 const num = (label) => { const m = new RegExp(`^# ${label} (\\d+)`, 'm').exec(run.stdout || ''); return m ? Number(m[1]) : NaN; };
 const total = num('tests'), failed = num('fail'), cancelled = num('cancelled');

@@ -12,7 +12,7 @@
 // that carry GuidedRP's `guided_rp` block keep it when saved again.
 // Public API: window.KLITE_RPMod_Onboarding
 // =============================================================================
-import { el } from '../shell/dom.js';
+import { el, iconText } from '../shell/dom.js';
 import { createGuideView, highlight, clearHighlight } from './guide.js';
 import { registerQuickStartExtension, installQuickStartHooks, quickStartMode, quickStartTile } from './quickStart.js';
 import { hostGet } from './hostGlobals.js';
@@ -53,7 +53,7 @@ export default function initOnboarding() {
         clearInterval(shTimer);
         guide = createGuideView(sh);
         sh.registerView(guide);
-        sh.addDockAction('left', { id: 'guide', title: 'RPmod Guide', label: '?', onClick: () => api.openGuide() });
+        sh.addDockAction('left', { id: 'guide', title: 'RPmod Guide', label: '?', icon: 'circle-help', onClick: () => api.openGuide() });
         if (!welcomeDismissed()) sh.registerView(welcomeView(sh, api));
     }, 100);
 }
@@ -67,8 +67,8 @@ function welcomeView(sh, api) {
         mount(box) {
             box.appendChild(el('p', { style: 'margin:0 0 8px', text: 'RPmod turns Esolite into a tabletop roleplaying game with worlds, quests and dice. Start a session with Esolite\'s Quick Start, or read the short guide first.' }));
             box.appendChild(el('div', { class: 'rpm-row', style: 'flex-wrap:wrap' }, [
-                el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-grow', text: '📖 Open the Guide', onclick: () => api.openGuide('welcome') }),
-                el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-grow', text: '▶ Quick Start', onclick: () => api.openQuickStart() }),
+                el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-grow rpm-btn-icon', onclick: () => api.openGuide('welcome') }, [iconText('book-open', 'Open the Guide')]),
+                el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-grow rpm-btn-icon', onclick: () => api.openQuickStart() }, [iconText('play', 'Quick Start')]),
             ]));
             box.appendChild(el('button', {
                 type: 'button', class: 'btn btn-primary rpm-btn rpm-block', style: 'margin-top:6px', text: 'Got it — hide this',

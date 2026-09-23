@@ -10,9 +10,9 @@ const { ROOT } = require('./helpers/host');
 
 const sources = fs.readdirSync(path.join(ROOT, 'src'), { recursive: true }).filter(f => f.endsWith('.js'));
 
-// Node's own parser on a temporary .mjs copy (module = strict mode). Deliberately no
-// esbuild service here: its long-lived child process made this file end early under
-// --test-force-exit, silently dropping the remaining tests.
+// Node's own parser on a temporary .mjs copy (module = strict mode). No esbuild service
+// here (a long-lived child process). The runner no longer uses --test-force-exit, which
+// ended this file part-way once it ran longer than about a second (scripts/run-tests.js).
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rpmod-syntax-'));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 for (const f of sources) {

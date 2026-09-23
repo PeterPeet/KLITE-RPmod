@@ -161,6 +161,12 @@ ${Object.entries(RPMOD_THEME_DEFAULTS).map(([k, v]) => `    ${k}: ${v};`).join('
 #rpm-shell.rpm-compact .rpm-window-head { cursor: default; }
 #rpm-shell.rpm-compact .rpm-window-grip { display: none; }
 
+/* ---- icons (Lucide subset, src/shell/icons.js): currentColor strokes ---- */
+.rpm-icon { flex: none; display: inline-block; vertical-align: middle; }
+.rpm-btn.rpm-btn-icon { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.rpm-btn.rpm-btn-icon.rpm-block { display: flex; }
+.wm-ed-add { display: flex; align-items: center; gap: 6px; }
+
 /* ---- controls: Esolite classes + compact sizing ---- */
 /* buttons: class="btn btn-primary rpm-btn" (colours from Esolite's .btn-primary) */
 .rpm-themed .btn.rpm-btn, #rpm-shell .btn.rpm-btn {

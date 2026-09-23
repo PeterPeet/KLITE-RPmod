@@ -85,14 +85,14 @@ test('Guide: chapters, navigation, remembered chapter, Show me opens and highlig
     assert.equal(win().querySelector('article').dataset.chapter, 'quests');
     assert.equal(w.localStorage.getItem('KLITE.guide.chapter'), 'quests');
 
-    click(findButton(win(), /^👁 Quest log$/), w);
+    click(findButton(win(), /^Quest log$/), w);
     await until(() => $(h, '[data-window="questlog"]'));
     await until(() => $(h, '.rpm-spot-note'));
     assert.ok($(h, '.rpm-spot-note').closest('.rpm-themed') || $(h, '.rpm-spot-note').classList.contains('rpm-themed'));
 
     click(findButton(win(), /^Next: /), w);
     assert.equal(win().querySelector('article').dataset.chapter, 'combat');
-    click(findButton(win(), /^← Back$/), w);
+    click(findButton(win(), /^Back$/), w);
     assert.equal(win().querySelector('article').dataset.chapter, 'quests');
     const toc = [...win().querySelectorAll('.rpm-guide-toc-item')];
     assert.ok(toc.length >= 10, 'table of contents');

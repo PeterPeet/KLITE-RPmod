@@ -357,7 +357,10 @@ export default function initShell() {
         if (dom) renderDockAction(a);
     }
     function renderDockAction(a) {
-        const b = el('button', { class: 'rpm-iconbtn', type: 'button', title: a.title || a.id, 'aria-label': a.title || a.id, 'data-action': a.id, text: a.label || '•', style: 'font-weight:bold' });
+        // action.icon: a Lucide name (icons.js); otherwise the text label
+        const b = a.icon
+            ? el('button', { class: 'rpm-iconbtn', type: 'button', title: a.title || a.id, 'aria-label': a.title || a.id, 'data-action': a.id }, [icon(a.icon, 16)])
+            : el('button', { class: 'rpm-iconbtn', type: 'button', title: a.title || a.id, 'aria-label': a.title || a.id, 'data-action': a.id, text: a.label || '•', style: 'font-weight:bold' });
         b.addEventListener('click', () => { try { a.onClick(); } catch (e) { console.error('[RPmod shell] action failed:', a.id, e); } });
         dom['actions_' + a.side].appendChild(b);
     }

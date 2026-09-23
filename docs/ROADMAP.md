@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 79 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 81 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -127,7 +127,7 @@ Goal: restart on a clean, documented, tested base without changing behavior.
 Acceptance: `npm run build` produces an identical-behaving bundle; `npm test` green;
 no functional change. ✔
 
-### R1 — App shell + design system 🟨
+### R1 — App shell + design system ✅ (2026-09-23)
 Goal: one coherent application inside Esolite instead of three overlapping UIs.
 - [x] Convert sources to ES modules bundled with **esbuild** into the same single file
       (2026-09-23). Sloppy-mode audit: nothing to fix — all four sources already ran as
@@ -191,7 +191,17 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
       TavernCard records; waits for Esolite's id migration). Worlds now resolves linked
       characters by name first (gallery ids are list positions) and the editor dropdown
       links by name (the numeric id never matched). Reproduced and verified live.
-- **Next:** icon set.
+- [x] **Icon set** (2026-09-23): Lucide (ISC; Feather-derived icons MIT) — dev dependency
+      `lucide-static` (1.43.0, the newest version the npm min-release-age policy allowed),
+      `npm run icons` copies the used subset into the committed `src/shell/icons.js` with
+      the licence as a legal comment (kept in the bundle). Shell chrome, Worlds views,
+      editor, Guide and "New here?" use it; ALPHA's emoji stay until its panels migrate.
+- [x] Test runner: dropped `--test-force-exit` — on Node 22 it ended a test file part-way
+      (exit 0) once that file ran ~1 s, silently dropping tests; the count guard caught it.
+      A 180 s timeout replaces it.
+- **R1 acceptance met** (no overlapping panels, everything reachable from the shell, tests
+  green, live-checked). Carried into later phases: ALPHA's code still lives in the
+  monolith (known issues 8, 10, 13) — its panels migrate as R2 rebuilds characters.
 - App shell: docked sidebars + a window manager for sheet, quest log, compendium, combat,
   editor, map; one entry point in the Esolite top bar.
 - Design system: tokens (color, type, spacing) bound to Esolite's theme variables,

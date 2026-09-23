@@ -15,6 +15,8 @@
 // consistent with the mod's sanitisation model.
 // Depends on window.KLITE_RPMod_Worlds (the data/engine module).
 // =============================================================================
+import { icon, iconText } from './shell/dom.js';
+
 export default function initWorldsUI() {
     'use strict';
     if (window.KLITE_RPMod_WorldsUI) return;
@@ -299,10 +301,9 @@ export default function initWorldsUI() {
         }
         if (type !== 'world') {
             box.appendChild(el('button', {
-                class: 'btn btn-primary rpm-btn rpm-block rpm-danger', style: 'margin-top:16px',
-                text: '🗑  Delete node',
+                class: 'btn btn-primary rpm-btn rpm-block rpm-danger rpm-btn-icon', style: 'margin-top:16px',
                 onclick: () => { if (confirm('Delete this node?')) { API().deleteEntity(S.selectedId); S.selectedId = null; reloadGraph(); draw(); renderInspector(); } }
-            }));
+            }, [iconText('trash-2', 'Delete node')]));
         }
     }
     function inputCss(area) { return `width:100%;box-sizing:border-box;background:var(--rpm-input-bg);color:var(--rpm-input-fg);border:1px solid var(--rpm-border);border-radius:4px;padding:4px 6px;font-size:var(--rpm-fs-sm);font-family:inherit;${area ? 'resize:vertical' : ''}`; }
@@ -402,7 +403,7 @@ export default function initWorldsUI() {
         }
         const rIn = el('input', { type: 'text', placeholder: 'e.g. Gold Ring x1  or  100 xp', style: inputCss(false) });
         box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px' }, [rIn,
-            el('button', { type: 'button', class: 'btn btn-primary rpm-btn', style: '', text: '＋', onclick: () => { const r = parseReward(rIn.value); if (!r) return; const rw = asArrayU(ent.rewards); rw.push(r); A.updateEntity(S.selectedId, { rewards: rw }); renderInspector(); } })
+            el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', title: 'Add reward', 'aria-label': 'Add reward', onclick: () => { const r = parseReward(rIn.value); if (!r) return; const rw = asArrayU(ent.rewards); rw.push(r); A.updateEntity(S.selectedId, { rewards: rw }); renderInspector(); } }, [icon('plus', 15)])
         ]));
 
         // objectives (text + hidden toggle)
@@ -411,13 +412,13 @@ export default function initWorldsUI() {
         for (let i = 0; i < objs.length; i++) {
             const o = objs[i];
             box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px' }, [
-                el('span', { style: 'flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm)', text: (o.hidden ? '🔒 ' : '') + (o.text || '') }),
+                el('span', { style: 'flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm);display:flex;align-items:center;gap:4px', title: o.hidden ? 'Hidden objective' : null }, [o.hidden ? icon('lock', 12) : null, o.text || '']),
                 el('span', { style: 'cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs)', text: '×', onclick: () => { objs.splice(i, 1); A.updateEntity(S.selectedId, { objectives: objs }); renderInspector(); } })
             ]));
         }
         const oIn = el('input', { type: 'text', placeholder: 'objective text', style: inputCss(false) });
         box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px' }, [oIn,
-            el('button', { type: 'button', class: 'btn btn-primary rpm-btn', style: '', text: '＋', onclick: () => { const t = oIn.value.trim(); if (!t) return; const ob = asArrayU(ent.objectives); ob.push({ id: 'obj_' + Math.random().toString(36).slice(2, 7), text: t, hidden: false }); A.updateEntity(S.selectedId, { objectives: ob }); renderInspector(); } })
+            el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', title: 'Add objective', 'aria-label': 'Add objective', onclick: () => { const t = oIn.value.trim(); if (!t) return; const ob = asArrayU(ent.objectives); ob.push({ id: 'obj_' + Math.random().toString(36).slice(2, 7), text: t, hidden: false }); A.updateEntity(S.selectedId, { objectives: ob }); renderInspector(); } }, [icon('plus', 15)])
         ]));
     }
     // World root extras: the World Rules list (one rule per line) — these are what the AI
@@ -435,7 +436,7 @@ export default function initWorldsUI() {
     // Faction-only extras: headquarters location.
     function renderFactionExtras(box, ent) {
         const A = API();
-        box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px', text: '🏰 Headquarters (location)' }));
+        box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px;display:flex;align-items:center;gap:4px' }, [icon('castle', 13), 'Headquarters (location)']));
         const locs = A.getGraph().nodes.filter(n => n.type === 'location');
         const s = el('select', { style: inputCss(false) + ';cursor:pointer' });
         s.appendChild(el('option', { value: '', text: '— none —' }));
@@ -504,7 +505,7 @@ export default function initWorldsUI() {
             box.appendChild(row);
         });
         const firstType = Object.keys(SPEC)[0];
-        box.appendChild(el('button', { type: 'button', class: 'btn btn-primary rpm-btn', style: '', text: '＋ add', onclick: () => { items.push({ type: firstType }); onSave(items); } }));
+        box.appendChild(el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', onclick: () => { items.push({ type: firstType }); onSave(items); } }, [iconText('plus', 'Add')]));
     }
     function renderEventExtras(box, ent) {
         const A = API();
@@ -553,8 +554,8 @@ export default function initWorldsUI() {
         const palette = el('div', { class: 'wm-ed-palette' });
         for (const t of TYPES) palette.appendChild(el('button', {
             type: 'button', class: 'wm-ed-add', style: `background:${TYPE_COLOR[t]}`,
-            text: '＋ ' + t, onclick: () => addNodeCentered(t)
-        }));
+            onclick: () => addNodeCentered(t)
+        }, [iconText('plus', t, 14)]));
         rail.appendChild(palette);
         rail.appendChild(el('div', { class: 'wm-ed-label', text: 'Tool' }));
         const tools = el('div', { class: 'wm-ed-tools' }, ['select', 'link', 'pan'].map(t =>
@@ -719,10 +720,12 @@ export default function initWorldsUI() {
     const VIEW_IDS = ['world', 'party', 'quest-tracker', 'questlog', 'combat'];
 
     // ---- themed control helpers ----
+    // opts.icon: a Lucide name (src/shell/icons.js); icon-only buttons take opts.title as label
     function uiBtn(text, onclick, opts) {
         opts = opts || {};
-        const cls = 'btn btn-primary rpm-btn' + (opts.block ? ' rpm-block' : '') + (opts.grow ? ' rpm-grow' : '') + (opts.variant ? ' rpm-' + opts.variant : '') + (opts.lg ? ' rpm-lg' : '');
-        return el('button', { type: 'button', class: cls, title: opts.title, style: opts.style, text, onclick });
+        const cls = 'btn btn-primary rpm-btn' + (opts.block ? ' rpm-block' : '') + (opts.grow ? ' rpm-grow' : '') + (opts.variant ? ' rpm-' + opts.variant : '') + (opts.lg ? ' rpm-lg' : '') + (opts.icon ? ' rpm-btn-icon' : '');
+        if (!opts.icon) return el('button', { type: 'button', class: cls, title: opts.title, style: opts.style, text, onclick });
+        return el('button', { type: 'button', class: cls, title: opts.title, 'aria-label': text ? null : opts.title, style: opts.style, onclick }, [iconText(opts.icon, text)]);
     }
     function uiInput(props) { return el('input', Object.assign({ type: 'text', class: 'form-control rpm-input' }, props)); }
     function uiSelect(props) { return el('select', Object.assign({ class: 'form-control rpm-input' }, props)); }
@@ -770,23 +773,23 @@ export default function initWorldsUI() {
         sel.addEventListener('change', () => { if (sel.value) { A.useWorld(sel.value); refreshPanel(); } });
         body.appendChild(sel);
         body.appendChild(row([
-            uiBtn('＋ New', () => { const n = prompt('New world name:', 'New World'); if (n != null) A.newWorld(n).then(refreshPanel); }, { grow: true }),
-            uiBtn('🎁 Example', () => loadExampleFlow(), { grow: true, title: 'Load the ready-to-play example world' }),
-            uiBtn('⬇ Import', () => importFlow(), { grow: true }),
-            uiBtn('⬆ Export', () => exportFlow(), { grow: true })
+            uiBtn('New', () => { const n = prompt('New world name:', 'New World'); if (n != null) A.newWorld(n).then(refreshPanel); }, { icon: 'plus', grow: true }),
+            uiBtn('Example', () => loadExampleFlow(), { icon: 'sparkles', grow: true, title: 'Load the ready-to-play example world' }),
+            uiBtn('Import', () => importFlow(), { icon: 'upload', grow: true }),
+            uiBtn('Export', () => exportFlow(), { icon: 'download', grow: true })
         ], 'margin:6px 0 8px'));
 
         if (!A.activeWorld()) {
             body.appendChild(muted('New here? Load the ready-to-play example and just start chatting.', { style: 'margin:6px 0 8px' }));
-            body.appendChild(uiBtn('🎁 Load example world', () => loadExampleFlow(), { block: true, lg: true }));
+            body.appendChild(uiBtn('Load example world', () => loadExampleFlow(), { icon: 'sparkles', block: true, lg: true }));
             return;
         }
 
         // ---- bigger views open as floating windows / the editor overlay ----
         body.appendChild(row([
-            uiBtn('📜 Quest log', () => openView('questlog'), { grow: true }),
-            uiBtn('⚔ Combat', () => openView('combat'), { grow: true }),
-            uiBtn('✎ Editor', () => openEditor(), { grow: true, title: 'Build your world as a node graph' })
+            uiBtn('Quest log', () => openView('questlog'), { icon: 'scroll-text', grow: true }),
+            uiBtn('Combat', () => openView('combat'), { icon: 'swords', grow: true }),
+            uiBtn('Editor', () => openEditor(), { icon: 'workflow', grow: true, title: 'Build your world as a node graph' })
         ]));
         body.appendChild(el('hr', { class: 'rpm-divider' }));
         renderPlayTab(body);
@@ -805,7 +808,7 @@ export default function initWorldsUI() {
         const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
         const c = rt.clock || {};
         box.appendChild(el('div', { class: 'rpm-heading', text: player.name || 'You' }));
-        box.appendChild(muted('📍 ' + (loc ? (loc.name || loc.id) : 'nowhere'), { 'data-party': 'location', style: 'margin-top:2px' }));
+        box.appendChild(el('div', { class: 'rpm-muted', 'data-party': 'location', style: 'margin-top:2px;display:flex;align-items:center;gap:4px' }, [icon('map-pin', 13), loc ? (loc.name || loc.id) : 'nowhere']));
         box.appendChild(muted(`🕑 Day ${c.day || 1}, ${c.time || '—'}${c.weather ? ' · ' + c.weather : ''}`));
         const cb = A.getCombat();
         if (cb && cb.active) {
@@ -830,7 +833,7 @@ export default function initWorldsUI() {
                 ready && q.turnin ? muted('Turn in to ' + q.turnin) : null
             ]));
         }
-        box.appendChild(uiBtn('📜 Open quest log', () => openView('questlog'), { block: true, style: 'margin-top:8px' }));
+        box.appendChild(uiBtn('Open quest log', () => openView('questlog'), { icon: 'scroll-text', block: true, style: 'margin-top:8px' }));
     }
 
     function renderQuestsTab(box) {
@@ -902,7 +905,7 @@ export default function initWorldsUI() {
         const inc = el('input', { type: 'checkbox' }); inc.checked = S._encPlayer !== false;
         inc.addEventListener('change', () => { S._encPlayer = inc.checked; });
         box.appendChild(el('label', { class: 'rpm-row', style: 'margin:10px 0;cursor:pointer' }, [inc, el('span', { text: 'Include the player' })]));
-        box.appendChild(uiBtn('⚔ Start encounter', () => { const ids = Object.keys(chosen).filter(k => chosen[k]); A.startEncounter(ids, { includePlayer: S._encPlayer !== false }); S._encPick = {}; refreshPanel(); }, { block: true, lg: true, variant: 'danger' }));
+        box.appendChild(uiBtn('Start encounter', () => { const ids = Object.keys(chosen).filter(k => chosen[k]); A.startEncounter(ids, { includePlayer: S._encPlayer !== false }); S._encPick = {}; refreshPanel(); }, { icon: 'swords', block: true, lg: true, variant: 'danger' }));
     }
 
     function renderActiveCombat(box, cb) {
@@ -930,14 +933,14 @@ export default function initWorldsUI() {
         const targets = cb.order.filter(o => cb.hp[o.id] > 0 && o.id !== cur.id);
         const tSel = uiSelect({ class: 'form-control rpm-input rpm-grow', 'aria-label': 'Target' });
         for (const o of targets) tSel.appendChild(el('option', { value: o.id, text: o.name }));
-        box.appendChild(row([tSel, uiBtn(`⚔ ${cur.name} attacks`, () => { if (tSel.value) A.attack(cur.id, tSel.value); refreshPanel(); }, { variant: 'danger' })], 'margin-top:8px'));
+        box.appendChild(row([tSel, uiBtn(`${cur.name} attacks`, () => { if (tSel.value) A.attack(cur.id, tSel.value); refreshPanel(); }, { icon: 'swords', variant: 'danger' })], 'margin-top:8px'));
         // dice roller
         const rIn = uiInput({ value: '1d20', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Dice expression' });
-        box.appendChild(row([rIn, uiBtn('🎲 Roll', () => { A.applyTags(`<roll>${rIn.value}</roll>`); refreshPanel(); })], 'margin-top:6px'));
+        box.appendChild(row([rIn, uiBtn('Roll', () => { A.applyTags(`<roll>${rIn.value}</roll>`); refreshPanel(); }, { icon: 'dice-5' })], 'margin-top:6px'));
         // turn/end
         box.appendChild(row([
             uiBtn('⏭ Next turn', () => { A.nextTurn(); refreshPanel(); }, { grow: true }),
-            uiBtn('✕ End', () => { A.endEncounter(); refreshPanel(); }, { grow: true, variant: 'danger' })
+            uiBtn('End', () => { A.endEncounter(); refreshPanel(); }, { icon: 'x', grow: true, variant: 'danger' })
         ], 'margin-top:6px'));
         // log
         box.appendChild(lbl('Combat log'));
@@ -960,9 +963,9 @@ export default function initWorldsUI() {
             el('span', { class: 'rpm-chip ' + (slot === 'working' ? 'rpm-chip-info' : 'rpm-chip-quest'), text: slot === 'working' ? 'WORKING (live)' : 'BASE (start)' })
         ], 'margin-bottom:6px'));
         slotBox.appendChild(row([
-            uiBtn('↺ Reset', () => { if (confirm('Reset the working state to the base (start) state? Live changes are lost.')) { A.resetToBase(); refreshPanel(); } }, { grow: true, title: 'Discard live changes, back to the start state' }),
-            uiBtn('✔ Commit', () => { if (confirm('Set the current working state as the new base (start)?')) { A.commitToBase(); refreshPanel(); } }, { grow: true, title: 'Make the current live state the new start state' }),
-            uiBtn('⇄ Swap', () => { A.swapActive(); refreshPanel(); }, { grow: true, title: 'Switch which slot is active' })
+            uiBtn('Reset', () => { if (confirm('Reset the working state to the base (start) state? Live changes are lost.')) { A.resetToBase(); refreshPanel(); } }, { icon: 'rotate-ccw', grow: true, title: 'Discard live changes, back to the start state' }),
+            uiBtn('Commit', () => { if (confirm('Set the current working state as the new base (start)?')) { A.commitToBase(); refreshPanel(); } }, { icon: 'check', grow: true, title: 'Make the current live state the new start state' }),
+            uiBtn('Swap', () => { A.swapActive(); refreshPanel(); }, { icon: 'arrow-left-right', grow: true, title: 'Switch which slot is active' })
         ]));
         box.appendChild(slotBox);
 
@@ -1003,7 +1006,7 @@ export default function initWorldsUI() {
         }
         const fk = uiInput({ placeholder: 'key', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Flag name' });
         const fv = uiInput({ placeholder: 'value', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Flag value' });
-        box.appendChild(row([fk, fv, uiBtn('＋', () => { const k = fk.value.trim(); if (!k) return; A.setFlag(k, parseVal(fv.value)); refreshPanel(); }, { title: 'Set flag' })], 'margin-top:5px'));
+        box.appendChild(row([fk, fv, uiBtn('', () => { const k = fk.value.trim(); if (!k) return; A.setFlag(k, parseVal(fv.value)); refreshPanel(); }, { icon: 'plus', title: 'Set flag' })], 'margin-top:5px'));
 
         // ---- inventory ----
         box.appendChild(lbl('Inventory'));
@@ -1012,15 +1015,15 @@ export default function initWorldsUI() {
         for (const it of inv) {
             box.appendChild(el('div', { class: 'rpm-card rpm-row' }, [
                 el('span', { class: 'rpm-grow', text: it.name + (it.qty > 1 ? ` ×${it.qty}` : '') }),
-                el('button', { type: 'button', class: 'rpm-iconbtn', title: 'Add one', 'aria-label': 'Add one ' + it.name, style: 'color:var(--rpm-success)', text: '＋', onclick: () => { A.giveItem(it.name, 1); refreshPanel(); } }),
+                el('button', { type: 'button', class: 'rpm-iconbtn', title: 'Add one', 'aria-label': 'Add one ' + it.name, style: 'color:var(--rpm-success)', onclick: () => { A.giveItem(it.name, 1); refreshPanel(); } }, [icon('plus', 14)]),
                 el('button', { type: 'button', class: 'rpm-iconbtn', title: 'Remove one', 'aria-label': 'Remove one ' + it.name, style: 'color:var(--rpm-danger)', text: '−', onclick: () => { A.takeItem(it.name, 1); refreshPanel(); } })
             ]));
         }
         const iIn = uiInput({ placeholder: 'item name', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Item name' });
-        box.appendChild(row([iIn, uiBtn('＋', () => { const n = iIn.value.trim(); if (!n) return; A.giveItem(n, 1); refreshPanel(); }, { title: 'Give item' })], 'margin-top:5px'));
+        box.appendChild(row([iIn, uiBtn('', () => { const n = iIn.value.trim(); if (!n) return; A.giveItem(n, 1); refreshPanel(); }, { icon: 'plus', title: 'Give item' })], 'margin-top:5px'));
 
         // ---- what the AI sees ----
-        box.appendChild(uiBtn('👁 Preview what the AI sees', () => showPreview(), { block: true, style: 'margin-top:12px' }));
+        box.appendChild(uiBtn('Preview what the AI sees', () => showPreview(), { icon: 'eye', block: true, style: 'margin-top:12px' }));
     }
     function parseVal(raw) { const v = String(raw || '').trim(); if (v === '') return true; if (/^(true|false)$/i.test(v)) return /true/i.test(v); if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v); return v; }
 
