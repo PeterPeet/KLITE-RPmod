@@ -16,12 +16,12 @@ async function exampleHost(opts) {
 test('active slice contains premise, rules, time, location, NPCs, lore', async (t) => {
     const h = await exampleHost(); t.after(h.close);
     const W = h.api();
-    W.moveTo('The Prancing Pony');
+    W.moveTo('The Crooked Kettle');
     const s = W.preview();
     assert.match(s, /\[World: Eldoria \(Example\)\]/);
     assert.match(s, /\[World Rules\][\s\S]*Medieval low-fantasy/);
     assert.match(s, /\[Current Time\]/);
-    assert.match(s, /\[Current Location: The Prancing Pony\]/);
+    assert.match(s, /\[Current Location: The Crooked Kettle\]/);
     assert.match(s, /Innkeeper Bram/);
     assert.match(s, /The kingdom of Eldoria is ruled/); // always-on global lore
     assert.ok(s.indexOf('[World:') < s.indexOf('[Current Location'), 'premise leads');

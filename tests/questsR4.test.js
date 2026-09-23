@@ -76,7 +76,7 @@ test('rewards: turn-in pays XP, gold and items to the persona sheet once; choose
     let s = await C.loadSheet('Kara');
     assert.equal(s.xp, 350, '100 XP');
     assert.ok(s.inventory.some(i => i.name === 'Silver Ring' && i.qty === 1), 'item on the sheet');
-    assert.ok(L.entries().some(e => /Quest turned in: The Missing Merchant\. Rewards: Silver Ring, 100 XP\./.test(e.what)));
+    assert.ok(L.entries().some(e => /Quest turned in: The Missing Merchant\. Rewards: Silver Ring, 100 XP, 20 gold, \+100 reputation with Royal Guard\./.test(e.what)));
     assert.ok(L.entries().some(e => /Kara has enough XP for level 2/.test(e.what)));
     W.setQuestState('q_merchant', 'complete'); W.turnInQuest('q_merchant');
     await C.flushSheet('Kara');
@@ -90,7 +90,7 @@ test('rewards: turn-in pays XP, gold and items to the persona sheet once; choose
     W.turnInQuest('q_bounty', 1);
     await C.flushSheet('Kara');
     s = await C.loadSheet('Kara');
-    assert.equal(s.coins.gp, 45);
+    assert.equal(s.coins.gp, 5 + 20 + 40, 'start + merchant + bounty');
     assert.ok(s.inventory.some(i => i.name === 'Shield') && !s.inventory.some(i => i.name === 'Longsword'));
 
     // abandon: back to available, progress gone
@@ -132,12 +132,12 @@ test('inventory without a persona: the story keeps items, gold and XP', async (t
     assert.ok(W.runtime.inventory.some(i => i.name === 'Silver Ring'));
     assert.equal(W.runtime.xp, 100);
     assert.equal(W.inventory().source, 'story');
-    assert.match(W.preview(), /Inventory: Silver Ring\nGold: 0, XP: 100/);
+    assert.match(W.preview(), /Inventory: Silver Ring\nGold: 20, XP: 100/);
 });
 
 test('objectives: kill (combat), collect, talk, visit and manual progress by themselves; the quest completes', async (t) => {
     const { h, w, W } = await personaWorld(t, { persona: false });
-    W.updateEntity('q_bounty', { objectives: [
+    W.updateEntity('q_bounty', { prerequisites: {}, objectives: [
         { id: 'k', kind: 'kill', target: 'Wolf', count: 2, text: 'Defeat 2 Wolf' },
         { id: 'c', kind: 'collect', target: 'Wolf Pelt', count: 2, text: 'Collect 2 Wolf Pelt' },
         { id: 't', kind: 'talk', target: 'npc_bram', text: 'Talk to Innkeeper Bram' },
@@ -161,7 +161,7 @@ test('objectives: kill (combat), collect, talk, visit and manual progress by the
     W.applyTags('<give>Wolf Pelts x2</give>');
     assert.equal(st('c').done, true);
     // talk: named in a message while the person is here (Bram is in the tavern)
-    W.moveTo('The Prancing Pony'); w.gametext_arr.push('I lean on the bar and ask Bram about the road.');
+    W.moveTo('The Crooked Kettle'); w.gametext_arr.push('I lean on the bar and ask Bram about the road.');
     await w.prepare_submit_generation();
     assert.equal(st('t').done, true);
     // visit
@@ -178,7 +178,7 @@ test('objectives: kill (combat), collect, talk, visit and manual progress by the
     assert.equal(W.questState('q_bounty'), 'active');
     W.giveItem('Wolf Pelt', 3);
     assert.equal(W.questState('q_bounty'), 'complete');
-    W.turnInQuest('q_bounty');
+    assert.equal(W.turnInQuest('q_bounty', 0), 'turnedin', 'the example bounty lets you choose a reward');
     assert.equal(W.itemCount('Wolf Pelt'), 1, 'two pelts handed over');
     // <talk> tag
     W.updateEntity('q_merchant', { objectives: [{ id: 't2', kind: 'talk', target: 'npc_rowan', text: 'Talk to Rowan' }] });
@@ -276,4 +276,115 @@ test('reputation: rewards, tags, effects, triggers and conditions; tiers reach t
     // starting reputation of a faction
     W.updateEntity(bandits.id, { startReputation: -400 });
     assert.equal(W.reputation().find(r => r.id === bandits.id).value, -1200, 'story standing wins once it exists');
+});
+
+test('acceptance: the example chain start to finish — rewards, reputation, zones, a fight, phasing', async (t) => {
+    const { h, w, W, C } = await personaWorld(t, { level: 1 });
+    const mk = (id) => plain(W.questMarkerInfo(id, 'player'));
+    W.moveTo('The Crooked Kettle');
+    assert.match(W.preview(), /\[Current Location: The Crooked Kettle\]\nPart of: Brookvale › Millbrook Village/);
+    assert.deepEqual(mk('npc_bram'), { mark: '!', grey: false });
+    assert.ok(!W.listQuests('player').some(q => q.id === 'q_bounty'), 'the bounty waits for the merchant quest');
+    // 1. The Missing Merchant: go to the road, report to Rowan
+    W.acceptQuest('q_merchant');
+    assert.deepEqual(mk('npc_rowan'), { mark: '?', grey: true });
+    W.moveTo('Forest Road');
+    assert.match(W.preview(), /Part of: Brookvale/);
+    W.moveTo('Royal Watchtower');
+    w.gametext_arr.push('I tell Captain Rowan about the burned cart on the road.');
+    await w.prepare_submit_generation();
+    assert.equal(W.questState('q_merchant'), 'complete');
+    assert.deepEqual(mk('npc_rowan'), { mark: '?', grey: false });
+    W.turnInQuest('q_merchant');
+    // 2. Bandit Bounty is unlocked: Rowan offers it
+    assert.deepEqual(mk('npc_rowan'), { mark: '!', grey: false });
+    W.acceptQuest('q_bounty');
+    W.moveTo('Bandit Camp');
+    h.seedRandom([0.5]);
+    W.startSavedEncounter('Red Hand ambush');
+    const cb = W.getCombat();
+    assert.deepEqual(plain(cb.order.map(o => o.name).sort()), ['Bandit 1', 'Bandit 2', 'Bandit Leader Kell', 'Kara'], 'the persona fights, not the example world default player');
+    for (const o of cb.order.filter(o => o.side === 'enemy')) W.damage(o.id, 99);
+    assert.equal(W.getCombat().outcome, 'victory');
+    W.endEncounter();
+    assert.equal(W.questState('q_bounty'), 'complete', 'defeating Kell completed the objective');
+    assert.equal(W.turnInQuest('q_bounty', 1), 'turnedin');
+    // rewards on the sheet
+    await C.flushSheet('Kara'); await sleep(30); await C.flushSheet('Kara');
+    const s = await C.loadSheet('Kara');
+    assert.ok(s.inventory.some(i => i.name === 'Silver Ring') && s.inventory.some(i => i.name === 'Shield'));
+    assert.equal(s.coins.gp, 5 + 20 + 50);
+    assert.ok(s.xp >= 300 + cb.xp, 'quest XP + combat XP');
+    // reputation
+    const rep = Object.fromEntries(W.reputation().map(r => [r.id, r.tier]));
+    assert.equal(rep.fac_guard, 'Friendly'); assert.equal(rep.fac_bandit, 'Hostile');
+    // phasing: the camp is abandoned, Kell is gone, the village celebrates, Rowan relaxes
+    const p = W.preview();
+    assert.match(p, /\[Current Location: Abandoned Camp\]\nPart of: Brookvale\nCold fire pits/);
+    assert.doesNotMatch(p, /Bandit Leader Kell/);
+    assert.match(p, /\[Reputation\]\n- Royal Guard: Friendly[\s\S]*- The Red Hand: Hostile — hostile/);
+    W.moveTo('Millbrook Village');
+    assert.match(W.preview(), /Millbrook is celebrating[\s\S]*Atmosphere: festive[\s\S]*A hub: travellers/);
+    assert.equal(W.phased('npc_rowan').mood, 'grateful, relaxed');
+    w.KLITE_RPMod_Shell.open('questlog'); await sleep(30);
+    assert.equal(w.document.querySelector('[data-window="questlog"] [data-chosen="q_bounty"]').textContent, 'Shield', 'the chosen reward is shown');
+});
+
+test('zones and phases: no cycles, places within, exits to the zone; conditions in readable kinds', async (t) => {
+    const { W } = await personaWorld(t, { persona: false });
+    assert.equal(W.setLocationParent('loc_vale', 'loc_tavern'), false, 'a zone cannot sit inside its own place');
+    assert.deepEqual(plain(W.zonePath('loc_tavern').map(z => z.name)), ['Brookvale', 'Millbrook Village']);
+    W.moveTo('Millbrook Village');
+    assert.match(W.preview(), /Places within: The Crooked Kettle/);
+    W.moveTo('The Crooked Kettle');
+    assert.match(W.preview(), /Exits: [^\n]*Millbrook Village/);
+    // visiting a zone counts any place inside it
+    W.updateEntity('q_merchant', { objectives: [{ id: 'z', kind: 'visit', target: 'loc_vale', text: 'Reach Brookvale' }] });
+    W.acceptQuest('q_merchant');
+    assert.equal(W.questState('q_merchant'), 'complete', 'already inside Brookvale');
+    // readable conditions
+    W.setFlag('raid', true);
+    assert.equal(W.evalCondition({ type: 'flag', key: 'raid' }), true);
+    assert.equal(W.evalCondition({ type: 'flag', key: 'raid', value: 'false' }), false);
+    assert.equal(W.evalCondition({ type: 'quest', questId: 'q_merchant', state: 'complete' }), true);
+    assert.equal(W.evalCondition({ type: 'reputation', factionId: 'fac_bandit', tier: 'Unfriendly' }), true, 'Red Hand starts at -400 (Hostile) — "or worse"');
+    assert.equal(W.evalCondition({ type: 'reputation', factionId: 'fac_guard', tier: 'Friendly' }), false);
+    assert.equal(W.evalCondition({ type: 'location', locationId: 'loc_tavern' }), true);
+});
+
+test('editor: zone and hub on a location, a phase with a condition, event conditions', async (t) => {
+    const { h, w, W } = await personaWorld(t, { persona: false });
+    const { selectNode } = require('./helpers/host');
+    h.ui().openEditor(); await sleep(20);
+    selectNode(h, 'loc_watchtower');
+    const ed = w.document.getElementById('wm-editor');
+    const zone = ed.querySelector('select[aria-label="Part of zone"]');
+    zone.value = 'loc_vale'; zone.dispatchEvent(new w.Event('change'));
+    assert.equal(W.entityById('loc_watchtower').parentId, 'loc_vale');
+    const hub = ed.querySelector('input[aria-label="Hub"]'); hub.checked = true; hub.dispatchEvent(new w.Event('change'));
+    assert.equal(W.entityById('loc_watchtower').hub, true);
+    ed.querySelector('[data-add-phase="location"]').click(); await sleep(10);
+    const ph = W.entityById('loc_watchtower').phases;
+    assert.equal(ph.length, 1); assert.equal(ph[0].conditions[0].type, 'flag');
+    const desc = ed.querySelector('textarea[aria-label="Phase Description"]');
+    desc.value = 'The tower flies a black flag.'; desc.dispatchEvent(new w.Event('change'));
+    W.updateEntity('loc_watchtower', { phases: [Object.assign({}, W.entityById('loc_watchtower').phases[0], { conditions: [{ type: 'flag', key: 'mourning' }] })] });
+    assert.equal(W.phased('loc_watchtower').description, 'A stone tower guarding the frontier road.');
+    W.setFlag('mourning', true);
+    assert.equal(W.phased('loc_watchtower').description, 'The tower flies a black flag.');
+    selectNode(h, 'ev_ambush');
+    assert.ok([...ed.querySelectorAll('div')].some(d => /Conditions \(all must hold/.test(d.textContent)), 'event conditions are editable');
+});
+
+test('loading the example again keeps the saved (maybe edited) example and adds a fresh copy', async (t) => {
+    const { W } = await personaWorld(t, { persona: false });
+    W.updateEntity('loc_village', { description: 'My own village text.' });
+    await W.saveActiveWorld();
+    const id2 = await W.loadExample();
+    assert.equal(id2, 'world_example_2');
+    assert.equal(W.activeWorld().name, 'Eldoria (Example 2)');
+    const names = plain(W.listWorlds().map(x => x.name));
+    assert.ok(names.includes('Eldoria (Example)') && names.includes('Eldoria (Example 2)'));
+    await W.useWorld('world_example');
+    assert.equal(W.entityById('loc_village').description, 'My own village text.', 'the edited example is untouched');
 });

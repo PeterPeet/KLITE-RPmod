@@ -27,11 +27,11 @@ test('context: one wrapper, providers ordered by priority, transient cleanup, sa
     const turns = [];
     C.register({ id: 'test', order: 5, beforeTurn: () => turns.push('before'), afterTurn: () => turns.push('after'),
         collect: () => [{ title: 'Low', priority: 1, text: 'low text' }, { title: 'High', priority: 99, text: 'high text' }] });
-    await W.loadExample(); W.moveTo('The Prancing Pony');
+    await W.loadExample(); W.moveTo('The Crooked Kettle');
     await w.prepare_submit_generation();
     assert.deepEqual(turns, ['before', 'after']);
     const p = h.prompt;
-    assert.ok(p.indexOf('[High]') < p.indexOf('[Current Location: The Prancing Pony]'), 'priority 99 before location (80)');
+    assert.ok(p.indexOf('[High]') < p.indexOf('[Current Location: The Crooked Kettle]'), 'priority 99 before location (80)');
     assert.ok(p.indexOf('[Current Location') < p.indexOf('[Low]'), 'priority 1 last');
     assert.equal(managed(w).length, 0, 'transient: removed after the turn');
 

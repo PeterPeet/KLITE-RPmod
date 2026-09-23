@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 137 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 151 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -54,12 +54,12 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
 | | Quick replies | 🟡 ALPHA quick actions |
 | | Slash commands | ❌ (chat tags instead) |
 | | RAG, TTS, image gen, summaries | ✅ mostly Esolite/ALPHA |
-| WoW | Marker set incl. grey `!`/`?` | 🟡 yellow only |
-| | Quest log: counters, track, abandon | 🟡 checkboxes + track |
-| | Chains & prerequisites | 🟡 via triggers, no prerequisite field |
-| | Rewards XP/gold/choose-one | ❌ stored, never paid out |
-| | Zones/subzones, hubs, phasing | 🟡 flat locations; phasing only via flags |
-| | Factions & reputation | ❌ no reputation |
+| WoW | Marker set incl. grey `!`/`?` | ✅ |
+| | Quest log: counters, track, abandon | ✅ |
+| | Chains & prerequisites | ✅ level/quest/flag/reputation, item-started |
+| | Rewards XP/gold/choose-one | ✅ paid to the persona's sheet |
+| | Zones/subzones, hubs, phasing | ✅ |
+| | Factions & reputation | ✅ tiers; effects narrated (no vendors yet) |
 | VTT | Map, grid, tokens, fog | ❌ (R7) |
 
 ### Known issues / tech debt
@@ -112,6 +112,9 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
     upgrade; a small official save/delete API would be a good next proposal to Jaxxks.
 17. ~~Combat HP and sheet HP are separate~~ — the fight starts at the persona sheet's current HP
     and writes HP/XP back (R5, owner's decision). Companions (world persons) still start at full HP.
+18. **Flaky test seen once (2026-09-23):** "Combat window: build an encounter…" failed in one full
+    run and passed in ~10 runs since; the failure text was not captured. Full-run output is now
+    kept while developing; investigate if it shows up again.
 
 ## Phases
 
@@ -313,7 +316,7 @@ and re-import as a card without data loss.
 - Searchable compendium window; cross-links from sheets, encounters and chat.
 Acceptance: search any SRD monster/spell, open it, add a monster to an encounter.
 
-### R4 — Quests & world (WoW) 🟨
+### R4 — Quests & world (WoW) ✅ (2026-09-23)
 Owner's decision (2026-09-23): **one inventory — the persona's sheet.** Quest rewards,
 `<give>`/`<take>` and "collect" objectives use the persona's card; the story inventory is only
 the fallback without a persona (items stay with the character across stories; resetting the
@@ -343,10 +346,29 @@ world's state slots does not take them back).
       · Hostile · Unfriendly (−300) · Neutral · Friendly (100) · Honored (500) · Revered (1200) ·
       Exalted (2500). Changed by quest rewards (`rep <faction> +N`), the event effect
       *reputation*, the tag `<rep>Faction=+N</rep>` and the creator's ±50 buttons; trigger
-      *onReputation* (tier reached; "or worse" for Hostile/Hated) and condition fields `rep.<id>` /
+      *onReputation* (tier reached: above Neutral "or better", below "or worse") and condition fields `rep.<id>` /
       `tier.<id>`. Effects: the AI gets a Reputation section (tier + what it means) and each
       faction member's attitude; members of Hostile/Hated factions are "hostile to the player".
       Vendors/prices are narrated (no shop system yet). Quest log lists the standings with bars.
+- [x] **Step 5 — zones, hubs, phasing** (2026-09-23): `location.parentId` (zones, no cycles),
+      `hub`; phases on locations and persons (name/description/atmosphere/mood/location/gone)
+      chosen by conditions; readable condition kinds (flag / quest / reputation / time /
+      location) for phases and — new — event conditions in the editor; "Part of", "Places within",
+      zone among the exits; dashed zone/unlocks edges.
+- [x] **Step 6 — example world + acceptance** (2026-09-23): Eldoria now has a zone (Brookvale)
+      with a hub village, a chain (The Missing Merchant → Bandit Bounty) with visit/talk/kill
+      objectives, every reward type, reputation changes (Royal Guard up, Red Hand down), a saved
+      encounter (Red Hand ambush) and phases after the bounty (Abandoned Camp, celebrating
+      village, Kell gone, Rowan relaxed). Acceptance "play the example world's quest chain start
+      to finish with rewards, a phased location and a reputation change" = test
+      `acceptance: the example chain…` + live check in Esolite.
+      Found on the way: the persona now wins over a world's default player stats in combat;
+      combat's HP/XP write-back raced with quest rewards (now one queue); "Load example world"
+      no longer overwrites a saved (maybe edited) example — it adds "Eldoria (Example 2)"; the
+      example tavern was renamed "The Crooked Kettle" (it carried another work's inn name).
+- **Open (R4):** vendors/shops (reputation only narrated), factions have no phases (an
+  abandoned HQ is still listed as "Headquarters of …"), reputation from killing faction members,
+  repeatable/daily quests, quest-giver dialogue.
 - Full marker set (yellow/grey `!`, yellow/grey `?`).
 - Prerequisites (level, previous quest, flag, reputation); chains; item-started quests.
 - Objective types with counters (kill/collect/talk/visit), auto-progress from tags/events.

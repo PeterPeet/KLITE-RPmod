@@ -87,7 +87,7 @@ export function unmetPrerequisites(q, facts) {
     for (const id of p.quests || []) if (facts.questState(id) !== 'turnedin') out.push(`Requires the quest "${(facts.questTitle && facts.questTitle(id)) || id}"`);
     for (const k of p.flags || []) if (!facts.flag(k)) out.push(`Requires: ${k}`);
     if (p.reputation && p.reputation.factionId && p.reputation.tier) {
-        if (tierIndex(facts.tierOf(p.reputation.factionId)) < tierIndex(p.reputation.tier)) out.push(`Requires ${p.reputation.tier} with ${(facts.factionName && facts.factionName(p.reputation.factionId)) || p.reputation.factionId}`);
+        if (!tierAtLeastOrWorse(facts.tierOf(p.reputation.factionId), p.reputation.tier)) out.push(`Requires ${p.reputation.tier}${tierIndex(p.reputation.tier) < tierIndex('Neutral') ? ' (or worse)' : ''} with ${(facts.factionName && facts.factionName(p.reputation.factionId)) || p.reputation.factionId}`);
     }
     return out;
 }
@@ -122,6 +122,12 @@ export function tierEffect(name) {
     }
 }
 export const isHostileTier = (name) => tierIndex(name) <= tierIndex('Hostile');
+// A tier requirement: above Neutral means "this or better", below Neutral "this or worse"
+// (Neutral itself: exactly Neutral).
+export function tierAtLeastOrWorse(have, want) {
+    const h = tierIndex(have), w = tierIndex(want), n = tierIndex('Neutral');
+    return w > n ? h >= w : w < n ? h <= w : h === n;
+}
 
 // ---- phases ---------------------------------------------------------------------------------
 // entity.phases = [{ id, label, conditions: [{ field, op, value }], ...overrides }]; the LAST

@@ -66,9 +66,11 @@ export const CHAPTERS = [
     {
         id: 'quests', title: 'Quests',
         blocks: [
-            { p: 'People in the world give quests, like in an MMO: a yellow ! marks someone with a quest for you, a ? someone you can hand a finished quest to.' },
+            { p: 'People in the world give quests, like in an MMO: a yellow ! marks someone with a quest for you, a yellow ? someone you can hand a finished quest to. Grey marks mean "later" (level too low) or "in progress".' },
             { list: [
-                'The Quest log lists available, active and finished quests: accept, track, complete, turn in.',
+                'The Quest log lists available, active and finished quests: accept, track, turn in, abandon — with objectives like "Defeat 3 Wolf (1/3)" that count by themselves.',
+                'Rewards (XP, gold, items, reputation) go to your persona\'s character sheet when you turn a quest in; some let you choose one item.',
+                'Your standing with each faction (Hated … Exalted) is at the bottom of the Quest log.',
                 'The Quests section on the left shows what you are working on.',
                 'Hidden quests read "???" until you discover them.',
             ] },

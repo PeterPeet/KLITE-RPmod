@@ -25239,7 +25239,7 @@ ${char.mes_example}
     for (const id of p.quests || []) if (facts.questState(id) !== "turnedin") out.push(`Requires the quest "${facts.questTitle && facts.questTitle(id) || id}"`);
     for (const k2 of p.flags || []) if (!facts.flag(k2)) out.push(`Requires: ${k2}`);
     if (p.reputation && p.reputation.factionId && p.reputation.tier) {
-      if (tierIndex(facts.tierOf(p.reputation.factionId)) < tierIndex(p.reputation.tier)) out.push(`Requires ${p.reputation.tier} with ${facts.factionName && facts.factionName(p.reputation.factionId) || p.reputation.factionId}`);
+      if (!tierAtLeastOrWorse(facts.tierOf(p.reputation.factionId), p.reputation.tier)) out.push(`Requires ${p.reputation.tier}${tierIndex(p.reputation.tier) < tierIndex("Neutral") ? " (or worse)" : ""} with ${facts.factionName && facts.factionName(p.reputation.factionId) || p.reputation.factionId}`);
     }
     return out;
   }
@@ -25293,6 +25293,32 @@ ${char.mes_example}
     }
   }
   var isHostileTier = (name) => tierIndex(name) <= tierIndex("Hostile");
+  function tierAtLeastOrWorse(have, want) {
+    const h = tierIndex(have), w = tierIndex(want), n = tierIndex("Neutral");
+    return w > n ? h >= w : w < n ? h <= w : h === n;
+  }
+  function activePhase(entity, evalCondition) {
+    let hit = null;
+    for (const ph of entity && Array.isArray(entity.phases) ? entity.phases : []) {
+      const conds = Array.isArray(ph.conditions) ? ph.conditions : [];
+      if (conds.length && conds.every((c) => {
+        try {
+          return !!evalCondition(c);
+        } catch (_) {
+          return false;
+        }
+      })) hit = ph;
+    }
+    return hit;
+  }
+  function phased(entity, evalCondition) {
+    const ph = activePhase(entity, evalCondition);
+    if (!ph) return entity;
+    const out = Object.assign({}, entity);
+    for (const k2 of ["name", "description", "atmosphere", "mood", "personality", "homeLocationId", "gone"]) if (ph[k2] != null && ph[k2] !== "") out[k2] = ph[k2];
+    out.phase = ph.label || ph.id || "phase";
+    return out;
+  }
 
   // src/KLITE-RPmod_Worlds.js
   function initWorlds() {
@@ -25595,9 +25621,42 @@ ${char.mes_example}
         err("restoreSaveState failed", e);
       }
     }
+    function phasedEntity(e) {
+      try {
+        return e && Array.isArray(e.phases) && e.phases.length ? phased(e, evalCondition) : e;
+      } catch (_) {
+        return e;
+      }
+    }
+    function zonePath(locId) {
+      const w = activeWorld();
+      const out = [];
+      let cur = findById(w && w.locations, locId), guard = 0;
+      while (cur && cur.parentId && guard++ < 20) {
+        cur = findById(w.locations, cur.parentId);
+        if (cur) out.unshift(cur);
+      }
+      return out;
+    }
+    function childLocations(locId) {
+      return asArray(activeWorld() && activeWorld().locations).filter((l) => l.parentId === locId);
+    }
+    function setLocationParent(locId, parentId) {
+      const w = activeWorld();
+      const l = findById(w && w.locations, locId);
+      if (!l) return false;
+      if (!parentId) {
+        l.parentId = null;
+        return true;
+      }
+      if (parentId === locId || !findById(w.locations, parentId) || isInsideLocation(parentId, locId)) return false;
+      l.parentId = parentId;
+      return true;
+    }
     function resolveNpcLocationId(npc) {
       const ov = rt()?.npcStateOverrides?.[npc.id];
       if (ov && ov.locationId) return ov.locationId;
+      npc = phasedEntity(npc);
       const sched = asArray(npc.schedule);
       if (sched.length && rt()?.clock) {
         const t = norm3(rt().clock.time).toLowerCase();
@@ -25608,7 +25667,8 @@ ${char.mes_example}
     }
     function npcMood(npc) {
       const ov = rt()?.npcStateOverrides?.[npc.id];
-      return norm3(ov?.mood || npc.defaultState?.mood || npc.mood || "");
+      npc = phasedEntity(npc);
+      return norm3(ov?.mood || npc.mood || npc.defaultState?.mood || "");
     }
     function characterLibrary() {
       try {
@@ -26048,7 +26108,8 @@ ${char.mes_example}
           marker: personQuestMarker(q.giverPersonId, mode2) || personQuestMarker(q.turninPersonId, mode2),
           locks: questLocks(q),
           startItem: norm3(q.startItem) || "",
-          prerequisites: q.prerequisites || null
+          prerequisites: q.prerequisites || null,
+          paid: rt() && rt().rewardsPaid && rt().rewardsPaid[q.id] || null
         };
       });
     }
@@ -26077,8 +26138,33 @@ ${char.mes_example}
           return void 0;
       }
     }
+    function expandCondition(c) {
+      switch (c.type) {
+        case "flag": {
+          const v = norm3(c.value);
+          if (!v) return { field: "flag." + norm3(c.key), op: "has_flag", value: norm3(c.key) };
+          return { field: "flag." + norm3(c.key), op: "==", value: /^(true|false)$/i.test(v) ? /true/i.test(v) : /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v };
+        }
+        case "quest":
+          return { field: "quest." + norm3(c.questId), op: "==", value: norm3(c.state) || "active" };
+        case "reputation":
+          return { field: "tier." + norm3(c.factionId), op: "tier>=", value: norm3(c.tier) || "Friendly" };
+        case "time":
+          return { field: "time", op: "==", value: norm3(c.time) };
+        case "location":
+          return { field: "location", op: "is", value: norm3(c.locationId) };
+        default:
+          return c;
+      }
+    }
     function evalCondition(cond) {
       if (!cond || typeof cond !== "object") return true;
+      if (cond.type && !cond.field) cond = expandCondition(cond);
+      if (cond.op === "is") return factValue(cond.field) === cond.value;
+      if (cond.op === "tier>=") {
+        const have = factValue(cond.field);
+        return tierAtLeastOrWorse(have, cond.value);
+      }
       const lhs = factValue(cond.field);
       const rhs = typeof cond.value === "string" ? cond.value.toLowerCase() : cond.value;
       switch (norm3(cond.op) || "==") {
@@ -26464,12 +26550,11 @@ ${char.mes_example}
           return signal === "quest:" + norm3(trig.questId) + ":" + norm3(trig.state) || signal === "turn" && norm3(rt().questState[norm3(trig.questId)]) === norm3(trig.state);
         case "onEvent":
           return signal === "event:" + norm3(trig.eventId);
-        // standing with a faction reaches a tier (or better; "Hostile"/"Hated" = or worse)
+        // standing with a faction reaches a tier: above Neutral "or better", below "or worse"
         case "onReputation": {
           const fid = factionIdOf(trig.factionId);
           if (!fid || signal !== "reputation:" + fid && signal !== "turn") return false;
-          const have = tierIndex(tierOf(repValue(fid))), want = tierIndex(trig.tier || "Friendly");
-          return isHostileTier(trig.tier) ? have <= want : have >= want;
+          return tierAtLeastOrWorse(tierOf(repValue(fid)), trig.tier || "Friendly");
         }
         case "onAction":
           return typeof signal === "string" && signal.indexOf("action:") === 0 && (norm3(trig.pattern) === "" || signal.slice(7).toLowerCase().includes(norm3(trig.pattern).toLowerCase()));
@@ -26567,7 +26652,7 @@ ${char.mes_example}
     function combatantStats(id) {
       const cb = getCombat();
       if (cb && cb.stats && cb.stats[id]) return cb.stats[id];
-      if (id === "__player__") return normalizeStats(playerCombatCfg().stats || personaSheetStats() || {});
+      if (id === "__player__") return normalizeStats(personaSheetStats() || playerCombatCfg().stats || {});
       const p = entityById(activeWorld(), id);
       return normalizeStats(p && (p.stats || cardSheetStats(p)) || {});
     }
@@ -26575,7 +26660,7 @@ ${char.mes_example}
       const cb = getCombat();
       const o = cb && asArray(cb.order).find((x) => x.id === id);
       if (o && o.name) return o.name;
-      if (id === "__player__") return norm3(playerCombatCfg().name) || personaName() || "You";
+      if (id === "__player__") return personaSheet() && personaName() || norm3(playerCombatCfg().name) || personaName() || "You";
       const p = entityById(activeWorld(), id);
       return p ? personName(p) : String(id);
     }
@@ -26630,17 +26715,17 @@ ${char.mes_example}
         }
       }
       const cbStats = { stats };
-      const statOf = (id) => stats[id] || (id === "__player__" ? normalizeStats(playerCombatCfg().stats || personaSheetStats() || {}) : combatantStatsNoCombat(id));
+      const statOf = (id) => stats[id] || (id === "__player__" ? normalizeStats(personaSheetStats() || playerCombatCfg().stats || {}) : combatantStatsNoCombat(id));
       const order = entries.map((e) => {
         const st = statOf(e.id);
         const init2 = rollD20(st.initiativeMod != null ? st.initiativeMod : abilityMod2(st.abilities.dex)).total;
         const side = e.kind === "monster" ? "enemy" : sideOf(e.id, opts);
-        return { id: e.id, name: e.name || (e.id === "__player__" ? norm3(playerCombatCfg().name) || personaName() || "You" : combatantNameNoCombat(e.id)), init: init2, isPlayer: e.id === "__player__", side, kind: e.kind, key: e.key };
+        return { id: e.id, name: e.name || (e.id === "__player__" ? personaSheet() && personaName() || norm3(playerCombatCfg().name) || personaName() || "You" : combatantNameNoCombat(e.id)), init: init2, isPlayer: e.id === "__player__", side, kind: e.kind, key: e.key };
       });
       order.sort((a, b) => b.init - a.init || b.isPlayer - a.isPlayer);
       const hp = {}, maxHp = {}, death = {};
       const sheet = personaSheet();
-      const usePersona = !playerCombatCfg().stats && sheet;
+      const usePersona = !!sheet;
       for (const c of order) {
         const st = statOf(c.id);
         maxHp[c.id] = st.hpMax;
@@ -26933,20 +27018,14 @@ ${char.mes_example}
       if (!cb || cb.synced || !cb.persona) return;
       cb.synced = true;
       const C = window.KLITE_RPMod_Characters;
-      if (!C || !C.loadSheet) return;
+      if (!C || !C.updateSheet) return;
       const name = cb.persona, hp = cb.hp.__player__, xp = cb.outcome === "victory" ? Number(cb.xp) || 0 : 0;
-      Promise.resolve().then(() => C.loadSheet(name)).then((sheet) => {
-        if (!sheet) return;
-        const next = Object.assign({}, sheet, { hp: Object.assign({}, sheet.hp, { current: hp != null ? hp : sheet.hp.current }), xp: (Number(sheet.xp) || 0) + xp });
-        return C.saveSheet(name, next).then(() => {
-          if (xp && levelForXp(next.xp) > (Number(sheet.level) || 1)) {
-            try {
-              window.KLITE_RPMod_Log?.add({ what: `${name} has enough XP for level ${Number(sheet.level) + 1} — use Level up on the character sheet.`, kind: "combat" });
-            } catch (_) {
-            }
-          }
-        });
-      }).catch((e) => dbg("sheet sync failed", e));
+      C.updateSheet(name, (s) => {
+        if (hp != null) s.hp.current = hp;
+        const before = levelForXp(s.xp);
+        s.xp = (Number(s.xp) || 0) + xp;
+        if (xp && levelForXp(s.xp) > (Number(s.level) || 1) && levelForXp(s.xp) > before) gameLog(`${name} has enough XP for level ${(Number(s.level) || 1) + 1} — use Level up on the character sheet.`, "combat");
+      });
     }
     function autoTurn(id) {
       const cb = getCombat();
@@ -27156,21 +27235,28 @@ ${recent}` : "");
         return { sections, location: null };
       }
       if (mutate && rt() && !asArray(rt().visitedLocationIds).includes(loc.id)) rt().visitedLocationIds.push(loc.id);
-      const exits = asArray(loc.exits).map((e) => norm3(e && e.name) || (findById(world.locations, e && e.locationId) || {}).name).filter(Boolean).concat(connectedLocations(world, loc, 1).map((l) => norm3(l.name)));
+      const pLoc = phasedEntity(loc);
+      const zones = zonePath(loc.id), inner = childLocations(loc.id);
+      const exits = asArray(loc.exits).map((e) => norm3(e && e.name) || (findById(world.locations, e && e.locationId) || {}).name).filter(Boolean).concat(connectedLocations(world, loc, 1).map((l) => norm3(phasedEntity(l).name))).concat(zones.length ? [norm3(phasedEntity(zones[zones.length - 1]).name)] : []);
       const exitsUniq = [...new Set(exits.map(norm3).filter(Boolean))];
-      let locText = norm3(loc.description);
-      if (norm3(loc.atmosphere)) locText += `${locText ? "\n" : ""}Atmosphere: ${norm3(loc.atmosphere)}`;
+      let locText = norm3(pLoc.description);
+      if (zones.length) locText = `Part of: ${zones.map((z) => norm3(phasedEntity(z).name)).join(" › ")}` + (locText ? "\n" + locText : "");
+      if (norm3(pLoc.atmosphere)) locText += `${locText ? "\n" : ""}Atmosphere: ${norm3(pLoc.atmosphere)}`;
+      if (loc.hub) locText += `${locText ? "\n" : ""}A hub: travellers, traders and quest givers gather here.`;
+      if (inner.length) locText += `${locText ? "\n" : ""}Places within: ${inner.map((l) => norm3(phasedEntity(l).name)).join(", ")}`;
       if (exitsUniq.length) locText += `${locText ? "\n" : ""}Exits: ${exitsUniq.join(", ")}`;
       const hqFactions = asArray(world.factions).filter((f) => f.hqLocationId === loc.id).map((f) => norm3(f.name)).filter(Boolean);
       if (hqFactions.length) locText += `${locText ? "\n" : ""}Headquarters of: ${hqFactions.join(", ")}`;
-      sections.push({ title: `Current Location: ${norm3(loc.name)}`, priority: 80, text: locText });
+      sections.push({ title: `Current Location: ${norm3(pLoc.name)}`, priority: 80, text: locText });
       const npcsHere = asArray(world.npcs).filter((npc) => resolveNpcLocationId(npc) === loc.id || asArray(loc.npcIds).includes(npc.id));
       const npcSeen = /* @__PURE__ */ new Set();
       const npcLines = [];
       const mode2 = aiMode();
-      for (const npc of npcsHere) {
-        if (npcSeen.has(npc.id)) continue;
-        npcSeen.add(npc.id);
+      for (const rawNpc of npcsHere) {
+        if (npcSeen.has(rawNpc.id)) continue;
+        npcSeen.add(rawNpc.id);
+        const npc = phasedEntity(rawNpc);
+        if (npc.gone) continue;
         const faction = findById(world.factions, npc.factionId);
         const marker = personQuestMarker(npc.id, mode2);
         const att = personAttitude(npc);
@@ -27431,6 +27517,9 @@ ${recent}` : "");
         if (q.turninPersonId && findById(world.npcs, q.turninPersonId)) edges.push({ from: q.id, to: q.turninPersonId, kind: "turnin" });
         for (const pid of asArray(q.prerequisites && q.prerequisites.quests)) if (findById(world.quests, pid)) edges.push({ from: pid, to: q.id, kind: "unlocks" });
       }
+      for (const l of asArray(world.locations)) {
+        if (l.parentId && findById(world.locations, l.parentId)) edges.push({ from: l.parentId, to: l.id, kind: "zone" });
+      }
       for (const ev of asArray(world.events)) {
         for (const t of asArray(ev.triggers)) {
           if (norm3(t.type) === "onQuestState" && findById(world.quests, t.questId)) edges.push({ from: t.questId, to: ev.id, kind: "onquest" });
@@ -27599,6 +27688,7 @@ ${recent}` : "");
         if (x.giverPersonId === yId) x.giverPersonId = null;
         if (x.turninPersonId === yId) x.turninPersonId = null;
         if (x.prerequisites && Array.isArray(x.prerequisites.quests)) x.prerequisites.quests = x.prerequisites.quests.filter((v) => v !== yId);
+        if (x.parentId === yId) x.parentId = null;
       }
       return true;
     }
@@ -27724,31 +27814,93 @@ ${recent}` : "");
       ruleset: { aiMode: "gm", player: { name: "You", stats: { abilities: { str: 14, dex: 14, con: 13, int: 10, wis: 12, cha: 11 }, ac: 16, hpMax: 12, proficiency: 2, attacks: [{ name: "Longsword", toHit: 4, damage: "1d8+2" }, { name: "Shortbow", toHit: 4, damage: "1d6+2" }] } } },
       ui: { x: 120, y: 320 },
       locations: [
-        { id: "loc_village", name: "Millbrook Village", description: "A small farming village gathered around an old stone well.", atmosphere: "peaceful", connectedLocationIds: ["loc_tavern", "loc_forest"], ui: { x: 380, y: 320 } },
-        { id: "loc_tavern", name: "The Prancing Pony", description: "A cozy tavern; hearth crackling, rumors flowing.", atmosphere: "warm", connectedLocationIds: ["loc_village"], ui: { x: 380, y: 150 } },
-        { id: "loc_forest", name: "Forest Road", description: "An old trade road winding through dense woodland.", atmosphere: "tense", connectedLocationIds: ["loc_village", "loc_watchtower", "loc_camp"], ui: { x: 620, y: 320 } },
+        { id: "loc_vale", name: "Brookvale", description: "A green valley on the frontier: farms, woods and one old trade road.", atmosphere: "open", ui: { x: 520, y: 700 } },
+        {
+          id: "loc_village",
+          name: "Millbrook Village",
+          parentId: "loc_vale",
+          hub: true,
+          description: "A small farming village gathered around an old stone well.",
+          atmosphere: "peaceful",
+          connectedLocationIds: ["loc_tavern", "loc_forest"],
+          ui: { x: 380, y: 320 },
+          phases: [{ id: "ph_feast", label: "After the bounty", conditions: [{ type: "quest", questId: "q_bounty", state: "turnedin" }], description: "Millbrook is celebrating: lanterns hang over the well and the road is safe again.", atmosphere: "festive" }]
+        },
+        { id: "loc_tavern", name: "The Crooked Kettle", parentId: "loc_village", description: "A cozy tavern; hearth crackling, rumors flowing.", atmosphere: "warm", connectedLocationIds: ["loc_village"], ui: { x: 380, y: 150 } },
+        { id: "loc_forest", name: "Forest Road", parentId: "loc_vale", description: "An old trade road winding through dense woodland.", atmosphere: "tense", connectedLocationIds: ["loc_village", "loc_watchtower", "loc_camp"], ui: { x: 620, y: 320 } },
         { id: "loc_watchtower", name: "Royal Watchtower", description: "A stone tower guarding the frontier road.", atmosphere: "disciplined", connectedLocationIds: ["loc_forest"], ui: { x: 860, y: 210 } },
-        { id: "loc_camp", name: "Bandit Camp", description: "A hidden camp tucked among the trees.", atmosphere: "dangerous", connectedLocationIds: ["loc_forest"], ui: { x: 860, y: 440 } }
+        {
+          id: "loc_camp",
+          name: "Bandit Camp",
+          parentId: "loc_vale",
+          description: "A hidden camp tucked among the trees.",
+          atmosphere: "dangerous",
+          connectedLocationIds: ["loc_forest"],
+          ui: { x: 860, y: 440 },
+          phases: [{ id: "ph_abandoned", label: "Abandoned", conditions: [{ type: "quest", questId: "q_bounty", state: "turnedin" }], name: "Abandoned Camp", description: "Cold fire pits and torn red banners; the Red Hand is gone.", atmosphere: "eerie" }]
+        }
       ],
       npcs: [
         { id: "npc_bram", name: "Innkeeper Bram", personality: "friendly, gossipy, knows everyone in town", homeLocationId: "loc_tavern", factionId: "fac_town", mood: "cheerful", ui: { x: 200, y: 150 } },
-        { id: "npc_rowan", name: "Captain Rowan", personality: "stern, dutiful veteran of the Royal Guard", homeLocationId: "loc_watchtower", factionId: "fac_guard", mood: "watchful", stats: { abilities: { str: 15, dex: 12, con: 14, int: 10, wis: 12, cha: 11 }, ac: 18, hpMax: 22, proficiency: 2, attacks: [{ name: "Longsword", toHit: 4, damage: "1d8+2" }] }, ui: { x: 1080, y: 170 } },
+        {
+          id: "npc_rowan",
+          name: "Captain Rowan",
+          personality: "stern, dutiful veteran of the Royal Guard",
+          homeLocationId: "loc_watchtower",
+          factionId: "fac_guard",
+          mood: "watchful",
+          phases: [{ id: "ph_grateful", label: "Grateful", conditions: [{ type: "quest", questId: "q_bounty", state: "turnedin" }], mood: "grateful, relaxed" }],
+          stats: { abilities: { str: 15, dex: 12, con: 14, int: 10, wis: 12, cha: 11 }, ac: 18, hpMax: 22, proficiency: 2, attacks: [{ name: "Longsword", toHit: 4, damage: "1d8+2" }] },
+          ui: { x: 1080, y: 170 }
+        },
         { id: "npc_courier", name: "Courier Finn", personality: "nervous, always out of breath", homeLocationId: "loc_village", ui: { x: 200, y: 320 } },
-        { id: "npc_kell", name: "Bandit Leader Kell", personality: "ruthless and greedy", homeLocationId: "loc_camp", factionId: "fac_bandit", isMonster: true, stats: { abilities: { str: 14, dex: 14, con: 13, int: 11, wis: 10, cha: 12 }, ac: 15, hpMax: 27, proficiency: 2, attacks: [{ name: "Scimitar", toHit: 4, damage: "1d6+2" }, { name: "Light Crossbow", toHit: 4, damage: "1d8+2" }] }, ui: { x: 1080, y: 450 } }
+        {
+          id: "npc_kell",
+          name: "Bandit Leader Kell",
+          personality: "ruthless and greedy",
+          homeLocationId: "loc_camp",
+          factionId: "fac_bandit",
+          isMonster: true,
+          phases: [{ id: "ph_gone", label: "Defeated", conditions: [{ type: "quest", questId: "q_bounty", state: "turnedin" }], gone: true }],
+          stats: { abilities: { str: 14, dex: 14, con: 13, int: 11, wis: 10, cha: 12 }, ac: 15, hpMax: 27, proficiency: 2, attacks: [{ name: "Scimitar", toHit: 4, damage: "1d6+2" }, { name: "Light Crossbow", toHit: 4, damage: "1d8+2" }] },
+          ui: { x: 1080, y: 450 }
+        }
       ],
       factions: [
         { id: "fac_town", name: "Millbrook Townsfolk", description: "Ordinary villagers who keep to themselves.", ui: { x: 60, y: 80 } },
         { id: "fac_guard", name: "Royal Guard", description: "Protect the kingdom and keep its roads safe.", hqLocationId: "loc_watchtower", ui: { x: 1080, y: 60 } },
-        { id: "fac_bandit", name: "The Red Hand", description: "Bandits preying on the frontier trade road.", hqLocationId: "loc_camp", ui: { x: 1080, y: 600 } }
+        { id: "fac_bandit", name: "The Red Hand", description: "Bandits preying on the frontier trade road.", hqLocationId: "loc_camp", startReputation: -400, ui: { x: 1080, y: 600 } }
       ],
       objects: [
         { id: "obj_well", name: "Stone Well", desc: "The village water source; children dare each other to peer in.", locationId: "loc_village", ui: { x: 380, y: 470 } },
         { id: "obj_poster", name: "Wanted Poster", desc: "A bounty for the bandit leader — dead or alive.", locationId: "loc_tavern", ui: { x: 200, y: 60 } }
       ],
       quests: [
-        { id: "q_merchant", title: "The Missing Merchant", description: "A merchant vanished on the Forest Road. Bram asks you to find out what happened.", giverPersonId: "npc_bram", turninPersonId: "npc_rowan", rewards: [{ type: "item", item: "Silver Ring", qty: 1 }, { type: "xp", xp: 100 }], objectives: [{ id: "o1", text: "Search the Forest Road" }, { id: "o2", text: "Report to Captain Rowan" }], ui: { x: 200, y: 230 } },
-        { id: "q_bounty", title: "Bandit Bounty", description: "Captain Rowan will pay a bounty for the head of the bandit leader.", giverPersonId: "npc_rowan", turninPersonId: "npc_rowan", rewards: [{ type: "xp", xp: 200 }], ui: { x: 1240, y: 300 } },
+        {
+          id: "q_merchant",
+          title: "The Missing Merchant",
+          description: "A merchant vanished on the Forest Road. Bram asks you to find out what happened.",
+          giverPersonId: "npc_bram",
+          turninPersonId: "npc_rowan",
+          rewards: [{ type: "item", item: "Silver Ring", qty: 1 }, { type: "xp", xp: 100 }, { type: "gold", gold: 20 }, { type: "reputation", factionId: "fac_guard", amount: 100 }],
+          objectives: [{ id: "o1", kind: "visit", target: "loc_forest", text: "Search the Forest Road" }, { id: "o2", kind: "talk", target: "npc_rowan", text: "Report to Captain Rowan" }],
+          ui: { x: 200, y: 230 }
+        },
+        {
+          id: "q_bounty",
+          title: "Bandit Bounty",
+          description: "Captain Rowan will pay a bounty for the head of the bandit leader.",
+          giverPersonId: "npc_rowan",
+          turninPersonId: "npc_rowan",
+          prerequisites: { quests: ["q_merchant"] },
+          rewards: [{ type: "xp", xp: 200 }, { type: "gold", gold: 50 }, { type: "choice", options: [{ item: "Longsword", qty: 1 }, { item: "Shield", qty: 1 }, { item: "Potion of Healing", qty: 2 }] }, { type: "reputation", factionId: "fac_guard", amount: 150 }, { type: "reputation", factionId: "fac_bandit", amount: -300 }],
+          objectives: [{ id: "b1", kind: "kill", target: "npc_kell", count: 1, text: "Defeat Bandit Leader Kell" }],
+          ui: { x: 1240, y: 300 }
+        },
         { id: "q_delivery", title: "Urgent Delivery", description: "Carry a sealed letter from Finn to the Watchtower.", giverPersonId: "npc_courier", turninPersonId: "npc_rowan", hidden: true, hiddenDescription: "??? — a courier may yet find you", ui: { x: 60, y: 320 } }
+      ],
+      encounters: [
+        { id: "enc_redhand", name: "Red Hand ambush", monsters: [{ key: "bandit", count: 2 }], personIds: ["npc_kell"], locationId: "loc_camp" }
       ],
       events: [
         { id: "ev_courier", name: "A Courier Arrives", description: "Finn the courier rushes in, clutching a sealed letter and begging for help.", triggers: [{ type: "onQuestState", questId: "q_merchant", state: "active" }], effects: [{ type: "npcmove", npcId: "npc_courier", locationId: "loc_tavern" }, { type: "quest", questId: "q_delivery", state: "available" }, { type: "discover", quest: "q_delivery" }], repeatable: false, ui: { x: 200, y: 400 } },
@@ -27762,6 +27914,12 @@ ${recent}` : "");
     };
     async function loadExample() {
       const w = deepClone(EXAMPLE_WORLD);
+      if (W.library[w.id]) {
+        let n = 2;
+        while (W.library[`${w.id}_${n}`]) n++;
+        w.id = `${w.id}_${n}`;
+        w.name = `${EXAMPLE_WORLD.name.replace(/\)$/, "")} ${n})`;
+      }
       normalizeWorld(w);
       W.library[w.id] = w;
       await saveLibrary();
@@ -27926,6 +28084,18 @@ ${recent}` : "");
       questLocks: (id) => questLocks(questById(id)),
       reputationTiers: () => TIERS.map((t) => t.name),
       reputation: () => reputationList(),
+      setLocationParent(id, parentId) {
+        const ok = setLocationParent(id, parentId);
+        syncLive();
+        return ok;
+      },
+      zonePath: (id) => zonePath(id).map((z) => ({ id: z.id, name: norm3(phasedEntity(z).name) })),
+      phased: (id) => {
+        const e = entityById(activeWorld(), id);
+        const p = phasedEntity(e);
+        return p ? { name: norm3(p.name), description: norm3(p.description), atmosphere: norm3(p.atmosphere), mood: norm3(p.mood), gone: !!p.gone, phase: p.phase || null } : null;
+      },
+      evalCondition: (c) => evalCondition(c),
       changeReputation(idOrName, amount) {
         ensureRuntime();
         const fid = factionIdOf(idOrName);
@@ -28872,7 +29042,7 @@ ${recent}` : "");
       for (const e of S.G.edges) {
         const a = nodeById(e.from), b = nodeById(e.to);
         if (!a || !b) continue;
-        const line = svg("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, style: e.kind === "contains" ? "stroke:var(--rpm-border);opacity:.8" : "stroke:var(--rpm-fg-muted)", "stroke-width": e.kind === "contains" ? 1 : 1.6, "marker-end": "url(#wm-arrow)" });
+        const line = svg("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, style: e.kind === "contains" ? "stroke:var(--rpm-border);opacity:.8" : "stroke:var(--rpm-fg-muted)", "stroke-width": e.kind === "contains" ? 1 : 1.6, "stroke-dasharray": e.kind === "zone" || e.kind === "unlocks" ? "5 4" : null, "marker-end": "url(#wm-arrow)" });
         if (e.kind === "contains") line.setAttribute("stroke-dasharray", "4 4");
         S.gEdges.appendChild(line);
         if (e.kind !== "contains") {
@@ -29099,7 +29269,14 @@ ${recent}` : "");
         box.appendChild(input);
       }
       if (type === "world") renderWorldExtras(box, ent);
-      if (type === "npc") renderPersonExtras(box, ent);
+      if (type === "npc") {
+        renderPersonExtras(box, ent);
+        renderPhases(box, ent, "npc");
+      }
+      if (type === "location") {
+        renderLocationExtras(box, ent);
+        renderPhases(box, ent, "location");
+      }
       if (type === "quest") {
         renderQuestExtras(box, ent);
         renderQuestPrereqs(box, ent);
@@ -29537,12 +29714,115 @@ ${recent}` : "");
         draw();
         renderInspectorParamsOnly();
       });
+      structuredList(box, "Conditions (all must hold, else it does not fire)", asArrayU(ent.conditions), CONDITION_SPEC, (its) => {
+        A.updateEntity(S.selectedId, { conditions: its });
+        renderInspectorParamsOnly();
+      });
       structuredList(box, "Effects (run when it fires)", asArrayU(ent.effects), EFFECT_SPEC, (its) => {
         A.updateEntity(S.selectedId, { effects: its });
         reloadGraph();
         draw();
         renderInspectorParamsOnly();
       });
+    }
+    const CONDITION_SPEC = {
+      flag: [["key", "text"], ["value", "text"]],
+      quest: [["questId", "quest"], ["state", "qstate"]],
+      reputation: [["factionId", "faction"], ["tier", "tier"]],
+      time: [["time", "time"]],
+      location: [["locationId", "location"]]
+    };
+    function renderLocationExtras(box, ent) {
+      const A = API();
+      const lab = (t) => el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px", text: t });
+      box.appendChild(lab("Part of (zone) — e.g. a tavern inside a village, a village inside a valley"));
+      const s = el2("select", { style: inputCss(false) + ";cursor:pointer", "aria-label": "Part of zone" });
+      s.appendChild(el2("option", { value: "", text: "— top level —" }));
+      for (const l of A.getGraph().nodes.filter((n) => n.type === "location" && n.id !== S.selectedId)) {
+        const o = el2("option", { value: l.id, text: l.name });
+        if (ent.parentId === l.id) o.selected = true;
+        s.appendChild(o);
+      }
+      s.addEventListener("change", () => {
+        if (!A.setLocationParent(S.selectedId, s.value || null)) alert("That would put the place inside itself.");
+        reloadGraph();
+        draw();
+        renderInspector();
+      });
+      box.appendChild(s);
+      const w = el2("label", { style: "display:flex;align-items:center;gap:6px;margin-top:8px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer" });
+      const c = el2("input", { type: "checkbox", "aria-label": "Hub" });
+      c.checked = !!ent.hub;
+      c.addEventListener("change", () => A.updateEntity(S.selectedId, { hub: c.checked }));
+      w.appendChild(c);
+      w.appendChild(document.createTextNode("Hub (travellers, traders and quest givers gather here)"));
+      box.appendChild(w);
+    }
+    function renderPhases(box, ent, type) {
+      const A = API();
+      const phases = asArrayU(ent.phases);
+      const save = () => {
+        A.updateEntity(S.selectedId, { phases });
+        renderInspectorParamsOnly();
+      };
+      box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:14px 0 4px", text: "Phases (the world changes after quests or flags)" }));
+      phases.forEach((ph, i) => {
+        const card = el2("div", { class: "rpm-card", "data-phase": ph.id || String(i) });
+        const label2 = el2("input", { type: "text", value: ph.label || "", placeholder: "phase name, e.g. After the raid", style: inputCss(false), "aria-label": "Phase name" });
+        label2.addEventListener("change", () => {
+          ph.label = label2.value.trim();
+          save();
+        });
+        card.appendChild(el2("div", { style: "display:flex;gap:5px" }, [label2, el2("button", { type: "button", class: "rpm-iconbtn", title: "Remove phase", "aria-label": "Remove phase", style: "color:var(--rpm-danger)", text: "×", onclick: () => {
+          phases.splice(i, 1);
+          save();
+        } })]));
+        structuredList(card, "When (all hold)", asArrayU(ph.conditions), CONDITION_SPEC, (its) => {
+          ph.conditions = its;
+          save();
+        });
+        const fields = type === "location" ? [["name", "Name"], ["description", "Description"], ["atmosphere", "Atmosphere"]] : [["description", "Description"], ["mood", "Mood"]];
+        for (const [key, t] of fields) {
+          const inp = el2(key === "description" ? "textarea" : "input", { type: "text", rows: 2, placeholder: `${t} in this phase (empty = unchanged)`, style: inputCss(key === "description"), "aria-label": `Phase ${t}` });
+          inp.value = ph[key] || "";
+          inp.addEventListener("change", () => {
+            ph[key] = inp.value.trim() || void 0;
+            A.updateEntity(S.selectedId, { phases });
+          });
+          card.appendChild(inp);
+        }
+        if (type === "npc") {
+          const ls = el2("select", { style: inputCss(false), "aria-label": "Phase location" });
+          ls.appendChild(el2("option", { value: "", text: "— stays where they are —" }));
+          for (const l of A.getGraph().nodes.filter((n) => n.type === "location")) {
+            const o = el2("option", { value: l.id, text: "Now at: " + l.name });
+            if (ph.homeLocationId === l.id) o.selected = true;
+            ls.appendChild(o);
+          }
+          ls.addEventListener("change", () => {
+            ph.homeLocationId = ls.value || void 0;
+            A.updateEntity(S.selectedId, { phases });
+          });
+          const gw = el2("label", { style: "display:flex;align-items:center;gap:6px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)" });
+          const g = el2("input", { type: "checkbox", "aria-label": "Gone in this phase" });
+          g.checked = !!ph.gone;
+          g.addEventListener("change", () => {
+            ph.gone = g.checked || void 0;
+            A.updateEntity(S.selectedId, { phases });
+          });
+          gw.appendChild(g);
+          gw.appendChild(document.createTextNode("Gone (left, died …)"));
+          card.appendChild(ls);
+          card.appendChild(gw);
+        }
+        box.appendChild(card);
+      });
+      box.appendChild(el2("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", "data-add-phase": type, onclick: () => {
+        phases.push({ id: "ph_" + Math.random().toString(36).slice(2, 7), label: "", conditions: [{ type: "flag", key: "" }] });
+        save();
+      } }, [iconText("plus", "Add phase")]));
+      const now = A.phased(S.selectedId);
+      if (now && now.phase) box.appendChild(el2("div", { class: "rpm-muted", style: "margin-top:4px", text: `Now showing: ${now.phase}` }));
     }
     function renderInspectorParamsOnly() {
       renderInspector();
@@ -30039,7 +30319,9 @@ ${recent}` : "");
       const rt = A.runtime || {};
       const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
       const c = rt.clock || {};
-      box.appendChild(el2("div", { class: "rpm-muted", "data-party": "location", style: "margin-top:2px;display:flex;align-items:center;gap:4px" }, [icon("map-pin", 13), loc ? loc.name || loc.id : "nowhere"]));
+      const locName = loc ? (A.phased(loc.id) || {}).name || loc.name || loc.id : "nowhere";
+      const zone = loc ? A.zonePath(loc.id).map((z) => z.name) : [];
+      box.appendChild(el2("div", { class: "rpm-muted", "data-party": "location", style: "margin-top:2px;display:flex;align-items:center;gap:4px" }, [icon("map-pin", 13), locName + (zone.length ? " · " + zone[zone.length - 1] : "")]));
       box.appendChild(muted2(`🕑 Day ${c.day || 1}, ${c.time || "—"}${c.weather ? " · " + c.weather : ""}`));
       if (cb && cb.active) {
         const cur = cb.order[cb.turnIndex];
@@ -30122,7 +30404,13 @@ ${recent}` : "");
           const rewards = (q.rewards || []).filter((r) => A.rewardText(r));
           if (rewards.length) {
             const rw = el2("div", { class: "rpm-quest-rewards", "data-rewards": q.id }, [el2("span", { class: "rpm-muted", text: A.rewardsPaid(q.id) ? "Rewards received: " : "Rewards: " })]);
+            let ci = 0;
             for (const r of rewards) {
+              if (r.options && q.paid) {
+                const o = r.options[Number([].concat(q.paid.choice || [])[ci++]) || 0];
+                if (o) rw.appendChild(el2("span", { class: "rpm-chip rpm-chip-quest", "data-chosen": q.id, text: A.rewardText({ type: "item", ...o }) }));
+                continue;
+              }
               if (r.options && st === "complete" && !A.rewardsPaid(q.id)) {
                 const pick = uiSelect({ "aria-label": "Choose your reward", "data-choice": q.id, style: "width:auto;display:inline-block" });
                 pick.appendChild(el2("option", { value: "", text: "— choose one —" }));
@@ -30498,9 +30786,11 @@ ${recent}` : "");
       id: "quests",
       title: "Quests",
       blocks: [
-        { p: "People in the world give quests, like in an MMO: a yellow ! marks someone with a quest for you, a ? someone you can hand a finished quest to." },
+        { p: 'People in the world give quests, like in an MMO: a yellow ! marks someone with a quest for you, a yellow ? someone you can hand a finished quest to. Grey marks mean "later" (level too low) or "in progress".' },
         { list: [
-          "The Quest log lists available, active and finished quests: accept, track, complete, turn in.",
+          'The Quest log lists available, active and finished quests: accept, track, turn in, abandon — with objectives like "Defeat 3 Wolf (1/3)" that count by themselves.',
+          "Rewards (XP, gold, items, reputation) go to your persona's character sheet when you turn a quest in; some let you choose one item.",
+          "Your standing with each faction (Hated … Exalted) is at the bottom of the Quest log.",
           "The Quests section on the left shows what you are working on.",
           'Hidden quests read "???" until you discover them.'
         ] }

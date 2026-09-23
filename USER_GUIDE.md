@@ -179,6 +179,8 @@ on your next turn, update the world state, and are reflected in the following sl
 | `<attack>A-&gt;B</attack>` | `<attack>You-&gt;Goblin</attack>` | Resolve an attack (to-hit vs AC, damage, HP) |
 | `<hp>Name=±N</hp>` | `<hp>Goblin=-4</hp>` | Adjust a combatant's HP |
 | `<check>Name=abi DC</check>` | `<check>You=dex 12</check>` | Ability check vs a DC |
+| `<talk>Name</talk>` | `<talk>Captain Rowan</talk>` | The player spoke with this person (quest objectives) |
+| `<rep>Faction=±N</rep>` | `<rep>Royal Guard=+50</rep>` | Change the player's reputation with a faction |
 | `<encounter>…</encounter>` | `<encounter>2 Wolf, Goblin Warrior</encounter>` | Start a fight: SRD monster names with counts, or a saved encounter's name |
 
 **Time slots:** `morning → noon → afternoon → evening → night`. Advancing past night rolls
@@ -261,10 +263,42 @@ Library (its TavernCard text is reused: without a description of its own, the AI
 line from the card's personality or description) and given an optional **d20 stat block**
 (abilities, AC, HP, attacks). Stats feed combat and appear in the AI's context near that NPC.
 
-**Quests (WoW-style).** Add **Quest** nodes with a **giver** (`!`) and **turn-in** person
-(`?`) — those markers show on the map and persons. The **Quest log** window is your log: accept,
-complete, turn in, and track quests; hidden quests read `???` to the player until discovered.
-A per-world switch controls whether the **AI** (as GM) sees hidden content or not.
+**Quests.** Add **Quest** nodes with a **giver** and a **turn-in** person. Markers show on
+persons: yellow **!** = a quest you can accept, yellow **?** = a finished quest to hand in here,
+grey **?** = a quest in progress that goes back to this person, grey **!** = a quest for later
+(your level is too low). The **Quest log** window is your log: accept, track, complete, turn in,
+**abandon**; hidden quests read `???` to the player until discovered. A per-world switch
+controls whether the **AI** (as GM) sees hidden content or not.
+
+- **Objectives** count by themselves: *Defeat* (a monster name or a person — every defeat in a
+  fight counts, e.g. "Defeat 3 Wolf (1/3)"), *Collect* (items in your inventory; handed over on
+  turn-in), *Talk to* (mention the person in the chat while they are there, or the AI writes
+  `<talk>Name</talk>`), *Go to* (a place; a zone counts all places inside it) and *Manual*
+  (tick it in the Quest log). When all are done the quest is ready to turn in.
+- **Rewards** are paid when you turn in: XP, gold and items go to **your persona's character
+  sheet**, plus reputation; a *choose one* reward lets you pick in the Quest log. In the editor
+  type e.g. `100 xp`, `25 gold`, `Silver Ring x1`, `choose: Longsword | Shield`,
+  `rep Royal Guard +100`.
+- **Chains and requirements:** a quest can require a level, earlier quests (link quest → quest in
+  the editor), flags or a reputation tier. Locked quests cannot be accepted; the player only sees
+  the ones that wait for a level (greyed). A quest can also **start from an item** — it appears
+  when you pick the item up.
+
+**Your inventory is your persona's sheet.** Items, gold and XP from quests, fights and the
+`<give>`/`<take>` tags go onto the character card, so they stay with the character in every
+story. Without a persona the story keeps them. If you are editing the sheet while a reward
+arrives, the reward is merged into your unsaved edits.
+
+**Reputation.** Each faction has a standing from **Hated** through Hostile, Unfriendly,
+Neutral, Friendly, Honored, Revered to **Exalted** (Quest log, bottom). Quests, events and the
+`<rep>Faction=+50</rep>` tag change it; the AI is told what it means (members of a Hostile faction
+are hostile to you, friends give favours) and quests or events can require a tier.
+
+**Zones, hubs and phasing.** In the editor a place can be **part of** another (a tavern in a
+village, a village in a valley); the AI hears "Part of: Brookvale › Millbrook Village" and which
+places lie within. Mark busy places as a **hub**. **Phases** change a place or person once
+conditions hold — e.g. after the bounty is turned in the bandit camp becomes the *Abandoned
+Camp*, the village celebrates and the bandit leader is gone. The last matching phase wins.
 
 **Triggers & chains.** Events have **triggers** (on enter / time / flag / quest-state / action
 / another event) and **effects** (set flags, give items, offer quests, move NPCs, fire another

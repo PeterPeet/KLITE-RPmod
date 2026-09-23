@@ -102,7 +102,7 @@ export default function initWorldsUI() {
         for (const e of S.G.edges) {
             const a = nodeById(e.from), b = nodeById(e.to);
             if (!a || !b) continue;
-            const line = svg('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, style: e.kind === 'contains' ? 'stroke:var(--rpm-border);opacity:.8' : 'stroke:var(--rpm-fg-muted)', 'stroke-width': e.kind === 'contains' ? 1 : 1.6, 'marker-end': 'url(#wm-arrow)' });
+            const line = svg('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, style: e.kind === 'contains' ? 'stroke:var(--rpm-border);opacity:.8' : 'stroke:var(--rpm-fg-muted)', 'stroke-width': e.kind === 'contains' ? 1 : 1.6, 'stroke-dasharray': e.kind === 'zone' || e.kind === 'unlocks' ? '5 4' : null, 'marker-end': 'url(#wm-arrow)' });
             if (e.kind === 'contains') line.setAttribute('stroke-dasharray', '4 4');
             S.gEdges.appendChild(line);
             if (e.kind !== 'contains') {
@@ -285,7 +285,8 @@ export default function initWorldsUI() {
             box.appendChild(input);
         }
         if (type === 'world') renderWorldExtras(box, ent);
-        if (type === 'npc') renderPersonExtras(box, ent);
+        if (type === 'npc') { renderPersonExtras(box, ent); renderPhases(box, ent, 'npc'); }
+        if (type === 'location') { renderLocationExtras(box, ent); renderPhases(box, ent, 'location'); }
         if (type === 'quest') { renderQuestExtras(box, ent); renderQuestPrereqs(box, ent); }
         if (type === 'event') renderEventExtras(box, ent);
         if (type === 'faction') renderFactionExtras(box, ent);
@@ -589,7 +590,69 @@ export default function initWorldsUI() {
         flags.appendChild(mk('Hidden', 'hidden')); flags.appendChild(mk('Repeatable', 'repeatable'));
         box.appendChild(flags);
         structuredList(box, 'Triggers (any fires the event)', asArrayU(ent.triggers), TRIGGER_SPEC, its => { A.updateEntity(S.selectedId, { triggers: its }); reloadGraph(); draw(); renderInspectorParamsOnly(); });
+        structuredList(box, 'Conditions (all must hold, else it does not fire)', asArrayU(ent.conditions), CONDITION_SPEC, its => { A.updateEntity(S.selectedId, { conditions: its }); renderInspectorParamsOnly(); });
         structuredList(box, 'Effects (run when it fires)', asArrayU(ent.effects), EFFECT_SPEC, its => { A.updateEntity(S.selectedId, { effects: its }); reloadGraph(); draw(); renderInspectorParamsOnly(); });
+    }
+    // Readable condition kinds (the engine translates them): flag set (or = value), quest in a
+    // state, reputation tier (above Neutral: or better; below: or worse), time of day, player location.
+    const CONDITION_SPEC = {
+        flag: [['key', 'text'], ['value', 'text']],
+        quest: [['questId', 'quest'], ['state', 'qstate']],
+        reputation: [['factionId', 'faction'], ['tier', 'tier']],
+        time: [['time', 'time']],
+        location: [['locationId', 'location']],
+    };
+    // Location: part of a zone, hub flag.
+    function renderLocationExtras(box, ent) {
+        const A = API();
+        const lab = (t) => el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px', text: t });
+        box.appendChild(lab('Part of (zone) — e.g. a tavern inside a village, a village inside a valley'));
+        const s = el('select', { style: inputCss(false) + ';cursor:pointer', 'aria-label': 'Part of zone' });
+        s.appendChild(el('option', { value: '', text: '— top level —' }));
+        for (const l of A.getGraph().nodes.filter(n => n.type === 'location' && n.id !== S.selectedId)) { const o = el('option', { value: l.id, text: l.name }); if (ent.parentId === l.id) o.selected = true; s.appendChild(o); }
+        s.addEventListener('change', () => { if (!A.setLocationParent(S.selectedId, s.value || null)) alert('That would put the place inside itself.'); reloadGraph(); draw(); renderInspector(); });
+        box.appendChild(s);
+        const w = el('label', { style: 'display:flex;align-items:center;gap:6px;margin-top:8px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer' });
+        const c = el('input', { type: 'checkbox', 'aria-label': 'Hub' }); c.checked = !!ent.hub;
+        c.addEventListener('change', () => A.updateEntity(S.selectedId, { hub: c.checked }));
+        w.appendChild(c); w.appendChild(document.createTextNode('Hub (travellers, traders and quest givers gather here)'));
+        box.appendChild(w);
+    }
+    // Phases: how a location / person looks once conditions hold (the last matching phase wins).
+    function renderPhases(box, ent, type) {
+        const A = API();
+        const phases = asArrayU(ent.phases);
+        const save = () => { A.updateEntity(S.selectedId, { phases }); renderInspectorParamsOnly(); };
+        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:14px 0 4px', text: 'Phases (the world changes after quests or flags)' }));
+        phases.forEach((ph, i) => {
+            const card = el('div', { class: 'rpm-card', 'data-phase': ph.id || String(i) });
+            const label = el('input', { type: 'text', value: ph.label || '', placeholder: 'phase name, e.g. After the raid', style: inputCss(false), 'aria-label': 'Phase name' });
+            label.addEventListener('change', () => { ph.label = label.value.trim(); save(); });
+            card.appendChild(el('div', { style: 'display:flex;gap:5px' }, [label, el('button', { type: 'button', class: 'rpm-iconbtn', title: 'Remove phase', 'aria-label': 'Remove phase', style: 'color:var(--rpm-danger)', text: '×', onclick: () => { phases.splice(i, 1); save(); } })]));
+            structuredList(card, 'When (all hold)', asArrayU(ph.conditions), CONDITION_SPEC, its => { ph.conditions = its; save(); });
+            const fields = type === 'location' ? [['name', 'Name'], ['description', 'Description'], ['atmosphere', 'Atmosphere']] : [['description', 'Description'], ['mood', 'Mood']];
+            for (const [key, t] of fields) {
+                const inp = el(key === 'description' ? 'textarea' : 'input', { type: 'text', rows: 2, placeholder: `${t} in this phase (empty = unchanged)`, style: inputCss(key === 'description'), 'aria-label': `Phase ${t}` });
+                inp.value = ph[key] || '';
+                inp.addEventListener('change', () => { ph[key] = inp.value.trim() || undefined; A.updateEntity(S.selectedId, { phases }); });
+                card.appendChild(inp);
+            }
+            if (type === 'npc') {
+                const ls = el('select', { style: inputCss(false), 'aria-label': 'Phase location' });
+                ls.appendChild(el('option', { value: '', text: '— stays where they are —' }));
+                for (const l of A.getGraph().nodes.filter(n => n.type === 'location')) { const o = el('option', { value: l.id, text: 'Now at: ' + l.name }); if (ph.homeLocationId === l.id) o.selected = true; ls.appendChild(o); }
+                ls.addEventListener('change', () => { ph.homeLocationId = ls.value || undefined; A.updateEntity(S.selectedId, { phases }); });
+                const gw = el('label', { style: 'display:flex;align-items:center;gap:6px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)' });
+                const g = el('input', { type: 'checkbox', 'aria-label': 'Gone in this phase' }); g.checked = !!ph.gone;
+                g.addEventListener('change', () => { ph.gone = g.checked || undefined; A.updateEntity(S.selectedId, { phases }); });
+                gw.appendChild(g); gw.appendChild(document.createTextNode('Gone (left, died …)'));
+                card.appendChild(ls); card.appendChild(gw);
+            }
+            box.appendChild(card);
+        });
+        box.appendChild(el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', 'data-add-phase': type, onclick: () => { phases.push({ id: 'ph_' + Math.random().toString(36).slice(2, 7), label: '', conditions: [{ type: 'flag', key: '' }] }); save(); } }, [iconText('plus', 'Add phase')]));
+        const now = A.phased(S.selectedId);
+        if (now && now.phase) box.appendChild(el('div', { class: 'rpm-muted', style: 'margin-top:4px', text: `Now showing: ${now.phase}` }));
     }
     // Re-render inspector without losing scroll for structured edits.
     function renderInspectorParamsOnly() { renderInspector(); }
@@ -977,7 +1040,9 @@ export default function initWorldsUI() {
         const rt = A.runtime || {};
         const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
         const c = rt.clock || {};
-        box.appendChild(el('div', { class: 'rpm-muted', 'data-party': 'location', style: 'margin-top:2px;display:flex;align-items:center;gap:4px' }, [icon('map-pin', 13), loc ? (loc.name || loc.id) : 'nowhere']));
+        const locName = loc ? ((A.phased(loc.id) || {}).name || loc.name || loc.id) : 'nowhere';
+        const zone = loc ? A.zonePath(loc.id).map(z => z.name) : [];
+        box.appendChild(el('div', { class: 'rpm-muted', 'data-party': 'location', style: 'margin-top:2px;display:flex;align-items:center;gap:4px' }, [icon('map-pin', 13), locName + (zone.length ? ' · ' + zone[zone.length - 1] : '')]));
         box.appendChild(muted(`🕑 Day ${c.day || 1}, ${c.time || '—'}${c.weather ? ' · ' + c.weather : ''}`));
         if (cb && cb.active) {
             const cur = cb.order[cb.turnIndex];
@@ -1052,7 +1117,13 @@ export default function initWorldsUI() {
                 const rewards = (q.rewards || []).filter(r => A.rewardText(r));
                 if (rewards.length) {
                     const rw = el('div', { class: 'rpm-quest-rewards', 'data-rewards': q.id }, [el('span', { class: 'rpm-muted', text: A.rewardsPaid(q.id) ? 'Rewards received: ' : 'Rewards: ' })]);
+                    let ci = 0;
                     for (const r of rewards) {
+                        if (r.options && q.paid) {   // show what was chosen
+                            const o = r.options[Number([].concat(q.paid.choice || [])[ci++]) || 0];
+                            if (o) rw.appendChild(el('span', { class: 'rpm-chip rpm-chip-quest', 'data-chosen': q.id, text: A.rewardText({ type: 'item', ...o }) }));
+                            continue;
+                        }
                         if (r.options && st === 'complete' && !A.rewardsPaid(q.id)) {
                             const pick = uiSelect({ 'aria-label': 'Choose your reward', 'data-choice': q.id, style: 'width:auto;display:inline-block' });
                             pick.appendChild(el('option', { value: '', text: '— choose one —' }));

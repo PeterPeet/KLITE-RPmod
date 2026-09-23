@@ -17,9 +17,9 @@ test('bundle: all modules attach and the Worlds pipeline works end to end', asyn
     assert.ok(w.KLITE_RPMod_WorldsUI, 'Worlds UI attached');
 
     await W.loadExample();
-    W.moveTo('The Prancing Pony');
+    W.moveTo('The Crooked Kettle');
     await w.prepare_submit_generation();
-    assert.match(h.prompt, /\[Current Location: The Prancing Pony\]/, 'slice reached the prompt');
+    assert.match(h.prompt, /\[Current Location: The Crooked Kettle\]/, 'slice reached the prompt');
     assert.equal(h.worldsEntries().length, 0, 'transient cleanup');
     const save = w.generate_savefile();
     assert.ok(save.rpmod_worlds, 'Worlds state embedded in save');

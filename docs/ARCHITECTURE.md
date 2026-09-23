@@ -98,25 +98,40 @@ Gotchas:
 
 ### 3.1 Data model (static, authored — the "world")
 `world = { id, name, description, rules[], ruleset:{ aiMode:'gm'|'player', player:{name,stats} },
-locations[], npcs[], factions[], objects[], events[], quests[], globalLore[], ui }`.
+locations[], npcs[], factions[], objects[], events[], quests[], encounters[], globalLore[], ui }`.
+`ruleset.player.stats` is only the fallback player: the enabled persona's sheet wins (R4).
 `TYPE_ARRAYS` maps node types → arrays. Key fields:
-- location: `description, atmosphere, connectedLocationIds[], npcIds[], objectIds[], localLore[]`
+- location: `description, atmosphere, connectedLocationIds[], npcIds[], objectIds[], localLore[],
+  parentId` (zone; no cycles, `setLocationParent`)`, hub, phases[]`
 - npc (person): `name, description, personality, mood, homeLocationId, factionId,
-  schedule[{time,locationId}], characterRef{source,id,name}, characterSnapshot, stats`
+  schedule[{time,locationId}], characterRef{source,id,name}, characterSnapshot, stats, phases[]`
+- phases (location/person): `[{ id, label, conditions[], name?, description?, atmosphere?, mood?,
+  homeLocationId?, gone? }]` — the LAST phase whose conditions all hold overrides those fields
+  (`quest-rules.phased`); `gone` hides a person. Used by the slice, NPC placement and the UI.
 - stats (d20): `abilities{str…cha}, ac, hpMax, speed, proficiency, initiativeMod,
-  attacks[{name,toHit,damage}], skills, saves, isMonster` (*isMonster currently unused*)
-- faction: `description, goals, hqLocationId`
+  attacks[{name,toHit,damage}], skills, saves, isMonster` (isMonster: always an enemy in combat)
+- faction: `description, goals, hqLocationId, startReputation`
 - quest: `title, description, hiddenDescription, hidden, giverPersonId, turninPersonId,
-  rewards[], objectives[{id,text,hidden}]`
+  rewards[], objectives[], prerequisites{ level, quests[], flags[], reputation{factionId,tier} },
+  startItem` — rewards `{type:'xp'|'gold'|'item'|'reputation'|'choice', …}` (legacy rewards
+  without `type` are inferred); objectives `{ id, text, hidden, kind: manual|kill|collect|talk|visit,
+  target, count, consume? }`
 - event: `name, description, hidden, repeatable, triggers[], conditions[], effects[], locationIds[]`
+  (effects add `encounter`, `reputation`; triggers add `onReputation`)
+- conditions: `{ field, op, value }` (fields `time, season, weather, day, month, year, location,
+  flag.<k>, quest.<id>, rep.<factionId>, tier.<factionId>`; ops `== != > < >= <= includes has_flag
+  not_flag is tier>=`) or the editor's readable kinds `{ type: 'flag'|'quest'|'reputation'|'time'|
+  'location', … }`, translated by `expandCondition`. Tier requirements: above Neutral "or better",
+  below Neutral "or worse" (`quest-rules.tierAtLeastOrWorse`).
 - lore: `content, keys[], label, always`
 Library of worlds persists in IndexedDB key **`KLITE_WORLDS_LIBRARY`**.
 
 ### 3.2 Runtime state (per story, two slots)
 `W.runtime = { active:'working'|'base', base:Snapshot, working:Snapshot }`; every engine
 read/write goes through **`rt()`** (active snapshot). Snapshot:
-`playerLocationId, party[], knownNpcIds[], visitedLocationIds[], flags{}, inventory[],
-questState{}, questObjectives{}, activeQuestId, discovered{quests,events,descriptions},
+`playerLocationId, party[], knownNpcIds[], visitedLocationIds[], flags{}, inventory[], coins{gp},
+xp, questState{}, questObjectives{ qid: { oid: true | count } }, rewardsPaid{}, reputation{},
+activeQuestId, discovered{quests,events,descriptions},
 combat, npcStateOverrides{}, completedEventIds[], lastParsedIndex, clock{day,month,year,time,season,weather}`.
 Ops: `resetToBase / commitToBase / swapActive / setActiveSlot` (deep clones).
 `toRuntimeContainer()` migrates old flat saves. Saved in the story file under key
@@ -182,11 +197,38 @@ from the generation turn and from discrete API mutations (moveTo, setClock, adva
 setFlag, setQuestState). Events fired since the last generation are injected; trigger-less
 /`onTurn` events are "ambient" (shown while conditions hold).
 
-### 3.6 Quests
+### 3.6 Quests, reputation, zones (R4) — rules in `src/game/quest-rules.js` (pure)
 States `available → active → complete → turnedin` (+ `failed`); first accepted quest is
-tracked. Markers: `?` = turn-in person of a completed quest, `!` = giver of an available
-quest. Visibility: `gm`/`creator` see all; `player` sees non-hidden or discovered.
-*Rewards are stored but not paid out; no prerequisites yet.*
+tracked; `abandonQuest` returns an accepted quest to available (progress reset). Quest events
+(accepted, objective done, ready, turned in with rewards, abandoned, failed, reputation) go to
+the game log (`kind: 'quest'`), so the AI narrates them.
+- **Inventory = the persona's sheet** (owner's decision): `inventoryAdd/Remove`, `addCoins`,
+  `addXp` write through `KLITE_RPMod_Characters.updateSheet` (cache at once, serialized saves;
+  combat's HP/XP write-back uses the same queue); without a persona (or sheet) the runtime's
+  `inventory/coins/xp`. `itemCount` = sheet + story. Stacks merge singular/plural (`sameName`).
+- **Objectives:** `questEvent('kill'|'talk'|'visit', info)` from combat defeats (monster name /
+  person id), talk detection (named in a new message while present; `<talk>` tag) and moves
+  (`isInsideLocation`: zones count their places); collect = `itemCount` (consumed on turn-in
+  unless `consume:false`). `updateQuestProgress()` (in `syncLive`, per turn, on
+  `klite:sheet-change`): item-started quests appear, visit objectives, all done → `complete`,
+  a lost collect item → back to `active`.
+- **Rewards:** `turnInQuest(id, choice)` pays once (`rewardsPaid`); a `choice` reward needs the
+  index (turn-in returns null without it).
+- **Prerequisites/chains:** `questLocks(q)`; accept refuses when locked. Player lens: level-only
+  locks are shown greyed, others hidden. Editor quest→quest link = `prerequisites.quests`
+  (graph edge `unlocks`). `startItem`: hidden from the player until the item is held.
+- **Markers:** `questMarkerInfo` → yellow `?` (complete, turn in here) > yellow `!` (available,
+  unlocked) > grey `?` (active, turn in here) > grey `!` (level too low). `personQuestMarker`
+  = the yellow ones only (AI slice, back-compat).
+- **Reputation:** `rt().reputation[fid]` (else `faction.startReputation`), tiers (quest-rules
+  `TIERS`: Hated < −1000 ≤ Hostile < −300 ≤ Unfriendly < −50 ≤ Neutral < 100 ≤ Friendly < 500 ≤
+  Honored < 1200 ≤ Revered < 2500 ≤ Exalted). Changed by rewards, effect `reputation`, tag
+  `<rep>Faction=±N</rep>`, API `changeReputation`; signal `reputation:<fid>` for the trigger
+  `onReputation`. Slice: section "Reputation" (non-Neutral tiers + meaning) and each faction
+  member's attitude.
+- **Zones/hubs/phases:** `parentId` builds zones (slice: "Part of: A › B", "Places within",
+  the zone among the exits; graph edge `zone`); `hub` adds a line; phases as in §3.1.
+- Visibility: `gm`/`creator` see all; `player` sees non-hidden or discovered.
 
 ### 3.7 Persons & combat (R5)
 Persons may reference `KLITE_RPMod.characters` (by id, then name); export embeds a
