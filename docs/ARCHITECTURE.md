@@ -12,6 +12,8 @@
 | `KLITE-RPmod_Worlds.js` (~1.6k) | `window.KLITE_RPMod_Worlds` | Worlds engine: world graph, retrieval, injection, runtime state, quests, triggers, combat |
 | `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds views for the shell (World tab, Party/Quests sections, Quest log/Combat/World editor windows) |
 | `context/context.js` | `window.KLITE_RPMod_Context` | **Single owner of per-turn prompt context**: providers, the one `prepare_submit_generation` wrapper, managed WI entries, save stripping (§3.3) |
+| `characters/sheet.js`, `store.js`, `characters.js` | `window.KLITE_RPMod_Characters` | d20 sheet model (pure), load/save on the card, Character sheet window (§5b) |
+| `game/log.js` | `window.KLITE_RPMod_Log` | Dice roller + per-story game log; context provider `gamelog` (§5b) |
 | `settings/settings.js` | `window.KLITE_RPMod_Settings` | "RPmod" tab in Esolite's Settings dialog; modules register options (§4c) |
 | `library/esoliteLibrary.js` | `window.KLITE_RPMod_Library` | Writes characters through Esolite's own Library (id-based since 1.35); recovers characters an older RPmod hid (§5a) |
 | `shell/shell.js`, `windows.js`, `styles.js`, `dom.js` | `window.KLITE_RPMod_Shell` | App shell: docks, view registry, floating windows, design tokens, top-bar button (§4a) |
@@ -330,6 +332,30 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
   `id` added; never deletes or overwrites.
 - Host functions come from `window` or, for `let`/`const` bindings, `hostGlobals.js`.
 
+## 5b. Characters & dice (`src/characters/`, `src/game/log.js`)
+- **Sheet** (`sheet.js`, pure): `defaultSheet/normalizeSheet` (clamps, keeps unknown fields),
+  `derive` (SRD 5.2: mod = ⌊(score−10)/2⌋, PB = 2+⌊(level−1)/4⌋, saves, skills ×1/×2,
+  initiative, passive Perception, attack to-hit), `readSheet/writeSheet` on the card's
+  `data.extensions.klite_rpmod.sheet` (other extensions and klite_rpmod keys kept),
+  `toCombatStats/fromCombatStats` (Worlds stat block), `sheetSummary` (AI text).
+- **Store** (`store.js`): `loadSheet/saveSheet` through the Library adapter; sync cache
+  `cachedSheet/combatStatsFor/summaryFor` (loads on first use); `klite:sheet-change`.
+- **Portrait = exported card:** `esoliteLibrary.embedCardInImage` strips old `chara`/`ccv3`
+  tEXt chunks (Esolite's `injectTextChunk` only appends; readers take the first) and embeds
+  a V2 card (spec + data, V1 fields mirrored) with Esolite's `tavernTool.embedIntoPng`.
+- **Window** `sheet` (`characters.js`): draft vs saved, Save/Revert, setting
+  `sheets_autosave` (Characters), `beforeClose` asks; re-render keeps focus + selection;
+  one-line inputs carry `fullScreenTextEditExclude` (Esolite's full-screen edit button stays
+  on text areas). API `open(name)`, `current()`.
+- **Dice/log** (`game/log.js`): `roll(expr, { mode: 'adv'|'dis' })`, `rollAndLog`, per-story
+  entries (≤200) in the savefile key `rpmod_log` (reset on loading a story without it);
+  context provider `gamelog` (order 60, priority 92) lists rolls since the last reply
+  (`afterTurn` marks them consumed); left-dock section `gamelog` ("Dice log").
+- **Uses:** ALPHA's `characters` provider appends the sheet summary; Worlds'
+  `combatantStats`/slice fall back to the linked card's sheet (`cardSheetStats`) and the
+  persona sheet for the player (`personaSheetStats`); Worlds' character lookup falls back to
+  Esolite's Library names when ALPHA's gallery is empty.
+
 ## 5. ALPHA core (`src/KLITE-RPmod_ALPHA.js`) — overview
 Right-side panels; character gallery/import (TavernCard V2, partial V3) and editor;
 personas; group chat (speaker modes, round robin, talkativeness); quick actions; chapters;
@@ -344,7 +370,9 @@ Node's built-in runner + jsdom. `tests/helpers/host.js` builds a fake Esolite ho
 globals in §2, a recording `submit_generation`, `seedRandom` for dice) and loads sources
 via `vm` like a usermod (single `src/` modules are bundled on the fly with esbuild; the
 viewport is 1400×900, `host.resize()` changes it). Suites: `syntax`, `engine`, `quests`,
-`triggers`, `combat`, `context`, `library`, `shell`, `ui`, `onboarding`, `bundle` (built file end-to-end).
+`triggers`, `combat`, `context`, `library`, `settings`, `characters`, `shell`, `ui`, `onboarding`, `bundle` (built file end-to-end).
+`host.installTavernTool()` loads Esolite's real `tavernTool.js`; `host.installFakeSettingsDialog()`
+mimics the Settings dialog.
 `host.installFakeLibrary()` mimics Esolite 1.35's id-based Library (incl. the id-less drop).
 `host.installFakeQuickStart()` mimics Esolite's Quick Start (top-level `let` bindings +
 popupUtils). The helper uses jsdom's own VM context (`runScripts: 'outside-only'`) so page

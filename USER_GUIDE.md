@@ -194,6 +194,25 @@ to the next day, and the **season** follows the month automatically.
 
 ## 6b. Tabletop-RPG systems
 
+**Character sheets.** Every character in your Library can have a d20 sheet (SRD 5.2 rules):
+species, class, level, background, the six abilities, saving throws, the 18 skills
+(proficient or expertise), AC, speed, HP, attacks, inventory, coins, features and notes.
+Open it with **Character sheet** in the left panel's *Party* section. It starts with your
+persona; pick any character at the top. Modifiers, the proficiency bonus, initiative and
+passive Perception are calculated for you.
+
+- **Click to roll:** every bonus is a button that rolls a d20 with it (choose **Advantage**
+  or **Disadvantage** at the top); attacks roll to hit and damage. Rolls appear in the
+  **Dice log** (left panel) and are saved with the story. **The AI sees the rolls made
+  since its last reply.**
+- **Stored in the card:** the sheet lives inside the character card
+  (`extensions.klite_rpmod`), so exporting the card from Esolite's Library keeps it, as do
+  SillyTavern and Chub. Changes are a draft until you press **Save** (or turn on
+  *Autosave character sheets* in Settings → RPmod); **Revert** undoes them.
+- **What the AI knows:** your persona's (and the active character's) sheet summary is part
+  of the prompt. A world person linked to a card uses that card's sheet in combat if it has
+  no stat block of its own.
+
 The **World** tab shows the live game state (enable, state slots, location, time, flags,
 inventory) and has buttons for the **Quest log** and **Combat** windows and the **Editor**,
 plus a **Creator ⇄ Player** lens in its header.

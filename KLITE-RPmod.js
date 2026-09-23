@@ -18,7 +18,7 @@
   };
   var SHELL_CSS = `
 :root {
-${Object.entries(RPMOD_THEME_DEFAULTS).map(([k, v]) => `    ${k}: ${v};`).join("\n")}
+${Object.entries(RPMOD_THEME_DEFAULTS).map(([k2, v]) => `    ${k2}: ${v};`).join("\n")}
 }
 #rpm-shell, .rpm-themed {
     /* aliases of Esolite theme variables (fallbacks: vanilla Lite without themes) */
@@ -154,6 +154,9 @@ ${Object.entries(RPMOD_THEME_DEFAULTS).map(([k, v]) => `    ${k}: ${v};`).join("
 #rpm-shell.rpm-compact .rpm-window-head { cursor: default; }
 #rpm-shell.rpm-compact .rpm-window-grip { display: none; }
 
+/* the hidden attribute must win over display rules of buttons/rows (e.g. .rpm-btn-icon) */
+#rpm-shell [hidden], .rpm-themed [hidden] { display: none !important; }
+
 /* ---- icons (Lucide subset, src/shell/icons.js): currentColor strokes ---- */
 .rpm-icon { flex: none; display: inline-block; vertical-align: middle; }
 .rpm-btn.rpm-btn-icon { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
@@ -258,6 +261,36 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
     .wm-ed-add { width: auto; white-space: nowrap; }
     .wm-ed-canvas { flex: 1 1 55%; }
     .wm-ed-insp { flex: 0 1 45%; border-left: 0; border-top: 1px solid var(--rpm-border); }
+}
+
+/* ---- character sheet (window "sheet") + dice log ---- */
+.rpm-sheet { display: flex; flex-direction: column; gap: 4px; }
+.rpm-sheet-h { margin: 10px 0 4px; }
+.rpm-sheet-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin: 0; }
+.rpm-sheet-grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.rpm-sheet-abilities { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.rpm-sheet-ability { display: flex; flex-direction: column; align-items: stretch; gap: 3px; text-align: center; padding: 6px 4px; border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); background: var(--rpm-bg-alt); }
+.rpm-sheet-ability .rpm-label { font-size: var(--rpm-fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rpm-sheet-ability input { text-align: center; }
+.rpm-sheet-mod { min-width: 48px; font-weight: bold; }
+.rpm-sheet-static { padding: 4px 0; font-weight: bold; }
+.rpm-sheet-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; }
+.rpm-sheet-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.rpm-sheet-attack input:first-child { flex: 2 1 0; min-width: 0; }
+.rpm-sheet-attack input, .rpm-sheet-attack select { flex: 1 1 0; min-width: 0; }
+.rpm-sheet-qty { width: 64px; flex: none; }
+.rpm-sheet-prof { width: 22px; font-size: 15px; }
+.rpm-sheet-prof[data-prof="1"], .rpm-sheet-prof[data-prof="2"] { color: var(--rpm-success); }
+.rpm-sheet-modes .rpm-btn { flex: 1; }
+.rpm-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100002; background: var(--rpm-bg); color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi); box-shadow: inset 3px 0 0 var(--rpm-success), var(--rpm-shadow); border-radius: var(--rpm-radius-lg); padding: 8px 16px; font-family: var(--rpm-font); font-size: var(--rpm-fs); }
+.rpm-toast-err { box-shadow: inset 3px 0 0 var(--rpm-danger), var(--rpm-shadow); }
+.rpm-log-line { font-size: var(--rpm-fs-sm); padding: 2px 0; border-bottom: 1px solid var(--rpm-border); }
+.rpm-log-crit { color: var(--rpm-success); font-weight: bold; }
+.rpm-log-fumble { color: var(--rpm-danger); }
+@container (max-width: 520px) {
+    .rpm-sheet-abilities { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .rpm-sheet-grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rpm-sheet-list { grid-template-columns: 1fr; }
 }
 
 /* ---- "Show me" spotlight (outside the shell layer, above everything) ---- */
@@ -365,6 +398,8 @@ body.rpm-docked #maincontainer {
     "arrow-right": [["path", { "d": "M5 12h14" }], ["path", { "d": "m12 5 7 7-7 7" }]],
     // Quick Start
     "play": [["path", { "d": "M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z" }]],
+    // character sheet
+    "id-card": [["path", { "d": "M13 19a4 4 0 00-8 0" }], ["path", { "d": "M16 10h2" }], ["path", { "d": "M16 14h2" }], ["circle", { "cx": "9", "cy": "12", "r": "3" }], ["rect", { "x": "2", "y": "5", "width": "20", "height": "14", "rx": "2" }]],
     // preview what the AI sees
     "eye": [["path", { "d": "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" }], ["circle", { "cx": "12", "cy": "12", "r": "3" }]],
     // add
@@ -402,14 +437,14 @@ body.rpm-docked #maincontainer {
   // src/shell/dom.js
   function el(tag, props, kids) {
     const e = document.createElement(tag);
-    if (props) for (const k in props) {
-      const v = props[k];
+    if (props) for (const k2 in props) {
+      const v = props[k2];
       if (v == null) continue;
-      if (k === "style") e.style.cssText = v;
-      else if (k === "text") e.textContent = v;
-      else if (k === "class") e.className = v;
-      else if (k.slice(0, 2) === "on" && typeof v === "function") e.addEventListener(k.slice(2), v);
-      else e.setAttribute(k, v);
+      if (k2 === "style") e.style.cssText = v;
+      else if (k2 === "text") e.textContent = v;
+      else if (k2 === "class") e.className = v;
+      else if (k2.slice(0, 2) === "on" && typeof v === "function") e.addEventListener(k2.slice(2), v);
+      else e.setAttribute(k2, v);
     }
     for (const c of [].concat(kids || [])) if (c != null) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
     return e;
@@ -436,7 +471,7 @@ body.rpm-docked #maincontainer {
       const [tag, attrs] = Array.isArray(item) ? item : ["path", { d: item }];
       if (!SHAPE_TAGS.has(tag)) continue;
       const e = document.createElementNS(NS, tag);
-      for (const k in attrs) e.setAttribute(k, attrs[k]);
+      for (const k2 in attrs) e.setAttribute(k2, attrs[k2]);
       s.appendChild(e);
     }
     return s;
@@ -639,8 +674,8 @@ body.rpm-docked #maincontainer {
       try {
         const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
         if (saved && typeof saved === "object") {
-          for (const k of ["left", "right"]) if (saved[k] && typeof saved[k] === "object") Object.assign(base[k], saved[k]);
-          for (const k of ["sections", "windows"]) if (saved[k] && typeof saved[k] === "object") base[k] = saved[k];
+          for (const k2 of ["left", "right"]) if (saved[k2] && typeof saved[k2] === "object") Object.assign(base[k2], saved[k2]);
+          for (const k2 of ["sections", "windows"]) if (saved[k2] && typeof saved[k2] === "object") base[k2] = saved[k2];
         }
       } catch (_) {
       }
@@ -1149,8 +1184,8 @@ body.rpm-docked #maincontainer {
       const ctx = {
         mutate,
         describe(name) {
-          const k = charKey(name);
-          if (k) described.add(k);
+          const k2 = charKey(name);
+          if (k2) described.add(k2);
         },
         isDescribed(name) {
           return described.has(charKey(name));
@@ -1361,6 +1396,69 @@ ${s.text}` : s.text : `[${s.title}]`;
     return list().find((m) => normalizeName(m && m.name) === n);
   }
   var storageKey = (id) => `character_${id}`;
+  var CARD_KEYS = /* @__PURE__ */ new Set(["chara", "ccv3", "chara_encoding", "chara_spec"]);
+  function v2Card(inner) {
+    const d = inner || {};
+    return {
+      spec: "chara_card_v2",
+      spec_version: "2.0",
+      name: d.name || "",
+      description: d.description || "",
+      personality: d.personality || "",
+      scenario: d.scenario || "",
+      first_mes: d.first_mes || "",
+      mes_example: d.mes_example || "",
+      data: d
+    };
+  }
+  function stripCardChunks(bytes) {
+    const SIG = 8;
+    if (!bytes || bytes.length < SIG) return bytes;
+    const parts = [bytes.subarray(0, SIG)];
+    let pos = SIG, total = SIG;
+    while (pos + 12 <= bytes.length) {
+      const len = (bytes[pos] << 24 | bytes[pos + 1] << 16 | bytes[pos + 2] << 8 | bytes[pos + 3]) >>> 0;
+      const end = pos + 12 + len;
+      if (end > bytes.length) break;
+      const type = String.fromCharCode(bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]);
+      let drop = false;
+      if (type === "tEXt") {
+        let k2 = pos + 8, key = "";
+        while (k2 < pos + 8 + len && bytes[k2] !== 0 && key.length < 80) key += String.fromCharCode(bytes[k2++]);
+        drop = CARD_KEYS.has(key);
+      }
+      if (!drop) {
+        parts.push(bytes.subarray(pos, end));
+        total += end - pos;
+      }
+      pos = end;
+      if (type === "IEND") break;
+    }
+    const out = new Uint8Array(total);
+    let o = 0;
+    for (const p of parts) {
+      out.set(p, o);
+      o += p.length;
+    }
+    return out;
+  }
+  var PNG_PREFIX = "data:image/png;base64,";
+  function embedCardInImage(image, inner) {
+    const tool = window.tavernTool;
+    if (typeof image !== "string" || !image.startsWith(PNG_PREFIX) || !tool || typeof tool.embedIntoPng !== "function") return image;
+    try {
+      const bin = atob(image.slice(PNG_PREFIX.length));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const out = tool.embedIntoPng(stripCardChunks(bytes), v2Card(inner));
+      let text = "";
+      for (let i = 0; i < out.length; i += 32768) text += String.fromCharCode.apply(null, out.subarray(i, Math.min(i + 32768, out.length)));
+      return PNG_PREFIX + btoa(text);
+    } catch (e) {
+      console.error("[RPmod library] could not embed the card into the portrait", e);
+      return image;
+    }
+  }
   async function thumbnailFor(image) {
     const gen = fn("generateThumbnail");
     if (!image || typeof gen !== "function") return void 0;
@@ -1409,19 +1507,34 @@ ${s.text}` : s.text : `[${s.title}]`;
       id = r.id;
     }
     const record = { id, name, data: Object.assign({}, inner, { name: normalizeName(rawName, "No character name") }) };
-    if (image) record.image = image;
-    else {
+    let img = image;
+    if (!img) {
       try {
         const prev = JSON.parse(await window.indexeddb_load?.(storageKey(id), "{}") || "{}");
-        if (prev && prev.image) record.image = prev.image;
+        if (prev && prev.image) img = prev.image;
       } catch (_) {
       }
     }
+    if (img) record.image = embedCardInImage(img, record.data);
     await window.indexeddb_save?.(storageKey(id), JSON.stringify(record));
     const thumbnail = image ? await thumbnailFor(image) : existing && existing.thumbnail;
     upsertMeta(Object.assign({}, existing || {}, { id, name, type: "Character", favorite: !!(existing && existing.favorite) }, thumbnail ? { thumbnail } : {}));
     await saveList();
     return { id, name };
+  }
+  async function loadCharacter(name) {
+    const get = fn("getCharacterData");
+    if (typeof get !== "function" || !name) return null;
+    try {
+      let r = await get(name);
+      if (typeof r === "string") r = JSON.parse(r || "{}");
+      return r && r.data && typeof r.data === "object" && !Array.isArray(r.data) ? r : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function characterNames() {
+    return list().filter((m) => m && m.name && (m.type || "Character") === "Character").map((m) => m.name);
   }
   async function deleteCharacter(name) {
     const meta = findMetaByName(name);
@@ -1453,8 +1566,8 @@ ${s.text}` : s.text : `[${s.title}]`;
     const keys = [];
     try {
       for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith(prefix + "character_")) keys.push(k.slice(prefix.length));
+        const k2 = localStorage.key(i);
+        if (k2 && k2.startsWith(prefix + "character_")) keys.push(k2.slice(prefix.length));
       }
     } catch (_) {
       return [];
@@ -1495,7 +1608,7 @@ ${s.text}` : s.text : `[${s.title}]`;
   function initLibrary() {
     "use strict";
     if (window.KLITE_RPMod_Library) return;
-    const api = { saveCharacter, deleteCharacter, findOrphans, recoverOrphans, isOrphanRecord };
+    const api = { saveCharacter, deleteCharacter, loadCharacter, characterNames, findOrphans, recoverOrphans, isOrphanRecord, embedCardInImage, stripCardChunks, v2Card };
     window.KLITE_RPMod_Library = api;
     let tries = 0;
     const attempt = async () => {
@@ -1576,20 +1689,20 @@ ${s.text}` : s.text : `[${s.title}]`;
             const offSet = new Set(off2.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean));
             const levels = window.KLITE_RPMod.debugLevels || {};
             const keys = Object.keys(levels);
-            keys.forEach((k) => {
+            keys.forEach((k2) => {
               if (offAll) {
-                levels[k] = false;
+                levels[k2] = false;
                 return;
               }
               if (onAll) {
-                levels[k] = true;
+                levels[k2] = true;
                 return;
               }
-              if (onSet.size > 0) levels[k] = onSet.has(k);
-              if (offSet.has(k)) levels[k] = false;
+              if (onSet.size > 0) levels[k2] = onSet.has(k2);
+              if (offSet.has(k2)) levels[k2] = false;
             });
             try {
-              console.log("[KLITE RPMod][DEBUG] topics applied:", Object.entries(levels).filter(([k, v]) => v).map(([k]) => k).join(", "));
+              console.log("[KLITE RPMod][DEBUG] topics applied:", Object.entries(levels).filter(([k2, v]) => v).map(([k2]) => k2).join(", "));
             } catch (_) {
             }
           } catch (_) {
@@ -1672,9 +1785,9 @@ ${s.text}` : s.text : `[${s.title}]`;
         try {
           if (!window.KLITE_RPMod) window.KLITE_RPMod = {};
           if (!window.KLITE_RPMod.debugLevels) window.KLITE_RPMod.debugLevels = {};
-          for (const k of Object.keys(TOPICS_DEFAULTS)) {
-            if (typeof window.KLITE_RPMod.debugLevels[k] === "undefined") {
-              window.KLITE_RPMod.debugLevels[k] = TOPICS_DEFAULTS[k];
+          for (const k2 of Object.keys(TOPICS_DEFAULTS)) {
+            if (typeof window.KLITE_RPMod.debugLevels[k2] === "undefined") {
+              window.KLITE_RPMod.debugLevels[k2] = TOPICS_DEFAULTS[k2];
             }
           }
           if (typeof window.KLITE_RPMod.debug !== "boolean") window.KLITE_RPMod.debug = true;
@@ -1711,7 +1824,12 @@ ${s.text}` : s.text : `[${s.title}]`;
       const add = (c, label, priority) => {
         const name = cardField(c, "name");
         if (!name || ctx.isDescribed(name)) return;
-        out.push({ title: `${label}: ${name}`, priority, text: characterContextText(c) });
+        let sheet = "";
+        try {
+          sheet = window.KLITE_RPMod_Characters?.summaryFor(name) || "";
+        } catch (_) {
+        }
+        out.push({ title: `${label}: ${name}`, priority, text: [characterContextText(c), sheet && "Character sheet: " + sheet].filter(Boolean).join("\n") });
         ctx.describe(name);
       };
       if (tools?.personaEnabled && tools.selectedPersona) add(tools.selectedPersona, "User Character", 88);
@@ -5933,9 +6051,9 @@ ${parts.join("\n")})))`;
         try {
           const wrap = document.getElementById("klite-panels-only");
           if (!wrap) return;
-          ["bg", "bg2", "bg3", "text", "muted", "border", "border-highlight", "accent", "primary", "primary-text"].forEach((k) => {
+          ["bg", "bg2", "bg3", "text", "muted", "border", "border-highlight", "accent", "primary", "primary-text"].forEach((k2) => {
             try {
-              wrap.style.removeProperty(`--${k}`);
+              wrap.style.removeProperty(`--${k2}`);
             } catch (_) {
             }
           });
@@ -6445,7 +6563,7 @@ ${parts.join("\n")})))`;
               const topicsFromLevels2 = () => {
                 try {
                   const lv = this.debugLevels || {};
-                  return Object.keys(lv).filter((k) => lv[k]).join(",");
+                  return Object.keys(lv).filter((k2) => lv[k2]).join(",");
                 } catch (_) {
                   return "";
                 }
@@ -6471,7 +6589,7 @@ ${parts.join("\n")})))`;
               };
               const persistLevelsToLocalStorage2 = () => {
                 try {
-                  const enabledTopics = Object.keys(this.debugLevels || {}).filter((k) => this.debugLevels[k]);
+                  const enabledTopics = Object.keys(this.debugLevels || {}).filter((k2) => this.debugLevels[k2]);
                   if (window.KLITE_RPDebug) {
                     window.KLITE_RPDebug.setTopics(enabledTopics.join(","));
                     window.KLITE_RPDebug.setTopicsOff("");
@@ -6515,7 +6633,7 @@ ${parts.join("\n")})))`;
               });
               (wrap2 || pane).querySelector("#rpmod-debug-all")?.addEventListener("click", () => {
                 try {
-                  Object.keys(this.debugLevels || {}).forEach((k) => this.debugLevels[k] = true);
+                  Object.keys(this.debugLevels || {}).forEach((k2) => this.debugLevels[k2] = true);
                   persistLevelsToLocalStorage2();
                   if (window.KLITE_RPDebug) window.KLITE_RPDebug.all();
                   syncTopicsUIFromLevels2();
@@ -6524,7 +6642,7 @@ ${parts.join("\n")})))`;
               });
               (wrap2 || pane).querySelector("#rpmod-debug-none")?.addEventListener("click", () => {
                 try {
-                  Object.keys(this.debugLevels || {}).forEach((k) => this.debugLevels[k] = false);
+                  Object.keys(this.debugLevels || {}).forEach((k2) => this.debugLevels[k2] = false);
                   persistLevelsToLocalStorage2();
                   if (window.KLITE_RPDebug) window.KLITE_RPDebug.none();
                   syncTopicsUIFromLevels2();
@@ -6534,7 +6652,7 @@ ${parts.join("\n")})))`;
               (wrap2 || pane).querySelector("#rpmod-debug-recommended")?.addEventListener("click", () => {
                 try {
                   const rec = /* @__PURE__ */ new Set(["chat", "narrator", "storage", "network", "esolite"]);
-                  Object.keys(this.debugLevels || {}).forEach((k) => this.debugLevels[k] = rec.has(k));
+                  Object.keys(this.debugLevels || {}).forEach((k2) => this.debugLevels[k2] = rec.has(k2));
                   persistLevelsToLocalStorage2();
                   if (window.KLITE_RPDebug) window.KLITE_RPDebug.on("chat,narrator,storage,network,esolite");
                   syncTopicsUIFromLevels2();
@@ -6615,7 +6733,7 @@ ${parts.join("\n")})))`;
           const topicsFromLevels = () => {
             try {
               const lv = this.debugLevels || {};
-              return Object.keys(lv).filter((k) => lv[k]).join(",");
+              return Object.keys(lv).filter((k2) => lv[k2]).join(",");
             } catch (_) {
               return "";
             }
@@ -6641,7 +6759,7 @@ ${parts.join("\n")})))`;
           };
           const persistLevelsToLocalStorage = () => {
             try {
-              const enabledTopics = Object.keys(this.debugLevels || {}).filter((k) => this.debugLevels[k]);
+              const enabledTopics = Object.keys(this.debugLevels || {}).filter((k2) => this.debugLevels[k2]);
               if (window.KLITE_RPDebug) {
                 window.KLITE_RPDebug.setTopics(enabledTopics.join(","));
                 window.KLITE_RPDebug.setTopicsOff("");
@@ -6685,7 +6803,7 @@ ${parts.join("\n")})))`;
           });
           wrap.querySelector("#rpmod-debug-all")?.addEventListener("click", () => {
             try {
-              Object.keys(this.debugLevels || {}).forEach((k) => this.debugLevels[k] = true);
+              Object.keys(this.debugLevels || {}).forEach((k2) => this.debugLevels[k2] = true);
               persistLevelsToLocalStorage();
               if (window.KLITE_RPDebug) window.KLITE_RPDebug.all();
               syncTopicsUIFromLevels();
@@ -6694,7 +6812,7 @@ ${parts.join("\n")})))`;
           });
           wrap.querySelector("#rpmod-debug-none")?.addEventListener("click", () => {
             try {
-              Object.keys(this.debugLevels || {}).forEach((k) => this.debugLevels[k] = false);
+              Object.keys(this.debugLevels || {}).forEach((k2) => this.debugLevels[k2] = false);
               persistLevelsToLocalStorage();
               if (window.KLITE_RPDebug) window.KLITE_RPDebug.none();
               syncTopicsUIFromLevels();
@@ -6704,7 +6822,7 @@ ${parts.join("\n")})))`;
           wrap.querySelector("#rpmod-debug-recommended")?.addEventListener("click", () => {
             try {
               const rec = /* @__PURE__ */ new Set(["chat", "narrator", "storage", "network", "esolite"]);
-              Object.keys(this.debugLevels || {}).forEach((k) => this.debugLevels[k] = rec.has(k));
+              Object.keys(this.debugLevels || {}).forEach((k2) => this.debugLevels[k2] = rec.has(k2));
               persistLevelsToLocalStorage();
               if (window.KLITE_RPDebug) window.KLITE_RPDebug.on("chat,narrator,storage,network,esolite");
               syncTopicsUIFromLevels();
@@ -7217,10 +7335,10 @@ ${parts.join("\n")})))`;
             this.log("generation", "Full params:", payload.params);
             if (payload && payload.params) {
               const numKeys = ["max_length", "max_context_length", "temperature", "top_p", "top_k", "typical_p", "tfs", "rep_pen", "rep_pen_range", "mirostat_tau", "mirostat_lr"];
-              numKeys.forEach((k) => {
-                if (k in payload.params && typeof payload.params[k] === "string") {
-                  const n = Number(payload.params[k]);
-                  if (!Number.isNaN(n)) payload.params[k] = n;
+              numKeys.forEach((k2) => {
+                if (k2 in payload.params && typeof payload.params[k2] === "string") {
+                  const n = Number(payload.params[k2]);
+                  if (!Number.isNaN(n)) payload.params[k2] = n;
                 }
               });
             }
@@ -11760,7 +11878,7 @@ ${wi.content}
         });
         const keywordTextarea = document.getElementById("tools-regen-keywords");
         keywordTextarea?.addEventListener("input", (e) => {
-          const keywords = e.target.value.split("\n").map((k) => k.trim()).filter((k) => k.length > 0);
+          const keywords = e.target.value.split("\n").map((k2) => k2.trim()).filter((k2) => k2.length > 0);
           this.autoRegenerateState.keywords = keywords;
           KLITE_RPMod.log("tools", `Auto-regen keywords updated: ${keywords.length} keywords set`);
         });
@@ -11871,10 +11989,10 @@ ${wi.content}
         }
         return matchCount;
       },
-      hashString(str) {
+      hashString(str2) {
         let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-          const char = str.charCodeAt(i);
+        for (let i = 0; i < str2.length; i++) {
+          const char = str2.charCodeAt(i);
           hash = (hash << 5) - hash + char;
           hash = hash & hash;
         }
@@ -13113,7 +13231,7 @@ ${examples}`;
               this.activeChars[charIndex].name = name;
               this.activeChars[charIndex].description = description;
               this.activeChars[charIndex].talkativeness = talkativeness;
-              this.activeChars[charIndex].keywords = keywords.split(",").map((k) => k.trim()).filter((k) => k);
+              this.activeChars[charIndex].keywords = keywords.split(",").map((k2) => k2.trim()).filter((k2) => k2);
             }
           } else {
             const char = {
@@ -13121,7 +13239,7 @@ ${examples}`;
               name,
               description,
               talkativeness,
-              keywords: keywords.split(",").map((k) => k.trim()).filter((k) => k),
+              keywords: keywords.split(",").map((k2) => k2.trim()).filter((k2) => k2),
               isCustom: true
             };
             this.activeChars.push(char);
@@ -13326,16 +13444,16 @@ ${examples}`;
       detailObserverEnabled: false,
       _detailSaveTimer: null,
       // Basic HTML escaping helpers to prevent HTML/JS injection when rendering
-      escapeHTML(str = "") {
-        return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      escapeHTML(str2 = "") {
+        return String(str2).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
       },
       // Escape content specifically for placement inside <textarea> ... </textarea>
-      escapeTextarea(str = "") {
-        return this.escapeHTML(String(str)).replace(/<\/textarea/gi, "&lt;/textarea");
+      escapeTextarea(str2 = "") {
+        return this.escapeHTML(String(str2)).replace(/<\/textarea/gi, "&lt;/textarea");
       },
       // Attempt to fix common UTF-8 mojibake (e.g., “ — ” becoming â / â)
-      fixMojibake(str = "") {
-        const s = String(str);
+      fixMojibake(str2 = "") {
+        const s = String(str2);
         const looksMojibake = /[\u0080-\u00FF]/.test(s) && /(Ã|Â|â)/.test(s);
         if (looksMojibake) {
           try {
@@ -13348,8 +13466,8 @@ ${examples}`;
         return s.normalize("NFC");
       },
       // Sanitize imported text fields: fix encoding, normalize, strip unsafe control chars
-      sanitizeImportedString(str = "") {
-        let out = this.fixMojibake(str);
+      sanitizeImportedString(str2 = "") {
+        let out = this.fixMojibake(str2);
         out = out.replace(/\r\n?/g, "\n").replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
         return out;
       },
@@ -13885,7 +14003,7 @@ ${examples}`;
             const pers = String(char.personality || "").toLowerCase();
             const creator = String(char.creator || "").toLowerCase();
             const keywords = Array.isArray(char.keywords) ? char.keywords : [];
-            const kwMatch = keywords.some((k) => String(k || "").toLowerCase().includes(filter));
+            const kwMatch = keywords.some((k2) => String(k2 || "").toLowerCase().includes(filter));
             return name.includes(filter) || desc.includes(filter) || pers.includes(filter) || creator.includes(filter) || kwMatch;
           });
         }
@@ -14783,8 +14901,8 @@ ${examples}`;
           keywords: this.extractCharacterKeywords(characterData),
           responseStyle: this.analyzeResponseStyle(characterData)
         };
-        ["name", "description", "personality", "scenario", "first_mes", "mes_example", "creator", "system_prompt", "post_history_instructions", "creator_notes"].forEach((k) => {
-          if (k in normalized && typeof normalized[k] === "string") normalized[k] = this.sanitizeImportedString(normalized[k]);
+        ["name", "description", "personality", "scenario", "first_mes", "mes_example", "creator", "system_prompt", "post_history_instructions", "creator_notes"].forEach((k2) => {
+          if (k2 in normalized && typeof normalized[k2] === "string") normalized[k2] = this.sanitizeImportedString(normalized[k2]);
         });
         if (Array.isArray(normalized.alternate_greetings)) {
           normalized.alternate_greetings = normalized.alternate_greetings.map((g) => this.sanitizeImportedString(g));
@@ -15734,7 +15852,7 @@ ${characterData.system_prompt}`);
           this._crc32Table = new Array(256);
           for (let n = 0; n < 256; n++) {
             let c = n;
-            for (let k = 0; k < 8; k++) {
+            for (let k2 = 0; k2 < 8; k2++) {
               c = c & 1 ? 3988292384 ^ c >>> 1 : c >>> 1;
             }
             this._crc32Table[n] = c;
@@ -15786,9 +15904,9 @@ ${char.mes_example}
         if (!window.current_wi) window.current_wi = [];
         worldInfo.forEach((entry) => {
           const keys = entry.keys || entry.key || [];
-          const keyList = Array.isArray(keys) ? keys : typeof keys === "string" ? keys.split(",").map((k) => k.trim()) : [];
+          const keyList = Array.isArray(keys) ? keys : typeof keys === "string" ? keys.split(",").map((k2) => k2.trim()) : [];
           const secondary = entry.secondary_keys || entry.keysecondary || [];
-          const secondaryList = Array.isArray(secondary) ? secondary : typeof secondary === "string" ? secondary.split(",").map((k) => k.trim()) : [];
+          const secondaryList = Array.isArray(secondary) ? secondary : typeof secondary === "string" ? secondary.split(",").map((k2) => k2.trim()) : [];
           window.current_wi.push({
             key: keyList.join(", "),
             keysecondary: secondaryList.join(", "),
@@ -15820,9 +15938,9 @@ ${char.mes_example}
         if (!entry) return;
         if (!window.current_wi) window.current_wi = [];
         const keys = entry.keys || entry.key || [];
-        const keyList = Array.isArray(keys) ? keys : typeof keys === "string" ? keys.split(",").map((k) => k.trim()) : [];
+        const keyList = Array.isArray(keys) ? keys : typeof keys === "string" ? keys.split(",").map((k2) => k2.trim()) : [];
         const secondary = entry.secondary_keys || entry.keysecondary || [];
-        const secondaryList = Array.isArray(secondary) ? secondary : typeof secondary === "string" ? secondary.split(",").map((k) => k.trim()) : [];
+        const secondaryList = Array.isArray(secondary) ? secondary : typeof secondary === "string" ? secondary.split(",").map((k2) => k2.trim()) : [];
         window.current_wi.push({
           key: keyList.join(", "),
           keysecondary: secondaryList.join(", "),
@@ -16030,7 +16148,7 @@ ${char.mes_example}
                                 <strong>Entry ${i + 1}</strong>
                                 <button class="klite-btn secondary" onclick="KLITE_RPMod.panels.CHARS.importWorldInfoEntry(${JSON.stringify(entry).replace(/"/g, "&quot;")})" style="font-size: 11px; padding: 4px 8px;">📥 Import to WI</button>
                             </div>
-                            <div style="margin-bottom: 6px;"><strong>Keys:</strong> ${(entry.keys || []).map((k) => KLITE_RPMod.escapeHtml(String(k))).join(", ")}</div>
+                            <div style="margin-bottom: 6px;"><strong>Keys:</strong> ${(entry.keys || []).map((k2) => KLITE_RPMod.escapeHtml(String(k2))).join(", ")}</div>
                             <div style="white-space: pre-wrap; line-height: 1.5; color: var(--text);">${KLITE_RPMod.escapeHtml(entry.content || "")}</div>
                         </div>
                     `).join("")
@@ -16105,9 +16223,9 @@ ${char.mes_example}
         }
         for (const entry of worldInfoEntries) {
           const keys = entry.keys || entry.key || [];
-          const keyList = Array.isArray(keys) ? keys : typeof keys === "string" ? keys.split(",").map((k) => k.trim()) : [];
+          const keyList = Array.isArray(keys) ? keys : typeof keys === "string" ? keys.split(",").map((k2) => k2.trim()) : [];
           const secondary = entry.keysecondary || entry.secondary || [];
-          const secondaryList = Array.isArray(secondary) ? secondary : typeof secondary === "string" ? secondary.split(",").map((k) => k.trim()) : [];
+          const secondaryList = Array.isArray(secondary) ? secondary : typeof secondary === "string" ? secondary.split(",").map((k2) => k2.trim()) : [];
           const groupName = entry.group || entry.wigroup || userGroupName;
           const normalizedEntry = {
             key: keyList.join(", "),
@@ -16722,7 +16840,7 @@ ${char.mes_example}
         const table = new Uint32Array(256);
         for (let n = 0; n < 256; n++) {
           let c = n;
-          for (let k = 0; k < 8; k++) {
+          for (let k2 = 0; k2 < 8; k2++) {
             c = c & 1 ? 3988292384 ^ c >>> 1 : c >>> 1;
           }
           table[n] = c >>> 0;
@@ -17355,7 +17473,7 @@ ${char.mes_example}
             "rpmod_story_chapters"
           ];
           try {
-            await Promise.all(keys.map((k) => KLITE_RPMod.saveToLiteStorage(k, null).catch(() => {
+            await Promise.all(keys.map((k2) => KLITE_RPMod.saveToLiteStorage(k2, null).catch(() => {
             })));
           } catch (_) {
           }
@@ -17404,9 +17522,9 @@ ${char.mes_example}
               "switchToClassicUI",
               "addMobileNavigationButtons",
               "toggleUI"
-            ].forEach((k) => {
+            ].forEach((k2) => {
               try {
-                if (typeof M[k] === "function") M[k] = noop;
+                if (typeof M[k2] === "function") M[k2] = noop;
               } catch (_) {
               }
             });
@@ -17535,7 +17653,7 @@ ${char.mes_example}
     if (window.KLITE_RPMod_Worlds) return;
     const LEGACY_WI_GROUP = "__worlds__";
     const IDB_LIBRARY_KEY = "KLITE_WORLDS_LIBRARY";
-    const SAVE_KEY = "rpmod_worlds";
+    const SAVE_KEY2 = "rpmod_worlds";
     const NEIGHBOR_DEPTH = 1;
     const W = {
       ready: false,
@@ -17721,12 +17839,12 @@ ${char.mes_example}
         return false;
       }
     }
-    const AUTOSAVE_SETTING = "worlds_autosave";
+    const AUTOSAVE_SETTING2 = "worlds_autosave";
     const AUTOSAVE_DELAY = 1e3;
     const edits = { dirty: false, rev: 0, timer: null };
     function autosaveOn() {
       try {
-        return !!window.KLITE_RPMod_Settings?.get(AUTOSAVE_SETTING);
+        return !!window.KLITE_RPMod_Settings?.get(AUTOSAVE_SETTING2);
       } catch (_) {
         return false;
       }
@@ -17778,14 +17896,14 @@ ${char.mes_example}
     function registerSettingAndGuards() {
       try {
         window.KLITE_RPMod_Settings?.registerSetting({
-          id: AUTOSAVE_SETTING,
+          id: AUTOSAVE_SETTING2,
           section: "Worlds",
           order: 10,
           default: false,
           label: "Autosave world edits",
           help: "Saves changes made in the world editor automatically, about a second after each change. Off: changes stay unsaved until you press Save (or Revert to saved); RPmod warns before they could be lost. With autosave on, a deletion is saved at once and cannot be reverted."
         });
-        window.KLITE_RPMod_Settings?.onChange(AUTOSAVE_SETTING, (on) => {
+        window.KLITE_RPMod_Settings?.onChange(AUTOSAVE_SETTING2, (on) => {
           if (on && edits.dirty) saveLibrary();
         });
       } catch (_) {
@@ -17839,7 +17957,10 @@ ${char.mes_example}
     }
     function characterLibrary() {
       try {
-        return asArray(window.KLITE_RPMod && window.KLITE_RPMod.characters);
+        const gallery = asArray(window.KLITE_RPMod && window.KLITE_RPMod.characters);
+        if (gallery.length) return gallery;
+        const L = window.KLITE_RPMod_Library;
+        return L && typeof L.characterNames === "function" ? L.characterNames().map((name) => ({ id: name, name })) : [];
       } catch (_) {
         return [];
       }
@@ -17860,6 +17981,24 @@ ${char.mes_example}
       }
       return null;
     }
+    function cardSheetStats(person) {
+      try {
+        const C = window.KLITE_RPMod_Characters;
+        const ref = person && person.characterRef;
+        return C && ref && ref.name ? C.combatStatsFor(ref.name) : null;
+      } catch (_) {
+        return null;
+      }
+    }
+    function personaSheetStats() {
+      try {
+        const n = window.KLITE_RPMod?.panels?.TOOLS?.selectedPersona?.name;
+        const C = window.KLITE_RPMod_Characters;
+        return C && n ? C.combatStatsFor(n) : null;
+      } catch (_) {
+        return null;
+      }
+    }
     function personName(person) {
       return norm2(person && person.name) || norm2(resolveCharacter(person)?.name) || "Unnamed";
     }
@@ -17872,8 +18011,8 @@ ${char.mes_example}
       if (t.length > maxLen) t = t.slice(0, maxLen - 1) + "…";
       return t;
     }
-    const ABILITIES = ["str", "dex", "con", "int", "wis", "cha"];
-    function abilityMod(score) {
+    const ABILITIES2 = ["str", "dex", "con", "int", "wis", "cha"];
+    function abilityMod2(score) {
       return Math.floor(((Number(score) || 10) - 10) / 2);
     }
     function fmtMod(m) {
@@ -17905,7 +18044,7 @@ ${char.mes_example}
       const d = defaultStats();
       if (!s || typeof s !== "object") return d;
       d.abilities = { ...d.abilities, ...s.abilities || {} };
-      for (const k of ["ac", "hpMax", "speed", "proficiency", "initiativeMod"]) if (s[k] != null) d[k] = Number(s[k]);
+      for (const k2 of ["ac", "hpMax", "speed", "proficiency", "initiativeMod"]) if (s[k2] != null) d[k2] = Number(s[k2]);
       d.isMonster = !!s.isMonster;
       d.skills = s.skills && typeof s.skills === "object" ? { ...s.skills } : {};
       d.saves = s.saves && typeof s.saves === "object" ? { ...s.saves } : {};
@@ -17915,8 +18054,8 @@ ${char.mes_example}
     function statSummary(stats) {
       if (!stats) return "";
       const s = normalizeStats(stats);
-      const abil = ABILITIES.map((a) => `${a.toUpperCase()} ${s.abilities[a]}(${fmtMod(abilityMod(s.abilities[a]))})`).join(" ");
-      const init2 = s.initiativeMod || abilityMod(s.abilities.dex);
+      const abil = ABILITIES2.map((a) => `${a.toUpperCase()} ${s.abilities[a]}(${fmtMod(abilityMod2(s.abilities[a]))})`).join(" ");
+      const init2 = s.initiativeMod || abilityMod2(s.abilities.dex);
       const atk = asArray(s.attacks).map((a) => norm2(a && a.name)).filter(Boolean).join(", ");
       return `AC ${s.ac}, HP ${s.hpMax}, ${abil}, Init ${fmtMod(init2)}` + (atk ? `; Attacks: ${atk}` : "");
     }
@@ -18375,17 +18514,17 @@ ${char.mes_example}
     }
     function rollD20(mod, mode2) {
       const a = rollDie(20), b = rollDie(20);
-      const die = mode2 === "adv" ? Math.max(a, b) : mode2 === "dis" ? Math.min(a, b) : a;
-      return { die, total: die + (Number(mod) || 0), mod: Number(mod) || 0, rolls: mode2 ? [a, b] : [a], crit: die === 20, fumble: die === 1 };
+      const die2 = mode2 === "adv" ? Math.max(a, b) : mode2 === "dis" ? Math.min(a, b) : a;
+      return { die: die2, total: die2 + (Number(mod) || 0), mod: Number(mod) || 0, rolls: mode2 ? [a, b] : [a], crit: die2 === 20, fumble: die2 === 1 };
     }
     function playerCombatCfg() {
       const w = activeWorld();
       return w && w.ruleset && w.ruleset.player || {};
     }
     function combatantStats(id) {
-      if (id === "__player__") return normalizeStats(playerCombatCfg().stats || {});
+      if (id === "__player__") return normalizeStats(playerCombatCfg().stats || personaSheetStats() || {});
       const p = entityById(activeWorld(), id);
-      return normalizeStats(p && p.stats || {});
+      return normalizeStats(p && (p.stats || cardSheetStats(p)) || {});
     }
     function combatantName(id) {
       if (id === "__player__") return norm2(playerCombatCfg().name) || "You";
@@ -18418,7 +18557,7 @@ ${char.mes_example}
       if (opts.includePlayer !== false && !list2.includes("__player__")) list2.unshift("__player__");
       const order = list2.map((id) => {
         const st = combatantStats(id);
-        const init2 = rollD20(st.initiativeMod || abilityMod(st.abilities.dex)).total;
+        const init2 = rollD20(st.initiativeMod || abilityMod2(st.abilities.dex)).total;
         return { id, name: combatantName(id), init: init2, isPlayer: id === "__player__" };
       });
       order.sort((a, b) => b.init - a.init || b.isPlayer - a.isPlayer);
@@ -18471,8 +18610,8 @@ ${char.mes_example}
       const cb = getCombat();
       if (!cb) return null;
       const aSt = combatantStats(attackerId), tSt = combatantStats(targetId);
-      const atk = asArray(aSt.attacks)[Number(attackIndex) || 0] || { name: "Attack", toHit: aSt.proficiency + abilityMod(aSt.abilities.str), damage: "1d6" };
-      const toHit = atk.toHit != null ? Number(atk.toHit) : aSt.proficiency + abilityMod(aSt.abilities.str);
+      const atk = asArray(aSt.attacks)[Number(attackIndex) || 0] || { name: "Attack", toHit: aSt.proficiency + abilityMod2(aSt.abilities.str), damage: "1d6" };
+      const toHit = atk.toHit != null ? Number(atk.toHit) : aSt.proficiency + abilityMod2(aSt.abilities.str);
       const hit = rollD20(toHit);
       if (hit.fumble) {
         combatLog(`${combatantName(attackerId)} attacks ${combatantName(targetId)} with ${atk.name}: natural 1 — miss.`);
@@ -18497,7 +18636,7 @@ ${char.mes_example}
     function abilityCheck(id, ability, dc, mode2) {
       const st = combatantStats(id);
       const ab = norm2(ability).toLowerCase();
-      const mod = abilityMod(st.abilities[ab] != null ? st.abilities[ab] : 10);
+      const mod = abilityMod2(st.abilities[ab] != null ? st.abilities[ab] : 10);
       const r = rollD20(mod, mode2);
       const success = r.total >= Number(dc);
       combatLog(`${combatantName(id)} ${ab.toUpperCase()} check: ${r.total} vs DC ${dc} — ${success ? "success" : "fail"}`);
@@ -18622,7 +18761,8 @@ ${recent}` : "");
         const md = npcMood(npc);
         if (md) bits.push(`Mood: ${md}`);
         if (faction) bits.push(`Faction: ${norm2(faction.name)}`);
-        if (npc.stats) bits.push(statSummary(npc.stats));
+        const npcStats = npc.stats || cardSheetStats(npc);
+        if (npcStats) bits.push(statSummary(npcStats));
         npcLines.push("- " + bits.join(" | "));
         if (mutate && rt() && !asArray(rt().knownNpcIds).includes(npc.id)) rt().knownNpcIds.push(npc.id);
       }
@@ -18663,8 +18803,8 @@ ${recent}` : "");
         const content = norm2(typeof gl === "string" ? gl : gl.content);
         if (!content) continue;
         const always = gl && (gl.always || gl.constant);
-        const keys = asArray(gl && gl.keys).map((k) => norm2(k).toLowerCase()).filter(Boolean);
-        const hit = always || keys.length && keys.some((k) => ctx.includes(k));
+        const keys = asArray(gl && gl.keys).map((k2) => norm2(k2).toLowerCase()).filter(Boolean);
+        const hit = always || keys.length && keys.some((k2) => ctx.includes(k2));
         if (hit) loreLines.push(content);
       }
       push("Relevant Lore", 30, loreLines.join("\n"));
@@ -18738,7 +18878,7 @@ ${recent}` : "");
               obj.worldinfo = obj.worldinfo.filter((w) => !(w && w.wigroup === LEGACY_WI_GROUP));
             }
             const st = collectSaveState();
-            if (obj && st) obj[SAVE_KEY] = st;
+            if (obj && st) obj[SAVE_KEY2] = st;
           } catch (e) {
             err("save embed failed", e);
           }
@@ -18751,16 +18891,16 @@ ${recent}` : "");
       if (typeof window.kai_json_load === "function" && !window.kai_json_load.__worlds_wrapped) {
         const origLoad = window.kai_json_load;
         const wrappedLoad = function() {
-          let pending = null;
+          let pending2 = null;
           try {
             const s = arguments[0];
-            if (s && s[SAVE_KEY]) pending = s[SAVE_KEY];
+            if (s && s[SAVE_KEY2]) pending2 = s[SAVE_KEY2];
           } catch (_) {
           }
           const res = origLoad.apply(this, arguments);
           try {
-            if (pending) {
-              restoreSaveState(pending);
+            if (pending2) {
+              restoreSaveState(pending2);
               try {
                 if (rt() && Array.isArray(window.gametext_arr)) rt().lastParsedIndex = window.gametext_arr.length;
               } catch (_) {
@@ -18882,8 +19022,8 @@ ${recent}` : "");
       if (!world) return null;
       const e = entityById(world, id);
       if (!e) return null;
-      for (const [k, v] of Object.entries(patch || {})) {
-        if (k !== "id") e[k] = v;
+      for (const [k2, v] of Object.entries(patch || {})) {
+        if (k2 !== "id") e[k2] = v;
       }
       return e;
     }
@@ -19308,7 +19448,7 @@ ${recent}` : "");
         if (p) delete p.stats;
         return true;
       },
-      abilityMod,
+      abilityMod: abilityMod2,
       statSummary,
       // ----- Quests (Phase D) -----
       listQuests(mode2) {
@@ -19547,21 +19687,21 @@ ${recent}` : "");
         syncLive();
         return { ...rt().clock };
       },
-      setFlag(k, v) {
+      setFlag(k2, v) {
         ensureRuntime();
-        rt().flags[k] = v;
+        rt().flags[k2] = v;
         try {
-          fireTriggers("flag:" + k);
+          fireTriggers("flag:" + k2);
         } catch (_) {
         }
         syncLive();
         return rt().flags;
       },
-      unsetFlag(k) {
+      unsetFlag(k2) {
         ensureRuntime();
-        delete rt().flags[k];
+        delete rt().flags[k2];
         try {
-          fireTriggers("flag:" + k);
+          fireTriggers("flag:" + k2);
         } catch (_) {
         }
         syncLive();
@@ -19720,13 +19860,13 @@ ${recent}` : "");
     }
     function el2(tag, props, kids) {
       const e = document.createElement(tag);
-      if (props) for (const k in props) {
-        if (props[k] == null) continue;
-        if (k === "style") e.style.cssText = props[k];
-        else if (k === "text") e.textContent = props[k];
-        else if (k === "class") e.className = props[k];
-        else if (k.slice(0, 2) === "on" && typeof props[k] === "function") e.addEventListener(k.slice(2), props[k]);
-        else if (props[k] != null) e.setAttribute(k, props[k]);
+      if (props) for (const k2 in props) {
+        if (props[k2] == null) continue;
+        if (k2 === "style") e.style.cssText = props[k2];
+        else if (k2 === "text") e.textContent = props[k2];
+        else if (k2 === "class") e.className = props[k2];
+        else if (k2.slice(0, 2) === "on" && typeof props[k2] === "function") e.addEventListener(k2.slice(2), props[k2]);
+        else if (props[k2] != null) e.setAttribute(k2, props[k2]);
       }
       for (const c of [].concat(kids || [])) if (c != null) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
       return e;
@@ -19734,7 +19874,7 @@ ${recent}` : "");
     function svg(tag, attrs) {
       const e = document.createElementNS(SVGNS, tag);
       if (attrs) {
-        for (const k in attrs) if (attrs[k] != null) e.setAttribute(k, attrs[k]);
+        for (const k2 in attrs) if (attrs[k2] != null) e.setAttribute(k2, attrs[k2]);
       }
       return e;
     }
@@ -20830,6 +20970,7 @@ ${recent}` : "");
       const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
       const c = rt.clock || {};
       box.appendChild(el2("div", { class: "rpm-heading", text: player.name || "You" }));
+      if (window.KLITE_RPMod_Characters) box.appendChild(uiBtn("Character sheet", () => window.KLITE_RPMod_Characters.open(), { icon: "id-card", block: true, style: "margin:4px 0", title: "Your persona's sheet: abilities, skills, inventory — click values to roll" }));
       box.appendChild(el2("div", { class: "rpm-muted", "data-party": "location", style: "margin-top:2px;display:flex;align-items:center;gap:4px" }, [icon("map-pin", 13), loc ? loc.name || loc.id : "nowhere"]));
       box.appendChild(muted(`🕑 Day ${c.day || 1}, ${c.time || "—"}${c.weather ? " · " + c.weather : ""}`));
       const cb = A.getCombat();
@@ -20944,7 +21085,7 @@ ${recent}` : "");
       });
       box.appendChild(el2("label", { class: "rpm-row", style: "margin:10px 0;cursor:pointer" }, [inc, el2("span", { text: "Include the player" })]));
       box.appendChild(uiBtn("Start encounter", () => {
-        const ids = Object.keys(chosen).filter((k) => chosen[k]);
+        const ids = Object.keys(chosen).filter((k2) => chosen[k2]);
         A.startEncounter(ids, { includePlayer: S._encPlayer !== false });
         S._encPick = {};
         refreshPanel();
@@ -21075,11 +21216,11 @@ ${recent}` : "");
       const flags = A.runtime && A.runtime.flags || {};
       const fkeys = Object.keys(flags);
       if (!fkeys.length) box.appendChild(muted("none"));
-      for (const k of fkeys) {
+      for (const k2 of fkeys) {
         box.appendChild(el2("div", { class: "rpm-card rpm-row" }, [
-          el2("span", { class: "rpm-grow" }, [k + " = ", el2("span", { style: "color:var(--rpm-fg-hi)", text: String(flags[k]) })]),
-          el2("button", { type: "button", class: "rpm-iconbtn", title: "Remove flag", "aria-label": "Remove flag " + k, style: "color:var(--rpm-danger)", text: "×", onclick: () => {
-            A.unsetFlag(k);
+          el2("span", { class: "rpm-grow" }, [k2 + " = ", el2("span", { style: "color:var(--rpm-fg-hi)", text: String(flags[k2]) })]),
+          el2("button", { type: "button", class: "rpm-iconbtn", title: "Remove flag", "aria-label": "Remove flag " + k2, style: "color:var(--rpm-danger)", text: "×", onclick: () => {
+            A.unsetFlag(k2);
             refreshPanel();
           } })
         ]));
@@ -21087,9 +21228,9 @@ ${recent}` : "");
       const fk = uiInput({ placeholder: "key", class: "form-control rpm-input rpm-grow", "aria-label": "Flag name" });
       const fv = uiInput({ placeholder: "value", class: "form-control rpm-input rpm-grow", "aria-label": "Flag value" });
       box.appendChild(row([fk, fv, uiBtn("", () => {
-        const k = fk.value.trim();
-        if (!k) return;
-        A.setFlag(k, parseVal(fv.value));
+        const k2 = fk.value.trim();
+        if (!k2) return;
+        A.setFlag(k2, parseVal(fv.value));
         refreshPanel();
       }, { icon: "plus", title: "Set flag" })], "margin-top:5px"));
       box.appendChild(lbl("Inventory"));
@@ -21367,6 +21508,24 @@ ${recent}` : "");
       show: [{ label: "Chars tab", run: (c) => {
         c.open("chars");
         c.highlight("#rpm-dock-right", "Characters, roles, scenario and tools");
+      } }]
+    },
+    {
+      id: "sheet",
+      title: "Character sheets & dice",
+      blocks: [
+        { p: "Every character in your Library can have a character sheet: abilities, saving throws, skills, armor class, hit points, attacks, inventory and coins. The sheet is stored inside the character card, so it travels with the card when you export it." },
+        { list: [
+          'Open it with "Character sheet" in the Party section (it starts with your persona) and pick any character at the top.',
+          "Click any bonus to roll a d20 with it; choose Advantage or Disadvantage above. Attacks roll to hit and damage.",
+          "Every roll goes into the Dice log on the left, and the AI sees the rolls made since its last reply.",
+          "Changes are a draft until you press Save (or turn on autosave in Settings → RPmod). Revert undoes them."
+        ] },
+        { tip: "Your persona's sheet (level, class, HP, AC, skills, inventory) is part of what the AI knows about you." }
+      ],
+      show: [{ label: "Character sheet", run: (c) => {
+        c.open("sheet");
+        c.highlight('[data-window="sheet"]', "Click a bonus to roll");
       } }]
     },
     {
@@ -22049,11 +22208,852 @@ ${recent}` : "");
     else window.addEventListener("load", attempt);
   }
 
+  // src/game/log.js
+  var SAVE_KEY = "rpmod_log";
+  var MAX_ENTRIES = 200;
+  var DICE = /^\s*(\d*)d(\d+)\s*([+-]\s*\d+)?\s*$/i;
+  var FLAT = /^\s*([+-]?\s*\d+)\s*$/;
+  function die(sides) {
+    return 1 + Math.floor(Math.random() * sides);
+  }
+  function roll(expr, opts) {
+    const mode2 = opts && opts.mode;
+    const text = String(expr || "").replace(/\s+/g, "");
+    let m = DICE.exec(text);
+    if (!m) {
+      const f = FLAT.exec(text);
+      if (!f) throw new Error('Cannot roll "' + expr + '" (use e.g. 1d20+3 or 2d6)');
+      const modifier2 = Number(f[1].replace(/\s+/g, ""));
+      return { expr: text, dice: "", rolls: [], kept: [], modifier: modifier2, total: modifier2, natural: null };
+    }
+    const count = Math.min(100, Math.max(1, Number(m[1] || 1)));
+    const sides = Math.min(1e3, Math.max(2, Number(m[2])));
+    const modifier = m[3] ? Number(m[3].replace(/\s+/g, "")) : 0;
+    let rolls = Array.from({ length: count }, () => die(sides));
+    let kept = rolls.slice();
+    if (count === 1 && sides === 20 && (mode2 === "adv" || mode2 === "dis")) {
+      rolls = [rolls[0], die(20)];
+      kept = [mode2 === "adv" ? Math.max(...rolls) : Math.min(...rolls)];
+    }
+    const total = kept.reduce((a, b) => a + b, 0) + modifier;
+    return { expr: text, dice: `${count}d${sides}`, rolls, kept, modifier, total, natural: count === 1 && sides === 20 ? kept[0] : null, mode: mode2 || null };
+  }
+  var d20 = (mod, opts) => roll("1d20" + (mod ? mod > 0 ? "+" + mod : String(mod) : ""), opts);
+  function initGameLog() {
+    "use strict";
+    if (window.KLITE_RPMod_Log) return;
+    const state = { entries: [], lastTurnIndex: 0 };
+    function describe(e) {
+      const r = e.roll;
+      const detail = r ? r.rolls.length > 1 || r.modifier ? ` (${r.mode ? r.mode + " " : ""}${r.rolls.join(r.mode ? "/" : "+")}${r.modifier ? (r.modifier > 0 ? "+" : "") + r.modifier : ""})` : "" : "";
+      const nat = r && r.natural === 20 ? " — natural 20!" : r && r.natural === 1 ? " — natural 1" : "";
+      return `${e.who ? e.who + ": " : ""}${e.what}${r ? ` = ${r.total}${detail}${nat}` : ""}`;
+    }
+    function changed() {
+      try {
+        window.dispatchEvent(new CustomEvent("klite:log-change"));
+      } catch (_) {
+      }
+      try {
+        window.KLITE_RPMod_Shell?.refresh(["gamelog"], { soft: true });
+      } catch (_) {
+      }
+    }
+    function add(entry) {
+      const e = { t: Date.now(), who: String(entry.who || ""), what: String(entry.what || ""), kind: entry.kind || "roll", roll: entry.roll || null };
+      state.entries.push(e);
+      if (state.entries.length > MAX_ENTRIES) {
+        const cut = state.entries.length - MAX_ENTRIES;
+        state.entries.splice(0, cut);
+        state.lastTurnIndex = Math.max(0, state.lastTurnIndex - cut);
+      }
+      changed();
+      return e;
+    }
+    function rollAndLog({ who, what, expr, mode: mode2, kind }) {
+      return add({ who, what, kind, roll: roll(expr, { mode: mode2 }) });
+    }
+    function sinceLastTurn() {
+      return state.entries.slice(state.lastTurnIndex);
+    }
+    function clearLog() {
+      state.entries = [];
+      state.lastTurnIndex = 0;
+      changed();
+    }
+    getContext().register({
+      id: "gamelog",
+      order: 60,
+      enabled: () => state.entries.length > state.lastTurnIndex,
+      collect: () => {
+        const lines = sinceLastTurn().map((e) => "- " + describe(e));
+        return lines.length ? [{ title: "Dice rolled since your last reply", priority: 92, text: lines.join("\n") }] : [];
+      },
+      afterTurn: () => {
+        state.lastTurnIndex = state.entries.length;
+      }
+    });
+    function installSaveHooks() {
+      let ok = true;
+      if (typeof window.generate_savefile === "function" && !window.generate_savefile.__rpmod_log) {
+        const orig = window.generate_savefile;
+        const wrapped = function() {
+          const obj = orig.apply(this, arguments);
+          try {
+            if (obj && state.entries.length) obj[SAVE_KEY] = { version: 1, entries: state.entries.slice(-MAX_ENTRIES), lastTurnIndex: state.lastTurnIndex };
+          } catch (_) {
+          }
+          return obj;
+        };
+        wrapped.__rpmod_log = true;
+        window.generate_savefile = wrapped;
+      } else if (typeof window.generate_savefile !== "function") ok = false;
+      if (typeof window.kai_json_load === "function" && !window.kai_json_load.__rpmod_log) {
+        const orig = window.kai_json_load;
+        const wrapped = function(storyobj) {
+          const res = orig.apply(this, arguments);
+          try {
+            const saved = storyobj && storyobj[SAVE_KEY];
+            state.entries = saved && Array.isArray(saved.entries) ? saved.entries.filter((e) => e && typeof e === "object").slice(-MAX_ENTRIES) : [];
+            state.lastTurnIndex = saved ? Math.min(state.entries.length, Math.max(0, Number(saved.lastTurnIndex) || 0)) : 0;
+            changed();
+          } catch (_) {
+          }
+          return res;
+        };
+        wrapped.__rpmod_log = true;
+        window.kai_json_load = wrapped;
+      } else if (typeof window.kai_json_load !== "function") ok = false;
+      return ok;
+    }
+    function renderLog(box) {
+      clear(box);
+      const last = state.entries.slice(-8).reverse();
+      if (!last.length) {
+        box.appendChild(el("div", { class: "rpm-muted", text: "No rolls yet. Click a value on a character sheet to roll." }));
+        return;
+      }
+      for (const e of last) {
+        const crit = e.roll && e.roll.natural === 20, fumble = e.roll && e.roll.natural === 1;
+        box.appendChild(el("div", { class: "rpm-log-line" + (crit ? " rpm-log-crit" : fumble ? " rpm-log-fumble" : ""), "data-log": e.kind }, [describe(e)]));
+      }
+      box.appendChild(el("button", { type: "button", class: "btn btn-primary rpm-btn", style: "margin-top:6px", text: "Clear log", onclick: () => {
+        if (confirm("Clear the game log of this story?")) clearLog();
+      } }));
+    }
+    const api = { roll, d20, add, rollAndLog, entries: () => state.entries.slice(), sinceLastTurn, clear: clearLog, describe };
+    window.KLITE_RPMod_Log = api;
+    let tries = 0;
+    const attempt = () => {
+      const saves = installSaveHooks();
+      const sh = window.KLITE_RPMod_Shell;
+      if (sh && !sh.views().includes("gamelog")) sh.registerView({ id: "gamelog", title: "Dice log", place: "left", order: 30, mount: renderLog, update: renderLog });
+      if ((!saves || !sh) && ++tries < 120) setTimeout(attempt, 250);
+    };
+    if (document.readyState === "complete") attempt();
+    else window.addEventListener("load", attempt);
+  }
+
+  // src/characters/sheet.js
+  var EXT_KEY = "klite_rpmod";
+  var SHEET_VERSION = 1;
+  var ABILITIES = ["str", "dex", "con", "int", "wis", "cha"];
+  var ABILITY_NAMES = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
+  var SKILLS = [
+    ["acrobatics", "Acrobatics", "dex"],
+    ["animal_handling", "Animal Handling", "wis"],
+    ["arcana", "Arcana", "int"],
+    ["athletics", "Athletics", "str"],
+    ["deception", "Deception", "cha"],
+    ["history", "History", "int"],
+    ["insight", "Insight", "wis"],
+    ["intimidation", "Intimidation", "cha"],
+    ["investigation", "Investigation", "int"],
+    ["medicine", "Medicine", "wis"],
+    ["nature", "Nature", "int"],
+    ["perception", "Perception", "wis"],
+    ["performance", "Performance", "cha"],
+    ["persuasion", "Persuasion", "cha"],
+    ["religion", "Religion", "int"],
+    ["sleight_of_hand", "Sleight of Hand", "dex"],
+    ["stealth", "Stealth", "dex"],
+    ["survival", "Survival", "wis"]
+  ].map(([id, name, ability]) => ({ id, name, ability }));
+  var SKILL_IDS = new Set(SKILLS.map((s) => s.id));
+  var num = (v, d = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : d;
+  };
+  var int = (v, d = 0) => Math.trunc(num(v, d));
+  var clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  var str = (v) => (v == null ? "" : String(v)).trim();
+  function abilityMod(score) {
+    return Math.floor((num(score, 10) - 10) / 2);
+  }
+  function proficiencyBonus(level) {
+    return 2 + Math.floor((clamp(int(level, 1), 1, 20) - 1) / 4);
+  }
+  function fmt(n) {
+    return (n >= 0 ? "+" : "") + n;
+  }
+  function defaultSheet() {
+    return {
+      version: SHEET_VERSION,
+      level: 1,
+      className: "",
+      species: "",
+      background: "",
+      alignment: "",
+      xp: 0,
+      abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+      saves: [],
+      // proficient saving throws (ability ids)
+      skills: {},
+      // skill id -> 1 (proficient) | 2 (expertise)
+      ac: 10,
+      speed: 30,
+      hp: { max: 10, current: 10, temp: 0 },
+      attacks: [],
+      // [{ name, ability: 'str'|'dex'|…, proficient, damage: '1d8+3', notes }]
+      inventory: [],
+      // [{ name, qty, notes }]
+      coins: { cp: 0, sp: 0, gp: 0, pp: 0 },
+      features: "",
+      notes: ""
+    };
+  }
+  function normalizeSheet(raw) {
+    const d = defaultSheet();
+    const s = Object.assign({}, raw && typeof raw === "object" ? raw : {});
+    s.version = SHEET_VERSION;
+    s.level = clamp(int(s.level, 1), 1, 20);
+    for (const k2 of ["className", "species", "background", "alignment", "features", "notes"]) s[k2] = str(s[k2]);
+    s.xp = Math.max(0, int(s.xp, 0));
+    const ab = Object.assign({}, d.abilities, s.abilities && typeof s.abilities === "object" ? s.abilities : {});
+    for (const a of ABILITIES) ab[a] = clamp(int(ab[a], 10), 1, 30);
+    s.abilities = ab;
+    s.saves = [...new Set((Array.isArray(s.saves) ? s.saves : []).filter((a) => ABILITIES.includes(a)))];
+    const sk = {};
+    if (s.skills && typeof s.skills === "object") {
+      for (const [k2, v] of Object.entries(s.skills)) if (SKILL_IDS.has(k2) && (v === 1 || v === 2 || v === true)) sk[k2] = v === true ? 1 : v;
+    }
+    s.skills = sk;
+    s.ac = clamp(int(s.ac, 10), 0, 40);
+    s.speed = Math.max(0, int(s.speed, 30));
+    const hp = Object.assign({}, d.hp, s.hp && typeof s.hp === "object" ? s.hp : {});
+    hp.max = Math.max(1, int(hp.max, 10));
+    hp.current = clamp(int(hp.current, hp.max), -hp.max, hp.max);
+    hp.temp = Math.max(0, int(hp.temp, 0));
+    s.hp = hp;
+    s.attacks = (Array.isArray(s.attacks) ? s.attacks : []).filter((a) => a && str(a.name)).map((a) => ({
+      name: str(a.name),
+      ability: ABILITIES.includes(a.ability) ? a.ability : "str",
+      proficient: a.proficient !== false,
+      damage: str(a.damage),
+      notes: str(a.notes)
+    }));
+    s.inventory = (Array.isArray(s.inventory) ? s.inventory : []).filter((i) => i && str(i.name)).map((i) => ({ name: str(i.name), qty: Math.max(1, int(i.qty, 1)), notes: str(i.notes) }));
+    const coins = Object.assign({}, d.coins, s.coins && typeof s.coins === "object" ? s.coins : {});
+    for (const c of Object.keys(d.coins)) coins[c] = Math.max(0, int(coins[c], 0));
+    s.coins = coins;
+    return s;
+  }
+  function derive(sheet) {
+    const s = normalizeSheet(sheet);
+    const pb = proficiencyBonus(s.level);
+    const mods = Object.fromEntries(ABILITIES.map((a) => [a, abilityMod(s.abilities[a])]));
+    const saves = Object.fromEntries(ABILITIES.map((a) => [a, mods[a] + (s.saves.includes(a) ? pb : 0)]));
+    const skills = Object.fromEntries(SKILLS.map((k2) => [k2.id, mods[k2.ability] + (s.skills[k2.id] || 0) * pb]));
+    const attacks = s.attacks.map((a) => ({ ...a, toHit: mods[a.ability] + (a.proficient ? pb : 0) }));
+    return { sheet: s, pb, mods, saves, skills, attacks, initiative: mods.dex, passivePerception: 10 + skills.perception };
+  }
+  function readSheet(inner) {
+    const ext = inner && inner.extensions && inner.extensions[EXT_KEY];
+    return ext && ext.sheet ? normalizeSheet(ext.sheet) : null;
+  }
+  function writeSheet(inner, sheet) {
+    const out = Object.assign({}, inner || {});
+    const ext = Object.assign({}, out.extensions && typeof out.extensions === "object" ? out.extensions : {});
+    const mine = Object.assign({}, ext[EXT_KEY] && typeof ext[EXT_KEY] === "object" ? ext[EXT_KEY] : {});
+    if (sheet) mine.sheet = normalizeSheet(sheet);
+    else delete mine.sheet;
+    if (Object.keys(mine).length) ext[EXT_KEY] = mine;
+    else delete ext[EXT_KEY];
+    out.extensions = ext;
+    return out;
+  }
+  function toCombatStats(sheet) {
+    const d = derive(sheet);
+    return {
+      abilities: { ...d.sheet.abilities },
+      ac: d.sheet.ac,
+      hpMax: d.sheet.hp.max,
+      speed: d.sheet.speed,
+      proficiency: d.pb,
+      initiativeMod: d.initiative,
+      attacks: d.attacks.map((a) => ({ name: a.name, toHit: a.toHit, damage: a.damage || "1d4" }))
+    };
+  }
+  function fromCombatStats(stats, extra) {
+    const st = stats || {};
+    return normalizeSheet(Object.assign({
+      abilities: st.abilities,
+      ac: st.ac,
+      speed: st.speed,
+      hp: { max: st.hpMax, current: st.hpMax },
+      attacks: (Array.isArray(st.attacks) ? st.attacks : []).map((a) => ({ name: a.name, ability: "str", proficient: true, damage: a.damage }))
+    }, extra || {}));
+  }
+  function sheetSummary(sheet) {
+    const d = derive(sheet);
+    const s = d.sheet;
+    const who = [s.species, s.className && `${s.className} ${s.level}`, !s.className && `level ${s.level}`].filter(Boolean).join(" ");
+    const lines = [
+      `${who || "Level " + s.level} — HP ${s.hp.current}/${s.hp.max}${s.hp.temp ? ` (+${s.hp.temp} temp)` : ""}, AC ${s.ac}, Speed ${s.speed} ft.`,
+      ABILITIES.map((a) => `${a.toUpperCase()} ${s.abilities[a]} (${fmt(d.mods[a])})`).join(", ")
+    ];
+    const prof = SKILLS.filter((k2) => s.skills[k2.id]).map((k2) => `${k2.name} ${fmt(d.skills[k2.id])}`);
+    if (prof.length) lines.push("Skills: " + prof.join(", "));
+    if (s.inventory.length) lines.push("Inventory: " + s.inventory.map((i) => i.name + (i.qty > 1 ? ` x${i.qty}` : "")).join(", "));
+    const coins = Object.entries(s.coins).filter(([, v]) => v > 0).map(([k2, v]) => `${v} ${k2}`);
+    if (coins.length) lines.push("Coins: " + coins.join(", "));
+    return lines.join("\n");
+  }
+
+  // src/characters/store.js
+  var cache = /* @__PURE__ */ new Map();
+  var pending = /* @__PURE__ */ new Map();
+  var k = (name) => String(name || "").trim().toLowerCase();
+  function emit(name) {
+    try {
+      window.dispatchEvent(new CustomEvent("klite:sheet-change", { detail: { name } }));
+    } catch (_) {
+    }
+  }
+  async function loadSheet(name) {
+    const rec = await loadCharacter(name);
+    if (!rec) throw new Error("Character not found in the Library: " + name);
+    const sheet = readSheet(rec.data);
+    cache.set(k(name), { name: rec.name || name, sheet });
+    emit(name);
+    return sheet;
+  }
+  function cachedSheet(name) {
+    if (!name) return null;
+    const hit = cache.get(k(name));
+    if (hit) return hit.sheet;
+    if (!pending.has(k(name))) {
+      const p = loadSheet(name).catch(() => {
+        cache.set(k(name), { name, sheet: null });
+      }).finally(() => pending.delete(k(name)));
+      pending.set(k(name), p);
+    }
+    return void 0;
+  }
+  async function saveSheet(name, sheet) {
+    const rec = await loadCharacter(name);
+    if (!rec) throw new Error("Character not found in the Library: " + name);
+    const inner = writeSheet(rec.data, sheet ? normalizeSheet(sheet) : null);
+    const res = await saveCharacter({ inner, oldName: rec.name || name });
+    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner) });
+    emit(res.name);
+    return readSheet(inner);
+  }
+  function combatStatsFor(name) {
+    const s = cachedSheet(name);
+    return s ? toCombatStats(s) : null;
+  }
+  function summaryFor(name) {
+    const s = cachedSheet(name);
+    return s ? sheetSummary(s) : "";
+  }
+
+  // src/characters/characters.js
+  var LAST_KEY = "KLITE.sheet.last";
+  var AUTOSAVE_SETTING = "sheets_autosave";
+  function initCharacters() {
+    "use strict";
+    if (window.KLITE_RPMod_Characters) return;
+    const V = { name: null, saved: null, draft: null, loading: false, error: "", mode: null, box: null, timer: null };
+    const Shell = () => window.KLITE_RPMod_Shell;
+    const Log = () => window.KLITE_RPMod_Log;
+    const autosave = () => {
+      try {
+        return !!window.KLITE_RPMod_Settings?.get(AUTOSAVE_SETTING);
+      } catch (_) {
+        return false;
+      }
+    };
+    const dirty = () => !!(V.draft && JSON.stringify(V.draft) !== JSON.stringify(V.saved));
+    function personaName() {
+      try {
+        const T = window.KLITE_RPMod?.panels?.TOOLS;
+        return T && T.selectedPersona && T.selectedPersona.name || "";
+      } catch (_) {
+        return "";
+      }
+    }
+    function defaultName() {
+      let last = "";
+      try {
+        last = localStorage.getItem(LAST_KEY) || "";
+      } catch (_) {
+      }
+      const names = characterNames();
+      return [last, personaName()].find((n) => n && names.includes(n)) || names[0] || "";
+    }
+    async function select(name) {
+      if (V.draft && dirty() && name !== V.name && !confirm(`Discard unsaved changes to ${V.name}'s sheet?`)) {
+        render();
+        return;
+      }
+      V.name = name || null;
+      V.saved = null;
+      V.draft = null;
+      V.error = "";
+      try {
+        localStorage.setItem(LAST_KEY, V.name || "");
+      } catch (_) {
+      }
+      if (!V.name) {
+        render();
+        return;
+      }
+      V.loading = true;
+      render();
+      try {
+        const s = await loadSheet(V.name);
+        V.saved = s ? normalizeSheet(s) : null;
+        V.draft = s ? normalizeSheet(s) : null;
+      } catch (e) {
+        V.error = e.message || String(e);
+      }
+      V.loading = false;
+      render();
+    }
+    async function save() {
+      if (!V.name || !V.draft) return;
+      clearTimeout(V.timer);
+      V.timer = null;
+      try {
+        const s = await saveSheet(V.name, V.draft);
+        V.saved = normalizeSheet(s);
+        V.draft = normalizeSheet(s);
+        toast("Sheet saved to the card");
+      } catch (e) {
+        toast("Save failed: " + (e.message || e), true);
+      }
+      render();
+    }
+    function revert() {
+      if (!dirty() || !confirm("Undo all unsaved changes to this sheet?")) return;
+      V.draft = V.saved ? normalizeSheet(V.saved) : null;
+      render();
+    }
+    function edited() {
+      V.draft = normalizeSheet(V.draft);
+      clearTimeout(V.timer);
+      V.timer = null;
+      if (autosave()) V.timer = setTimeout(() => {
+        V.timer = null;
+        if (dirty()) save();
+      }, 1e3);
+      setTimeout(render, 0);
+    }
+    async function createSheet(from) {
+      V.draft = from ? normalizeSheet(from) : defaultSheet();
+      await save();
+    }
+    function rollD20(what, mod, kind) {
+      const L = Log();
+      if (!L) {
+        toast("Game log not loaded", true);
+        return;
+      }
+      const e = L.rollAndLog({ who: V.name, what, expr: "1d20" + (mod ? mod > 0 ? "+" + mod : String(mod) : ""), mode: V.mode, kind });
+      toast(L.describe(e));
+    }
+    function rollExpr(what, expr, kind) {
+      const L = Log();
+      if (!L) return;
+      try {
+        const e = L.rollAndLog({ who: V.name, what, expr, kind });
+        toast(L.describe(e));
+      } catch (err) {
+        toast(err.message, true);
+      }
+    }
+    function btn(text, onclick, opts) {
+      opts = opts || {};
+      const cls = "btn btn-primary rpm-btn" + (opts.icon ? " rpm-btn-icon" : "") + (opts.variant ? " rpm-" + opts.variant : "") + (opts.cls ? " " + opts.cls : "");
+      return el("button", { type: "button", class: cls, title: opts.title, "aria-label": opts.label || (text ? null : opts.title), "data-roll": opts.roll, onclick }, opts.icon ? [iconText(opts.icon, text)] : [text]);
+    }
+    function field(label, input) {
+      return el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: label }), input]);
+    }
+    function textIn(value, onChange, props) {
+      const i = el("input", Object.assign({ type: "text", class: "form-control rpm-input" }, props || {}));
+      i.classList.add("fullScreenTextEditExclude");
+      i.value = value == null ? "" : value;
+      i.addEventListener("change", () => onChange(i.value));
+      return i;
+    }
+    function numIn(value, onChange, props) {
+      return textIn(value, (v) => onChange(Number(v)), Object.assign({ type: "number", inputmode: "numeric" }, props || {}));
+    }
+    function heading(t) {
+      return el("div", { class: "rpm-heading rpm-sheet-h", text: t });
+    }
+    let toastEl = null, toastTimer = null;
+    function toast(msg, isErr) {
+      if (!toastEl || !toastEl.isConnected) {
+        toastEl = el("div", { class: "rpm-themed rpm-toast", role: "status" });
+        document.body.appendChild(toastEl);
+      }
+      toastEl.textContent = msg;
+      toastEl.classList.toggle("rpm-toast-err", !!isErr);
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toastEl && toastEl.remove();
+        toastEl = null;
+      }, 2600);
+    }
+    const FOCUSABLE = "input, select, textarea, button";
+    function render() {
+      const box = V.box;
+      if (!box) return;
+      const a = document.activeElement;
+      const focusIdx = a && box.contains(a) ? [...box.querySelectorAll(FOCUSABLE)].indexOf(a) : -1;
+      let sel = null;
+      try {
+        if (a && a.selectionStart != null) sel = [a.selectionStart, a.selectionEnd];
+      } catch (_) {
+      }
+      renderInto(box);
+      if (focusIdx < 0) return;
+      const t = box.querySelectorAll(FOCUSABLE)[focusIdx];
+      if (!t) return;
+      try {
+        t.focus({ preventScroll: true });
+        if (sel && t.setSelectionRange) t.setSelectionRange(sel[0], sel[1]);
+        else if (t.tagName === "INPUT" && t.select) t.select();
+      } catch (_) {
+      }
+    }
+    function renderInto(box) {
+      clear(box);
+      const root = el("div", { class: "rpm-sheet", "data-sheet": V.name || "" });
+      box.appendChild(root);
+      const names = characterNames();
+      const sel = el("select", { class: "form-control rpm-input rpm-grow", "aria-label": "Character" });
+      sel.appendChild(el("option", { value: "", text: names.length ? "— choose a character —" : "(no characters in the Library)" }));
+      for (const n of names) {
+        const o = el("option", { value: n, text: n + (n === personaName() ? " (your persona)" : "") });
+        if (n === V.name) o.selected = true;
+        sel.appendChild(o);
+      }
+      sel.addEventListener("change", () => select(sel.value));
+      const head = el("div", { class: "rpm-row" }, [sel]);
+      if (V.draft) {
+        const d = dirty(), auto = autosave();
+        const saveBtn = btn(d ? auto ? "Saving…" : "Save •" : "Saved", () => save(), { variant: "success", title: d ? "Save the sheet into the card" : "All changes saved", cls: d && !auto ? "rpm-unsaved" : "" });
+        saveBtn.setAttribute("data-save", "sheet");
+        const revertBtn = btn("Revert", () => revert(), { title: "Undo unsaved changes" });
+        revertBtn.setAttribute("data-revert", "sheet");
+        revertBtn.hidden = !d || auto;
+        head.append(revertBtn, saveBtn);
+      }
+      root.appendChild(head);
+      if (V.loading) {
+        root.appendChild(el("div", { class: "rpm-muted", text: "Loading…" }));
+        return;
+      }
+      if (V.error) {
+        root.appendChild(el("div", { class: "rpm-muted", text: V.error }));
+        return;
+      }
+      if (!V.name) {
+        root.appendChild(el("p", { class: "rpm-muted", text: "Choose a character from your Library. Their sheet is stored inside the character card, so it travels with it when you export the card." }));
+        return;
+      }
+      if (!V.draft) {
+        root.appendChild(el("p", { class: "rpm-muted", text: `${V.name} has no character sheet yet.` }));
+        const row = el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, [btn("Create sheet", () => createSheet(null), { icon: "plus" })]);
+        const ws = worldStatsFor(V.name);
+        if (ws) row.appendChild(btn("Create from world stats", () => createSheet(fromCombatStats(ws)), { title: "Use the d20 stat block this person has in the active world" }));
+        root.appendChild(row);
+        return;
+      }
+      const D = derive(V.draft);
+      const s = D.sheet;
+      const set = (mutate) => (v) => {
+        mutate(v);
+        edited();
+      };
+      const modes = [[null, "Normal"], ["adv", "Advantage"], ["dis", "Disadvantage"]];
+      root.appendChild(el("div", { class: "rpm-row rpm-sheet-modes", role: "radiogroup", "aria-label": "d20 roll mode" }, modes.map(([m, t]) => el("button", { type: "button", role: "radio", "aria-checked": String(V.mode === m), class: "btn btn-primary rpm-btn" + (V.mode === m ? " rpm-on" : ""), text: t, onclick: () => {
+        V.mode = m;
+        render();
+      } }))));
+      root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
+        field("Species", textIn(s.species, set((v) => {
+          V.draft.species = v;
+        }))),
+        field("Class", textIn(s.className, set((v) => {
+          V.draft.className = v;
+        }))),
+        field("Level", numIn(s.level, set((v) => {
+          V.draft.level = v;
+        }), { min: 1, max: 20 })),
+        field("Background", textIn(s.background, set((v) => {
+          V.draft.background = v;
+        })))
+      ]));
+      root.appendChild(el("div", { class: "rpm-muted", style: "margin:2px 0 6px", text: `Proficiency bonus ${fmt(D.pb)} · XP ${s.xp}` }));
+      root.appendChild(heading("Abilities"));
+      root.appendChild(el("div", { class: "rpm-sheet-abilities" }, ABILITIES.map((a) => el("div", { class: "rpm-sheet-ability" }, [
+        el("div", { class: "rpm-label", text: ABILITY_NAMES[a] }),
+        btn(fmt(D.mods[a]), () => rollD20(ABILITY_NAMES[a] + " check", D.mods[a], "check"), { title: `Roll a ${ABILITY_NAMES[a]} check`, roll: "check-" + a, cls: "rpm-sheet-mod" }),
+        numIn(s.abilities[a], set((v) => {
+          V.draft.abilities[a] = v;
+        }), { min: 1, max: 30, "aria-label": ABILITY_NAMES[a] + " score" })
+      ]))));
+      root.appendChild(heading("Combat"));
+      root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
+        field("Armor Class", numIn(s.ac, set((v) => {
+          V.draft.ac = v;
+        }))),
+        field("Speed", numIn(s.speed, set((v) => {
+          V.draft.speed = v;
+        }))),
+        field("Initiative", btn(fmt(D.initiative), () => rollD20("Initiative", D.initiative, "initiative"), { roll: "initiative", title: "Roll initiative" })),
+        field("Passive Perception", el("div", { class: "rpm-sheet-static", text: String(D.passivePerception) }))
+      ]));
+      root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
+        field("HP", numIn(s.hp.current, set((v) => {
+          V.draft.hp.current = v;
+        }), { "aria-label": "Current hit points" })),
+        field("HP max", numIn(s.hp.max, set((v) => {
+          V.draft.hp.max = v;
+        }))),
+        field("Temp HP", numIn(s.hp.temp, set((v) => {
+          V.draft.hp.temp = v;
+        }))),
+        field("XP", numIn(s.xp, set((v) => {
+          V.draft.xp = v;
+        })))
+      ]));
+      const profBox = (checked, onToggle, label) => {
+        const c = el("input", { type: "checkbox", "aria-label": label });
+        c.checked = checked;
+        c.addEventListener("change", () => onToggle(c.checked));
+        return c;
+      };
+      root.appendChild(heading("Saving throws"));
+      root.appendChild(el("div", { class: "rpm-sheet-list" }, ABILITIES.map((a) => el("div", { class: "rpm-sheet-line" }, [
+        profBox(s.saves.includes(a), set((on) => {
+          V.draft.saves = on ? [...V.draft.saves, a] : V.draft.saves.filter((x) => x !== a);
+        }), ABILITY_NAMES[a] + " save proficiency"),
+        el("span", { class: "rpm-grow", text: ABILITY_NAMES[a] }),
+        btn(fmt(D.saves[a]), () => rollD20(ABILITY_NAMES[a] + " saving throw", D.saves[a], "save"), { roll: "save-" + a, title: "Roll the saving throw", cls: "rpm-sheet-mod" })
+      ]))));
+      root.appendChild(heading("Skills"));
+      root.appendChild(el("div", { class: "rpm-sheet-list rpm-sheet-skills" }, SKILLS.map((k2) => {
+        const lvl = s.skills[k2.id] || 0;
+        const tog = el("button", {
+          type: "button",
+          class: "rpm-iconbtn rpm-sheet-prof",
+          "data-prof": String(lvl),
+          title: ["Not proficient", "Proficient", "Expertise"][lvl] + " — click to change",
+          "aria-label": `${k2.name}: ${["not proficient", "proficient", "expertise"][lvl]}`,
+          text: ["○", "●", "◎"][lvl],
+          onclick: () => {
+            const n = (lvl + 1) % 3;
+            if (n) V.draft.skills[k2.id] = n;
+            else delete V.draft.skills[k2.id];
+            edited();
+          }
+        });
+        return el("div", { class: "rpm-sheet-line" }, [
+          tog,
+          el("span", { class: "rpm-grow" }, [k2.name + " ", el("span", { class: "rpm-muted", text: k2.ability.toUpperCase() })]),
+          btn(fmt(D.skills[k2.id]), () => rollD20(k2.name + " check", D.skills[k2.id], "skill"), { roll: "skill-" + k2.id, title: "Roll " + k2.name, cls: "rpm-sheet-mod" })
+        ]);
+      })));
+      root.appendChild(heading("Attacks"));
+      D.attacks.forEach((a, i) => {
+        const abSel = el("select", { class: "form-control rpm-input", "aria-label": "Attack ability" });
+        for (const ab of ABILITIES) {
+          const o = el("option", { value: ab, text: ab.toUpperCase() });
+          if (ab === a.ability) o.selected = true;
+          abSel.appendChild(o);
+        }
+        abSel.addEventListener("change", () => {
+          V.draft.attacks[i].ability = abSel.value;
+          edited();
+        });
+        root.appendChild(el("div", { class: "rpm-sheet-line rpm-sheet-attack" }, [
+          textIn(a.name, set((v) => {
+            V.draft.attacks[i].name = v;
+          }), { "aria-label": "Attack name" }),
+          abSel,
+          textIn(a.damage, set((v) => {
+            V.draft.attacks[i].damage = v;
+          }), { placeholder: "1d8+3", "aria-label": "Damage dice" }),
+          btn("Hit " + fmt(a.toHit), () => rollD20(a.name + " attack", a.toHit, "attack"), { roll: "attack-" + i, title: "Roll to hit" }),
+          btn("Dmg", () => rollExpr(a.name + " damage", a.damage || "1d4", "damage"), { roll: "damage-" + i, title: "Roll damage (" + (a.damage || "1d4") + ")" }),
+          el("button", { type: "button", class: "rpm-iconbtn", title: "Remove attack", "aria-label": "Remove " + a.name, onclick: () => {
+            V.draft.attacks.splice(i, 1);
+            edited();
+          } }, [icon("trash-2", 14)])
+        ]));
+      });
+      const atkName = el("input", { type: "text", class: "form-control rpm-input rpm-grow", placeholder: "e.g. Longsword", "aria-label": "New attack" });
+      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:4px" }, [atkName, btn("", () => {
+        const n = atkName.value.trim();
+        if (!n) return;
+        V.draft.attacks.push({ name: n, ability: "str", proficient: true, damage: "1d8", notes: "" });
+        edited();
+      }, { icon: "plus", title: "Add attack" })]));
+      root.appendChild(heading("Inventory"));
+      s.inventory.forEach((it, i) => root.appendChild(el("div", { class: "rpm-sheet-line" }, [
+        textIn(it.name, set((v) => {
+          V.draft.inventory[i].name = v;
+        }), { class: "form-control rpm-input rpm-grow", "aria-label": "Item name" }),
+        numIn(it.qty, set((v) => {
+          V.draft.inventory[i].qty = v;
+        }), { class: "form-control rpm-input rpm-sheet-qty", min: 1, "aria-label": "Quantity" }),
+        el("button", { type: "button", class: "rpm-iconbtn", title: "Remove item", "aria-label": "Remove " + it.name, onclick: () => {
+          V.draft.inventory.splice(i, 1);
+          edited();
+        } }, [icon("trash-2", 14)])
+      ])));
+      const itemName = el("input", { type: "text", class: "form-control rpm-input rpm-grow", placeholder: "Add an item", "aria-label": "New item" });
+      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:4px" }, [itemName, btn("", () => {
+        const n = itemName.value.trim();
+        if (!n) return;
+        V.draft.inventory.push({ name: n, qty: 1, notes: "" });
+        edited();
+      }, { icon: "plus", title: "Add item" })]));
+      root.appendChild(el("div", { class: "rpm-sheet-grid4", style: "margin-top:6px" }, ["cp", "sp", "gp", "pp"].map((c) => field(c.toUpperCase(), numIn(s.coins[c], set((v) => {
+        V.draft.coins[c] = v;
+      }), { min: 0 })))));
+      root.appendChild(heading("Features & notes"));
+      const area = (value, onChange, label) => {
+        const t = el("textarea", { class: "form-control rpm-input", rows: 3, "aria-label": label });
+        t.value = value;
+        t.addEventListener("change", () => onChange(t.value));
+        return t;
+      };
+      root.appendChild(area(s.features, set((v) => {
+        V.draft.features = v;
+      }), "Features and traits"));
+      root.appendChild(area(s.notes, set((v) => {
+        V.draft.notes = v;
+      }), "Notes"));
+    }
+    function worldStatsFor(name) {
+      try {
+        const W = window.KLITE_RPMod_Worlds;
+        const w = W && W.activeWorld && W.activeWorld();
+        if (!w) return null;
+        const n = String(name).toLowerCase();
+        const p = (w.npcs || []).find((x) => x && x.stats && (x.characterRef && String(x.characterRef.name || "").toLowerCase() === n || String(x.name || "").toLowerCase() === n));
+        return p ? p.stats : null;
+      } catch (_) {
+        return null;
+      }
+    }
+    function beforeClose() {
+      if (!dirty() || autosave()) return true;
+      const choice = confirm(`Save the changes to ${V.name}'s sheet before closing?
+
+OK = save and close · Cancel = close and discard them`);
+      if (choice) {
+        save().then(() => Shell()?.close("sheet", { force: true }));
+        return false;
+      }
+      V.draft = V.saved ? normalizeSheet(V.saved) : null;
+      return true;
+    }
+    function register() {
+      const sh = Shell();
+      if (!sh) return false;
+      sh.registerView({
+        id: "sheet",
+        title: "Character sheet",
+        place: "window",
+        window: { width: 560, height: 680, minWidth: 320, minHeight: 300 },
+        mount: (c) => {
+          V.box = c;
+          if (V.name && V.draft) render();
+          else select(V.name || defaultName());
+        },
+        unmount: () => {
+          V.box = null;
+          clearTimeout(V.timer);
+          V.timer = null;
+        },
+        beforeClose
+      });
+      try {
+        window.KLITE_RPMod_Settings?.registerSetting({
+          id: AUTOSAVE_SETTING,
+          section: "Characters",
+          order: 10,
+          default: false,
+          label: "Autosave character sheets",
+          help: "Saves sheet changes into the character card automatically, about a second after each change. Off: changes stay a draft until you press Save (or Revert)."
+        });
+      } catch (_) {
+      }
+      window.addEventListener("klite:sheet-change", (e) => {
+        if (V.box && e.detail && e.detail.name === V.name && !dirty()) {
+          const s = cachedSheet(V.name);
+          if (s) {
+            V.saved = normalizeSheet(s);
+            V.draft = normalizeSheet(s);
+            render();
+          }
+        }
+      });
+      return true;
+    }
+    const api = {
+      open(name) {
+        const sh = Shell();
+        if (!sh) return false;
+        if (name && name !== V.name) {
+          V.name = null;
+          V.draft = null;
+          select(name);
+        }
+        sh.open("sheet");
+        return true;
+      },
+      loadSheet,
+      saveSheet,
+      cachedSheet,
+      combatStatsFor,
+      summaryFor,
+      current: () => ({ name: V.name, sheet: V.draft ? normalizeSheet(V.draft) : null, dirty: dirty() })
+    };
+    window.KLITE_RPMod_Characters = api;
+    let tries = 0;
+    const attempt = () => {
+      if (!register() && ++tries < 120) setTimeout(attempt, 250);
+    };
+    if (document.readyState === "complete") attempt();
+    else window.addEventListener("load", attempt);
+  }
+
   // src/main.js
   var MODULES = [
     ["shell/shell.js", initShell],
     ["settings/settings.js", initSettings],
     ["library/esoliteLibrary.js", initLibrary],
+    ["game/log.js", initGameLog],
+    ["characters/characters.js", initCharacters],
     ["KLITE-RPmod_ALPHA.js", initAlpha],
     ["KLITE-RPmod_Worlds.js", initWorlds],
     ["KLITE-RPmod_WorldsUI.js", initWorldsUI],

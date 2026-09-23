@@ -178,7 +178,10 @@ export default function initAlpha() {
         const add = (c, label, priority) => {
             const name = cardField(c, 'name');
             if (!name || ctx.isDescribed(name)) return;
-            out.push({ title: `${label}: ${name}`, priority, text: characterContextText(c) });
+            // the d20 sheet stored on the card (src/characters), when it has one
+            let sheet = '';
+            try { sheet = window.KLITE_RPMod_Characters?.summaryFor(name) || ''; } catch (_) {}
+            out.push({ title: `${label}: ${name}`, priority, text: [characterContextText(c), sheet && 'Character sheet: ' + sheet].filter(Boolean).join('\n') });
             ctx.describe(name);
         };
         if (tools?.personaEnabled && tools.selectedPersona) add(tools.selectedPersona, 'User Character', 88);

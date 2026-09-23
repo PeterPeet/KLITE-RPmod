@@ -861,6 +861,7 @@ export default function initWorldsUI() {
         const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
         const c = rt.clock || {};
         box.appendChild(el('div', { class: 'rpm-heading', text: player.name || 'You' }));
+        if (window.KLITE_RPMod_Characters) box.appendChild(uiBtn('Character sheet', () => window.KLITE_RPMod_Characters.open(), { icon: 'id-card', block: true, style: 'margin:4px 0', title: 'Your persona\'s sheet: abilities, skills, inventory — click values to roll' }));
         box.appendChild(el('div', { class: 'rpm-muted', 'data-party': 'location', style: 'margin-top:2px;display:flex;align-items:center;gap:4px' }, [icon('map-pin', 13), loc ? (loc.name || loc.id) : 'nowhere']));
         box.appendChild(muted(`🕑 Day ${c.day || 1}, ${c.time || '—'}${c.weather ? ' · ' + c.weather : ''}`));
         const cb = A.getCombat();

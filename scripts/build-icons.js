@@ -29,6 +29,7 @@ const NAMES = {
     'arrow-left': 'back',
     'arrow-right': 'next',
     'play': 'Quick Start',
+    'id-card': 'character sheet',
     'eye': 'preview what the AI sees',
     'plus': 'add',
     'sparkles': 'example world',

@@ -36,6 +36,53 @@ function findMetaByName(name) {
 }
 const storageKey = (id) => `character_${id}`;
 
+// ---- portrait PNG = the exported card -------------------------------------------------
+// Esolite's "Download character" exports the stored PNG as-is, so the card inside it must be
+// current. tavernTool.injectTextChunk appends tEXt chunks without removing old ones, and
+// importers read the FIRST `chara` chunk — so old card chunks are removed before embedding.
+// The card is embedded as V2 (spec + data, V1 fields mirrored) so `data.extensions` (where
+// the RPmod sheet lives) survives SillyTavern/Chub imports; Esolite's importer reads both.
+const CARD_KEYS = new Set(['chara', 'ccv3', 'chara_encoding', 'chara_spec']);
+export function v2Card(inner) {
+    const d = inner || {};
+    return { spec: 'chara_card_v2', spec_version: '2.0', name: d.name || '', description: d.description || '', personality: d.personality || '',
+        scenario: d.scenario || '', first_mes: d.first_mes || '', mes_example: d.mes_example || '', data: d };
+}
+export function stripCardChunks(bytes) {
+    const SIG = 8; if (!bytes || bytes.length < SIG) return bytes;
+    const parts = [bytes.subarray(0, SIG)]; let pos = SIG, total = SIG;
+    while (pos + 12 <= bytes.length) {
+        const len = ((bytes[pos] << 24) | (bytes[pos + 1] << 16) | (bytes[pos + 2] << 8) | bytes[pos + 3]) >>> 0;
+        const end = pos + 12 + len; if (end > bytes.length) break;
+        const type = String.fromCharCode(bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]);
+        let drop = false;
+        if (type === 'tEXt') {
+            let k = pos + 8, key = '';
+            while (k < pos + 8 + len && bytes[k] !== 0 && key.length < 80) key += String.fromCharCode(bytes[k++]);
+            drop = CARD_KEYS.has(key);
+        }
+        if (!drop) { parts.push(bytes.subarray(pos, end)); total += end - pos; }
+        pos = end;
+        if (type === 'IEND') break;
+    }
+    const out = new Uint8Array(total); let o = 0;
+    for (const p of parts) { out.set(p, o); o += p.length; }
+    return out;
+}
+const PNG_PREFIX = 'data:image/png;base64,';
+export function embedCardInImage(image, inner) {
+    const tool = window.tavernTool;
+    if (typeof image !== 'string' || !image.startsWith(PNG_PREFIX) || !tool || typeof tool.embedIntoPng !== 'function') return image;
+    try {
+        const bin = atob(image.slice(PNG_PREFIX.length));
+        const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const out = tool.embedIntoPng(stripCardChunks(bytes), v2Card(inner));
+        let text = '';
+        for (let i = 0; i < out.length; i += 32768) text += String.fromCharCode.apply(null, out.subarray(i, Math.min(i + 32768, out.length)));
+        return PNG_PREFIX + btoa(text);
+    } catch (e) { console.error('[RPmod library] could not embed the card into the portrait', e); return image; }
+}
+
 async function thumbnailFor(image) {
     const gen = fn('generateThumbnail');
     if (!image || typeof gen !== 'function') return undefined;
@@ -79,20 +126,34 @@ export async function saveCharacter({ inner, image, oldName }) {
         name = r.name; id = r.id;
     }
     const record = { id, name, data: Object.assign({}, inner, { name: normalizeName(rawName, 'No character name') }) };
-    if (image) record.image = image;
-    else {
+    let img = image;
+    if (!img) {
         // keep the stored portrait when the edit did not bring one
         try {
             const prev = JSON.parse(await window.indexeddb_load?.(storageKey(id), '{}') || '{}');
-            if (prev && prev.image) record.image = prev.image;
+            if (prev && prev.image) img = prev.image;
         } catch (_) {}
     }
+    if (img) record.image = embedCardInImage(img, record.data);   // the exported card stays current
     await window.indexeddb_save?.(storageKey(id), JSON.stringify(record));
     const thumbnail = image ? await thumbnailFor(image) : (existing && existing.thumbnail);
     upsertMeta(Object.assign({}, existing || {}, { id, name, type: 'Character', favorite: !!(existing && existing.favorite) }, thumbnail ? { thumbnail } : {}));
     await saveList();
     return { id, name };
 }
+
+// Load a character record ({ id, name, data, image? }) via Esolite's getCharacterData.
+export async function loadCharacter(name) {
+    const get = fn('getCharacterData');
+    if (typeof get !== 'function' || !name) return null;
+    try {
+        let r = await get(name);
+        if (typeof r === 'string') r = JSON.parse(r || '{}');
+        return r && r.data && typeof r.data === 'object' && !Array.isArray(r.data) ? r : null;
+    } catch (_) { return null; }
+}
+// Names of all Library characters (type Character).
+export function characterNames() { return list().filter(m => m && m.name && (m.type || 'Character') === 'Character').map(m => m.name); }
 
 export async function deleteCharacter(name) {
     const meta = findMetaByName(name);
@@ -163,7 +224,7 @@ export async function recoverOrphans() {
 export default function initLibrary() {
     'use strict';
     if (window.KLITE_RPMod_Library) return;
-    const api = { saveCharacter, deleteCharacter, findOrphans, recoverOrphans, isOrphanRecord };
+    const api = { saveCharacter, deleteCharacter, loadCharacter, characterNames, findOrphans, recoverOrphans, isOrphanRecord, embedCardInImage, stripCardChunks, v2Card };
     window.KLITE_RPMod_Library = api;
 
     // Recovery runs once per page load, after Esolite has loaded and migrated its list.

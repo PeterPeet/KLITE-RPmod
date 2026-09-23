@@ -144,6 +144,20 @@ export const CHAPTERS = [
         show: [{ label: 'Chars tab', run: (c) => { c.open('chars'); c.highlight('#rpm-dock-right', 'Characters, roles, scenario and tools'); } }],
     },
     {
+        id: 'sheet', title: 'Character sheets & dice',
+        blocks: [
+            { p: 'Every character in your Library can have a character sheet: abilities, saving throws, skills, armor class, hit points, attacks, inventory and coins. The sheet is stored inside the character card, so it travels with the card when you export it.' },
+            { list: [
+                'Open it with "Character sheet" in the Party section (it starts with your persona) and pick any character at the top.',
+                'Click any bonus to roll a d20 with it; choose Advantage or Disadvantage above. Attacks roll to hit and damage.',
+                'Every roll goes into the Dice log on the left, and the AI sees the rolls made since its last reply.',
+                'Changes are a draft until you press Save (or turn on autosave in Settings → RPmod). Revert undoes them.',
+            ] },
+            { tip: 'Your persona\'s sheet (level, class, HP, AC, skills, inventory) is part of what the AI knows about you.' },
+        ],
+        show: [{ label: 'Character sheet', run: (c) => { c.open('sheet'); c.highlight('[data-window="sheet"]', 'Click a bonus to roll'); } }],
+    },
+    {
         id: 'look', title: 'Look & colours',
         blocks: [
             { p: 'RPmod uses Esolite\'s theme. Change the theme in Esolite\'s settings and the panels follow.' },

@@ -1,0 +1,317 @@
+// =============================================================================
+// KLITE RPmod — Characters: the character sheet window
+// -----------------------------------------------------------------------------
+// A shell window ("Character sheet") for any character in Esolite's Library: identity,
+// abilities, saving throws, skills, combat values, attacks, inventory, coins, notes.
+// Every bonus is a button that rolls (normal / advantage / disadvantage) into the game log
+// (src/game/log.js), which the AI sees on its next turn.
+// The sheet is stored in the card (src/characters/sheet.js, store.js). Edits are a draft
+// until Save (or automatically with Settings → RPmod → "Autosave character sheets");
+// Revert drops the draft; closing with unsaved edits asks.
+// Public API: window.KLITE_RPMod_Characters.
+// =============================================================================
+import { el, clear, icon, iconText } from '../shell/dom.js';
+import { ABILITIES, ABILITY_NAMES, SKILLS, defaultSheet, normalizeSheet, derive, fmt, fromCombatStats } from './sheet.js';
+import { loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor } from './store.js';
+import { characterNames } from '../library/esoliteLibrary.js';
+
+const LAST_KEY = 'KLITE.sheet.last';
+const AUTOSAVE_SETTING = 'sheets_autosave';
+
+export default function initCharacters() {
+    'use strict';
+    if (window.KLITE_RPMod_Characters) return;
+
+    const V = { name: null, saved: null, draft: null, loading: false, error: '', mode: null, box: null, timer: null };
+    const Shell = () => window.KLITE_RPMod_Shell;
+    const Log = () => window.KLITE_RPMod_Log;
+    const autosave = () => { try { return !!window.KLITE_RPMod_Settings?.get(AUTOSAVE_SETTING); } catch (_) { return false; } };
+    const dirty = () => !!(V.draft && JSON.stringify(V.draft) !== JSON.stringify(V.saved));
+
+    function personaName() { try { const T = window.KLITE_RPMod?.panels?.TOOLS; return (T && T.selectedPersona && T.selectedPersona.name) || ''; } catch (_) { return ''; } }
+    function defaultName() {
+        let last = ''; try { last = localStorage.getItem(LAST_KEY) || ''; } catch (_) {}
+        const names = characterNames();
+        return [last, personaName()].find(n => n && names.includes(n)) || names[0] || '';
+    }
+
+    // ---- load / save ----------------------------------------------------------------------
+    async function select(name) {
+        if (V.draft && dirty() && name !== V.name && !confirm(`Discard unsaved changes to ${V.name}'s sheet?`)) { render(); return; }
+        V.name = name || null; V.saved = null; V.draft = null; V.error = '';
+        try { localStorage.setItem(LAST_KEY, V.name || ''); } catch (_) {}
+        if (!V.name) { render(); return; }
+        V.loading = true; render();
+        try {
+            const s = await loadSheet(V.name);
+            V.saved = s ? normalizeSheet(s) : null;
+            V.draft = s ? normalizeSheet(s) : null;
+        } catch (e) { V.error = e.message || String(e); }
+        V.loading = false; render();
+    }
+    async function save() {
+        if (!V.name || !V.draft) return;
+        clearTimeout(V.timer); V.timer = null;
+        try {
+            const s = await saveSheet(V.name, V.draft);
+            V.saved = normalizeSheet(s); V.draft = normalizeSheet(s);
+            toast('Sheet saved to the card');
+        } catch (e) { toast('Save failed: ' + (e.message || e), true); }
+        render();
+    }
+    function revert() {
+        if (!dirty() || !confirm('Undo all unsaved changes to this sheet?')) return;
+        V.draft = V.saved ? normalizeSheet(V.saved) : null; render();
+    }
+    function edited() {
+        V.draft = normalizeSheet(V.draft);
+        clearTimeout(V.timer); V.timer = null;
+        if (autosave()) V.timer = setTimeout(() => { V.timer = null; if (dirty()) save(); }, 1000);
+        // after the focus has moved (a `change` fires before Tab moves focus)
+        setTimeout(render, 0);
+    }
+    async function createSheet(from) {
+        V.draft = from ? normalizeSheet(from) : defaultSheet();
+        await save();
+    }
+
+    // ---- rolls ----------------------------------------------------------------------------
+    function rollD20(what, mod, kind) {
+        const L = Log(); if (!L) { toast('Game log not loaded', true); return; }
+        const e = L.rollAndLog({ who: V.name, what, expr: '1d20' + (mod ? (mod > 0 ? '+' + mod : String(mod)) : ''), mode: V.mode, kind });
+        toast(L.describe(e));
+    }
+    function rollExpr(what, expr, kind) {
+        const L = Log(); if (!L) return;
+        try { const e = L.rollAndLog({ who: V.name, what, expr, kind }); toast(L.describe(e)); }
+        catch (err) { toast(err.message, true); }
+    }
+
+    // ---- UI helpers -------------------------------------------------------------------------
+    function btn(text, onclick, opts) {
+        opts = opts || {};
+        const cls = 'btn btn-primary rpm-btn' + (opts.icon ? ' rpm-btn-icon' : '') + (opts.variant ? ' rpm-' + opts.variant : '') + (opts.cls ? ' ' + opts.cls : '');
+        return el('button', { type: 'button', class: cls, title: opts.title, 'aria-label': opts.label || (text ? null : opts.title), 'data-roll': opts.roll, onclick }, opts.icon ? [iconText(opts.icon, text)] : [text]);
+    }
+    function field(label, input) { return el('label', { class: 'rpm-sheet-field' }, [el('span', { class: 'rpm-label', text: label }), input]); }
+    // One-line fields opt out of Esolite's full-screen edit button (fullScreenEditor.js);
+    // the notes/features text areas keep it.
+    function textIn(value, onChange, props) {
+        const i = el('input', Object.assign({ type: 'text', class: 'form-control rpm-input' }, props || {}));
+        i.classList.add('fullScreenTextEditExclude');
+        i.value = value == null ? '' : value;
+        i.addEventListener('change', () => onChange(i.value));
+        return i;
+    }
+    function numIn(value, onChange, props) { return textIn(value, (v) => onChange(Number(v)), Object.assign({ type: 'number', inputmode: 'numeric' }, props || {})); }
+    function heading(t) { return el('div', { class: 'rpm-heading rpm-sheet-h', text: t }); }
+    // one toast at a time: a new message replaces the current one
+    let toastEl = null, toastTimer = null;
+    function toast(msg, isErr) {
+        if (!toastEl || !toastEl.isConnected) { toastEl = el('div', { class: 'rpm-themed rpm-toast', role: 'status' }); document.body.appendChild(toastEl); }
+        toastEl.textContent = msg; toastEl.classList.toggle('rpm-toast-err', !!isErr);
+        clearTimeout(toastTimer); toastTimer = setTimeout(() => { toastEl && toastEl.remove(); toastEl = null; }, 2600);
+    }
+
+    // ---- render -------------------------------------------------------------------------------
+    // Re-rendering after a change must not steal keyboard focus: remember the focused
+    // control's position among the focusable controls and restore it afterwards.
+    const FOCUSABLE = 'input, select, textarea, button';
+    function render() {
+        const box = V.box; if (!box) return;
+        const a = document.activeElement;
+        const focusIdx = a && box.contains(a) ? [...box.querySelectorAll(FOCUSABLE)].indexOf(a) : -1;
+        let sel = null; try { if (a && a.selectionStart != null) sel = [a.selectionStart, a.selectionEnd]; } catch (_) {}
+        renderInto(box);
+        if (focusIdx < 0) return;
+        const t = box.querySelectorAll(FOCUSABLE)[focusIdx]; if (!t) return;
+        try {
+            t.focus({ preventScroll: true });
+            // keep the caret/selection (Tab selects the next field's text; number inputs
+            // have no selection API, so select them whole like Tab does)
+            if (sel && t.setSelectionRange) t.setSelectionRange(sel[0], sel[1]);
+            else if (t.tagName === 'INPUT' && t.select) t.select();
+        } catch (_) {}
+    }
+    function renderInto(box) {
+        clear(box);
+        const root = el('div', { class: 'rpm-sheet', 'data-sheet': V.name || '' });
+        box.appendChild(root);
+
+        // header: character + save state
+        const names = characterNames();
+        const sel = el('select', { class: 'form-control rpm-input rpm-grow', 'aria-label': 'Character' });
+        sel.appendChild(el('option', { value: '', text: names.length ? '— choose a character —' : '(no characters in the Library)' }));
+        for (const n of names) { const o = el('option', { value: n, text: n + (n === personaName() ? ' (your persona)' : '') }); if (n === V.name) o.selected = true; sel.appendChild(o); }
+        sel.addEventListener('change', () => select(sel.value));
+        const head = el('div', { class: 'rpm-row' }, [sel]);
+        if (V.draft) {
+            const d = dirty(), auto = autosave();
+            const saveBtn = btn(d ? (auto ? 'Saving…' : 'Save •') : 'Saved', () => save(), { variant: 'success', title: d ? 'Save the sheet into the card' : 'All changes saved', cls: d && !auto ? 'rpm-unsaved' : '' });
+            saveBtn.setAttribute('data-save', 'sheet');
+            const revertBtn = btn('Revert', () => revert(), { title: 'Undo unsaved changes' });
+            revertBtn.setAttribute('data-revert', 'sheet'); revertBtn.hidden = !d || auto;
+            head.append(revertBtn, saveBtn);
+        }
+        root.appendChild(head);
+
+        if (V.loading) { root.appendChild(el('div', { class: 'rpm-muted', text: 'Loading…' })); return; }
+        if (V.error) { root.appendChild(el('div', { class: 'rpm-muted', text: V.error })); return; }
+        if (!V.name) { root.appendChild(el('p', { class: 'rpm-muted', text: 'Choose a character from your Library. Their sheet is stored inside the character card, so it travels with it when you export the card.' })); return; }
+        if (!V.draft) {
+            root.appendChild(el('p', { class: 'rpm-muted', text: `${V.name} has no character sheet yet.` }));
+            const row = el('div', { class: 'rpm-row', style: 'flex-wrap:wrap' }, [btn('Create sheet', () => createSheet(null), { icon: 'plus' })]);
+            const ws = worldStatsFor(V.name);
+            if (ws) row.appendChild(btn('Create from world stats', () => createSheet(fromCombatStats(ws)), { title: 'Use the d20 stat block this person has in the active world' }));
+            root.appendChild(row);
+            return;
+        }
+
+        const D = derive(V.draft); const s = D.sheet;
+        const set = (mutate) => (v) => { mutate(v); edited(); };
+
+        // roll mode
+        const modes = [[null, 'Normal'], ['adv', 'Advantage'], ['dis', 'Disadvantage']];
+        root.appendChild(el('div', { class: 'rpm-row rpm-sheet-modes', role: 'radiogroup', 'aria-label': 'd20 roll mode' }, modes.map(([m, t]) =>
+            el('button', { type: 'button', role: 'radio', 'aria-checked': String(V.mode === m), class: 'btn btn-primary rpm-btn' + (V.mode === m ? ' rpm-on' : ''), text: t, onclick: () => { V.mode = m; render(); } }))));
+
+        // identity
+        root.appendChild(el('div', { class: 'rpm-sheet-grid4' }, [
+            field('Species', textIn(s.species, set(v => { V.draft.species = v; }))),
+            field('Class', textIn(s.className, set(v => { V.draft.className = v; }))),
+            field('Level', numIn(s.level, set(v => { V.draft.level = v; }), { min: 1, max: 20 })),
+            field('Background', textIn(s.background, set(v => { V.draft.background = v; }))),
+        ]));
+        root.appendChild(el('div', { class: 'rpm-muted', style: 'margin:2px 0 6px', text: `Proficiency bonus ${fmt(D.pb)} · XP ${s.xp}` }));
+
+        // abilities
+        root.appendChild(heading('Abilities'));
+        root.appendChild(el('div', { class: 'rpm-sheet-abilities' }, ABILITIES.map(a => el('div', { class: 'rpm-sheet-ability' }, [
+            el('div', { class: 'rpm-label', text: ABILITY_NAMES[a] }),
+            btn(fmt(D.mods[a]), () => rollD20(ABILITY_NAMES[a] + ' check', D.mods[a], 'check'), { title: `Roll a ${ABILITY_NAMES[a]} check`, roll: 'check-' + a, cls: 'rpm-sheet-mod' }),
+            numIn(s.abilities[a], set(v => { V.draft.abilities[a] = v; }), { min: 1, max: 30, 'aria-label': ABILITY_NAMES[a] + ' score' }),
+        ]))));
+
+        // combat line
+        root.appendChild(heading('Combat'));
+        root.appendChild(el('div', { class: 'rpm-sheet-grid4' }, [
+            field('Armor Class', numIn(s.ac, set(v => { V.draft.ac = v; }))),
+            field('Speed', numIn(s.speed, set(v => { V.draft.speed = v; }))),
+            field('Initiative', btn(fmt(D.initiative), () => rollD20('Initiative', D.initiative, 'initiative'), { roll: 'initiative', title: 'Roll initiative' })),
+            field('Passive Perception', el('div', { class: 'rpm-sheet-static', text: String(D.passivePerception) })),
+        ]));
+        root.appendChild(el('div', { class: 'rpm-sheet-grid4' }, [
+            field('HP', numIn(s.hp.current, set(v => { V.draft.hp.current = v; }), { 'aria-label': 'Current hit points' })),
+            field('HP max', numIn(s.hp.max, set(v => { V.draft.hp.max = v; }))),
+            field('Temp HP', numIn(s.hp.temp, set(v => { V.draft.hp.temp = v; }))),
+            field('XP', numIn(s.xp, set(v => { V.draft.xp = v; }))),
+        ]));
+
+        // saves + skills
+        const profBox = (checked, onToggle, label) => { const c = el('input', { type: 'checkbox', 'aria-label': label }); c.checked = checked; c.addEventListener('change', () => onToggle(c.checked)); return c; };
+        root.appendChild(heading('Saving throws'));
+        root.appendChild(el('div', { class: 'rpm-sheet-list' }, ABILITIES.map(a => el('div', { class: 'rpm-sheet-line' }, [
+            profBox(s.saves.includes(a), set(on => { V.draft.saves = on ? [...V.draft.saves, a] : V.draft.saves.filter(x => x !== a); }), ABILITY_NAMES[a] + ' save proficiency'),
+            el('span', { class: 'rpm-grow', text: ABILITY_NAMES[a] }),
+            btn(fmt(D.saves[a]), () => rollD20(ABILITY_NAMES[a] + ' saving throw', D.saves[a], 'save'), { roll: 'save-' + a, title: 'Roll the saving throw', cls: 'rpm-sheet-mod' }),
+        ]))));
+        root.appendChild(heading('Skills'));
+        root.appendChild(el('div', { class: 'rpm-sheet-list rpm-sheet-skills' }, SKILLS.map(k => {
+            const lvl = s.skills[k.id] || 0;
+            const tog = el('button', { type: 'button', class: 'rpm-iconbtn rpm-sheet-prof', 'data-prof': String(lvl), title: ['Not proficient', 'Proficient', 'Expertise'][lvl] + ' — click to change', 'aria-label': `${k.name}: ${['not proficient', 'proficient', 'expertise'][lvl]}`, text: ['○', '●', '◎'][lvl],
+                onclick: () => { const n = (lvl + 1) % 3; if (n) V.draft.skills[k.id] = n; else delete V.draft.skills[k.id]; edited(); } });
+            return el('div', { class: 'rpm-sheet-line' }, [tog, el('span', { class: 'rpm-grow' }, [k.name + ' ', el('span', { class: 'rpm-muted', text: k.ability.toUpperCase() })]),
+                btn(fmt(D.skills[k.id]), () => rollD20(k.name + ' check', D.skills[k.id], 'skill'), { roll: 'skill-' + k.id, title: 'Roll ' + k.name, cls: 'rpm-sheet-mod' })]);
+        })));
+
+        // attacks
+        root.appendChild(heading('Attacks'));
+        D.attacks.forEach((a, i) => {
+            const abSel = el('select', { class: 'form-control rpm-input', 'aria-label': 'Attack ability' });
+            for (const ab of ABILITIES) { const o = el('option', { value: ab, text: ab.toUpperCase() }); if (ab === a.ability) o.selected = true; abSel.appendChild(o); }
+            abSel.addEventListener('change', () => { V.draft.attacks[i].ability = abSel.value; edited(); });
+            root.appendChild(el('div', { class: 'rpm-sheet-line rpm-sheet-attack' }, [
+                textIn(a.name, set(v => { V.draft.attacks[i].name = v; }), { 'aria-label': 'Attack name' }), abSel,
+                textIn(a.damage, set(v => { V.draft.attacks[i].damage = v; }), { placeholder: '1d8+3', 'aria-label': 'Damage dice' }),
+                btn('Hit ' + fmt(a.toHit), () => rollD20(a.name + ' attack', a.toHit, 'attack'), { roll: 'attack-' + i, title: 'Roll to hit' }),
+                btn('Dmg', () => rollExpr(a.name + ' damage', a.damage || '1d4', 'damage'), { roll: 'damage-' + i, title: 'Roll damage (' + (a.damage || '1d4') + ')' }),
+                el('button', { type: 'button', class: 'rpm-iconbtn', title: 'Remove attack', 'aria-label': 'Remove ' + a.name, onclick: () => { V.draft.attacks.splice(i, 1); edited(); } }, [icon('trash-2', 14)]),
+            ]));
+        });
+        const atkName = el('input', { type: 'text', class: 'form-control rpm-input rpm-grow', placeholder: 'e.g. Longsword', 'aria-label': 'New attack' });
+        root.appendChild(el('div', { class: 'rpm-row', style: 'margin-top:4px' }, [atkName, btn('', () => {
+            const n = atkName.value.trim(); if (!n) return; V.draft.attacks.push({ name: n, ability: 'str', proficient: true, damage: '1d8', notes: '' }); edited();
+        }, { icon: 'plus', title: 'Add attack' })]));
+
+        // inventory + coins
+        root.appendChild(heading('Inventory'));
+        s.inventory.forEach((it, i) => root.appendChild(el('div', { class: 'rpm-sheet-line' }, [
+            textIn(it.name, set(v => { V.draft.inventory[i].name = v; }), { class: 'form-control rpm-input rpm-grow', 'aria-label': 'Item name' }),
+            numIn(it.qty, set(v => { V.draft.inventory[i].qty = v; }), { class: 'form-control rpm-input rpm-sheet-qty', min: 1, 'aria-label': 'Quantity' }),
+            el('button', { type: 'button', class: 'rpm-iconbtn', title: 'Remove item', 'aria-label': 'Remove ' + it.name, onclick: () => { V.draft.inventory.splice(i, 1); edited(); } }, [icon('trash-2', 14)]),
+        ])));
+        const itemName = el('input', { type: 'text', class: 'form-control rpm-input rpm-grow', placeholder: 'Add an item', 'aria-label': 'New item' });
+        root.appendChild(el('div', { class: 'rpm-row', style: 'margin-top:4px' }, [itemName, btn('', () => {
+            const n = itemName.value.trim(); if (!n) return; V.draft.inventory.push({ name: n, qty: 1, notes: '' }); edited();
+        }, { icon: 'plus', title: 'Add item' })]));
+        root.appendChild(el('div', { class: 'rpm-sheet-grid4', style: 'margin-top:6px' }, ['cp', 'sp', 'gp', 'pp'].map(c =>
+            field(c.toUpperCase(), numIn(s.coins[c], set(v => { V.draft.coins[c] = v; }), { min: 0 })))));
+
+        // notes
+        root.appendChild(heading('Features & notes'));
+        const area = (value, onChange, label) => { const t = el('textarea', { class: 'form-control rpm-input', rows: 3, 'aria-label': label }); t.value = value; t.addEventListener('change', () => onChange(t.value)); return t; };
+        root.appendChild(area(s.features, set(v => { V.draft.features = v; }), 'Features and traits'));
+        root.appendChild(area(s.notes, set(v => { V.draft.notes = v; }), 'Notes'));
+    }
+
+    // A Worlds person with the same name (or linked to this card) and a stat block.
+    function worldStatsFor(name) {
+        try {
+            const W = window.KLITE_RPMod_Worlds; const w = W && W.activeWorld && W.activeWorld();
+            if (!w) return null;
+            const n = String(name).toLowerCase();
+            const p = (w.npcs || []).find(x => x && x.stats && ((x.characterRef && String(x.characterRef.name || '').toLowerCase() === n) || String(x.name || '').toLowerCase() === n));
+            return p ? p.stats : null;
+        } catch (_) { return null; }
+    }
+
+    // ---- shell window ------------------------------------------------------------------
+    function beforeClose() {
+        if (!dirty() || autosave()) return true;
+        const choice = confirm(`Save the changes to ${V.name}'s sheet before closing?\n\nOK = save and close · Cancel = close and discard them`);
+        if (choice) { save().then(() => Shell()?.close('sheet', { force: true })); return false; }
+        V.draft = V.saved ? normalizeSheet(V.saved) : null;
+        return true;
+    }
+    function register() {
+        const sh = Shell(); if (!sh) return false;
+        sh.registerView({
+            id: 'sheet', title: 'Character sheet', place: 'window', window: { width: 560, height: 680, minWidth: 320, minHeight: 300 },
+            mount: (c) => { V.box = c; if (V.name && V.draft) render(); else select(V.name || defaultName()); },
+            unmount: () => { V.box = null; clearTimeout(V.timer); V.timer = null; },
+            beforeClose,
+        });
+        try {
+            window.KLITE_RPMod_Settings?.registerSetting({
+                id: AUTOSAVE_SETTING, section: 'Characters', order: 10, default: false, label: 'Autosave character sheets',
+                help: 'Saves sheet changes into the character card automatically, about a second after each change. Off: changes stay a draft until you press Save (or Revert).',
+            });
+        } catch (_) {}
+        window.addEventListener('klite:sheet-change', (e) => {
+            // another view saved this character's sheet: refresh a clean view
+            if (V.box && e.detail && e.detail.name === V.name && !dirty()) { const s = cachedSheet(V.name); if (s) { V.saved = normalizeSheet(s); V.draft = normalizeSheet(s); render(); } }
+        });
+        return true;
+    }
+
+    const api = {
+        open(name) { const sh = Shell(); if (!sh) return false; if (name && name !== V.name) { V.name = null; V.draft = null; select(name); } sh.open('sheet'); return true; },
+        loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor,
+        current: () => ({ name: V.name, sheet: V.draft ? normalizeSheet(V.draft) : null, dirty: dirty() }),
+    };
+    window.KLITE_RPMod_Characters = api;
+
+    let tries = 0;
+    const attempt = () => { if (!register() && ++tries < 120) setTimeout(attempt, 250); };
+    if (document.readyState === 'complete') attempt(); else window.addEventListener('load', attempt);
+}

@@ -17,6 +17,8 @@ const FILES = {
     onboarding: 'src/onboarding/onboarding.js',
     library: 'src/library/esoliteLibrary.js',
     settings: 'src/settings/settings.js',
+    gamelog: 'src/game/log.js',
+    characters: 'src/characters/characters.js',
     bundle: 'KLITE-RPmod.js',
 };
 
@@ -144,6 +146,12 @@ function createHost({ settings = {} } = {}) {
         function save_settings() { __settingsSaved++; }
         function confirm_settings() { save_settings(); document.getElementById('settingscontainer').classList.add('hidden'); }
     `);
+
+    // Esolite's real tavernTool.js (PNG tEXt card embedding) from the host reference folder.
+    host.installTavernTool = () => {
+        const src = fs.readFileSync(path.join(ROOT, 'Esobold Esolite a fork of KoboldAI Lite RMv1.35.0', 'static', 'js', 'tavernTool.js'), 'utf8');
+        vm.runInContext(src, ctx, { filename: 'tavernTool.js' });
+    };
 
     // Deterministic Math.random inside the page context (for dice tests).
     host.seedRandom = (values) => {

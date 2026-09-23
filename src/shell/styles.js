@@ -161,6 +161,9 @@ ${Object.entries(RPMOD_THEME_DEFAULTS).map(([k, v]) => `    ${k}: ${v};`).join('
 #rpm-shell.rpm-compact .rpm-window-head { cursor: default; }
 #rpm-shell.rpm-compact .rpm-window-grip { display: none; }
 
+/* the hidden attribute must win over display rules of buttons/rows (e.g. .rpm-btn-icon) */
+#rpm-shell [hidden], .rpm-themed [hidden] { display: none !important; }
+
 /* ---- icons (Lucide subset, src/shell/icons.js): currentColor strokes ---- */
 .rpm-icon { flex: none; display: inline-block; vertical-align: middle; }
 .rpm-btn.rpm-btn-icon { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
@@ -265,6 +268,36 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
     .wm-ed-add { width: auto; white-space: nowrap; }
     .wm-ed-canvas { flex: 1 1 55%; }
     .wm-ed-insp { flex: 0 1 45%; border-left: 0; border-top: 1px solid var(--rpm-border); }
+}
+
+/* ---- character sheet (window "sheet") + dice log ---- */
+.rpm-sheet { display: flex; flex-direction: column; gap: 4px; }
+.rpm-sheet-h { margin: 10px 0 4px; }
+.rpm-sheet-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin: 0; }
+.rpm-sheet-grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.rpm-sheet-abilities { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.rpm-sheet-ability { display: flex; flex-direction: column; align-items: stretch; gap: 3px; text-align: center; padding: 6px 4px; border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); background: var(--rpm-bg-alt); }
+.rpm-sheet-ability .rpm-label { font-size: var(--rpm-fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rpm-sheet-ability input { text-align: center; }
+.rpm-sheet-mod { min-width: 48px; font-weight: bold; }
+.rpm-sheet-static { padding: 4px 0; font-weight: bold; }
+.rpm-sheet-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 12px; }
+.rpm-sheet-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.rpm-sheet-attack input:first-child { flex: 2 1 0; min-width: 0; }
+.rpm-sheet-attack input, .rpm-sheet-attack select { flex: 1 1 0; min-width: 0; }
+.rpm-sheet-qty { width: 64px; flex: none; }
+.rpm-sheet-prof { width: 22px; font-size: 15px; }
+.rpm-sheet-prof[data-prof="1"], .rpm-sheet-prof[data-prof="2"] { color: var(--rpm-success); }
+.rpm-sheet-modes .rpm-btn { flex: 1; }
+.rpm-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100002; background: var(--rpm-bg); color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi); box-shadow: inset 3px 0 0 var(--rpm-success), var(--rpm-shadow); border-radius: var(--rpm-radius-lg); padding: 8px 16px; font-family: var(--rpm-font); font-size: var(--rpm-fs); }
+.rpm-toast-err { box-shadow: inset 3px 0 0 var(--rpm-danger), var(--rpm-shadow); }
+.rpm-log-line { font-size: var(--rpm-fs-sm); padding: 2px 0; border-bottom: 1px solid var(--rpm-border); }
+.rpm-log-crit { color: var(--rpm-success); font-weight: bold; }
+.rpm-log-fumble { color: var(--rpm-danger); }
+@container (max-width: 520px) {
+    .rpm-sheet-abilities { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .rpm-sheet-grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .rpm-sheet-list { grid-template-columns: 1fr; }
 }
 
 /* ---- "Show me" spotlight (outside the shell layer, above everything) ---- */

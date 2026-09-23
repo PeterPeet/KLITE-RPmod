@@ -271,7 +271,16 @@ export default function initWorlds() {
     // =======================================================================
     // A Person (npc) may reference a character from the host library
     // (KLITE_RPMod.characters) via characterRef, and/or carry a d20 stat block.
-    function characterLibrary() { try { return asArray(window.KLITE_RPMod && window.KLITE_RPMod.characters); } catch (_) { return []; } }
+    // ALPHA's gallery view of the Library; Esolite's Library itself (names) when the gallery
+    // is empty (ALPHA not loaded yet or at all).
+    function characterLibrary() {
+        try {
+            const gallery = asArray(window.KLITE_RPMod && window.KLITE_RPMod.characters);
+            if (gallery.length) return gallery;
+            const L = window.KLITE_RPMod_Library;
+            return L && typeof L.characterNames === 'function' ? L.characterNames().map(name => ({ id: name, name })) : [];
+        } catch (_) { return []; }
+    }
     // Resolve the linked library character (by id, else by name), or the embedded
     // export snapshot as a fallback so worlds stay portable without the library.
     function resolveCharacter(person) {
@@ -288,6 +297,15 @@ export default function initWorlds() {
             if (person.characterSnapshot) return person.characterSnapshot;
         }
         return null;
+    }
+    // The linked card's character sheet (src/characters) as a stat block — used when the
+    // person has no stat block of its own. Synchronous cache; null until loaded.
+    function cardSheetStats(person) {
+        try { const C = window.KLITE_RPMod_Characters; const ref = person && person.characterRef; return C && ref && ref.name ? C.combatStatsFor(ref.name) : null; } catch (_) { return null; }
+    }
+    // The player's persona sheet (ALPHA Tools persona) when the world sets no player stats.
+    function personaSheetStats() {
+        try { const n = window.KLITE_RPMod?.panels?.TOOLS?.selectedPersona?.name; const C = window.KLITE_RPMod_Characters; return C && n ? C.combatStatsFor(n) : null; } catch (_) { return null; }
     }
     function personName(person) {
         return norm(person && person.name) || norm(resolveCharacter(person)?.name) || 'Unnamed';
@@ -649,8 +667,8 @@ export default function initWorlds() {
 
     function playerCombatCfg() { const w = activeWorld(); return (w && w.ruleset && w.ruleset.player) || {}; }
     function combatantStats(id) {
-        if (id === '__player__') return normalizeStats(playerCombatCfg().stats || {});
-        const p = entityById(activeWorld(), id); return normalizeStats(p && p.stats || {});
+        if (id === '__player__') return normalizeStats(playerCombatCfg().stats || personaSheetStats() || {});
+        const p = entityById(activeWorld(), id); return normalizeStats(p && (p.stats || cardSheetStats(p)) || {});
     }
     function combatantName(id) {
         if (id === '__player__') return norm(playerCombatCfg().name) || 'You';
@@ -851,7 +869,8 @@ export default function initWorlds() {
             const blurb = described ? '' : personBlurb(npc); if (blurb) bits.push(blurb);
             const md = npcMood(npc); if (md) bits.push(`Mood: ${md}`);
             if (faction) bits.push(`Faction: ${norm(faction.name)}`);
-            if (npc.stats) bits.push(statSummary(npc.stats));  // d20 block when present
+            const npcStats = npc.stats || cardSheetStats(npc);   // own block, else the card's sheet
+            if (npcStats) bits.push(statSummary(npcStats));  // d20 block when present
             npcLines.push('- ' + bits.join(' | '));
             if (mutate && rt() && !asArray(rt().knownNpcIds).includes(npc.id)) rt().knownNpcIds.push(npc.id);
         }

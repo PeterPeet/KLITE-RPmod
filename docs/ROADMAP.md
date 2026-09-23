@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 88 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 101 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -157,7 +157,7 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
       and "Light Sand". Test guard against duplicate function names added.
 - [x] **Onboarding (2026-09-23):** builds on Esolite's **Quick Start** (Jaxxks) instead of a
       wizard — RPmod adds an "RPmod world" section (adapter now; official hook proposed in
-      `docs/proposals/quick-start-extensions.md`). New **RPmod Guide** window (11 chapters,
+      `docs/proposals/quick-start-extensions.md`). New **RPmod Guide** window (11 chapters, 12 since R2,
       "Show me" highlights), "New here?" card and `?` button. **GuidedRP retired** (source in
       `BackupData/legacy/`, `guided_rp` save blocks preserved). Live-checked in Esolite.
 - [x] Test runner guard: `npm test` fails if fewer tests ran than `tests/.test-count`
@@ -219,7 +219,24 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
 Acceptance: no overlapping panels; all existing features reachable from the shell; tests
 green; live check in `index.rpmod.html`.
 
-### R2 — Characters (D&D Beyond × SillyTavern) ⬜
+### R2 — Characters (D&D Beyond × SillyTavern) 🟨
+Rollback point before R2: tag **`r1-complete-2026-09-23`** (R2 started before the first
+play test with a real backend, owner's decision 2026-09-23).
+- [x] **Step 1 — sheet on the card** (2026-09-23): `src/characters/` — sheet model (SRD 5.2
+      rules: modifiers, proficiency by level, saves, 18 skills incl. expertise, initiative,
+      passive Perception, attacks, inventory, coins) stored in the card at
+      `data.extensions.klite_rpmod.sheet` (older `klite_rpmod` keys such as ratings are kept);
+      **Character sheet** window (any Library character; click-to-roll with advantage/
+      disadvantage; draft + Save/Revert, optional autosave setting, ask on close; keyboard
+      focus kept across re-renders); **dice + game log** `src/game/log.js` (per story, saved
+      as `rpmod_log`; AI sees rolls since its last reply); persona/character sheet summary
+      in the prompt; Worlds persons linked to a card use its sheet when they have no stat
+      block, the player uses the persona sheet. Portrait PNG: old card chunks stripped, V2
+      card embedded (Esolite appends chunks and embeds only the inner object — tell
+      Jaxxks). Live-checked in Esolite.
+- **Next (R2):** builder (SRD 5.2 species/classes/backgrounds, levels 1–3), XP + level-up,
+  sheet in the Chars gallery (gallery rebuild — owner to confirm), Party section shows the
+  persona's HP/AC; person blurbs from linked cards (ALPHA's gallery view has no card text).
 - One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,
   background, abilities, proficiencies, skills, saves, AC, HP, speed, equipment,
   inventory, spells, features). Migration from existing `characterRef` + `stats`.
