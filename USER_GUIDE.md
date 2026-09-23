@@ -96,7 +96,7 @@ screens the palette becomes a strip on top and the inspector moves below the can
 ![Worlds editor layout](docs/editor-layout.svg)
 
 - **Palette (left)** — click a type to drop a colour-coded node:
-  Location · NPC · Faction · Object · Event · Lore.
+  Location · NPC · Faction · Object · Event · Quest · Lore · Dungeon · Town.
 - **Canvas (middle)** — drag nodes to arrange them. Wheel to zoom, drag empty space to
   pan, **Fit** to reframe.
 - **Tools** — **Select** (move nodes) and **Link** (click one node, then another, to
@@ -133,6 +133,36 @@ rejected.
 > Tip: after **importing** a lorebook (section 8) everything arrives as grey **Lore**
 > nodes. Select one and use the inspector's **type** dropdown to promote it to a Location
 > or NPC, then wire up exits.
+
+### Dungeons and towns (room by room)
+
+A place can be a **Dungeon** or a **Town** (palette buttons, or the inspector's **Kind**). It
+stays *one node* in the world graph (brown for dungeons, blue for towns, with a room count);
+its inside is built in the **dungeon/town editor**, which opens over the world editor
+(inspector → **Open dungeon editor**, or double-click the node).
+
+- **Board** — rooms (in a town: places such as the market, temple garden, adventurers' guild,
+  bathhouse …) are rectangles on a grid. **Add room** puts a new room next to the selected one
+  and connects it. Drag a room to move it; drag its corner to resize it.
+- **Connect** — click one room, then another. The direction (north/east/south/west) follows
+  where they sit; in a dungeon the connection is a closed door, in a town an open way. The
+  inspector sets the direction (also up/down), the type (door, corridor, stairs, secret, open),
+  the door state (open, closed, locked, barred), material, lock DC, key item and a **Search DC**
+  for secret doors.
+- **Room inspector** — name, description, light (bright/dim/dark), hazards, **secret room**,
+  its exits, a **way out** to a place in the world (e.g. the crypt entrance on the Forest Road),
+  **features** (furniture, containers with contents, traps with a DC, lights), **inhabitants**
+  (persons who live there) and an **encounter** of SRD monsters waiting there.
+- A room can be a **dungeon level** (or town district) with its own map: double-click it;
+  the breadcrumbs at the top lead back.
+- Nothing selected: the dungeon/town's name, description and **style** (dungeon: stone or
+  parchment; town: streets or plots).
+
+Rooms are ordinary places underneath: you can move there, "Go to" objectives, events on
+entering, phases and encounters all work for them. **Secret doors and rooms stay hidden from the
+AI** until they are found, and the AI only hears about dungeon rooms the player knows.
+Deleting a dungeon or town asks first and removes its rooms with it. The player's mini-map and
+moving room by room come in the next steps of R7.
 
 ---
 

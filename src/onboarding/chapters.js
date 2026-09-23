@@ -102,6 +102,7 @@ export const CHAPTERS = [
                 'Select a node to edit it in the inspector on the right.',
                 'Events have triggers (entering a place, a time, a quest state…) and effects (flags, items, quests, moving people), and can chain.',
                 'A person can reuse a character card from your library.',
+                'A dungeon or town is one node; double-click it (or "Open dungeon editor") to build its rooms and places on a grid, connect them with doors, and add features, inhabitants and encounters. Secret doors stay hidden from the AI until found.',
             ] },
         ],
         show: [

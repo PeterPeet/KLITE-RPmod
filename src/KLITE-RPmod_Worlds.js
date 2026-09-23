@@ -21,6 +21,7 @@
 import { getContext } from './context/context.js';
 import * as CR from './game/combat-rules.js';
 import * as QR from './game/quest-rules.js';
+import * as MR from './game/map-rules.js';
 
 export default function initWorlds() {
     'use strict';
@@ -78,6 +79,9 @@ export default function initWorlds() {
             npcStateOverrides: {},   // { [npcId]: { locationId, mood, ... } }
             completedEventIds: [],   // non-repeatable events already fired
             lastParsedIndex: 0,      // gametext_arr index up to which tags were applied
+            // R7 exploration of dungeons/towns (map-rules.js): { [roomId]: 'known'|'discovered'|'visited' },
+            // found secrets (exit/room ids) and traps, door states that override the authored ones
+            explored: {}, found: { secrets: [], traps: [] }, doorState: {},
             clock: { day: 1, month: 1, year: 1, time: 'morning', season: 'spring', weather: 'clear' }
         };
     }
@@ -92,12 +96,12 @@ export default function initWorlds() {
         if (!v || typeof v !== 'object') return newRuntime();
         if (v.working || v.base) { // already a container
             const c = { active: (v.active === 'base' ? 'base' : 'working'),
-                        base: { ...defaultRuntime(), ...(v.base || v.working || {}) },
-                        working: { ...defaultRuntime(), ...(v.working || v.base || {}) } };
+                        base: MR.normalizeExploration({ ...defaultRuntime(), ...(v.base || v.working || {}) }),
+                        working: MR.normalizeExploration({ ...defaultRuntime(), ...(v.working || v.base || {}) }) };
             return c;
         }
         // old flat snapshot -> seed both slots from it
-        const snap = { ...defaultRuntime(), ...v };
+        const snap = MR.normalizeExploration({ ...defaultRuntime(), ...v });
         return { active: 'working', base: deepClone(snap), working: deepClone(snap) };
     }
 
@@ -270,6 +274,126 @@ export default function initWorlds() {
         if (!parentId) { l.parentId = null; return true; }
         if (parentId === locId || !findById(w.locations, parentId) || isInsideLocation(parentId, locId)) return false;   // no cycles
         l.parentId = parentId; return true;
+    }
+    // ---- R7 maps: dungeons & towns, room by room (rules: src/game/map-rules.js) ----
+    // A room/place is a location inside a dungeon/town (parentId chain); it is hidden from the
+    // world graph. mapOf = the nearest dungeon/town around it, graphAnchor = the outermost one
+    // (the node that stands for it in the world graph).
+    function locOf(id) { return findById(activeWorld() && activeWorld().locations, id); }
+    function mapOf(locId) { const z = zonePath(locId); for (let i = z.length - 1; i >= 0; i--) if (MR.isContainer(z[i])) return z[i]; return null; }
+    function graphAnchor(locId) { const z = zonePath(locId); const top = z.find(MR.isContainer); return top ? top.id : locId; }
+    function roomsOf(mapId) { return childLocations(mapId); }
+    function exitsOfLoc(locId) { const w = activeWorld(); return MR.exitsOf(locOf(locId), w && w.locations); }
+    function foundState() { return (rt() && rt().found) || { secrets: [], traps: [] }; }
+    // A secret room stays unknown to the player (and the AI) until found.
+    function roomFound(loc) { return !!loc && (!loc.secret || asArray(foundState().secrets).includes(loc.id)); }
+    // Exits the player may know about: secret ones once found, never into an unfound secret room.
+    function playerExits(locId) { return exitsOfLoc(locId).filter(e => MR.visibleExit(e, foundState()) && roomFound(locOf(e.to))); }
+    function findExit(exitId) {
+        for (const l of asArray(activeWorld() && activeWorld().locations)) { const ex = asArray(l.exits).find(e => e && e.id === exitId); if (ex) return { owner: l, exit: ex }; }
+        return null;
+    }
+    // Entering a room: visited; the rooms behind its visible exits become known.
+    function markVisitedRoom(locId) {
+        const r = rt(); if (!r || !mapOf(locId)) return false;
+        MR.normalizeExploration(r);
+        let changed = MR.raiseExplored(r.explored, locId, 'visited');
+        for (const e of playerExits(locId)) if (mapOf(e.to)) changed = MR.raiseExplored(r.explored, e.to, 'known') || changed;
+        return changed;
+    }
+    function defaultRoomName(map) { const n = roomsOf(map.id).length + 1; return (MR.kindOf(map) === 'town' ? 'Place ' : 'Room ') + n; }
+    function addRoom(mapId, fields = {}) {
+        const map = locOf(mapId); if (!map) throw new Error('unknown dungeon/town ' + mapId);
+        const size = { w: Math.max(1, Number(fields.w) || MR.ROOM.w), h: Math.max(1, Number(fields.h) || MR.ROOM.h) };
+        const placed = roomsOf(mapId).filter(MR.hasRect).map(MR.rectOf);
+        let want;
+        if (Number.isFinite(Number(fields.x)) && Number.isFinite(Number(fields.y)) && fields.x !== null && fields.y !== null) want = { x: Math.round(fields.x), y: Math.round(fields.y), ...size };
+        else if (fields.near && locOf(fields.near)) want = MR.besideRect(MR.rectOf(locOf(fields.near)), fields.dir || 'e', size.w, size.h);
+        else want = placed.length ? { x: 0, y: Math.max(...placed.map(p => p.y + p.h)) + MR.ROOM.gap, ...size } : { x: 0, y: 0, ...size };
+        const rect = (fields.x != null && fields.y != null) ? want : MR.freeSpot(want, placed, MR.ROOM.gap);
+        const room = { id: uid('location'), name: norm(fields.name) || defaultRoomName(map), parentId: map.id, map: rect };
+        for (const k of ['description', 'kind', 'light', 'secret', 'hazards']) if (fields[k] != null) room[k] = fields[k];
+        activeWorld().locations.push(room);
+        if (fields.near && locOf(fields.near) && fields.connect !== false) addExit(fields.near, room.id, { dir: fields.dir });
+        return room;
+    }
+    // A connection between two locations, stored on `fromId`. dir: from the rooms' positions
+    // when both have one; type: door in a dungeon, open in a town. Refuses a second exit
+    // between the same pair (either side).
+    function addExit(fromId, toId, opts = {}) {
+        const a = locOf(fromId), b = locOf(toId);
+        if (!a || !b) throw new Error('unknown location');
+        if (fromId === toId) throw new Error('a room cannot connect to itself');
+        if (MR.exitsOf(a, activeWorld().locations).some(e => e.to === toId && !e.legacy)) throw new Error('these two are already connected');
+        const map = mapOf(fromId) || mapOf(toId);
+        const type = MR.EXIT_TYPES.includes(opts.type) ? opts.type : (map && MR.kindOf(map) === 'town' ? 'open' : 'door');
+        const dir = MR.DIRS.includes(opts.dir) ? opts.dir : (MR.hasRect(a) && MR.hasRect(b) ? MR.dirBetween(MR.rectOf(a), MR.rectOf(b)) : null);
+        const ex = MR.normalizeExit({ to: toId, dir, type }, () => uid('ex'));
+        if (type === 'door' || type === 'secret') ex.door = Object.assign({ state: 'closed' }, opts.door || {});
+        if (opts.secretDC != null) ex.secretDC = Number(opts.secretDC) || 0;
+        a.exits = asArray(a.exits); a.exits.push(ex);
+        return ex;
+    }
+    // patch.dir is stored as the owning room sees it (callers mirror it for the other side).
+    function updateExit(exitId, patch = {}) {
+        const f = findExit(exitId); if (!f) return null;
+        for (const [k, v] of Object.entries(patch)) {
+            if (k === 'id' || k === 'to') continue;
+            if (k === 'door') f.exit.door = v ? Object.assign({}, f.exit.door || {}, v) : undefined;
+            else if (v === undefined || v === null || v === '') delete f.exit[k];
+            else f.exit[k] = v;
+        }
+        if ((f.exit.type === 'door' || f.exit.type === 'secret') && !f.exit.door) f.exit.door = { state: 'closed' };
+        return f.exit;
+    }
+    function removeExit(exitId) {
+        const f = findExit(exitId); if (!f) return false;
+        f.owner.exits = asArray(f.owner.exits).filter(e => e.id !== exitId);
+        return true;
+    }
+    function setRoomRect(id, rect) {
+        const l = locOf(id); if (!l || !rect) return null;
+        const cur = MR.rectOf(l);
+        l.map = { x: Math.round(rect.x != null ? rect.x : cur.x), y: Math.round(rect.y != null ? rect.y : cur.y), w: Math.max(1, Math.round(rect.w || cur.w)), h: Math.max(1, Math.round(rect.h || cur.h)) };
+        return l.map;
+    }
+    function setLocationKind(id, kind) {
+        const l = locOf(id); if (!l || !MR.KINDS.includes(kind)) return null;
+        if (kind === 'location') delete l.kind; else l.kind = kind;
+        return MR.kindOf(l);
+    }
+    // Positions for rooms that have none yet (e.g. added by the AI). Automatic, not an edit.
+    function layoutMap(mapId) {
+        const w = activeWorld(); const placed = MR.layoutRooms(roomsOf(mapId), w && w.locations);
+        for (const [id, r] of Object.entries(placed)) { const l = locOf(id); if (l) l.map = r; }
+        return Object.keys(placed).length;
+    }
+    // The board of one dungeon/town. opts.player: only what the player knows (fog, secrets).
+    function mapBoard(mapId, opts = {}) {
+        const map = locOf(mapId); if (!map) return null;
+        const r = rt(); if (r) MR.normalizeExploration(r);
+        const explored = (r && r.explored) || {}, here = r && r.playerLocationId;
+        const hereRoom = here && (here === mapId ? null : (isInsideLocation(here, mapId) ? zonePath(here).concat([locOf(here)]).find(l => l && l.parentId === mapId) : null));
+        let rooms = roomsOf(mapId).map(l => ({
+            id: l.id, name: norm(phasedEntity(l).name), kind: MR.kindOf(l), rect: MR.rectOf(l), placed: MR.hasRect(l),
+            light: l.light || null, secret: !!l.secret, found: roomFound(l), explored: explored[l.id] || null,
+            here: !!hereRoom && hereRoom.id === l.id, rooms: roomsOf(l.id).length,
+        }));
+        if (opts.player) rooms = rooms.filter(x => x.found && (MR.kindOf(map) === 'town' || x.explored || x.here));
+        const ids = new Set(rooms.map(x => x.id)); const seen = new Set(); const exits = [];
+        for (const room of rooms) for (const e of exitsOfLoc(room.id)) {
+            if (seen.has(e.id) || !ids.has(e.to)) continue;
+            if (opts.player && !MR.visibleExit(e, foundState())) continue;
+            seen.add(e.id);
+            exits.push({ id: e.id, from: e.owner, to: e.owner === room.id ? e.to : room.id, dir: e.owner === room.id ? e.dir : MR.mirrorDir(e.dir), type: e.type || 'open',
+                state: MR.doorState(e, r && r.doorState), secret: MR.isSecret(e), found: asArray(foundState().secrets).includes(e.id), legacy: !!e.legacy,
+                door: e.door ? { ...e.door } : null, secretDC: e.secretDC || null });
+        }
+        // exits leaving the map (to the world outside) are listed per room
+        const outside = [];
+        for (const room of rooms) for (const e of exitsOfLoc(room.id)) if (!ids.has(e.to) && !isInsideLocation(e.to, mapId) && e.to !== mapId) outside.push({ room: room.id, to: e.to, name: norm((locOf(e.to) || {}).name), dir: e.dir });
+        return { id: map.id, name: norm(phasedEntity(map).name), kind: MR.kindOf(map), style: map.mapStyle || MR.STYLES[MR.kindOf(map)]?.[0] || 'stone',
+            parentMap: mapOf(mapId) ? mapOf(mapId).id : null, rooms, exits, outside, here: hereRoom ? hereRoom.id : null };
     }
     function resolveNpcLocationId(npc) {
         const ov = rt()?.npcStateOverrides?.[npc.id];
@@ -1331,7 +1455,8 @@ export default function initWorlds() {
         for (let d = 0; d < depth; d++) {
             const next = [];
             for (const cur of frontier) {
-                const ids = asArray(cur.connectedLocationIds).concat(asArray(cur.exits).map(e => e && e.locationId).filter(Boolean));
+                // both directions of stored exits + legacy links; unfound secrets stay out (R7)
+                const ids = playerExits(cur.id).map(e => e.to);
                 for (const id of ids) {
                     if (seen.has(id)) continue;
                     seen.add(id);
@@ -1388,14 +1513,18 @@ export default function initWorlds() {
         if (!loc) { return { sections, location: null }; }
         // mark visited
         if (mutate && rt() && !asArray(rt().visitedLocationIds).includes(loc.id)) rt().visitedLocationIds.push(loc.id);
+        if (mutate) markVisitedRoom(loc.id);
 
         // 3. Current location (as phased now; zone path, places within, hub)
         const pLoc = phasedEntity(loc);   // text as phased now; ids/relations use the stored one
-        const zones = zonePath(loc.id), inner = childLocations(loc.id);
-        const exits = asArray(loc.exits).map(e => norm(e && e.name) || (findById(world.locations, e && e.locationId) || {}).name)
-            .filter(Boolean)
+        const zones = zonePath(loc.id), inRoom = !!mapOf(loc.id);
+        // places within: a town's (non-secret) places are common knowledge; a dungeon only
+        // shows the rooms the player knows — never the whole dungeon or its secrets (R7)
+        const inner = childLocations(loc.id).filter(l => MR.kindOf(loc) === 'town' ? roomFound(l)
+            : MR.kindOf(loc) === 'dungeon' ? (roomFound(l) && !!(rt().explored || {})[l.id]) : true);
+        const exits = playerExits(loc.id).filter(e => !e.mirrored).map(e => norm(e.name)).filter(Boolean)
             .concat(connectedLocations(world, loc, 1).map(l => norm(phasedEntity(l).name)))
-            .concat(zones.length ? [norm(phasedEntity(zones[zones.length - 1]).name)] : []);
+            .concat(zones.length && !inRoom ? [norm(phasedEntity(zones[zones.length - 1]).name)] : []);
         const exitsUniq = [...new Set(exits.map(norm).filter(Boolean))];
         let locText = norm(pLoc.description);
         if (zones.length) locText = `Part of: ${zones.map(z => norm(phasedEntity(z).name)).join(' › ')}` + (locText ? '\n' + locText : '');
@@ -1630,6 +1759,8 @@ export default function initWorlds() {
             world[key] = asArray(world[key]);
             for (const e of world[key]) { if (e && !e.id) e.id = uid(t); }
         }
+        // R7: exits get an id and `to` (legacy `locationId` kept)
+        for (const l of world.locations) if (l && Array.isArray(l.exits)) for (const ex of l.exits) MR.normalizeExit(ex, () => uid('ex'));
         world.rules = asArray(world.rules);
         if (!world.ruleset || typeof world.ruleset !== 'object') world.ruleset = {};
         if (world.ruleset.aiMode !== 'player') world.ruleset.aiMode = 'gm'; // GM-omniscient by default
@@ -1664,12 +1795,23 @@ export default function initWorlds() {
         const edges = [];
         for (const t of Object.keys(TYPE_ARRAYS)) {
             for (const e of asArray(world[TYPE_ARRAYS[t]])) {
-                nodes.push({ id: e.id, type: t, name: nodeName(t, e), entry: nodeEntry(t, e), x: e.ui?.x, y: e.ui?.y });
+                const n = { id: e.id, type: t, name: nodeName(t, e), entry: nodeEntry(t, e), x: e.ui?.x, y: e.ui?.y };
+                // R7: rooms/places (and features in them) are drawn by the dungeon/town editor;
+                // graphId = the node that stands for them in the world graph
+                const inLoc = t === 'location' ? e.id : (t === 'object' ? e.locationId : null);
+                if (inLoc && findById(world.locations, inLoc)) {
+                    const m = mapOf(inLoc); const anchor = graphAnchor(inLoc);
+                    if (t === 'location') { n.kind = MR.kindOf(e); if (MR.isContainer(e)) n.rooms = roomsOf(e.id).length; }
+                    if (m && (t === 'location' || MR.FEATURE_KINDS.includes(e.kind))) { n.mapId = m.id; n.graphId = anchor; }
+                    if (t === 'location' && m) n.label = zonePath(e.id).filter(z => z.id === anchor || isInsideLocation(z.id, anchor)).map(z => norm(z.name)).concat([n.name]).join(' › ');
+                }
+                nodes.push(n);
             }
         }
         for (const l of asArray(world.locations)) {
             edges.push({ from: '__world__', to: l.id, kind: 'contains' });
             for (const cid of asArray(l.connectedLocationIds)) if (findById(world.locations, cid)) edges.push({ from: l.id, to: cid, kind: 'exit' });
+            for (const ex of asArray(l.exits)) { const to = ex && (ex.to || ex.locationId); if (to && to !== l.id && findById(world.locations, to) && !asArray(l.connectedLocationIds).includes(to)) edges.push({ from: l.id, to, kind: 'exit', exitId: ex.id }); }
         }
         for (const n of asArray(world.npcs)) {
             if (n.homeLocationId && findById(world.locations, n.homeLocationId)) edges.push({ from: n.id, to: n.homeLocationId, kind: 'resident' });
@@ -1731,12 +1873,21 @@ export default function initWorlds() {
         e.ui = e.ui || {}; e.ui.x = Math.round(x); e.ui.y = Math.round(y);
     }
 
-    function deleteEntity(id) {
+    // opts.withRooms: deleting a dungeon/town (or any zone) also deletes the places inside it
+    // and the features (furniture/containers/traps/lights) in them. Without it the rooms stay
+    // (their parent is gone, so they show up in the world graph again) — nothing is lost.
+    function deleteEntity(id, opts) {
         const world = activeWorld(); if (!world || id === '__world__') return false;
         const type = entityType(world, id); if (!type) return false;
+        if (type === 'location' && opts && opts.withRooms) {
+            const inner = asArray(world.locations).filter(l => l.id !== id && isInsideLocation(l.id, id)).map(l => l.id);
+            for (const rid of inner.concat([id])) for (const o of asArray(world.objects).filter(o => o.locationId === rid && MR.FEATURE_KINDS.includes(o.kind))) deleteEntity(o.id);
+            for (const rid of inner) deleteEntity(rid);
+        }
         world[TYPE_ARRAYS[type]] = asArray(world[TYPE_ARRAYS[type]]).filter(e => e.id !== id);
         // scrub references from every other entity
         for (const l of asArray(world.locations)) {
+            if (Array.isArray(l.exits)) l.exits = l.exits.filter(ex => !ex || (ex.to || ex.locationId) !== id);
             l.connectedLocationIds = asArray(l.connectedLocationIds).filter(x => x !== id);
             l.npcIds = asArray(l.npcIds).filter(x => x !== id);
             l.objectIds = asArray(l.objectIds).filter(x => x !== id);
@@ -1791,6 +1942,7 @@ export default function initWorlds() {
         // remove any reference in either direction
         for (const [x, yId] of [[a, toId], [b, fromId]]) {
             if (Array.isArray(x.connectedLocationIds)) x.connectedLocationIds = x.connectedLocationIds.filter(v => v !== yId);
+            if (Array.isArray(x.exits)) x.exits = x.exits.filter(ex => !ex || (ex.to || ex.locationId) !== yId);
             if (Array.isArray(x.npcIds)) x.npcIds = x.npcIds.filter(v => v !== yId);
             if (Array.isArray(x.objectIds)) x.objectIds = x.objectIds.filter(v => v !== yId);
             if (Array.isArray(x.locationIds)) x.locationIds = x.locationIds.filter(v => v !== yId);
@@ -2058,6 +2210,36 @@ export default function initWorlds() {
         reputationTiers: () => QR.TIERS.map(t => t.name),
         reputation: () => reputationList(),
         setLocationParent(id, parentId) { const ok = setLocationParent(id, parentId); syncLive(); return ok; },
+
+        // ----- R7 maps: dungeons & towns, room by room (src/game/map-rules.js) -----
+        mapRules: MR,
+        setLocationKind(id, kind) { const k = setLocationKind(id, kind); syncLive(); return k; },
+        locationKind: (id) => MR.kindOf(locOf(id)),
+        mapOf: (id) => { const m = mapOf(id); return m ? m.id : null; },
+        graphAnchor: (id) => graphAnchor(id),
+        roomsOf: (mapId) => roomsOf(mapId).map(l => l.id),
+        addRoom(mapId, fields) { const r = addRoom(mapId, fields || {}); syncLive(); return r; },
+        addExit(fromId, toId, opts) { const e = addExit(fromId, toId, opts || {}); syncLive(); return e; },
+        updateExit(exitId, patch) { const e = updateExit(exitId, patch || {}); syncLive(); return e; },
+        removeExit(exitId) { const ok = removeExit(exitId); syncLive(); return ok; },
+        findExit(exitId) { const f = findExit(exitId); return f ? { owner: f.owner.id, exit: f.exit } : null; },
+        exitsOf: (locId, opts) => (opts && opts.player ? playerExits(locId) : exitsOfLoc(locId)),
+        setRoomRect(id, rect) { return setRoomRect(id, rect); },
+        layoutMap(mapId) { return layoutMap(mapId); },
+        mapBoard: (mapId, opts) => mapBoard(mapId, opts || {}),
+        featuresOf: (roomId) => asArray(activeWorld() && activeWorld().objects).filter(o => o.locationId === roomId),
+        addFeature(roomId, fields = {}) {
+            const o = addEntity('object', { name: fields.name || 'Feature' });
+            o.locationId = roomId; o.kind = MR.FEATURE_KINDS.includes(fields.kind) ? fields.kind : 'furniture';
+            for (const k of ['desc', 'contains', 'trapDC', 'lit', 'hidden']) if (fields[k] != null) o[k] = fields[k];
+            syncLive(); return o;
+        },
+        // exploration (runtime, per story; both state slots)
+        exploration() { const r = ensureRuntime(); MR.normalizeExploration(r); return deepClone({ explored: r.explored, found: r.found, doorState: r.doorState }); },
+        setExplored(roomId, level) { const r = ensureRuntime(); MR.normalizeExploration(r); if (!level) delete r.explored[roomId]; else if (MR.EXPLORE.includes(level)) r.explored[roomId] = level; syncLive(); return r.explored[roomId] || null; },
+        setDoorState(exitId, state) { const r = ensureRuntime(); MR.normalizeExploration(r); if (!findExit(exitId) || !MR.DOOR_STATES.includes(state)) return null; r.doorState[exitId] = state; syncLive(); return state; },
+        doorState(exitId) { const f = findExit(exitId); return f ? MR.doorState(f.exit, rt() && rt().doorState) : null; },
+        markFound(kind, id) { const r = ensureRuntime(); MR.normalizeExploration(r); const list = kind === 'trap' ? r.found.traps : r.found.secrets; if (!list.includes(id)) list.push(id); syncLive(); return true; },
         zonePath: (id) => zonePath(id).map(z => ({ id: z.id, name: norm(phasedEntity(z).name) })),
         phased: (id) => { const e = entityById(activeWorld(), id); const p = phasedEntity(e); return p ? { name: norm(p.name), description: norm(p.description), atmosphere: norm(p.atmosphere), mood: norm(p.mood), gone: !!p.gone, phase: p.phase || null } : null; },
         evalCondition: (c) => evalCondition(c),
@@ -2174,6 +2356,7 @@ export default function initWorlds() {
             if (!loc) throw new Error('unknown location: ' + locationNameOrId);
             ensureRuntime();
             rt().playerLocationId = loc.id;
+            markVisitedRoom(loc.id);
             try { fireTriggers('enter:' + loc.id); } catch (_) {}
             syncLive();
             dbg('moved to', loc.name);
@@ -2209,7 +2392,8 @@ export default function initWorlds() {
     // Every authoring change to a world marks it unsaved (and schedules autosave if on).
     for (const name of ['addEntity', 'updateEntity', 'deleteEntity', 'connect', 'disconnect', 'setNodePos', 'changeEntityType',
         'linkCharacter', 'unlinkCharacter', 'addPersonFromCharacter', 'setStats', 'clearStats', 'addPersonFromTemplate',
-        'setPlayerCombat', 'setAiMode', 'saveEncounter', 'deleteEncounter']) {
+        'setPlayerCombat', 'setAiMode', 'saveEncounter', 'deleteEncounter',
+        'setLocationParent', 'setLocationKind', 'addRoom', 'addExit', 'updateExit', 'removeExit', 'setRoomRect', 'addFeature']) {
         const fn = API[name];
         if (typeof fn !== 'function') { err('authoring API missing: ' + name); continue; }
         API[name] = function () {

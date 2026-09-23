@@ -36,10 +36,12 @@ mini-map. **No virtual tabletop** (no free tokens, no measuring, no map images).
 - **Connections** between rooms: `exits: [{ id, to, dir: 'n'|'e'|'s'|'w'|'up'|'down', type:
   'door'|'corridor'|'stairs'|'secret'|'open', door: { state: 'open'|'closed'|'locked'|'barred',
   material, lockDC, keyItem }, secretDC }]` — stored on one side, mirrored when read (or both
-  sides kept in sync; decide in step 1 and test it). Existing `connectedLocationIds` stay valid
-  (= `open` connections without direction).
+  sides kept in sync; decide in step 1 and test it). **Decided (step 1): stored once**, on the room
+  where it was made; `exitsOf` mirrors it for the other side — one door state and one "secret found"
+  per exit id. Existing `connectedLocationIds` stay valid (= `open` connections without direction);
+  older `exits[{ name, locationId }]` gain `id`/`to` and keep their fields.
 - **Features** = world objects in the room with `kind: 'furniture'|'container'|'trap'|'light'`
-  (+ `contains[]`, `trapDC`, `lit`).
+  (+ `contains[]`, `trapDC`, `lit`). A room can be secret (`secret: true`, found by searching).
 - **Environment per room:** `light: 'bright'|'dim'|'dark'`, `hazards: ['fire', 'water', …]`
   (can be phased, R4).
 - **Exploration per story** (runtime, both slots): `explored: { [roomId]: 'known'|'discovered'|
@@ -103,7 +105,7 @@ of how well the owner's model keeps names and tags; if it does not, the UI-first
 works and the AI only narrates.
 
 ## Steps (each ends tested, documented, committed)
-1. **Location kinds + dungeon/town editor**: `kind`, rooms hidden from the world graph, the
+1. ✅ **Location kinds + dungeon/town editor** (2026-09-23): `kind`, rooms hidden from the world graph, the
    editor window with board, rooms, connections, doors, inspector; data model incl. exploration
    state and migrations/tests.
 2. **Mini-map + moving room by room**: left-dock Map, Map window, click to move, door rules,

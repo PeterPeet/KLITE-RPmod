@@ -47,6 +47,10 @@ const NAMES = {
     'rotate-ccw': 'reset',
     'check': 'commit',
     'arrow-left-right': 'swap',
+    'door-open': 'dungeon (map editor, doors)',
+    'house': 'town (map editor)',
+    'mouse-pointer-2': 'map editor: select tool',
+    'link-2': 'map editor: connect tool',
 };
 
 const pkg = JSON.parse(fs.readFileSync(path.join(PKG, 'package.json'), 'utf8'));

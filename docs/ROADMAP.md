@@ -10,7 +10,8 @@
 
 ## Current state
 
-**Next: R7** (world map of dungeons & towns — see [design/R7-world-map.md](design/R7-world-map.md)).
+**Now: R7 step 2** (mini-map + moving room by room — see [design/R7-world-map.md](design/R7-world-map.md)).
+R7 step 1 (location kinds + dungeon/town editor) is done.
 Done since R1: R2 characters (🟨: spells open), R5 combat (🟨), R4 quests & world (✅). R3
 (compendium, spells) and R6 (chat power features) are still to do.
 
@@ -19,7 +20,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 151 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 164 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -64,7 +65,7 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
 | | Rewards XP/gold/choose-one | ✅ paid to the persona's sheet |
 | | Zones/subzones, hubs, phasing | ✅ |
 | | Factions & reputation | ✅ tiers; effects narrated (no vendors yet) |
-| Map | Places room by room, board, fog, distance bands (no VTT) | ❌ (R7, revised) |
+| Map | Places room by room, board, fog, distance bands (no VTT) | 🟡 R7 step 1: dungeon/town editor + data model; mini-map, fog, tags, generator, bands to come |
 
 ### Known issues / tech debt
 1. ~~"Monster / NPC combatant" flag does nothing~~ — decides the combat side since R5 (a monster is
@@ -423,7 +424,7 @@ Acceptance: build a "medium" encounter, fight it through victory and through def
 Acceptance: run a session using only slash commands and quick replies; export a world
 as a lorebook and re-import it.
 
-### R7 — World map: dungeons & towns, room by room ⬜ (revised 2026-09-23) — NEXT
+### R7 — World map: dungeons & towns, room by room 🟨 (revised 2026-09-23)
 **Design: [docs/design/R7-world-map.md](design/R7-world-map.md)** (decisions, data model, AI
 interface, UI, generator, distance bands, AI-capability analysis). Owner's decisions: no VTT;
 room-by-room movement, towns as places; location kinds `location` / `dungeon` / `town`; a
@@ -431,9 +432,23 @@ dungeon/town is one node in the world graph with its own **dungeon/town editor o
 editor**; rooms stay locations (`parentId`) hidden from the world graph; world state is the truth,
 the board is derived (the LLM never writes coordinates); dungeons from editor, generator and AI;
 **mini-map** for the player; combat distance bands.
+- [x] **Step 1 — location kinds + dungeon/town editor** (2026-09-23): `src/game/map-rules.js` (pure)
+      + engine: `kind` dungeon/town, rooms = locations inside (hidden from the world graph, edges drawn
+      at the dungeon/town node, labels "Crypt › Hall" in dropdowns), **exits stored once and read from
+      both sides** (decision: one door state and one "found" per exit; legacy `connectedLocationIds`
+      and `exits[{locationId}]` stay valid, migrated additively), doors (state/material/lock DC/key),
+      secret exits/rooms, light, hazards, features (world objects with a kind), grid layout, runtime
+      exploration `explored/found/doorState` in both slots (old saves migrated), unfound secrets and
+      unknown dungeon rooms kept out of the AI slice. **Dungeon/town editor** window over the world
+      editor (`src/map/mapEditor.js`): board, add/drag/resize, Connect tool, door markers, inspector
+      (room, exits, way out, features, inhabitants, encounter), nested levels, styles stone/parchment/
+      streets/plots; delete asks and takes the rooms along. Tests `tests/map.test.js`,
+      `tests/mapEditor.test.js`. Live-checked in Esolite (build, drag, inspector, back to the world).
+- **Open (step 1):** moving a room does not re-aim its exits' stored direction (set it in the
+  inspector); a saved encounter keeps its room id when the room is deleted (it just no longer
+  matches a place); **Generate** comes with step 4; the player-facing fog/mini-map with step 2.
 Steps:
-1. Location kinds + dungeon/town editor (board, rooms, connections/doors, inspector; data model
-   incl. exploration state, migrations, tests).
+1. ~~Location kinds + dungeon/town editor~~ (done, see above).
 2. Mini-map + room-by-room movement (door rules, refusals in the log, AI context section; parse
    tags on reply arrival — known issue 12).
 3. AI tags + exploration (go/open/close/unlock/search/room/door/light; fog; secrets by Search).

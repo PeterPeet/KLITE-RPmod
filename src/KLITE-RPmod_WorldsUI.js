@@ -17,6 +17,7 @@
 // =============================================================================
 import { icon, iconText } from './shell/dom.js';
 import { renderCombat, AUTO_TURNS_SETTING } from './game/combatView.js';
+import { registerMapEditor, openMapEditor, closeMapEditor } from './map/mapEditor.js';
 
 export default function initWorldsUI() {
     'use strict';
@@ -28,6 +29,12 @@ export default function initWorldsUI() {
         faction: '#D4537E', object: '#BA7517', event: '#D85A30', quest: '#C9A227', lore: '#378ADD'
     };
     const TYPES = ['location', 'npc', 'faction', 'object', 'event', 'quest', 'lore'];
+    // R7: dungeons and towns are location nodes with their own colour; their rooms/places
+    // (node.mapId) are drawn only in the dungeon/town editor (src/map/mapEditor.js).
+    const KIND_COLOR = { dungeon: '#6B5744', town: '#2F7A9E' };
+    const nodeColor = (n) => (n.type === 'location' && KIND_COLOR[n.kind]) || TYPE_COLOR[n.type] || '#666';
+    const inGraph = (n) => !n.mapId;
+    const locLabel = (n) => n.label || n.name;
     const SVGNS = 'http://www.w3.org/2000/svg';
 
     function API() { return window.KLITE_RPMod_Worlds; }
@@ -67,7 +74,7 @@ export default function initWorldsUI() {
     //  LAYOUT — assign positions to nodes that don't have any
     // =======================================================================
     function ensureLayout() {
-        const missing = S.G.nodes.filter(n => n.x == null || n.y == null);
+        const missing = S.G.nodes.filter(n => inGraph(n) && (n.x == null || n.y == null));
         if (!missing.length) return;
         const cx = 460, cy = 300;
         const root = S.G.nodes.find(n => n.type === 'world');
@@ -98,10 +105,14 @@ export default function initWorldsUI() {
 
     function draw() {
         clear(S.gEdges); clear(S.gNodes);
-        // edges
+        // edges (an end inside a dungeon/town is drawn at the dungeon/town node)
+        const drawn = new Set();
         for (const e of S.G.edges) {
-            const a = nodeById(e.from), b = nodeById(e.to);
-            if (!a || !b) continue;
+            const a0 = nodeById(e.from), b0 = nodeById(e.to);
+            if (!a0 || !b0) continue;
+            const a = a0.graphId ? nodeById(a0.graphId) : a0, b = b0.graphId ? nodeById(b0.graphId) : b0;
+            if (!a || !b || a === b) continue;
+            const key = [a.id, b.id, e.kind].join('|'); if (drawn.has(key)) continue; drawn.add(key);
             const line = svg('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, style: e.kind === 'contains' ? 'stroke:var(--rpm-border);opacity:.8' : 'stroke:var(--rpm-fg-muted)', 'stroke-width': e.kind === 'contains' ? 1 : 1.6, 'stroke-dasharray': e.kind === 'zone' || e.kind === 'unlocks' ? '5 4' : null, 'marker-end': 'url(#wm-arrow)' });
             if (e.kind === 'contains') line.setAttribute('stroke-dasharray', '4 4');
             S.gEdges.appendChild(line);
@@ -118,16 +129,18 @@ export default function initWorldsUI() {
         }
         // nodes
         for (const n of S.G.nodes) {
+            if (!inGraph(n)) continue;
             const g = svg('g', { transform: `translate(${n.x - NODE_W / 2},${n.y - NODE_H / 2})`, 'data-id': n.id, style: 'cursor:pointer' });
+            if (n.kind && n.kind !== 'location') g.setAttribute('data-kind', n.kind);
             const isRoot = n.type === 'world';
             const w = isRoot ? NODE_W + 12 : NODE_W, h = isRoot ? NODE_H + 8 : NODE_H;
             if (isRoot) g.setAttribute('transform', `translate(${n.x - w / 2},${n.y - h / 2})`);
-            const rect = svg('rect', { x: 0, y: 0, width: w, height: h, rx: 10, fill: TYPE_COLOR[n.type] || '#666' });
+            const rect = svg('rect', { x: 0, y: 0, width: w, height: h, rx: n.kind === 'dungeon' ? 3 : 10, fill: nodeColor(n) });
             g.appendChild(rect);
             if (n.id === S.selectedId) g.appendChild(svg('rect', { x: -3, y: -3, width: w + 6, height: h + 6, rx: 12, fill: 'none', style: 'stroke:var(--rpm-fg-hi)', 'stroke-width': 2.5 }));
             if (n.id === S.linkSource) g.appendChild(svg('rect', { x: -3, y: -3, width: w + 6, height: h + 6, rx: 12, fill: 'none', stroke: '#ff3ea5', 'stroke-width': 2 }));
             const name = svg('text', { x: 12, y: 22, 'font-size': 13, 'font-weight': 500, fill: '#fff' }); name.textContent = clip(n.name, 20);
-            const type = svg('text', { x: 12, y: 37, 'font-size': 10, fill: 'rgba(255,255,255,.8)' }); type.textContent = isRoot ? 'World · root' : n.type + (n.id === S.selectedId ? ' · selected' : '');
+            const type = svg('text', { x: 12, y: 37, 'font-size': 10, fill: 'rgba(255,255,255,.8)' }); type.textContent = isRoot ? 'World · root' : (n.kind && n.kind !== 'location' ? `${n.kind} · ${n.rooms || 0} ${n.kind === 'town' ? 'places' : 'rooms'}` : n.type) + (n.id === S.selectedId ? ' · selected' : '');
             g.appendChild(name); g.appendChild(type);
             // WoW-style quest marker badge on giver / turn-in persons
             if (n.type === 'npc') {
@@ -140,6 +153,7 @@ export default function initWorldsUI() {
                 }
             }
             g.addEventListener('mousedown', ev => onNodeDown(ev, n.id));
+            if (n.kind === 'dungeon' || n.kind === 'town') g.addEventListener('dblclick', () => openMapEditor(n.id));
             S.gNodes.appendChild(g);
         }
     }
@@ -218,7 +232,7 @@ export default function initWorldsUI() {
     }
 
     function fit() {
-        const ns = S.G.nodes.filter(n => n.x != null);
+        const ns = S.G.nodes.filter(n => inGraph(n) && n.x != null);
         if (!ns.length) return;
         const xs = ns.map(n => n.x), ys = ns.map(n => n.y);
         const minX = Math.min(...xs) - 100, maxX = Math.max(...xs) + 100;
@@ -253,7 +267,7 @@ export default function initWorldsUI() {
         const ent = A.entityById(S.selectedId);
         if (!ent || !type) return;
         box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:8px;margin-bottom:8px' }, [
-            el('span', { style: `background:${TYPE_COLOR[type]};color:#fff;border-radius:6px;padding:2px 8px;font-size:var(--rpm-fs-sm);text-transform:capitalize`, text: type }),
+            el('span', { style: `background:${(type === 'location' && KIND_COLOR[ent.kind]) || TYPE_COLOR[type]};color:#fff;border-radius:6px;padding:2px 8px;font-size:var(--rpm-fs-sm);text-transform:capitalize`, text: type === 'location' && KIND_COLOR[ent.kind] ? ent.kind : type }),
             el('span', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)', text: '#' + String(S.selectedId).slice(-4) })
         ]));
         if (type !== 'world') {
@@ -306,7 +320,11 @@ export default function initWorldsUI() {
         if (type !== 'world') {
             box.appendChild(el('button', {
                 class: 'btn btn-primary rpm-btn rpm-block rpm-danger rpm-btn-icon', style: 'margin-top:16px',
-                onclick: () => { if (confirm('Delete this node?')) { API().deleteEntity(S.selectedId); S.selectedId = null; reloadGraph(); draw(); renderInspector(); } }
+                onclick: () => {
+                    const inner = type === 'location' && API().mapOf && ['dungeon', 'town'].includes(API().locationKind(S.selectedId)) ? API().roomsOf(S.selectedId).length : 0;
+                    if (!confirm(inner ? `Delete this ${API().locationKind(S.selectedId)} and the ${inner} ${API().locationKind(S.selectedId) === 'town' ? 'places' : 'rooms'} inside it?` : 'Delete this node?')) return;
+                    API().deleteEntity(S.selectedId, inner ? { withRooms: true } : undefined); S.selectedId = null; reloadGraph(); draw(); renderInspector();
+                }
             }, [iconText('trash-2', 'Delete node')]));
         }
     }
@@ -430,7 +448,7 @@ export default function initWorldsUI() {
         if (OK.kind === 'talk' || OK.kind === 'visit') {
             target = el('select', { style: inputCss(false), 'aria-label': 'Objective target' });
             target.appendChild(el('option', { value: '', text: OK.kind === 'talk' ? '— person —' : '— place —' }));
-            for (const n of g.nodes.filter(n => n.type === (OK.kind === 'talk' ? 'npc' : 'location'))) target.appendChild(el('option', { value: n.id, text: n.name }));
+            for (const n of g.nodes.filter(n => n.type === (OK.kind === 'talk' ? 'npc' : 'location'))) target.appendChild(el('option', { value: n.id, text: locLabel(n) }));
         } else if (OK.kind !== 'manual') target = el('input', { type: 'text', style: inputCss(false), 'aria-label': 'Objective target', placeholder: OK.kind === 'kill' ? 'monster or person name, e.g. Wolf' : 'item name, e.g. Wolf Pelt' });
         const count = (OK.kind === 'kill' || OK.kind === 'collect') ? el('input', { type: 'number', min: '1', value: '1', style: inputCss(false) + ';width:4.5em', 'aria-label': 'Objective count' }) : null;
         const oIn = el('input', { type: 'text', placeholder: 'objective text (optional for kinds)', style: inputCss(false), 'aria-label': 'Objective text' });
@@ -551,7 +569,7 @@ export default function initWorldsUI() {
             const nodes = A.getGraph().nodes.filter(n => n.type === kind);
             const s = el('select', { style: inputCss(false) + ';cursor:pointer;flex:1' });
             s.appendChild(el('option', { value: '', text: kind }));
-            for (const n of nodes) { const op = el('option', { value: n.id, text: n.name }); if (value === n.id) op.selected = true; s.appendChild(op); }
+            for (const n of nodes) { const op = el('option', { value: n.id, text: locLabel(n) }); if (value === n.id) op.selected = true; s.appendChild(op); }
             s.addEventListener('change', () => onChange(s.value)); return s;
         }
         const inp = el('input', { type: kind === 'number' ? 'number' : 'text', placeholder: '', style: inputCss(false) + ';flex:1' });
@@ -606,10 +624,24 @@ export default function initWorldsUI() {
     function renderLocationExtras(box, ent) {
         const A = API();
         const lab = (t) => el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px', text: t });
+        // R7: kind — a dungeon or town has an inside (rooms/places) edited in its own editor
+        const kind = A.locationKind(S.selectedId);
+        box.appendChild(lab('Kind'));
+        const ks = el('select', { style: inputCss(false) + ';cursor:pointer', 'aria-label': 'Location kind' });
+        for (const [v, t] of [['location', 'Location'], ['dungeon', 'Dungeon (rooms)'], ['town', 'Town (places)']]) { const o = el('option', { value: v, text: t }); if (v === kind) o.selected = true; ks.appendChild(o); }
+        ks.addEventListener('change', () => {
+            const n = A.roomsOf(S.selectedId).length;
+            if (ks.value === 'location' && n && !confirm(`Its ${n} rooms/places become ordinary locations in the world graph. Continue?`)) { ks.value = kind; return; }
+            A.setLocationKind(S.selectedId, ks.value); reloadGraph(); draw(); renderInspector();
+        });
+        box.appendChild(ks);
+        if (kind === 'dungeon' || kind === 'town') {
+            box.appendChild(uiBtn(`Open ${kind} editor (${A.roomsOf(S.selectedId).length})`, () => openMapEditor(S.selectedId), { icon: kind === 'town' ? 'house' : 'door-open', block: true, style: 'margin-top:6px' }));
+        }
         box.appendChild(lab('Part of (zone) — e.g. a tavern inside a village, a village inside a valley'));
         const s = el('select', { style: inputCss(false) + ';cursor:pointer', 'aria-label': 'Part of zone' });
         s.appendChild(el('option', { value: '', text: '— top level —' }));
-        for (const l of A.getGraph().nodes.filter(n => n.type === 'location' && n.id !== S.selectedId)) { const o = el('option', { value: l.id, text: l.name }); if (ent.parentId === l.id) o.selected = true; s.appendChild(o); }
+        for (const l of A.getGraph().nodes.filter(n => n.type === 'location' && n.id !== S.selectedId)) { const o = el('option', { value: l.id, text: locLabel(l) }); if (ent.parentId === l.id) o.selected = true; s.appendChild(o); }
         s.addEventListener('change', () => { if (!A.setLocationParent(S.selectedId, s.value || null)) alert('That would put the place inside itself.'); reloadGraph(); draw(); renderInspector(); });
         box.appendChild(s);
         const w = el('label', { style: 'display:flex;align-items:center;gap:6px;margin-top:8px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer' });
@@ -640,7 +672,7 @@ export default function initWorldsUI() {
             if (type === 'npc') {
                 const ls = el('select', { style: inputCss(false), 'aria-label': 'Phase location' });
                 ls.appendChild(el('option', { value: '', text: '— stays where they are —' }));
-                for (const l of A.getGraph().nodes.filter(n => n.type === 'location')) { const o = el('option', { value: l.id, text: 'Now at: ' + l.name }); if (ph.homeLocationId === l.id) o.selected = true; ls.appendChild(o); }
+                for (const l of A.getGraph().nodes.filter(n => n.type === 'location')) { const o = el('option', { value: l.id, text: 'Now at: ' + locLabel(l) }); if (ph.homeLocationId === l.id) o.selected = true; ls.appendChild(o); }
                 ls.addEventListener('change', () => { ph.homeLocationId = ls.value || undefined; A.updateEntity(S.selectedId, { phases }); });
                 const gw = el('label', { style: 'display:flex;align-items:center;gap:6px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)' });
                 const g = el('input', { type: 'checkbox', 'aria-label': 'Gone in this phase' }); g.checked = !!ph.gone;
@@ -695,6 +727,10 @@ export default function initWorldsUI() {
             type: 'button', class: 'wm-ed-add', style: `background:${TYPE_COLOR[t]}`,
             onclick: () => addNodeCentered(t)
         }, [iconText('plus', t, 14)]));
+        for (const k of ['dungeon', 'town']) palette.appendChild(el('button', {
+            type: 'button', class: 'wm-ed-add', style: `background:${KIND_COLOR[k]}`, 'data-add-kind': k,
+            onclick: () => addNodeCentered('location', k)
+        }, [iconText(k === 'town' ? 'house' : 'door-open', k, 14)]));
         rail.appendChild(palette);
         rail.appendChild(el('div', { class: 'wm-ed-label', text: 'Tool' }));
         const tools = el('div', { class: 'wm-ed-tools' }, ['select', 'link', 'pan'].map(t =>
@@ -733,10 +769,11 @@ export default function initWorldsUI() {
         return root;
     }
 
-    function addNodeCentered(type) {
+    function addNodeCentered(type, kind) {
         const r = S.svgRoot.getBoundingClientRect();
         const p = screenToGraph(r.left + r.width / 2, r.top + r.height / 2);
-        const e = API().addEntity(type, { name: '', x: p.x, y: p.y });
+        const e = API().addEntity(type, { name: kind ? 'New ' + kind : '', x: p.x, y: p.y });
+        if (kind) API().setLocationKind(e.id, kind);
         reloadGraph(); select(e.id); draw();
     }
 
@@ -843,6 +880,7 @@ export default function initWorldsUI() {
         setTimeout(() => { if (S.root) fit(); }, 30);
     }
     function unmountEditor() {
+        try { closeMapEditor(); } catch (_) {}   // the dungeon/town editor belongs to the world editor
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
         S.root = null; S.selectedId = null; S.linkSource = null; S.drag = null; S.pan = null; S.saveBtn = null; S.revertBtn = null;
@@ -1202,7 +1240,7 @@ export default function initWorldsUI() {
         if (locs.length) {
             const msel = uiSelect({ 'aria-label': 'Current location' });
             msel.appendChild(el('option', { value: '', text: '— nowhere —' }));
-            for (const l of locs) { const o = el('option', { value: l.id, text: l.name }); if (A.runtime && A.runtime.playerLocationId === l.id) o.selected = true; msel.appendChild(o); }
+            for (const l of locs) { const o = el('option', { value: l.id, text: locLabel(l) }); if (A.runtime && A.runtime.playerLocationId === l.id) o.selected = true; msel.appendChild(o); }
             msel.addEventListener('change', () => { try { if (msel.value) A.moveTo(msel.value); refreshPanel(); } catch (_) {} });
             box.appendChild(msel);
         } else box.appendChild(muted('No locations yet — add some in the editor.'));
@@ -1277,6 +1315,8 @@ export default function initWorldsUI() {
         // not restored at startup: the world library loads asynchronously
         sh.registerView({ id: 'editor', title: 'World editor', place: 'window', window: { large: true, flush: true, minWidth: 320, minHeight: 300, restore: false },
             mount: mountEditor, unmount: unmountEditor, beforeClose: editorBeforeClose });
+        // map edits (room counts, kinds, ways out) show in the world graph once it closes
+        registerMapEditor(sh, { toast, onClose: () => { if (S.root) { reloadGraph(); draw(); renderInspector(); } } });
     }
 
     function init() {
@@ -1304,7 +1344,7 @@ export default function initWorldsUI() {
         }, 100);
     }
 
-    window.KLITE_RPMod_WorldsUI = { openEditor, closeEditor, refreshPanel };
+    window.KLITE_RPMod_WorldsUI = { openEditor, closeEditor, refreshPanel, openMapEditor, closeMapEditor };
     if (document.readyState === 'complete') whenReady();
     else window.addEventListener('load', whenReady);
 }

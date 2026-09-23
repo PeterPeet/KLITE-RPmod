@@ -18,6 +18,8 @@
 | `data/srd52-monsters.js` | (import) | 330 SRD 5.2.1 monster stat blocks (generated, ~470 KB) (§3.7) |
 | `game/combat-rules.js`, `game/combatView.js` | (import) | Combat rules (pure) and the Combat window (§3.7) |
 | `characters/builder-rules.js`, `builder.js` | `window.KLITE_RPMod_Builder` | Character builder (levels 1–20) + level up (§5b) |
+| `game/map-rules.js` | (import) | R7 map rules (pure): location kinds, exits read from both sides, doors, grid layout, exploration (§3.9) |
+| `map/mapEditor.js` | (import) | R7 dungeon/town editor window `mapeditor` (§3.9) |
 | `game/log.js` | `window.KLITE_RPMod_Log` | Dice roller + per-story game log; context provider `gamelog` (§5b) |
 | `settings/settings.js` | `window.KLITE_RPMod_Settings` | "RPmod" tab in Esolite's Settings dialog; modules register options (§4c) |
 | `library/esoliteLibrary.js` | `window.KLITE_RPMod_Library` | Writes characters through Esolite's own Library (id-based since 1.35); recovers characters an older RPmod hid (§5a) |
@@ -102,7 +104,10 @@ locations[], npcs[], factions[], objects[], events[], quests[], encounters[], gl
 `ruleset.player.stats` is only the fallback player: the enabled persona's sheet wins (R4).
 `TYPE_ARRAYS` maps node types → arrays. Key fields:
 - location: `description, atmosphere, connectedLocationIds[], npcIds[], objectIds[], localLore[],
-  parentId` (zone; no cycles, `setLocationParent`)`, hub, phases[]`
+  parentId` (zone; no cycles, `setLocationParent`)`, hub, phases[]` — R7 adds `kind: 'dungeon'|'town'`
+  (missing = location), `exits[]`, `map{x,y,w,h}`, `light`, `hazards[]`, `secret`, `mapStyle` (§3.9)
+- object: … + R7 feature fields when inside a room: `kind: furniture|container|trap|light, contains[],
+  trapDC, lit`
 - npc (person): `name, description, personality, mood, homeLocationId, factionId,
   schedule[{time,locationId}], characterRef{source,id,name}, characterSnapshot, stats, phases[]`
 - phases (location/person): `[{ id, label, conditions[], name?, description?, atmosphere?, mood?,
@@ -132,7 +137,8 @@ read/write goes through **`rt()`** (active snapshot). Snapshot:
 `playerLocationId, party[], knownNpcIds[], visitedLocationIds[], flags{}, inventory[], coins{gp},
 xp, questState{}, questObjectives{ qid: { oid: true | count } }, rewardsPaid{}, reputation{},
 activeQuestId, discovered{quests,events,descriptions},
-combat, npcStateOverrides{}, completedEventIds[], lastParsedIndex, clock{day,month,year,time,season,weather}`.
+combat, npcStateOverrides{}, completedEventIds[], lastParsedIndex, clock{day,month,year,time,season,weather},
+explored{}, found{secrets[],traps[]}, doorState{}` (R7, §3.9; older saves get them via `toRuntimeContainer`).
 Ops: `resetToBase / commitToBase / swapActive / setActiveSlot` (deep clones).
 `toRuntimeContainer()` migrates old flat saves. Saved in the story file under key
 **`rpmod_worlds`** (wrapped `generate_savefile` / `kai_json_load`). `API.runtime` returns
@@ -279,6 +285,45 @@ outcome: null|'victory'|'defeat', xp, persona, synced, encounter, difficulty }`.
 `EXAMPLE_WORLD` ("Eldoria (Example)") + `loadExample()`: 5 locations, 4 persons, 3
 factions (2 HQs), 3 quests (one hidden), 3 events (courier chain on quest accept, night
 ambush, hidden omen). Sets the authored start as the base slot and enables the world.
+
+### 3.9 Dungeons & towns, room by room (R7) — rules in `src/game/map-rules.js` (pure)
+Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Step 1 (data model + editor) done.
+- **Kinds:** `location.kind` `'dungeon'|'town'` (else location, `kindOf`). A room/place is a location
+  whose `parentId` chain reaches a dungeon/town (`mapOf` = nearest, `graphAnchor` = outermost); a
+  room may itself be a dungeon/town (a level with its own map). Rooms keep working as locations
+  (moveTo, visit objectives, `onEnterLocation`, residents, phases, encounters, the slice).
+- **Exits are stored once** on the room where they were made: `exits[{ id, to, dir: n|e|s|w|up|down,
+  type: door|corridor|stairs|secret|open, door{ state: open|closed|locked|barred, material, lockDC,
+  keyItem }, secretDC }]`. `exitsOf(loc, locations)` reads both sides (the other side's direction
+  mirrored) plus legacy `connectedLocationIds` as `open` links without direction. One exit id =
+  one door state = one "secret found". Old `exits[{ name, locationId }]` get `id`/`to` in
+  `normalizeWorld` (other fields kept). `addExit` refuses a second connection between a pair.
+- **Board:** `map{x,y,w,h}` in grid cells (default 4×3, gap 1). `addRoom(mapId, { near, dir })`
+  places beside a room (free spot search), `layoutRooms/layoutMap` places rooms without a position
+  next to a placed neighbour in the exit's direction (automatic, not an edit), `setRoomRect` on drag.
+  `mapBoard(mapId, { player })` = rooms (rect, kind, light, secret, found, explored, here) + exits
+  (state, secret) + ways out; `player` hides unknown rooms and unfound secrets.
+- **Secrets:** an exit is secret with `type:'secret'` or a `secretDC`; a room with `secret: true`.
+  Unfound ones never reach the AI: `playerExits` feeds the slice's exits and `connectedLocations`;
+  "Places within" lists a dungeon's rooms only when explored (a town's non-secret places always);
+  a room's own dungeon is not listed as an exit.
+- **Exploration** (runtime, both slots): `explored { id: known|discovered|visited }` (only rises),
+  `found { secrets, traps }`, `doorState { exitId: state }` (overrides the authored state,
+  `MR.doorState`). Entering a room (`moveTo`, the slice's mutate path) marks it visited and the
+  rooms behind its visible exits known. API: `exploration/setExplored/setDoorState/doorState/markFound`.
+- **World graph:** `getGraph()` nodes carry `kind`, `rooms` (count), and for rooms and the features in
+  them `mapId`, `graphId` (the dungeon/town node) and `label` ("Crypt › Hall"); stored exits add
+  `exit` edges. The editor skips `mapId` nodes and draws their edges at `graphId`.
+- **Delete:** `deleteEntity(id, { withRooms: true })` removes a dungeon/town/room with the places
+  inside it and their features; without it, rooms stay (they reappear in the world graph). Exits
+  pointing at a deleted location are scrubbed.
+- **Editor** (`src/map/mapEditor.js`, shell window `mapeditor`, large/flush, not restored): opened
+  from the world editor (inspector button or double-click); SVG grid board (28 px/cell), rooms drag/
+  resize, Connect tool (direction from the positions; dungeon → closed door, town → open), door
+  markers by state, inspector (map: name/description/style; room: kind, light, hazards, secret, exits
+  with door fields, way out, features, inhabitants, encounter; delete), breadcrumbs for nested levels.
+  Styles `data-style` stone/parchment/streets/plots from theme colours (`.rpm-map-*` in `styles.js`).
+  Authoring calls are in the unsaved-change list; closing the world editor closes it.
 
 ## 4a. App shell (`src/shell/`)
 - **Layout:** `#rpm-shell` is one fixed layer at **z-index 2** (below Esolite popups, z 3)

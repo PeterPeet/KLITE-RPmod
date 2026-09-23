@@ -270,6 +270,45 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
     .wm-ed-insp { flex: 0 1 45%; border-left: 0; border-top: 1px solid var(--rpm-border); }
 }
 
+/* ---- Dungeon / town editor (window "mapeditor", src/map/mapEditor.js): our own board look,
+   theme colours only. Styles: dungeon stone | parchment, town streets | plots ---- */
+.rpm-map { --map-floor: var(--rpm-bg-alt); --map-wall: var(--rpm-fg-muted); --map-ground: var(--rpm-bg-chat); --map-grid: color-mix(in srgb, var(--rpm-border) 45%, transparent); }
+.rpm-map[data-style="parchment"] { --map-floor: color-mix(in srgb, var(--rpm-quest) 22%, var(--rpm-bg)); --map-wall: color-mix(in srgb, var(--rpm-quest) 60%, var(--rpm-fg)); --map-ground: color-mix(in srgb, var(--rpm-quest) 8%, var(--rpm-bg-chat)); }
+.rpm-map[data-style="streets"] { --map-floor: color-mix(in srgb, var(--rpm-info) 18%, var(--rpm-bg)); --map-wall: var(--rpm-border-hi); --map-ground: color-mix(in srgb, var(--rpm-fg-muted) 14%, var(--rpm-bg-chat)); }
+.rpm-map[data-style="plots"] { --map-floor: color-mix(in srgb, var(--rpm-success) 16%, var(--rpm-bg)); --map-wall: color-mix(in srgb, var(--rpm-success) 55%, var(--rpm-fg-muted)); --map-ground: var(--rpm-bg-chat); }
+.rpm-map-canvas { background: var(--map-ground); }
+.rpm-map-gridline { stroke: var(--map-grid); stroke-width: 1; }
+.rpm-map-room { cursor: pointer; }
+.rpm-map-roomrect { fill: var(--map-floor); stroke: var(--map-wall); stroke-width: 2.5; }
+.rpm-map-room.rpm-sel .rpm-map-roomrect { stroke: var(--rpm-fg-hi); stroke-width: 3; }
+.rpm-map-room.rpm-link .rpm-map-roomrect { stroke: var(--rpm-quest); stroke-dasharray: 6 3; }
+.rpm-map-secretroom .rpm-map-roomrect { stroke-dasharray: 4 4; opacity: .8; }
+.rpm-map-room[data-kind="dungeon"] .rpm-map-roomrect, .rpm-map-room[data-kind="town"] .rpm-map-roomrect { stroke-width: 4; }
+.rpm-map-name { fill: var(--rpm-fg); font-size: 12px; font-weight: 600; pointer-events: none; font-family: var(--rpm-font); }
+.rpm-map-sub { fill: var(--rpm-fg-muted); font-size: 10px; pointer-events: none; font-family: var(--rpm-font); }
+.rpm-map-handle { fill: var(--rpm-fg-hi); cursor: nwse-resize; }
+.rpm-map-here { fill: var(--rpm-quest); }
+.rpm-map-exit { cursor: pointer; }
+.rpm-map-hit { stroke: transparent; stroke-width: 12; }
+.rpm-map-link { stroke: var(--map-wall); stroke-width: 2; }
+.rpm-map-corridor { stroke-width: 7; stroke: var(--map-floor); }
+.rpm-map-secret { stroke-dasharray: 5 4; }
+.rpm-map-exit.rpm-sel .rpm-map-link { stroke: var(--rpm-fg-hi); }
+.rpm-map-door { fill: var(--map-ground); stroke: var(--map-wall); stroke-width: 2; }
+.rpm-map-exit[data-state="closed"] .rpm-map-door { fill: var(--map-wall); }
+.rpm-map-exit[data-state="locked"] .rpm-map-door, .rpm-map-exit[data-state="barred"] .rpm-map-door { fill: var(--rpm-danger); stroke: var(--rpm-danger); }
+.rpm-map-glyph { fill: var(--rpm-fg); font-size: 10px; font-weight: bold; pointer-events: none; }
+.rpm-map-crumbs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rpm-map-title { font-weight: bold; }
+.rpm-map-zoom { font-size: var(--rpm-fs-sm); min-width: 42px; text-align: center; }
+.rpm-map-h { color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); font-weight: bold; margin: 14px 0 4px; }
+.rpm-map-insp > .rpm-map-h:first-child { margin-top: 0; }
+.rpm-map-insp .rpm-row { gap: 5px; margin-top: 4px; }
+.rpm-map-insp .rpm-row > .rpm-input { min-width: 0; flex: 1 1 0; }
+.rpm-map-insp .rpm-card { margin-top: 4px; }
+.rpm-map-exitcard.rpm-sel { border-color: var(--rpm-fg-hi); }
+.rpm-map-check { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); cursor: pointer; }
+
 /* ---- character sheet (window "sheet") + dice log ---- */
 .rpm-sheet { display: flex; flex-direction: column; gap: 4px; }
 .rpm-sheet-h { margin: 10px 0 4px; }
