@@ -9,15 +9,15 @@
 // folder, next to the untouched original `index.html`.
 //
 // Usage:
-//   node build_integrated_index.js            # external include (copies bundle in)
-//   node build_integrated_index.js --inline   # inline the bundle (single file)
+//   npm run build:index                                  # external include (copies bundle in)
+//   node scripts/build-integrated-index.js --inline      # inline the bundle (single file)
 //
-// Re-run after `node build_KLITE-RPmod.js`.
+// Re-run after `npm run build`. Both outputs are generated and git-ignored.
 // =============================================================================
 const fs = require('fs');
 const path = require('path');
 
-const DIR = __dirname;
+const DIR = path.join(__dirname, '..');   // repo root
 const ESO_DIR = path.join(DIR, 'Esobold Esolite a fork of KoboldAI Lite very newest');
 const SRC_HTML = path.join(ESO_DIR, 'index.html');
 const OUT_HTML = path.join(ESO_DIR, 'index.rpmod.html');
