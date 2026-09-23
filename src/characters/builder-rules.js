@@ -1,5 +1,5 @@
 // =============================================================================
-// KLITE RPmod — Character builder rules (SRD 5.2.1, levels 1–3)
+// KLITE RPmod — Character builder rules (SRD 5.2.1, levels 1–20)
 // -----------------------------------------------------------------------------
 // Pure functions: choices (class, background, species, ability scores, skills, equipment,
 // …) → a character sheet (sheet.js). The choices are stored on the sheet (`sheet.build`)
@@ -9,8 +9,45 @@
 import { SRD } from '../data/srd52.js';
 import { ABILITIES, SKILLS, abilityMod, proficiencyBonus, normalizeSheet } from './sheet.js';
 
-export const MAX_LEVEL = 3;
+export const MAX_LEVEL = 20;
 const SKILL_IDS = SKILLS.map(s => s.id);
+const levelOf = (choices) => Math.min(MAX_LEVEL, Math.max(1, Number(choices && choices.level) || 1));
+
+// ---- feats at "Ability Score Improvement" / "Epic Boon" levels ----------------------------
+// choices.asi = { [level]: { feat, abilities: ['str', …], skills: [...] } }
+//   Ability Score Improvement: two +1 picks (the same ability twice = +2), max 20
+//   a feat with an ability increase (Grappler, epic boons): one pick of +by (feat.increase)
+//   Skilled: three skills
+export const ORIGIN_FEATS = ['Alert', 'Magic Initiate', 'Savage Attacker', 'Skilled'];
+export const EPIC_BOONS = Object.keys(SRD.feats).filter(n => /^Epic Boon/.test(SRD.feats[n].category));
+export function featLevels(choices) {
+    const cls = SRD.classes[choices.class]; if (!cls || !cls.levels) return [];
+    const out = [];
+    for (let l = 1; l <= levelOf(choices); l++) {
+        const f = cls.levels[l] || [];
+        if (f.includes('Epic Boon')) out.push({ level: l, kind: 'boon' });
+        else if (f.includes('Ability Score Improvement')) out.push({ level: l, kind: 'asi' });
+    }
+    return out;
+}
+const hasFightingStyle = (choices) => ['fighter', 'paladin', 'ranger'].includes(choices.class);
+// Feats open at a feat level (prerequisites checked in validate()).
+export function featOptions(choices, level) {
+    const kind = (featLevels(choices).find(x => x.level === Number(level)) || {}).kind;
+    if (!kind) return [];
+    const list = ['Ability Score Improvement', 'Grappler', ...ORIGIN_FEATS, ...(hasFightingStyle(choices) ? FIGHTING_STYLES : [])];
+    return kind === 'boon' ? [...EPIC_BOONS, ...list] : list;
+}
+// What a chosen feat asks for: { picks, by, max, choose } for ability increases; skills: n.
+export function featNeeds(featName) {
+    if (featName === 'Ability Score Improvement') return { picks: 2, by: 1, max: 20, choose: ABILITIES.slice(), skills: 0 };
+    const f = SRD.feats[featName];
+    const inc = f && f.increase;
+    return { picks: inc ? 1 : 0, by: inc ? inc.by : 0, max: inc ? inc.max : 20, choose: inc ? (inc.choose === 'any' ? ABILITIES.slice() : inc.choose) : [], skills: featName === 'Skilled' ? 3 : 0 };
+}
+function chosenFeats(choices) {
+    return featLevels(choices).map(({ level, kind }) => ({ level, kind, pick: (choices.asi && choices.asi[level]) || {} }));
+}
 
 // ---- ability scores -----------------------------------------------------------------------
 export function pointBuyCost(scores) {
@@ -31,10 +68,28 @@ export function backgroundBonus(bg, bonus) {
     if (bonus && bg.abilities.includes(bonus.plus1) && bonus.plus1 !== bonus.plus2) out[bonus.plus1] += 1;
     return out;
 }
-export function finalAbilities(choices) {
+// Scores after the background, the feats in level order (each capped at its maximum) and
+// the level-20 capstones (Barbarian Primal Champion, Monk Body and Mind: +4, max 25).
+// `upTo` stops before that level's feat (for prerequisites). `over` collects lost points.
+export function finalAbilities(choices, upTo, over) {
     const bg = SRD.backgrounds[choices.background];
     const inc = backgroundBonus(bg, choices.bgBonus);
-    return Object.fromEntries(ABILITIES.map(a => [a, Math.min(20, (Number(choices.scores && choices.scores[a]) || 10) + inc[a])]));
+    const out = Object.fromEntries(ABILITIES.map(a => [a, Math.min(20, (Number(choices.scores && choices.scores[a]) || 10) + inc[a])]));
+    for (const { level, pick } of chosenFeats(choices)) {
+        if (upTo != null && level >= upTo) break;
+        const need = featNeeds(pick.feat);
+        for (const a of (pick.abilities || []).slice(0, need.picks)) {
+            if (!ABILITIES.includes(a) || !need.choose.includes(a)) continue;
+            const next = out[a] + need.by;
+            if (next > need.max && over) over.push({ level, ability: a });
+            out[a] = Math.min(need.max, Math.max(out[a], next));
+        }
+    }
+    if (upTo == null && levelOf(choices) >= 20) {
+        const cap = choices.class === 'barbarian' ? ['str', 'con'] : choices.class === 'monk' ? ['dex', 'wis'] : [];
+        for (const a of cap) out[a] = Math.max(out[a], Math.min(25, out[a] + 4));
+    }
+    return out;
 }
 
 // ---- what a choice set still needs ------------------------------------------------------
@@ -42,7 +97,7 @@ export function finalAbilities(choices) {
 // Senses) + Barbarian Primal Knowledge at level 3 + Skilled feat (Human Versatile).
 export function skillPicks(choices) {
     const cls = SRD.classes[choices.class];
-    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const level = levelOf(choices);
     const n = { class: cls ? cls.skills.choose : 0, species: 0, extra: 0 };
     if (choices.species === 'human') n.species = 1;
     if (choices.class === 'barbarian' && level >= 3) n.extra += 1;
@@ -59,16 +114,28 @@ export function speciesSkillOptions(choices) {
     if (choices.species === 'human') return SKILL_IDS.slice();                         // Skillful
     return [];
 }
-// Expertise picks by class/level (Bard 2 at level 2, Rogue 2 at level 1).
+// Expertise picks by class/level: Rogue 2 at 1 and 2 more at 6, Bard 2 at 2 and 2 more at 9,
+// Ranger 2 at 9.
 export function expertisePicks(choices) {
-    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
-    if (choices.class === 'rogue') return 2;
-    if (choices.class === 'bard' && level >= 2) return 2;
+    const level = levelOf(choices);
+    if (choices.class === 'rogue') return level >= 6 ? 4 : 2;
+    if (choices.class === 'bard') return level >= 9 ? 4 : level >= 2 ? 2 : 0;
+    if (choices.class === 'ranger' && level >= 9) return 2;
     return 0;
 }
 export function fightingStyleAt(choices) {
-    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const level = levelOf(choices);
     return (choices.class === 'fighter' && level >= 1) || ((choices.class === 'paladin' || choices.class === 'ranger') && level >= 2);
+}
+// Champion (the Fighter's SRD subclass) level 7: Additional Fighting Style.
+export function secondFightingStyleAt(choices) { return choices.class === 'fighter' && levelOf(choices) >= 7; }
+// Every Fighting Style feat the character has (class feature, Champion, feats at ASI levels).
+export function fightingStyles(choices) {
+    const out = [];
+    if (fightingStyleAt(choices) && choices.fightingStyle) out.push(choices.fightingStyle);
+    if (secondFightingStyleAt(choices) && choices.fightingStyle2) out.push(choices.fightingStyle2);
+    for (const { pick } of chosenFeats(choices)) if (FIGHTING_STYLES.includes(pick.feat)) out.push(pick.feat);
+    return out;
 }
 export const FIGHTING_STYLES = ['Archery', 'Defense', 'Great Weapon Fighting', 'Two-Weapon Fighting'];
 
@@ -76,7 +143,8 @@ export const FIGHTING_STYLES = ['Archery', 'Defense', 'Great Weapon Fighting', '
 export function proficientSkills(choices) {
     const bg = SRD.backgrounds[choices.background];
     const set = new Set(bg ? bg.skills : []);
-    for (const s of [].concat(choices.classSkills || [], choices.speciesSkills || [], choices.extraSkills || [])) if (SKILL_IDS.includes(s)) set.add(s);
+    const featSkills = chosenFeats(choices).filter(x => x.pick.feat === 'Skilled').flatMap(x => x.pick.skills || []);
+    for (const s of [].concat(choices.classSkills || [], choices.speciesSkills || [], choices.extraSkills || [], featSkills)) if (SKILL_IDS.includes(s)) set.add(s);
     return [...set];
 }
 
@@ -99,6 +167,25 @@ export function validate(choices) {
     const exp = expertisePicks(choices);
     if (exp && (choices.expertise || []).filter(s => proficientSkills(choices).includes(s)).length !== exp) errs.push(`Choose ${exp} skills for Expertise (from your proficiencies).`);
     if (fightingStyleAt(choices) && !FIGHTING_STYLES.includes(choices.fightingStyle)) errs.push('Choose a Fighting Style.');
+    if (secondFightingStyleAt(choices) && (!FIGHTING_STYLES.includes(choices.fightingStyle2) || choices.fightingStyle2 === choices.fightingStyle)) errs.push('Choose a second, different Fighting Style (Additional Fighting Style).');
+    const styles = fightingStyles(choices);
+    if (new Set(styles).size !== styles.length) errs.push('A Fighting Style feat can be taken only once.');
+    for (const { level, kind, pick } of chosenFeats(choices)) {
+        const what = `Level ${level} (${kind === 'boon' ? 'Epic Boon' : 'Ability Score Improvement'})`;
+        if (!featOptions(choices, level).includes(pick.feat)) { errs.push(`${what}: choose a feat.`); continue; }
+        const need = featNeeds(pick.feat);
+        const ab = (pick.abilities || []).filter(a => need.choose.includes(a));
+        if (ab.length !== need.picks) errs.push(`${what}: choose ${need.picks === 2 ? 'two ability increases (the same ability twice for +2)' : 'the ability to increase'}.`);
+        if (need.skills && (pick.skills || []).filter(s => SKILL_IDS.includes(s)).length !== need.skills) errs.push(`${what}: choose ${need.skills} skills for Skilled.`);
+        const before = finalAbilities(choices, level);
+        if (pick.feat === 'Grappler' && before.str < 13 && before.dex < 13) errs.push(`${what}: Grappler needs Strength or Dexterity 13+.`);
+        if (pick.feat === 'Boon of Spell Recall' && !(SRD.classes[choices.class] || {}).spellcasting) errs.push(`${what}: Boon of Spell Recall needs the Spellcasting feature.`);
+        const originTaken = [bg && bg.feat.replace(/ \(.+\)$/, ''), choices.species === 'human' ? choices.originFeat : null];
+        const repeatable = ['Magic Initiate', 'Skilled', 'Ability Score Improvement'].includes(pick.feat);
+        if (!repeatable && (originTaken.includes(pick.feat) || chosenFeats(choices).some(x => x.level < level && x.pick.feat === pick.feat))) errs.push(`${what}: you already have ${pick.feat}.`);
+    }
+    const over = []; finalAbilities(choices, undefined, over);
+    for (const o of over) errs.push(`Level ${o.level}: ${o.ability.toUpperCase()} is already at its maximum — pick another ability.`);
     if (!String(choices.name || '').trim()) errs.push('Give your character a name.');
     return errs;
 }
@@ -164,7 +251,7 @@ export function attacksFor(abilities, items, cls, style) {
         if (finesse && abilityMod(abilities.dex) > abilityMod(abilities.str)) ability = 'dex';
         if (cls && cls.name === 'Monk' && !ranged && abilityMod(abilities.dex) > abilityMod(abilities.str) && (w.category === 'simple melee' || /Light/.test(w.properties))) ability = 'dex';
         const mod = abilityMod(abilities[ability]);
-        const bonusHit = ranged && style === 'Archery' ? 2 : 0;
+        const bonusHit = ranged && [].concat(style || []).includes('Archery') ? 2 : 0;
         out.push({
             name: it.name, ability, proficient: weaponProficient(cls, w, it.name),
             damage: w.damage + (mod ? (mod > 0 ? '+' : '') + mod : ''),
@@ -177,66 +264,91 @@ export function attacksFor(abilities, items, cls, style) {
 
 // ---- features text ------------------------------------------------------------------------
 function firstSentence(paras) { const t = (paras && paras[0]) || ''; const m = /^(.{20,220}?[.!?])(\s|$)/.exec(t); return m ? m[1] : t.slice(0, 220); }
+// Class table columns at a level as text ("Rages 3 · Rage Damage +2 · Weapon Mastery 2").
+const COLUMN_LABELS = { rages: 'Rages', rageDamage: 'Rage Damage', weaponMastery: 'Weapon Mastery', bardicDie: 'Bardic Inspiration die', channelDivinity: 'Channel Divinity', wildShape: 'Wild Shape', secondWind: 'Second Wind', martialArts: 'Martial Arts die', focusPoints: 'Focus Points', unarmoredMovement: 'Unarmored Movement', favoredEnemy: 'Favored Enemy', sneakAttack: 'Sneak Attack', sorceryPoints: 'Sorcery Points', invocations: 'Eldritch Invocations' };
+export function classResources(choices) {
+    const cls = SRD.classes[choices.class]; const row = cls && cls.columns && cls.columns[levelOf(choices)];
+    if (!row) return '';
+    return Object.entries(row).map(([k, v]) => `${COLUMN_LABELS[k] || k} ${k === 'rageDamage' ? '+' + v : k === 'unarmoredMovement' ? '+' + v + ' ft.' : v}`).join(' · ');
+}
 export function featureList(choices) {
     const cls = SRD.classes[choices.class], bg = SRD.backgrounds[choices.background], sp = SRD.species[choices.species];
-    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const level = levelOf(choices);
     const out = [];
     if (cls) {
-        for (const f of cls.features) if (f.level <= level && !/ Subclass$/.test(f.name)) out.push({ name: f.name, source: `${cls.name} ${f.level}`, text: f.text });
-        if (level >= 3) for (const f of cls.subclassFeatures) out.push({ name: f.name, source: `${cls.subclass} 3`, text: f.text });
+        // "Ability Score Improvement" / "Epic Boon" are listed as the feats chosen there
+        for (const f of cls.features) if (f.level <= level && !/ Subclass$/.test(f.name) && f.name !== 'Ability Score Improvement' && f.name !== 'Epic Boon') out.push({ name: f.name, source: `${cls.name} ${f.level}`, text: f.text });
+        for (const f of cls.subclassFeatures) if (f.level <= level) out.push({ name: f.name, source: `${cls.subclass} ${f.level}`, text: f.text });
+        for (const { level: l, pick } of chosenFeats(choices)) {
+            if (!SRD.feats[pick.feat]) continue;
+            const detail = [(pick.abilities || []).length ? pick.abilities.map(a => a.toUpperCase()).join(', ') : '', (pick.skills || []).join(', ')].filter(Boolean).join('; ');
+            out.push({ name: pick.feat + (detail ? ` (${detail})` : ''), source: `${cls.name} ${l} feat`, text: SRD.feats[pick.feat].text });
+        }
     }
     if (sp) for (const t of sp.traits) out.push({ name: t.name, source: sp.name, text: t.text });
     const featName = bg && bg.feat.replace(/ \(.+\)$/, '');
     if (bg && SRD.feats[featName]) out.push({ name: bg.feat, source: bg.name + ' (Origin feat)', text: SRD.feats[featName].text });
     if (choices.species === 'human' && choices.originFeat && SRD.feats[choices.originFeat]) out.push({ name: choices.originFeat, source: 'Human (Versatile)', text: SRD.feats[choices.originFeat].text });
     if (fightingStyleAt(choices) && SRD.feats[choices.fightingStyle]) out.push({ name: choices.fightingStyle, source: 'Fighting Style', text: SRD.feats[choices.fightingStyle].text });
+    if (secondFightingStyleAt(choices) && SRD.feats[choices.fightingStyle2]) out.push({ name: choices.fightingStyle2, source: 'Additional Fighting Style', text: SRD.feats[choices.fightingStyle2].text });
     return out;
 }
 
 // ---- the sheet ------------------------------------------------------------------------------
 export function hitPoints(choices, abilities) {
     const cls = SRD.classes[choices.class]; if (!cls) return 1;
-    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const level = levelOf(choices);
     const con = abilityMod(abilities.con);
     let hp = cls.hitDie + con;
     for (let l = 2; l <= level; l++) hp += Math.max(1, cls.hitDie / 2 + 1 + con);   // fixed value per level
     if (choices.species === 'dwarf') hp += level;                                  // Dwarven Toughness
+    if (choices.class === 'sorcerer' && level >= 3) hp += level;                   // Draconic Resilience: 3 at level 3, +1 per level
     return Math.max(1, hp);
 }
 
 export function buildSheet(choices, previous) {
     const cls = SRD.classes[choices.class], bg = SRD.backgrounds[choices.background], sp = SRD.species[choices.species];
-    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const level = levelOf(choices);
     const abilities = finalAbilities(choices);
     const { items, gp } = startingItems(choices);
-    const style = fightingStyleAt(choices) ? choices.fightingStyle : '';
-    const ac = armorClass(abilities, items, cls, { defense: style === 'Defense', draconic: choices.class === 'sorcerer' && level >= 3 });
+    const styles = fightingStyles(choices);
+    // armor/weapons: what the character owns now (level up) or the starting equipment
+    const prevInv = previous && Array.isArray(previous.inventory) ? previous.inventory : null;
+    const gear = prevInv || items;
+    const ac = armorClass(abilities, gear, cls, { defense: styles.includes('Defense'), draconic: choices.class === 'sorcerer' && level >= 3 });
     const skills = {};
     for (const s of proficientSkills(choices)) skills[s] = 1;
     for (const s of choices.expertise || []) if (skills[s]) skills[s] = 2;
     let speed = sp ? sp.speed : 30;
     if (choices.species === 'elf' && /Wood Elf/.test(choices.speciesOption || '')) speed = 35;
-    const armorWorn = items.some(i => SRD.armor[i.name]);
-    if (choices.class === 'monk' && level >= 2 && !armorWorn && !items.some(i => i.name === 'Shield')) speed += 10;
+    const armorWorn = gear.some(i => SRD.armor[i.name]);
+    const move = cls && cls.columns && cls.columns[level] && cls.columns[level].unarmoredMovement;
+    if (choices.class === 'monk' && move && !armorWorn && !gear.some(i => i.name === 'Shield')) speed += move;
+    if (choices.class === 'barbarian' && level >= 5 && !gear.some(i => SRD.armor[i.name] && SRD.armor[i.name].category === 'heavy')) speed += 10;   // Fast Movement
     const hp = hitPoints(choices, abilities);
     const feats = featureList(choices);
     const spell = cls && cls.spellcasting;
-    const prevInv = previous && Array.isArray(previous.inventory) ? previous.inventory : null;
+    const saves = new Set(cls ? cls.saves : []);
+    if (choices.class === 'rogue' && level >= 15) { saves.add('wis'); saves.add('cha'); }   // Slippery Mind
+    if (choices.class === 'monk' && level >= 14) for (const a of ABILITIES) saves.add(a);     // Disciplined Survivor
+    const resources = classResources(choices);
     const sheet = {
         level, className: cls ? cls.name + (level >= 3 ? ` (${cls.subclass})` : '') : '', species: sp ? sp.name + (choices.speciesOption ? ` (${choices.speciesOption})` : '') : '',
         background: bg ? bg.name : '', alignment: choices.alignment || '',
         xp: Math.max(previous ? Number(previous.xp) || 0 : 0, SRD.xp[level - 1]),
-        abilities, saves: cls ? cls.saves.slice() : [], skills, ac: ac.ac, speed,
+        abilities, saves: ABILITIES.filter(a => saves.has(a)), skills, ac: ac.ac, speed,
         hp: { max: hp, current: previous && previous.hp ? Math.min(hp, (Number(previous.hp.current) || 0) + (hp - (Number(previous.hp.max) || hp))) : hp, temp: 0 },
-        attacks: attacksFor(abilities, items, cls, style).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
+        attacks: attacksFor(abilities, gear, cls, styles).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
         // level up keeps what the character owns now; a new character gets the starting equipment
         inventory: prevInv || items, coins: previous && previous.coins ? previous.coins : { cp: 0, sp: 0, gp, pp: 0 },
-        features: feats.map(f => `• ${f.name} (${f.source}): ${firstSentence(f.text)}`).join('\n'),
+        features: (resources ? `${cls.name} ${level}: ${resources}\n` : '') + feats.map(f => `• ${f.name} (${f.source}): ${firstSentence(f.text)}`).join('\n'),
         notes: previous && previous.notes ? previous.notes : '',
         acNote: ac.how,
         proficiencies: [cls && `Weapons: ${cls.weapons}`, cls && `Armor: ${cls.armor}`, [cls && cls.tools, bg && bg.tool].filter(Boolean).length ? `Tools: ${[cls && cls.tools, bg && bg.tool].filter(Boolean).join('; ')}` : '',
             `Languages: Common${(choices.languages || []).length ? ', ' + choices.languages.join(', ') : ''}${choices.class === 'rogue' ? ", Thieves' Cant" : ''}${choices.class === 'druid' ? ', Druidic' : ''}`].filter(Boolean).join('\n'),
-        spellcasting: spell ? Object.assign({ ability: spell.ability, pact: !!spell.pact }, spell.levels[level]) : null,
+        // level up keeps the spells written on the sheet and the slots already used
+        spellcasting: spell ? Object.assign({ ability: spell.ability, pact: !!spell.pact }, spell.levels[level],
+            previous && previous.spellcasting ? { spells: previous.spellcasting.spells || '', used: (previous.spellcasting.used || []).map((u, i) => Math.min(u, (spell.levels[level].slots || [])[i] || 0)) } : {}) : null,
         build: Object.assign({}, choices, { level, source: SRD.source }),
     };
     return normalizeSheet(sheet);

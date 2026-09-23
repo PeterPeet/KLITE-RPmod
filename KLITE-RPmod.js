@@ -21786,7 +21786,7 @@ ${recent}` : "");
           "Every roll goes into the Dice log on the left, and the AI sees the rolls made since its last reply.",
           "Changes are a draft until you press Save (or turn on autosave in Settings → RPmod). Revert undoes them."
         ] },
-        { p: 'New characters: "New character" in the gallery (or "Build with the SRD rules" on an empty sheet) opens the character builder — class, background, species, ability scores, skills, equipment — for levels 1 to 3. "Level up" on the sheet takes a built character to the next level and keeps what they own.' },
+        { p: 'New characters: "New character" in the gallery (or "Build with the SRD rules" on an empty sheet) opens the character builder — class, background, species, ability scores, skills, equipment — for levels 1 to 20, with feats at the Ability Score Improvement levels. "Level up" on the sheet takes a built character to the next level and keeps what they own.' },
         { tip: "Your persona's sheet (level, class, HP, AC, skills, inventory) is part of what the AI knows about you." }
       ],
       show: [
@@ -23138,7 +23138,7 @@ ${recent}` : "");
       ]));
       root.appendChild(el("div", { class: "rpm-row", style: "margin:2px 0 6px;flex-wrap:wrap" }, [
         el("span", { class: "rpm-muted rpm-grow", text: `Proficiency bonus ${fmt(D.pb)} · XP ${s.xp}${s.alignment ? " · " + s.alignment : ""}` }),
-        s.build && s.level < 3 && window.KLITE_RPMod_Builder ? btn("Level up", () => {
+        s.build && s.level < 20 && window.KLITE_RPMod_Builder ? btn("Level up", () => {
           if (dirty() && !confirm("Level up uses the saved sheet; discard unsaved changes?")) return;
           window.KLITE_RPMod_Builder.levelUp(V.name);
         }, { icon: "sparkles", title: `Rebuild at level ${s.level + 1} with the builder (keeps inventory, coins and notes)` }) : null
@@ -23262,7 +23262,7 @@ ${recent}` : "");
         sp.slots.forEach((n, i) => {
           if (!n) return;
           const used = sp.used && sp.used[i] || 0;
-          slotRow.appendChild(el("span", { class: "rpm-label", text: `${sp.pact ? "Pact slots" : "Level " + (i + 1)}:` }));
+          slotRow.appendChild(el("span", { class: "rpm-label", text: `${sp.pact ? `Pact slots (level ${i + 1})` : "Level " + (i + 1)}:` }));
           for (let k2 = 0; k2 < n; k2++) {
             const c = el("input", { type: "checkbox", "aria-label": `${sp.pact ? "Pact" : "Level " + (i + 1)} slot ${k2 + 1} used` });
             c.checked = k2 < used;
@@ -24098,7 +24098,160 @@ OK = save and close · Cancel = close and discard them`);
             "rages": 3,
             "rageDamage": 2,
             "weaponMastery": 2
+          },
+          "4": {
+            "rages": 3,
+            "rageDamage": 2,
+            "weaponMastery": 3
+          },
+          "5": {
+            "rages": 3,
+            "rageDamage": 2,
+            "weaponMastery": 3
+          },
+          "6": {
+            "rages": 4,
+            "rageDamage": 2,
+            "weaponMastery": 3
+          },
+          "7": {
+            "rages": 4,
+            "rageDamage": 2,
+            "weaponMastery": 3
+          },
+          "8": {
+            "rages": 4,
+            "rageDamage": 2,
+            "weaponMastery": 3
+          },
+          "9": {
+            "rages": 4,
+            "rageDamage": 3,
+            "weaponMastery": 3
+          },
+          "10": {
+            "rages": 4,
+            "rageDamage": 3,
+            "weaponMastery": 4
+          },
+          "11": {
+            "rages": 4,
+            "rageDamage": 3,
+            "weaponMastery": 4
+          },
+          "12": {
+            "rages": 5,
+            "rageDamage": 3,
+            "weaponMastery": 4
+          },
+          "13": {
+            "rages": 5,
+            "rageDamage": 3,
+            "weaponMastery": 4
+          },
+          "14": {
+            "rages": 5,
+            "rageDamage": 3,
+            "weaponMastery": 4
+          },
+          "15": {
+            "rages": 5,
+            "rageDamage": 3,
+            "weaponMastery": 4
+          },
+          "16": {
+            "rages": 5,
+            "rageDamage": 4,
+            "weaponMastery": 4
+          },
+          "17": {
+            "rages": 6,
+            "rageDamage": 4,
+            "weaponMastery": 4
+          },
+          "18": {
+            "rages": 6,
+            "rageDamage": 4,
+            "weaponMastery": 4
+          },
+          "19": {
+            "rages": 6,
+            "rageDamage": 4,
+            "weaponMastery": 4
+          },
+          "20": {
+            "rages": 6,
+            "rageDamage": 4,
+            "weaponMastery": 4
           }
+        },
+        "levels": {
+          "1": [
+            "Rage",
+            "Unarmored Defense",
+            "Weapon Mastery"
+          ],
+          "2": [
+            "Danger Sense",
+            "Reckless Attack"
+          ],
+          "3": [
+            "Barbarian Subclass",
+            "Primal Knowledge"
+          ],
+          "4": [
+            "Ability Score Improvement"
+          ],
+          "5": [
+            "Extra Attack",
+            "Fast Movement"
+          ],
+          "6": [
+            "Subclass feature"
+          ],
+          "7": [
+            "Feral Instinct",
+            "Instinctive Pounce"
+          ],
+          "8": [
+            "Ability Score Improvement"
+          ],
+          "9": [
+            "Brutal Strike"
+          ],
+          "10": [
+            "Subclass feature"
+          ],
+          "11": [
+            "Relentless Rage"
+          ],
+          "12": [
+            "Ability Score Improvement"
+          ],
+          "13": [
+            "Improved Brutal Strike"
+          ],
+          "14": [
+            "Subclass feature"
+          ],
+          "15": [
+            "Persistent Rage"
+          ],
+          "16": [
+            "Ability Score Improvement"
+          ],
+          "17": [
+            "Improved Brutal Strike"
+          ],
+          "18": [
+            "Indomitable Might"
+          ],
+          "19": [
+            "Epic Boon"
+          ],
+          "20": [
+            "Primal Champion"
+          ]
         },
         "features": [
           {
@@ -24161,6 +24314,103 @@ OK = save and close · Cancel = close and discard them`);
               "You gain proficiency in another skill of your choice from the skill list available to Barbarians at level 1.",
               "In addition, while your Rage is active, you can channel primal power when you attempt certain tasks; whenever you make an ability check using one of the following skills, you can make it as a Strength check even if it normally uses a different ability: Acrobatics, Intimidation, Perception, Stealth, or Survival. When you use this ability, your Strength represents primal power coursing through you, honing your agility, bearing, and senses."
             ]
+          },
+          {
+            "level": 4,
+            "name": "Ability Score Improvement",
+            "text": [
+              'You gain the Ability Score Improvement feat (see "Feats") or another feat of your choice for which you qualify. You gain this feature again at Barbarian levels 8, 12, and 16.'
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Extra Attack",
+            "text": [
+              "You can attack twice instead of once whenever you take the Attack action on your turn."
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Fast Movement",
+            "text": [
+              "Your speed increases by 10 feet while you aren't wearing Heavy armor."
+            ]
+          },
+          {
+            "level": 7,
+            "name": "Feral Instinct",
+            "text": [
+              "Your instincts are so honed that you have Advantage on Initiative rolls."
+            ]
+          },
+          {
+            "level": 7,
+            "name": "Instinctive Pounce",
+            "text": [
+              "As part of the Bonus Action you take to enter your Rage, you can move up to half your Speed."
+            ]
+          },
+          {
+            "level": 9,
+            "name": "Brutal Strike",
+            "text": [
+              "If you use Reckless Attack, you can forgo any Advantage on one Strength-based attack roll of your choice on your turn. The chosen attack roll mustn't have Disadvantage. If the chosen attack roll hits, the target takes an extra 1d10 damage of the same type dealt by the weapon or Unarmed Strike, and you can cause one Brutal Strike effect of your choice. You have the following effect options.",
+              "Forceful Blow. The target is pushed 15 feet straight away from you. You can then move up to half your Speed straight toward the target without provoking Opportunity Attacks.",
+              "Hamstring Blow. The target's Speed is reduced by 15 feet until the start of your next turn. A target can be affected by only one Hamstring Blow at a time— the most recent one."
+            ]
+          },
+          {
+            "level": 11,
+            "name": "Relentless Rage",
+            "text": [
+              "Your Rage can keep you fighting despite grievous wounds. If you drop to 0 Hit Points while your Rage is active and don't die outright, you can make a DC 10 Constitution saving throw. If you succeed, your Hit Points instead change to a number equal to twice your Barbarian level.",
+              "Each time you use this feature after the first, the DC increases by 5. When you finish a Short or Long Rest, the DC resets to 10."
+            ]
+          },
+          {
+            "level": 13,
+            "name": "Improved Brutal Strike",
+            "text": [
+              "You have honed new ways to attack furiously. The following effects are now among your Brutal Strike options.",
+              "Staggering Blow. The target has Disadvantage on the next saving throw it makes, and it can't make Opportunity Attacks until the start of your next turn.",
+              "Sundering Blow. Before the start of your next turn, the next attack roll made by another creature against the target gains a +5 bonus to the roll. An attack roll can gain only one Sundering Blow bonus."
+            ]
+          },
+          {
+            "level": 15,
+            "name": "Persistent Rage",
+            "text": [
+              "When you roll Initiative, you can regain all expended uses of Rage. After you regain uses of Rage in this way, you can't do so again until you finish a Long Rest.",
+              "In addition, your Rage is so fierce that it now lasts for 10 minutes without you needing to do anything to extend it from round to round. Your Rage ends early if you have the Unconscious condition (not just the Incapacitated condition) or don Heavy armor."
+            ]
+          },
+          {
+            "level": 17,
+            "name": "Improved Brutal Strike",
+            "text": [
+              "The extra damage of your Brutal Strike increases to 2d10. In addition, you can use two different Brutal Strike effects whenever you use your Brutal Strike feature."
+            ]
+          },
+          {
+            "level": 18,
+            "name": "Indomitable Might",
+            "text": [
+              "If your total for a Strength check or Strength saving throw is less than your Strength score, you can use that score in place of the total."
+            ]
+          },
+          {
+            "level": 19,
+            "name": "Epic Boon",
+            "text": [
+              'You gain an Epic Boon feat (see "Feats") or another feat of your choice for which you qualify. Boon of Irresistible Offense is recommended.'
+            ]
+          },
+          {
+            "level": 20,
+            "name": "Primal Champion",
+            "text": [
+              "You embody primal power. Your Strength and Constitution scores increase by 4, to a maximum of 25."
+            ]
           }
         ],
         "subclassFeatures": [
@@ -24169,6 +24419,28 @@ OK = save and close · Cancel = close and discard them`);
             "name": "Frenzy",
             "text": [
               "If you use Reckless Attack while your Rage is active, you deal extra damage to the first target you hit on your turn with a Strength-based attack. To determine the extra damage, roll a number of d6s equal to your Rage Damage bonus, and add them together. The damage has the same type as the weapon or Unarmed Strike used for the attack."
+            ]
+          },
+          {
+            "level": 6,
+            "name": "Mindless Rage",
+            "text": [
+              "You have Immunity to the Charmed and Frightened conditions while your Rage is active. If you're Charmed or Frightened when you enter your Rage, the condition ends on you."
+            ]
+          },
+          {
+            "level": 10,
+            "name": "Retaliation",
+            "text": [
+              "When you take damage from a creature that is within 5 feet of you, you can take a Reaction to make one melee attack against that creature, using a weapon or an Unarmed Strike."
+            ]
+          },
+          {
+            "level": 14,
+            "name": "Intimidating Presence",
+            "text": [
+              "As a Bonus Action, you can strike terror into others with your menacing presence and primal power. When you do so, each creature of your choice in a 30-foot Emanation originating from you must make a Wisdom saving throw (DC 8 plus your Strength modifier and Proficiency Bonus). On a failed save, a creature has the Frightened condition for 1 minute. At the end of each of the Frightened creature's turns, the creature repeats the save, ending the effect on itself on a success.",
+              "Once you use this feature, you can't use it again until you finish a Long Rest unless you expend a use of your Rage (no action required) to restore your use of it."
             ]
           }
         ],
@@ -24243,6 +24515,212 @@ OK = save and close · Cancel = close and discard them`);
                 4,
                 2
               ]
+            },
+            "4": {
+              "cantrips": 3,
+              "prepared": 7,
+              "slots": [
+                4,
+                3
+              ]
+            },
+            "5": {
+              "cantrips": 3,
+              "prepared": 9,
+              "slots": [
+                4,
+                3,
+                2
+              ]
+            },
+            "6": {
+              "cantrips": 3,
+              "prepared": 10,
+              "slots": [
+                4,
+                3,
+                3
+              ]
+            },
+            "7": {
+              "cantrips": 3,
+              "prepared": 11,
+              "slots": [
+                4,
+                3,
+                3,
+                1
+              ]
+            },
+            "8": {
+              "cantrips": 3,
+              "prepared": 12,
+              "slots": [
+                4,
+                3,
+                3,
+                2
+              ]
+            },
+            "9": {
+              "cantrips": 3,
+              "prepared": 14,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                1
+              ]
+            },
+            "10": {
+              "cantrips": 4,
+              "prepared": 15,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2
+              ]
+            },
+            "11": {
+              "cantrips": 4,
+              "prepared": 16,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1
+              ]
+            },
+            "12": {
+              "cantrips": 4,
+              "prepared": 16,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1
+              ]
+            },
+            "13": {
+              "cantrips": 4,
+              "prepared": 17,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1
+              ]
+            },
+            "14": {
+              "cantrips": 4,
+              "prepared": 17,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1
+              ]
+            },
+            "15": {
+              "cantrips": 4,
+              "prepared": 18,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "16": {
+              "cantrips": 4,
+              "prepared": 18,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "17": {
+              "cantrips": 4,
+              "prepared": 19,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1,
+                1
+              ]
+            },
+            "18": {
+              "cantrips": 4,
+              "prepared": 20,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                1,
+                1,
+                1,
+                1
+              ]
+            },
+            "19": {
+              "cantrips": 4,
+              "prepared": 21,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "20": {
+              "cantrips": 4,
+              "prepared": 22,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                2,
+                2,
+                1,
+                1
+              ]
             }
           }
         },
@@ -24255,7 +24733,114 @@ OK = save and close · Cancel = close and discard them`);
           },
           "3": {
             "bardicDie": "d6"
+          },
+          "4": {
+            "bardicDie": "d6"
+          },
+          "5": {
+            "bardicDie": "d8"
+          },
+          "6": {
+            "bardicDie": "d8"
+          },
+          "7": {
+            "bardicDie": "d8"
+          },
+          "8": {
+            "bardicDie": "d8"
+          },
+          "9": {
+            "bardicDie": "d8"
+          },
+          "10": {
+            "bardicDie": "d10"
+          },
+          "11": {
+            "bardicDie": "d10"
+          },
+          "12": {
+            "bardicDie": "d10"
+          },
+          "13": {
+            "bardicDie": "d10"
+          },
+          "14": {
+            "bardicDie": "d10"
+          },
+          "15": {
+            "bardicDie": "d12"
+          },
+          "16": {
+            "bardicDie": "d12"
+          },
+          "17": {
+            "bardicDie": "d12"
+          },
+          "18": {
+            "bardicDie": "d12"
+          },
+          "19": {
+            "bardicDie": "d12"
+          },
+          "20": {
+            "bardicDie": "d12"
           }
+        },
+        "levels": {
+          "1": [
+            "Bardic Inspiration",
+            "Spellcasting"
+          ],
+          "2": [
+            "Expertise",
+            "Jack of All Trades"
+          ],
+          "3": [
+            "Bard Subclass"
+          ],
+          "4": [
+            "Ability Score Improvement"
+          ],
+          "5": [
+            "Font of Inspiration"
+          ],
+          "6": [
+            "Subclass feature"
+          ],
+          "7": [
+            "Countercharm"
+          ],
+          "8": [
+            "Ability Score Improvement"
+          ],
+          "9": [
+            "Expertise"
+          ],
+          "10": [
+            "Magical Secrets"
+          ],
+          "11": [],
+          "12": [
+            "Ability Score Improvement"
+          ],
+          "13": [],
+          "14": [
+            "Subclass feature"
+          ],
+          "15": [],
+          "16": [
+            "Ability Score Improvement"
+          ],
+          "17": [],
+          "18": [
+            "Superior Inspiration"
+          ],
+          "19": [
+            "Epic Boon"
+          ],
+          "20": [
+            "Words of Creation"
+          ]
         },
         "features": [
           {
@@ -24308,6 +24893,56 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "You gain a Bard subclass of your choice. The College of Lore subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Bard levels. For the rest of your career, you gain each of your subclass's features that are of your Bard level or lower."
             ]
+          },
+          {
+            "level": 4,
+            "name": "Ability Score Improvement",
+            "text": [
+              'You gain the Ability Score Improvement feat (see "Feats") or another feat of your choice for which you qualify. You gain this feature again at Bard levels 8, 12, and 16.'
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Font of Inspiration",
+            "text": [
+              "You now regain all your expended uses of Bardic Inspiration when you finish a Short or Long Rest.",
+              "In addition, you can expend a spell slot (no action required) to regain one expended use of Bardic Inspiration."
+            ]
+          },
+          {
+            "level": 7,
+            "name": "Countercharm",
+            "text": [
+              "You can use musical notes or words of power to disrupt mind-influencing effects. If you or a creature within 30 feet of you fails a saving throw against an effect that applies the Charmed or Frightened condition, you can take a Reaction to cause the save to be rerolled, and the new roll has Advantage."
+            ]
+          },
+          {
+            "level": 10,
+            "name": "Magical Secrets",
+            "text": [
+              "You've learned secrets from various magical traditions. Whenever you reach a Bard level (including this level) and the Prepared Spells number in the Bard Features table increases, you can choose any of your new prepared spells from the Bard, Cleric, Druid, and Wizard spell lists, and the chosen spells count as Bard spells for you (see a class's section for its spell list). In addition, whenever you replace a spell prepared for this class, you can replace it with a spell from those lists."
+            ]
+          },
+          {
+            "level": 18,
+            "name": "Superior Inspiration",
+            "text": [
+              "When you roll Initiative, you regain expended uses of Bardic Inspiration until you have two if you have fewer than that."
+            ]
+          },
+          {
+            "level": 19,
+            "name": "Epic Boon",
+            "text": [
+              'You gain an Epic Boon feat (see "Feats") or another feat of your choice for which you qualify. Boon of Spell Recall is recommended.'
+            ]
+          },
+          {
+            "level": 20,
+            "name": "Words of Creation",
+            "text": [
+              "You have mastered two of the Words of Creation: the words of life and death. You therefore always have the Power Word Heal and Power Word Kill spells prepared. When you cast either spell, you can target a second creature with it if that creature is within 10 feet of the first target. Bard Spell List This section presents the Bard spell list. The spells are organized by spell level and then alphabetized, and each spell's school of magic is listed. In the Special column, C means the spell requires Concentration, R means it's a Ritual, and M means it requires a specific Material component. Cantrips (Level 0 Bard Spells) Spell School Special Dancing Lights Illusion C Light Evocation — Mage Hand Conjuration — Mending Transmutation — Message Transmutation — Minor Illusion Illusion — Spell School Special Prestidigitation Transmutation — Starry Wisp Evocation — True Strike Divination — Vicious Mockery Enchantment — Level 1 Bard Spells Spell School Special Animal Friendship Enchantment — Bane Enchantment C Charm Person Enchantment — Color Spray Illusion — Command Enchantment — Comprehend Languages Divination R Cure Wounds Abjuration — Detect Magic Divination C, R Disguise Self Illusion — Dissonant Whispers Enchantment — Faerie Fire Evocation C Feather Fall Transmutation — Healing Word Abjuration — Heroism Enchantment C Hideous Laughter Enchantment C Identify Divination R, M Illusory Script Illusion R, M Longstrider Transmutation — Silent Image Illusion C Sleep Enchantment C Speak with Animals Divination R Thunderwave Evocation — Unseen Servant Conjuration R Level 2 Bard Spells Spell School Special Aid Abjuration — Animal Messenger Enchantment R Blindness/Deafness Transmutation — Calm Emotions Enchantment C Detect Thoughts Divination C Enhance Ability Transmutation C Enlarge/Reduce Transmutation C Enthrall Enchantment C Heat Metal Transmutation C Hold Person Enchantment C Spell School Special Invisibility Illusion C Knock Transmutation — Lesser Restoration Abjuration — Locate Animals or Plants Divination R Locate Object Divination C Magic Mouth Illusion R, M Mirror Image Illusion — See Invisibility Divination — Shatter Evocation — Silence Illusion C, R Suggestion Enchantment C Zone of Truth Enchantment — Level 3 Bard Spells Spell School Special Bestow Curse Necromancy C Clairvoyance Divination C, M Dispel Magic Abjuration — Fear Illusion C Glyph of Warding Abjuration M Hypnotic Pattern Illusion C Major Image Illusion C Mass Healing Word Abjuration — Nondetection Abjuration M Plant Growth Transmutation — Sending Divination — Slow Transmutation C Speak with Dead Necromancy — Speak with Plants Transmutation — Stinking Cloud Conjuration C Tiny Hut Evocation R Tongues Divination — Level 4 Bard Spells Spell School Special Charm Monster Enchantment — Compulsion Enchantment C Confusion Enchantment C Dimension Door Conjuration — Freedom of Movement Abjuration — Greater Invisibility Illusion C Hallucinatory Terrain Illusion — Locate Creature Divination C Phantasmal Killer Illusion C Polymorph Transmutation C Level 5 Bard Spells Spell School Special Animate Objects Transmutation C Awaken Transmutation M Dominate Person Enchantment C Dream Illusion — Geas Enchantment — Greater Restoration Abjuration M Hold Monster Enchantment C Legend Lore Divination M Mass Cure Wounds Abjuration — Mislead Illusion C Modify Memory Enchantment C Planar Binding Abjuration M Raise Dead Necromancy M Scrying Divination C, M Seeming Illusion — Telepathic Bond Divination R Teleportation Circle Conjuration M Level 6 Bard Spells Spell School Special Eyebite Necromancy C Find the Path Divination C, M Guards and Wards Abjuration M Heroes' Feast Conjuration M Irresistible Dance Enchantment C Mass Suggestion Enchantment — Programmed Illusion Illusion M True Seeing Divination M Level 7 Bard Spells Spell School Special Arcane Sword Evocation C, M Etherealness Conjuration — Forcecage Evocation C, M Magnificent Mansion Conjuration M Mirage Arcane Illusion — Prismatic Spray Evocation — Project Image Illusion C, M Regenerate Transmutation — Resurrection Necromancy M Symbol Abjuration M Teleport Conjuration — Level 8 Bard Spells Spell School Special Antipathy/Sympathy Enchantment — Befuddlement Enchantment — Dominate Monster Enchantment C Glibness Enchantment — Mind Blank Abjuration — Power Word Stun Enchantment — Level 9 Bard Spells Spell School Special Foresight Divination — Power Word Heal Enchantment — Power Word Kill Enchantment — Prismatic Wall Abjuration — True Polymorph Transmutation C"
+            ]
           }
         ],
         "subclassFeatures": [
@@ -24323,6 +24958,21 @@ OK = save and close · Cancel = close and discard them`);
             "name": "Cutting Words",
             "text": [
               "You learn to use your wit to supernaturally distract, confuse, and otherwise sap the confidence and competence of others. When a creature that you can see within 60 feet of yourself makes a damage roll or succeeds on an ability check or attack roll, you can take a Reaction to expend one use of your Bardic Inspiration; roll your Bardic Inspiration die, and subtract the number rolled from the creature's roll, reducing the damage or potentially turning the success into a failure."
+            ]
+          },
+          {
+            "level": 6,
+            "name": "Magical Discoveries",
+            "text": [
+              "You learn two spells of your choice. These spells can come from the Cleric, Druid, or Wizard spell list or any combination thereof (see a class's section for its spell list). A spell you choose must be a cantrip or a spell for which you have spell slots, as shown in the Bard Features table.",
+              "You always have the chosen spells prepared, and whenever you gain a Bard level, you can replace one of the spells with another spell that meets these requirements."
+            ]
+          },
+          {
+            "level": 14,
+            "name": "Peerless Skill",
+            "text": [
+              "When you make an ability check or attack roll and fail, you can expend one use of Bardic Inspiration; roll the Bardic Inspiration die, and add the number rolled to the d20, potentially turning a failure into a success. On a failure, the Bardic Inspiration isn't expended."
             ]
           }
         ],
@@ -24404,6 +25054,212 @@ OK = save and close · Cancel = close and discard them`);
                 4,
                 2
               ]
+            },
+            "4": {
+              "cantrips": 4,
+              "prepared": 7,
+              "slots": [
+                4,
+                3
+              ]
+            },
+            "5": {
+              "cantrips": 4,
+              "prepared": 9,
+              "slots": [
+                4,
+                3,
+                2
+              ]
+            },
+            "6": {
+              "cantrips": 4,
+              "prepared": 10,
+              "slots": [
+                4,
+                3,
+                3
+              ]
+            },
+            "7": {
+              "cantrips": 4,
+              "prepared": 11,
+              "slots": [
+                4,
+                3,
+                3,
+                1
+              ]
+            },
+            "8": {
+              "cantrips": 4,
+              "prepared": 12,
+              "slots": [
+                4,
+                3,
+                3,
+                2
+              ]
+            },
+            "9": {
+              "cantrips": 4,
+              "prepared": 14,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                1
+              ]
+            },
+            "10": {
+              "cantrips": 5,
+              "prepared": 15,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2
+              ]
+            },
+            "11": {
+              "cantrips": 5,
+              "prepared": 16,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1
+              ]
+            },
+            "12": {
+              "cantrips": 5,
+              "prepared": 16,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1
+              ]
+            },
+            "13": {
+              "cantrips": 5,
+              "prepared": 17,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1
+              ]
+            },
+            "14": {
+              "cantrips": 5,
+              "prepared": 17,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1
+              ]
+            },
+            "15": {
+              "cantrips": 5,
+              "prepared": 18,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "16": {
+              "cantrips": 5,
+              "prepared": 18,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "17": {
+              "cantrips": 5,
+              "prepared": 19,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1,
+                1
+              ]
+            },
+            "18": {
+              "cantrips": 5,
+              "prepared": 20,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                1,
+                1,
+                1,
+                1
+              ]
+            },
+            "19": {
+              "cantrips": 5,
+              "prepared": 21,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "20": {
+              "cantrips": 5,
+              "prepared": 22,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                2,
+                2,
+                1,
+                1
+              ]
             }
           }
         },
@@ -24413,7 +25269,111 @@ OK = save and close · Cancel = close and discard them`);
           },
           "3": {
             "channelDivinity": 2
+          },
+          "4": {
+            "channelDivinity": 2
+          },
+          "5": {
+            "channelDivinity": 2
+          },
+          "6": {
+            "channelDivinity": 3
+          },
+          "7": {
+            "channelDivinity": 3
+          },
+          "8": {
+            "channelDivinity": 3
+          },
+          "9": {
+            "channelDivinity": 3
+          },
+          "10": {
+            "channelDivinity": 3
+          },
+          "11": {
+            "channelDivinity": 3
+          },
+          "12": {
+            "channelDivinity": 3
+          },
+          "13": {
+            "channelDivinity": 3
+          },
+          "14": {
+            "channelDivinity": 3
+          },
+          "15": {
+            "channelDivinity": 3
+          },
+          "16": {
+            "channelDivinity": 3
+          },
+          "17": {
+            "channelDivinity": 3
+          },
+          "18": {
+            "channelDivinity": 4
+          },
+          "19": {
+            "channelDivinity": 4
+          },
+          "20": {
+            "channelDivinity": 4
           }
+        },
+        "levels": {
+          "1": [
+            "Spellcasting",
+            "Divine Order"
+          ],
+          "2": [
+            "Channel Divinity"
+          ],
+          "3": [
+            "Cleric Subclass"
+          ],
+          "4": [
+            "Ability Score Improvement"
+          ],
+          "5": [
+            "Sear Undead"
+          ],
+          "6": [
+            "Subclass feature"
+          ],
+          "7": [
+            "Blessed Strikes"
+          ],
+          "8": [
+            "Ability Score Improvement"
+          ],
+          "9": [],
+          "10": [
+            "Divine Intervention"
+          ],
+          "11": [],
+          "12": [
+            "Ability Score Improvement"
+          ],
+          "13": [],
+          "14": [
+            "Improved Blessed Strikes"
+          ],
+          "15": [],
+          "16": [
+            "Ability Score Improvement"
+          ],
+          "17": [
+            "Subclass feature"
+          ],
+          "18": [],
+          "19": [
+            "Epic Boon"
+          ],
+          "20": [
+            "Greater Divine Intervention"
+          ]
         },
         "features": [
           {
@@ -24460,6 +25420,59 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "You gain a Cleric subclass of your choice. The Life Domain subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Cleric levels. For the rest of your career, you gain each of your subclass's features that are of your Cleric level or lower."
             ]
+          },
+          {
+            "level": 4,
+            "name": "Ability Score Improvement",
+            "text": [
+              'You gain the Ability Score Improvement feat (see "Feats") or another feat of your choice for which you qualify. You gain this feature again at Cleric levels 8, 12, and 16.'
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Sear Undead",
+            "text": [
+              "Whenever you use Turn Undead, you can roll a number of d8s equal to your Wisdom modifier (minimum of 1d8) and add the rolls together. Each Undead that fails its saving throw against that use of Turn Undead takes Radiant damage equal to the roll's total. This damage doesn't end the turn effect."
+            ]
+          },
+          {
+            "level": 7,
+            "name": "Blessed Strikes",
+            "text": [
+              "Divine power infuses you in battle. You gain one of the following options of your choice (if you get either option from a Cleric subclass in an older book, use only the option you choose for this feature).",
+              "Divine Strike. Once on each of your turns when you hit a creature with an attack roll using a weapon, you can cause the target to take an extra 1d8 Necrotic or Radiant damage (your choice).",
+              "Potent Spellcasting. Add your Wisdom modifier to the damage you deal with any Cleric cantrip."
+            ]
+          },
+          {
+            "level": 10,
+            "name": "Divine Intervention",
+            "text": [
+              "You can call on your deity or pantheon to intervene on your behalf. As a Magic action, choose any Cleric spell of level 5 or lower that doesn't require a Reaction to cast. As part of the same action, you cast that spell without expending a spell slot or needing Material components. You can't use this feature again until you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 14,
+            "name": "Improved Blessed Strikes",
+            "text": [
+              "The option you chose for Blessed Strikes grows more powerful.",
+              "Divine Strike. The extra damage of your Divine Strike increases to 2d8.",
+              "Potent Spellcasting. When you cast a Cleric cantrip and deal damage to a creature with it, you can give vitality to yourself or another creature within 60 feet of yourself, granting a number of Temporary Hit Points equal to twice your Wisdom modifier."
+            ]
+          },
+          {
+            "level": 19,
+            "name": "Epic Boon",
+            "text": [
+              'You gain an Epic Boon feat (see "Feats") or another feat of your choice for which you qualify. Boon of Fate is recommended.'
+            ]
+          },
+          {
+            "level": 20,
+            "name": "Greater Divine Intervention",
+            "text": [
+              "You can call on even more powerful divine intervention. When you use your Divine Intervention feature, you can choose Wish when you select a spell. If you do so, you can't use Divine Intervention again until you finish 2d4 Long Rests. Cleric Spell List This section presents the Cleric spell list. The spells are organized by spell level and then alphabetized, and each spell's school of magic is listed. In the Special column, C means the spell requires Concentration, R means it's a Ritual, and M means it requires a specific Material component. Cantrips (Level 0 Cleric Spells) Spell School Special Guidance Divination C Light Evocation — Mending Transmutation — Resistance Abjuration C Sacred Flame Evocation — Spare the Dying Necromancy — Thaumaturgy Transmutation — Level 1 Cleric Spells Spell School Special Bane Enchantment C Bless Enchantment C, M Command Enchantment — Create or Destroy Water Transmutation — Cure Wounds Abjuration — Detect Evil and Good Divination C Detect Magic Divination C, R Detect Poison and Disease Divination C, R Guiding Bolt Evocation — Healing Word Abjuration — Inflict Wounds Necromancy — Protection from Evil and Good Abjuration C, M Purify Food and Drink Transmutation R Sanctuary Abjuration — Shield of Faith Abjuration C Level 2 Cleric Spells Spell School Special Aid Abjuration — Augury Divination R, M Blindness/Deafness Transmutation — Calm Emotions Enchantment C Continual Flame Evocation M Enhance Ability Transmutation C Find Traps Divination — Gentle Repose Necromancy R, M Hold Person Enchantment C Lesser Restoration Abjuration — Locate Object Divination C Prayer of Healing Abjuration — Spell School Special Protection from Poison Abjuration — Silence Illusion C, R Spiritual Weapon Evocation C Warding Bond Abjuration M Zone of Truth Enchantment — Level 3 Cleric Spells Spell School Special Animate Dead Necromancy — Beacon of Hope Abjuration C Bestow Curse Necromancy C Clairvoyance Divination C, M Create Food and Water Conjuration — Daylight Evocation — Dispel Magic Abjuration — Glyph of Warding Abjuration M Magic Circle Abjuration M Mass Healing Word Abjuration — Meld into Stone Transmutation R Protection from Energy Abjuration C Remove Curse Abjuration — Revivify Necromancy M Sending Divination — Speak with Dead Necromancy — Spirit Guardians Conjuration C Tongues Divination — Water Walk Transmutation R Level 4 Cleric Spells Spell School Special Aura of Life Abjuration C Banishment Abjuration C Control Water Transmutation C Death Ward Abjuration — Divination Divination R, M Freedom of Movement Abjuration — Guardian of Faith Conjuration — Locate Creature Divination C Stone Shape Transmutation — Level 5 Cleric Spells Spell School Special Commune Divination R Contagion Necromancy — Dispel Evil and Good Abjuration C Flame Strike Evocation — Geas Enchantment — Greater Restoration Abjuration M Hallow Abjuration M Insect Plague Conjuration C Legend Lore Divination M Mass Cure Wounds Abjuration — Planar Binding Abjuration M Raise Dead Necromancy M Scrying Divination C, M Level 6 Cleric Spells Spell School Special Blade Barrier Evocation C Create Undead Necromancy M Find the Path Divination C, M Forbiddance Abjuration R, M Harm Necromancy — Heal Abjuration — Heroes' Feast Conjuration M Planar Ally Conjuration — Sunbeam Evocation C True Seeing Divination M Word of Recall Conjuration — Level 7 Cleric Spells Spell School Special Conjure Celestial Conjuration C Divine Word Evocation — Etherealness Conjuration — Fire Storm Evocation — Plane Shift Conjuration M Regenerate Transmutation — Resurrection Necromancy M Symbol Abjuration M Level 8 Cleric Spells Spell School Special Antimagic Field Abjuration C Control Weather Transmutation C Earthquake Transmutation C Holy Aura Abjuration C, M Sunburst Evocation — Level 9 Cleric Spells Spell School Special Astral Projection Necromancy M Gate Conjuration C, M Mass Heal Abjuration — Power Word Heal Enchantment — True Resurrection Necromancy M"
+            ]
           }
         ],
         "subclassFeatures": [
@@ -24482,6 +25495,20 @@ OK = save and close · Cancel = close and discard them`);
             "name": "Preserve Life",
             "text": [
               "As a Magic action, you present your Holy Symbol and expend a use of your Channel Divinity to evoke healing energy that can restore a number of Hit Points equal to five times your Cleric level. Choose Bloodied creatures within 30 feet of yourself (which can include you), and divide those Hit Points among them. This feature can restore a creature to no more than half its Hit Point maximum."
+            ]
+          },
+          {
+            "level": 6,
+            "name": "Blessed Healer",
+            "text": [
+              "The healing spells you cast on others heal you as well. Immediately after you cast a spell with a spell slot that restores Hit Points to one or more creatures other than yourself, you regain Hit Points equal to 2 plus the spell slot's level."
+            ]
+          },
+          {
+            "level": 17,
+            "name": "Supreme Healing",
+            "text": [
+              "When you would normally roll one or more dice to restore Hit Points to a creature with a spell or Channel Divinity, don't roll those dice for the healing; instead use the highest number possible for each die. For example, instead of restoring 2d6 Hit Points to a creature with a spell, you restore 12."
             ]
           }
         ],
@@ -24568,6 +25595,212 @@ OK = save and close · Cancel = close and discard them`);
                 4,
                 2
               ]
+            },
+            "4": {
+              "cantrips": 3,
+              "prepared": 7,
+              "slots": [
+                4,
+                3
+              ]
+            },
+            "5": {
+              "cantrips": 3,
+              "prepared": 9,
+              "slots": [
+                4,
+                3,
+                2
+              ]
+            },
+            "6": {
+              "cantrips": 3,
+              "prepared": 10,
+              "slots": [
+                4,
+                3,
+                3
+              ]
+            },
+            "7": {
+              "cantrips": 3,
+              "prepared": 11,
+              "slots": [
+                4,
+                3,
+                3,
+                1
+              ]
+            },
+            "8": {
+              "cantrips": 3,
+              "prepared": 12,
+              "slots": [
+                4,
+                3,
+                3,
+                2
+              ]
+            },
+            "9": {
+              "cantrips": 3,
+              "prepared": 14,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                1
+              ]
+            },
+            "10": {
+              "cantrips": 4,
+              "prepared": 15,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2
+              ]
+            },
+            "11": {
+              "cantrips": 4,
+              "prepared": 16,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1
+              ]
+            },
+            "12": {
+              "cantrips": 4,
+              "prepared": 16,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1
+              ]
+            },
+            "13": {
+              "cantrips": 4,
+              "prepared": 17,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1
+              ]
+            },
+            "14": {
+              "cantrips": 4,
+              "prepared": 17,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1
+              ]
+            },
+            "15": {
+              "cantrips": 4,
+              "prepared": 18,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "16": {
+              "cantrips": 4,
+              "prepared": 18,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "17": {
+              "cantrips": 4,
+              "prepared": 19,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1,
+                1
+              ]
+            },
+            "18": {
+              "cantrips": 4,
+              "prepared": 20,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                1,
+                1,
+                1,
+                1
+              ]
+            },
+            "19": {
+              "cantrips": 4,
+              "prepared": 21,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "20": {
+              "cantrips": 4,
+              "prepared": 22,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                2,
+                2,
+                1,
+                1
+              ]
             }
           }
         },
@@ -24577,7 +25810,115 @@ OK = save and close · Cancel = close and discard them`);
           },
           "3": {
             "wildShape": 2
+          },
+          "4": {
+            "wildShape": 2
+          },
+          "5": {
+            "wildShape": 2
+          },
+          "6": {
+            "wildShape": 3
+          },
+          "7": {
+            "wildShape": 3
+          },
+          "8": {
+            "wildShape": 3
+          },
+          "9": {
+            "wildShape": 3
+          },
+          "10": {
+            "wildShape": 3
+          },
+          "11": {
+            "wildShape": 3
+          },
+          "12": {
+            "wildShape": 3
+          },
+          "13": {
+            "wildShape": 3
+          },
+          "14": {
+            "wildShape": 3
+          },
+          "15": {
+            "wildShape": 3
+          },
+          "16": {
+            "wildShape": 3
+          },
+          "17": {
+            "wildShape": 4
+          },
+          "18": {
+            "wildShape": 4
+          },
+          "19": {
+            "wildShape": 4
+          },
+          "20": {
+            "wildShape": 4
           }
+        },
+        "levels": {
+          "1": [
+            "Spellcasting",
+            "Druidic",
+            "Primal Order"
+          ],
+          "2": [
+            "Wild Shape",
+            "Wild Companion"
+          ],
+          "3": [
+            "Druid Subclass"
+          ],
+          "4": [
+            "Ability Score Improvement"
+          ],
+          "5": [
+            "Wild Resurgence"
+          ],
+          "6": [
+            "Subclass feature"
+          ],
+          "7": [
+            "Elemental Fury"
+          ],
+          "8": [
+            "Ability Score Improvement"
+          ],
+          "9": [],
+          "10": [
+            "Subclass feature"
+          ],
+          "11": [],
+          "12": [
+            "Ability Score Improvement"
+          ],
+          "13": [],
+          "14": [
+            "Subclass feature"
+          ],
+          "15": [
+            "Improved Elemental Fury"
+          ],
+          "16": [
+            "Ability Score Improvement"
+          ],
+          "17": [],
+          "18": [
+            "Beast Spells"
+          ],
+          "19": [
+            "Epic Boon"
+          ],
+          "20": [
+            "Archdruid"
+          ]
         },
         "features": [
           {
@@ -24641,6 +25982,63 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "You gain a Druid subclass of your choice. The Circle of the Land subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Druid levels. For the rest of your career, you gain each of your subclass's features that are of your Druid level or lower."
             ]
+          },
+          {
+            "level": 4,
+            "name": "Ability Score Improvement",
+            "text": [
+              'You gain the Ability Score Improvement feat (see "Feats") or another feat of your choice for which you qualify. You gain this feature again at Druid levels 8, 12, and 16.'
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Wild Resurgence",
+            "text": [
+              "Once on each of your turns, if you have no uses of Wild Shape left, you can give yourself one use by expending a spell slot (no action required).",
+              "In addition, you can expend one use of Wild Shape (no action required) to give yourself a level 1 spell slot, but you can't do so again until you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 7,
+            "name": "Elemental Fury",
+            "text": [
+              "The might of the elements flows through you. You gain one of the following options of your choice.",
+              "Potent Spellcasting. Add your Wisdom modifier to the damage you deal with any Druid cantrip.",
+              "Primal Strike. Once on each of your turns when you hit a creature with an attack roll using a weapon or a Beast form's attack in Wild Shape, you can cause the target to take an extra 1d8 Cold, Fire, Lightning, or Thunder damage (choose when you hit)."
+            ]
+          },
+          {
+            "level": 15,
+            "name": "Improved Elemental Fury",
+            "text": [
+              "The option you chose for Elemental Fury grows more powerful, as detailed below.",
+              "Potent Spellcasting. When you cast a Druid cantrip with a range of 10 feet or greater, the spell's range increases by 300 feet.",
+              "Primal Strike. The extra damage of your Primal Strike increases to 2d8."
+            ]
+          },
+          {
+            "level": 18,
+            "name": "Beast Spells",
+            "text": [
+              "While using Wild Shape, you can cast spells in Beast form, except for any spell that has a Material component with a cost specified or that consumes its Material component."
+            ]
+          },
+          {
+            "level": 19,
+            "name": "Epic Boon",
+            "text": [
+              'You gain an Epic Boon feat (see "Feats") or another feat of your choice for which you qualify. Boon of Dimensional Travel is recommended.'
+            ]
+          },
+          {
+            "level": 20,
+            "name": "Archdruid",
+            "text": [
+              "The vitality of nature constantly blooms within you, granting you the following benefits.",
+              "Evergreen Wild Shape. Whenever you roll Initiative and have no uses of Wild Shape left, you regain one expended use of it.",
+              "Nature Magician. You can convert uses of Wild Shape into a spell slot (no action required). Choose a number of your unexpended uses of Wild Shape and convert them into a single spell slot, with each use contributing 2 spell levels. For example, if you convert two uses of Wild Shape, you produce a level 4 spell slot. Once you use this benefit, you can't do so again until you finish a Long Rest.",
+              "Longevity. The primal magic that you wield causes you to age more slowly. For every ten years that pass, your body ages only one year. Druid Spell List This section presents the Druid spell list. The spells are organized by spell level and then alphabetized, and each spell's school of magic is listed. In the Special column, C means the spell requires Concentration, R means it's a Ritual, and M means it requires a specific Material component. Cantrips (Level 0 Druid Spells) Spell School Special Druidcraft Transmutation — Elementalism Transmutation — Guidance Divination C Mending Transmutation — Message Transmutation — Poison Spray Necromancy — Produce Flame Conjuration — Resistance Abjuration C Shillelagh Transmutation — Spare the Dying Necromancy — Starry Wisp Evocation — Level 1 Druid Spells Spell School Special Animal Friendship Enchantment — Charm Person Enchantment — Create or Destroy Water Transmutation — Cure Wounds Abjuration — Detect Magic Divination C, R Detect Poison and Disease Divination C, R Entangle Conjuration C Faerie Fire Evocation C Fog Cloud Conjuration C Goodberry Conjuration — Healing Word Abjuration — Ice Knife Conjuration — Jump Transmutation — Longstrider Transmutation — Protection from Evil and Good Abjuration C, M Purify Food and Drink Transmutation R Speak with Animals Divination R Thunderwave Evocation — Level 2 Druid Spells Spell School Special Aid Abjuration — Animal Messenger Enchantment R Augury Divination R, M Barkskin Transmutation — Continual Flame Evocation M Darkvision Transmutation — Enhance Ability Transmutation C Enlarge/Reduce Transmutation C Find Traps Divination — Flame Blade Evocation C Flaming Sphere Evocation C Gust of Wind Evocation C Heat Metal Transmutation C Hold Person Enchantment C Lesser Restoration Abjuration — Locate Animals or Plants Divination R Locate Object Divination C Moonbeam Evocation C Pass without Trace Abjuration C Protection from Poison Abjuration — Spike Growth Transmutation C Level 3 Druid Spells Spell School Special Call Lightning Conjuration C Conjure Animals Conjuration C Daylight Evocation — Dispel Magic Abjuration — Meld into Stone Transmutation R Plant Growth Transmutation — Protection from Energy Abjuration C Revivify Necromancy M Sleet Storm Conjuration C Speak with Plants Transmutation — Water Breathing Transmutation R Water Walk Transmutation R Wind Wall Evocation C Level 4 Druid Spells Spell School Special Blight Necromancy — Charm Monster Enchantment — Confusion Enchantment C Conjure Minor Elementals Conjuration C Conjure Woodland Beings Conjuration C Control Water Transmutation C Divination Divination R, M Dominate Beast Enchantment C Fire Shield Evocation — Freedom of Movement Abjuration — Giant Insect Conjuration C Hallucinatory Terrain Illusion — Ice Storm Evocation — Locate Creature Divination C Polymorph Transmutation C Stone Shape Transmutation — Stoneskin Transmutation C, M Wall of Fire Evocation C Level 5 Druid Spells Spell School Special Antilife Shell Abjuration C Awaken Transmutation M Commune with Nature Divination R Cone of Cold Evocation — Conjure Elemental Conjuration C Contagion Necromancy — Geas Enchantment — Greater Restoration Abjuration M Insect Plague Conjuration C Mass Cure Wounds Abjuration — Planar Binding Abjuration M Reincarnate Necromancy M Scrying Divination C, M Tree Stride Conjuration C Wall of Stone Evocation C Level 6 Druid Spells Spell School Special Conjure Fey Conjuration C Find the Path Divination C, M Flesh to Stone Transmutation C Heal Abjuration — Heroes' Feast Conjuration M Move Earth Transmutation C Sunbeam Evocation C Transport via Plants Conjuration — Wall of Thorns Conjuration C Wind Walk Transmutation — Level 7 Druid Spells Spell School Special Fire Storm Evocation — Mirage Arcane Illusion — Plane Shift Conjuration M Regenerate Transmutation — Reverse Gravity Transmutation C Symbol Abjuration M Level 8 Druid Spells Spell School Special Animal Shapes Transmutation — Antipathy/Sympathy Enchantment — Befuddlement Enchantment — Control Weather Transmutation C Earthquake Transmutation C Incendiary Cloud Conjuration C Sunburst Evocation — Tsunami Conjuration C Level 9 Druid Spells Spell School Special Foresight Divination — Shapechange Transmutation C, M Storm of Vengeance Conjuration C True Resurrection Necromancy M"
+            ]
           }
         ],
         "subclassFeatures": [
@@ -24657,6 +26055,29 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "As a Magic action, you can expend a use of your Wild Shape and choose a point within 60 feet of yourself. Vitality-giving flowers and life-draining thorns appear for a moment in a 10-foot-radius Sphere centered on that point. Each creature of your choice in the Sphere must make a Constitution saving throw against your spell save DC, taking 2d6 Necrotic damage on a failed save or half as much damage on a successful one. One creature of your choice in that area regains 2d6 Hit Points.",
               "The damage and healing increase by 1d6 when you reach Druid levels 10 (3d6) and 14 (4d6)."
+            ]
+          },
+          {
+            "level": 6,
+            "name": "Natural Recovery",
+            "text": [
+              "You can cast one of the level 1+ spells that you have prepared from your Circle Spells feature without expending a spell slot, and you must finish a Long Rest before you do so again.",
+              "In addition, when you finish a Short Rest, you can choose expended spell slots to recover. The spell slots can have a combined level that is equal to or less than half your Druid level (round up), and none of them can be level 6+. For example, if you're a level 6 Druid, you can recover up to three levels' worth of spell slots. You can recover a level 3 spell slot, a level 2 and a level 1 spell slot, or three level 1 spell slots. Once you recover spell slots with this feature, you can't do so again until you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 10,
+            "name": "Nature's Ward",
+            "text": [
+              "You are immune to the Poisoned condition, and you have Resistance to a damage type associated with your current land choice in the Circle Spells feature, as shown in the Nature's Ward table. Nature's Ward Land Type Resistance Arid Fire Polar Cold Land Type Resistance Temperate Lightning Tropical Poison"
+            ]
+          },
+          {
+            "level": 14,
+            "name": "Nature's Sanctuary",
+            "text": [
+              "As a Magic action, you can expend a use of your Wild Shape and cause spectral trees and vines to appear in a 15-foot Cube on the ground within 120 feet of yourself. They last there for 1 minute or until you have the Incapacitated condition or die. You and your allies have Half Cover while in that area, and your allies gain the current Resistance of your Nature's Ward while there.",
+              "As a Bonus Action, you can move the Cube up to 60 feet to ground within 120 feet of yourself."
             ]
           }
         ],
@@ -24744,7 +26165,144 @@ OK = save and close · Cancel = close and discard them`);
           "3": {
             "secondWind": 2,
             "weaponMastery": 3
+          },
+          "4": {
+            "secondWind": 3,
+            "weaponMastery": 4
+          },
+          "5": {
+            "secondWind": 3,
+            "weaponMastery": 4
+          },
+          "6": {
+            "secondWind": 3,
+            "weaponMastery": 4
+          },
+          "7": {
+            "secondWind": 3,
+            "weaponMastery": 4
+          },
+          "8": {
+            "secondWind": 3,
+            "weaponMastery": 4
+          },
+          "9": {
+            "secondWind": 3,
+            "weaponMastery": 4
+          },
+          "10": {
+            "secondWind": 4,
+            "weaponMastery": 5
+          },
+          "11": {
+            "secondWind": 4,
+            "weaponMastery": 5
+          },
+          "12": {
+            "secondWind": 4,
+            "weaponMastery": 5
+          },
+          "13": {
+            "secondWind": 4,
+            "weaponMastery": 5
+          },
+          "14": {
+            "secondWind": 4,
+            "weaponMastery": 5
+          },
+          "15": {
+            "secondWind": 4,
+            "weaponMastery": 5
+          },
+          "16": {
+            "secondWind": 4,
+            "weaponMastery": 6
+          },
+          "17": {
+            "secondWind": 4,
+            "weaponMastery": 6
+          },
+          "18": {
+            "secondWind": 4,
+            "weaponMastery": 6
+          },
+          "19": {
+            "secondWind": 4,
+            "weaponMastery": 6
+          },
+          "20": {
+            "secondWind": 4,
+            "weaponMastery": 6
           }
+        },
+        "levels": {
+          "1": [
+            "Fighting Style",
+            "Second Wind",
+            "Weapon Mastery"
+          ],
+          "2": [
+            "Action Surge (one use)",
+            "Tactical Mind"
+          ],
+          "3": [
+            "Fighter Subclass"
+          ],
+          "4": [
+            "Ability Score Improvement"
+          ],
+          "5": [
+            "Extra Attack",
+            "Tactical Shift"
+          ],
+          "6": [
+            "Ability Score Improvement"
+          ],
+          "7": [
+            "Subclass feature"
+          ],
+          "8": [
+            "Ability Score Improvement"
+          ],
+          "9": [
+            "Indomitable (one use)",
+            "Tactical Master"
+          ],
+          "10": [
+            "Subclass feature"
+          ],
+          "11": [
+            "Two Extra Attacks"
+          ],
+          "12": [
+            "Ability Score Improvement"
+          ],
+          "13": [
+            "Indomitable (two uses)",
+            "Studied Attacks"
+          ],
+          "14": [
+            "Ability Score Improvement"
+          ],
+          "15": [
+            "Subclass feature"
+          ],
+          "16": [
+            "Ability Score Improvement"
+          ],
+          "17": [
+            "Action Surge (two uses)",
+            "Indomitable (three uses)"
+          ],
+          "18": [
+            "Subclass feature"
+          ],
+          "19": [
+            "Epic Boon"
+          ],
+          "20": [
+            "Three Extra Attacks"
+          ]
         },
         "features": [
           {
@@ -24793,6 +26351,70 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "You gain a Fighter subclass of your choice. The Champion subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Fighter levels. For the rest of your career, you gain each of your subclass's features that are of your Fighter level or lower."
             ]
+          },
+          {
+            "level": 4,
+            "name": "Ability Score Improvement",
+            "text": [
+              'You gain the Ability Score Improvement feat (see "Feats") or another feat of your choice for which you qualify. You gain this feature again at Fighter levels 6, 8, 12, 14, and 16.'
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Extra Attack",
+            "text": [
+              "You can attack twice instead of once whenever you take the Attack action on your turn."
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Tactical Shift",
+            "text": [
+              "Whenever you activate your Second Wind with a Bonus Action, you can move up to half your Speed without provoking Opportunity Attacks."
+            ]
+          },
+          {
+            "level": 9,
+            "name": "Indomitable",
+            "text": [
+              "If you fail a saving throw, you can reroll it with a bonus equal to your Fighter level. You must use the new roll, and you can't use this feature again until you finish a Long Rest.",
+              "You can use this feature twice before a Long Rest starting at level 13 and three times before a Long Rest starting at level 17."
+            ]
+          },
+          {
+            "level": 9,
+            "name": "Tactical Master",
+            "text": [
+              "When you attack with a weapon whose mastery property you can use, you can replace that property with the Push, Sap, or Slow property for that attack."
+            ]
+          },
+          {
+            "level": 11,
+            "name": "Two Extra Attacks",
+            "text": [
+              "You can attack three times instead of once whenever you take the Attack action on your turn."
+            ]
+          },
+          {
+            "level": 13,
+            "name": "Studied Attacks",
+            "text": [
+              "You study your opponents and learn from each attack you make. If you make an attack roll against a creature and miss, you have Advantage on your next attack roll against that creature before the end of your next turn."
+            ]
+          },
+          {
+            "level": 19,
+            "name": "Epic Boon",
+            "text": [
+              'You gain an Epic Boon feat (see "Feats") or another feat of your choice for which you qualify. Boon of Combat Prowess is recommended.'
+            ]
+          },
+          {
+            "level": 20,
+            "name": "Three Extra Attacks",
+            "text": [
+              "You can attack four times instead of once whenever you take the Attack action on your turn."
+            ]
           }
         ],
         "subclassFeatures": [
@@ -24809,6 +26431,36 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "Thanks to your athleticism, you have Advantage on Initiative rolls and Strength (Athletics) checks.",
               "In addition, immediately after you score a Critical Hit, you can move up to half your Speed without provoking Opportunity Attacks."
+            ]
+          },
+          {
+            "level": 7,
+            "name": "Additional Fighting Style",
+            "text": [
+              "You gain another Fighting Style feat of your choice."
+            ]
+          },
+          {
+            "level": 10,
+            "name": "Heroic Warrior",
+            "text": [
+              "The thrill of battle drives you toward victory. During combat, you can give yourself Heroic Inspiration whenever you start your turn without it."
+            ]
+          },
+          {
+            "level": 15,
+            "name": "Superior Critical",
+            "text": [
+              "Your attack rolls with weapons and Unarmed Strikes can now score a Critical Hit on a roll of 18–20 on the d20."
+            ]
+          },
+          {
+            "level": 18,
+            "name": "Survivor",
+            "text": [
+              "You attain the pinnacle of resilience in battle, giving you these benefits.",
+              "Defy Death. You have Advantage on Death Saving Throws. Moreover, when you roll 18–20 on a Death Saving Throw, you gain the benefit of rolling a 20 on it.",
+              "Heroic Rally. At the start of each of your turns, you regain Hit Points equal to 5 plus your Constitution modifier if you are Bloodied and have at least 1 Hit Point."
             ]
           }
         ],
@@ -24880,7 +26532,162 @@ OK = save and close · Cancel = close and discard them`);
             "martialArts": "1d6",
             "focusPoints": 3,
             "unarmoredMovement": 10
+          },
+          "4": {
+            "martialArts": "1d6",
+            "focusPoints": 4,
+            "unarmoredMovement": 10
+          },
+          "5": {
+            "martialArts": "1d8",
+            "focusPoints": 5,
+            "unarmoredMovement": 10
+          },
+          "6": {
+            "martialArts": "1d8",
+            "focusPoints": 6,
+            "unarmoredMovement": 15
+          },
+          "7": {
+            "martialArts": "1d8",
+            "focusPoints": 7,
+            "unarmoredMovement": 15
+          },
+          "8": {
+            "martialArts": "1d8",
+            "focusPoints": 8,
+            "unarmoredMovement": 15
+          },
+          "9": {
+            "martialArts": "1d8",
+            "focusPoints": 9,
+            "unarmoredMovement": 15
+          },
+          "10": {
+            "martialArts": "1d8",
+            "focusPoints": 10,
+            "unarmoredMovement": 20
+          },
+          "11": {
+            "martialArts": "1d10",
+            "focusPoints": 11,
+            "unarmoredMovement": 20
+          },
+          "12": {
+            "martialArts": "1d10",
+            "focusPoints": 12,
+            "unarmoredMovement": 20
+          },
+          "13": {
+            "martialArts": "1d10",
+            "focusPoints": 13,
+            "unarmoredMovement": 20
+          },
+          "14": {
+            "martialArts": "1d10",
+            "focusPoints": 14,
+            "unarmoredMovement": 25
+          },
+          "15": {
+            "martialArts": "1d10",
+            "focusPoints": 15,
+            "unarmoredMovement": 25
+          },
+          "16": {
+            "martialArts": "1d10",
+            "focusPoints": 16,
+            "unarmoredMovement": 25
+          },
+          "17": {
+            "martialArts": "1d12",
+            "focusPoints": 17,
+            "unarmoredMovement": 25
+          },
+          "18": {
+            "martialArts": "1d12",
+            "focusPoints": 18,
+            "unarmoredMovement": 30
+          },
+          "19": {
+            "martialArts": "1d12",
+            "focusPoints": 19,
+            "unarmoredMovement": 30
+          },
+          "20": {
+            "martialArts": "1d12",
+            "focusPoints": 20,
+            "unarmoredMovement": 30
           }
+        },
+        "levels": {
+          "1": [
+            "Martial Arts",
+            "Unarmored Defense"
+          ],
+          "2": [
+            "Monk's Focus",
+            "Unarmored Movement",
+            "Uncanny Metabolism"
+          ],
+          "3": [
+            "Deflect Attacks",
+            "Monk Subclass"
+          ],
+          "4": [
+            "Ability Score Improvement",
+            "Slow Fall"
+          ],
+          "5": [
+            "Extra Attack",
+            "Stunning Strike"
+          ],
+          "6": [
+            "Empowered Strikes",
+            "Subclass feature"
+          ],
+          "7": [
+            "Evasion"
+          ],
+          "8": [
+            "Ability Score Improvement"
+          ],
+          "9": [
+            "Acrobatic Movement"
+          ],
+          "10": [
+            "Heightened Focus",
+            "Self-Restoration"
+          ],
+          "11": [
+            "Subclass feature"
+          ],
+          "12": [
+            "Ability Score Improvement"
+          ],
+          "13": [
+            "Deflect Energy"
+          ],
+          "14": [
+            "Disciplined Survivor"
+          ],
+          "15": [
+            "Perfect Focus"
+          ],
+          "16": [
+            "Ability Score Improvement"
+          ],
+          "17": [
+            "Subclass feature"
+          ],
+          "18": [
+            "Superior Defense"
+          ],
+          "19": [
+            "Epic Boon"
+          ],
+          "20": [
+            "Body and Mind"
+          ]
         },
         "features": [
           {
@@ -24944,6 +26751,117 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "You gain a Monk subclass of your choice. The Warrior of the Open Hand subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Monk levels. For the rest of your career, you gain each of your subclass's features that are of your Monk level or lower."
             ]
+          },
+          {
+            "level": 4,
+            "name": "Ability Score Improvement",
+            "text": [
+              'You gain the Ability Score Improvement feat (see "Feats") or another feat of your choice for which you qualify. You gain this feature again at Monk levels 8, 12, and 16.'
+            ]
+          },
+          {
+            "level": 4,
+            "name": "Slow Fall",
+            "text": [
+              "You can take a Reaction when you fall to reduce any damage you take from the fall by an amount equal to five times your Monk level."
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Extra Attack",
+            "text": [
+              "You can attack twice instead of once whenever you take the Attack action on your turn."
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Stunning Strike",
+            "text": [
+              "Once per turn when you hit a creature with a Monk weapon or an Unarmed Strike, you can expend 1 Focus Point to attempt a stunning strike. The target must make a Constitution saving throw. On a failed save, the target has the Stunned condition until the start of your next turn. On a successful save, the target's Speed is halved until the start of your next turn, and the next attack roll made against the target before then has Advantage."
+            ]
+          },
+          {
+            "level": 6,
+            "name": "Empowered Strikes",
+            "text": [
+              "Whenever you deal damage with your Unarmed Strike, it can deal your choice of Force damage or its normal damage type."
+            ]
+          },
+          {
+            "level": 7,
+            "name": "Evasion",
+            "text": [
+              "When you're subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you instead take no damage if you succeed on the saving throw and only half damage if you fail.",
+              "You don't benefit from this feature if you have the Incapacitated condition."
+            ]
+          },
+          {
+            "level": 9,
+            "name": "Acrobatic Movement",
+            "text": [
+              "While you aren't wearing armor or wielding a Shield, you gain the ability to move along vertical surfaces and across liquids on your turn without falling during the movement."
+            ]
+          },
+          {
+            "level": 10,
+            "name": "Heightened Focus",
+            "text": [
+              "Your Flurry of Blows, Patient Defense, and Step of the Wind gain the following benefits.",
+              "Flurry of Blows. You can expend 1 Focus Point to use Flurry of Blows and make three Unarmed Strikes with it instead of two.",
+              "Patient Defense. When you expend a Focus Point to use Patient Defense, you gain a number of Temporary Hit Points equal to two rolls of your Martial Arts die.",
+              "Step of the Wind. When you expend a Focus Point to use Step of the Wind, you can choose a willing creature within 5 feet of yourself that is Large or smaller. You move the creature with you until the end of your turn. The creature's movement doesn't provoke Opportunity Attacks."
+            ]
+          },
+          {
+            "level": 10,
+            "name": "Self-Restoration",
+            "text": [
+              "Through sheer force of will, you can remove one of the following conditions from yourself at the end of each of your turns: Charmed, Frightened, or Poisoned.",
+              "In addition, forgoing food and drink doesn't give you levels of Exhaustion."
+            ]
+          },
+          {
+            "level": 13,
+            "name": "Deflect Energy",
+            "text": [
+              "You can now use your Deflect Attacks feature against attacks that deal any damage type, not just Bludgeoning, Piercing, or Slashing."
+            ]
+          },
+          {
+            "level": 14,
+            "name": "Disciplined Survivor",
+            "text": [
+              "Your physical and mental discipline grant you proficiency in all saving throws.",
+              "Additionally, whenever you make a saving throw and fail, you can expend 1 Focus Point to reroll it, and you must use the new roll."
+            ]
+          },
+          {
+            "level": 15,
+            "name": "Perfect Focus",
+            "text": [
+              "When you roll Initiative and don't use Uncanny Metabolism, you regain expended Focus Points until you have 4 if you have 3 or fewer."
+            ]
+          },
+          {
+            "level": 18,
+            "name": "Superior Defense",
+            "text": [
+              "At the start of your turn, you can expend 3 Focus Points to bolster yourself against harm for 1 minute or until you have the Incapacitated condition. During that time, you have Resistance to all damage except Force damage."
+            ]
+          },
+          {
+            "level": 19,
+            "name": "Epic Boon",
+            "text": [
+              'You gain an Epic Boon feat (see "Feats") or another feat of your choice for which you qualify. Boon of Irresistible Offense is recommended.'
+            ]
+          },
+          {
+            "level": 20,
+            "name": "Body and Mind",
+            "text": [
+              "You have developed your body and mind to new heights. Your Dexterity and Wisdom scores increase by 4, to a maximum of 25."
+            ]
           }
         ],
         "subclassFeatures": [
@@ -24955,6 +26873,29 @@ OK = save and close · Cancel = close and discard them`);
               "Addle. The target can't make Opportunity Attacks until the start of its next turn.",
               "Push. The target must succeed on a Strength saving throw or be pushed up to 15 feet away from you.",
               "Topple. The target must succeed on a Dexterity saving throw or have the Prone condition."
+            ]
+          },
+          {
+            "level": 6,
+            "name": "Wholeness of Body",
+            "text": [
+              "You gain the ability to heal yourself. As a Bonus Action, you can roll your Martial Arts die. You regain a number of Hit Points equal to the number rolled plus your Wisdom modifier (minimum of 1 Hit Point regained).",
+              "You can use this feature a number of times equal to your Wisdom modifier (minimum of once), and you regain all expended uses when you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 11,
+            "name": "Fleet Step",
+            "text": [
+              "When you take a Bonus Action other than Step of the Wind, you can also use Step of the Wind immediately after that Bonus Action."
+            ]
+          },
+          {
+            "level": 17,
+            "name": "Quivering Palm",
+            "text": [
+              "You gain the ability to set up lethal vibrations in someone's body. When you hit a creature with an Unarmed Strike, you can expend 4 Focus Points to start these imperceptible vibrations, which last for a number of days equal to your Monk level. The vibrations are harmless unless you take an action to end them. Alternatively, when you take the Attack action on your turn, you can forgo one of the attacks to end the vibrations. To end them, you and the target must be on the same plane of existence. When you end them, the target must make a Constitution saving throw, taking 10d12 Force damage on a failed save or half as much damage on a successful one.",
+              "You can have only one creature under the effect of this feature at a time. You can end the vibrations harmlessly (no action required)."
             ]
           }
         ],
@@ -25038,13 +26979,286 @@ OK = save and close · Cancel = close and discard them`);
               "slots": [
                 3
               ]
+            },
+            "4": {
+              "cantrips": 0,
+              "prepared": 5,
+              "slots": [
+                3
+              ]
+            },
+            "5": {
+              "cantrips": 0,
+              "prepared": 6,
+              "slots": [
+                4,
+                2
+              ]
+            },
+            "6": {
+              "cantrips": 0,
+              "prepared": 6,
+              "slots": [
+                4,
+                2
+              ]
+            },
+            "7": {
+              "cantrips": 0,
+              "prepared": 7,
+              "slots": [
+                4,
+                3
+              ]
+            },
+            "8": {
+              "cantrips": 0,
+              "prepared": 7,
+              "slots": [
+                4,
+                3
+              ]
+            },
+            "9": {
+              "cantrips": 0,
+              "prepared": 9,
+              "slots": [
+                4,
+                3,
+                2
+              ]
+            },
+            "10": {
+              "cantrips": 0,
+              "prepared": 9,
+              "slots": [
+                4,
+                3,
+                2
+              ]
+            },
+            "11": {
+              "cantrips": 0,
+              "prepared": 10,
+              "slots": [
+                4,
+                3,
+                3
+              ]
+            },
+            "12": {
+              "cantrips": 0,
+              "prepared": 10,
+              "slots": [
+                4,
+                3,
+                3
+              ]
+            },
+            "13": {
+              "cantrips": 0,
+              "prepared": 11,
+              "slots": [
+                4,
+                3,
+                3,
+                1
+              ]
+            },
+            "14": {
+              "cantrips": 0,
+              "prepared": 11,
+              "slots": [
+                4,
+                3,
+                3,
+                1
+              ]
+            },
+            "15": {
+              "cantrips": 0,
+              "prepared": 12,
+              "slots": [
+                4,
+                3,
+                3,
+                2
+              ]
+            },
+            "16": {
+              "cantrips": 0,
+              "prepared": 12,
+              "slots": [
+                4,
+                3,
+                3,
+                2
+              ]
+            },
+            "17": {
+              "cantrips": 0,
+              "prepared": 14,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                1
+              ]
+            },
+            "18": {
+              "cantrips": 0,
+              "prepared": 14,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                1
+              ]
+            },
+            "19": {
+              "cantrips": 0,
+              "prepared": 15,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2
+              ]
+            },
+            "20": {
+              "cantrips": 0,
+              "prepared": 15,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2
+              ]
             }
           }
         },
         "columns": {
           "3": {
             "channelDivinity": 2
+          },
+          "4": {
+            "channelDivinity": 2
+          },
+          "5": {
+            "channelDivinity": 2
+          },
+          "6": {
+            "channelDivinity": 2
+          },
+          "7": {
+            "channelDivinity": 2
+          },
+          "8": {
+            "channelDivinity": 2
+          },
+          "9": {
+            "channelDivinity": 2
+          },
+          "10": {
+            "channelDivinity": 2
+          },
+          "11": {
+            "channelDivinity": 3
+          },
+          "12": {
+            "channelDivinity": 3
+          },
+          "13": {
+            "channelDivinity": 3
+          },
+          "14": {
+            "channelDivinity": 3
+          },
+          "15": {
+            "channelDivinity": 3
+          },
+          "16": {
+            "channelDivinity": 3
+          },
+          "17": {
+            "channelDivinity": 3
+          },
+          "18": {
+            "channelDivinity": 3
+          },
+          "19": {
+            "channelDivinity": 3
+          },
+          "20": {
+            "channelDivinity": 3
           }
+        },
+        "levels": {
+          "1": [
+            "Lay On Hands",
+            "Spellcasting",
+            "Weapon Mastery"
+          ],
+          "2": [
+            "Fighting Style",
+            "Paladin's Smite"
+          ],
+          "3": [
+            "Channel Divinity",
+            "Paladin Subclass"
+          ],
+          "4": [
+            "Ability Score Improvement"
+          ],
+          "5": [
+            "Extra Attack",
+            "Faithful Steed"
+          ],
+          "6": [
+            "Aura of Protection"
+          ],
+          "7": [
+            "Subclass feature"
+          ],
+          "8": [
+            "Ability Score Improvement"
+          ],
+          "9": [
+            "Abjure Foes"
+          ],
+          "10": [
+            "Aura of Courage"
+          ],
+          "11": [
+            "Radiant Strikes"
+          ],
+          "12": [
+            "Ability Score Improvement"
+          ],
+          "13": [],
+          "14": [
+            "Restoring Touch"
+          ],
+          "15": [
+            "Subclass feature"
+          ],
+          "16": [
+            "Ability Score Improvement"
+          ],
+          "17": [],
+          "18": [
+            "Aura Expansion"
+          ],
+          "19": [
+            "Epic Boon"
+          ],
+          "20": [
+            "Subclass feature"
+          ]
         },
         "features": [
           {
@@ -25111,6 +27325,79 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "You gain a Paladin subclass of your choice. The Oath of Devotion subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Paladin levels. For the rest of your career, you gain each of your subclass's features that are of your Paladin level or lower."
             ]
+          },
+          {
+            "level": 4,
+            "name": "Ability Score Improvement",
+            "text": [
+              'You gain the Ability Score Improvement feat (see "Feats") or another feat of your choice for which you qualify. You gain this feature again at Paladin levels 8, 12, and 16.'
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Extra Attack",
+            "text": [
+              "You can attack twice instead of once whenever you take the Attack action on your turn."
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Faithful Steed",
+            "text": [
+              "You can call on the aid of an otherworldly steed. You always have the Find Steed spell prepared.",
+              "You can also cast the spell once without expending a spell slot, and you regain the ability to do so when you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 6,
+            "name": "Aura of Protection",
+            "text": [
+              "You radiate a protective, unseeable aura in a 10-foot Emanation that originates from you. The aura is inactive while you have the Incapacitated condition.",
+              "You and your allies in the aura gain a bonus to saving throws equal to your Charisma modifier (minimum bonus of +1).",
+              "If another Paladin is present, a creature can benefit from only one Aura of Protection at a time; the creature chooses which aura while in them."
+            ]
+          },
+          {
+            "level": 9,
+            "name": "Abjure Foes",
+            "text": [
+              "As a Magic action, you can expend one use of this class's Channel Divinity to overwhelm foes with awe. As you present your Holy Symbol or weapon, you can target a number of creatures equal to your Charisma modifier (minimum of one creature) that you can see within 60 feet of yourself. Each target must succeed on a Wisdom saving throw or have the Frightened condition for 1 minute or until it takes any damage. While Frightened in this way, a target can do only one of the following on its turns: move, take an action, or take a Bonus Action."
+            ]
+          },
+          {
+            "level": 10,
+            "name": "Aura of Courage",
+            "text": [
+              "You and your allies have Immunity to the Frightened condition while in your Aura of Protection. If a Frightened ally enters the aura, that condition has no effect on that ally while there."
+            ]
+          },
+          {
+            "level": 11,
+            "name": "Radiant Strikes",
+            "text": [
+              "Your strikes now carry supernatural power. When you hit a target with an attack roll using a Melee weapon or an Unarmed Strike, the target takes an extra 1d8 Radiant damage."
+            ]
+          },
+          {
+            "level": 14,
+            "name": "Restoring Touch",
+            "text": [
+              "When you use Lay On Hands on a creature, you can also remove one or more of the following conditions from the creature: Blinded, Charmed, Deafened, Frightened, Paralyzed, or Stunned. You must expend 5 Hit Points from the healing pool of Lay On Hands for each of these conditions you remove; those points don't also restore Hit Points to the creature."
+            ]
+          },
+          {
+            "level": 18,
+            "name": "Aura Expansion",
+            "text": [
+              "Your Aura of Protection is now a 30-foot Emanation."
+            ]
+          },
+          {
+            "level": 19,
+            "name": "Epic Boon",
+            "text": [
+              `You gain an Epic Boon feat (see "Feats") or another feat of your choice for which you qualify. Boon of Truesight is recommended. Paladin Spell List This section presents the Paladin spell list. The spells are organized by spell level and then alphabetized, and each spell's school of magic is listed. In the Special column, C means the spell requires Concentration, R means it's a Ritual, and M means it requires a specific Material component. Level 1 Paladin Spells Spell School Special Bless Enchantment C, M Command Enchantment — Cure Wounds Abjuration — Detect Evil and Good Divination C Detect Magic Divination C, R Detect Poison and Disease Divination C, R Spell School Special Divine Favor Transmutation — Divine Smite Evocation — Heroism Enchantment C Protection from Evil and Good Abjuration C, M Purify Food and Drink Transmutation R Searing Smite Evocation — Shield of Faith Abjuration C Level 2 Paladin Spells Spell School Special Aid Abjuration — Find Steed Conjuration — Gentle Repose Necromancy R, M Lesser Restoration Abjuration — Locate Object Divination C Magic Weapon Transmutation — Prayer of Healing Abjuration — Protection from Poison Abjuration — Shining Smite Transmutation C Warding Bond Abjuration M Zone of Truth Enchantment — Level 3 Paladin Spells Spell School Special Create Food and Water Conjuration — Daylight Evocation — Dispel Magic Abjuration — Magic Circle Abjuration M Remove Curse Abjuration — Revivify Necromancy M Level 4 Paladin Spells Spell School Special Aura of Life Abjuration C Banishment Abjuration C Death Ward Abjuration — Locate Creature Divination C Level 5 Paladin Spells Spell School Special Dispel Evil and Good Abjuration C Geas Enchantment — Greater Restoration Abjuration M Raise Dead Necromancy M`
+            ]
           }
         ],
         "subclassFeatures": [
@@ -25128,6 +27415,30 @@ OK = save and close · Cancel = close and discard them`);
               "When you take the Attack action, you can expend one use of your Channel Divinity to imbue one Melee weapon that you are holding with positive energy. For 10 minutes or until you use this feature again, you add your Charisma modifier to attack rolls you make with that weapon (minimum bonus of +1), and each time you hit with it, you cause it to deal its normal damage type or Radiant damage.",
               "The weapon also emits Bright Light in a 20-foot radius and Dim Light 20 feet beyond that.",
               "You can end this effect early (no action required). This effect also ends if you aren't carrying the weapon."
+            ]
+          },
+          {
+            "level": 7,
+            "name": "Aura of Devotion",
+            "text": [
+              "You and your allies have Immunity to the Charmed condition while in your Aura of Protection. If a Charmed ally enters the aura, that condition has no effect on that ally while there."
+            ]
+          },
+          {
+            "level": 15,
+            "name": "Smite of Protection",
+            "text": [
+              "Your magical smite now radiates protective energy. Whenever you cast Divine Smite, you and your allies have Half Cover while in your Aura of Protection. The aura has this benefit until the start of your next turn."
+            ]
+          },
+          {
+            "level": 20,
+            "name": "Holy Nimbus",
+            "text": [
+              "As a Bonus Action, you can imbue your Aura of Protection with holy power, granting the benefits below for 10 minutes or until you end them (no action required). Once you use this feature, you can't use it again until you finish a Long Rest. You can also restore your use of it by expending a level 5 spell slot (no action required).",
+              "Holy Ward. You have Advantage on any saving throw you are forced to make by a Fiend or an Undead.",
+              "Radiant Damage. Whenever an enemy starts its turn in the aura, that creature takes Radiant damage equal to your Charisma modifier plus your Proficiency Bonus.",
+              "Sunlight. The aura is filled with Bright Light that is sunlight."
             ]
           }
         ],
@@ -25216,6 +27527,165 @@ OK = save and close · Cancel = close and discard them`);
               "slots": [
                 3
               ]
+            },
+            "4": {
+              "cantrips": 0,
+              "prepared": 5,
+              "slots": [
+                3
+              ]
+            },
+            "5": {
+              "cantrips": 0,
+              "prepared": 6,
+              "slots": [
+                4,
+                2
+              ]
+            },
+            "6": {
+              "cantrips": 0,
+              "prepared": 6,
+              "slots": [
+                4,
+                2
+              ]
+            },
+            "7": {
+              "cantrips": 0,
+              "prepared": 7,
+              "slots": [
+                4,
+                3
+              ]
+            },
+            "8": {
+              "cantrips": 0,
+              "prepared": 7,
+              "slots": [
+                4,
+                3
+              ]
+            },
+            "9": {
+              "cantrips": 0,
+              "prepared": 9,
+              "slots": [
+                4,
+                3,
+                2
+              ]
+            },
+            "10": {
+              "cantrips": 0,
+              "prepared": 9,
+              "slots": [
+                4,
+                3,
+                2
+              ]
+            },
+            "11": {
+              "cantrips": 0,
+              "prepared": 10,
+              "slots": [
+                4,
+                3,
+                3
+              ]
+            },
+            "12": {
+              "cantrips": 0,
+              "prepared": 10,
+              "slots": [
+                4,
+                3,
+                3
+              ]
+            },
+            "13": {
+              "cantrips": 0,
+              "prepared": 11,
+              "slots": [
+                4,
+                3,
+                3,
+                1
+              ]
+            },
+            "14": {
+              "cantrips": 0,
+              "prepared": 11,
+              "slots": [
+                4,
+                3,
+                3,
+                1
+              ]
+            },
+            "15": {
+              "cantrips": 0,
+              "prepared": 12,
+              "slots": [
+                4,
+                3,
+                3,
+                2
+              ]
+            },
+            "16": {
+              "cantrips": 0,
+              "prepared": 12,
+              "slots": [
+                4,
+                3,
+                3,
+                2
+              ]
+            },
+            "17": {
+              "cantrips": 0,
+              "prepared": 14,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                1
+              ]
+            },
+            "18": {
+              "cantrips": 0,
+              "prepared": 14,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                1
+              ]
+            },
+            "19": {
+              "cantrips": 0,
+              "prepared": 15,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2
+              ]
+            },
+            "20": {
+              "cantrips": 0,
+              "prepared": 15,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2
+              ]
             }
           }
         },
@@ -25228,7 +27698,123 @@ OK = save and close · Cancel = close and discard them`);
           },
           "3": {
             "favoredEnemy": 2
+          },
+          "4": {
+            "favoredEnemy": 2
+          },
+          "5": {
+            "favoredEnemy": 3
+          },
+          "6": {
+            "favoredEnemy": 3
+          },
+          "7": {
+            "favoredEnemy": 3
+          },
+          "8": {
+            "favoredEnemy": 3
+          },
+          "9": {
+            "favoredEnemy": 4
+          },
+          "10": {
+            "favoredEnemy": 4
+          },
+          "11": {
+            "favoredEnemy": 4
+          },
+          "12": {
+            "favoredEnemy": 4
+          },
+          "13": {
+            "favoredEnemy": 5
+          },
+          "14": {
+            "favoredEnemy": 5
+          },
+          "15": {
+            "favoredEnemy": 5
+          },
+          "16": {
+            "favoredEnemy": 5
+          },
+          "17": {
+            "favoredEnemy": 6
+          },
+          "18": {
+            "favoredEnemy": 6
+          },
+          "19": {
+            "favoredEnemy": 6
+          },
+          "20": {
+            "favoredEnemy": 6
           }
+        },
+        "levels": {
+          "1": [
+            "Spellcasting",
+            "Favored Enemy",
+            "Weapon Mastery"
+          ],
+          "2": [
+            "Deft Explorer",
+            "Fighting Style"
+          ],
+          "3": [
+            "Ranger Subclass"
+          ],
+          "4": [
+            "Ability Score Improvement"
+          ],
+          "5": [
+            "Extra Attack"
+          ],
+          "6": [
+            "Roving"
+          ],
+          "7": [
+            "Subclass feature"
+          ],
+          "8": [
+            "Ability Score Improvement"
+          ],
+          "9": [
+            "Expertise"
+          ],
+          "10": [
+            "Tireless"
+          ],
+          "11": [
+            "Subclass feature"
+          ],
+          "12": [
+            "Ability Score Improvement"
+          ],
+          "13": [
+            "Relentless Hunter"
+          ],
+          "14": [
+            "Nature's Veil"
+          ],
+          "15": [
+            "Subclass feature"
+          ],
+          "16": [
+            "Ability Score Improvement"
+          ],
+          "17": [
+            "Precise Hunter"
+          ],
+          "18": [
+            "Feral Senses"
+          ],
+          "19": [
+            "Epic Boon"
+          ],
+          "20": [
+            "Foe Slayer"
+          ]
         },
         "features": [
           {
@@ -25284,6 +27870,86 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "You gain a Ranger subclass of your choice. The Hunter subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Ranger levels. For the rest of your career, you gain each of your subclass's features that are of your Ranger level or lower."
             ]
+          },
+          {
+            "level": 4,
+            "name": "Ability Score Improvement",
+            "text": [
+              'You gain the Ability Score Improvement feat (see "Feats") or another feat of your choice for which you qualify. You gain this feature again at Ranger levels 8, 12, and 16.'
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Extra Attack",
+            "text": [
+              "You can attack twice instead of once whenever you take the Attack action on your turn."
+            ]
+          },
+          {
+            "level": 6,
+            "name": "Roving",
+            "text": [
+              "Your Speed increases by 10 feet while you aren't wearing Heavy armor. You also have a Climb Speed and a Swim Speed equal to your Speed."
+            ]
+          },
+          {
+            "level": 9,
+            "name": "Expertise",
+            "text": [
+              "Choose two of your skill proficiencies with which you lack Expertise. You gain Expertise in those skills."
+            ]
+          },
+          {
+            "level": 10,
+            "name": "Tireless",
+            "text": [
+              "Primal forces now help fuel you on your journeys, granting you the following benefits.",
+              "Temporary Hit Points. As a Magic action, you can give yourself a number of Temporary Hit Points equal to 1d8 plus your Wisdom modifier (minimum of 1). You can use this action a number of times equal to your Wisdom modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.",
+              "Decrease Exhaustion. Whenever you finish a Short Rest, your Exhaustion level, if any, decreases by 1."
+            ]
+          },
+          {
+            "level": 13,
+            "name": "Relentless Hunter",
+            "text": [
+              "Taking damage can't break your Concentration on Hunter's Mark."
+            ]
+          },
+          {
+            "level": 14,
+            "name": "Nature's Veil",
+            "text": [
+              "You invoke spirits of nature to magically hide yourself. As a Bonus Action, you can give yourself the Invisible condition until the end of your next turn.",
+              "You can use this feature a number of times equal to your Wisdom modifier (minimum of once), and you regain all expended uses when you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 17,
+            "name": "Precise Hunter",
+            "text": [
+              "You have Advantage on attack rolls against the creature currently marked by your Hunter's Mark."
+            ]
+          },
+          {
+            "level": 18,
+            "name": "Feral Senses",
+            "text": [
+              "Your connection to the forces of nature grants you Blindsight with a range of 30 feet."
+            ]
+          },
+          {
+            "level": 19,
+            "name": "Epic Boon",
+            "text": [
+              'You gain an Epic Boon feat (see "Feats") or another feat of your choice for which you qualify. Boon of Dimensional Travel is recommended.'
+            ]
+          },
+          {
+            "level": 20,
+            "name": "Foe Slayer",
+            "text": [
+              "The damage die of your Hunter's Mark is a d10 rather than a d6. Ranger Spell List This section presents the Ranger spell list. The spells are organized by spell level and then alphabetized, and each spell's school of magic is listed. In the Special column, C means the spell requires Concentration, R means it's a Ritual, and M means it requires a specific Material component. Level 1 Ranger Spells Spell School Special Alarm Abjuration R Animal Friendship Enchantment — Cure Wounds Abjuration — Detect Magic Divination C, R Detect Poison and Disease Divination C, R Ensnaring Strike Conjuration C Entangle Conjuration C Fog Cloud Conjuration C Goodberry Conjuration — Hunter's Mark Divination C Jump Transmutation — Longstrider Transmutation — Speak with Animals Divination R Level 2 Ranger Spells Spell School Special Aid Abjuration — Animal Messenger Enchantment R Barkskin Transmutation — Darkvision Transmutation — Enhance Ability Transmutation C Find Traps Divination — Gust of Wind Evocation C Lesser Restoration Abjuration — Locate Animals or Plants Divination R Locate Object Divination C Magic Weapon Transmutation — Pass without Trace Abjuration C Protection from Poison Abjuration — Silence Illusion C, R Spike Growth Transmutation C Level 3 Ranger Spells Spell School Special Conjure Animals Conjuration C Daylight Evocation — Dispel Magic Abjuration — Meld into Stone Transmutation R Nondetection Abjuration M Plant Growth Transmutation — Protection from Energy Abjuration C Revivify Necromancy M Speak with Plants Transmutation — Water Breathing Transmutation R Water Walk Transmutation R Wind Wall Evocation C Level 4 Ranger Spells Spell School Special Conjure Woodland Beings Conjuration C Dominate Beast Enchantment C Freedom of Movement Abjuration — Locate Creature Divination C Stoneskin Transmutation C, M Level 5 Ranger Spells Spell School Special Commune with Nature Divination R Greater Restoration Abjuration M Tree Stride Conjuration C"
+            ]
           }
         ],
         "subclassFeatures": [
@@ -25301,6 +27967,29 @@ OK = save and close · Cancel = close and discard them`);
               "You gain one of the following feature options of your choice. Whenever you finish a Short or Long Rest, you can replace the chosen option with the other one.",
               "Colossus Slayer. Your tenacity can wear down even the most resilient foes. When you hit a creature with a weapon, the weapon deals an extra 1d8 damage to the target if it's missing any of its Hit Points. You can deal this extra damage only once per turn.",
               "Horde Breaker. Once on each of your turns when you make an attack with a weapon, you can make another attack with the same weapon against a different creature that is within 5 feet of the original target, that is within the weapon's range, and that you haven't attacked this turn."
+            ]
+          },
+          {
+            "level": 7,
+            "name": "Defensive Tactics",
+            "text": [
+              "You gain one of the following feature options of your choice. Whenever you finish a Short or Long Rest, you can replace the chosen option with the other one.",
+              "Escape the Horde. Opportunity Attacks have Disadvantage against you.",
+              "Multiattack Defense. When a creature hits you with an attack roll, that creature has Disadvantage on all other attack rolls against you this turn."
+            ]
+          },
+          {
+            "level": 11,
+            "name": "Superior Hunter's Prey",
+            "text": [
+              "Once per turn when you deal damage to a creature marked by your Hunter's Mark, you can also deal that spell's extra damage to a different creature that you can see within 30 feet of the first creature."
+            ]
+          },
+          {
+            "level": 15,
+            "name": "Superior Hunter's Defense",
+            "text": [
+              "When you take damage, you can take a Reaction to give yourself Resistance to that damage and any other damage of the same type until the end of the current turn."
             ]
           }
         ],
@@ -25375,7 +28064,126 @@ OK = save and close · Cancel = close and discard them`);
           },
           "3": {
             "sneakAttack": "2d6"
+          },
+          "4": {
+            "sneakAttack": "2d6"
+          },
+          "5": {
+            "sneakAttack": "3d6"
+          },
+          "6": {
+            "sneakAttack": "3d6"
+          },
+          "7": {
+            "sneakAttack": "4d6"
+          },
+          "8": {
+            "sneakAttack": "4d6"
+          },
+          "9": {
+            "sneakAttack": "5d6"
+          },
+          "10": {
+            "sneakAttack": "5d6"
+          },
+          "11": {
+            "sneakAttack": "6d6"
+          },
+          "12": {
+            "sneakAttack": "6d6"
+          },
+          "13": {
+            "sneakAttack": "7d6"
+          },
+          "14": {
+            "sneakAttack": "7d6"
+          },
+          "15": {
+            "sneakAttack": "8d6"
+          },
+          "16": {
+            "sneakAttack": "8d6"
+          },
+          "17": {
+            "sneakAttack": "9d6"
+          },
+          "18": {
+            "sneakAttack": "9d6"
+          },
+          "19": {
+            "sneakAttack": "10d6"
+          },
+          "20": {
+            "sneakAttack": "10d6"
           }
+        },
+        "levels": {
+          "1": [
+            "Expertise",
+            "Sneak Attack",
+            "Thieves' Cant",
+            "Weapon Mastery"
+          ],
+          "2": [
+            "Cunning Action"
+          ],
+          "3": [
+            "Rogue Subclass",
+            "Steady Aim"
+          ],
+          "4": [
+            "Ability Score Improvement"
+          ],
+          "5": [
+            "Cunning Strike",
+            "Uncanny Dodge"
+          ],
+          "6": [
+            "Expertise"
+          ],
+          "7": [
+            "Evasion",
+            "Reliable Talent"
+          ],
+          "8": [
+            "Ability Score Improvement"
+          ],
+          "9": [
+            "Subclass feature"
+          ],
+          "10": [
+            "Ability Score Improvement"
+          ],
+          "11": [
+            "Improved Cunning Strike"
+          ],
+          "12": [
+            "Ability Score Improvement"
+          ],
+          "13": [
+            "Subclass feature"
+          ],
+          "14": [
+            "Devious Strikes"
+          ],
+          "15": [
+            "Slippery Mind"
+          ],
+          "16": [
+            "Ability Score Improvement"
+          ],
+          "17": [
+            "Subclass feature"
+          ],
+          "18": [
+            "Elusive"
+          ],
+          "19": [
+            "Epic Boon"
+          ],
+          "20": [
+            "Stroke of Luck"
+          ]
         },
         "features": [
           {
@@ -25430,6 +28238,92 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "As a Bonus Action, you give yourself Advantage on your next attack roll on the current turn. You can use this feature only if you haven't moved during this turn, and after you use it, your Speed is 0 until the end of the current turn."
             ]
+          },
+          {
+            "level": 4,
+            "name": "Ability Score Improvement",
+            "text": [
+              'You gain the Ability Score Improvement feat (see "Feats") or another feat of your choice for which you qualify. You gain this feature again at Rogue levels 8, 10, 12, and 16.'
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Cunning Strike",
+            "text": [
+              "You've developed cunning ways to use your Sneak Attack. When you deal Sneak Attack damage, you can add one of the following Cunning Strike effects. Each effect has a die cost, which is the number of Sneak Attack damage dice you must forgo to add the effect. You remove the die before rolling, and the effect occurs immediately after the attack's damage is dealt. For example, if you add the Poison effect, remove 1d6 from the Sneak Attack's damage before rolling.",
+              "If a Cunning Strike effect requires a saving throw, the DC equals 8 plus your Dexterity modifier and Proficiency Bonus.",
+              "Poison (Cost: 1d6). You add a toxin to your strike, forcing the target to make a Constitution saving throw. On a failed save, the target has the Poisoned condition for 1 minute. At the end of each of its turns, the Poisoned target repeats the save, ending the effect on itself on a success.",
+              "To use this effect, you must have a Poisoner's Kit on your person.",
+              "Trip (Cost: 1d6). If the target is Large or smaller, it must succeed on a Dexterity saving throw or have the Prone condition.",
+              "Withdraw (Cost: 1d6). Immediately after the attack, you move up to half your Speed without provoking Opportunity Attacks."
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Uncanny Dodge",
+            "text": [
+              "When an attacker that you can see hits you with an attack roll, you can take a Reaction to halve the attack's damage against you (round down)."
+            ]
+          },
+          {
+            "level": 7,
+            "name": "Evasion",
+            "text": [
+              "You can nimbly dodge out of the way of certain dangers. When you're subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you instead take no damage if you succeed on the saving throw and only half damage if you fail. You can't use this feature if you have the Incapacitated condition."
+            ]
+          },
+          {
+            "level": 7,
+            "name": "Reliable Talent",
+            "text": [
+              "Whenever you make an ability check that uses one of your skill or tool proficiencies, you can treat a d20 roll of 9 or lower as a 10."
+            ]
+          },
+          {
+            "level": 11,
+            "name": "Improved Cunning Strike",
+            "text": [
+              "You can use up to two Cunning Strike effects when you deal Sneak Attack damage, paying the die cost for each effect."
+            ]
+          },
+          {
+            "level": 14,
+            "name": "Devious Strikes",
+            "text": [
+              "You've practiced new ways to use your Sneak Attack deviously. The following effects are now among your Cunning Strike options.",
+              "Daze (Cost: 2d6). The target must succeed on a Constitution saving throw, or on its next turn, it can do only one of the following: move or take an action or a Bonus Action.",
+              "Knock Out (Cost: 6d6). The target must succeed on a Constitution saving throw, or it has the Unconscious condition for 1 minute or until it takes any damage. The Unconscious target repeats the save at the end of each of its turns, ending the effect on itself on a success.",
+              "Obscure (Cost: 3d6). The target must succeed on a Dexterity saving throw, or it has the Blinded condition until the end of its next turn."
+            ]
+          },
+          {
+            "level": 15,
+            "name": "Slippery Mind",
+            "text": [
+              "Your cunning mind is exceptionally difficult to control. You gain proficiency in Wisdom and Charisma saving throws."
+            ]
+          },
+          {
+            "level": 18,
+            "name": "Elusive",
+            "text": [
+              "You're so evasive that attackers rarely gain the upper hand against you. No attack roll can have Advantage against you unless you have the Incapacitated condition."
+            ]
+          },
+          {
+            "level": 19,
+            "name": "Epic Boon",
+            "text": [
+              'You gain an Epic Boon feat (see "Feats") or another feat of your choice for which you qualify. Boon of the Night Spirit is recommended.'
+            ]
+          },
+          {
+            "level": 20,
+            "name": "Stroke of Luck",
+            "text": [
+              "You have a marvelous knack for succeeding when you need to. If you fail a D20 Test, you can turn the roll into a 20.",
+              "Once you use this feature, you can't use it again until you finish a Short or Long Rest."
+            ]
           }
         ],
         "subclassFeatures": [
@@ -25449,6 +28343,31 @@ OK = save and close · Cancel = close and discard them`);
               "You've trained to get into especially hard-to-reach places, granting you these benefits.",
               "Climber. You gain a Climb Speed equal to your Speed.",
               "Jumper. You can determine your jump distance using your Dexterity rather than your Strength."
+            ]
+          },
+          {
+            "level": 9,
+            "name": "Supreme Sneak",
+            "text": [
+              "You gain the following Cunning Strike option.",
+              "Stealth Attack (Cost: 1d6). If you have the Hide action's Invisible condition, this attack doesn't end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover."
+            ]
+          },
+          {
+            "level": 13,
+            "name": "Use Magic Device",
+            "text": [
+              "You've learned how to maximize use of magic items, granting you the following benefits.",
+              "Attunement. You can attune to up to four magic items at once.",
+              "Charges. Whenever you use a magic item property that expends charges, roll 1d6. On a roll of 6, you use the property without expending the charges.",
+              "Scrolls. You can use any Spell Scroll, using Intelligence as your spellcasting ability for the spell. If the spell is a cantrip or a level 1 spell, you can cast it reliably. If the scroll contains a higher-level spell, you must first succeed on an Intelligence (Arcana) check (DC 10 plus the spell's level). On a successful check, you cast the spell from the scroll. On a failed check, the scroll disintegrates."
+            ]
+          },
+          {
+            "level": 17,
+            "name": "Thief's Reflexes",
+            "text": [
+              "You are adept at laying ambushes and quickly escaping danger. You can take two turns during the first round of any combat. You take your first turn at your normal Initiative and your second turn at your Initiative minus 10."
             ]
           }
         ],
@@ -25530,6 +28449,212 @@ OK = save and close · Cancel = close and discard them`);
                 4,
                 2
               ]
+            },
+            "4": {
+              "cantrips": 5,
+              "prepared": 7,
+              "slots": [
+                4,
+                3
+              ]
+            },
+            "5": {
+              "cantrips": 5,
+              "prepared": 9,
+              "slots": [
+                4,
+                3,
+                2
+              ]
+            },
+            "6": {
+              "cantrips": 5,
+              "prepared": 10,
+              "slots": [
+                4,
+                3,
+                3
+              ]
+            },
+            "7": {
+              "cantrips": 5,
+              "prepared": 11,
+              "slots": [
+                4,
+                3,
+                3,
+                1
+              ]
+            },
+            "8": {
+              "cantrips": 5,
+              "prepared": 12,
+              "slots": [
+                4,
+                3,
+                3,
+                2
+              ]
+            },
+            "9": {
+              "cantrips": 5,
+              "prepared": 14,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                1
+              ]
+            },
+            "10": {
+              "cantrips": 6,
+              "prepared": 15,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2
+              ]
+            },
+            "11": {
+              "cantrips": 6,
+              "prepared": 16,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1
+              ]
+            },
+            "12": {
+              "cantrips": 6,
+              "prepared": 16,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1
+              ]
+            },
+            "13": {
+              "cantrips": 6,
+              "prepared": 17,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1
+              ]
+            },
+            "14": {
+              "cantrips": 6,
+              "prepared": 17,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1
+              ]
+            },
+            "15": {
+              "cantrips": 6,
+              "prepared": 18,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "16": {
+              "cantrips": 6,
+              "prepared": 18,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "17": {
+              "cantrips": 6,
+              "prepared": 19,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1,
+                1
+              ]
+            },
+            "18": {
+              "cantrips": 6,
+              "prepared": 20,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                1,
+                1,
+                1,
+                1
+              ]
+            },
+            "19": {
+              "cantrips": 6,
+              "prepared": 21,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "20": {
+              "cantrips": 6,
+              "prepared": 22,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                2,
+                2,
+                1,
+                1
+              ]
             }
           }
         },
@@ -25539,7 +28664,114 @@ OK = save and close · Cancel = close and discard them`);
           },
           "3": {
             "sorceryPoints": 3
+          },
+          "4": {
+            "sorceryPoints": 4
+          },
+          "5": {
+            "sorceryPoints": 5
+          },
+          "6": {
+            "sorceryPoints": 6
+          },
+          "7": {
+            "sorceryPoints": 7
+          },
+          "8": {
+            "sorceryPoints": 8
+          },
+          "9": {
+            "sorceryPoints": 9
+          },
+          "10": {
+            "sorceryPoints": 10
+          },
+          "11": {
+            "sorceryPoints": 11
+          },
+          "12": {
+            "sorceryPoints": 12
+          },
+          "13": {
+            "sorceryPoints": 13
+          },
+          "14": {
+            "sorceryPoints": 14
+          },
+          "15": {
+            "sorceryPoints": 15
+          },
+          "16": {
+            "sorceryPoints": 16
+          },
+          "17": {
+            "sorceryPoints": 17
+          },
+          "18": {
+            "sorceryPoints": 18
+          },
+          "19": {
+            "sorceryPoints": 19
+          },
+          "20": {
+            "sorceryPoints": 20
           }
+        },
+        "levels": {
+          "1": [
+            "Spellcasting",
+            "Innate Sorcery"
+          ],
+          "2": [
+            "Font of Magic",
+            "Metamagic"
+          ],
+          "3": [
+            "Sorcerer Subclass"
+          ],
+          "4": [
+            "Ability Score Improvement"
+          ],
+          "5": [
+            "Sorcerous Restoration"
+          ],
+          "6": [
+            "Subclass feature"
+          ],
+          "7": [
+            "Sorcery Incarnate"
+          ],
+          "8": [
+            "Ability Score Improvement"
+          ],
+          "9": [],
+          "10": [
+            "Metamagic"
+          ],
+          "11": [],
+          "12": [
+            "Ability Score Improvement"
+          ],
+          "13": [],
+          "14": [
+            "Subclass feature"
+          ],
+          "15": [],
+          "16": [
+            "Ability Score Improvement"
+          ],
+          "17": [
+            "Metamagic"
+          ],
+          "18": [
+            "Subclass feature"
+          ],
+          "19": [
+            "Epic Boon"
+          ],
+          "20": [
+            "Arcane Apotheosis"
+          ]
         },
         "features": [
           {
@@ -25594,6 +28826,45 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "You gain a Sorcerer subclass of your choice. The Draconic Sorcery subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Sorcerer levels. For the rest of your career, you gain each of your subclass's features that are of your Sorcerer level or lower."
             ]
+          },
+          {
+            "level": 4,
+            "name": "Ability Score Improvement",
+            "text": [
+              'You gain the Ability Score Improvement feat (see "Feats") or another feat of your choice for which you qualify. You gain this feature again at Sorcerer levels 8, 12, and 16.'
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Sorcerous Restoration",
+            "text": [
+              "When you finish a Short Rest, you can regain expended Sorcery Points, but no more than a number equal to half your Sorcerer level (round down). Once you use this feature, you can't do so again until you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 7,
+            "name": "Sorcery Incarnate",
+            "text": [
+              "If you have no uses of Innate Sorcery left, you can use it if you spend 2 Sorcery Points when you take the Bonus Action to activate it.",
+              "In addition, while your Innate Sorcery feature is active, you can use up to two of your Metamagic options on each spell you cast."
+            ]
+          },
+          {
+            "level": 19,
+            "name": "Epic Boon",
+            "text": [
+              'You gain an Epic Boon feat (see "Feats") or another feat of your choice for which you qualify. Boon of Dimensional Travel is recommended.'
+            ]
+          },
+          {
+            "level": 20,
+            "name": "Arcane Apotheosis",
+            "text": [
+              "While your Innate Sorcery feature is active, you can use one Metamagic option on each of your turns without spending Sorcery Points on it. Metamagic Options The following options are available to your Metamagic feature. The options are presented in alphabetical order. Careful Spell Cost: 1 Sorcery Point When you cast a spell that forces other creatures to make a saving throw, you can protect some of those creatures from the spell's full force. To do so, spend 1 Sorcery Point and choose a number of those creatures up to your Charisma modifier (minimum of one creature). A chosen creature automatically succeeds on its saving throw against the spell, and it takes no damage if it would normally take half damage on a successful save. Distant Spell Cost: 1 Sorcery Point When you cast a spell that has a range of at least 5 feet, you can spend 1 Sorcery Point to double the spell's range. Or when you cast a spell that has a range of Touch, you can spend 1 Sorcery Point to make the spell's range 30 feet. Empowered Spell Cost: 1 Sorcery Point When you roll damage for a spell, you can spend 1 Sorcery Point to reroll a number of the damage dice up to your Charisma modifier (minimum of one), and you must use the new rolls.",
+              "You can use Empowered Spell even if you've already used a different Metamagic option during the casting of the spell. Extended Spell Cost: 1 Sorcery Point When you cast a spell that has a duration of 1 minute or longer, you can spend 1 Sorcery Point to double its duration to a maximum duration of 24 hours.",
+              "If the affected spell requires Concentration, you have Advantage on any saving throw you make to maintain that Concentration. Heightened Spell Cost: 2 Sorcery Points When you cast a spell that forces a creature to make a saving throw, you can spend 2 Sorcery Points to give one target of the spell Disadvantage on saves against the spell. Quickened Spell Cost: 2 Sorcery Points When you cast a spell that has a casting time of an action, you can spend 2 Sorcery Points to change the casting time to a Bonus Action for this casting. You can't modify a spell in this way if you've already cast a level 1+ spell on the current turn, nor can you cast a level 1+ spell on this turn after modifying a spell in this way. Seeking Spell Cost: 1 Sorcery Point If you make an attack roll for a spell and miss, you can spend 1 Sorcery Point to reroll the d20, and you must use the new roll.",
+              "You can use Seeking Spell even if you've already used a different Metamagic option during the casting of the spell. Subtle Spell Cost: 1 Sorcery Point When you cast a spell, you can spend 1 Sorcery Point to cast it without any Verbal, Somatic, or Material components, except Material components that are consumed by the spell or that have a cost specified in the spell. Transmuted Spell Cost: 1 Sorcery Point When you cast a spell that deals a type of damage from the following list, you can spend 1 Sorcery Point to change that damage type to one of the other listed types: Acid, Cold, Fire, Lightning, Poison, Thunder. Twinned Spell Cost: 1 Sorcery Point When you cast a spell, such as Charm Person, that can be cast with a higher-level spell slot to target an additional creature, you can spend 1 Sorcery Point to increase the spell's effective level by 1. Sorcerer Spell List This section presents the Sorcerer spell list. The spells are organized by spell level and then alphabetized, and each spell's school of magic is listed. In the Special column, C means the spell requires Concentration, R means it's a Ritual, and M means it requires a specific Material component. Cantrips (Level 0 Sorcerer Spells) Spell School Special Acid Splash Evocation — Chill Touch Necromancy — Dancing Lights Illusion C Elementalism Transmutation — Fire Bolt Evocation — Light Evocation — Mage Hand Conjuration — Mending Transmutation — Message Transmutation — Minor Illusion Illusion — Poison Spray Necromancy — Prestidigitation Transmutation — Ray of Frost Evocation — Shocking Grasp Evocation — Sorcerous Burst Evocation — True Strike Divination — Level 1 Sorcerer Spells Spell School Special Burning Hands Evocation — Charm Person Enchantment — Chromatic Orb Evocation M Color Spray Illusion — Comprehend Languages Divination R Detect Magic Divination C, R Disguise Self Illusion — Expeditious Retreat Transmutation C False Life Necromancy – Feather Fall Transmutation — Fog Cloud Conjuration C Grease Conjuration — Ice Knife Conjuration — Jump Transmutation — Mage Armor Abjuration — Magic Missile Evocation — Ray of Sickness Necromancy — Shield Abjuration — Silent Image Illusion C Sleep Enchantment C Thunderwave Evocation — Level 2 Sorcerer Spells Spell School Special Alter Self Transmutation C Blindness/Deafness Transmutation — Blur Illusion C Darkness Evocation C Darkvision Transmutation — Detect Thoughts Divination C Dragon's Breath Transmutation C Enhance Ability Transmutation C Enlarge/Reduce Transmutation C Flame Blade Evocation C Flaming Sphere Evocation C Gust of Wind Evocation C Spell School Special Hold Person Enchantment C Invisibility Illusion C Knock Transmutation — Levitate Transmutation C Magic Weapon Transmutation — Mirror Image Illusion — Misty Step Conjuration — Scorching Ray Evocation — See Invisibility Divination — Shatter Evocation — Spider Climb Transmutation C Suggestion Enchantment C Web Conjuration C Level 3 Sorcerer Spells Spell School Special Blink Transmutation — Clairvoyance Divination C, M Counterspell Abjuration — Daylight Evocation — Dispel Magic Abjuration — Fear Illusion C Fireball Evocation — Fly Transmutation C Gaseous Form Transmutation C Haste Transmutation C Hypnotic Pattern Illusion C Lightning Bolt Evocation — Major Image Illusion C Protection from Energy Abjuration C Sleet Storm Conjuration C Slow Transmutation C Stinking Cloud Conjuration C Tongues Divination — Vampiric Touch Necromancy C Water Breathing Transmutation R Water Walk Transmutation R Level 4 Sorcerer Spells Spell School Special Banishment Abjuration C Blight Necromancy — Charm Monster Enchantment — Confusion Enchantment C Dimension Door Conjuration — Dominate Beast Enchantment C Fire Shield Evocation — Greater Invisibility Illusion C Ice Storm Evocation — Polymorph Transmutation C Stoneskin Transmutation C, M Vitriolic Sphere Evocation — Wall of Fire Evocation C Level 5 Sorcerer Spells Spell School Special Animate Objects Transmutation C Arcane Hand Evocation C Cloudkill Conjuration C Cone of Cold Evocation — Creation Illusion — Dominate Person Enchantment C Hold Monster Enchantment C Insect Plague Conjuration C Seeming Illusion — Telekinesis Transmutation C Teleportation Circle Conjuration M Wall of Stone Evocation C Level 6 Sorcerer Spells Spell School Special Chain Lightning Evocation — Circle of Death Necromancy M Disintegrate Transmutation — Eyebite Necromancy C Flesh to Stone Transmutation C Freezing Sphere Evocation — Globe of Invulnerability Abjuration C Mass Suggestion Enchantment — Move Earth Transmutation C Sunbeam Evocation C True Seeing Divination M Level 7 Sorcerer Spells Spell School Special Delayed Blast Fireball Evocation C Etherealness Conjuration — Finger of Death Necromancy — Fire Storm Evocation — Plane Shift Conjuration M Prismatic Spray Evocation — Reverse Gravity Transmutation C Teleport Conjuration — Level 8 Sorcerer Spells Spell School Special Demiplane Conjuration — Dominate Monster Enchantment C Earthquake Transmutation C Incendiary Cloud Conjuration C Power Word Stun Enchantment — Sunburst Evocation — Level 9 Sorcerer Spells Spell School Special Gate Conjuration C, M Meteor Swarm Evocation — Power Word Kill Enchantment — Time Stop Transmutation — Wish Conjuration —"
+            ]
           }
         ],
         "subclassFeatures": [
@@ -25610,6 +28881,30 @@ OK = save and close · Cancel = close and discard them`);
             "name": "Draconic Spells",
             "text": [
               "When you reach a Sorcerer level specified in the Draconic Spells table, you thereafter always have the listed spells prepared. Draconic Spells Sorcerer Level Spells 3 Alter Self, Chromatic Orb, Command, Dragon's Breath 5 Fear, Fly 7 Arcane Eye, Charm Monster 9 Legend Lore, Summon Dragon"
+            ]
+          },
+          {
+            "level": 6,
+            "name": "Elemental Affinity",
+            "text": [
+              "Your draconic magic has an affinity with a damage type associated with dragons. Choose one of those types: Acid, Cold, Fire, Lightning, or Poison.",
+              "You have Resistance to that damage type, and when you cast a spell that deals damage of that type, you can add your Charisma modifier to one damage roll of that spell."
+            ]
+          },
+          {
+            "level": 14,
+            "name": "Dragon Wings",
+            "text": [
+              "As a Bonus Action, you can cause draconic wings to appear on your back. The wings last for 1 hour or until you dismiss them (no action required). For the duration, you have a Fly Speed of 60 feet.",
+              "Once you use this feature, you can't use it again until you finish a Long Rest unless you spend 3 Sorcery Points (no action required) to restore your use of it."
+            ]
+          },
+          {
+            "level": 18,
+            "name": "Dragon Companion",
+            "text": [
+              "You can cast Summon Dragon without a Material component. You can also cast it once without a spell slot, and you regain the ability to cast it in this way when you finish a Long Rest.",
+              "Whenever you start casting the spell, you can modify it so that it doesn't require Concentration. If you do so, the spell's duration becomes 1 minute for that casting."
             ]
           }
         ],
@@ -25698,6 +28993,201 @@ OK = save and close · Cancel = close and discard them`);
                 2
               ],
               "slotLevel": 2
+            },
+            "4": {
+              "cantrips": 3,
+              "prepared": 5,
+              "slots": [
+                0,
+                2
+              ],
+              "slotLevel": 2
+            },
+            "5": {
+              "cantrips": 3,
+              "prepared": 6,
+              "slots": [
+                0,
+                0,
+                2
+              ],
+              "slotLevel": 3
+            },
+            "6": {
+              "cantrips": 3,
+              "prepared": 7,
+              "slots": [
+                0,
+                0,
+                2
+              ],
+              "slotLevel": 3
+            },
+            "7": {
+              "cantrips": 3,
+              "prepared": 8,
+              "slots": [
+                0,
+                0,
+                0,
+                2
+              ],
+              "slotLevel": 4
+            },
+            "8": {
+              "cantrips": 3,
+              "prepared": 9,
+              "slots": [
+                0,
+                0,
+                0,
+                2
+              ],
+              "slotLevel": 4
+            },
+            "9": {
+              "cantrips": 3,
+              "prepared": 10,
+              "slots": [
+                0,
+                0,
+                0,
+                0,
+                2
+              ],
+              "slotLevel": 5
+            },
+            "10": {
+              "cantrips": 4,
+              "prepared": 10,
+              "slots": [
+                0,
+                0,
+                0,
+                0,
+                2
+              ],
+              "slotLevel": 5
+            },
+            "11": {
+              "cantrips": 4,
+              "prepared": 11,
+              "slots": [
+                0,
+                0,
+                0,
+                0,
+                3
+              ],
+              "slotLevel": 5
+            },
+            "12": {
+              "cantrips": 4,
+              "prepared": 11,
+              "slots": [
+                0,
+                0,
+                0,
+                0,
+                3
+              ],
+              "slotLevel": 5
+            },
+            "13": {
+              "cantrips": 4,
+              "prepared": 12,
+              "slots": [
+                0,
+                0,
+                0,
+                0,
+                3
+              ],
+              "slotLevel": 5
+            },
+            "14": {
+              "cantrips": 4,
+              "prepared": 12,
+              "slots": [
+                0,
+                0,
+                0,
+                0,
+                3
+              ],
+              "slotLevel": 5
+            },
+            "15": {
+              "cantrips": 4,
+              "prepared": 13,
+              "slots": [
+                0,
+                0,
+                0,
+                0,
+                3
+              ],
+              "slotLevel": 5
+            },
+            "16": {
+              "cantrips": 4,
+              "prepared": 13,
+              "slots": [
+                0,
+                0,
+                0,
+                0,
+                3
+              ],
+              "slotLevel": 5
+            },
+            "17": {
+              "cantrips": 4,
+              "prepared": 14,
+              "slots": [
+                0,
+                0,
+                0,
+                0,
+                4
+              ],
+              "slotLevel": 5
+            },
+            "18": {
+              "cantrips": 4,
+              "prepared": 14,
+              "slots": [
+                0,
+                0,
+                0,
+                0,
+                4
+              ],
+              "slotLevel": 5
+            },
+            "19": {
+              "cantrips": 4,
+              "prepared": 15,
+              "slots": [
+                0,
+                0,
+                0,
+                0,
+                4
+              ],
+              "slotLevel": 5
+            },
+            "20": {
+              "cantrips": 4,
+              "prepared": 15,
+              "slots": [
+                0,
+                0,
+                0,
+                0,
+                4
+              ],
+              "slotLevel": 5
             }
           }
         },
@@ -25710,7 +29200,115 @@ OK = save and close · Cancel = close and discard them`);
           },
           "3": {
             "invocations": 3
+          },
+          "4": {
+            "invocations": 3
+          },
+          "5": {
+            "invocations": 5
+          },
+          "6": {
+            "invocations": 5
+          },
+          "7": {
+            "invocations": 6
+          },
+          "8": {
+            "invocations": 6
+          },
+          "9": {
+            "invocations": 7
+          },
+          "10": {
+            "invocations": 7
+          },
+          "11": {
+            "invocations": 7
+          },
+          "12": {
+            "invocations": 8
+          },
+          "13": {
+            "invocations": 8
+          },
+          "14": {
+            "invocations": 8
+          },
+          "15": {
+            "invocations": 9
+          },
+          "16": {
+            "invocations": 9
+          },
+          "17": {
+            "invocations": 9
+          },
+          "18": {
+            "invocations": 10
+          },
+          "19": {
+            "invocations": 10
+          },
+          "20": {
+            "invocations": 10
           }
+        },
+        "levels": {
+          "1": [
+            "Eldritch Invocations",
+            "Pact Magic"
+          ],
+          "2": [
+            "Magical Cunning"
+          ],
+          "3": [
+            "Warlock Subclass"
+          ],
+          "4": [
+            "Ability Score Improvement"
+          ],
+          "5": [],
+          "6": [
+            "Subclass feature"
+          ],
+          "7": [],
+          "8": [
+            "Ability Score Improvement"
+          ],
+          "9": [
+            "Contact Patron"
+          ],
+          "10": [
+            "Subclass feature"
+          ],
+          "11": [
+            "Mystic Arcanum (level 6 spell)"
+          ],
+          "12": [
+            "Ability Score Improvement"
+          ],
+          "13": [
+            "Mystic Arcanum (level 7 spell)"
+          ],
+          "14": [
+            "Subclass feature"
+          ],
+          "15": [
+            "Mystic Arcanum (level 8 spell)"
+          ],
+          "16": [
+            "Ability Score Improvement"
+          ],
+          "17": [
+            "Mystic Arcanum (level 9 spell)"
+          ],
+          "18": [],
+          "19": [
+            "Epic Boon"
+          ],
+          "20": [
+            "Eldritch Master"
+          ]
         },
         "features": [
           {
@@ -25754,6 +29352,64 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "You gain a Warlock subclass of your choice. The Fiend Patron subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Warlock levels. For the rest of your career, you gain each of your subclass's features that are of your Warlock level or lower."
             ]
+          },
+          {
+            "level": 4,
+            "name": "Ability Score Improvement",
+            "text": [
+              'You gain the Ability Score Improvement feat (see "Feats") or another feat of your choice for which you qualify. You gain this feature again at Warlock levels 8, 12, and 16.'
+            ]
+          },
+          {
+            "level": 9,
+            "name": "Contact Patron",
+            "text": [
+              "In the past, you usually contacted your patron through intermediaries. Now you can communicate directly; you always have the Contact Other Plane spell prepared. With this feature, you can cast the spell without expending a spell slot to contact your patron, and you automatically succeed on the spell's saving throw.",
+              "Once you cast the spell with this feature, you can't do so in this way again until you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 11,
+            "name": "Mystic Arcanum",
+            "text": [
+              "Your patron grants you a magical secret called an arcanum. Choose one level 6 Warlock spell as this arcanum.",
+              "You can cast your arcanum spell once without expending a spell slot, and you must finish a Long Rest before you can cast it in this way again.",
+              "As shown in the Warlock Features table, you gain another Warlock spell of your choice that can be cast in this way when you reach Warlock levels 13 (level 7 spell), 15 (level 8 spell), and 17 (level 9 spell). You regain all uses of your Mystic Arcanum when you finish a Long Rest.",
+              "Whenever you gain a Warlock level, you can replace one of your arcanum spells with another Warlock spell of the same level."
+            ]
+          },
+          {
+            "level": 19,
+            "name": "Epic Boon",
+            "text": [
+              'You gain an Epic Boon feat (see "Feats") or another feat of your choice for which you qualify. Boon of Fate is recommended.'
+            ]
+          },
+          {
+            "level": 20,
+            "name": "Eldritch Master",
+            "text": [
+              "When you use your Magical Cunning feature, you regain all your expended Pact Magic spell slots. Eldritch Invocation Options Eldritch Invocation options appear in alphabetical order. Agonizing Blast Prerequisite: Level 2+ Warlock, a Warlock Cantrip That Deals Damage Choose one of your known Warlock cantrips that deals damage. You can add your Charisma modifier to that spell's damage rolls.",
+              "Repeatable. You can gain this invocation more than once. Each time you do so, choose a different eligible cantrip. Armor of Shadows You can cast Mage Armor on yourself without expending a spell slot. Ascendant Step Prerequisite: Level 5+ Warlock You can cast Levitate on yourself without expending a spell slot. Devil's Sight Prerequisite: Level 2+ Warlock You can see normally in Dim Light and Darkness— both magical and nonmagical—within 120 feet of yourself. Devouring Blade Prerequisite: Level 12+ Warlock, Thirsting Blade Invocation The Extra Attack of your Thirsting Blade invocation confers two extra attacks rather than one. Eldritch Mind You have Advantage on Constitution saving throws that you make to maintain Concentration. Eldritch Smite Prerequisite: Level 5+ Warlock, Pact of the Blade Invocation Once per turn when you hit a creature with your pact weapon, you can expend a Pact Magic spell slot to deal an extra 1d8 Force damage to the target, plus another 1d8 per level of the spell slot, and you can give the target the Prone condition if it is Huge or smaller. Eldritch Spear Prerequisite: Level 2+ Warlock, a Warlock Cantrip That Deals Damage Choose one of your known Warlock cantrips that deals damage and has a range of 10+ feet. When you cast that spell, its range increases by a number of feet equal to 30 times your Warlock level.",
+              "Repeatable. You can gain this invocation more than once. Each time you do so, choose a different eligible cantrip. Fiendish Vigor Prerequisite: Level 2+ Warlock You can cast False Life on yourself without expending a spell slot. When you cast the spell with this feature, you don't roll the die for the Temporary Hit Points; you automatically get the highest number on the die. Gaze of Two Minds Prerequisite: Level 5+ Warlock You can use a Bonus Action to touch a willing creature and perceive through its senses until the end of your next turn. As long as the creature is on the same plane of existence as you, you can take a Bonus Action on subsequent turns to maintain this connection, extending the duration until the end of your next turn. The connection ends if you don't maintain it in this way.",
+              "While perceiving through the other creature's senses, you benefit from any special senses possessed by that creature, and you can cast spells as if you were in your space or the other creature's space if the two of you are within 60 feet of each other. Gift of the Depths Prerequisite: Level 5+ Warlock You can breathe underwater, and you gain a Swim Speed equal to your Speed.",
+              "You can also cast Water Breathing once without expending a spell slot. You regain the ability to cast it in this way again when you finish a Long Rest. Gift of the Protectors Prerequisite: Level 9+ Warlock, Pact of the Tome Invocation A new page appears in your Book of Shadows when you conjure it. With your permission, a creature can take an action to write its name on that page, which can contain a number of names equal to your Charisma modifier (minimum of one name).",
+              "When any creature whose name is on the page is reduced to 0 Hit Points but not killed outright, the creature magically drops to 1 Hit Point instead. Once this magic is triggered, no creature can benefit from it until you finish a Long Rest.",
+              "As a Magic action, you can erase a name on the page by touching it. Investment of the Chain Master Prerequisite: Level 5+ Warlock, Pact of the Chain Invocation When you cast Find Familiar, you infuse the summoned familiar with a measure of your eldritch power, granting the creature the following benefits.",
+              "Aerial or Aquatic. The familiar gains either a Fly Speed or a Swim Speed (your choice) of 40 feet.",
+              "Quick Attack. As a Bonus Action, you can command the familiar to take the Attack action.",
+              "Necrotic or Radiant Damage. Whenever the familiar deals Bludgeoning, Piercing, or Slashing damage, you can make it deal Necrotic or Radiant damage instead.",
+              "Your Save DC. If the familiar forces a creature to make a saving throw, it uses your spell save DC.",
+              'Resistance. When the familiar takes damage, you can take a Reaction to grant it Resistance against that damage. Lessons of the First Ones Prerequisite: Level 2+ Warlock You have received knowledge from an elder entity of the multiverse, allowing you to gain one Origin feat of your choice (see "Feats").',
+              "Repeatable. You can gain this invocation more than once. Each time you do so, choose a different Origin feat. Lifedrinker Prerequisite: Level 9+ Warlock, Pact of the Blade Invocation Once per turn when you hit a creature with your pact weapon, you can deal an extra 1d6 Necrotic, Psychic, or Radiant damage (your choice) to the creature, and you can expend one of your Hit Point Dice to roll it and regain a number of Hit Points equal to the roll plus your Constitution modifier (minimum of 1 Hit Point). Mask of Many Faces Prerequisite: Level 2+ Warlock You can cast Disguise Self without expending a spell slot. Master of Myriad Forms Prerequisite: Level 5+ Warlock You can cast Alter Self without expending a spell slot. Misty Visions Prerequisite: Level 2+ Warlock You can cast Silent Image without expending a spell slot. One with Shadows Prerequisite: Level 5+ Warlock While you're in an area of Dim Light or Darkness, you can cast Invisibility on yourself without expending a spell slot. Otherworldly Leap Prerequisite: Level 2+ Warlock You can cast Jump on yourself without expending a spell slot. Pact of the Blade As a Bonus Action, you can conjure a pact weapon in your hand—a Simple or Martial Melee weapon of your choice with which you bond—or create a bond with a magic weapon you touch; you can't bond with a magic weapon if someone else is attuned to it or another Warlock is bonded with it. Until the bond ends, you have proficiency with the weapon, and you can use it as a Spellcasting Focus.",
+              "Whenever you attack with the bonded weapon, you can use your Charisma modifier for the attack and damage rolls instead of using Strength or Dexterity; and you can cause the weapon to deal Necrotic, Psychic, or Radiant damage or its normal damage type.",
+              "Your bond with the weapon ends if you use this feature's Bonus Action again, if the weapon is more than 5 feet away from you for 1 minute or more, or if you die. A conjured weapon disappears when the bond ends. Pact of the Chain You learn the Find Familiar spell and can cast it as a Magic action without expending a spell slot.",
+              `When you cast the spell, you choose one of the normal forms for your familiar or one of the following special forms: Imp, Pseudodragon, Quasit, Skeleton, Sphinx of Wonder, Sprite, or Venomous Snake (see "Monsters" for the familiar's stat block).`,
+              "Additionally, when you take the Attack action, you can forgo one of your own attacks to allow your familiar to make one attack of its own with its Reaction. Pact of the Tome Stitching together strands of shadow, you conjure forth a book in your hand at the end of a Short or Long Rest. This Book of Shadows (you determine its appearance) contains eldritch magic that only you can access, granting you the benefits below. The book disappears if you conjure another book with this feature or if you die.",
+              "Cantrips and Rituals. When the book appears, choose three cantrips, and choose two level 1 spells that have the Ritual tag. The spells can be from any class's spell list, and they must be spells you don't already have prepared. While the book is on your person, you have the chosen spells prepared, and they function as Warlock spells for you.",
+              "Spellcasting Focus. You can use the book as a Spellcasting Focus. Repelling Blast Prerequisite: Level 2+ Warlock, a Warlock Cantrip That Deals Damage via an Attack Roll Choose one of your known Warlock cantrips that requires an attack roll. When you hit a Large or smaller creature with that cantrip, you can push the creature up to 10 feet straight away from you.",
+              "Repeatable. You can gain this invocation more than once. Each time you do so, choose a different eligible cantrip. Thirsting Blade Prerequisite: Level 5+ Warlock, Pact of the Blade Invocation You gain the Extra Attack feature for your pact weapon only. With that feature, you can attack twice with the weapon instead of once when you take the Attack action on your turn. Visions of Distant Realms Prerequisite: Level 9+ Warlock You can cast Arcane Eye without expending a spell slot. Whispers of the Grave Prerequisite: Level 7+ Warlock You can cast Speak with Dead without expending a spell slot. Witch Sight Prerequisite: Level 15+ Warlock You have Truesight with a range of 30 feet. Warlock Spell List This section presents the Warlock spell list. The spells are organized by spell level and then alphabetized, and each spell's school of magic is listed. In the Special column, C means the spell requires Concentration, R means it's a Ritual, and M means it requires a specific Material component. Cantrips (Level 0 Warlock Spells) Spell School Special Chill Touch Necromancy — Eldritch Blast Evocation — Mage Hand Conjuration — Minor Illusion Illusion — Poison Spray Necromancy — Prestidigitation Transmutation — True Strike Divination — Level 1 Warlock Spells Spell School Special Bane Enchantment C Charm Person Enchantment — Comprehend Languages Divination R Detect Magic Divination C, R Expeditious Retreat Transmutation C Hellish Rebuke Evocation — Hex Enchantment C Hideous Laughter Enchantment C Illusory Script Illusion R, M Protection from Evil and Good Abjuration C, M Speak with Animals Divination R Unseen Servant Conjuration R Level 2 Warlock Spells Spell School Special Darkness Evocation C Enthrall Enchantment C Hold Person Enchantment C Invisibility Illusion C Mind Spike Divination C Mirror Image Illusion — Misty Step Conjuration — Ray of Enfeeblement Necromancy C Spider Climb Transmutation C Suggestion Enchantment C Level 3 Warlock Spells Spell School Special Counterspell Abjuration — Dispel Magic Abjuration — Fear Illusion C Fly Transmutation C Spell School Special Gaseous Form Transmutation C Hypnotic Pattern Illusion C Magic Circle Abjuration M Major Image Illusion C Remove Curse Abjuration — Tongues Divination — Vampiric Touch Necromancy C Level 4 Warlock Spells Spell School Special Banishment Abjuration C Blight Necromancy — Charm Monster Enchantment — Dimension Door Conjuration — Hallucinatory Terrain Illusion — Level 5 Warlock Spells Spell School Special Contact Other Plane Divination R Dream Illusion — Hold Monster Enchantment C Mislead Illusion C Planar Binding Abjuration M Scrying Divination C, M Teleportation Circle Conjuration M Level 6 Warlock Spells Spell School Special Circle of Death Necromancy M Create Undead Necromancy M Eyebite Necromancy C True Seeing Divination M Level 7 Warlock Spells Spell School Special Etherealness Conjuration — Finger of Death Necromancy — Forcecage Evocation C, M Plane Shift Conjuration M Level 8 Warlock Spells Spell School Special Befuddlement Enchantment — Demiplane Conjuration — Dominate Monster Enchantment C Glibness Enchantment — Power Word Stun Enchantment — Level 9 Warlock Spells Spell School Special Astral Projection Necromancy M Foresight Divination — Gate Conjuration C, M Imprisonment Abjuration M Power Word Kill Enchantment — True Polymorph Transmutation C Weird Illusion C"
+            ]
           }
         ],
         "subclassFeatures": [
@@ -25769,6 +29425,29 @@ OK = save and close · Cancel = close and discard them`);
             "name": "Fiend Spells",
             "text": [
               "The magic of your patron ensures you always have certain spells ready; when you reach a Warlock level specified in the Fiend Spells table, you thereafter always have the listed spells prepared. Fiend Spells Warlock Level Spells 3 Burning Hands, Command, Scorching Ray, Suggestion 5 Fireball, Stinking Cloud 7 Fire Shield, Wall of Fire 9 Geas, Insect Plague"
+            ]
+          },
+          {
+            "level": 6,
+            "name": "Dark One's Own Luck",
+            "text": [
+              "You can call on your fiendish patron to alter fate in your favor. When you make an ability check or a saving throw, you can use this feature to add 1d10 to your roll. You can do so after seeing the roll but before any of the roll's effects occur.",
+              "You can use this feature a number of times equal to your Charisma modifier (minimum of once), but you can use it no more than once per roll. You regain all expended uses when you finish a Long Rest."
+            ]
+          },
+          {
+            "level": 10,
+            "name": "Fiendish Resilience",
+            "text": [
+              "Choose one damage type, other than Force, whenever you finish a Short or Long Rest. You have Resistance to that damage type until you choose a different one with this feature."
+            ]
+          },
+          {
+            "level": 14,
+            "name": "Hurl Through Hell",
+            "text": [
+              "Once per turn when you hit a creature with an attack roll, you can try to instantly transport the target through the Lower Planes. The target must succeed on a Charisma saving throw against your spell save DC, or the target disappears and hurtles through a nightmare landscape. The target takes 8d10 Psychic damage if it isn't a Fiend, and it has the Incapacitated condition until the end of your next turn, when it returns to the space it previously occupied or the nearest unoccupied space.",
+              "Once you use this feature, you can't use it again until you finish a Long Rest unless you expend a Pact Magic spell slot (no action required) to restore your use of it."
             ]
           }
         ],
@@ -25852,10 +29531,268 @@ OK = save and close · Cancel = close and discard them`);
                 4,
                 2
               ]
+            },
+            "4": {
+              "cantrips": 4,
+              "prepared": 7,
+              "slots": [
+                4,
+                3
+              ]
+            },
+            "5": {
+              "cantrips": 4,
+              "prepared": 9,
+              "slots": [
+                4,
+                3,
+                2
+              ]
+            },
+            "6": {
+              "cantrips": 4,
+              "prepared": 10,
+              "slots": [
+                4,
+                3,
+                3
+              ]
+            },
+            "7": {
+              "cantrips": 4,
+              "prepared": 11,
+              "slots": [
+                4,
+                3,
+                3,
+                1
+              ]
+            },
+            "8": {
+              "cantrips": 4,
+              "prepared": 12,
+              "slots": [
+                4,
+                3,
+                3,
+                2
+              ]
+            },
+            "9": {
+              "cantrips": 4,
+              "prepared": 14,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                1
+              ]
+            },
+            "10": {
+              "cantrips": 5,
+              "prepared": 15,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2
+              ]
+            },
+            "11": {
+              "cantrips": 5,
+              "prepared": 16,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1
+              ]
+            },
+            "12": {
+              "cantrips": 5,
+              "prepared": 16,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1
+              ]
+            },
+            "13": {
+              "cantrips": 5,
+              "prepared": 17,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1
+              ]
+            },
+            "14": {
+              "cantrips": 5,
+              "prepared": 18,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1
+              ]
+            },
+            "15": {
+              "cantrips": 5,
+              "prepared": 19,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "16": {
+              "cantrips": 5,
+              "prepared": 21,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "17": {
+              "cantrips": 5,
+              "prepared": 22,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1,
+                1
+              ]
+            },
+            "18": {
+              "cantrips": 5,
+              "prepared": 23,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                1,
+                1,
+                1,
+                1
+              ]
+            },
+            "19": {
+              "cantrips": 5,
+              "prepared": 24,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                2,
+                1,
+                1,
+                1
+              ]
+            },
+            "20": {
+              "cantrips": 5,
+              "prepared": 25,
+              "slots": [
+                4,
+                3,
+                3,
+                3,
+                3,
+                2,
+                2,
+                1,
+                1
+              ]
             }
           }
         },
         "columns": {},
+        "levels": {
+          "1": [
+            "Spellcasting",
+            "Ritual Adept",
+            "Arcane Recovery"
+          ],
+          "2": [
+            "Scholar"
+          ],
+          "3": [
+            "Wizard Subclass"
+          ],
+          "4": [
+            "Ability Score Improvement"
+          ],
+          "5": [
+            "Memorize Spell"
+          ],
+          "6": [
+            "Subclass feature"
+          ],
+          "7": [],
+          "8": [
+            "Ability Score Improvement"
+          ],
+          "9": [],
+          "10": [
+            "Subclass feature"
+          ],
+          "11": [],
+          "12": [
+            "Ability Score Improvement"
+          ],
+          "13": [],
+          "14": [
+            "Subclass feature"
+          ],
+          "15": [],
+          "16": [
+            "Ability Score Improvement"
+          ],
+          "17": [],
+          "18": [
+            "Spell Mastery"
+          ],
+          "19": [
+            "Epic Boon"
+          ],
+          "20": [
+            "Signature Spells"
+          ]
+        },
         "features": [
           {
             "level": 1,
@@ -25907,6 +29844,42 @@ OK = save and close · Cancel = close and discard them`);
             "text": [
               "You gain a Wizard subclass of your choice. The Evoker subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Wizard levels. For the rest of your career, you gain each of your subclass's features that are of your Wizard level or lower."
             ]
+          },
+          {
+            "level": 4,
+            "name": "Ability Score Improvement",
+            "text": [
+              'You gain the Ability Score Improvement feat (see "Feats") or another feat of your choice for which you qualify. You gain this feature again at Wizard levels 8, 12, and 16.'
+            ]
+          },
+          {
+            "level": 5,
+            "name": "Memorize Spell",
+            "text": [
+              "Whenever you finish a Short Rest, you can study your spellbook and replace one of the level 1+ Wizard spells you have prepared for your Spellcasting feature with another level 1+ spell from the book."
+            ]
+          },
+          {
+            "level": 18,
+            "name": "Spell Mastery",
+            "text": [
+              "You have achieved such mastery over certain spells that you can cast them at will. Choose a level 1 and a level 2 spell in your spellbook that have a casting time of an action. You always have those spells prepared, and you can cast them at their lowest level without expending a spell slot. To cast either spell at a higher level, you must expend a spell slot.",
+              "Whenever you finish a Long Rest, you can study your spellbook and replace one of those spells with an eligible spell of the same level from the book."
+            ]
+          },
+          {
+            "level": 19,
+            "name": "Epic Boon",
+            "text": [
+              'You gain an Epic Boon feat (see "Feats") or another feat of your choice for which you qualify. Boon of Spell Recall is recommended.'
+            ]
+          },
+          {
+            "level": 20,
+            "name": "Signature Spells",
+            "text": [
+              "Choose two level 3 spells in your spellbook as your signature spells. You always have these spells prepared, and you can cast each of them once at level 3 without expending a spell slot. When you do so, you can't cast them in this way again until you finish a Short or Long Rest. To cast either spell at a higher level, you must expend a spell slot. Wizard Spell List This section presents the Wizard spell list. The spells are organized by spell level and then alphabetized, and each spell's school of magic is listed. In the Special column, C means the spell requires Concentration, R means it's a Ritual, and M means it requires a specific Material component. Cantrips (Level 0 Wizard Spells) Spell School Special Acid Splash Evocation — Chill Touch Necromancy — Dancing Lights Illusion C Elementalism Transmutation — Fire Bolt Evocation — Light Evocation — Spell School Special Mage Hand Conjuration — Mending Transmutation — Message Transmutation — Minor Illusion Illusion — Poison Spray Necromancy — Prestidigitation Transmutation — Ray of Frost Evocation — Shocking Grasp Evocation — True Strike Divination — Level 1 Wizard Spells Spell School Special Alarm Abjuration R Burning Hands Evocation — Charm Person Enchantment — Chromatic Orb Evocation M Color Spray Illusion — Comprehend Languages Divination R Detect Magic Divination C, R Disguise Self Illusion — Expeditious Retreat Transmutation C False Life Necromancy – Feather Fall Transmutation — Find Familiar Conjuration R, M Floating Disk Conjuration R Fog Cloud Conjuration C Grease Conjuration — Hideous Laughter Enchantment C Ice Knife Conjuration — Identify Divination R, M Illusory Script Illusion R, M Jump Transmutation — Longstrider Transmutation — Mage Armor Abjuration — Magic Missile Evocation — Protection from Evil and Good Abjuration C, M Ray of Sickness Necromancy — Shield Abjuration — Silent Image Illusion C Sleep Enchantment C Thunderwave Evocation — Unseen Servant Conjuration R Level 2 Wizard Spells Spell School Special Acid Arrow Evocation — Alter Self Transmutation C Arcane Lock Abjuration M Arcanist's Magic Aura Illusion — Augury Divination R, M Blindness/Deafness Transmutation — Blur Illusion C Continual Flame Evocation M Darkness Evocation C Darkvision Transmutation — Detect Thoughts Divination C Dragon's Breath Transmutation C Enhance Ability Transmutation C Enlarge/Reduce Transmutation C Flaming Sphere Evocation C Gentle Repose Necromancy R, M Gust of Wind Evocation C Hold Person Enchantment C Invisibility Illusion C Knock Transmutation — Levitate Transmutation C Locate Object Divination C Magic Mouth Illusion R, M Magic Weapon Transmutation — Mind Spike Divination C Mirror Image Illusion — Misty Step Conjuration — Ray of Enfeeblement Necromancy C Rope Trick Transmutation — Scorching Ray Evocation — See Invisibility Divination — Shatter Evocation — Spider Climb Transmutation C Suggestion Enchantment C Web Conjuration C Level 3 Wizard Spells Spell School Special Animate Dead Necromancy — Bestow Curse Necromancy C Blink Transmutation — Clairvoyance Divination C, M Counterspell Abjuration — Dispel Magic Abjuration — Spell School Special Fear Illusion C Fireball Evocation — Fly Transmutation C Gaseous Form Transmutation C Glyph of Warding Abjuration M Haste Transmutation C Hypnotic Pattern Illusion C Lightning Bolt Evocation — Magic Circle Abjuration M Major Image Illusion C Nondetection Abjuration M Phantom Steed Illusion R Protection from Energy Abjuration C Remove Curse Abjuration — Sending Divination — Sleet Storm Conjuration C Slow Transmutation C Speak with Dead Necromancy — Stinking Cloud Conjuration C Tiny Hut Evocation R Tongues Divination — Vampiric Touch Necromancy C Water Breathing Transmutation R Level 4 Wizard Spells Spell School Special Arcane Eye Divination C Banishment Abjuration C Black Tentacles Conjuration C Blight Necromancy — Charm Monster Enchantment — Confusion Enchantment C Conjure Minor Elementals Conjuration C Control Water Transmutation C Dimension Door Conjuration — Divination Divination R, M Fabricate Transmutation — Faithful Hound Conjuration — Fire Shield Evocation — Greater Invisibility Illusion C Hallucinatory Terrain Illusion — Ice Storm Evocation — Locate Creature Divination C Phantasmal Killer Illusion C Spell School Special Polymorph Transmutation C Private Sanctum Abjuration — Resilient Sphere Abjuration C Secret Chest Conjuration M Stone Shape Transmutation — Stoneskin Transmutation C, M Vitriolic Sphere Evocation — Wall of Fire Evocation C Level 5 Wizard Spells Spell School Special Animate Objects Transmutation C Arcane Hand Evocation C Cloudkill Conjuration C Cone of Cold Evocation — Conjure Elemental Conjuration C Contact Other Plane Divination R Creation Illusion — Dominate Person Enchantment C Dream Illusion — Geas Enchantment — Hold Monster Enchantment C Legend Lore Divination M Mislead Illusion C Modify Memory Enchantment C Passwall Transmutation — Planar Binding Abjuration M Scrying Divination C, M Seeming Illusion — Summon Dragon Conjuration C, M Telekinesis Transmutation C Telepathic Bond Divination R Teleportation Circle Conjuration M Wall of Force Evocation C Wall of Stone Evocation C Level 6 Wizard Spells Spell School Special Chain Lightning Evocation — Circle of Death Necromancy M Contingency Abjuration M Create Undead Necromancy M Disintegrate Transmutation — Eyebite Necromancy C Flesh to Stone Transmutation C Freezing Sphere Evocation — Globe of Invulnerability Abjuration C Guards and Wards Abjuration M Instant Summons Conjuration R, M Irresistible Dance Enchantment C Magic Jar Necromancy M Mass Suggestion Enchantment — Move Earth Transmutation C Programmed Illusion Illusion M Sunbeam Evocation C True Seeing Divination M Wall of Ice Evocation C Level 7 Wizard Spells Spell School Special Arcane Sword Evocation C, M Delayed Blast Fireball Evocation C Etherealness Conjuration — Finger of Death Necromancy — Forcecage Evocation C, M Magnificent Mansion Conjuration M Mirage Arcane Illusion — Plane Shift Conjuration M Prismatic Spray Evocation — Project Image Illusion C, M Reverse Gravity Transmutation C Sequester Transmutation M Simulacrum Illusion M Symbol Abjuration M Teleport Conjuration — Level 8 Wizard Spells Spell School Special Antimagic Field Abjuration C Antipathy/Sympathy Enchantment — Befuddlement Enchantment — Clone Necromancy M Control Weather Transmutation C Demiplane Conjuration — Dominate Monster Enchantment C Incendiary Cloud Conjuration C Maze Conjuration C Mind Blank Abjuration — Power Word Stun Enchantment — Sunburst Evocation — Level 9 Wizard Spells Spell School Special Astral Projection Necromancy M Foresight Divination — Gate Conjuration C, M Imprisonment Abjuration M Meteor Swarm Evocation — Power Word Kill Enchantment — Prismatic Wall Abjuration — Shapechange Transmutation C, M Time Stop Transmutation — True Polymorph Transmutation C Weird Illusion C Wish Conjuration —"
+            ]
           }
         ],
         "subclassFeatures": [
@@ -25923,6 +29896,29 @@ OK = save and close · Cancel = close and discard them`);
             "name": "Potent Cantrip",
             "text": [
               "Your damaging cantrips affect even creatures that avoid the brunt of the effect. When you cast a cantrip at a creature and you miss with the attack roll or the target succeeds on a saving throw against the cantrip, the target takes half the cantrip's damage (if any) but suffers no additional effect from the cantrip."
+            ]
+          },
+          {
+            "level": 6,
+            "name": "Sculpt Spells",
+            "text": [
+              "You can create pockets of relative safety within the effects of your evocations. When you cast an Evocation spell that affects other creatures that you can see, you can choose a number of them equal to 1 plus the spell's level. The chosen creatures automatically succeed on their saving throws against the spell, and they take no damage if they would normally take half damage on a successful save."
+            ]
+          },
+          {
+            "level": 10,
+            "name": "Empowered Evocation",
+            "text": [
+              "Whenever you cast a Wizard spell from the Evocation school, you can add your Intelligence modifier to one damage roll of that spell."
+            ]
+          },
+          {
+            "level": 14,
+            "name": "Overchannel",
+            "text": [
+              "You can increase the power of your spells. When you cast a Wizard spell with a spell slot of levels 1–5 that deals damage, you can deal maximum damage with that spell on the turn you cast it.",
+              "The first time you do so, you suffer no adverse effect. If you use this feature again before you finish a Long Rest, you take 2d12 Necrotic damage for each level of the spell slot immediately after you cast it. This damage ignores Resistance and Immunity.",
+              "Each time you use this feature again before finishing a Long Rest, the Necrotic damage per spell level increases by 1d12."
             ]
           }
         ],
@@ -26375,7 +30371,12 @@ OK = save and close · Cancel = close and discard them`);
         "text": [
           "Increase one ability score of your choice by 2, or increase two ability scores of your choice by 1. This feat can't increase an ability score above 20.",
           "Repeatable. You can take this feat more than once."
-        ]
+        ],
+        "increase": {
+          "choose": "any",
+          "by": 2,
+          "max": 20
+        }
       },
       "Grappler": {
         "name": "Grappler",
@@ -26386,7 +30387,15 @@ OK = save and close · Cancel = close and discard them`);
           "Punch and Grab. When you hit a creature with an Unarmed Strike as part of the Attack action on your turn, you can use both the Damage and the Grapple option. You can use this benefit only once per turn.",
           "Attack Advantage. You have Advantage on attack rolls against a creature Grappled by you.",
           "Fast Wrestler. You don't have to spend extra movement to move a creature Grappled by you if the creature is your size or smaller."
-        ]
+        ],
+        "increase": {
+          "choose": [
+            "str",
+            "dex"
+          ],
+          "by": 1,
+          "max": 20
+        }
       },
       "Archery": {
         "name": "Archery",
@@ -26415,6 +30424,113 @@ OK = save and close · Cancel = close and discard them`);
         "text": [
           "When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to the damage of that attack if you aren't already adding it to the damage."
         ]
+      },
+      "Boon of Combat Prowess": {
+        "name": "Boon of Combat Prowess",
+        "category": "Epic Boon Feat (Prerequisite: Level 19+)",
+        "text": [
+          "You gain the following benefits.",
+          "Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30.",
+          "Peerless Aim. When you miss with an attack roll, you can hit instead. Once you use this benefit, you can't use it again until the start of your next turn."
+        ],
+        "increase": {
+          "choose": "any",
+          "by": 1,
+          "max": 30
+        }
+      },
+      "Boon of Dimensional Travel": {
+        "name": "Boon of Dimensional Travel",
+        "category": "Epic Boon Feat (Prerequisite: Level 19+)",
+        "text": [
+          "You gain the following benefits.",
+          "Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30.",
+          "Blink Steps. Immediately after you take the Attack action or the Magic action, you can teleport up to 30 feet to an unoccupied space you can see."
+        ],
+        "increase": {
+          "choose": "any",
+          "by": 1,
+          "max": 30
+        }
+      },
+      "Boon of Fate": {
+        "name": "Boon of Fate",
+        "category": "Epic Boon Feat (Prerequisite: Level 19+)",
+        "text": [
+          "You gain the following benefits.",
+          "Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30.",
+          "Improve Fate. When you or another creature within 60 feet of you succeeds on or fails a D20 Test, you can roll 2d4 and apply the total rolled as a bonus or penalty to the d20 roll. Once you use this benefit, you can't use it again until you roll Initiative or finish a Short or Long Rest."
+        ],
+        "increase": {
+          "choose": "any",
+          "by": 1,
+          "max": 30
+        }
+      },
+      "Boon of Irresistible Offense": {
+        "name": "Boon of Irresistible Offense",
+        "category": "Epic Boon Feat (Prerequisite: Level 19+)",
+        "text": [
+          "You gain the following benefits.",
+          "Ability Score Increase. Increase your Strength or Dexterity score by 1, to a maximum of 30.",
+          "Overcome Defenses. The Bludgeoning, Piercing, and Slashing damage you deal always ignores Resistance.",
+          "Overwhelming Strike. When you roll a 20 on the d20 for an attack roll, you can deal extra damage to the target equal to the ability score increased by this feat. The extra damage's type is the same as the attack's type."
+        ],
+        "increase": {
+          "choose": [
+            "str",
+            "dex"
+          ],
+          "by": 1,
+          "max": 30
+        }
+      },
+      "Boon of Spell Recall": {
+        "name": "Boon of Spell Recall",
+        "category": "Epic Boon Feat (Prerequisite: Level 19+, Spellcasting Feature)",
+        "text": [
+          "You gain the following benefits.",
+          "Ability Score Increase. Increase your Intelligence, Wisdom, or Charisma score by 1, to a maximum of 30.",
+          "Free Casting. Whenever you cast a spell with a level 1–4 spell slot, roll 1d4. If the number you roll is the same as the slot's level, the slot isn't expended."
+        ],
+        "increase": {
+          "choose": [
+            "int",
+            "wis",
+            "cha"
+          ],
+          "by": 1,
+          "max": 30
+        }
+      },
+      "Boon of the Night Spirit": {
+        "name": "Boon of the Night Spirit",
+        "category": "Epic Boon Feat (Prerequisite: Level 19+)",
+        "text": [
+          "You gain the following benefits.",
+          "Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30.",
+          "Merge with Shadows. While within Dim Light or Darkness, you can give yourself the Invisible condition as a Bonus Action. The condition ends on you immediately after you take an action, a Bonus Action, or a Reaction.",
+          "Shadowy Form. While within Dim Light or Darkness, you have Resistance to all damage except Psychic and Radiant."
+        ],
+        "increase": {
+          "choose": "any",
+          "by": 1,
+          "max": 30
+        }
+      },
+      "Boon of Truesight": {
+        "name": "Boon of Truesight",
+        "category": "Epic Boon Feat (Prerequisite: Level 19+)",
+        "text": [
+          "You gain the following benefits.",
+          "Ability Score Increase. Increase one ability score of your choice by 1, to a maximum of 30.",
+          "Truesight. You have Truesight with a range of 60 feet."
+        ],
+        "increase": {
+          "choose": "any",
+          "by": 1,
+          "max": 30
+        }
       }
     },
     "weapons": {
@@ -26750,8 +30866,38 @@ OK = save and close · Cancel = close and discard them`);
   };
 
   // src/characters/builder-rules.js
-  var MAX_LEVEL = 3;
+  var MAX_LEVEL = 20;
   var SKILL_IDS2 = SKILLS.map((s) => s.id);
+  var levelOf = (choices) => Math.min(MAX_LEVEL, Math.max(1, Number(choices && choices.level) || 1));
+  var ORIGIN_FEATS = ["Alert", "Magic Initiate", "Savage Attacker", "Skilled"];
+  var EPIC_BOONS = Object.keys(SRD.feats).filter((n) => /^Epic Boon/.test(SRD.feats[n].category));
+  function featLevels(choices) {
+    const cls = SRD.classes[choices.class];
+    if (!cls || !cls.levels) return [];
+    const out = [];
+    for (let l = 1; l <= levelOf(choices); l++) {
+      const f = cls.levels[l] || [];
+      if (f.includes("Epic Boon")) out.push({ level: l, kind: "boon" });
+      else if (f.includes("Ability Score Improvement")) out.push({ level: l, kind: "asi" });
+    }
+    return out;
+  }
+  var hasFightingStyle = (choices) => ["fighter", "paladin", "ranger"].includes(choices.class);
+  function featOptions(choices, level) {
+    const kind = (featLevels(choices).find((x) => x.level === Number(level)) || {}).kind;
+    if (!kind) return [];
+    const list2 = ["Ability Score Improvement", "Grappler", ...ORIGIN_FEATS, ...hasFightingStyle(choices) ? FIGHTING_STYLES : []];
+    return kind === "boon" ? [...EPIC_BOONS, ...list2] : list2;
+  }
+  function featNeeds(featName) {
+    if (featName === "Ability Score Improvement") return { picks: 2, by: 1, max: 20, choose: ABILITIES.slice(), skills: 0 };
+    const f = SRD.feats[featName];
+    const inc = f && f.increase;
+    return { picks: inc ? 1 : 0, by: inc ? inc.by : 0, max: inc ? inc.max : 20, choose: inc ? inc.choose === "any" ? ABILITIES.slice() : inc.choose : [], skills: featName === "Skilled" ? 3 : 0 };
+  }
+  function chosenFeats(choices) {
+    return featLevels(choices).map(({ level, kind }) => ({ level, kind, pick: choices.asi && choices.asi[level] || {} }));
+  }
   function pointBuyCost(scores) {
     const c = SRD.pointBuy.costs;
     let total = 0;
@@ -26777,14 +30923,29 @@ OK = save and close · Cancel = close and discard them`);
     if (bonus && bg.abilities.includes(bonus.plus1) && bonus.plus1 !== bonus.plus2) out[bonus.plus1] += 1;
     return out;
   }
-  function finalAbilities(choices) {
+  function finalAbilities(choices, upTo, over) {
     const bg = SRD.backgrounds[choices.background];
     const inc = backgroundBonus(bg, choices.bgBonus);
-    return Object.fromEntries(ABILITIES.map((a) => [a, Math.min(20, (Number(choices.scores && choices.scores[a]) || 10) + inc[a])]));
+    const out = Object.fromEntries(ABILITIES.map((a) => [a, Math.min(20, (Number(choices.scores && choices.scores[a]) || 10) + inc[a])]));
+    for (const { level, pick } of chosenFeats(choices)) {
+      if (upTo != null && level >= upTo) break;
+      const need = featNeeds(pick.feat);
+      for (const a of (pick.abilities || []).slice(0, need.picks)) {
+        if (!ABILITIES.includes(a) || !need.choose.includes(a)) continue;
+        const next = out[a] + need.by;
+        if (next > need.max && over) over.push({ level, ability: a });
+        out[a] = Math.min(need.max, Math.max(out[a], next));
+      }
+    }
+    if (upTo == null && levelOf(choices) >= 20) {
+      const cap = choices.class === "barbarian" ? ["str", "con"] : choices.class === "monk" ? ["dex", "wis"] : [];
+      for (const a of cap) out[a] = Math.max(out[a], Math.min(25, out[a] + 4));
+    }
+    return out;
   }
   function skillPicks(choices) {
     const cls = SRD.classes[choices.class];
-    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const level = levelOf(choices);
     const n = { class: cls ? cls.skills.choose : 0, species: 0, extra: 0 };
     if (choices.species === "human") n.species = 1;
     if (choices.class === "barbarian" && level >= 3) n.extra += 1;
@@ -26802,20 +30963,32 @@ OK = save and close · Cancel = close and discard them`);
     return [];
   }
   function expertisePicks(choices) {
-    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
-    if (choices.class === "rogue") return 2;
-    if (choices.class === "bard" && level >= 2) return 2;
+    const level = levelOf(choices);
+    if (choices.class === "rogue") return level >= 6 ? 4 : 2;
+    if (choices.class === "bard") return level >= 9 ? 4 : level >= 2 ? 2 : 0;
+    if (choices.class === "ranger" && level >= 9) return 2;
     return 0;
   }
   function fightingStyleAt(choices) {
-    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const level = levelOf(choices);
     return choices.class === "fighter" && level >= 1 || (choices.class === "paladin" || choices.class === "ranger") && level >= 2;
+  }
+  function secondFightingStyleAt(choices) {
+    return choices.class === "fighter" && levelOf(choices) >= 7;
+  }
+  function fightingStyles(choices) {
+    const out = [];
+    if (fightingStyleAt(choices) && choices.fightingStyle) out.push(choices.fightingStyle);
+    if (secondFightingStyleAt(choices) && choices.fightingStyle2) out.push(choices.fightingStyle2);
+    for (const { pick } of chosenFeats(choices)) if (FIGHTING_STYLES.includes(pick.feat)) out.push(pick.feat);
+    return out;
   }
   var FIGHTING_STYLES = ["Archery", "Defense", "Great Weapon Fighting", "Two-Weapon Fighting"];
   function proficientSkills(choices) {
     const bg = SRD.backgrounds[choices.background];
     const set = new Set(bg ? bg.skills : []);
-    for (const s of [].concat(choices.classSkills || [], choices.speciesSkills || [], choices.extraSkills || [])) if (SKILL_IDS2.includes(s)) set.add(s);
+    const featSkills = chosenFeats(choices).filter((x) => x.pick.feat === "Skilled").flatMap((x) => x.pick.skills || []);
+    for (const s of [].concat(choices.classSkills || [], choices.speciesSkills || [], choices.extraSkills || [], featSkills)) if (SKILL_IDS2.includes(s)) set.add(s);
     return [...set];
   }
   function validate(choices) {
@@ -26839,6 +31012,29 @@ OK = save and close · Cancel = close and discard them`);
     const exp = expertisePicks(choices);
     if (exp && (choices.expertise || []).filter((s) => proficientSkills(choices).includes(s)).length !== exp) errs.push(`Choose ${exp} skills for Expertise (from your proficiencies).`);
     if (fightingStyleAt(choices) && !FIGHTING_STYLES.includes(choices.fightingStyle)) errs.push("Choose a Fighting Style.");
+    if (secondFightingStyleAt(choices) && (!FIGHTING_STYLES.includes(choices.fightingStyle2) || choices.fightingStyle2 === choices.fightingStyle)) errs.push("Choose a second, different Fighting Style (Additional Fighting Style).");
+    const styles = fightingStyles(choices);
+    if (new Set(styles).size !== styles.length) errs.push("A Fighting Style feat can be taken only once.");
+    for (const { level, kind, pick } of chosenFeats(choices)) {
+      const what = `Level ${level} (${kind === "boon" ? "Epic Boon" : "Ability Score Improvement"})`;
+      if (!featOptions(choices, level).includes(pick.feat)) {
+        errs.push(`${what}: choose a feat.`);
+        continue;
+      }
+      const need = featNeeds(pick.feat);
+      const ab = (pick.abilities || []).filter((a) => need.choose.includes(a));
+      if (ab.length !== need.picks) errs.push(`${what}: choose ${need.picks === 2 ? "two ability increases (the same ability twice for +2)" : "the ability to increase"}.`);
+      if (need.skills && (pick.skills || []).filter((s) => SKILL_IDS2.includes(s)).length !== need.skills) errs.push(`${what}: choose ${need.skills} skills for Skilled.`);
+      const before = finalAbilities(choices, level);
+      if (pick.feat === "Grappler" && before.str < 13 && before.dex < 13) errs.push(`${what}: Grappler needs Strength or Dexterity 13+.`);
+      if (pick.feat === "Boon of Spell Recall" && !(SRD.classes[choices.class] || {}).spellcasting) errs.push(`${what}: Boon of Spell Recall needs the Spellcasting feature.`);
+      const originTaken = [bg && bg.feat.replace(/ \(.+\)$/, ""), choices.species === "human" ? choices.originFeat : null];
+      const repeatable = ["Magic Initiate", "Skilled", "Ability Score Improvement"].includes(pick.feat);
+      if (!repeatable && (originTaken.includes(pick.feat) || chosenFeats(choices).some((x) => x.level < level && x.pick.feat === pick.feat))) errs.push(`${what}: you already have ${pick.feat}.`);
+    }
+    const over = [];
+    finalAbilities(choices, void 0, over);
+    for (const o of over) errs.push(`Level ${o.level}: ${o.ability.toUpperCase()} is already at its maximum — pick another ability.`);
     if (!String(choices.name || "").trim()) errs.push("Give your character a name.");
     return errs;
   }
@@ -26907,7 +31103,7 @@ OK = save and close · Cancel = close and discard them`);
       if (finesse && abilityMod(abilities.dex) > abilityMod(abilities.str)) ability = "dex";
       if (cls && cls.name === "Monk" && !ranged && abilityMod(abilities.dex) > abilityMod(abilities.str) && (w.category === "simple melee" || /Light/.test(w.properties))) ability = "dex";
       const mod = abilityMod(abilities[ability]);
-      const bonusHit = ranged && style === "Archery" ? 2 : 0;
+      const bonusHit = ranged && [].concat(style || []).includes("Archery") ? 2 : 0;
       out.push({
         name: it.name,
         ability,
@@ -26924,49 +31120,73 @@ OK = save and close · Cancel = close and discard them`);
     const m = /^(.{20,220}?[.!?])(\s|$)/.exec(t);
     return m ? m[1] : t.slice(0, 220);
   }
+  var COLUMN_LABELS = { rages: "Rages", rageDamage: "Rage Damage", weaponMastery: "Weapon Mastery", bardicDie: "Bardic Inspiration die", channelDivinity: "Channel Divinity", wildShape: "Wild Shape", secondWind: "Second Wind", martialArts: "Martial Arts die", focusPoints: "Focus Points", unarmoredMovement: "Unarmored Movement", favoredEnemy: "Favored Enemy", sneakAttack: "Sneak Attack", sorceryPoints: "Sorcery Points", invocations: "Eldritch Invocations" };
+  function classResources(choices) {
+    const cls = SRD.classes[choices.class];
+    const row = cls && cls.columns && cls.columns[levelOf(choices)];
+    if (!row) return "";
+    return Object.entries(row).map(([k2, v]) => `${COLUMN_LABELS[k2] || k2} ${k2 === "rageDamage" ? "+" + v : k2 === "unarmoredMovement" ? "+" + v + " ft." : v}`).join(" · ");
+  }
   function featureList(choices) {
     const cls = SRD.classes[choices.class], bg = SRD.backgrounds[choices.background], sp = SRD.species[choices.species];
-    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const level = levelOf(choices);
     const out = [];
     if (cls) {
-      for (const f of cls.features) if (f.level <= level && !/ Subclass$/.test(f.name)) out.push({ name: f.name, source: `${cls.name} ${f.level}`, text: f.text });
-      if (level >= 3) for (const f of cls.subclassFeatures) out.push({ name: f.name, source: `${cls.subclass} 3`, text: f.text });
+      for (const f of cls.features) if (f.level <= level && !/ Subclass$/.test(f.name) && f.name !== "Ability Score Improvement" && f.name !== "Epic Boon") out.push({ name: f.name, source: `${cls.name} ${f.level}`, text: f.text });
+      for (const f of cls.subclassFeatures) if (f.level <= level) out.push({ name: f.name, source: `${cls.subclass} ${f.level}`, text: f.text });
+      for (const { level: l, pick } of chosenFeats(choices)) {
+        if (!SRD.feats[pick.feat]) continue;
+        const detail = [(pick.abilities || []).length ? pick.abilities.map((a) => a.toUpperCase()).join(", ") : "", (pick.skills || []).join(", ")].filter(Boolean).join("; ");
+        out.push({ name: pick.feat + (detail ? ` (${detail})` : ""), source: `${cls.name} ${l} feat`, text: SRD.feats[pick.feat].text });
+      }
     }
     if (sp) for (const t of sp.traits) out.push({ name: t.name, source: sp.name, text: t.text });
     const featName = bg && bg.feat.replace(/ \(.+\)$/, "");
     if (bg && SRD.feats[featName]) out.push({ name: bg.feat, source: bg.name + " (Origin feat)", text: SRD.feats[featName].text });
     if (choices.species === "human" && choices.originFeat && SRD.feats[choices.originFeat]) out.push({ name: choices.originFeat, source: "Human (Versatile)", text: SRD.feats[choices.originFeat].text });
     if (fightingStyleAt(choices) && SRD.feats[choices.fightingStyle]) out.push({ name: choices.fightingStyle, source: "Fighting Style", text: SRD.feats[choices.fightingStyle].text });
+    if (secondFightingStyleAt(choices) && SRD.feats[choices.fightingStyle2]) out.push({ name: choices.fightingStyle2, source: "Additional Fighting Style", text: SRD.feats[choices.fightingStyle2].text });
     return out;
   }
   function hitPoints(choices, abilities) {
     const cls = SRD.classes[choices.class];
     if (!cls) return 1;
-    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const level = levelOf(choices);
     const con = abilityMod(abilities.con);
     let hp = cls.hitDie + con;
     for (let l = 2; l <= level; l++) hp += Math.max(1, cls.hitDie / 2 + 1 + con);
     if (choices.species === "dwarf") hp += level;
+    if (choices.class === "sorcerer" && level >= 3) hp += level;
     return Math.max(1, hp);
   }
   function buildSheet(choices, previous) {
     const cls = SRD.classes[choices.class], bg = SRD.backgrounds[choices.background], sp = SRD.species[choices.species];
-    const level = Math.min(MAX_LEVEL, Math.max(1, Number(choices.level) || 1));
+    const level = levelOf(choices);
     const abilities = finalAbilities(choices);
     const { items, gp } = startingItems(choices);
-    const style = fightingStyleAt(choices) ? choices.fightingStyle : "";
-    const ac = armorClass(abilities, items, cls, { defense: style === "Defense", draconic: choices.class === "sorcerer" && level >= 3 });
+    const styles = fightingStyles(choices);
+    const prevInv = previous && Array.isArray(previous.inventory) ? previous.inventory : null;
+    const gear = prevInv || items;
+    const ac = armorClass(abilities, gear, cls, { defense: styles.includes("Defense"), draconic: choices.class === "sorcerer" && level >= 3 });
     const skills = {};
     for (const s of proficientSkills(choices)) skills[s] = 1;
     for (const s of choices.expertise || []) if (skills[s]) skills[s] = 2;
     let speed = sp ? sp.speed : 30;
     if (choices.species === "elf" && /Wood Elf/.test(choices.speciesOption || "")) speed = 35;
-    const armorWorn = items.some((i) => SRD.armor[i.name]);
-    if (choices.class === "monk" && level >= 2 && !armorWorn && !items.some((i) => i.name === "Shield")) speed += 10;
+    const armorWorn = gear.some((i) => SRD.armor[i.name]);
+    const move = cls && cls.columns && cls.columns[level] && cls.columns[level].unarmoredMovement;
+    if (choices.class === "monk" && move && !armorWorn && !gear.some((i) => i.name === "Shield")) speed += move;
+    if (choices.class === "barbarian" && level >= 5 && !gear.some((i) => SRD.armor[i.name] && SRD.armor[i.name].category === "heavy")) speed += 10;
     const hp = hitPoints(choices, abilities);
     const feats = featureList(choices);
     const spell = cls && cls.spellcasting;
-    const prevInv = previous && Array.isArray(previous.inventory) ? previous.inventory : null;
+    const saves = new Set(cls ? cls.saves : []);
+    if (choices.class === "rogue" && level >= 15) {
+      saves.add("wis");
+      saves.add("cha");
+    }
+    if (choices.class === "monk" && level >= 14) for (const a of ABILITIES) saves.add(a);
+    const resources = classResources(choices);
     const sheet = {
       level,
       className: cls ? cls.name + (level >= 3 ? ` (${cls.subclass})` : "") : "",
@@ -26975,16 +31195,17 @@ OK = save and close · Cancel = close and discard them`);
       alignment: choices.alignment || "",
       xp: Math.max(previous ? Number(previous.xp) || 0 : 0, SRD.xp[level - 1]),
       abilities,
-      saves: cls ? cls.saves.slice() : [],
+      saves: ABILITIES.filter((a) => saves.has(a)),
       skills,
       ac: ac.ac,
       speed,
       hp: { max: hp, current: previous && previous.hp ? Math.min(hp, (Number(previous.hp.current) || 0) + (hp - (Number(previous.hp.max) || hp))) : hp, temp: 0 },
-      attacks: attacksFor(abilities, items, cls, style).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
+      attacks: attacksFor(abilities, gear, cls, styles).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
       // level up keeps what the character owns now; a new character gets the starting equipment
       inventory: prevInv || items,
       coins: previous && previous.coins ? previous.coins : { cp: 0, sp: 0, gp, pp: 0 },
-      features: feats.map((f) => `• ${f.name} (${f.source}): ${firstSentence(f.text)}`).join("\n"),
+      features: (resources ? `${cls.name} ${level}: ${resources}
+` : "") + feats.map((f) => `• ${f.name} (${f.source}): ${firstSentence(f.text)}`).join("\n"),
       notes: previous && previous.notes ? previous.notes : "",
       acNote: ac.how,
       proficiencies: [
@@ -26993,7 +31214,12 @@ OK = save and close · Cancel = close and discard them`);
         [cls && cls.tools, bg && bg.tool].filter(Boolean).length ? `Tools: ${[cls && cls.tools, bg && bg.tool].filter(Boolean).join("; ")}` : "",
         `Languages: Common${(choices.languages || []).length ? ", " + choices.languages.join(", ") : ""}${choices.class === "rogue" ? ", Thieves' Cant" : ""}${choices.class === "druid" ? ", Druidic" : ""}`
       ].filter(Boolean).join("\n"),
-      spellcasting: spell ? Object.assign({ ability: spell.ability, pact: !!spell.pact }, spell.levels[level]) : null,
+      // level up keeps the spells written on the sheet and the slots already used
+      spellcasting: spell ? Object.assign(
+        { ability: spell.ability, pact: !!spell.pact },
+        spell.levels[level],
+        previous && previous.spellcasting ? { spells: previous.spellcasting.spells || "", used: (previous.spellcasting.used || []).map((u, i) => Math.min(u, (spell.levels[level].slots || [])[i] || 0)) } : {}
+      ) : null,
       build: Object.assign({}, choices, { level, source: SRD.source })
     };
     return normalizeSheet(sheet);
@@ -27007,7 +31233,7 @@ OK = save and close · Cancel = close and discard them`);
   }
 
   // src/characters/builder.js
-  var STEPS = [["class", "Class"], ["background", "Background"], ["species", "Species"], ["abilities", "Abilities"], ["skills", "Skills & choices"], ["equipment", "Equipment"], ["review", "Details & review"]];
+  var STEPS = [["class", "Class"], ["background", "Background"], ["species", "Species"], ["abilities", "Abilities"], ["feats", "Feats"], ["skills", "Skills & choices"], ["equipment", "Equipment"], ["review", "Details & review"]];
   var SKILL_NAME = Object.fromEntries(SKILLS.map((s) => [s.id, s.name]));
   var SPECIES_OPTIONS = {
     dragonborn: { label: "Draconic ancestry", options: ["Black (Acid)", "Blue (Lightning)", "Brass (Fire)", "Bronze (Lightning)", "Copper (Acid)", "Gold (Fire)", "Green (Poison)", "Red (Fire)", "Silver (Cold)", "White (Cold)"] },
@@ -27017,7 +31243,7 @@ OK = save and close · Cancel = close and discard them`);
     human: { label: "Size", options: ["Medium", "Small"] },
     tiefling: { label: "Fiendish legacy", options: ["Abyssal", "Chthonic", "Infernal"] }
   };
-  var ORIGIN_FEATS = ["Alert", "Magic Initiate", "Savage Attacker", "Skilled"];
+  var ORIGIN_FEATS2 = ORIGIN_FEATS;
   function initBuilder() {
     "use strict";
     if (window.KLITE_RPMod_Builder) return;
@@ -27074,8 +31300,12 @@ OK = save and close · Cancel = close and discard them`);
       render();
     };
     function stepClass(root) {
-      const lvl = el("div", { class: "rpm-row" }, [el("span", { class: "rpm-label", text: "Level" }), ...[1, 2, 3].map((n) => btn(String(n), () => set("level", n), { cls: V.c.level === n ? "rpm-on" : "", id: "level-" + n }))]);
-      root.appendChild(lvl);
+      if (!V.levelUp) {
+        const lvl = select(Array.from({ length: MAX_LEVEL }, (_, i) => ({ value: String(i + 1), text: `Level ${i + 1}` })), String(V.c.level), (v) => set("level", Number(v) || 1), "Level");
+        lvl.setAttribute("data-bld", "level");
+        lvl.style.width = "auto";
+        root.appendChild(el("div", { class: "rpm-row" }, [el("span", { class: "rpm-label", text: "Start at" }), lvl]));
+      }
       root.appendChild(el("div", { class: "rpm-bld-grid" }, Object.entries(SRD.classes).map(([id, c2]) => pickCard(id, c2.name, `d${c2.hitDie} · ${c2.primary.map((a) => ABILITY_NAMES[a]).join(" & ")}`, V.c.class === id, () => {
         V.c.classSkills = [];
         V.c.expertise = [];
@@ -27094,8 +31324,9 @@ OK = save and close · Cancel = close and discard them`);
       root.appendChild(el("div", { class: "rpm-bld-detail" }, [
         el("h3", { text: c.name }),
         ...lines.map(para),
-        ...c.features.filter((f) => f.level <= V.c.level && !/ Subclass$/.test(f.name)).map((f) => details(`Level ${f.level}: ${f.name}`, texts(f.text))),
-        ...V.c.level >= 3 ? c.subclassFeatures.map((f) => details(`${c.subclass}: ${f.name}`, texts(f.text))) : []
+        classResources(V.c) ? para(`At level ${V.c.level}: ${classResources(V.c)}`) : null,
+        ...c.features.filter((f) => f.level <= V.c.level && !/ Subclass$/.test(f.name)).map((f) => details(`Level ${f.level}: ${f.name}`, texts(f.text), V.levelUp && f.level === V.c.level)),
+        ...c.subclassFeatures.filter((f) => f.level <= V.c.level).map((f) => details(`${c.subclass} ${f.level}: ${f.name}`, texts(f.text), V.levelUp && f.level === V.c.level))
       ]));
     }
     function stepBackground(root) {
@@ -27129,7 +31360,7 @@ OK = save and close · Cancel = close and discard them`);
         el("h3", { text: s.name }),
         para(`Size: ${s.size} · Speed: ${s.speed} feet`),
         opt ? el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: opt.label }), select(opt.options, V.c.speciesOption, (v) => set("speciesOption", v), opt.label)]) : null,
-        V.c.species === "human" ? el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: "Versatile: Origin feat (Skilled is recommended)" }), select(ORIGIN_FEATS, V.c.originFeat, (v) => {
+        V.c.species === "human" ? el("label", { class: "rpm-sheet-field" }, [el("span", { class: "rpm-label", text: "Versatile: Origin feat (Skilled is recommended)" }), select(ORIGIN_FEATS2, V.c.originFeat, (v) => {
           V.c.extraSkills = [];
           set("originFeat", v);
         }, "Origin feat")]) : null,
@@ -27229,7 +31460,55 @@ OK = save and close · Cancel = close and discard them`);
         el("h3", { text: "Fighting Style" }),
         el("div", { class: "rpm-bld-grid" }, FIGHTING_STYLES.map((f) => pickCard(f, f, (SRD.feats[f] ? SRD.feats[f].text[0] : "").slice(0, 90), V.c.fightingStyle === f, () => set("fightingStyle", f))))
       ]));
+      if (secondFightingStyleAt(V.c)) root.appendChild(el("div", { class: "rpm-bld-detail" }, [
+        el("h3", { text: "Additional Fighting Style (Champion 7)" }),
+        el("div", { class: "rpm-bld-grid" }, FIGHTING_STYLES.filter((f) => f !== V.c.fightingStyle).map((f) => pickCard("2-" + f, f, (SRD.feats[f] ? SRD.feats[f].text[0] : "").slice(0, 90), V.c.fightingStyle2 === f, () => set("fightingStyle2", f))))
+      ]));
+      if (V.levelUp) return;
       root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: "Languages — Common plus two" }), checkList(SRD.languages.standard, V.c.languages, 2, (v) => set("languages", v), "Languages")]));
+    }
+    function stepFeats(root) {
+      const fromLevel = V.levelUp && V.previous ? (Number(V.previous.level) || 0) + 1 : 1;
+      const list2 = featLevels(V.c).filter((x) => x.level >= fromLevel);
+      if (!list2.length) {
+        root.appendChild(para("No feat to choose at this level."));
+        return;
+      }
+      root.appendChild(para('At these levels your class gives you a feat. "Ability Score Improvement" raises one score by 2 or two scores by 1 (maximum 20).'));
+      const scores = finalAbilities(V.c);
+      root.appendChild(el("div", { class: "rpm-muted", text: "Scores now: " + ABILITIES.map((a) => `${a.toUpperCase()} ${scores[a]}`).join(" · ") }));
+      for (const { level, kind } of list2) {
+        V.c.asi = V.c.asi || {};
+        const pick = V.c.asi[level] || {};
+        const upd = (patch) => {
+          V.c.asi = Object.assign({}, V.c.asi, { [level]: Object.assign({}, pick, patch) });
+          render();
+        };
+        const featSel = select(featOptions(V.c, level).map((f) => ({ value: f, text: `${f} — ${(SRD.feats[f] || {}).category || ""}`.replace(/ — $/, "") })), pick.feat, (v) => upd({ feat: v, abilities: [], skills: [] }), `Level ${level} feat`);
+        featSel.setAttribute("data-bld", "feat-" + level);
+        const box = el("div", { class: "rpm-bld-detail", "data-feat-level": String(level) }, [
+          el("h3", { text: `Level ${level}: ${kind === "boon" ? "Epic Boon" : "Ability Score Improvement"}` }),
+          featSel
+        ]);
+        const need = pick.feat ? featNeeds(pick.feat) : null;
+        if (need && need.picks) {
+          const opts = need.choose.map((a) => ({ value: a, text: ABILITY_NAMES[a] }));
+          box.appendChild(el("div", { class: "rpm-sheet-grid4" }, Array.from({ length: need.picks }, (_, i) => el("label", { class: "rpm-sheet-field" }, [
+            el("span", { class: "rpm-label", text: `+${need.by}${need.picks > 1 ? ` (${i + 1})` : ""}` }),
+            select(opts, (pick.abilities || [])[i], (v) => {
+              const ab = (pick.abilities || []).slice();
+              ab[i] = v;
+              upd({ abilities: ab });
+            }, `Level ${level} increase ${i + 1}`)
+          ]))));
+        }
+        if (need && need.skills) {
+          const taken = new Set(proficientSkills(Object.assign({}, V.c, { asi: Object.assign({}, V.c.asi, { [level]: Object.assign({}, pick, { skills: [] }) }) })));
+          box.appendChild(checkList(SKILLS.map((k2) => k2.id).filter((k2) => !taken.has(k2) || (pick.skills || []).includes(k2)), pick.skills, need.skills, (v) => upd({ skills: v }), `Level ${level} Skilled`));
+        }
+        if (pick.feat && SRD.feats[pick.feat]) box.appendChild(details(pick.feat, texts(SRD.feats[pick.feat].text), false));
+        root.appendChild(box);
+      }
     }
     function stepEquipment(root) {
       const cls = SRD.classes[V.c.class], bg = SRD.backgrounds[V.c.background];
@@ -27334,17 +31613,19 @@ OK = save and close · Cancel = close and discard them`);
       clear(box);
       const root = el("div", { class: "rpm-bld" });
       box.appendChild(root);
-      const steps = V.levelUp ? STEPS.filter(([id2]) => id2 === "class" || id2 === "skills" || id2 === "review") : STEPS;
+      const fromLevel = V.levelUp && V.previous ? (Number(V.previous.level) || 0) + 1 : 1;
+      const hasFeats = featLevels(V.c).some((x) => x.level >= fromLevel);
+      const steps = (V.levelUp ? STEPS.filter(([id2]) => id2 === "class" || id2 === "feats" || id2 === "skills" || id2 === "review") : STEPS).filter(([id2]) => id2 !== "feats" || hasFeats);
       if (V.step >= steps.length) V.step = steps.length - 1;
       root.appendChild(el("ol", { class: "rpm-bld-steps" }, steps.map(([id2, t], i) => el("li", {}, [el("button", { type: "button", class: "rpm-gal-chip" + (i === V.step ? " rpm-on" : ""), "aria-current": i === V.step ? "step" : null, "data-step": id2, text: `${i + 1}. ${t}`, onclick: () => {
         V.step = i;
         render();
       } })]))));
-      if (V.levelUp) root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: `Level up: ${V.levelUp} → level ${V.c.level}` }), para('Your new features are listed below. Make any new choices on the "Skills & choices" step, then confirm on the last step.')]));
+      if (V.levelUp) root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: `Level up: ${V.levelUp} → level ${V.c.level}` }), para("Your new features are open below. Make any new choices (feat, skills), then confirm on the last step.")]));
       const body = el("div", { class: "rpm-bld-body" });
       root.appendChild(body);
       const id = steps[V.step][0];
-      ({ class: stepClass, background: stepBackground, species: stepSpecies, abilities: stepAbilities, skills: stepSkills, equipment: stepEquipment, review: stepReview })[id](body);
+      ({ class: stepClass, background: stepBackground, species: stepSpecies, abilities: stepAbilities, feats: stepFeats, skills: stepSkills, equipment: stepEquipment, review: stepReview })[id](body);
       const last = V.step === steps.length - 1;
       root.appendChild(el("div", { class: "rpm-row rpm-bld-nav" }, [
         btn("Back", () => {
@@ -27398,7 +31679,7 @@ OK = save and close · Cancel = close and discard them`);
         const sheet = C ? await C.loadSheet(name) : null;
         const next = nextLevelChoices(sheet);
         if (!next) {
-          alert(sheet && sheet.build ? "The builder covers levels 1–3 for now." : "This sheet was not made with the builder; edit it by hand.");
+          alert(sheet && sheet.build ? "This character is already level 20." : "This sheet was not made with the builder; edit it by hand.");
           return false;
         }
         V.c = next;

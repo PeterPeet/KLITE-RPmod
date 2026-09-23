@@ -207,19 +207,23 @@ sheet**, **Edit**, **Download**, **Favorite** and **Delete**. **Import** (next t
 character*) adds cards (PNG, WebP, JSON) with Esolite's own importer. Make the window smaller with
 the restore button if you want it next to the chat; it remembers that.
 
-**Character builder (SRD 5.2.1, levels 1–3).** **New character** in the gallery (or **Build
+**Character builder (SRD 5.2.1, levels 1–20).** **New character** in the gallery (or **Build
 with the SRD rules** on a character without a sheet) walks you through the official
-character-creation steps: **Class** (12 classes with their level 1–3 features and the SRD
-subclass at level 3), **Background** (Acolyte, Criminal, Sage, Soldier — ability increases,
+character-creation steps: **Class** (12 classes, start at any level 1–20, with their features,
+class resources and the SRD subclass from level 3), **Background** (Acolyte, Criminal, Sage, Soldier — ability increases,
 origin feat, skills, tool), **Species** (Dragonborn, Dwarf, Elf, Gnome, Goliath, Halfling,
 Human, Orc, Tiefling — with lineage/ancestry choices), **Abilities** (standard array with a
-per-class suggestion, point buy with the 27-point budget, or 4d6), **Skills & choices**
-(class skills, species skill, expertise, fighting style, languages), **Equipment** (the class
+per-class suggestion, point buy with the 27-point budget, or 4d6), **Feats** (from level 4: at
+each *Ability Score Improvement* level pick the Ability Score Improvement feat — +2 to one score
+or +1 to two, maximum 20 — or another feat such as Grappler, an origin feat or a fighting style;
+at level 19 an *Epic Boon*, which can raise a score to 30), **Skills & choices**
+(class skills, species skill, expertise, fighting styles, languages), **Equipment** (the class
 and background packages or gold) and **Details & review**, which shows HP, AC, attacks,
 skills and spellcasting before anything is saved. It creates a new character in your
 Library with the sheet on its card, or puts the sheet on an existing character. **Level up**
-on a built sheet rebuilds it one level higher (up to 3 for now), asks only what is new and
-keeps inventory, coins and notes. Every option shows its rules text from the SRD.
+on a built sheet rebuilds it one level higher (up to 20), asks only what is new (the new
+level's feat, skills) and keeps inventory, coins, notes and the spells written on the sheet; AC
+and attacks follow what the character carries now. Every option shows its rules text from the SRD.
 
 **Character sheets.** Every character in your Library can have a d20 sheet (SRD 5.2.1 rules):
 species, class, level, background, the six abilities, saving throws, the 18 skills

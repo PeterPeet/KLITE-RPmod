@@ -60,7 +60,8 @@ test('fighter (soldier, human): scores, AC with Defense, HP, attacks, skills, fe
     assert.equal(s3.xp, 900);
     const up = B.nextLevelChoices(B.buildSheet(fighter({ level: 2 })));
     assert.equal(up.level, 3);
-    assert.equal(B.nextLevelChoices(s3), null, 'builder covers levels 1–3');
+    assert.equal(B.nextLevelChoices(s3).level, 4, 'levels beyond 3');
+    assert.equal(B.nextLevelChoices(B.buildSheet(fighter({ level: 20 }))), null, 'level 20 is the end');
 });
 
 test('unarmored AC, speed, HP and choices by class and species', () => {
@@ -151,4 +152,113 @@ test('builder window: create a level-1 fighter end to end, then level up keeping
     assert.match(up.features, /Action Surge \(Fighter 2\)/);
     assert.deepEqual(JSON.parse(JSON.stringify(up.inventory)), [{ name: 'Lucky coin', qty: 1, notes: '' }]);
     assert.equal(up.notes, 'Owes Bram 5 gp.');
+});
+
+// ---- levels 4–20 ---------------------------------------------------------------------------
+test('SRD data 1–20: class tables, spell slots, subclass feature levels, epic boons', () => {
+    const C = SRD.classes;
+    assert.deepEqual(C.wizard.spellcasting.levels[20], { cantrips: 5, prepared: 25, slots: [4, 3, 3, 3, 3, 2, 2, 1, 1] });
+    assert.deepEqual(C.warlock.spellcasting.levels[17], { cantrips: 4, prepared: 14, slots: [0, 0, 0, 0, 4], slotLevel: 5 });
+    assert.deepEqual(C.paladin.spellcasting.levels[5].slots, [4, 2]);
+    assert.deepEqual(C.monk.columns[18], { martialArts: '1d12', focusPoints: 18, unarmoredMovement: 30 });
+    assert.equal(C.rogue.columns[19].sneakAttack, '10d6');
+    assert.deepEqual(C.fighter.levels[6], ['Ability Score Improvement']);
+    assert.deepEqual(C.fighter.subclassFeatures.map(f => f.level), [3, 3, 7, 10, 15, 18]);
+    for (const c of Object.values(C)) { assert.equal(Object.keys(c.levels).length, 20, c.name); assert.ok(c.levels[19].includes('Epic Boon'), c.name); }
+    assert.deepEqual(plain(SRD.feats['Boon of Spell Recall'].increase), { choose: ['int', 'wis', 'cha'], by: 1, max: 30 });
+    assert.deepEqual(plain(SRD.feats.Grappler.increase), { choose: ['str', 'dex'], by: 1, max: 20 });
+    assert.equal(B.EPIC_BOONS.length, 7);
+});
+const plain = (x) => JSON.parse(JSON.stringify(x));
+
+test('levels 4+: feats at ASI levels (ability increases, caps, prerequisites, Skilled, fighting styles)', () => {
+    const f4 = fighter({ level: 4 });
+    assert.deepEqual(plain(B.featLevels(f4)), [{ level: 4, kind: 'asi' }]);
+    assert.ok(B.validate(f4).some(e => /Level 4 .*choose a feat/.test(e)));
+    const plus2 = fighter({ level: 4, asi: { 4: { feat: 'Ability Score Improvement', abilities: ['str', 'str'] } } });
+    assert.deepEqual(B.validate(plus2), []);
+    assert.equal(B.buildSheet(plus2).abilities.str, 19, '17 + 2');
+    assert.match(B.buildSheet(plus2).features, /Ability Score Improvement \(STR, STR\) \(Fighter 4 feat\)/);
+    const split = B.buildSheet(fighter({ level: 4, asi: { 4: { feat: 'Ability Score Improvement', abilities: ['str', 'con'] } } }));
+    assert.equal(split.abilities.str, 18); assert.equal(split.abilities.con, 15);
+    // fighters get more ASIs (4, 6, 8, 12, 14, 16); 19 is an Epic Boon
+    assert.deepEqual(plain(B.featLevels(fighter({ level: 19 })).map(x => x.level + x.kind)), ['4asi', '6asi', '8asi', '12asi', '14asi', '16asi', '19boon']);
+    // over 20 is refused
+    const over = fighter({ level: 6, asi: { 4: { feat: 'Ability Score Improvement', abilities: ['str', 'str'] }, 6: { feat: 'Ability Score Improvement', abilities: ['str', 'str'] } } });
+    assert.ok(B.validate(over).some(e => /STR is already at its maximum/.test(e)));
+    assert.equal(B.buildSheet(over).abilities.str, 20);
+    // Grappler needs STR or DEX 13; Alert is already the human's origin feat
+    const weak = fighter({ level: 4, scores: { str: 8, dex: 10, con: 15, int: 14, wis: 13, cha: 12 }, method: 'roll', bgBonus: { plus2: 'con', plus1: 'str' }, asi: { 4: { feat: 'Grappler', abilities: ['str'] } } });
+    assert.ok(B.validate(weak).some(e => /Grappler needs Strength or Dexterity 13/.test(e)));
+    assert.ok(B.validate(fighter({ level: 4, asi: { 4: { feat: 'Alert' } } })).some(e => /already have Alert/.test(e)));
+    // Skilled adds three proficiencies
+    const skilled = fighter({ level: 4, asi: { 4: { feat: 'Skilled', skills: ['stealth', 'arcana', 'history'] } } });
+    assert.deepEqual(B.validate(skilled), []);
+    assert.equal(B.buildSheet(skilled).skills.arcana, 1);
+    // a Fighting Style feat as ASI: Archery adds +2 to ranged attacks; Champion 7 needs a second style
+    const archer = fighter({ level: 7, fightingStyle2: 'Two-Weapon Fighting', asi: { 4: { feat: 'Archery' }, 6: { feat: 'Ability Score Improvement', abilities: ['dex', 'con'] } } });
+    assert.deepEqual(B.validate(archer), []);
+    const bowman = B.buildSheet(Object.assign({}, archer, { classEquipment: 'B' }));
+    assert.equal(bowman.attacks.find(a => a.name === 'Longbow').bonus, 2, 'Archery: +2 to ranged');
+    assert.equal(bowman.attacks.find(a => a.name === 'Scimitar').bonus, 0);
+    assert.ok(B.validate(fighter({ level: 7, asi: archer.asi })).some(e => /second, different Fighting Style/.test(e)));
+    assert.ok(B.validate(fighter({ level: 4, asi: { 4: { feat: 'Defense' } } })).some(e => /only once/.test(e)), 'Defense is already the class style');
+});
+
+test('levels 5–20: epic boons, capstones, saves, speed, HP, spell slots, expertise; level up keeps spells', () => {
+    const asi = (lvls, ab) => Object.fromEntries(lvls.map(l => [l, { feat: 'Ability Score Improvement', abilities: ab }]));
+    // Boon at 19: +1 up to 30; Boon of Spell Recall needs Spellcasting
+    const f19 = fighter({ level: 19, fightingStyle2: 'Archery', asi: Object.assign(asi([4, 6, 8], ['str', 'con']), asi([12, 14, 16], ['con', 'dex']), { 19: { feat: 'Boon of Fate', abilities: ['str'] } }) });
+    assert.deepEqual(B.validate(f19), []);
+    assert.equal(B.buildSheet(f19).abilities.str, 21, 'boon goes past 20');
+    assert.ok(B.validate(Object.assign({}, f19, { asi: Object.assign({}, f19.asi, { 19: { feat: 'Boon of Spell Recall', abilities: ['int'] } }) })).some(e => /needs the Spellcasting feature/.test(e)));
+    // Barbarian 20: STR and CON +4 (max 25); Fast Movement +10 ft (no heavy armor)
+    const barb = B.buildSheet(fighter({ class: 'barbarian', level: 20, fightingStyle: undefined, classSkills: ['perception', 'survival'] }));
+    assert.equal(barb.abilities.str, 21); assert.equal(barb.abilities.con, 18);
+    assert.equal(barb.speed, 40);
+    assert.match(barb.features, /^Barbarian 20: Rages 6 · Rage Damage \+4 · Weapon Mastery 4/);
+    // Monk: unarmored movement from the table, all saves at 14
+    const monk = B.buildSheet(fighter({ class: 'monk', level: 14, fightingStyle: undefined, classSkills: ['acrobatics', 'stealth'] }));
+    assert.equal(monk.speed, 30 + 25); assert.deepEqual(plain(monk.saves), ['str', 'dex', 'con', 'int', 'wis', 'cha']);
+    // Rogue 15: Slippery Mind; 4 expertise picks from level 6
+    const rogueC = { class: 'rogue', background: 'criminal', fightingStyle: undefined, bgBonus: { plus2: 'dex', plus1: 'int' }, classSkills: ['acrobatics', 'deception', 'perception', 'investigation'], expertise: ['stealth', 'perception'] };
+    assert.ok(B.validate(fighter(Object.assign({ level: 6, asi: asi([4], ['dex', 'dex']) }, rogueC))).some(e => /Choose 4 skills for Expertise/.test(e)));
+    assert.deepEqual(plain(B.buildSheet(fighter(Object.assign({ level: 15 }, rogueC))).saves), ['dex', 'int', 'wis', 'cha']);
+    // Sorcerer: Draconic Resilience adds 3 HP at level 3 and 1 per level after
+    const sorc = (level) => B.buildSheet(fighter({ class: 'sorcerer', level, fightingStyle: undefined, classSkills: ['arcana', 'insight'], scores: { str: 8, dex: 14, con: 13, int: 10, wis: 12, cha: 15 }, bgBonus: { plus2: 'cha', plus1: 'con' } })).hp.max;
+    assert.equal(sorc(3) - sorc(2), 4 + 2 + 3, 'd6 fixed 4 + CON 2 + Draconic Resilience 3');
+    assert.equal(sorc(4) - sorc(3), 4 + 2 + 1);
+    // Wizard 20 slots on the sheet; level up keeps the spells written on the sheet
+    const wizC = fighter({ class: 'wizard', background: 'sage', fightingStyle: undefined, classSkills: ['arcana', 'investigation'], scores: { str: 8, dex: 12, con: 13, int: 15, wis: 14, cha: 10 }, bgBonus: { plus2: 'int', plus1: 'con' } });
+    const w3 = B.buildSheet(Object.assign({}, wizC, { level: 3 }));
+    w3.spellcasting.spells = 'Fire Bolt, Magic Missile, Shield'; w3.spellcasting.used = [3, 1];
+    const w4 = B.buildSheet(Object.assign(B.nextLevelChoices(w3), { asi: asi([4], ['int', 'int']) }), w3);
+    assert.equal(w4.spellcasting.spells, 'Fire Bolt, Magic Missile, Shield', 'spells kept');
+    assert.deepEqual(plain(w4.spellcasting.used), [3, 1]);
+    assert.equal(w4.abilities.int, 19);
+    assert.deepEqual(plain(B.buildSheet(Object.assign({}, wizC, { level: 20 })).spellcasting.slots), [4, 3, 3, 3, 3, 2, 2, 1, 1]);
+});
+
+test('builder window: level up a level-3 fighter to 4 with an Ability Score Improvement', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const doc = w.document;
+    const $ = (s) => doc.querySelector('[data-window="builder"] ' + s);
+    const choose = (label, value) => { const s = $(`select[aria-label="${label}"]`); s.value = value; s.dispatchEvent(new w.Event('change')); };
+    const s3 = B.buildSheet(fighter({ level: 3 }));
+    await w.__addEsoCharacter('Kara', { description: 'x' });
+    await w.KLITE_RPMod_Characters.saveSheet('Kara', s3);
+    assert.equal(await w.KLITE_RPMod_Builder.levelUp('Kara'), true); await sleep(20);
+    assert.deepEqual([...doc.querySelectorAll('[data-window="builder"] [data-step]')].map(b => b.getAttribute('data-step')), ['class', 'feats', 'skills', 'review']);
+    click($('[data-step="feats"]'), w);
+    assert.ok($('[data-feat-level="4"]'), 'only the new feat level');
+    choose('Level 4 feat', 'Ability Score Improvement');
+    choose('Level 4 increase 1', 'str'); choose('Level 4 increase 2', 'con');
+    click($('[data-step="review"]'), w);
+    assert.equal($('.rpm-bld-errors'), null, 'nothing missing');
+    click($('[data-bld="create"]'), w); await sleep(80);
+    const up = JSON.parse(await w.indexeddb_load('character_Kara', 'null')).data.extensions.klite_rpmod.sheet;
+    assert.equal(up.level, 4); assert.equal(up.abilities.str, 18); assert.equal(up.abilities.con, 15);
+    assert.equal(up.build.asi[4].feat, 'Ability Score Improvement');
 });

@@ -154,7 +154,7 @@ export const CHAPTERS = [
                 'Every roll goes into the Dice log on the left, and the AI sees the rolls made since its last reply.',
                 'Changes are a draft until you press Save (or turn on autosave in Settings → RPmod). Revert undoes them.',
             ] },
-            { p: 'New characters: "New character" in the gallery (or "Build with the SRD rules" on an empty sheet) opens the character builder — class, background, species, ability scores, skills, equipment — for levels 1 to 3. "Level up" on the sheet takes a built character to the next level and keeps what they own.' },
+            { p: 'New characters: "New character" in the gallery (or "Build with the SRD rules" on an empty sheet) opens the character builder — class, background, species, ability scores, skills, equipment — for levels 1 to 20, with feats at the Ability Score Improvement levels. "Level up" on the sheet takes a built character to the next level and keeps what they own.' },
             { tip: 'Your persona\'s sheet (level, class, HP, AC, skills, inventory) is part of what the AI knows about you.' },
         ],
         show: [

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # =============================================================================
-# SRD 5.2.1 → src/data/srd52.js (character creation data for levels 1–3)
+# SRD 5.2.1 → src/data/srd52.js (character creation data for levels 1–20)
 # -----------------------------------------------------------------------------
 # Source: System Reference Document 5.2.1 by Wizards of the Coast LLC, CC-BY-4.0,
 # downloaded from https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.pdf
@@ -176,6 +176,68 @@ ARMOR = {
     'Half Plate Armor': ('medium', 15, 2), 'Ring Mail': ('heavy', 14, 0), 'Chain Mail': ('heavy', 16, 0), 'Splint Armor': ('heavy', 17, 0), 'Plate Armor': ('heavy', 18, 0),
 }
 
+# Columns of each "<Class> Features" table after the feature names: (key, number of tokens).
+# 'slots' = the spell slot columns (9 for full casters, 5 for half casters).
+TABLE_COLUMNS = {
+    'barbarian': [('rages', 1), ('rageDamage', 1), ('weaponMastery', 1)],
+    'bard': [('bardicDie', 1), ('cantrips', 1), ('prepared', 1), ('slots', 9)],
+    'cleric': [('channelDivinity', 1), ('cantrips', 1), ('prepared', 1), ('slots', 9)],
+    'druid': [('wildShape', 1), ('cantrips', 1), ('prepared', 1), ('slots', 9)],
+    'fighter': [('secondWind', 1), ('weaponMastery', 1)],
+    'monk': [('martialArts', 1), ('focusPoints', 1), ('unarmoredMovement', 2)],
+    'paladin': [('channelDivinity', 1), ('prepared', 1), ('slots', 5)],
+    'ranger': [('favoredEnemy', 1), ('prepared', 1), ('slots', 5)],
+    'rogue': [('sneakAttack', 1)],
+    'sorcerer': [('sorceryPoints', 1), ('cantrips', 1), ('prepared', 1), ('slots', 9)],
+    'warlock': [('invocations', 1), ('cantrips', 1), ('prepared', 1), ('pactSlots', 1), ('slotLevel', 1)],
+    'wizard': [('cantrips', 1), ('prepared', 1), ('slots', 9)],
+}
+SPELL_KEYS = ('cantrips', 'prepared', 'slots', 'pactSlots', 'slotLevel')
+
+def table_value(tokens):
+    t = ' '.join(tokens)
+    if t in ('—', '-'): return None
+    m = re.fullmatch(r'\+(\d+)(?: ft\.)?', t)
+    if m: return int(m.group(1))                       # "+2" rage damage, "+10 ft." movement
+    if re.fullmatch(r'\d+', t): return int(t)
+    return t.lower()                                   # dice: "1d6", "D8" -> "d8"
+
+# The class table (levels 1–20): feature names per level + the class columns. Rows can wrap
+# over several lines ("1 +2 Spellcasting, Ritual Adept, \nArcane Recovery\n3 4 2 — …").
+def extract_table(txt, cid, name):
+    a = txt.index('\n' + name + ' Features\n')
+    head_end = txt.index('\n1 +2 ', a)
+    b = txt.index('\n', txt.index('\n20 +6', a) + 1)
+    rows, cur = [], None
+    for ln in txt[head_end:b].split('\n'):
+        if not ln.strip(): continue
+        m = re.match(r'^(\d+) \+(\d) (.*)$', ln)
+        if m and int(m.group(1)) == len(rows) + 1:
+            cur = [int(m.group(1)), m.group(3)]; rows.append(cur)
+        elif cur: cur[1] += ' ' + ln
+    assert len(rows) == 20, (name, len(rows))
+    cols = TABLE_COLUMNS[cid]
+    table = {}
+    for lvl, rest in rows:
+        toks = rest.split()
+        # read the columns from the right ("+10 ft." is two tokens, "—" one)
+        parts, end = {}, len(toks)
+        for key, n in reversed(cols):
+            if n == 2 and toks[end - 1] != 'ft.': n = 1
+            parts[key] = toks[end - n:end]; end -= n
+        feats = [f.strip().replace('’', "'") for f in re.sub(r'\s+', ' ', ' '.join(toks[:end])).split(',') if f.strip() and f.strip() != '—']
+        row = dict(features=feats)
+        for key, n in cols:
+            part = parts[key]
+            if key == 'slots':
+                row['slots'] = [0 if v in ('—', '-') else int(v) for v in part]
+                while row['slots'] and not row['slots'][-1]: row['slots'].pop()
+            else:
+                v = table_value(part)
+                if v is not None: row[key] = v
+        table[lvl] = row
+    return table
+
 def extract_classes(txt):
     order = [c['name'] for c in CLASSES.values()]
     out = {}
@@ -191,14 +253,15 @@ def extract_classes(txt):
         feats = []
         for m in re.finditer(r'\nLevel (\d+): ([^\n]+)\n(.*?)(?=\nLevel \d+: |$)', main, re.S):
             lvl = int(m.group(1))
-            if lvl <= 3 and not any(f['name'] == m.group(2).strip() for f in feats):
+            if not any(f['name'] == m.group(2).strip() and f['level'] == lvl for f in feats):
                 feats.append(dict(level=lvl, name=m.group(2).strip().replace('’', "'"), text=trim_tail(clean(m.group(3)))))
         sub = []
         for m in re.finditer(r'\nLevel (\d+): ([^\n]+)\n(.*?)(?=\nLevel \d+: |$)', subsec, re.S):
-            if int(m.group(1)) <= 3:
-                sub.append(dict(level=3, name=m.group(2).strip().replace('’', "'"), text=trim_tail(clean(m.group(3)))))
+            if True:
+                sub.append(dict(level=int(m.group(1)), name=m.group(2).strip().replace('’', "'"), text=trim_tail(clean(m.group(3)))))
         intro = clean(subsec[subsec.index('\n', 2):subsec.index('\nLevel ')]) if subsec else []
-        out[cid] = dict(features=feats, subclassFeatures=sub, subclassIntro=[p for p in intro if len(p) > 40][:2])
+        out[cid] = dict(features=feats, subclassFeatures=sub, subclassIntro=[p for p in intro if len(p) > 40][:2],
+                        table=extract_table(txt, cid, name))
     return out
 
 def trim_tail(paras):
@@ -238,13 +301,33 @@ def extract_species(txt):
 
 def extract_feats(txt):
     a = txt.index('\nOrigin Feats\nAlert')
-    s = txt[a:txt.index('\nEpic Boon Feats', a)]   # (the table of contents also lists these headings)
+    s = txt[a:txt.index('\nEquipment\nCoins\n', a)]   # (the table of contents also lists these headings)
+    s = re.sub(r'\nsEllinG EquipMEnt\n.*$', '', s, flags=re.S)
     s = re.sub(r'\n=====PAGE \d+=====\nSystem Reference Document 5\.2\.1\n\d+', '', s)
     out = {}
-    for m in re.finditer(r'\n([A-Z][A-Za-z -]+)\n((?:Origin|General|Fighting Style) Feat[^\n]*(?:\n[^\n]*\))?)\n(.*?)(?=\n[A-Z][A-Za-z -]+\n(?:Origin|General|Fighting Style) Feat|\nGeneral Feats\n|\nFighting Style Feats\n|$)', s, re.S):
+    kinds = r'(?:Origin|General|Fighting Style|Epic Boon) Feat'
+    for m in re.finditer(r'\n([A-Z][A-Za-z -]+)\n(' + kinds + r'[^\n]*(?:\n[^\n]*\)\s*)?)\n(.*?)(?=\n[A-Z][A-Za-z -]+\n' + kinds + r'|\nGeneral Feats\n|\nFighting Style Feats\n|\nEpic Boon Feats\n|$)', s, re.S):
         name = m.group(1).strip()
-        cat = re.sub(r'\s+', ' ', m.group(2)).replace('Dexterit y', 'Dexterity')
-        out[name] = dict(name=name, category=cat, text=clean(m.group(3)))
+        cat = re.sub(r'\s+', ' ', m.group(2)).replace('Dexterit y', 'Dexterity').strip()
+        feat = dict(name=name, category=cat, text=clean(m.group(3)))
+        inc = ability_increase(feat['text'])
+        if inc: feat['increase'] = inc
+        out[name] = feat
+    return out
+
+# "Increase one ability score of your choice by 1, to a maximum of 30." → structured increase.
+ABIL = dict(strength='str', dexterity='dex', constitution='con', intelligence='int', wisdom='wis', charisma='cha')
+def ability_increase(paras):
+    for p in paras:
+        m = re.search(r'Increase (one ability score of your choice|your ([A-Za-z, ]+?) score) by (\d)(?:, to a maximum of (\d+))?', p)
+        if not m: continue
+        opts = 'any' if m.group(1).startswith('one') else [ABIL[w.lower()] for w in re.findall(r'[A-Z][a-z]+', m.group(2)) if w.lower() in ABIL]
+        mx = re.search(r'(?:to a maximum of|above) (\d+)', p)
+        return dict(choose=opts, by=int(m.group(3)), max=int(mx.group(1)) if mx else 20)
+    return None
+
+def _unused():
+    out = {}
     return out
 
 def main():
@@ -264,11 +347,30 @@ def main():
     texts = extract_classes(txt)
     for cid, c in CLASSES.items():
         c = dict(c); c['skills'] = dict(choose=c['skills']['choose'], options=c['skills']['from_'])
-        c.update(texts[cid]); data['classes'][cid] = c
+        t = texts[cid]; table = t['table']
+        for lvl in (1, 2, 3):   # the parsed table must agree with the hand-checked level 1–3 values
+            hand = c.get('columns', {}).get(lvl, {})
+            for k, v in hand.items():
+                got = table[lvl].get(k)
+                assert str(got).lower() == str(v).lower(), (cid, lvl, k, got, v)
+            if c.get('spellcasting'):
+                h = c['spellcasting']['levels'][lvl]; row = table[lvl]
+                slots = [0] * (row['slotLevel'] - 1) + [row['pactSlots']] if c['spellcasting'].get('pact') else row['slots']
+                assert h['slots'] == slots and h['prepared'] == row['prepared'] and h['cantrips'] == row.get('cantrips', 0), (cid, lvl, h, row)
+        c['columns'] = {l: {k: v for k, v in r.items() if k not in SPELL_KEYS and k != 'features'} for l, r in table.items()}
+        c['columns'] = {l: v for l, v in c['columns'].items() if v}
+        if c.get('spellcasting'):
+            sp = dict(c['spellcasting']); lv = {}
+            for l, r in table.items():
+                if sp.get('pact'): lv[l] = dict(cantrips=r.get('cantrips', 0), prepared=r['prepared'], slots=[0] * (r['slotLevel'] - 1) + [r['pactSlots']], slotLevel=r['slotLevel'])
+                else: lv[l] = dict(cantrips=r.get('cantrips', 0), prepared=r['prepared'], slots=r['slots'])
+            sp['levels'] = lv; c['spellcasting'] = sp
+        c['levels'] = {l: r['features'] for l, r in table.items()}
+        c.update({k: v for k, v in t.items() if k != 'table'}); data['classes'][cid] = c
     js = ('// GENERATED by scripts/extract-srd.py from the SRD 5.2.1 PDF — do not edit; re-run the script.\n'
           '// ' + ATTRIBUTION + '\n'
-          '// Character creation data for levels 1–3 (classes, subclasses, backgrounds, species, origin and\n'
-          '// fighting-style feats, weapons, armor).\n'
+          '// Character creation data for levels 1–20 (classes with their tables and features, SRD subclasses,\n'
+          '// backgrounds, species, feats incl. epic boons, weapons, armor).\n'
           'export const SRD = ' + json.dumps(data, indent=1, ensure_ascii=False) + ';\n')
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     open(OUT, 'w').write(js)

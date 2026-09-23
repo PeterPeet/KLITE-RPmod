@@ -186,7 +186,7 @@ export default function initCharacters() {
         ]));
         root.appendChild(el('div', { class: 'rpm-row', style: 'margin:2px 0 6px;flex-wrap:wrap' }, [
             el('span', { class: 'rpm-muted rpm-grow', text: `Proficiency bonus ${fmt(D.pb)} · XP ${s.xp}${s.alignment ? ' · ' + s.alignment : ''}` }),
-            s.build && s.level < 3 && window.KLITE_RPMod_Builder ? btn('Level up', () => {
+            s.build && s.level < 20 && window.KLITE_RPMod_Builder ? btn('Level up', () => {
                 if (dirty() && !confirm('Level up uses the saved sheet; discard unsaved changes?')) return;
                 window.KLITE_RPMod_Builder.levelUp(V.name);
             }, { icon: 'sparkles', title: `Rebuild at level ${s.level + 1} with the builder (keeps inventory, coins and notes)` }) : null,
@@ -266,7 +266,7 @@ export default function initCharacters() {
             sp.slots.forEach((n, i) => {
                 if (!n) return;
                 const used = (sp.used && sp.used[i]) || 0;
-                slotRow.appendChild(el('span', { class: 'rpm-label', text: `${sp.pact ? 'Pact slots' : 'Level ' + (i + 1)}:` }));
+                slotRow.appendChild(el('span', { class: 'rpm-label', text: `${sp.pact ? `Pact slots (level ${i + 1})` : 'Level ' + (i + 1)}:` }));
                 for (let k = 0; k < n; k++) {
                     const c = el('input', { type: 'checkbox', 'aria-label': `${sp.pact ? 'Pact' : 'Level ' + (i + 1)} slot ${k + 1} used` });
                     c.checked = k < used;

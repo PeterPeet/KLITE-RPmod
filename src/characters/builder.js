@@ -1,8 +1,8 @@
 // =============================================================================
-// KLITE RPmod — Character builder window (SRD 5.2.1, levels 1–3)
+// KLITE RPmod — Character builder window (SRD 5.2.1, levels 1–20)
 // -----------------------------------------------------------------------------
-// Step by step: Class → Background → Species → Ability scores → Skills & choices →
-// Equipment → Details & review. Every option shows its SRD text. "Create" makes a new
+// Step by step: Class → Background → Species → Ability scores → Feats (from level 4) →
+// Skills & choices → Equipment → Details & review. Every option shows its SRD text. "Create" makes a new
 // character in Esolite's Library with the sheet on its card, or puts the sheet on an
 // existing character; "Level up" (from the sheet window) rebuilds the stored choices one
 // level higher, asking only what is new, and keeps inventory, coins and notes.
@@ -17,7 +17,7 @@ import * as R from './builder-rules.js';
 import { saveCharacter, characterNames } from '../library/esoliteLibrary.js';
 import { writeSheet } from './sheet.js';
 
-const STEPS = [['class', 'Class'], ['background', 'Background'], ['species', 'Species'], ['abilities', 'Abilities'], ['skills', 'Skills & choices'], ['equipment', 'Equipment'], ['review', 'Details & review']];
+const STEPS = [['class', 'Class'], ['background', 'Background'], ['species', 'Species'], ['abilities', 'Abilities'], ['feats', 'Feats'], ['skills', 'Skills & choices'], ['equipment', 'Equipment'], ['review', 'Details & review']];
 const SKILL_NAME = Object.fromEntries(SKILLS.map(s => [s.id, s.name]));
 const SPECIES_OPTIONS = {
     dragonborn: { label: 'Draconic ancestry', options: ['Black (Acid)', 'Blue (Lightning)', 'Brass (Fire)', 'Bronze (Lightning)', 'Copper (Acid)', 'Gold (Fire)', 'Green (Poison)', 'Red (Fire)', 'Silver (Cold)', 'White (Cold)'] },
@@ -27,7 +27,7 @@ const SPECIES_OPTIONS = {
     human: { label: 'Size', options: ['Medium', 'Small'] },
     tiefling: { label: 'Fiendish legacy', options: ['Abyssal', 'Chthonic', 'Infernal'] },
 };
-const ORIGIN_FEATS = ['Alert', 'Magic Initiate', 'Savage Attacker', 'Skilled'];
+const ORIGIN_FEATS = R.ORIGIN_FEATS;
 
 export default function initBuilder() {
     'use strict';
@@ -69,8 +69,11 @@ export default function initBuilder() {
 
     // ---- steps --------------------------------------------------------------------------------
     function stepClass(root) {
-        const lvl = el('div', { class: 'rpm-row' }, [el('span', { class: 'rpm-label', text: 'Level' }), ...[1, 2, 3].map(n => btn(String(n), () => set('level', n), { cls: V.c.level === n ? 'rpm-on' : '', id: 'level-' + n }))]);
-        root.appendChild(lvl);
+        if (!V.levelUp) {
+            const lvl = select(Array.from({ length: R.MAX_LEVEL }, (_, i) => ({ value: String(i + 1), text: `Level ${i + 1}` })), String(V.c.level), v => set('level', Number(v) || 1), 'Level');
+            lvl.setAttribute('data-bld', 'level'); lvl.style.width = 'auto';
+            root.appendChild(el('div', { class: 'rpm-row' }, [el('span', { class: 'rpm-label', text: 'Start at' }), lvl]));
+        }
         root.appendChild(el('div', { class: 'rpm-bld-grid' }, Object.entries(SRD.classes).map(([id, c]) =>
             pickCard(id, c.name, `d${c.hitDie} · ${c.primary.map(a => ABILITY_NAMES[a]).join(' & ')}`, V.c.class === id, () => { V.c.classSkills = []; V.c.expertise = []; V.c.fightingStyle = undefined; V.c.classEquipment = 'A'; set('class', id); }))));
         const c = SRD.classes[V.c.class]; if (!c) return;
@@ -81,8 +84,9 @@ export default function initBuilder() {
             `Subclass at level 3: ${c.subclass}`,
         ];
         root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: c.name }), ...lines.map(para),
-            ...c.features.filter(f => f.level <= V.c.level && !/ Subclass$/.test(f.name)).map(f => details(`Level ${f.level}: ${f.name}`, texts(f.text))),
-            ...(V.c.level >= 3 ? c.subclassFeatures.map(f => details(`${c.subclass}: ${f.name}`, texts(f.text))) : []),
+            R.classResources(V.c) ? para(`At level ${V.c.level}: ${R.classResources(V.c)}`) : null,
+            ...c.features.filter(f => f.level <= V.c.level && !/ Subclass$/.test(f.name)).map(f => details(`Level ${f.level}: ${f.name}`, texts(f.text), V.levelUp && f.level === V.c.level)),
+            ...c.subclassFeatures.filter(f => f.level <= V.c.level).map(f => details(`${c.subclass} ${f.level}: ${f.name}`, texts(f.text), V.levelUp && f.level === V.c.level)),
         ]));
     }
     function stepBackground(root) {
@@ -156,7 +160,41 @@ export default function initBuilder() {
         if (exp) root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: `Expertise — choose ${exp} of your skills` }), checkList(R.proficientSkills(V.c), V.c.expertise, exp, v => set('expertise', v), 'Expertise')]));
         if (R.fightingStyleAt(V.c)) root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: 'Fighting Style' }),
             el('div', { class: 'rpm-bld-grid' }, R.FIGHTING_STYLES.map(f => pickCard(f, f, (SRD.feats[f] ? SRD.feats[f].text[0] : '').slice(0, 90), V.c.fightingStyle === f, () => set('fightingStyle', f))))]));
+        if (R.secondFightingStyleAt(V.c)) root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: 'Additional Fighting Style (Champion 7)' }),
+            el('div', { class: 'rpm-bld-grid' }, R.FIGHTING_STYLES.filter(f => f !== V.c.fightingStyle).map(f => pickCard('2-' + f, f, (SRD.feats[f] ? SRD.feats[f].text[0] : '').slice(0, 90), V.c.fightingStyle2 === f, () => set('fightingStyle2', f))))]));
+        if (V.levelUp) return;   // languages were chosen at level 1
         root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: 'Languages — Common plus two' }), checkList(SRD.languages.standard, V.c.languages, 2, v => set('languages', v), 'Languages')]));
+    }
+    // Feats at Ability Score Improvement / Epic Boon levels. Level up shows only the new one.
+    function stepFeats(root) {
+        const fromLevel = V.levelUp && V.previous ? (Number(V.previous.level) || 0) + 1 : 1;
+        const list = R.featLevels(V.c).filter(x => x.level >= fromLevel);
+        if (!list.length) { root.appendChild(para('No feat to choose at this level.')); return; }
+        root.appendChild(para('At these levels your class gives you a feat. "Ability Score Improvement" raises one score by 2 or two scores by 1 (maximum 20).'));
+        const scores = R.finalAbilities(V.c);
+        root.appendChild(el('div', { class: 'rpm-muted', text: 'Scores now: ' + ABILITIES.map(a => `${a.toUpperCase()} ${scores[a]}`).join(' · ') }));
+        for (const { level, kind } of list) {
+            V.c.asi = V.c.asi || {};
+            const pick = V.c.asi[level] || {};
+            const upd = (patch) => { V.c.asi = Object.assign({}, V.c.asi, { [level]: Object.assign({}, pick, patch) }); render(); };
+            const featSel = select(R.featOptions(V.c, level).map(f => ({ value: f, text: `${f} — ${(SRD.feats[f] || {}).category || ''}`.replace(/ — $/, '') })), pick.feat, v => upd({ feat: v, abilities: [], skills: [] }), `Level ${level} feat`);
+            featSel.setAttribute('data-bld', 'feat-' + level);
+            const box = el('div', { class: 'rpm-bld-detail', 'data-feat-level': String(level) }, [
+                el('h3', { text: `Level ${level}: ${kind === 'boon' ? 'Epic Boon' : 'Ability Score Improvement'}` }), featSel]);
+            const need = pick.feat ? R.featNeeds(pick.feat) : null;
+            if (need && need.picks) {
+                const opts = need.choose.map(a => ({ value: a, text: ABILITY_NAMES[a] }));
+                box.appendChild(el('div', { class: 'rpm-sheet-grid4' }, Array.from({ length: need.picks }, (_, i) =>
+                    el('label', { class: 'rpm-sheet-field' }, [el('span', { class: 'rpm-label', text: `+${need.by}${need.picks > 1 ? ` (${i + 1})` : ''}` }),
+                        select(opts, (pick.abilities || [])[i], v => { const ab = (pick.abilities || []).slice(); ab[i] = v; upd({ abilities: ab }); }, `Level ${level} increase ${i + 1}`)]))));
+            }
+            if (need && need.skills) {
+                const taken = new Set(R.proficientSkills(Object.assign({}, V.c, { asi: Object.assign({}, V.c.asi, { [level]: Object.assign({}, pick, { skills: [] }) }) })));
+                box.appendChild(checkList(SKILLS.map(k => k.id).filter(k => !taken.has(k) || (pick.skills || []).includes(k)), pick.skills, need.skills, v => upd({ skills: v }), `Level ${level} Skilled`));
+            }
+            if (pick.feat && SRD.feats[pick.feat]) box.appendChild(details(pick.feat, texts(SRD.feats[pick.feat].text), false));
+            root.appendChild(box);
+        }
     }
     function stepEquipment(root) {
         const cls = SRD.classes[V.c.class], bg = SRD.backgrounds[V.c.background];
@@ -226,14 +264,16 @@ export default function initBuilder() {
         const scrollTop = box.scrollTop; clear(box);
         const root = el('div', { class: 'rpm-bld' });
         box.appendChild(root);
-        const steps = V.levelUp ? STEPS.filter(([id]) => id === 'class' || id === 'skills' || id === 'review') : STEPS;
+        const fromLevel = V.levelUp && V.previous ? (Number(V.previous.level) || 0) + 1 : 1;
+        const hasFeats = R.featLevels(V.c).some(x => x.level >= fromLevel);
+        const steps = (V.levelUp ? STEPS.filter(([id]) => id === 'class' || id === 'feats' || id === 'skills' || id === 'review') : STEPS).filter(([id]) => id !== 'feats' || hasFeats);
         if (V.step >= steps.length) V.step = steps.length - 1;
         root.appendChild(el('ol', { class: 'rpm-bld-steps' }, steps.map(([id, t], i) => el('li', {}, [el('button', { type: 'button', class: 'rpm-gal-chip' + (i === V.step ? ' rpm-on' : ''), 'aria-current': i === V.step ? 'step' : null, 'data-step': id, text: `${i + 1}. ${t}`, onclick: () => { V.step = i; render(); } })]))));
-        if (V.levelUp) root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: `Level up: ${V.levelUp} → level ${V.c.level}` }), para('Your new features are listed below. Make any new choices on the "Skills & choices" step, then confirm on the last step.')]));
+        if (V.levelUp) root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: `Level up: ${V.levelUp} → level ${V.c.level}` }), para('Your new features are open below. Make any new choices (feat, skills), then confirm on the last step.')]));
         const body = el('div', { class: 'rpm-bld-body' });
         root.appendChild(body);
         const id = steps[V.step][0];
-        ({ class: stepClass, background: stepBackground, species: stepSpecies, abilities: stepAbilities, skills: stepSkills, equipment: stepEquipment, review: stepReview })[id](body);
+        ({ class: stepClass, background: stepBackground, species: stepSpecies, abilities: stepAbilities, feats: stepFeats, skills: stepSkills, equipment: stepEquipment, review: stepReview })[id](body);
         const last = V.step === steps.length - 1;
         root.appendChild(el('div', { class: 'rpm-row rpm-bld-nav' }, [
             btn('Back', () => { V.step = Math.max(0, V.step - 1); render(); }, { icon: 'arrow-left', disabled: V.step === 0, id: 'back' }),
@@ -269,7 +309,7 @@ export default function initBuilder() {
             const C = window.KLITE_RPMod_Characters;
             const sheet = C ? await C.loadSheet(name) : null;
             const next = R.nextLevelChoices(sheet);
-            if (!next) { alert(sheet && sheet.build ? 'The builder covers levels 1–3 for now.' : 'This sheet was not made with the builder; edit it by hand.'); return false; }
+            if (!next) { alert(sheet && sheet.build ? 'This character is already level 20.' : 'This sheet was not made with the builder; edit it by hand.'); return false; }
             V.c = next; V.levelUp = name; V.previous = sheet; V.target = name; V.step = 0;
             Shell()?.open('builder'); render();
             return true;

@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 120 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 124 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -41,13 +41,13 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
 
 | From | Feature | Now |
 |---|---|---|
-| D&D Beyond | Step-by-step character builder | ❌ |
-| | Interactive sheet (modifiers, saves, skills, AC) | 🟡 raw stat block |
+| D&D Beyond | Step-by-step character builder | ✅ levels 1–20 (spell picking missing) |
+| | Interactive sheet (modifiers, saves, skills, AC) | ✅ click-to-roll, stored in the card |
 | | Rules compendium | 🟡 6 monsters (SRD 5.1) |
 | | Encounter builder with difficulty | 🟡 no XP budget |
 | | Combat tracker | ✅ basic (no conditions, spell slots, death saves) |
-| | Click-to-roll + game log | 🟡 roller + combat log only |
-| | Leveling / XP | ❌ |
+| | Click-to-roll + game log | ✅ dice log the AI sees (combat log separate) |
+| | Leveling / XP | 🟡 level up 1–20; XP is not awarded yet |
 | SillyTavern | Character cards V1/V2/V3 | ✅ V2, 🟡 V3 (ALPHA) |
 | | Personas, group chat | ✅ ALPHA |
 | | World Info / lorebooks | ✅ Esolite + Worlds graph |
@@ -285,8 +285,20 @@ play test with a real backend, owner's decision 2026-09-23).
       object). The stored record is unchanged. Still to do by hand: import into SillyTavern.
       Characters **without a portrait** download through Esolite as the bare inner object
       (SillyTavern then drops `extensions`, i.e. the sheet) — one of the points for Jaxxks.
+- [x] **Levels 4–20** (2026-09-23): `extract-srd.py` now parses the 12 class tables (features,
+      class resources, spell slots per level 1–20; level 1–3 results asserted against the old
+      hand-checked values), all class/subclass feature levels and the 7 Epic Boon feats.
+      Builder: start at any level, **Feats** step at Ability Score Improvement / Epic Boon levels
+      (ASI +2 or +1/+1 max 20, Grappler, origin feats, fighting styles, boons max 30, with
+      prerequisites and "already have it" checks), expertise at Rogue 6 / Bard 9 / Ranger 9,
+      Champion's second fighting style, capstones, extra saves, movement, class resources on the
+      sheet. Fixes found on the way: **Draconic Resilience HP** was missing (sorcerer 3+);
+      **level up dropped the spells** written on the sheet (now kept, with used slots); level up
+      computed AC/attacks from the starting equipment instead of the current inventory.
+      Not modelled (text only): Alert's initiative bonus, Jack of All Trades, Cleric/Druid
+      order choices, Magic Initiate spells. Live-checked.
 - **Next (R2):** spells from the SRD spell list (pick cantrips/prepared spells — with R3's
-  compendium), levels 4+ (ASI/feats), SillyTavern import round trip.
+  compendium), SillyTavern import round trip (owner).
 - One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,
   background, abilities, proficiencies, skills, saves, AC, HP, speed, equipment,
   inventory, spells, features). Migration from existing `characterRef` + `stats`.
