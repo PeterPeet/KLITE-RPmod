@@ -92,3 +92,21 @@ test('bundle: editing and importing in the RPmod gallery keeps characters in the
     await CH.deleteCharacterByName('Nia');
     assert.deepEqual(names(w), ['Bram#Bram']);
 });
+
+test('library: the exported V2 card has every required field; stored data unchanged; bad lorebook left out', async (t) => {
+    const h = await libHost(t); const L = h.window.KLITE_RPMod_Library;
+    const inner = { name: 'Kira', description: 'A thief.', tags: 'not-an-array', character_version: 2, character_book: 'MyWIGroup',
+        extensions: { klite_rpmod: { sheet: { level: 1 } } } };
+    const card = plain(L.v2Card(inner));
+    assert.equal(card.spec, 'chara_card_v2'); assert.equal(card.spec_version, '2.0');
+    const strings = ['name', 'description', 'personality', 'scenario', 'first_mes', 'mes_example', 'creator_notes', 'system_prompt', 'post_history_instructions', 'creator', 'character_version'];
+    for (const k of strings) assert.equal(typeof card.data[k], 'string', k);
+    assert.deepEqual(card.data.alternate_greetings, []); assert.deepEqual(card.data.tags, []);
+    assert.equal(card.data.character_version, '2');
+    assert.equal(card.data.extensions.klite_rpmod.sheet.level, 1, 'extensions kept');
+    assert.equal('character_book' in card.data, false, 'a WI group name is not a lorebook');
+    assert.equal(card.data.description, 'A thief.');
+    assert.equal(inner.tags, 'not-an-array', 'input not changed');
+    const book = { entries: [] };
+    assert.deepEqual(plain(L.v2Card({ name: 'X', character_book: book }).data.character_book), book, 'a real lorebook stays');
+});

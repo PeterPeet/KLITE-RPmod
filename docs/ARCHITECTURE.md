@@ -356,6 +356,8 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
 - **Portrait = exported card:** `esoliteLibrary.embedCardInImage` strips old `chara`/`ccv3`
   tEXt chunks (Esolite's `injectTextChunk` only appends; readers take the first) and embeds
   a V2 card (spec + data, V1 fields mirrored) with Esolite's `tavernTool.embedIntoPng`.
+  `v2Card` completes the required V2 `data` fields with empty values and drops a non-object
+  `character_book` (ALPHA stores a WI group name there); only the exported copy changes.
 - **Window** `sheet` (`characters.js`): draft vs saved, Save/Revert, setting
   `sheets_autosave` (Characters), `beforeClose` asks; re-render keeps focus + selection;
   one-line inputs carry `fullScreenTextEditExclude` (Esolite's full-screen edit button stays

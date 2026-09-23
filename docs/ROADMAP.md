@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 119 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 120 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -279,6 +279,12 @@ play test with a real backend, owner's decision 2026-09-23).
       characters (favorites first) as shortcuts into the gallery; ALPHA's second gallery grid is
       no longer shown (its code stays as a fallback until ALPHA's CHARS code is removed). The
       gallery gained **Import** (Esolite's importer) and refreshes on Library writes. Live-checked.
+- [x] **Exported card = complete V2** (2026-09-23): the card embedded in the portrait PNG fills
+      every field the V2 spec requires (empty values; builder/editor cards lacked several) and
+      leaves out ALPHA's WI-group *name* stored in `character_book` (the spec wants a lorebook
+      object). The stored record is unchanged. Still to do by hand: import into SillyTavern.
+      Characters **without a portrait** download through Esolite as the bare inner object
+      (SillyTavern then drops `extensions`, i.e. the sheet) — one of the points for Jaxxks.
 - **Next (R2):** spells from the SRD spell list (pick cantrips/prepared spells — with R3's
   compendium), levels 4+ (ASI/feats), SillyTavern import round trip.
 - One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,

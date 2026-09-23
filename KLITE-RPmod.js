@@ -1497,8 +1497,30 @@ ${s.text}` : s.text : `[${s.title}]`;
   }
   var storageKey = (id) => `character_${id}`;
   var CARD_KEYS = /* @__PURE__ */ new Set(["chara", "ccv3", "chara_encoding", "chara_spec"]);
+  var V2_DEFAULTS = {
+    name: "",
+    description: "",
+    personality: "",
+    scenario: "",
+    first_mes: "",
+    mes_example: "",
+    creator_notes: "",
+    system_prompt: "",
+    post_history_instructions: "",
+    alternate_greetings: [],
+    tags: [],
+    creator: "",
+    character_version: "",
+    extensions: {}
+  };
   function v2Card(inner) {
-    const d = inner || {};
+    const src = inner && typeof inner === "object" ? inner : {};
+    const d = Object.assign({}, src);
+    for (const [k2, v] of Object.entries(V2_DEFAULTS)) {
+      const ok = Array.isArray(v) ? Array.isArray(d[k2]) : v && typeof v === "object" ? d[k2] && typeof d[k2] === "object" && !Array.isArray(d[k2]) : typeof d[k2] === "string";
+      if (!ok) d[k2] = Array.isArray(v) ? [] : v && typeof v === "object" ? {} : d[k2] == null ? "" : String(d[k2]);
+    }
+    if ("character_book" in d && !(d.character_book && typeof d.character_book === "object" && !Array.isArray(d.character_book))) delete d.character_book;
     return {
       spec: "chara_card_v2",
       spec_version: "2.0",

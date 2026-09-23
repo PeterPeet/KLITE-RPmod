@@ -43,8 +43,21 @@ const storageKey = (id) => `character_${id}`;
 // The card is embedded as V2 (spec + data, V1 fields mirrored) so `data.extensions` (where
 // the RPmod sheet lives) survives SillyTavern/Chub imports; Esolite's importer reads both.
 const CARD_KEYS = new Set(['chara', 'ccv3', 'chara_encoding', 'chara_spec']);
+// Required fields of a TavernCard V2 `data` object and their empty values (spec
+// "chara_card_v2"); strict importers reject a card that lacks one. Only the exported copy is
+// completed — the stored record stays as it is.
+const V2_DEFAULTS = { name: '', description: '', personality: '', scenario: '', first_mes: '', mes_example: '',
+    creator_notes: '', system_prompt: '', post_history_instructions: '', alternate_greetings: [], tags: [],
+    creator: '', character_version: '', extensions: {} };
 export function v2Card(inner) {
-    const d = inner || {};
+    const src = inner && typeof inner === 'object' ? inner : {};
+    const d = Object.assign({}, src);
+    for (const [k, v] of Object.entries(V2_DEFAULTS)) {
+        const ok = Array.isArray(v) ? Array.isArray(d[k]) : (v && typeof v === 'object') ? (d[k] && typeof d[k] === 'object' && !Array.isArray(d[k])) : typeof d[k] === 'string';
+        if (!ok) d[k] = Array.isArray(v) ? [] : (v && typeof v === 'object') ? {} : (d[k] == null ? '' : String(d[k]));
+    }
+    // optional lorebook must be an object (ALPHA's editor stores a WI group name or null here)
+    if ('character_book' in d && !(d.character_book && typeof d.character_book === 'object' && !Array.isArray(d.character_book))) delete d.character_book;
     return { spec: 'chara_card_v2', spec_version: '2.0', name: d.name || '', description: d.description || '', personality: d.personality || '',
         scenario: d.scenario || '', first_mes: d.first_mes || '', mes_example: d.mes_example || '', data: d };
 }
