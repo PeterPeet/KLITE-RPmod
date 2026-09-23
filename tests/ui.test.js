@@ -95,7 +95,7 @@ test('editor: event triggers, person character link, themed preview', async (t) 
     selectNode(h, p.id);
     const sel = [...ov().querySelectorAll('select')].find(s => [...s.options].some(o => o.text === 'Captain Rowan'));
     assert.ok(sel, 'character-link dropdown lists library characters');
-    sel.value = 'c1'; sel.dispatchEvent(new w.Event('change'));
+    sel.value = 'Captain Rowan'; sel.dispatchEvent(new w.Event('change'));
     assert.equal(W.personName(p.id), 'Captain Rowan');
 
     click(findButton(ov(), /Preview/), w);

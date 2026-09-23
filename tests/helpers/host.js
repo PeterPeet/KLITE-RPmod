@@ -15,6 +15,7 @@ const FILES = {
     worlds: 'src/KLITE-RPmod_Worlds.js',
     worldsUI: 'src/KLITE-RPmod_WorldsUI.js',
     onboarding: 'src/onboarding/onboarding.js',
+    library: 'src/library/esoliteLibrary.js',
     bundle: 'KLITE-RPmod.js',
 };
 
@@ -88,6 +89,29 @@ function createHost({ settings = {} } = {}) {
             popupUtils.contentElem = content;
         };
         window.showQuickStartPopup = showQuickStartPopup;
+    `);
+
+    // Stand-in for Esolite 1.35's Library storage (index.html): id-based records under
+    // `character_<id>`, the `let allCharacterNames` list, updateCharacterListFromAll() that
+    // drops entries without an id, and indexeddb_save/load that leave a localStorage marker
+    // per key like the real ones. Records live in window.__idb (a Map).
+    host.installFakeLibrary = () => host.eval(`
+        const STORAGE_PREFIX = 'kaihordewebui_';
+        var __idb = new Map();
+        let allCharacterNames = [];
+        function indexeddb_save(k, v) { v = v ? String(v) : ''; __idb.set(k, v); localStorage.setItem(STORAGE_PREFIX + k, 'offload_to_indexeddb'); return Promise.resolve(); }
+        function indexeddb_load(k, d) { return Promise.resolve(__idb.has(k) ? __idb.get(k) : d); }
+        function normalizeCharacterStorageName(v, f = 'Untitled') { let n = String(v || '').replaceAll(/[^\\w()_\\-'",!\\[\\].]/g, ' ').replaceAll(/\\s+/g, ' ').trim(); return n || f; }
+        function getCharacterStorageKey(id) { return 'character_' + id; }
+        function findCharacterMetaById(id) { return allCharacterNames.find(m => String(m && m.id || '') === String(id || '')); }
+        function findCharacterMetaByName(n) { const t = normalizeCharacterStorageName(n); return allCharacterNames.find(m => normalizeCharacterStorageName(m && m.name) === t); }
+        function getNextAutoincrementName(p) { const b = normalizeCharacterStorageName(p); const used = new Set(allCharacterNames.map(m => normalizeCharacterStorageName(m && m.id))); if (!used.has(b)) return b; let i = 1; while (used.has(b + '_' + i)) i++; return b + '_' + i; }
+        function resolveCharacterNameAndId(raw, f = 'Untitled') { let n = normalizeCharacterStorageName(raw, f); let ex = findCharacterMetaByName(n); if (ex) { n = getNextAutoincrementName(n); ex = undefined; } return { name: n, id: n, existingMeta: ex }; }
+        function upsertCharacterMetadata(meta) { if (!meta || !meta.id || !meta.name) return; const i = allCharacterNames.findIndex(e => String(e && e.id || '') === String(meta.id)); const fav = i >= 0 ? !!allCharacterNames[i].favorite : !!meta.favorite; const next = Object.assign({}, meta, { favorite: fav }); if (i >= 0) allCharacterNames[i] = next; else allCharacterNames.push(next); }
+        function updateCharacterListFromAll() { const m = new Map(); for (const e of allCharacterNames) { if (!e || !e.id || !e.name) continue; m.set(e.id, Object.assign({}, m.get(e.id) || {}, e)); } allCharacterNames = [...m.values()].sort((a, b) => a.name > b.name ? 1 : -1); return indexeddb_save('characterList', JSON.stringify(allCharacterNames)); }
+        function getCharacterData(n) { const meta = findCharacterMetaById(n) || findCharacterMetaByName(n); const k = getCharacterStorageKey(meta ? meta.id : normalizeCharacterStorageName(n)); return indexeddb_load(k, '{}').then(r => JSON.parse(r || '{}')); }
+        async function __addEsoCharacter(name, inner, extra) { const id = normalizeCharacterStorageName(name); await indexeddb_save('character_' + id, JSON.stringify(Object.assign({ id, name: id, data: Object.assign({ name: id }, inner) }, extra || {}))); upsertCharacterMetadata({ id, name: id, type: 'Character' }); await updateCharacterListFromAll(); return id; }
+        window.__lib = () => allCharacterNames;
     `);
 
     // Deterministic Math.random inside the page context (for dice tests).

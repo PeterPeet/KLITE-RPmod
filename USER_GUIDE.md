@@ -53,6 +53,12 @@ chatting. Everything below explains how to build your own.
 
 - **Chars / Roles / Scenario / Tools tabs** (right panel): manage characters, personas and
   groups, scenarios, context tools, and image generation.
+- **Your characters live in Esolite's Library.** The **Chars** tab is RPmod's gallery view
+  of that same Library (portraits, tags, ratings, search); importing, editing or deleting
+  there changes the Library. *Fixed 2026-09-23:* with Esolite 1.35, an older RPmod version
+  hid characters you edited or imported in the Chars tab from the Library (their data was
+  kept). RPmod now puts such characters back on the list automatically when the page
+  loads; if a name was taken meanwhile, the returned one gets `_1` appended.
 - **Guide** — RPmod's built-in tutorial (see *New here?* above). The older *Guided RP*
   setup overlay has been retired; Esolite's **Quick Start** plus the Guide replace it.
   Stories saved with Guided RP keep their data.
@@ -191,7 +197,7 @@ the current state the new base, and **Swap** to switch which is active. Both tra
 save and export.
 
 **Persons = characters.** In the editor, an NPC can be **linked to a character** from your
-CHARS library (its TavernCard text is reused) and given an optional **d20 stat block**
+Library (its TavernCard text is reused) and given an optional **d20 stat block**
 (abilities, AC, HP, attacks). Stats feed combat and appear in the AI's context near that NPC.
 
 **Quests (WoW-style).** Add **Quest** nodes with a **giver** (`!`) and **turn-in** person

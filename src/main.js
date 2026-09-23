@@ -12,9 +12,11 @@ import initAlpha from './KLITE-RPmod_ALPHA.js';
 import initWorlds from './KLITE-RPmod_Worlds.js';
 import initWorldsUI from './KLITE-RPmod_WorldsUI.js';
 import initOnboarding from './onboarding/onboarding.js';
+import initLibrary from './library/esoliteLibrary.js';
 
 const MODULES = [
     ['shell/shell.js', initShell],
+    ['library/esoliteLibrary.js', initLibrary],
     ['KLITE-RPmod_ALPHA.js', initAlpha],
     ['KLITE-RPmod_Worlds.js', initWorlds],
     ['KLITE-RPmod_WorldsUI.js', initWorldsUI],

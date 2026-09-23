@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 73 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 79 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -99,8 +99,15 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
     `window.quickStartExtensions` — implemented for Esobold on branch
     `quickstart-extensions` (pushed to fork PeterPeet/esobold), PR to be opened. RPmod already prefers the
     hook (verified live).
-15. **Two character libraries**: ALPHA's (`KLITE_RPMod.characters`) and Esolite's Library
-    (`characterManager.js`, used by Quick Start). Overlap noted by Jaxxks; resolve in R2.
+15. ~~Two character libraries~~ — decided: Esolite's Library is the master; ALPHA's
+    `KLITE_RPMod.characters` is a gallery view rebuilt from it (plus RPmod-only rating/
+    talkativeness/tag cache in `characters_v3`). Remaining (R2): gallery ids are list
+    positions — key RPmod extras and links by the Library `id`; ALPHA still polls every
+    5 s (`rebuildFromEsolite`) instead of only reacting to Esolite's events.
+16. **Esolite 1.35 Library internals used by RPmod** (`resolveCharacterNameAndId`,
+    `upsertCharacterMetadata`, `updateCharacterListFromAll`, `findCharacterMetaByName`,
+    `getNextAutoincrementName`, `STORAGE_PREFIX`, `allCharacterNames`): recheck on every host
+    upgrade; a small official save/delete API would be a good next proposal to Jaxxks.
 
 ## Phases
 
@@ -173,8 +180,18 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
       into the input box) and the panels-only-disabled `chat_submit_generation` wrapper.
       Group-chat triggers run as one context turn (`run`). Known issue 4 resolved.
       Live-checked the hook chain in Esolite (no backend).
-- **Next:** ALPHA's own character library vs Esolite's Library (overlap Jaxxks pointed
-  out — decide in R2); icon set.
+- [x] **Character store decided + data-loss bug fixed** (2026-09-23): Esolite's Library is
+      the master (USERSTORY decision); ALPHA's gallery is a Chub.ai-style view on it.
+      Found that on Esolite 1.35 ALPHA's gallery **edit and import made characters vanish
+      from the Library** (it wrote `character_<name>` and id-less list entries, which 1.35's
+      `updateCharacterListFromAll` drops; the record stayed in storage). New
+      `src/library/esoliteLibrary.js` writes through Esolite's own id-based functions
+      (edit keeps id + favorite, rename keeps id, import follows Esolite's `Name_1` rule,
+      delete by id) and **recovers orphans** once per load (only id-less, unreferenced
+      TavernCard records; waits for Esolite's id migration). Worlds now resolves linked
+      characters by name first (gallery ids are list positions) and the editor dropdown
+      links by name (the numeric id never matched). Reproduced and verified live.
+- **Next:** icon set.
 - App shell: docked sidebars + a window manager for sheet, quest log, compendium, combat,
   editor, map; one entry point in the Esolite top bar.
 - Design system: tokens (color, type, spacing) bound to Esolite's theme variables,

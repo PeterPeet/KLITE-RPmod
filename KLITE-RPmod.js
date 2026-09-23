@@ -603,14 +603,14 @@ body.rpm-docked #maincontainer {
       if (!collapsed && v.dirty) mountOrUpdate(v);
     }
     function currentTab() {
-      const list = sortedViews("right");
-      return list.some((v) => v.def.id === layout.right.tab) ? layout.right.tab : list.length ? list[0].def.id : null;
+      const list2 = sortedViews("right");
+      return list2.some((v) => v.def.id === layout.right.tab) ? layout.right.tab : list2.length ? list2[0].def.id : null;
     }
     function renderTabs() {
       clear(dom.tabs);
-      const list = sortedViews("right");
+      const list2 = sortedViews("right");
       const active = currentTab();
-      for (const v of list) {
+      for (const v of list2) {
         const sel = v.def.id === active;
         v.tab = el("button", { class: "rpm-tab", type: "button", role: "tab", "aria-selected": String(sel), "aria-controls": "rpm-view-" + v.def.id, "data-tab": v.def.id, text: v.def.title || v.def.id });
         v.tab.addEventListener("click", () => selectTab(v.def.id));
@@ -991,11 +991,11 @@ body.rpm-docked #maincontainer {
     function unregister(id) {
       providers.delete(id);
     }
-    function call(p, fn, arg) {
+    function call(p, fn2, arg) {
       try {
-        return typeof p[fn] === "function" ? p[fn](arg) : void 0;
+        return typeof p[fn2] === "function" ? p[fn2](arg) : void 0;
       } catch (e) {
-        console.error("[RPmod context] provider failed:", p.id, fn, e);
+        console.error("[RPmod context] provider failed:", p.id, fn2, e);
         return void 0;
       }
     }
@@ -1110,8 +1110,8 @@ ${s.text}` : s.text : `[${s.title}]`;
         return false;
       }
     }
-    function runTurn(fn, thisArg, args, skip) {
-      if (depth > 0 || skip) return fn.apply(thisArg, args || []);
+    function runTurn(fn2, thisArg, args, skip) {
+      if (depth > 0 || skip) return fn2.apply(thisArg, args || []);
       depth++;
       const turnProviders = active();
       try {
@@ -1120,7 +1120,7 @@ ${s.text}` : s.text : `[${s.title}]`;
       } catch (_) {
       }
       try {
-        return fn.apply(thisArg, args || []);
+        return fn2.apply(thisArg, args || []);
       } finally {
         depth--;
         try {
@@ -1133,8 +1133,8 @@ ${s.text}` : s.text : `[${s.title}]`;
         }
       }
     }
-    function run(fn) {
-      return runTurn(fn, null, [], false);
+    function run(fn2) {
+      return runTurn(fn2, null, [], false);
     }
     let hooked = { prepare: false, save: false };
     function install() {
@@ -1179,6 +1179,214 @@ ${s.text}` : s.text : `[${s.title}]`;
       isManaged
     };
     return api;
+  }
+
+  // src/onboarding/hostGlobals.js
+  var IDENT = /^[A-Za-z_$][\w$]*$/;
+  function hostGet(name) {
+    if (!IDENT.test(name)) return void 0;
+    try {
+      return new Function(`return typeof ${name} === 'undefined' ? undefined : ${name};`)();
+    } catch (_) {
+      return void 0;
+    }
+  }
+  function hostSet(name, value) {
+    if (!IDENT.test(name) || hostGet(name) === void 0) return false;
+    try {
+      new Function("v", `${name} = v;`)(value);
+      if (Object.prototype.hasOwnProperty.call(window, name)) window[name] = value;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // src/library/esoliteLibrary.js
+  var fn = (name) => typeof window[name] === "function" ? window[name] : hostGet(name);
+  var TAVERN_FIELDS = ["description", "personality", "scenario", "first_mes", "mes_example"];
+  function normalizeName(name, fallback = "Untitled") {
+    const host = fn("normalizeCharacterStorageName");
+    if (typeof host === "function") return host(name, fallback);
+    const n = `${name || ""}`.replaceAll(/[^\w()_\-'",!\[\].]/g, " ").replaceAll(/\s+/g, " ").trim();
+    return n || fallback;
+  }
+  function list() {
+    const l = hostGet("allCharacterNames");
+    return Array.isArray(l) ? l : [];
+  }
+  function findMetaByName(name) {
+    const host = fn("findCharacterMetaByName");
+    if (typeof host === "function") return host(name);
+    const n = normalizeName(name);
+    return list().find((m) => normalizeName(m && m.name) === n);
+  }
+  var storageKey = (id) => `character_${id}`;
+  async function thumbnailFor(image) {
+    const gen = fn("generateThumbnail");
+    if (!image || typeof gen !== "function") return void 0;
+    try {
+      return await gen(image, [256, 256]);
+    } catch (_) {
+      return void 0;
+    }
+  }
+  async function saveList() {
+    const upd = fn("updateCharacterListFromAll");
+    if (typeof upd === "function") {
+      await upd();
+      return;
+    }
+    await window.indexeddb_save?.("characterList", JSON.stringify(list()));
+  }
+  function upsertMeta(meta) {
+    const host = fn("upsertCharacterMetadata");
+    if (typeof host === "function") {
+      host(meta);
+      return;
+    }
+    const next = list().filter((m) => `${m && m.id || ""}` !== `${meta.id}`);
+    next.push(meta);
+    hostSet("allCharacterNames", next);
+  }
+  async function saveCharacter({ inner, image, oldName }) {
+    const rawName = inner && inner.name || "";
+    if (!String(rawName).trim()) throw new Error("Character must have a name.");
+    let existing = oldName ? findMetaByName(oldName) : null;
+    if (existing && existing.type && existing.type !== "Character") existing = null;
+    let name = normalizeName(rawName, "No character name");
+    let id;
+    if (existing) {
+      id = existing.id || normalizeName(existing.name);
+      const clash = findMetaByName(name);
+      if (clash && `${clash.id}` !== `${id}`) {
+        const next = fn("getNextAutoincrementName");
+        name = typeof next === "function" ? next(name) : `${name}_1`;
+      }
+    } else {
+      const resolve = fn("resolveCharacterNameAndId");
+      const r = typeof resolve === "function" ? resolve(rawName, "No character name") : { name, id: name };
+      name = r.name;
+      id = r.id;
+    }
+    const record = { id, name, data: Object.assign({}, inner, { name: normalizeName(rawName, "No character name") }) };
+    if (image) record.image = image;
+    else {
+      try {
+        const prev = JSON.parse(await window.indexeddb_load?.(storageKey(id), "{}") || "{}");
+        if (prev && prev.image) record.image = prev.image;
+      } catch (_) {
+      }
+    }
+    await window.indexeddb_save?.(storageKey(id), JSON.stringify(record));
+    const thumbnail = image ? await thumbnailFor(image) : existing && existing.thumbnail;
+    upsertMeta(Object.assign({}, existing || {}, { id, name, type: "Character", favorite: !!(existing && existing.favorite) }, thumbnail ? { thumbnail } : {}));
+    await saveList();
+    return { id, name };
+  }
+  async function deleteCharacter(name) {
+    const meta = findMetaByName(name);
+    const id = meta && meta.id || normalizeName(name);
+    await window.indexeddb_save?.(storageKey(id));
+    hostSet("allCharacterNames", list().filter((m) => meta ? `${m && m.id || ""}` !== `${meta.id}` : normalizeName(m && m.name) !== normalizeName(name)));
+    await saveList();
+  }
+  function storagePrefix() {
+    const p = hostGet("STORAGE_PREFIX");
+    return typeof p === "string" ? p : null;
+  }
+  function isOrphanRecord(record) {
+    if (!record || typeof record !== "object" || record.id != null || record.dataType) return false;
+    const d = record.data;
+    return !!(d && typeof d === "object" && !Array.isArray(d) && typeof d.name === "string" && d.name.trim() && TAVERN_FIELDS.some((f) => f in d));
+  }
+  async function findOrphans() {
+    const prefix = storagePrefix();
+    if (prefix == null || typeof window.indexeddb_load !== "function") return [];
+    let stored = [];
+    try {
+      stored = JSON.parse(await window.indexeddb_load("characterList", "[]") || "[]");
+    } catch (_) {
+      return [];
+    }
+    if (!Array.isArray(stored) || stored.some((m) => m && !m.id)) return [];
+    const referenced = new Set([...stored, ...list()].map((m) => m && `${m.id}`).filter(Boolean));
+    const keys = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(prefix + "character_")) keys.push(k.slice(prefix.length));
+      }
+    } catch (_) {
+      return [];
+    }
+    const out = [];
+    for (const key of keys) {
+      const id = key.slice("character_".length);
+      if (!id || referenced.has(id)) continue;
+      let record = null;
+      try {
+        record = JSON.parse(await window.indexeddb_load(key, "") || "null");
+      } catch (_) {
+        continue;
+      }
+      if (isOrphanRecord(record)) out.push({ key, id, record });
+    }
+    return out;
+  }
+  async function recoverOrphans() {
+    const orphans = await findOrphans();
+    const names = [];
+    for (const { key, id, record } of orphans) {
+      let name = normalizeName(record.name || record.data.name, "Recovered character");
+      const clash = findMetaByName(name);
+      if (clash) {
+        const next = fn("getNextAutoincrementName");
+        name = typeof next === "function" ? next(name) : `${name}_recovered`;
+      }
+      const fixed = Object.assign({}, record, { id, name });
+      await window.indexeddb_save(key, JSON.stringify(fixed));
+      const thumbnail = await thumbnailFor(record.image);
+      upsertMeta(Object.assign({ id, name, type: "Character", favorite: false }, thumbnail ? { thumbnail } : {}));
+      names.push(name);
+    }
+    if (names.length) await saveList();
+    return names;
+  }
+  function initLibrary() {
+    "use strict";
+    if (window.KLITE_RPMod_Library) return;
+    const api = { saveCharacter, deleteCharacter, findOrphans, recoverOrphans, isOrphanRecord };
+    window.KLITE_RPMod_Library = api;
+    let tries = 0;
+    const attempt = async () => {
+      tries++;
+      const listReady = list().length > 0 ? list().every((m) => m && m.id) : tries >= 6;
+      const ready = typeof window.indexeddb_load === "function" && storagePrefix() != null && listReady;
+      if (!ready) {
+        if (tries < 40) setTimeout(attempt, 1500);
+        return;
+      }
+      try {
+        const names = await recoverOrphans();
+        if (names.length) {
+          console.warn("[RPmod library] re-listed characters that an older RPmod version had hidden:", names);
+          try {
+            window.KLITE_RPMod?.panels?.CHARS?.rebuildFromEsolite?.();
+          } catch (_) {
+          }
+          try {
+            window.dispatchEvent(new CustomEvent("klite:library-recovered", { detail: { names } }));
+          } catch (_) {
+          }
+        }
+      } catch (e) {
+        console.error("[RPmod library] recovery failed", e);
+      }
+    };
+    const start = () => setTimeout(attempt, 1500);
+    if (document.readyState === "complete") start();
+    else window.addEventListener("load", start);
   }
 
   // src/KLITE-RPmod_ALPHA.js
@@ -1277,7 +1485,7 @@ ${s.text}` : s.text : `[${s.title}]`;
         }, none = function() {
           setTopics("");
           setTopicsOff("all");
-        }, list = function() {
+        }, list2 = function() {
           try {
             const lv = window.KLITE_RPMod.debugLevels || {};
             console.log("[KLITE RPMod][DEBUG] topics:", lv);
@@ -1335,7 +1543,7 @@ ${s.text}` : s.text : `[${s.title}]`;
         }
         try {
           window.KLITE_RPDebug = window.KLITE_RPDebug || {};
-          Object.assign(window.KLITE_RPDebug, { setTopics, setTopicsOff, setEnabled, on, off, all, none, list, applyTopicsFromLocalStorage, restoreConsole });
+          Object.assign(window.KLITE_RPDebug, { setTopics, setTopicsOff, setEnabled, on, off, all, none, list: list2, applyTopicsFromLocalStorage, restoreConsole });
         } catch (_) {
         }
         applyTopicsFromLocalStorage();
@@ -4393,8 +4601,8 @@ ${s.text}` : s.text : `[${s.title}]`;
           return [];
         }
       },
-      async saveCharactersV3(list) {
-        const payload = JSON.stringify({ version: "3", saved: (/* @__PURE__ */ new Date()).toISOString(), characters: Array.isArray(list) ? list : [] });
+      async saveCharactersV3(list2) {
+        const payload = JSON.stringify({ version: "3", saved: (/* @__PURE__ */ new Date()).toISOString(), characters: Array.isArray(list2) ? list2 : [] });
         await this.save("characters_v3", payload);
       },
       applyCharacter(char, opts = {}) {
@@ -4957,11 +5165,11 @@ ${parts.join("\n")})))`;
         try {
           if (Array.isArray(window.gametext_arr) && !window.gametext_arr._rpmod_debug_wrapped) {
             const arr = window.gametext_arr;
-            ["push", "unshift", "splice", "pop", "shift"].forEach((fn) => {
-              const orig = arr[fn].bind(arr);
-              arr[fn] = function() {
+            ["push", "unshift", "splice", "pop", "shift"].forEach((fn2) => {
+              const orig = arr[fn2].bind(arr);
+              arr[fn2] = function() {
                 try {
-                  KLITE_RPMod.log("chat", `gametext_arr.${fn}(${arguments.length})`);
+                  KLITE_RPMod.log("chat", `gametext_arr.${fn2}(${arguments.length})`);
                 } catch (_) {
                 }
                 return orig.apply(this, arguments);
@@ -8205,17 +8413,17 @@ ${parts.join("\n")})))`;
         }
       },
       renderUnifiedCharacterList(characters, selectionType) {
-        const list = document.getElementById("unified-character-selection-list");
-        if (!list) return;
+        const list2 = document.getElementById("unified-character-selection-list");
+        if (!list2) return;
         if (characters.length === 0) {
-          list.innerHTML = `
+          list2.innerHTML = `
                     <div style="text-align: center; color: var(--muted); padding: 20px;">
                         No characters available. Import some characters first.
                     </div>
                 `;
           return;
         }
-        list.innerHTML = characters.map((char) => {
+        list2.innerHTML = characters.map((char) => {
           const avatar = char.thumbnail || char.image || "";
           const descriptionRaw = char.description || char.content || "No description available";
           const description = KLITE_RPMod.escapeHtml(descriptionRaw.length > 100 ? descriptionRaw.substring(0, 100) + "..." : descriptionRaw);
@@ -8660,8 +8868,8 @@ ${parts.join("\n")})))`;
       // Export all characters as separate files (PNG preferred, otherwise JSON)
       async exportCharactersToFile() {
         try {
-          const list = this.getEsoliteCharacterList();
-          const names = list.map((m) => typeof m === "string" ? m : m && m.name ? m.name : null).filter(Boolean);
+          const list2 = this.getEsoliteCharacterList();
+          const names = list2.map((m) => typeof m === "string" ? m : m && m.name ? m.name : null).filter(Boolean);
           if (names.length === 0) {
             try {
               alert("No characters found to export.");
@@ -12585,17 +12793,17 @@ ${examples}`;
             }
           });
         }
-        const list = document.getElementById("group-character-selection-list");
-        if (!list) return;
+        const list2 = document.getElementById("group-character-selection-list");
+        if (!list2) return;
         if (available.length === 0) {
-          list.innerHTML = `
+          list2.innerHTML = `
                     <div style="text-align: center; color: var(--muted); padding: 20px;">
                         No characters match the current filters.
                     </div>
                 `;
           return;
         }
-        list.innerHTML = available.map((char) => {
+        list2.innerHTML = available.map((char) => {
           const avatar = char.image || "";
           const descriptionRaw = char.description || char.first_mes || "No description available";
           const description = KLITE_RPMod.escapeHtml(descriptionRaw.length > 100 ? descriptionRaw.substring(0, 100) + "..." : descriptionRaw);
@@ -12695,17 +12903,17 @@ ${examples}`;
             tagFilter.appendChild(option);
           });
         }
-        const list = document.getElementById("group-character-selection-list");
-        if (!list) return;
+        const list2 = document.getElementById("group-character-selection-list");
+        if (!list2) return;
         if (available.length === 0) {
-          list.innerHTML = `
+          list2.innerHTML = `
                     <div style="text-align: center; color: var(--muted); padding: 20px;">
                         No characters available. Import some characters from the CHARS panel first.
                     </div>
                 `;
           return;
         }
-        list.innerHTML = available.map((char) => {
+        list2.innerHTML = available.map((char) => {
           const avatar = char.image || "";
           const description = char.description || char.first_mes || "No description available";
           const tags = char.tags || [];
@@ -13255,12 +13463,12 @@ ${examples}`;
               const el2 = e.target.closest("[data-action]");
               if (!el2) return;
               const action = el2.dataset.action;
-              const fn = KLITE_RPMod.panels.CHARS.actions && KLITE_RPMod.panels.CHARS.actions[action];
-              if (typeof fn === "function") {
+              const fn2 = KLITE_RPMod.panels.CHARS.actions && KLITE_RPMod.panels.CHARS.actions[action];
+              if (typeof fn2 === "function") {
                 e.preventDefault();
                 e.stopPropagation();
                 try {
-                  fn(e);
+                  fn2(e);
                 } catch (err) {
                   KLITE_RPMod.error("CHARS action failed:", err);
                 }
@@ -13809,10 +14017,10 @@ ${examples}`;
       },
       async _renderDetailAfterPrefetch(galleryEl) {
         try {
-          const list = this.getFilteredCharacters();
-          if (Array.isArray(list) && typeof window.getCharacterData === "function") {
-            for (let i = 0; i < list.length; i++) {
-              const c = list[i];
+          const list2 = this.getFilteredCharacters();
+          if (Array.isArray(list2) && typeof window.getCharacterData === "function") {
+            for (let i = 0; i < list2.length; i++) {
+              const c = list2[i];
               if (!c?.image) {
                 try {
                   const data = await window.getCharacterData(c.name);
@@ -13840,8 +14048,8 @@ ${examples}`;
       },
       _ensureDetailThumbnails() {
         return;
-        const list = this.getFilteredCharacters();
-        if (!Array.isArray(list) || list.length === 0) return;
+        const list2 = this.getFilteredCharacters();
+        if (!Array.isArray(list2) || list2.length === 0) return;
         let thumbByName = /* @__PURE__ */ new Map();
         try {
           const metas = this.getEsoliteCharacterList();
@@ -13887,7 +14095,7 @@ ${examples}`;
             return dataURL;
           }
         };
-        for (const char of list) {
+        for (const char of list2) {
           if (!char) continue;
           const cardEl = document.querySelector(`[data-char-id="${char.id}"]`);
           const container = cardEl ? cardEl.querySelector(":scope > div:first-child") : null;
@@ -13921,7 +14129,7 @@ ${examples}`;
               if (!entry.isIntersecting) return;
               const el2 = entry.target;
               const charId = el2?.dataset?.charId;
-              const char = list.find((c) => String(c.id) === String(charId));
+              const char = list2.find((c) => String(c.id) === String(charId));
               if (!char) return;
               const hasDetail = typeof this.getOptimizedAvatar === "function" && !!this.getOptimizedAvatar(char.id, "detail");
               if (typeof window.getCharacterData !== "function") return;
@@ -13984,7 +14192,7 @@ ${examples}`;
           const cards = document.querySelectorAll("#char-gallery [data-char-id]");
           cards.forEach((card) => {
             const id = card.getAttribute("data-char-id");
-            const ch = list.find((c) => String(c.id) === String(id));
+            const ch = list2.find((c) => String(c.id) === String(id));
             if (!ch) return;
             if (ch.image) return;
             if (this._detailObserved && this._detailObserved.has(id)) return;
@@ -14002,7 +14210,7 @@ ${examples}`;
           const runImmediate = async () => {
             for (const el2 of visible) {
               const id = el2.getAttribute("data-char-id");
-              const char = list.find((c) => String(c.id) === String(id));
+              const char = list2.find((c) => String(c.id) === String(id));
               if (!char || typeof window.getCharacterData !== "function") continue;
               try {
                 const data = await window.getCharacterData(char.name);
@@ -14080,7 +14288,7 @@ ${examples}`;
                 if (upgraded.has(id)) continue;
                 const r = el2.getBoundingClientRect();
                 if (!(r.bottom > 0 && r.top < viewportH)) continue;
-                const char = list.find((c) => String(c.id) === String(id));
+                const char = list2.find((c) => String(c.id) === String(id));
                 if (!char || typeof window.getCharacterData !== "function") continue;
                 try {
                   upgraded.add(id);
@@ -14587,10 +14795,7 @@ ${examples}`;
         try {
           const name = (data?.name || "").trim();
           if (!name) throw new Error("Character must have a name.");
-          const sanitizeForKey = (s) => String(s).replaceAll(/[^\w()_\-'",!\[\].]/g, " ").replaceAll(/\s+/g, " ").trim();
-          const storeKeyName = sanitizeForKey(name);
           const oldName = (data?.__oldName || "").trim();
-          const oldStoreKeyName = oldName ? sanitizeForKey(oldName) : null;
           let inner = {};
           if (data?.rawData?.data) {
             try {
@@ -14671,32 +14876,7 @@ ${examples}`;
             } catch (_) {
             }
           }
-          const payload = JSON.stringify(stored);
-          await window.indexeddb_save?.(`character_${storeKeyName}`, payload);
-          try {
-            if (stored.image && typeof window.generateThumbnail === "function") {
-              const thumb = await window.generateThumbnail(stored.image, [256, 256]);
-              this.setEsoliteCharacterList((arr) => {
-                const next = (Array.isArray(arr) ? arr : []).filter((c) => c?.name !== name);
-                next.push({ name, thumbnail: thumb, type: "Character" });
-                return next;
-              });
-            } else {
-              this.setEsoliteCharacterList((arr) => {
-                const next = (Array.isArray(arr) ? arr : []).filter((c) => c?.name !== name);
-                next.push({ name, type: "Character" });
-                return next;
-              });
-            }
-          } catch (_) {
-          }
-          if (oldStoreKeyName && oldName && oldName !== name) {
-            try {
-              await window.indexeddb_save?.(`character_${oldStoreKeyName}`);
-            } catch (_) {
-            }
-          }
-          await window.updateCharacterListFromAll?.();
+          await saveCharacter({ inner, image: stored.image, oldName: oldName || null });
           await this.rebuildFromEsolite?.();
         } catch (e) {
           console.error("[CHARS] addCharacter error", e);
@@ -16197,9 +16377,9 @@ ${char.mes_example}
           if (Array.isArray(KLITE_RPMod.characters)) {
             if (KLITE_RPMod.characters.some((c) => String(c?.name || "").trim().toLowerCase() === target)) return true;
           }
-          const list = this.getEsoliteCharacterList();
-          if (Array.isArray(list)) {
-            for (const m of list) {
+          const list2 = this.getEsoliteCharacterList();
+          if (Array.isArray(list2)) {
+            for (const m of list2) {
               const nm = typeof m === "string" ? m : m && m.name ? m.name : "";
               if (String(nm).trim().toLowerCase() === target) return true;
             }
@@ -16209,8 +16389,8 @@ ${char.mes_example}
         return false;
       },
       async fetchEsoliteCharacterList() {
-        const list = this.getEsoliteCharacterList();
-        if (Array.isArray(list) && list.length > 0) return list;
+        const list2 = this.getEsoliteCharacterList();
+        if (Array.isArray(list2) && list2.length > 0) return list2;
         try {
           const raw = await window.indexeddb_load?.("characterList", "[]");
           const arr = JSON.parse(raw || "[]");
@@ -16240,8 +16420,8 @@ ${char.mes_example}
         if (this._rebuilding) return;
         this._rebuilding = true;
         try {
-          const list = await this.fetchEsoliteCharacterList();
-          const charMetas = list.filter((m) => (m?.type || "Character") === "Character");
+          const list2 = await this.fetchEsoliteCharacterList();
+          const charMetas = list2.filter((m) => (m?.type || "Character") === "Character");
           const namesKey = charMetas.map((m) => m?.name || "").join("");
           if (this._lastNamesKey === namesKey && this._esoliteLastCount === charMetas.length && Array.isArray(KLITE_RPMod.characters) && KLITE_RPMod.characters.length === charMetas.length) {
             return;
@@ -16357,9 +16537,9 @@ ${char.mes_example}
       },
       async exportAllFromEsolite() {
         try {
-          const list = this.getEsoliteCharacterList();
+          const list2 = this.getEsoliteCharacterList();
           const bundle = [];
-          for (const meta of list) {
+          for (const meta of list2) {
             try {
               const d = await window.getCharacterData?.(meta.name);
               if (d) bundle.push(d);
@@ -16533,8 +16713,8 @@ ${char.mes_example}
         try {
           let charNames = names;
           if (!Array.isArray(charNames)) {
-            const list = this.getEsoliteCharacterList();
-            charNames = list.map((m) => typeof m === "string" ? m : m && m.name ? m.name : null).filter(Boolean);
+            const list2 = this.getEsoliteCharacterList();
+            charNames = list2.map((m) => typeof m === "string" ? m : m && m.name ? m.name : null).filter(Boolean);
           }
           if (!charNames.length) {
             try {
@@ -16592,24 +16772,7 @@ ${char.mes_example}
       async deleteCharacterByName(name) {
         try {
           if (!name) return;
-          try {
-            if (Array.isArray(window.allCharacterNames)) {
-              window.allCharacterNames = window.allCharacterNames.filter((c) => c?.name !== name);
-            } else if (typeof allCharacterNames !== "undefined" && Array.isArray(allCharacterNames)) {
-              allCharacterNames = allCharacterNames.filter((c) => c?.name !== name);
-            } else {
-              this.setEsoliteCharacterList((arr) => (Array.isArray(arr) ? arr : []).filter((c) => c?.name !== name));
-            }
-          } catch (_) {
-          }
-          try {
-            await window.indexeddb_save?.(`character_${name}`);
-          } catch (_) {
-          }
-          try {
-            await window.updateCharacterListFromAll?.();
-          } catch (_) {
-          }
+          await deleteCharacter(name);
           try {
             await this.rebuildFromEsolite?.();
           } catch (_) {
@@ -16892,15 +17055,6 @@ ${char.mes_example}
               data.__oldName = this.currentChar.name;
             }
             await KLITE_RPMod.panels.CHARS.addCharacter(data);
-            try {
-              if (this.editMode === "edit") {
-                const oldName = this.currentChar?.name;
-                if (oldName && oldName !== data.name) {
-                  this.setEsoliteCharacterList((arr) => (Array.isArray(arr) ? arr : []).filter((c) => c?.name !== oldName));
-                }
-              }
-            } catch (_) {
-            }
           } else {
             throw new Error("CHARS panel not available. Character import requires proper panel initialization.");
           }
@@ -17370,9 +17524,9 @@ ${char.mes_example}
     function activeWorld() {
       return W.activeWorldId ? W.library[W.activeWorldId] : null;
     }
-    function findById(list, id) {
+    function findById(list2, id) {
       if (!id) return null;
-      for (const it of asArray(list)) if (it && it.id === id) return it;
+      for (const it of asArray(list2)) if (it && it.id === id) return it;
       return null;
     }
     function locationByName(world, name) {
@@ -17496,11 +17650,11 @@ ${char.mes_example}
       if (ref) {
         const lib = characterLibrary();
         let hit = null;
-        if (ref.id) hit = lib.find((c) => c && c.id === ref.id);
-        if (!hit && ref.name) {
+        if (ref.name) {
           const n = norm2(ref.name).toLowerCase();
           hit = lib.find((c) => norm2(c && c.name).toLowerCase() === n);
         }
+        if (!hit && ref.id && !ref.name) hit = lib.find((c) => c && c.id === ref.id);
         if (hit) return hit;
         if (person.characterSnapshot) return person.characterSnapshot;
       }
@@ -17760,12 +17914,12 @@ ${char.mes_example}
       if (!world || !rt()) return false;
       let changed = false;
       const s = String(text || "");
-      const scan = (re, fn) => {
+      const scan = (re, fn2) => {
         let m;
         re.lastIndex = 0;
         while ((m = re.exec(s)) !== null) {
           try {
-            if (fn(m) !== false) changed = true;
+            if (fn2(m) !== false) changed = true;
           } catch (_) {
           }
         }
@@ -18060,9 +18214,9 @@ ${char.mes_example}
     }
     function startEncounter(ids, opts = {}) {
       ensureRuntime();
-      const list = asArray(ids).slice();
-      if (opts.includePlayer !== false && !list.includes("__player__")) list.unshift("__player__");
-      const order = list.map((id) => {
+      const list2 = asArray(ids).slice();
+      if (opts.includePlayer !== false && !list2.includes("__player__")) list2.unshift("__player__");
+      const order = list2.map((id) => {
         const st = combatantStats(id);
         const init2 = rollD20(st.initiativeMod || abilityMod(st.abilities.dex)).total;
         return { id, name: combatantName(id), init: init2, isPlayer: id === "__player__" };
@@ -18910,7 +19064,8 @@ ${recent}` : "");
         const p = entityById(activeWorld(), personId);
         if (!p) return false;
         const lib = characterLibrary();
-        const c = lib.find((x) => x && (x.id === idOrName || norm2(x.name).toLowerCase() === norm2(idOrName).toLowerCase()));
+        const key = norm2(idOrName).toLowerCase();
+        const c = lib.find((x) => x && norm2(x.name).toLowerCase() === key) || lib.find((x) => x && x.id != null && String(x.id) === String(idOrName));
         p.characterRef = c ? { source: "library", id: c.id, name: c.name } : { source: "library", name: norm2(idOrName) };
         if (c && (!norm2(p.name) || p.name === "New npc")) p.name = c.name;
         return true;
@@ -19679,7 +19834,7 @@ ${recent}` : "");
       csel.appendChild(el2("option", { value: "", text: chars.length ? "— not linked —" : "(no characters in library)" }));
       const curRef = ent.characterRef && (ent.characterRef.id || ent.characterRef.name);
       for (const c of chars) {
-        const o = el2("option", { value: c.id || c.name, text: c.name });
+        const o = el2("option", { value: c.name, text: c.name });
         if (ent.characterRef && (ent.characterRef.id === c.id || ent.characterRef.name && ent.characterRef.name === c.name)) o.selected = true;
         csel.appendChild(o);
       }
@@ -20427,8 +20582,8 @@ ${recent}` : "");
           if (q.description) card.appendChild(el2("div", { style: "margin-top:3px", text: q.description }));
           if (q.giver || q.turnin) card.appendChild(muted((q.giver ? `From: ${q.giver}` : "") + (q.turnin ? `  Turn-in: ${q.turnin}` : ""), { style: "margin-top:2px" }));
           const ctl = el2("div", { class: "rpm-row", style: "flex-wrap:wrap;margin-top:6px" });
-          const act = (t, fn, variant) => uiBtn(t, () => {
-            fn();
+          const act = (t, fn2, variant) => uiBtn(t, () => {
+            fn2();
             refreshPanel();
           }, { variant });
           if (st === "available") ctl.appendChild(act("Accept", () => A.acceptQuest(q.id), "success"));
@@ -20719,27 +20874,6 @@ ${recent}` : "");
     else window.addEventListener("load", whenReady);
   }
 
-  // src/onboarding/hostGlobals.js
-  var IDENT = /^[A-Za-z_$][\w$]*$/;
-  function hostGet(name) {
-    if (!IDENT.test(name)) return void 0;
-    try {
-      return new Function(`return typeof ${name} === 'undefined' ? undefined : ${name};`)();
-    } catch (_) {
-      return void 0;
-    }
-  }
-  function hostSet(name, value) {
-    if (!IDENT.test(name) || hostGet(name) === void 0) return false;
-    try {
-      new Function("v", `${name} = v;`)(value);
-      if (Object.prototype.hasOwnProperty.call(window, name)) window[name] = value;
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   // src/onboarding/chapters.js
   var CHAPTERS = [
     {
@@ -21010,8 +21144,8 @@ ${recent}` : "");
       highlight: (target, note) => setTimeout(() => highlight(target, note), 60),
       // after panels/windows opened
       hostCall: (name) => {
-        const fn = hostGet(name);
-        if (typeof fn === "function") fn();
+        const fn2 = hostGet(name);
+        if (typeof fn2 === "function") fn2();
       },
       navLink: (text) => () => [...document.querySelectorAll("#navbarNavDropdown a.nav-link")].find((a) => a.textContent.trim() === text && a.offsetParent !== null)
     };
@@ -21159,9 +21293,9 @@ ${recent}` : "");
       else console.error(errors.join("\n"));
     }
   }
-  function safe(fn) {
+  function safe(fn2) {
     try {
-      return fn();
+      return fn2();
     } catch (_) {
       return false;
     }
@@ -21235,9 +21369,9 @@ ${recent}` : "");
         return sh.open("guide");
       },
       openQuickStart() {
-        const fn = hostGet("showQuickStartPopup");
-        if (typeof fn === "function") {
-          fn();
+        const fn2 = hostGet("showQuickStartPopup");
+        if (typeof fn2 === "function") {
+          fn2();
           return true;
         }
         return false;
@@ -21326,18 +21460,18 @@ ${recent}` : "");
         if (selection) grid.firstChild.title = `${selection.name} (click to deselect)`;
         body.appendChild(grid);
         if (choosing) {
-          const list = el("div", { style: "display:flex;flex-wrap:wrap;gap:8px" });
+          const list2 = el("div", { style: "display:flex;flex-wrap:wrap;gap:8px" });
           const worlds = W() && W().listWorlds() || [];
           const options = worlds.map((w) => ({ id: w.id, name: w.name || w.id }));
           if (!options.some((o) => o.id === EXAMPLE_ID)) options.unshift({ id: EXAMPLE_ID, name: "Eldoria (example world)", example: true });
           for (const o of options) {
-            list.appendChild(el("button", { type: "button", class: "btn btn-primary", text: o.name, onclick: () => {
+            list2.appendChild(el("button", { type: "button", class: "btn btn-primary", text: o.name, onclick: () => {
               selection = o;
               choosing = false;
               rerender();
             } }));
           }
-          body.appendChild(list);
+          body.appendChild(list2);
         }
         body.appendChild(el("div", { style: "display:flex;gap:10px;flex-wrap:wrap" }, [
           el("button", { type: "button", class: "btn btn-primary", text: choosing ? "Cancel" : "Choose world", onclick: () => {
@@ -21416,6 +21550,7 @@ ${recent}` : "");
   // src/main.js
   var MODULES = [
     ["shell/shell.js", initShell],
+    ["library/esoliteLibrary.js", initLibrary],
     ["KLITE-RPmod_ALPHA.js", initAlpha],
     ["KLITE-RPmod_Worlds.js", initWorlds],
     ["KLITE-RPmod_WorldsUI.js", initWorldsUI],

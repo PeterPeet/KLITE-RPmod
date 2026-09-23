@@ -227,9 +227,11 @@ export default function initWorlds() {
         const ref = person.characterRef;
         if (ref) {
             const lib = characterLibrary();
+            // Name first: it is the Esolite Library's key, while gallery ids are list
+            // positions that shift when a character is added or removed.
             let hit = null;
-            if (ref.id) hit = lib.find(c => c && (c.id === ref.id));
-            if (!hit && ref.name) { const n = norm(ref.name).toLowerCase(); hit = lib.find(c => norm(c && c.name).toLowerCase() === n); }
+            if (ref.name) { const n = norm(ref.name).toLowerCase(); hit = lib.find(c => norm(c && c.name).toLowerCase() === n); }
+            if (!hit && ref.id && !ref.name) hit = lib.find(c => c && (c.id === ref.id));
             if (hit) return hit;
             if (person.characterSnapshot) return person.characterSnapshot;
         }
@@ -1344,7 +1346,8 @@ export default function initWorlds() {
         linkCharacter(personId, idOrName) {
             const p = entityById(activeWorld(), personId); if (!p) return false;
             const lib = characterLibrary();
-            const c = lib.find(x => x && (x.id === idOrName || norm(x.name).toLowerCase() === norm(idOrName).toLowerCase()));
+            const key = norm(idOrName).toLowerCase();
+            const c = lib.find(x => x && norm(x.name).toLowerCase() === key) || lib.find(x => x && x.id != null && String(x.id) === String(idOrName));
             p.characterRef = c ? { source: 'library', id: c.id, name: c.name } : { source: 'library', name: norm(idOrName) };
             // adopt the character's name if the person only has a placeholder
             if (c && (!norm(p.name) || p.name === 'New npc')) p.name = c.name;

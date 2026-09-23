@@ -317,7 +317,8 @@ export default function initWorldsUI() {
         const csel = el('select', { style: inputCss(false) + ';cursor:pointer' });
         csel.appendChild(el('option', { value: '', text: chars.length ? '— not linked —' : '(no characters in library)' }));
         const curRef = ent.characterRef && (ent.characterRef.id || ent.characterRef.name);
-        for (const c of chars) { const o = el('option', { value: c.id || c.name, text: c.name }); if (ent.characterRef && (ent.characterRef.id === c.id || (ent.characterRef.name && ent.characterRef.name === c.name))) o.selected = true; csel.appendChild(o); }
+        // value = name: the Library's key (gallery ids are list positions)
+        for (const c of chars) { const o = el('option', { value: c.name, text: c.name }); if (ent.characterRef && (ent.characterRef.id === c.id || (ent.characterRef.name && ent.characterRef.name === c.name))) o.selected = true; csel.appendChild(o); }
         csel.addEventListener('change', () => {
             if (csel.value) A.linkCharacter(S.selectedId, csel.value); else A.unlinkCharacter(S.selectedId);
             const n = nodeById(S.selectedId); if (n) { n.name = A.personName(S.selectedId); draw(); }

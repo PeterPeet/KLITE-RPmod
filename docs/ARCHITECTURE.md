@@ -12,6 +12,7 @@
 | `KLITE-RPmod_Worlds.js` (~1.6k) | `window.KLITE_RPMod_Worlds` | Worlds engine: world graph, retrieval, injection, runtime state, quests, triggers, combat |
 | `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds views for the shell (World tab, Party/Quests sections, Quest log/Combat/World editor windows) |
 | `context/context.js` | `window.KLITE_RPMod_Context` | **Single owner of per-turn prompt context**: providers, the one `prepare_submit_generation` wrapper, managed WI entries, save stripping (§3.3) |
+| `library/esoliteLibrary.js` | `window.KLITE_RPMod_Library` | Writes characters through Esolite's own Library (id-based since 1.35); recovers characters an older RPmod hid (§5a) |
 | `shell/shell.js`, `windows.js`, `styles.js`, `dom.js` | `window.KLITE_RPMod_Shell` | App shell: docks, view registry, floating windows, design tokens, top-bar button (§4a) |
 | `onboarding/onboarding.js`, `quickStart.js`, `guide.js`, `chapters.js`, `hostGlobals.js` | `window.KLITE_RPMod_Onboarding` | Getting started: RPmod section in Esolite's Quick Start, the Guide window with "Show me", "New here?" card, GuidedRP save passthrough (§4b) |
 
@@ -281,6 +282,27 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
   triggers/effects, faction HQ), preview modal.
 - All DOM built with `createElement`/`textContent` (no `innerHTML` with user data).
 
+## 5a. Character store = Esolite's Library (`src/library/esoliteLibrary.js`)
+- **Master:** Esolite's Library. 1.35 storage: record `character_<id>` =
+  `{ id, name, data: <TavernCard v2 inner>, image? }`; list `let allCharacterNames` of
+  `{ id, name, thumbnail?, type, favorite }` saved as `characterList`. The same keys hold
+  every Library item type (Character, Save, Autosave, World Info, Scenario, Document,
+  Manager). `updateCharacterListFromAll()` **drops entries without an id**.
+- **RPmod view:** ALPHA's `KLITE_RPMod.characters` is rebuilt from `allCharacterNames`
+  (`rebuildFromEsolite`) and adds rating/talkativeness/tag cache (`characters_v3`).
+  Gallery ids are list positions (not stable) — link by name / Library id.
+- **Writes:** `saveCharacter({ inner, image, oldName })` — with `oldName` an edit of that
+  entry (id and favorite kept, rename keeps the id; clash → `getNextAutoincrementName`),
+  without it a new entry via Esolite's `resolveCharacterNameAndId` (taken name → `Name_1`
+  unless the user enabled overwriting). `deleteCharacter(name)` saves nothing under
+  `character_<id>` (Esolite's delete) and drops the list entry by id.
+- **Recovery** (once per load, after Esolite's id migration; `findOrphans`/`recoverOrphans`):
+  keys come from the `localStorage` markers Esolite writes per IndexedDB key
+  (`STORAGE_PREFIX + key`). An orphan = `character_*` key not referenced by any list id,
+  record without `id`, TavernCard-shaped `data`. It is re-listed under its own key with
+  `id` added; never deletes or overwrites.
+- Host functions come from `window` or, for `let`/`const` bindings, `hostGlobals.js`.
+
 ## 5. ALPHA core (`src/KLITE-RPmod_ALPHA.js`) — overview
 Right-side panels; character gallery/import (TavernCard V2, partial V3) and editor;
 personas; group chat (speaker modes, round robin, talkativeness); quick actions; chapters;
@@ -295,7 +317,8 @@ Node's built-in runner + jsdom. `tests/helpers/host.js` builds a fake Esolite ho
 globals in §2, a recording `submit_generation`, `seedRandom` for dice) and loads sources
 via `vm` like a usermod (single `src/` modules are bundled on the fly with esbuild; the
 viewport is 1400×900, `host.resize()` changes it). Suites: `syntax`, `engine`, `quests`,
-`triggers`, `combat`, `context`, `shell`, `ui`, `onboarding`, `bundle` (built file end-to-end).
+`triggers`, `combat`, `context`, `library`, `shell`, `ui`, `onboarding`, `bundle` (built file end-to-end).
+`host.installFakeLibrary()` mimics Esolite 1.35's id-based Library (incl. the id-less drop).
 `host.installFakeQuickStart()` mimics Esolite's Quick Start (top-level `let` bindings +
 popupUtils). The helper uses jsdom's own VM context (`runScripts: 'outside-only'`) so page
 intrinsics behave like a browser. `npm test` runs `scripts/run-tests.js`, which fails if

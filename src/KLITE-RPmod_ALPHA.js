@@ -4,6 +4,7 @@
 // https://github.com/PeterPeet/
 // =============================================
 import { getContext } from './context/context.js';
+import * as EsoLibrary from './library/esoliteLibrary.js';
 
 export default function initAlpha() {
     'use strict';
@@ -14420,14 +14421,7 @@ Outline:`
             try {
                 const name = (data?.name || '').trim();
                 if (!name) throw new Error('Character must have a name.');
-                // Match Esobold/Esolite key sanitization used by getCharacterData
-                const sanitizeForKey = (s) => String(s)
-                    .replaceAll(/[^\w()_\-'",!\[\].]/g, ' ')
-                    .replaceAll(/\s+/g, ' ')
-                    .trim();
-                const storeKeyName = sanitizeForKey(name);
                 const oldName = (data?.__oldName || '').trim();
-                const oldStoreKeyName = oldName ? sanitizeForKey(oldName) : null;
 
                 // Build inner Tavern v2 object from provided fields if not already present
                 let inner = {};
@@ -14511,34 +14505,9 @@ Outline:`
                     } catch(_) {}
                 }
 
-                const payload = JSON.stringify(stored);
-                await window.indexeddb_save?.(`character_${storeKeyName}`, payload);
-                // Ensure list entry and thumbnail
-                try {
-                    if (stored.image && typeof window.generateThumbnail === 'function') {
-                        const thumb = await window.generateThumbnail(stored.image, [256, 256]);
-                        this.setEsoliteCharacterList((arr) => {
-                            const next = (Array.isArray(arr) ? arr : []).filter(c => c?.name !== name);
-                            next.push({ name, thumbnail: thumb, type: 'Character' });
-                            return next;
-                        });
-                    } else {
-                        this.setEsoliteCharacterList((arr) => {
-                            const next = (Array.isArray(arr) ? arr : []).filter(c => c?.name !== name);
-                            next.push({ name, type: 'Character' });
-                            return next;
-                        });
-                    }
-                } catch(_) {}
-
-                // If renamed, delete the old entry from storage to avoid stale duplicates
-                if (oldStoreKeyName && oldName && oldName !== name) {
-                    try {
-                        await window.indexeddb_save?.(`character_${oldStoreKeyName}`);
-                    } catch(_) {}
-                }
-
-                await window.updateCharacterListFromAll?.();
+                // Write through Esolite's own Library functions (id-based since 1.35;
+                // see src/library/esoliteLibrary.js). A rename keeps the Library id.
+                await EsoLibrary.saveCharacter({ inner, image: stored.image, oldName: oldName || null });
                 await this.rebuildFromEsolite?.();
             } catch(e) {
                 console.error('[CHARS] addCharacter error', e);
@@ -16789,22 +16758,8 @@ Outline:`
         async deleteCharacterByName(name) {
             try {
                 if (!name) return;
-                // Mirror Esolite characterManager.js deletion logic
-                try {
-                    if (Array.isArray(window.allCharacterNames)) {
-                        window.allCharacterNames = window.allCharacterNames.filter(c => c?.name !== name);
-                    } else if (typeof allCharacterNames !== 'undefined' && Array.isArray(allCharacterNames)) {
-                        allCharacterNames = allCharacterNames.filter(c => c?.name !== name);
-                    } else {
-                        this.setEsoliteCharacterList((arr) => (Array.isArray(arr) ? arr : []).filter(c => c?.name !== name));
-                    }
-                } catch(_) {}
-
-                // Persist delete via IndexedDB (Esolite uses call without data to delete)
-                try { await window.indexeddb_save?.(`character_${name}`); } catch(_) {}
-
-                // Update host UI lists
-                try { await window.updateCharacterListFromAll?.(); } catch(_) {}
+                // Esolite's Library functions (id-based storage key and list entry)
+                await EsoLibrary.deleteCharacter(name);
 
                 // As a fallback, rebuild our gallery model
                 try { await this.rebuildFromEsolite?.(); } catch(_) {}
@@ -17143,16 +17098,8 @@ Outline:`
                     if (this.editMode === 'edit' && this.currentChar?.name) {
                         data.__oldName = this.currentChar.name;
                     }
+                    // a rename keeps the Library entry (same id), so nothing to remove
                     await KLITE_RPMod.panels.CHARS.addCharacter(data);
-                    // Only remove old entry when editing (not cloning)
-                    try {
-                        if (this.editMode === 'edit') {
-                            const oldName = this.currentChar?.name;
-                            if (oldName && oldName !== data.name) {
-                                this.setEsoliteCharacterList(arr => (Array.isArray(arr) ? arr : []).filter(c => c?.name !== oldName));
-                            }
-                        }
-                    } catch(_) {}
                 } else {
                     throw new Error('CHARS panel not available. Character import requires proper panel initialization.');
                 }
