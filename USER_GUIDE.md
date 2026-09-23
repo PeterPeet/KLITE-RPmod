@@ -24,8 +24,10 @@ The mod ships as a single file, `KLITE-RPmod.js`.
      panels; the small tabs at the screen edges bring a hidden panel back.
 
    On wide screens the panels sit beside the chat; on small screens they slide over it
-   (one at a time), and on phones windows fill the screen. Colours follow your Esolite
-   theme.
+   (one at a time), and on phones windows fill the screen.
+   - **Look:** RPmod uses Esolite's own buttons, fonts and colours and follows whatever
+     theme you choose in Esolite. In Esolite's *Theme colours* editor you'll also find
+     RPmod's own colours (**Rpmod quest / danger / success / info**) to adjust.
 
 That's it — one file contains everything (main panels, guided onboarding, the Worlds
 engine, and the Worlds editor).
@@ -39,8 +41,8 @@ chatting. Everything below explains how to build your own.
 
 ## 2. What you get
 
-- **Characters tab** (right panel) — MANAGE CHARS, SELECT ROLES, CREATE SCENARIO, USE TOOLS:
-  manage characters, personas and groups, context tools, and image generation.
+- **Chars / Roles / Scenario / Tools tabs** (right panel): manage characters, personas and
+  groups, scenarios, context tools, and image generation.
 - **Guided RP** — a beginner-friendly step-by-step setup overlay (toggleable with an
   Advanced mode for the full interface).
 - **Worlds** — the focus of this guide, below.

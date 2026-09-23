@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 42 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 51 tests)
 - Bundle builds (esbuild, ES-module sources); all four modules load (ALPHA core, GuidedRP, Worlds engine, Worlds UI).
 - **Worlds engine:** graph world model (locations, NPCs/persons, factions, objects,
   events, quests, lore), compile-to-WI injection (transient/persistent, websearch- and
@@ -86,8 +86,8 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
 12. **World state changed by AI chat tags reaches the UI only at the next send** — tags are
     parsed in `processPendingMutations()` at generation time, not when the reply arrives.
     The views refresh then (via `klite:worlds-change`). Parse on reply arrival in R6.
-13. **ALPHA inner UI** still uses its own styles (bound to older theme names, fine in 1.35)
-    and its own CHARS/ROLES/SCENARIO/TOOLS sub-tab bar inside the Characters tab.
+13. **ALPHA inner markup** still carries many inline styles (sizes/spacing); colours follow
+    the theme via its variables, but spacing is not yet on the shell's scale.
 
 ## Phases
 
@@ -129,9 +129,15 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
       `#wm-panel` and 🌐 navbar button removed.
 - [x] ALPHA's right panel adopted as the **Characters** tab (no more overlap — known
       issue 3 fixed).
-- **Next:** editor overlay → large window; split ALPHA's four sub-tabs into shell views;
-  move ALPHA/GuidedRP top-bar icons (🎭 ✨) behind the shell button; GuidedRP first-run
-  flow; single context-injection owner; icon set.
+- [x] **Unified look (2026-09-23):** shell, Worlds views, Worlds editor, ALPHA panels and
+      modals, GuidedRP variables all use Esolite's theme variables and native control
+      classes (`btn-primary`, `form-control`, `nav-link`); RPmod's semantic colours are
+      `--theme_color_rpmod_*` and show up in Esolite's theme editor. ALPHA's sub-tabs are
+      shell tabs (Chars/Roles/Scenario/Tools). Live-checked in "Default (Cedo)", "Tako"
+      and "Light Sand". Test guard against duplicate function names added.
+- **Next:** replace GuidedRP (decided 2026-09-23) with (a) a **first-run setup** that gets
+  a newcomer to Esobold chatting fast and (b) a **guided tutorial** of RPmod's features;
+  then editor overlay → large window; single context-injection owner; icon set.
 - App shell: docked sidebars + a window manager for sheet, quest log, compendium, combat,
   editor, map; one entry point in the Esolite top bar.
 - Design system: tokens (color, type, spacing) bound to Esolite's theme variables,
