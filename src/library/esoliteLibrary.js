@@ -139,8 +139,13 @@ export async function saveCharacter({ inner, image, oldName }) {
     const thumbnail = image ? await thumbnailFor(image) : (existing && existing.thumbnail);
     upsertMeta(Object.assign({}, existing || {}, { id, name, type: 'Character', favorite: !!(existing && existing.favorite) }, thumbnail ? { thumbnail } : {}));
     await saveList();
+    libraryChanged({ name, oldName: oldName || null });
     return { id, name };
 }
+
+// `klite:library-change` on window after RPmod wrote or deleted a character
+// (detail { name, oldName, deleted }) — caches keyed by name drop the entry.
+function libraryChanged(detail) { try { window.dispatchEvent(new CustomEvent('klite:library-change', { detail })); } catch (_) {} }
 
 // Load a character record ({ id, name, data, image? }) via Esolite's getCharacterData.
 export async function loadCharacter(name) {
@@ -161,6 +166,7 @@ export async function deleteCharacter(name) {
     await window.indexeddb_save?.(storageKey(id));   // Esolite deletes by saving nothing
     hostSet('allCharacterNames', list().filter(m => meta ? `${m && m.id || ''}` !== `${meta.id}` : normalizeName(m && m.name) !== normalizeName(name)));
     await saveList();
+    libraryChanged({ name, oldName: null, deleted: true });
 }
 
 // ---- recovery ---------------------------------------------------------------------

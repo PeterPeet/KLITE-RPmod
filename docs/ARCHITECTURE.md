@@ -342,7 +342,17 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
   `data.extensions.klite_rpmod.sheet` (other extensions and klite_rpmod keys kept),
   `toCombatStats/fromCombatStats` (Worlds stat block), `sheetSummary` (AI text).
 - **Store** (`store.js`): `loadSheet/saveSheet` through the Library adapter; sync cache
-  `cachedSheet/combatStatsFor/summaryFor` (loads on first use); `klite:sheet-change`.
+  `cachedSheet/combatStatsFor/summaryFor/blurbFor` (loads on first use; also keeps the card's
+  personality/description for `blurbFor`); `klite:sheet-change`. The Library adapter fires
+  `klite:library-change` ({ name, oldName, deleted }) after every RPmod write/delete; the store
+  drops those names. Worlds warms the linked cards of the active world on every
+  `klite:worlds-change` so the next turn's slice has them.
+- **Persona:** ALPHA's `panels.TOOLS.selectedPersona/personaEnabled` are accessors that fire
+  `klite:persona-change` ({ name }) when the effective persona changes;
+  `KLITE_RPMod_Characters.personaName()` = the enabled persona's name (Worlds' player sheet and
+  the Party section use it). **Party** (left dock, WorldsUI `renderPersona`): name, species ·
+  class level, HP (combat tracker's HP while a fight runs) + bar, AC, speed; no persona →
+  "Choose in gallery"; no sheet → Build / Character sheet. Re-renders on persona/sheet change.
 - **Portrait = exported card:** `esoliteLibrary.embedCardInImage` strips old `chara`/`ccv3`
   tEXt chunks (Esolite's `injectTextChunk` only appends; readers take the first) and embeds
   a V2 card (spec + data, V1 fields mirrored) with Esolite's `tavernTool.embedIntoPng`.
@@ -378,7 +388,8 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
   slots, slotLevel, pact, used, spells}`, `proficiencies`, `acNote`, attack `bonus`, `build`.
 - **Uses:** ALPHA's `characters` provider appends the sheet summary; Worlds'
   `combatantStats`/slice fall back to the linked card's sheet (`cardSheetStats`) and the
-  persona sheet for the player (`personaSheetStats`); Worlds' character lookup falls back to
+  persona sheet for the player (`personaSheetStats`); `personBlurb` falls back to the card's
+  text (`blurbFor`: personality, else description; `{{char}}` replaced, markup stripped, 160 chars); Worlds' character lookup falls back to
   Esolite's Library names when ALPHA's gallery is empty.
 
 ## 5. ALPHA core (`src/KLITE-RPmod_ALPHA.js`) — overview

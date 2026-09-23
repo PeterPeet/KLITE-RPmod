@@ -10235,6 +10235,23 @@ export default function initAlpha() {
             }
         },
     };
+    // Announce persona changes (many code paths assign selectedPersona / personaEnabled):
+    // `klite:persona-change` on window, detail { name } ('' when none). Used by the shell's
+    // Party section.
+    (function watchPersona(T) {
+        const store = { selectedPersona: T.selectedPersona, personaEnabled: T.personaEnabled };
+        const current = () => (store.personaEnabled && store.selectedPersona && store.selectedPersona.name) || '';
+        for (const key of Object.keys(store)) {
+            Object.defineProperty(T, key, {
+                enumerable: true, configurable: true,
+                get: () => store[key],
+                set: (v) => {
+                    const before = current(); store[key] = v; const after = current();
+                    if (before !== after) { try { window.dispatchEvent(new CustomEvent('klite:persona-change', { detail: { name: after } })); } catch (_) {} }
+                },
+            });
+        }
+    })(KLITE_RPMod.panels.TOOLS);
 
     // CONTEXT PANEL (formerly TOOLS)
 KLITE_RPMod.panels.CONTEXT = {

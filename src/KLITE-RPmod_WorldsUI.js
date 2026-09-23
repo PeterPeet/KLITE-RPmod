@@ -848,23 +848,64 @@ export default function initWorldsUI() {
         renderPlayTab(body);
     }
 
-    // ---- left dock: party (player, place, time, combat status) ----
+    // ---- left dock: party (persona + HP/AC, place, time, combat status) ----
+    function hpBar(cur, max) {
+        const pct = max > 0 ? Math.max(0, Math.min(100, Math.round(cur / max * 100))) : 0;
+        const bar = el('div', { class: 'rpm-bar', 'data-party': 'hpbar', role: 'meter', 'aria-label': 'Hit points', 'aria-valuemin': '0', 'aria-valuemax': String(max), 'aria-valuenow': String(cur) });
+        bar.appendChild(el('span', { style: `width:${pct}%;background:${pct > 50 ? 'var(--rpm-success)' : pct > 25 ? 'var(--rpm-quest)' : 'var(--rpm-danger)'}` }));
+        return bar;
+    }
+    // The player character = the persona chosen in the Characters tab (ALPHA Tools).
+    // Sheet values come from the card; during combat the tracker's HP is authoritative.
+    function renderPersona(box, player, cb) {
+        const C = window.KLITE_RPMod_Characters;
+        const persona = C && C.personaName ? C.personaName() : '';
+        box.appendChild(el('div', { class: 'rpm-heading', 'data-party': 'name', text: persona || player.name || 'You' }));
+        if (!C) return;
+        if (!persona) {
+            box.appendChild(muted('No persona chosen — pick the character you play.', { 'data-party': 'no-persona' }));
+            if (window.KLITE_RPMod_Gallery) box.appendChild(uiBtn('Choose in gallery', () => window.KLITE_RPMod_Gallery.open(), { icon: 'layout-grid', block: true, style: 'margin:4px 0' }));
+            return;
+        }
+        const sheet = C.cachedSheet(persona);   // undefined while loading (klite:sheet-change re-renders)
+        if (sheet) {
+            const who = [sheet.species, sheet.className ? `${sheet.className} ${sheet.level}` : `Level ${sheet.level}`].filter(Boolean).join(' · ');
+            if (who) box.appendChild(muted(who, { 'data-party': 'class' }));
+            const inCombat = cb && cb.active && cb.hp && cb.hp.__player__ != null;
+            const hp = inCombat ? cb.hp.__player__ : sheet.hp.current;
+            const max = inCombat ? cb.maxHp.__player__ : sheet.hp.max;
+            const temp = !inCombat && sheet.hp.temp ? ` (+${sheet.hp.temp})` : '';
+            box.appendChild(row([
+                el('span', { class: 'rpm-grow', 'data-party': 'hp', title: inCombat ? 'Hit points in the current fight' : 'Hit points on the character sheet', text: `HP ${hp}/${max}${temp}${inCombat ? ' ⚔' : ''}` }),
+                el('span', { 'data-party': 'ac', title: sheet.acNote || 'Armor Class', text: `AC ${sheet.ac}` }),
+                el('span', { class: 'rpm-muted', 'data-party': 'speed', text: `${sheet.speed} ft.` })
+            ], 'margin-top:4px'));
+            box.appendChild(hpBar(hp, max));
+            box.appendChild(uiBtn('Character sheet', () => C.open(persona), { icon: 'id-card', block: true, style: 'margin:6px 0 4px', title: 'Abilities, skills, inventory — click values to roll' }));
+        } else {
+            if (sheet === null) box.appendChild(muted('No character sheet yet.', { 'data-party': 'no-sheet' }));
+            const B = window.KLITE_RPMod_Builder;
+            box.appendChild(row([
+                B && sheet === null ? uiBtn('Build', () => B.open({ target: persona, name: persona }), { icon: 'sparkles', grow: true, title: 'Step-by-step character builder (SRD 5.2.1)' }) : null,
+                uiBtn('Character sheet', () => C.open(persona), { icon: 'id-card', grow: true })
+            ], 'margin:4px 0'));
+        }
+    }
     function renderParty(box) {
         const A = API(); const world = A.activeWorld();
+        const player = (world && world.ruleset && world.ruleset.player) || {};
+        const cb = world ? A.getCombat() : null;
+        renderPersona(box, player, cb);
         if (!world) {
-            box.appendChild(muted('No world loaded.'));
+            box.appendChild(muted('No world loaded.', { style: 'margin-top:6px' }));
             box.appendChild(uiBtn('Choose a world', () => openView('world'), { block: true, style: 'margin-top:8px' }));
             return;
         }
-        const player = (world.ruleset && world.ruleset.player) || {};
         const rt = A.runtime || {};
         const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
         const c = rt.clock || {};
-        box.appendChild(el('div', { class: 'rpm-heading', text: player.name || 'You' }));
-        if (window.KLITE_RPMod_Characters) box.appendChild(uiBtn('Character sheet', () => window.KLITE_RPMod_Characters.open(), { icon: 'id-card', block: true, style: 'margin:4px 0', title: 'Your persona\'s sheet: abilities, skills, inventory — click values to roll' }));
         box.appendChild(el('div', { class: 'rpm-muted', 'data-party': 'location', style: 'margin-top:2px;display:flex;align-items:center;gap:4px' }, [icon('map-pin', 13), loc ? (loc.name || loc.id) : 'nowhere']));
         box.appendChild(muted(`🕑 Day ${c.day || 1}, ${c.time || '—'}${c.weather ? ' · ' + c.weather : ''}`));
-        const cb = A.getCombat();
         if (cb && cb.active) {
             const cur = cb.order[cb.turnIndex];
             const hp = cb.hp.__player__, max = cb.maxHp.__player__;
@@ -1108,6 +1149,10 @@ export default function initWorldsUI() {
         // engine state changed (chat tags, triggers, API calls) -> re-render, but never
         // under the user's cursor while they type
         window.addEventListener('klite:worlds-change', () => { try { refreshPanel({ soft: true }); } catch (_) {} });
+        // the persona or its sheet changed -> the Party section shows its name, HP and AC
+        const refreshParty = () => { try { sh.refresh(['party'], { soft: true }); } catch (_) {} };
+        window.addEventListener('klite:persona-change', refreshParty);
+        window.addEventListener('klite:sheet-change', refreshParty);
         window.addEventListener('klite:worlds-dirty', () => { try { updateSaveState(); refreshPanel({ soft: true }); } catch (_) {} });
     }
 

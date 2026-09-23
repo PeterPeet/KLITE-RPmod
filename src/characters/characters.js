@@ -12,7 +12,7 @@
 // =============================================================================
 import { el, clear, icon, iconText } from '../shell/dom.js';
 import { ABILITIES, ABILITY_NAMES, SKILLS, defaultSheet, normalizeSheet, derive, fmt, fromCombatStats } from './sheet.js';
-import { loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor } from './store.js';
+import { loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor } from './store.js';
 import { characterNames } from '../library/esoliteLibrary.js';
 
 const LAST_KEY = 'KLITE.sheet.last';
@@ -346,7 +346,9 @@ export default function initCharacters() {
 
     const api = {
         open(name) { const sh = Shell(); if (!sh) return false; if (name && name !== V.name) { V.name = null; V.draft = null; select(name); } sh.open('sheet'); return true; },
-        loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor,
+        loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor,
+        // the player's persona (ALPHA Tools): name when chosen and enabled, else ''
+        personaName: () => { try { const T = window.KLITE_RPMod?.panels?.TOOLS; return (T && T.personaEnabled && T.selectedPersona && T.selectedPersona.name) || ''; } catch (_) { return ''; } },
         current: () => ({ name: V.name, sheet: V.draft ? normalizeSheet(V.draft) : null, dirty: dirty() }),
     };
     window.KLITE_RPMod_Characters = api;

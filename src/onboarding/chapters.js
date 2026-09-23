@@ -38,7 +38,7 @@ export const CHAPTERS = [
         id: 'panels', title: 'The RPmod panels',
         blocks: [
             { list: [
-                'Left, "Adventure": your party (name, place, time, combat status) and the quests you are on.',
+                'Left, "Adventure": your party (your persona with HP and AC, place, time, combat status) and the quests you are on.',
                 'Right: tabs World, Chars, Roles, Scenario and Tools.',
                 'Bigger views such as the Quest log and Combat open as windows: drag them by the title bar, resize them at the bottom-right corner.',
             ] },

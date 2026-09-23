@@ -10,7 +10,7 @@
 import { loadCharacter, saveCharacter } from '../library/esoliteLibrary.js';
 import { readSheet, writeSheet, normalizeSheet, toCombatStats, sheetSummary } from './sheet.js';
 
-const cache = new Map();      // lower-case name -> { name, sheet | null }
+const cache = new Map();      // lower-case name -> { name, sheet | null, text: { personality, description } }
 const pending = new Map();    // lower-case name -> Promise
 const k = (name) => String(name || '').trim().toLowerCase();
 
@@ -22,21 +22,46 @@ export async function loadSheet(name) {
     const rec = await loadCharacter(name);
     if (!rec) throw new Error('Character not found in the Library: ' + name);
     const sheet = readSheet(rec.data);
-    cache.set(k(name), { name: rec.name || name, sheet });
+    cache.set(k(name), { name: rec.name || name, sheet, text: cardText(rec.data) });
     emit(name);
     return sheet;
+}
+
+// The card's own descriptive text (for short blurbs); untrusted, plain strings only.
+function cardText(inner) {
+    const d = inner && typeof inner === 'object' ? inner : {};
+    const str = (v) => (typeof v === 'string' ? v : '');
+    return { personality: str(d.personality), description: str(d.description) };
+}
+
+// Cached entry or undefined (not loaded yet — starts loading it for next time).
+function cachedEntry(name) {
+    const hit = cache.get(k(name));
+    if (hit) return hit;
+    if (!pending.has(k(name))) {
+        const p = loadSheet(name).catch(() => { cache.set(k(name), { name, sheet: null, text: null }); }).finally(() => pending.delete(k(name)));
+        pending.set(k(name), p);
+    }
+    return undefined;
 }
 
 // Cached sheet or undefined (not loaded yet — starts loading it for next time).
 export function cachedSheet(name) {
     if (!name) return null;
-    const hit = cache.get(k(name));
-    if (hit) return hit.sheet;
-    if (!pending.has(k(name))) {
-        const p = loadSheet(name).catch(() => { cache.set(k(name), { name, sheet: null }); }).finally(() => pending.delete(k(name)));
-        pending.set(k(name), p);
-    }
-    return undefined;
+    const hit = cachedEntry(name);
+    return hit ? hit.sheet : undefined;
+}
+
+// Short plain-text blurb from the card (personality, else description): '' when the card
+// has none or is not loaded yet (starts loading it; `klite:sheet-change` fires when ready).
+export function blurbFor(name, maxLen = 160) {
+    if (!name) return '';
+    const hit = cachedEntry(name);
+    const t = hit && hit.text ? (hit.text.personality || hit.text.description) : '';
+    if (!t) return '';
+    let s = String(t).replace(/\{\{char\}\}/gi, hit.name || name).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (s.length > maxLen) s = s.slice(0, maxLen - 1) + '…';
+    return s;
 }
 
 // Write the sheet into the card (null removes it). Keeps every other card field.
@@ -45,12 +70,22 @@ export async function saveSheet(name, sheet) {
     if (!rec) throw new Error('Character not found in the Library: ' + name);
     const inner = writeSheet(rec.data, sheet ? normalizeSheet(sheet) : null);
     const res = await saveCharacter({ inner, oldName: rec.name || name });
-    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner) });
+    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner), text: cardText(inner) });
     emit(res.name);
     return readSheet(inner);
 }
 
 export function forget(name) { cache.delete(k(name)); }
+
+// A card written elsewhere (gallery editor, import, delete) may have new text or a new sheet.
+// (saveSheet refills the cache right after its own write.)
+if (typeof window !== 'undefined') {
+    window.addEventListener('klite:library-change', (e) => {
+        const d = (e && e.detail) || {};
+        if (d.oldName) forget(d.oldName);
+        if (d.name) forget(d.name);
+    });
+}
 
 // For Worlds combat / the AI context (synchronous; undefined/null when unknown).
 export function combatStatsFor(name) { const s = cachedSheet(name); return s ? toCombatStats(s) : null; }

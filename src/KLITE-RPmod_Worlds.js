@@ -305,7 +305,7 @@ export default function initWorlds() {
     }
     // The player's persona sheet (ALPHA Tools persona) when the world sets no player stats.
     function personaSheetStats() {
-        try { const n = window.KLITE_RPMod?.panels?.TOOLS?.selectedPersona?.name; const C = window.KLITE_RPMod_Characters; return C && n ? C.combatStatsFor(n) : null; } catch (_) { return null; }
+        try { const C = window.KLITE_RPMod_Characters; const n = C && C.personaName ? C.personaName() : ''; return n ? C.combatStatsFor(n) : null; } catch (_) { return null; }
     }
     function personName(person) {
         return norm(person && person.name) || norm(resolveCharacter(person)?.name) || 'Unnamed';
@@ -314,6 +314,9 @@ export default function initWorlds() {
     function personBlurb(person, maxLen = 160) {
         let t = norm(person && person.description) || norm(person && person.personality);
         if (!t) { const c = resolveCharacter(person); t = norm(c && (c.personality || c.description)); }
+        if (!t) {   // the linked card's own text from Esolite's Library (cached; loads on first use)
+            try { const C = window.KLITE_RPMod_Characters; const ref = person && person.characterRef; if (C && C.blurbFor && ref && ref.name) t = norm(C.blurbFor(ref.name, maxLen)); } catch (_) {}
+        }
         if (t.length > maxLen) t = t.slice(0, maxLen - 1) + '…';
         return t;
     }
@@ -973,8 +976,17 @@ export default function initWorlds() {
         changeQueued = true;
         setTimeout(() => {
             changeQueued = false;
+            warmLinkedCards();
             try { window.dispatchEvent(new CustomEvent('klite:worlds-change')); } catch (_) {}
         }, 0);
+    }
+    // Start loading the linked cards (sheet + text) so the next turn's slice has them.
+    function warmLinkedCards() {
+        try {
+            const C = window.KLITE_RPMod_Characters; const w = activeWorld();
+            if (!C || !w) return;
+            for (const p of asArray(w.npcs)) if (p && p.characterRef && p.characterRef.name) C.cachedSheet(p.characterRef.name);
+        } catch (_) {}
     }
 
     // Keep the host WI editor panel in sync if it happens to be visible.

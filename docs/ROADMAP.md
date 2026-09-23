@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 116 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 118 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -108,6 +108,9 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
     `upsertCharacterMetadata`, `updateCharacterListFromAll`, `findCharacterMetaByName`,
     `getNextAutoincrementName`, `STORAGE_PREFIX`, `allCharacterNames`): recheck on every host
     upgrade; a small official save/delete API would be a good next proposal to Jaxxks.
+17. **Combat HP and sheet HP are separate:** a fight starts every combatant at full HP (the
+    player at the sheet's maximum, not its current HP) and damage is not written back to the
+    sheet. Decide with R5 (combat ↔ sheet sync, death saves).
 
 ## Phases
 
@@ -260,9 +263,17 @@ play test with a real backend, owner's decision 2026-09-23).
       Acceptance "build a level-1 character end to end, roll from the sheet, level up" covered
       by tests + live check; "export and re-import as a card" relies on the portrait/V2 card
       embedding (tested) — a real import round trip in SillyTavern is still to do.
+- [x] **Party shows the persona; person blurbs from linked cards** (2026-09-23): the Party
+      section shows the enabled persona (name, species · class level, HP bar, AC, speed; the
+      combat tracker's HP during a fight), "Choose in gallery" without a persona and **Build**
+      when its card has no sheet; it follows persona changes (`klite:persona-change`) and
+      sheet saves. A Worlds person linked to a card and without its own text now gets a short
+      blurb from the card (personality, else description) — before, the link only worked when
+      ALPHA's gallery happened to hold the text. Card edits refresh it (`klite:library-change`).
+      Worlds' player sheet now follows the *enabled* persona (as the AI context already did).
+      Live-checked in Esolite.
 - **Next (R2):** spells from the SRD spell list (pick cantrips/prepared spells — with R3's
-  compendium), levels 4+ (ASI/feats), Party section shows the persona's HP/AC, person
-  blurbs from linked cards, ALPHA's Chars tab → gallery.
+  compendium), levels 4+ (ASI/feats), ALPHA's Chars tab → gallery.
 - One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,
   background, abilities, proficiencies, skills, saves, AC, HP, speed, equipment,
   inventory, spells, features). Migration from existing `characterRef` + `stats`.

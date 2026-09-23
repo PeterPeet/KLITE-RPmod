@@ -152,3 +152,55 @@ test('Worlds: a person linked to a card without own stats uses the card sheet (s
     const cb = W.getCombat();
     assert.equal(cb.maxHp[p.id], 11);
 });
+
+test('Party section: the persona\'s HP, AC and class from its sheet; follows persona and sheet changes', async (t) => {
+    const h = await charHost(t); const w = h.window; const doc = w.document; const C = w.KLITE_RPMod_Characters;
+    const party = () => doc.querySelector('[data-section="party"]');
+    const q = (k) => party().querySelector(`[data-party="${k}"]`);
+    w.KLITE_RPMod_Shell.refresh(['party']); await sleep(10);
+    assert.ok(q('no-persona'), 'asks to choose a persona');
+    assert.ok(findButton(party(), /Choose in gallery/));
+
+    // persona without a sheet → offer the builder
+    w.KLITE_RPMod.panels.TOOLS.selectedPersona = { name: 'Mira' };
+    w.KLITE_RPMod.panels.TOOLS.personaEnabled = true;
+    await sleep(40);
+    assert.equal(q('name').textContent, 'Mira');
+    assert.ok(q('no-sheet'), 'card has no sheet');
+    assert.ok(findButton(party(), /^Build$/));
+
+    await C.saveSheet('Mira', { species: 'Elf', className: 'Ranger', level: 3, ac: 15, speed: 35, hp: { max: 24, current: 18 } });
+    await sleep(40);
+    assert.equal(q('hp').textContent, 'HP 18/24');
+    assert.equal(q('ac').textContent, 'AC 15');
+    assert.match(q('class').textContent, /Elf · Ranger 3/);
+    assert.equal(q('hpbar').getAttribute('aria-valuenow'), '18');
+
+    // in a fight the tracker's HP counts
+    const W = h.api(); await W.newWorld('T'); W.enable();
+    W.startEncounter([], { includePlayer: true }); await sleep(40);
+    assert.match(q('hp').textContent, /^HP 24\/24/, 'combat HP from the sheet\'s maximum');
+    W.damage('__player__', 5); await sleep(40);
+    assert.match(q('hp').textContent, /^HP 19\/24/);
+
+    // persona switched off → no persona
+    w.KLITE_RPMod.panels.TOOLS.personaEnabled = false; await sleep(40);
+    assert.ok(q('no-persona'));
+});
+
+test('Worlds: a linked person without its own text uses the card\'s blurb; card edits refresh it', async (t) => {
+    const h = await charHost(t); const w = h.window; const W = h.api();
+    await W.newWorld('T'); const inn = W.addEntity('location', { name: 'Inn' });
+    const p = W.addEntity('npc', { name: '' }); W.linkCharacter(p.id, 'Mira'); W.connect(p.id, inn.id);
+    W.enable(); W.moveTo('Inn');
+    await sleep(40);   // the card loads on first use (warmed on world change)
+    assert.match(W.preview(), /- Mira \| A ranger from the north\./);
+
+    const L = w.KLITE_RPMod_Library;
+    const r = await L.loadCharacter('Mira');
+    await L.saveCharacter({ inner: Object.assign({}, r.data, { personality: '{{char}} is <b>wary</b> of strangers.' }), oldName: 'Mira' });
+    W.preview(); await sleep(40);
+    assert.match(W.preview(), /- Mira \| Mira is wary of strangers\./, 'personality first, macros and markup cleaned');
+    W.updateEntity(p.id, { description: 'Own text wins.' });
+    assert.match(W.preview(), /- Mira \| Own text wins\./);
+});

@@ -1620,7 +1620,14 @@ ${s.text}` : s.text : `[${s.title}]`;
     const thumbnail = image ? await thumbnailFor(image) : existing && existing.thumbnail;
     upsertMeta(Object.assign({}, existing || {}, { id, name, type: "Character", favorite: !!(existing && existing.favorite) }, thumbnail ? { thumbnail } : {}));
     await saveList();
+    libraryChanged({ name, oldName: oldName || null });
     return { id, name };
+  }
+  function libraryChanged(detail) {
+    try {
+      window.dispatchEvent(new CustomEvent("klite:library-change", { detail }));
+    } catch (_) {
+    }
   }
   async function loadCharacter(name) {
     const get = fn("getCharacterData");
@@ -1642,6 +1649,7 @@ ${s.text}` : s.text : `[${s.title}]`;
     await window.indexeddb_save?.(storageKey(id));
     hostSet("allCharacterNames", list().filter((m) => meta ? `${m && m.id || ""}` !== `${meta.id}` : normalizeName(m && m.name) !== normalizeName(name)));
     await saveList();
+    libraryChanged({ name, oldName: null, deleted: true });
   }
   function storagePrefix() {
     const p = hostGet("STORAGE_PREFIX");
@@ -11357,6 +11365,28 @@ ${parts.join("\n")})))`;
         }
       }
     };
+    (function watchPersona(T) {
+      const store = { selectedPersona: T.selectedPersona, personaEnabled: T.personaEnabled };
+      const current = () => store.personaEnabled && store.selectedPersona && store.selectedPersona.name || "";
+      for (const key of Object.keys(store)) {
+        Object.defineProperty(T, key, {
+          enumerable: true,
+          configurable: true,
+          get: () => store[key],
+          set: (v) => {
+            const before = current();
+            store[key] = v;
+            const after = current();
+            if (before !== after) {
+              try {
+                window.dispatchEvent(new CustomEvent("klite:persona-change", { detail: { name: after } }));
+              } catch (_) {
+              }
+            }
+          }
+        });
+      }
+    })(KLITE_RPMod.panels.TOOLS);
     KLITE_RPMod.panels.CONTEXT = {
       // State
       analysisWindow: null,
@@ -18096,9 +18126,9 @@ ${char.mes_example}
     }
     function personaSheetStats() {
       try {
-        const n = window.KLITE_RPMod?.panels?.TOOLS?.selectedPersona?.name;
         const C = window.KLITE_RPMod_Characters;
-        return C && n ? C.combatStatsFor(n) : null;
+        const n = C && C.personaName ? C.personaName() : "";
+        return n ? C.combatStatsFor(n) : null;
       } catch (_) {
         return null;
       }
@@ -18111,6 +18141,14 @@ ${char.mes_example}
       if (!t) {
         const c = resolveCharacter(person);
         t = norm2(c && (c.personality || c.description));
+      }
+      if (!t) {
+        try {
+          const C = window.KLITE_RPMod_Characters;
+          const ref = person && person.characterRef;
+          if (C && C.blurbFor && ref && ref.name) t = norm2(C.blurbFor(ref.name, maxLen));
+        } catch (_) {
+        }
       }
       if (t.length > maxLen) t = t.slice(0, maxLen - 1) + "…";
       return t;
@@ -18956,11 +18994,21 @@ ${recent}` : "");
       changeQueued = true;
       setTimeout(() => {
         changeQueued = false;
+        warmLinkedCards();
         try {
           window.dispatchEvent(new CustomEvent("klite:worlds-change"));
         } catch (_) {
         }
       }, 0);
+    }
+    function warmLinkedCards() {
+      try {
+        const C = window.KLITE_RPMod_Characters;
+        const w = activeWorld();
+        if (!C || !w) return;
+        for (const p of asArray(w.npcs)) if (p && p.characterRef && p.characterRef.name) C.cachedSheet(p.characterRef.name);
+      } catch (_) {
+      }
     }
     function refreshWiEditor() {
       try {
@@ -21061,23 +21109,62 @@ ${recent}` : "");
       body.appendChild(el2("hr", { class: "rpm-divider" }));
       renderPlayTab(body);
     }
+    function hpBar(cur, max) {
+      const pct = max > 0 ? Math.max(0, Math.min(100, Math.round(cur / max * 100))) : 0;
+      const bar = el2("div", { class: "rpm-bar", "data-party": "hpbar", role: "meter", "aria-label": "Hit points", "aria-valuemin": "0", "aria-valuemax": String(max), "aria-valuenow": String(cur) });
+      bar.appendChild(el2("span", { style: `width:${pct}%;background:${pct > 50 ? "var(--rpm-success)" : pct > 25 ? "var(--rpm-quest)" : "var(--rpm-danger)"}` }));
+      return bar;
+    }
+    function renderPersona(box, player, cb) {
+      const C = window.KLITE_RPMod_Characters;
+      const persona = C && C.personaName ? C.personaName() : "";
+      box.appendChild(el2("div", { class: "rpm-heading", "data-party": "name", text: persona || player.name || "You" }));
+      if (!C) return;
+      if (!persona) {
+        box.appendChild(muted("No persona chosen — pick the character you play.", { "data-party": "no-persona" }));
+        if (window.KLITE_RPMod_Gallery) box.appendChild(uiBtn("Choose in gallery", () => window.KLITE_RPMod_Gallery.open(), { icon: "layout-grid", block: true, style: "margin:4px 0" }));
+        return;
+      }
+      const sheet = C.cachedSheet(persona);
+      if (sheet) {
+        const who = [sheet.species, sheet.className ? `${sheet.className} ${sheet.level}` : `Level ${sheet.level}`].filter(Boolean).join(" · ");
+        if (who) box.appendChild(muted(who, { "data-party": "class" }));
+        const inCombat = cb && cb.active && cb.hp && cb.hp.__player__ != null;
+        const hp = inCombat ? cb.hp.__player__ : sheet.hp.current;
+        const max = inCombat ? cb.maxHp.__player__ : sheet.hp.max;
+        const temp = !inCombat && sheet.hp.temp ? ` (+${sheet.hp.temp})` : "";
+        box.appendChild(row([
+          el2("span", { class: "rpm-grow", "data-party": "hp", title: inCombat ? "Hit points in the current fight" : "Hit points on the character sheet", text: `HP ${hp}/${max}${temp}${inCombat ? " ⚔" : ""}` }),
+          el2("span", { "data-party": "ac", title: sheet.acNote || "Armor Class", text: `AC ${sheet.ac}` }),
+          el2("span", { class: "rpm-muted", "data-party": "speed", text: `${sheet.speed} ft.` })
+        ], "margin-top:4px"));
+        box.appendChild(hpBar(hp, max));
+        box.appendChild(uiBtn("Character sheet", () => C.open(persona), { icon: "id-card", block: true, style: "margin:6px 0 4px", title: "Abilities, skills, inventory — click values to roll" }));
+      } else {
+        if (sheet === null) box.appendChild(muted("No character sheet yet.", { "data-party": "no-sheet" }));
+        const B = window.KLITE_RPMod_Builder;
+        box.appendChild(row([
+          B && sheet === null ? uiBtn("Build", () => B.open({ target: persona, name: persona }), { icon: "sparkles", grow: true, title: "Step-by-step character builder (SRD 5.2.1)" }) : null,
+          uiBtn("Character sheet", () => C.open(persona), { icon: "id-card", grow: true })
+        ], "margin:4px 0"));
+      }
+    }
     function renderParty(box) {
       const A = API();
       const world = A.activeWorld();
+      const player = world && world.ruleset && world.ruleset.player || {};
+      const cb = world ? A.getCombat() : null;
+      renderPersona(box, player, cb);
       if (!world) {
-        box.appendChild(muted("No world loaded."));
+        box.appendChild(muted("No world loaded.", { style: "margin-top:6px" }));
         box.appendChild(uiBtn("Choose a world", () => openView("world"), { block: true, style: "margin-top:8px" }));
         return;
       }
-      const player = world.ruleset && world.ruleset.player || {};
       const rt = A.runtime || {};
       const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
       const c = rt.clock || {};
-      box.appendChild(el2("div", { class: "rpm-heading", text: player.name || "You" }));
-      if (window.KLITE_RPMod_Characters) box.appendChild(uiBtn("Character sheet", () => window.KLITE_RPMod_Characters.open(), { icon: "id-card", block: true, style: "margin:4px 0", title: "Your persona's sheet: abilities, skills, inventory — click values to roll" }));
       box.appendChild(el2("div", { class: "rpm-muted", "data-party": "location", style: "margin-top:2px;display:flex;align-items:center;gap:4px" }, [icon("map-pin", 13), loc ? loc.name || loc.id : "nowhere"]));
       box.appendChild(muted(`🕑 Day ${c.day || 1}, ${c.time || "—"}${c.weather ? " · " + c.weather : ""}`));
-      const cb = A.getCombat();
       if (cb && cb.active) {
         const cur = cb.order[cb.turnIndex];
         const hp = cb.hp.__player__, max = cb.maxHp.__player__;
@@ -21409,6 +21496,14 @@ ${recent}` : "");
         } catch (_) {
         }
       });
+      const refreshParty = () => {
+        try {
+          sh.refresh(["party"], { soft: true });
+        } catch (_) {
+        }
+      };
+      window.addEventListener("klite:persona-change", refreshParty);
+      window.addEventListener("klite:sheet-change", refreshParty);
       window.addEventListener("klite:worlds-dirty", () => {
         try {
           updateSaveState();
@@ -21472,7 +21567,7 @@ ${recent}` : "");
       title: "The RPmod panels",
       blocks: [
         { list: [
-          'Left, "Adventure": your party (name, place, time, combat status) and the quests you are on.',
+          'Left, "Adventure": your party (your persona with HP and AC, place, time, combat status) and the quests you are on.',
           "Right: tabs World, Chars, Roles, Scenario and Tools.",
           "Bigger views such as the Quest log and Combat open as windows: drag them by the title bar, resize them at the bottom-right corner."
         ] },
@@ -22670,30 +22765,58 @@ ${recent}` : "");
     const rec = await loadCharacter(name);
     if (!rec) throw new Error("Character not found in the Library: " + name);
     const sheet = readSheet(rec.data);
-    cache.set(k(name), { name: rec.name || name, sheet });
+    cache.set(k(name), { name: rec.name || name, sheet, text: cardText(rec.data) });
     emit(name);
     return sheet;
   }
-  function cachedSheet(name) {
-    if (!name) return null;
+  function cardText(inner) {
+    const d = inner && typeof inner === "object" ? inner : {};
+    const str2 = (v) => typeof v === "string" ? v : "";
+    return { personality: str2(d.personality), description: str2(d.description) };
+  }
+  function cachedEntry(name) {
     const hit = cache.get(k(name));
-    if (hit) return hit.sheet;
+    if (hit) return hit;
     if (!pending.has(k(name))) {
       const p = loadSheet(name).catch(() => {
-        cache.set(k(name), { name, sheet: null });
+        cache.set(k(name), { name, sheet: null, text: null });
       }).finally(() => pending.delete(k(name)));
       pending.set(k(name), p);
     }
     return void 0;
+  }
+  function cachedSheet(name) {
+    if (!name) return null;
+    const hit = cachedEntry(name);
+    return hit ? hit.sheet : void 0;
+  }
+  function blurbFor(name, maxLen = 160) {
+    if (!name) return "";
+    const hit = cachedEntry(name);
+    const t = hit && hit.text ? hit.text.personality || hit.text.description : "";
+    if (!t) return "";
+    let s = String(t).replace(/\{\{char\}\}/gi, hit.name || name).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    if (s.length > maxLen) s = s.slice(0, maxLen - 1) + "…";
+    return s;
   }
   async function saveSheet(name, sheet) {
     const rec = await loadCharacter(name);
     if (!rec) throw new Error("Character not found in the Library: " + name);
     const inner = writeSheet(rec.data, sheet ? normalizeSheet(sheet) : null);
     const res = await saveCharacter({ inner, oldName: rec.name || name });
-    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner) });
+    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner), text: cardText(inner) });
     emit(res.name);
     return readSheet(inner);
+  }
+  function forget(name) {
+    cache.delete(k(name));
+  }
+  if (typeof window !== "undefined") {
+    window.addEventListener("klite:library-change", (e) => {
+      const d = e && e.detail || {};
+      if (d.oldName) forget(d.oldName);
+      if (d.name) forget(d.name);
+    });
   }
   function combatStatsFor(name) {
     const s = cachedSheet(name);
@@ -23221,6 +23344,16 @@ OK = save and close · Cancel = close and discard them`);
       cachedSheet,
       combatStatsFor,
       summaryFor,
+      blurbFor,
+      // the player's persona (ALPHA Tools): name when chosen and enabled, else ''
+      personaName: () => {
+        try {
+          const T = window.KLITE_RPMod?.panels?.TOOLS;
+          return T && T.personaEnabled && T.selectedPersona && T.selectedPersona.name || "";
+        } catch (_) {
+          return "";
+        }
+      },
       current: () => ({ name: V.name, sheet: V.draft ? normalizeSheet(V.draft) : null, dirty: dirty() })
     };
     window.KLITE_RPMod_Characters = api;

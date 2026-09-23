@@ -14,7 +14,8 @@ The mod ships as a single file, `KLITE-RPmod.js`.
 1. In Esolite, open the **mod manager** (settings → user mod).
 2. Load / paste `KLITE-RPmod.js` and enable it. Reload when prompted.
 3. After it loads, RPmod sits around the chat:
-   - **Left panel (Adventure)** — *Party* (who you are, where, what time; combat status)
+   - **Left panel (Adventure)** — *Party* (your persona with class, HP bar, AC and speed from
+     its sheet; where, what time; combat status)
      and *Quests* (your active quests, `?` when ready to turn in).
    - **Right panel (tools)** — tabs **World** (the Worlds panel), **Chars**, **Roles**,
      **Scenario** and **Tools**.
@@ -222,7 +223,9 @@ keeps inventory, coins and notes. Every option shows its rules text from the SRD
 species, class, level, background, the six abilities, saving throws, the 18 skills
 (proficient or expertise), AC, speed, HP, attacks, inventory, coins, features and notes.
 Open it with **Character sheet** in the left panel's *Party* section. It starts with your
-persona; pick any character at the top. Modifiers, the proficiency bonus, initiative and
+persona; pick any character at the top. The *Party* section shows your persona's class, HP
+(with a bar), AC and speed; during a fight it shows the combat tracker's HP (marked ⚔). If your
+persona has no sheet yet, **Build** starts the character builder for it. Modifiers, the proficiency bonus, initiative and
 passive Perception are calculated for you.
 
 - **Click to roll:** every bonus is a button that rolls a d20 with it (choose **Advantage**
@@ -247,7 +250,8 @@ the current state the new base, and **Swap** to switch which is active. Both tra
 save and export.
 
 **Persons = characters.** In the editor, an NPC can be **linked to a character** from your
-Library (its TavernCard text is reused) and given an optional **d20 stat block**
+Library (its TavernCard text is reused: without a description of its own, the AI gets a short
+line from the card's personality or description) and given an optional **d20 stat block**
 (abilities, AC, HP, attacks). Stats feed combat and appear in the AI's context near that NPC.
 
 **Quests (WoW-style).** Add **Quest** nodes with a **giver** (`!`) and **turn-in** person
