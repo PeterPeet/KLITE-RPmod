@@ -179,13 +179,36 @@ From the **World** tab in the right panel:
 Now just chat. Each turn, the AI receives your current location, the NPCs and objects
 there, active events, and relevant lore — and nothing from the far side of the map.
 
+### The map and moving room by room
+
+The left panel's **Map** section shows where you are. Inside a dungeon or town you see its
+board: the room you are in (gold, with a dot), rooms you have visited, and — as dashed
+outlines — rooms you know of but have not entered. Unknown rooms and undiscovered secret doors
+are not shown. Below the board are the exits of your room (direction, name, door state).
+
+- **Click a neighbouring room** (or its exit button) to go there. RPmod applies the rules:
+  you can only use known exits, a closed door is opened on the way, a **locked or barred door
+  refuses the move**. The move or the refusal goes to the game log, and the AI narrates it in
+  its next reply.
+- Going to a dungeon or town from outside puts you in its entrance room (the room with the way
+  out to where you stand). From inside you leave only through a way out.
+- Click the small board (or the map icon) to open the large **Map** window; it works the same.
+- The AI gets your room's description, light, hazards, the exits with exact names, directions
+  and door states, and what can be seen (unfound traps stay hidden). It moves you with
+  `<move>Ossuary</move>` or `<move>north</move>` — through the same rules.
+- Optional: **Settings → RPmod → Map → Send a small text map to the AI** adds a tiny map of
+  the explored rooms (off by default; helps bigger models, may confuse small ones).
+- The World tab's **Current location** is the creator's shortcut: it puts you anywhere,
+  without the rules.
+
 ---
 
 ## 6. In-chat commands (Worlds tags)
 
 The world changes as you play through small **tags**. The AI can emit them in its replies
-(instruct it to, via your World Rules), or **you can type them yourself**. They're parsed
-on your next turn, update the world state, and are reflected in the following slice.
+(instruct it to, via your World Rules), or **you can type them yourself**. Tags in the AI's
+reply take effect **as soon as the reply arrives** (the panels update at once); tags you type
+are applied when you send. Either way the next slice reflects them.
 
 ![How an in-chat command changes the world](docs/chat-command-flow.svg)
 
@@ -193,7 +216,7 @@ on your next turn, update the world state, and are reflected in the following sl
 
 | Command | Example | Effect |
 |---|---|---|
-| `<move>…</move>` | `<move>Forest Road</move>` | Move the **player** to a location |
+| `<move>…</move>` | `<move>Forest Road</move>`, `<move>north</move>` | Move the **player** to a location. Inside (or into) a dungeon/town RPmod checks exits and doors; a refusal goes to the log |
 | `<npcmove>NPC=Loc</npcmove>` | `<npcmove>Captain Rowan=Village</npcmove>` | Move an **NPC** to a location |
 | `<mood>NPC=Mood</mood>` | `<mood>Bram=cheerful</mood>` | Set an NPC's mood |
 | `<flag>key=value</flag>` | `<flag>metRowan=true</flag>` | Set a story flag (`<flag>key</flag>` = true) |

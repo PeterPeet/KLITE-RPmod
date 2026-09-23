@@ -308,6 +308,25 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-map-exitcard.rpm-sel { border-color: var(--rpm-fg-hi); }
 .rpm-map-check { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); cursor: pointer; }
 
+/* ---- Mini-map (left dock "Map") and Map window (src/map/minimap.js) ---- */
+.rpm-map-player { display: flex; flex-direction: column; gap: 6px; }
+.rpm-map-where { display: flex; align-items: center; gap: 6px; }
+.rpm-map-boardwrap { background: var(--map-ground); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); cursor: zoom-in; padding: 4px; }
+.rpm-map-large .rpm-map-boardwrap { cursor: default; }
+.rpm-map-board { display: block; width: 100%; height: auto; max-height: 220px; }
+.rpm-map-large .rpm-map-board { max-height: none; min-height: 260px; }
+.rpm-map-fog .rpm-map-roomrect { fill: transparent; stroke-dasharray: 4 3; opacity: .75; }
+.rpm-map-fog .rpm-map-name { fill: var(--rpm-fg-muted); }
+.rpm-map-room.rpm-here .rpm-map-roomrect { stroke: var(--rpm-quest); stroke-width: 3; }
+.rpm-map-reach { cursor: pointer; }
+.rpm-map-reach:hover .rpm-map-roomrect { stroke: var(--rpm-fg-hi); stroke-width: 3; }
+.rpm-map-player .rpm-map-room { cursor: default; }
+.rpm-map-player .rpm-map-room.rpm-map-reach { cursor: pointer; }
+.rpm-map-exits { display: flex; flex-direction: column; gap: 4px; }
+.rpm-map-go.rpm-btn { display: flex; align-items: center; gap: 6px; width: 100%; }
+.rpm-map-go .rpm-grow { text-align: left; }
+.rpm-map-refused { color: var(--rpm-danger); font-size: var(--rpm-fs-sm); }
+
 /* ---- character sheet (window "sheet") + dice log ---- */
 .rpm-sheet { display: flex; flex-direction: column; gap: 4px; }
 .rpm-sheet-h { margin: 10px 0 4px; }
@@ -603,7 +622,9 @@ body.rpm-docked #maincontainer {
     // map editor: select tool
     "mouse-pointer-2": [["path", { "d": "M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z" }]],
     // map editor: connect tool
-    "link-2": [["path", { "d": "M9 17H7A5 5 0 0 1 7 7h2" }], ["path", { "d": "M15 7h2a5 5 0 1 1 0 10h-2" }], ["line", {}]]
+    "link-2": [["path", { "d": "M9 17H7A5 5 0 0 1 7 7h2" }], ["path", { "d": "M15 7h2a5 5 0 1 1 0 10h-2" }], ["line", {}]],
+    // mini-map / Map window
+    "map": [["path", { "d": "M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" }], ["path", { "d": "M15 5.764v15" }], ["path", { "d": "M9 3.236v15" }]]
   };
 
   // src/shell/dom.js
@@ -25387,6 +25408,7 @@ ${char.mes_example}
     OPPOSITE: () => OPPOSITE,
     ROOM: () => ROOM,
     STYLES: () => STYLES,
+    asciiMap: () => asciiMap,
     authoredDoorState: () => authoredDoorState,
     besideRect: () => besideRect,
     blocksMove: () => blocksMove,
@@ -25404,9 +25426,11 @@ ${char.mes_example}
     kindOf: () => kindOf,
     layoutRooms: () => layoutRooms,
     mirrorDir: () => mirrorDir,
+    nameKey: () => nameKey,
     normalizeExit: () => normalizeExit,
     normalizeExploration: () => normalizeExploration,
     overlaps: () => overlaps,
+    parseDir: () => parseDir,
     raiseExplored: () => raiseExplored,
     rectOf: () => rectOf,
     visibleExit: () => visibleExit
@@ -25580,6 +25604,67 @@ ${char.mes_example}
     if (exploreRank(explored[id]) >= exploreRank(level)) return false;
     explored[id] = level;
     return true;
+  }
+  var DIR_WORDS = {
+    n: "n",
+    north: "n",
+    northward: "n",
+    e: "e",
+    east: "e",
+    eastward: "e",
+    s: "s",
+    south: "s",
+    southward: "s",
+    w: "w",
+    west: "w",
+    westward: "w",
+    u: "up",
+    up: "up",
+    upstairs: "up",
+    d: "down",
+    down: "down",
+    downstairs: "down"
+  };
+  function parseDir(text) {
+    const t = String(text || "").toLowerCase().replace(/\b(the|a|an|go|to|door|passage|exit|way|stairs|corridor|through)\b/g, " ").trim();
+    return DIR_WORDS[t] || null;
+  }
+  function nameKey(text) {
+    return String(text || "").toLowerCase().replace(/^\s*(the|a|an)\s+/, "").replace(/[.,!?;:"'`]+/g, "").replace(/\s+/g, " ").trim();
+  }
+  function asciiMap(rooms, links, hereId) {
+    rooms = asArray(rooms);
+    if (!rooms.length) return "";
+    const step = ROOM.w + ROOM.gap, stepY = ROOM.h + ROOM.gap;
+    const cells = /* @__PURE__ */ new Map();
+    const pos = {};
+    const byOrder = rooms.slice().sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
+    for (const r of byOrder) {
+      let c = Math.round((r.rect.x + r.rect.w / 2) / step), row2 = Math.round((r.rect.y + r.rect.h / 2) / stepY);
+      while (cells.has(c + "," + row2)) c++;
+      cells.set(c + "," + row2, r.id);
+      pos[r.id] = { c, row: row2 };
+    }
+    const cs = Object.values(pos).map((p) => p.c), rs = Object.values(pos).map((p) => p.row);
+    const c0 = Math.min(...cs), r0 = Math.min(...rs), W = (Math.max(...cs) - c0) * 4 + 3, H = (Math.max(...rs) - r0) * 2 + 1;
+    const grid = Array.from({ length: H }, () => Array(W).fill(" "));
+    const label2 = {};
+    let n = 0;
+    for (const r of byOrder) label2[r.id] = r.id === hereId ? "@" : String(++n <= 9 ? n : String.fromCharCode(55 + n));
+    for (const [a, b] of asArray(links)) {
+      const p = pos[a], q = pos[b];
+      if (!p || !q) continue;
+      if (p.row === q.row && Math.abs(p.c - q.c) === 1) grid[(p.row - r0) * 2][(Math.min(p.c, q.c) - c0) * 4 + 3] = "-";
+      else if (p.c === q.c && Math.abs(p.row - q.row) === 1) grid[(Math.min(p.row, q.row) - r0) * 2 + 1][(p.c - c0) * 4 + 1] = "|";
+    }
+    for (const r of rooms) {
+      const p = pos[r.id], y = (p.row - r0) * 2, x = (p.c - c0) * 4;
+      grid[y][x] = "[";
+      grid[y][x + 1] = label2[r.id];
+      grid[y][x + 2] = "]";
+    }
+    const legend = byOrder.map((r) => `${label2[r.id]} ${r.name}${r.id === hereId ? " (you are here)" : ""}`);
+    return grid.map((l) => l.join("").replace(/\s+$/, "")).join("\n") + "\n" + legend.join(" · ");
   }
 
   // src/KLITE-RPmod_Worlds.js
@@ -25789,6 +25874,15 @@ ${char.mes_example}
     }
     const AUTOSAVE_SETTING2 = "worlds_autosave";
     const AUTOSAVE_DELAY = 1e3;
+    const ASCII_MAP_SETTING = "map_ascii_ai";
+    function settingOn(id, dflt) {
+      try {
+        const v = window.KLITE_RPMod_Settings?.get(id);
+        return v == null ? dflt : !!v;
+      } catch (_) {
+        return dflt;
+      }
+    }
     const edits = { dirty: false, rev: 0, timer: null };
     function autosaveOn() {
       try {
@@ -25853,6 +25947,14 @@ ${char.mes_example}
         });
         window.KLITE_RPMod_Settings?.onChange(AUTOSAVE_SETTING2, (on) => {
           if (on && edits.dirty) saveLibrary();
+        });
+        window.KLITE_RPMod_Settings?.registerSetting({
+          id: ASCII_MAP_SETTING,
+          section: "Map",
+          order: 10,
+          default: false,
+          label: "Send a small text map to the AI",
+          help: "Inside a dungeon or town the AI also gets a small text map of the rooms the player knows (numbers, @ = you are here). Helps larger models keep the layout straight; small models may do better without it."
         });
       } catch (_) {
       }
@@ -25947,7 +26049,11 @@ ${char.mes_example}
       return !!loc && (!loc.secret || asArray2(foundState().secrets).includes(loc.id));
     }
     function playerExits(locId) {
-      return exitsOfLoc(locId).filter((e) => visibleExit(e, foundState()) && roomFound(locOf(e.to)));
+      const rank = (e) => {
+        const i = DIRS.indexOf(e.dir);
+        return i < 0 ? 99 : i;
+      };
+      return exitsOfLoc(locId).filter((e) => visibleExit(e, foundState()) && roomFound(locOf(e.to))).sort((a, b) => rank(a) - rank(b));
     }
     function findExit(exitId) {
       for (const l of asArray2(activeWorld() && activeWorld().locations)) {
@@ -26095,6 +26201,104 @@ ${char.mes_example}
         outside,
         here: hereRoom ? hereRoom.id : null
       };
+    }
+    function placeName(locId, fromId) {
+      const l = locOf(locId);
+      if (!l) return String(locId || "");
+      const n = norm3(phasedEntity(l).name);
+      const m = mapOf(locId);
+      return m && !(fromId && isInsideLocation(fromId, graphAnchor(locId))) ? `${norm3(phasedEntity(locOf(graphAnchor(locId))).name)} (${n})` : n;
+    }
+    function entranceRoom(mapId, fromId) {
+      const rooms = roomsOf(mapId);
+      if (!rooms.length) return null;
+      const outward = (r) => exitsOfLoc(r.id).filter((e) => !isInsideLocation(e.to, mapId) && e.to !== mapId);
+      return fromId && rooms.find((r) => outward(r).some((e) => e.to === fromId || isInsideLocation(fromId, e.to))) || rooms.find((r) => outward(r).length) || rooms[0];
+    }
+    function resolveGoTarget(target, curId) {
+      const w = activeWorld();
+      const raw = norm3(target);
+      const byId = findById(w.locations, raw);
+      if (byId) return byId;
+      const exits = curId ? playerExits(curId) : [];
+      const d = parseDir(raw);
+      if (d) {
+        const e = exits.find((x) => x.dir === d);
+        return e ? locOf(e.to) : null;
+      }
+      const key = nameKey(raw);
+      const hit = exits.map((e) => locOf(e.to)).filter(Boolean).find((l) => nameKey(phasedEntity(l).name) === key || nameKey(l.name) === key);
+      if (hit) return hit;
+      return asArray2(w.locations).find((l) => nameKey(phasedEntity(l).name) === key || nameKey(l.name) === key) || null;
+    }
+    function go(target, opts = {}) {
+      const w = activeWorld();
+      if (!w || !ensureRuntime()) return { ok: false, reason: "No world is active." };
+      normalizeExploration(rt());
+      const curId = rt().playerLocationId;
+      const cur = locOf(curId);
+      const refuse = (why) => {
+        const msg = `Move to ${norm3(target)} refused: ${why}.`;
+        gameLog(msg, "map");
+        return { ok: false, reason: msg };
+      };
+      let dest = resolveGoTarget(target, curId);
+      if (!dest) return refuse("there is no such place");
+      const destIsMap = isContainer(dest);
+      if (cur && destIsMap && isInsideLocation(curId, dest.id)) return refuse(`you are already inside ${norm3(dest.name)}`);
+      let viaEntrance = false;
+      if (destIsMap) {
+        const ent = entranceRoom(dest.id, curId);
+        if (ent) {
+          dest = ent;
+          viaEntrance = true;
+        }
+      }
+      if (cur && dest.id === curId) return { ok: true, to: dest.id, same: true };
+      let ex = null, opened = false;
+      if (cur && (mapOf(curId) || mapOf(dest.id))) {
+        ex = playerExits(curId).find((e) => e.to === dest.id) || null;
+        if (!ex && !(viaEntrance && !mapOf(curId))) return refuse(`there is no known way from ${placeName(curId)} to ${placeName(dest.id, curId)}`);
+        if (ex) {
+          const st = doorState(ex, rt().doorState);
+          const mat = ex.door && norm3(ex.door.material);
+          if (blocksMove(st)) return refuse(`the ${mat ? mat + " " : ""}door is ${st}`);
+          if (st === "closed") {
+            rt().doorState[ex.id] = "open";
+            opened = true;
+          }
+        }
+      }
+      rt().playerLocationId = dest.id;
+      markVisitedRoom(dest.id);
+      const dir = ex && ex.dir ? dirName(ex.dir) : "";
+      if (opts.source === "ui") gameLog(`${opened ? "Opens the door and goes" : "Goes"}${dir ? " " + dir : ""} to ${placeName(dest.id, curId)}.`, "map");
+      try {
+        fireTriggers("enter:" + dest.id);
+      } catch (_) {
+      }
+      return { ok: true, to: dest.id, dir: ex ? ex.dir : null, opened };
+    }
+    function exitLines(locId) {
+      const r = rt();
+      return playerExits(locId).map((e) => {
+        const st = doorState(e, r && r.doorState);
+        const mat = e.door && norm3(e.door.material);
+        const how = e.type === "door" || e.type === "secret" ? `${st} ${mat ? mat + " " : ""}${e.type === "secret" ? "secret door" : "door"}` : e.type === "open" || !e.type ? "open" : e.type;
+        const out = !isInsideLocation(e.to, graphAnchor(locId)) ? ", leads out" : "";
+        return `- ${e.dir ? dirName(e.dir) + ": " : ""}${placeName(e.to, locId)} (${how}${out})`;
+      });
+    }
+    function asciiMapText(locId) {
+      const m = mapOf(locId);
+      if (!m) return "";
+      const b = mapBoard(m.id, { player: true });
+      if (!b || !b.rooms.length) return "";
+      return asciiMap(b.rooms.map((x) => ({ id: x.id, name: x.name, rect: x.rect })), b.exits.map((e) => [e.from, e.to]), b.here);
+    }
+    function featureVisible(o) {
+      if (o.hidden) return false;
+      return o.kind !== "trap" || asArray2(foundState().traps).includes(o.id);
     }
     function resolveNpcLocationId(npc) {
       const ov = rt()?.npcStateOverrides?.[npc.id];
@@ -26789,7 +26993,9 @@ ${char.mes_example}
         }
       };
       scan(/<move>\s*([^<>]+?)\s*<\/move>/gi, (m) => {
-        const l = findById(world.locations, m[1]) || locationByName(world, m[1]);
+        const cur = rt().playerLocationId;
+        const l = resolveGoTarget(m[1], cur);
+        if (l && (mapOf(cur) || mapOf(l.id) || isContainer(l))) return go(m[1], { source: "ai" }).ok;
         if (l) {
           rt().playerLocationId = l.id;
           return true;
@@ -27580,7 +27786,7 @@ ${recent}` : "");
       }
       return parts.join("\n");
     }
-    function processPendingMutations() {
+    function processPendingMutations(opts) {
       if (!rt()) return false;
       const arr = window.gametext_arr;
       if (!Array.isArray(arr)) return false;
@@ -27593,7 +27799,7 @@ ${recent}` : "");
         } catch (_) {
         }
       }
-      const advanced = W.config.advanceClockPerTurn && arr.length > start;
+      const advanced = W.config.advanceClockPerTurn && arr.length > start && !(opts && opts.advance === false);
       rt().lastParsedIndex = arr.length;
       if (advanced) advanceClock(1);
       if (changed || advanced) dbg("applied pending mutations; loc=", rt().playerLocationId);
@@ -27682,14 +27888,20 @@ ${recent}` : "");
       const pLoc = phasedEntity(loc);
       const zones = zonePath(loc.id), inRoom = !!mapOf(loc.id);
       const inner = childLocations(loc.id).filter((l) => kindOf(loc) === "town" ? roomFound(l) : kindOf(loc) === "dungeon" ? roomFound(l) && !!(rt().explored || {})[l.id] : true);
-      const exits = playerExits(loc.id).filter((e) => !e.mirrored).map((e) => norm3(e.name)).filter(Boolean).concat(connectedLocations(world, loc, 1).map((l) => norm3(phasedEntity(l).name))).concat(zones.length && !inRoom ? [norm3(phasedEntity(zones[zones.length - 1]).name)] : []);
+      const exits = playerExits(loc.id).filter((e) => !e.mirrored).map((e) => norm3(e.name)).filter(Boolean).concat(connectedLocations(world, loc, 1).map((l) => placeName(l.id, loc.id))).concat(zones.length && !inRoom ? [norm3(phasedEntity(zones[zones.length - 1]).name)] : []);
       const exitsUniq = [...new Set(exits.map(norm3).filter(Boolean))];
       let locText = norm3(pLoc.description);
+      if (inRoom && loc.light) locText += `${locText ? "\n" : ""}Light: ${loc.light}`;
+      if (inRoom && asArray2(loc.hazards).length) locText += `${locText ? "\n" : ""}Hazards: ${asArray2(loc.hazards).join(", ")}`;
       if (zones.length) locText = `Part of: ${zones.map((z) => norm3(phasedEntity(z).name)).join(" › ")}` + (locText ? "\n" + locText : "");
       if (norm3(pLoc.atmosphere)) locText += `${locText ? "\n" : ""}Atmosphere: ${norm3(pLoc.atmosphere)}`;
       if (loc.hub) locText += `${locText ? "\n" : ""}A hub: travellers, traders and quest givers gather here.`;
       if (inner.length) locText += `${locText ? "\n" : ""}Places within: ${inner.map((l) => norm3(phasedEntity(l).name)).join(", ")}`;
-      if (exitsUniq.length) locText += `${locText ? "\n" : ""}Exits: ${exitsUniq.join(", ")}`;
+      if (inRoom) {
+        const xl = exitLines(loc.id);
+        if (xl.length) locText += `${locText ? "\n" : ""}Exits:
+${xl.join("\n")}`;
+      } else if (exitsUniq.length) locText += `${locText ? "\n" : ""}Exits: ${exitsUniq.join(", ")}`;
       const hqFactions = asArray2(world.factions).filter((f) => f.hqLocationId === loc.id).map((f) => norm3(f.name)).filter(Boolean);
       if (hqFactions.length) locText += `${locText ? "\n" : ""}Headquarters of: ${hqFactions.join(", ")}`;
       sections.push({ title: `Current Location: ${norm3(pLoc.name)}`, priority: 80, text: locText });
@@ -27718,9 +27930,13 @@ ${recent}` : "");
         if (mutate && rt() && !asArray2(rt().knownNpcIds).includes(npc.id)) rt().knownNpcIds.push(npc.id);
       }
       push("Nearby NPCs", 70, npcLines.join("\n"));
-      const objsHere = asArray2(world.objects).filter((o) => o.locationId === loc.id || asArray2(loc.objectIds).includes(o.id));
-      const objLines = objsHere.map((o) => "- " + norm3(o.name) + (norm3(o.desc) ? `: ${norm3(o.desc)}` : ""));
+      const objsHere = asArray2(world.objects).filter((o) => (o.locationId === loc.id || asArray2(loc.objectIds).includes(o.id)) && featureVisible(o));
+      const objLines = objsHere.map((o) => "- " + norm3(o.name) + (FEATURE_KINDS.includes(o.kind) && o.kind !== "furniture" ? ` (${o.kind === "light" ? o.lit ? "lit" : "unlit" : o.kind})` : "") + (norm3(o.desc) ? `: ${norm3(o.desc)}` : ""));
       push("Nearby Objects", 50, objLines.join("\n"));
+      if (inRoom) {
+        push("Moving", 24, "The player moves room by room. To move, write <move>name</move> with a name (or direction) from the exits above. RPmod checks the doors: a locked or barred door refuses the move and the refusal appears in the log; narrate what actually happened.");
+        if (settingOn(ASCII_MAP_SETTING, false)) push("Map (explored)", 60, asciiMapText(loc.id));
+      }
       const questLines = [];
       for (const q of asArray2(world.quests)) {
         const st = questStateOf(q);
@@ -28429,7 +28645,7 @@ ${recent}` : "");
       W.runtime.active = slot;
       return slot;
     }
-    const API2 = {
+    const API3 = {
       _state: W,
       get config() {
         return W.config;
@@ -28607,6 +28823,13 @@ ${recent}` : "");
         return layoutMap(mapId);
       },
       mapBoard: (mapId, opts) => mapBoard(mapId, opts || {}),
+      go(target, opts) {
+        const r = go(target, opts || {});
+        syncLive();
+        return r;
+      },
+      placeName: (id, fromId) => placeName(id, fromId),
+      asciiMap: (locId) => asciiMapText(locId || rt() && rt().playerLocationId),
       featuresOf: (roomId) => asArray2(activeWorld() && activeWorld().objects).filter((o) => o.locationId === roomId),
       addFeature(roomId, fields = {}) {
         const o = addEntity("object", { name: fields.name || "Feature" });
@@ -29055,6 +29278,7 @@ ${recent}` : "");
         syncLive();
         return c;
       },
+      installReplyHook,
       refresh() {
         return injectManaged();
       },
@@ -29104,22 +29328,42 @@ ${recent}` : "");
       "setRoomRect",
       "addFeature"
     ]) {
-      const fn2 = API2[name];
+      const fn2 = API3[name];
       if (typeof fn2 !== "function") {
         err("authoring API missing: " + name);
         continue;
       }
-      API2[name] = function() {
+      API3[name] = function() {
         const r = fn2.apply(this, arguments);
         const auto = name === "setNodePos" && arguments[3] && arguments[3].layout;
         if (activeWorld() && !auto) markDirty();
         return r;
       };
     }
+    function installReplyHook() {
+      const orig = window.handle_incoming_text;
+      if (typeof orig !== "function" || orig.__rpmod_worlds) return !!(orig && orig.__rpmod_worlds);
+      const wrapped = function() {
+        const res = orig.apply(this, arguments);
+        try {
+          if (W.config.enabled && activeWorld() && rt()) {
+            processPendingMutations({ advance: false });
+            syncLive();
+          }
+        } catch (e) {
+          err("reply tags failed", e);
+        }
+        return res;
+      };
+      wrapped.__rpmod_worlds = true;
+      window.handle_incoming_text = wrapped;
+      return true;
+    }
     async function init() {
       if (W.ready) return;
       await loadLibrary();
       installSaveWrappers();
+      installReplyHook();
       registerProvider();
       registerSettingAndGuards();
       const okPrepare = getContext().install();
@@ -29153,7 +29397,7 @@ ${recent}` : "");
         }
       }, 100);
     }
-    window.KLITE_RPMod_Worlds = API2;
+    window.KLITE_RPMod_Worlds = API3;
     if (document.readyState === "complete") whenReady();
     else window.addEventListener("load", whenReady);
   }
@@ -29514,9 +29758,105 @@ ${recent}` : "");
     return box;
   }
 
+  // src/map/board.js
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var CARD = ["n", "e", "s", "w"];
+  function svg(tag, attrs) {
+    const e = document.createElementNS(SVGNS, tag);
+    if (attrs) {
+      for (const k2 in attrs) if (attrs[k2] != null) e.setAttribute(k2, attrs[k2]);
+    }
+    return e;
+  }
+  function center(r, cell) {
+    return { x: (r.x + r.w / 2) * cell, y: (r.y + r.h / 2) * cell };
+  }
+  function wallPoint(r, dir, cell) {
+    const c = center(r, cell);
+    if (dir === "n") return { x: c.x, y: r.y * cell };
+    if (dir === "s") return { x: c.x, y: (r.y + r.h) * cell };
+    if (dir === "e") return { x: (r.x + r.w) * cell, y: c.y };
+    if (dir === "w") return { x: r.x * cell, y: c.y };
+    return c;
+  }
+  function exitPoints(a, b, dir, cell, R) {
+    const d = CARD.includes(dir) ? dir : R.dirBetween(a, b);
+    return { p: wallPoint(a, d, cell), q: wallPoint(b, R.mirrorDir(d), cell) };
+  }
+  function exitMarks(g, e, mx, my) {
+    if (e.type === "door" || e.type === "secret") {
+      g.appendChild(svg("rect", { x: mx - 6, y: my - 6, width: 12, height: 12, rx: 2, class: "rpm-map-door" }));
+      if (e.state === "locked" || e.state === "barred") {
+        const t = svg("text", { x: mx, y: my + 4, "text-anchor": "middle", class: "rpm-map-glyph" });
+        t.textContent = e.state === "locked" ? "⚿" : "#";
+        g.appendChild(t);
+      }
+    }
+    if (e.type === "stairs" || e.dir === "up" || e.dir === "down") {
+      const t = svg("text", { x: mx, y: my - 9, "text-anchor": "middle", class: "rpm-map-glyph" });
+      t.textContent = e.dir === "up" ? "▲" : e.dir === "down" ? "▼" : "≡";
+      g.appendChild(t);
+    }
+    if (e.secret) {
+      const t = svg("text", { x: mx, y: my + 19, "text-anchor": "middle", class: "rpm-map-glyph" });
+      t.textContent = "S";
+      g.appendChild(t);
+    }
+  }
+  function renderPlayerBoard(board, opts) {
+    const R = opts.R, cell = opts.cell || 20;
+    const rects = board.rooms.map((r) => r.rect);
+    const b = R.boardBounds(rects);
+    const pad = 1;
+    const s = svg("svg", {
+      class: "rpm-map-board",
+      role: "img",
+      "aria-label": `Map of ${board.name}`,
+      viewBox: `${(b.x - pad) * cell} ${(b.y - pad) * cell} ${(b.w + 2 * pad) * cell} ${(b.h + 2 * pad) * cell}`,
+      preserveAspectRatio: "xMidYMid meet"
+    });
+    const gx = svg("g"), gr = svg("g");
+    s.appendChild(gx);
+    s.appendChild(gr);
+    const byId = new Map(board.rooms.map((r) => [r.id, r]));
+    for (const e of board.exits) {
+      const a = byId.get(e.from), c = byId.get(e.to);
+      if (!a || !c) continue;
+      const { p, q } = exitPoints(a.rect, c.rect, e.dir, cell, R);
+      const g = svg("g", { class: "rpm-map-exit", "data-exit": e.id, "data-type": e.type, "data-state": e.state });
+      g.appendChild(svg("line", { x1: p.x, y1: p.y, x2: q.x, y2: q.y, class: "rpm-map-link" + (e.secret ? " rpm-map-secret" : "") + (e.type === "corridor" ? " rpm-map-corridor" : "") }));
+      exitMarks(g, e, (p.x + q.x) / 2, (p.y + q.y) / 2);
+      gx.appendChild(g);
+    }
+    for (const r of board.rooms) {
+      const x = r.rect.x * cell, y = r.rect.y * cell, w = r.rect.w * cell, h = r.rect.h * cell;
+      const fog = !r.here && r.explored !== "visited";
+      const reach = opts.reachable && opts.reachable.has(r.id);
+      const g = svg("g", {
+        class: "rpm-map-room" + (r.here ? " rpm-here" : "") + (fog ? " rpm-map-fog" : "") + (reach ? " rpm-map-reach" : ""),
+        "data-room": r.id,
+        "data-explored": r.here ? "here" : r.explored || "known"
+      });
+      const title = svg("title");
+      title.textContent = r.name + (r.here ? " — you are here" : reach ? " — click to go there" : "");
+      g.appendChild(title);
+      g.appendChild(svg("rect", { x, y, width: w, height: h, rx: board.kind === "town" ? 6 : 1, class: "rpm-map-roomrect" }));
+      const t = svg("text", { x: x + w / 2, y: y + h / 2 + 4, "text-anchor": "middle", class: "rpm-map-name" });
+      t.textContent = r.name.length > r.rect.w * 3 ? r.name.slice(0, Math.max(3, r.rect.w * 3 - 1)) + "…" : r.name;
+      g.appendChild(t);
+      if (r.here) g.appendChild(svg("circle", { cx: x + w / 2, cy: y + h - Math.min(9, h / 4), r: Math.min(5, cell / 4), class: "rpm-map-here" }));
+      if (reach && opts.onRoom) g.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        opts.onRoom(r.id);
+      });
+      gr.appendChild(g);
+    }
+    return s;
+  }
+
   // src/map/mapEditor.js
   var CELL = 28;
-  var SVGNS = "http://www.w3.org/2000/svg";
+  var SVGNS2 = "http://www.w3.org/2000/svg";
   var VIEW_ID = "mapeditor";
   var M = {
     mapId: null,
@@ -29555,8 +29895,8 @@ ${recent}` : "");
   function MR() {
     return API().mapRules;
   }
-  function svg(tag, attrs) {
-    const e = document.createElementNS(SVGNS, tag);
+  function svg2(tag, attrs) {
+    const e = document.createElementNS(SVGNS2, tag);
     if (attrs) {
       for (const k2 in attrs) if (attrs[k2] != null) e.setAttribute(k2, attrs[k2]);
     }
@@ -29673,16 +30013,16 @@ ${recent}` : "");
       btn2("Fit", () => fit()),
       M.saveBtn
     ]);
-    const s = svg("svg", { class: "wm-ed-canvas rpm-map-canvas", role: "img", "aria-label": "Map board" });
-    const defs = svg("defs");
-    const pat = svg("pattern", { id: "rpm-map-grid", width: CELL, height: CELL, patternUnits: "userSpaceOnUse" });
-    pat.appendChild(svg("path", { d: `M ${CELL} 0 L 0 0 0 ${CELL}`, class: "rpm-map-gridline", fill: "none" }));
+    const s = svg2("svg", { class: "wm-ed-canvas rpm-map-canvas", role: "img", "aria-label": "Map board" });
+    const defs = svg2("defs");
+    const pat = svg2("pattern", { id: "rpm-map-grid", width: CELL, height: CELL, patternUnits: "userSpaceOnUse" });
+    pat.appendChild(svg2("path", { d: `M ${CELL} 0 L 0 0 0 ${CELL}`, class: "rpm-map-gridline", fill: "none" }));
     defs.appendChild(pat);
     s.appendChild(defs);
-    const vp = svg("g");
-    const bg = svg("rect", { x: -4e3, y: -4e3, width: 8e3, height: 8e3, fill: "url(#rpm-map-grid)", class: "rpm-map-bg" });
-    M.gExits = svg("g");
-    M.gRooms = svg("g");
+    const vp = svg2("g");
+    const bg = svg2("rect", { x: -4e3, y: -4e3, width: 8e3, height: 8e3, fill: "url(#rpm-map-grid)", class: "rpm-map-bg" });
+    M.gExits = svg2("g");
+    M.gRooms = svg2("g");
     vp.appendChild(bg);
     vp.appendChild(M.gExits);
     vp.appendChild(M.gRooms);
@@ -29758,17 +30098,6 @@ ${recent}` : "");
   function roomById(id) {
     return M.board && M.board.rooms.find((r) => r.id === id);
   }
-  function center(r) {
-    return { x: px(r.x + r.w / 2), y: px(r.y + r.h / 2) };
-  }
-  function wallPoint(r, dir) {
-    const c = center(r);
-    if (dir === "n") return { x: c.x, y: px(r.y) };
-    if (dir === "s") return { x: c.x, y: px(r.y + r.h) };
-    if (dir === "e") return { x: px(r.x + r.w), y: c.y };
-    if (dir === "w") return { x: px(r.x), y: c.y };
-    return c;
-  }
   function draw() {
     if (!M.board) return;
     clear(M.gExits);
@@ -29777,30 +30106,12 @@ ${recent}` : "");
     for (const e of M.board.exits) {
       const a = roomById(e.from), b = roomById(e.to);
       if (!a || !b) continue;
-      const dir = ["n", "e", "s", "w"].includes(e.dir) ? e.dir : R.dirBetween(a.rect, b.rect);
-      const p = wallPoint(a.rect, dir), q = wallPoint(b.rect, R.mirrorDir(dir));
-      const g = svg("g", { class: "rpm-map-exit" + (e.id === M.selectedExit ? " rpm-sel" : ""), "data-exit": e.id, "data-type": e.type, "data-state": e.state });
-      g.appendChild(svg("line", { x1: p.x, y1: p.y, x2: q.x, y2: q.y, class: "rpm-map-hit" }));
-      g.appendChild(svg("line", { x1: p.x, y1: p.y, x2: q.x, y2: q.y, class: "rpm-map-link" + (e.secret ? " rpm-map-secret" : "") + (e.type === "corridor" ? " rpm-map-corridor" : "") }));
+      const { p, q } = exitPoints(a.rect, b.rect, e.dir, CELL, R);
+      const g = svg2("g", { class: "rpm-map-exit" + (e.id === M.selectedExit ? " rpm-sel" : ""), "data-exit": e.id, "data-type": e.type, "data-state": e.state });
+      g.appendChild(svg2("line", { x1: p.x, y1: p.y, x2: q.x, y2: q.y, class: "rpm-map-hit" }));
+      g.appendChild(svg2("line", { x1: p.x, y1: p.y, x2: q.x, y2: q.y, class: "rpm-map-link" + (e.secret ? " rpm-map-secret" : "") + (e.type === "corridor" ? " rpm-map-corridor" : "") }));
       const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
-      if (e.type === "door" || e.type === "secret") {
-        g.appendChild(svg("rect", { x: mx - 6, y: my - 6, width: 12, height: 12, rx: 2, class: "rpm-map-door" }));
-        if (e.state === "locked" || e.state === "barred") {
-          const t = svg("text", { x: mx, y: my + 4, "text-anchor": "middle", class: "rpm-map-glyph" });
-          t.textContent = e.state === "locked" ? "⚿" : "#";
-          g.appendChild(t);
-        }
-      }
-      if (e.type === "stairs" || e.dir === "up" || e.dir === "down") {
-        const t = svg("text", { x: mx, y: my - 9, "text-anchor": "middle", class: "rpm-map-glyph" });
-        t.textContent = e.dir === "up" ? "▲" : e.dir === "down" ? "▼" : "≡";
-        g.appendChild(t);
-      }
-      if (e.secret) {
-        const t = svg("text", { x: mx, y: my + 19, "text-anchor": "middle", class: "rpm-map-glyph" });
-        t.textContent = "S";
-        g.appendChild(t);
-      }
+      exitMarks(g, e, mx, my);
       g.addEventListener("mousedown", (ev) => {
         ev.stopPropagation();
         M.selected = null;
@@ -29812,24 +30123,24 @@ ${recent}` : "");
     }
     for (const r of M.board.rooms) {
       const x = px(r.rect.x), y = px(r.rect.y), w = px(r.rect.w), h = px(r.rect.h);
-      const g = svg("g", { class: "rpm-map-room" + (r.id === M.selected ? " rpm-sel" : "") + (r.id === M.linkFrom ? " rpm-link" : "") + (r.secret ? " rpm-map-secretroom" : ""), "data-room": r.id, "data-kind": r.kind });
-      g.appendChild(svg("rect", { x, y, width: w, height: h, rx: M.board.kind === "town" ? 6 : 1, class: "rpm-map-roomrect" }));
-      const name = svg("text", { x: x + w / 2, y: y + h / 2 + 4, "text-anchor": "middle", class: "rpm-map-name" });
+      const g = svg2("g", { class: "rpm-map-room" + (r.id === M.selected ? " rpm-sel" : "") + (r.id === M.linkFrom ? " rpm-link" : "") + (r.secret ? " rpm-map-secretroom" : ""), "data-room": r.id, "data-kind": r.kind });
+      g.appendChild(svg2("rect", { x, y, width: w, height: h, rx: M.board.kind === "town" ? 6 : 1, class: "rpm-map-roomrect" }));
+      const name = svg2("text", { x: x + w / 2, y: y + h / 2 + 4, "text-anchor": "middle", class: "rpm-map-name" });
       name.textContent = clip(r.name, Math.max(4, Math.floor(r.rect.w * 3.2)));
       g.appendChild(name);
       const sub = r.kind !== "location" ? `${r.kind === "town" ? "town" : "level"} · ${r.rooms}` : r.light && r.light !== "bright" ? r.light : "";
       if (sub) {
-        const t = svg("text", { x: x + w / 2, y: y + h / 2 + 17, "text-anchor": "middle", class: "rpm-map-sub" });
+        const t = svg2("text", { x: x + w / 2, y: y + h / 2 + 17, "text-anchor": "middle", class: "rpm-map-sub" });
         t.textContent = sub;
         g.appendChild(t);
       }
-      if (r.here) g.appendChild(svg("circle", { cx: x + 9, cy: y + 9, r: 4, class: "rpm-map-here" }));
+      if (r.here) g.appendChild(svg2("circle", { cx: x + 9, cy: y + 9, r: 4, class: "rpm-map-here" }));
       g.addEventListener("mousedown", (ev) => onRoomDown(ev, r.id));
       g.addEventListener("dblclick", () => {
         if (r.kind !== "location") openMapEditor(r.id);
       });
       if (r.id === M.selected && M.tool === "select") {
-        const hd = svg("rect", { x: x + w - 7, y: y + h - 7, width: 10, height: 10, class: "rpm-map-handle", "data-handle": r.id });
+        const hd = svg2("rect", { x: x + w - 7, y: y + h - 7, width: 10, height: 10, class: "rpm-map-handle", "data-handle": r.id });
         hd.addEventListener("mousedown", (ev) => {
           ev.stopPropagation();
           M.drag = { id: r.id, resize: true, start: toCell(ev), rect: { ...r.rect }, moved: false };
@@ -30190,6 +30501,94 @@ ${recent}` : "");
     return card;
   }
 
+  // src/map/minimap.js
+  var MINIMAP_VIEWS = ["minimap", "map"];
+  var U2 = { last: null };
+  function API2() {
+    return window.KLITE_RPMod_Worlds;
+  }
+  function doGo(targetId) {
+    const A = API2();
+    const r = A.go(targetId, { source: "ui" });
+    U2.last = r.ok ? null : r.reason;
+    try {
+      window.KLITE_RPMod_Shell?.refresh(MINIMAP_VIEWS);
+    } catch (_) {
+    }
+    return r;
+  }
+  function renderMap(box, large) {
+    const A = API2();
+    const root = el("div", { class: "rpm-map rpm-map-player" + (large ? " rpm-map-large" : ""), "data-map-view": large ? "window" : "dock" });
+    box.appendChild(root);
+    if (!A || !A.activeWorld()) {
+      root.appendChild(el("div", { class: "rpm-muted", text: "No world loaded. Load one (or the example) in the World tab." }));
+      return;
+    }
+    const here = A.runtime && A.runtime.playerLocationId;
+    if (!here || !A.entityById(here)) {
+      root.appendChild(el("div", { class: "rpm-muted", text: "Nowhere yet — choose a starting place in the World tab." }));
+      return;
+    }
+    const R = A.mapRules;
+    const mapId = A.mapOf(here);
+    const exits = A.exitsOf(here, { player: true });
+    const path = (A.zonePath(here) || []).map((z) => z.name);
+    root.appendChild(el("div", { class: "rpm-map-where" }, [
+      el("span", { class: "rpm-grow" }, [el("strong", { text: (A.phased(here) || {}).name || A.entityById(here).name }), path.length ? el("span", { class: "rpm-muted", text: " · " + path.join(" › ") }) : null]),
+      large ? null : el("button", { type: "button", class: "rpm-iconbtn", title: "Open the map", "aria-label": "Open the map", "data-map-open": "1", onclick: () => window.KLITE_RPMod_Shell?.open("map") }, [iconText("map", "", 16)])
+    ]));
+    if (mapId) {
+      const board = A.mapBoard(mapId, { player: true });
+      root.setAttribute("data-kind", board.kind);
+      root.setAttribute("data-style", board.style);
+      const reachable = new Set(exits.filter((e) => board.rooms.some((r) => r.id === e.to)).map((e) => e.to));
+      const sv = renderPlayerBoard(board, { R, cell: large ? 28 : 16, reachable, onRoom: doGo });
+      const wrap = el("div", { class: "rpm-map-boardwrap", title: large ? null : "Click a neighbouring room to go there; click elsewhere to open the map" });
+      wrap.appendChild(sv);
+      if (!large) wrap.addEventListener("click", () => window.KLITE_RPMod_Shell?.open("map"));
+      root.appendChild(wrap);
+    }
+    if (U2.last) root.appendChild(el("div", { class: "rpm-map-refused", role: "status", text: U2.last }));
+    const list2 = el("div", { class: "rpm-map-exits" });
+    if (!exits.length) list2.appendChild(el("div", { class: "rpm-muted", text: "No known way on from here." }));
+    for (const e of exits) {
+      const st = e.type === "door" || e.type === "secret" ? A.doorState(e.id) : null;
+      const label2 = `${e.dir ? R.dirName(e.dir) + ": " : ""}${A.placeName(e.to, here)}`;
+      const b = el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-map-go", "data-go": e.to, title: st ? `Door: ${st}` : "Go there", onclick: () => doGo(e.to) }, [
+        el("span", { class: "rpm-grow", text: label2 }),
+        st && st !== "open" ? el("span", { class: "rpm-chip" + (R.blocksMove(st) ? " rpm-chip-danger" : ""), text: st }) : null
+      ]);
+      list2.appendChild(b);
+    }
+    root.appendChild(list2);
+    if (large && mapId) root.appendChild(el("div", { class: "rpm-muted", style: "margin-top:6px", text: "Outlined rooms are known but not yet visited. Unknown rooms and undiscovered secrets are not shown." }));
+  }
+  function registerMinimap(sh) {
+    sh.registerView({
+      id: "minimap",
+      title: "Map",
+      place: "left",
+      order: 15,
+      mount: (c) => renderMap(c, false),
+      update: (c) => {
+        while (c.firstChild) c.removeChild(c.firstChild);
+        renderMap(c, false);
+      }
+    });
+    sh.registerView({
+      id: "map",
+      title: "Map",
+      place: "window",
+      window: { width: 640, height: 560, minWidth: 300, minHeight: 260 },
+      mount: (c) => renderMap(c, true),
+      update: (c) => {
+        while (c.firstChild) c.removeChild(c.firstChild);
+        renderMap(c, true);
+      }
+    });
+  }
+
   // src/KLITE-RPmod_WorldsUI.js
   function initWorldsUI() {
     "use strict";
@@ -30210,8 +30609,8 @@ ${recent}` : "");
     const nodeColor = (n) => n.type === "location" && KIND_COLOR[n.kind] || TYPE_COLOR[n.type] || "#666";
     const inGraph = (n) => !n.mapId;
     const locLabel = (n) => n.label || n.name;
-    const SVGNS2 = "http://www.w3.org/2000/svg";
-    function API2() {
+    const SVGNS3 = "http://www.w3.org/2000/svg";
+    function API3() {
       return window.KLITE_RPMod_Worlds;
     }
     function el2(tag, props, kids) {
@@ -30227,8 +30626,8 @@ ${recent}` : "");
       for (const c of [].concat(kids || [])) if (c != null) e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
       return e;
     }
-    function svg2(tag, attrs) {
-      const e = document.createElementNS(SVGNS2, tag);
+    function svg3(tag, attrs) {
+      const e = document.createElementNS(SVGNS3, tag);
       if (attrs) {
         for (const k2 in attrs) if (attrs[k2] != null) e.setAttribute(k2, attrs[k2]);
       }
@@ -30264,7 +30663,7 @@ ${recent}` : "");
       if (root && root.x == null) {
         root.x = 150;
         root.y = cy;
-        API2().setNodePos(root.id, root.x, root.y, { layout: true });
+        API3().setNodePos(root.id, root.x, root.y, { layout: true });
       }
       let i = 0;
       for (const n of missing) {
@@ -30272,12 +30671,12 @@ ${recent}` : "");
         const ang = i / Math.max(1, missing.length) * Math.PI * 2;
         n.x = Math.round(cx + Math.cos(ang) * (180 + i % 3 * 70));
         n.y = Math.round(cy + Math.sin(ang) * (150 + i % 4 * 55));
-        API2().setNodePos(n.id, n.x, n.y, { layout: true });
+        API3().setNodePos(n.id, n.x, n.y, { layout: true });
         i++;
       }
     }
     function reloadGraph() {
-      S.G = API2().getGraph();
+      S.G = API3().getGraph();
       ensureLayout();
     }
     function applyViewport2() {
@@ -30298,12 +30697,12 @@ ${recent}` : "");
         const key = [a.id, b.id, e.kind].join("|");
         if (drawn.has(key)) continue;
         drawn.add(key);
-        const line = svg2("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, style: e.kind === "contains" ? "stroke:var(--rpm-border);opacity:.8" : "stroke:var(--rpm-fg-muted)", "stroke-width": e.kind === "contains" ? 1 : 1.6, "stroke-dasharray": e.kind === "zone" || e.kind === "unlocks" ? "5 4" : null, "marker-end": "url(#wm-arrow)" });
+        const line = svg3("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, style: e.kind === "contains" ? "stroke:var(--rpm-border);opacity:.8" : "stroke:var(--rpm-fg-muted)", "stroke-width": e.kind === "contains" ? 1 : 1.6, "stroke-dasharray": e.kind === "zone" || e.kind === "unlocks" ? "5 4" : null, "marker-end": "url(#wm-arrow)" });
         if (e.kind === "contains") line.setAttribute("stroke-dasharray", "4 4");
         S.gEdges.appendChild(line);
         if (e.kind !== "contains") {
           const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-          const t = svg2("text", { x: mx, y: my - 3, "text-anchor": "middle", "font-size": 9, style: "fill:var(--rpm-fg-muted)" });
+          const t = svg3("text", { x: mx, y: my - 3, "text-anchor": "middle", "font-size": 9, style: "fill:var(--rpm-fg-muted)" });
           t.textContent = e.kind;
           S.gEdges.appendChild(t);
         }
@@ -30311,37 +30710,37 @@ ${recent}` : "");
       if (S.tool === "link" && S.linkSource) {
         const a = nodeById(S.linkSource);
         if (a) {
-          const l = svg2("line", { x1: a.x, y1: a.y, x2: a.x, y2: a.y, stroke: "#e0a", "stroke-width": 1.6, "stroke-dasharray": "5 4", id: "wm-linkline" });
+          const l = svg3("line", { x1: a.x, y1: a.y, x2: a.x, y2: a.y, stroke: "#e0a", "stroke-width": 1.6, "stroke-dasharray": "5 4", id: "wm-linkline" });
           S.gEdges.appendChild(l);
         }
       }
       for (const n of S.G.nodes) {
         if (!inGraph(n)) continue;
-        const g = svg2("g", { transform: `translate(${n.x - NODE_W / 2},${n.y - NODE_H / 2})`, "data-id": n.id, style: "cursor:pointer" });
+        const g = svg3("g", { transform: `translate(${n.x - NODE_W / 2},${n.y - NODE_H / 2})`, "data-id": n.id, style: "cursor:pointer" });
         if (n.kind && n.kind !== "location") g.setAttribute("data-kind", n.kind);
         const isRoot = n.type === "world";
         const w = isRoot ? NODE_W + 12 : NODE_W, h = isRoot ? NODE_H + 8 : NODE_H;
         if (isRoot) g.setAttribute("transform", `translate(${n.x - w / 2},${n.y - h / 2})`);
-        const rect = svg2("rect", { x: 0, y: 0, width: w, height: h, rx: n.kind === "dungeon" ? 3 : 10, fill: nodeColor(n) });
+        const rect = svg3("rect", { x: 0, y: 0, width: w, height: h, rx: n.kind === "dungeon" ? 3 : 10, fill: nodeColor(n) });
         g.appendChild(rect);
-        if (n.id === S.selectedId) g.appendChild(svg2("rect", { x: -3, y: -3, width: w + 6, height: h + 6, rx: 12, fill: "none", style: "stroke:var(--rpm-fg-hi)", "stroke-width": 2.5 }));
-        if (n.id === S.linkSource) g.appendChild(svg2("rect", { x: -3, y: -3, width: w + 6, height: h + 6, rx: 12, fill: "none", stroke: "#ff3ea5", "stroke-width": 2 }));
-        const name = svg2("text", { x: 12, y: 22, "font-size": 13, "font-weight": 500, fill: "#fff" });
+        if (n.id === S.selectedId) g.appendChild(svg3("rect", { x: -3, y: -3, width: w + 6, height: h + 6, rx: 12, fill: "none", style: "stroke:var(--rpm-fg-hi)", "stroke-width": 2.5 }));
+        if (n.id === S.linkSource) g.appendChild(svg3("rect", { x: -3, y: -3, width: w + 6, height: h + 6, rx: 12, fill: "none", stroke: "#ff3ea5", "stroke-width": 2 }));
+        const name = svg3("text", { x: 12, y: 22, "font-size": 13, "font-weight": 500, fill: "#fff" });
         name.textContent = clip2(n.name, 20);
-        const type = svg2("text", { x: 12, y: 37, "font-size": 10, fill: "rgba(255,255,255,.8)" });
+        const type = svg3("text", { x: 12, y: 37, "font-size": 10, fill: "rgba(255,255,255,.8)" });
         type.textContent = isRoot ? "World · root" : (n.kind && n.kind !== "location" ? `${n.kind} · ${n.rooms || 0} ${n.kind === "town" ? "places" : "rooms"}` : n.type) + (n.id === S.selectedId ? " · selected" : "");
         g.appendChild(name);
         g.appendChild(type);
         if (n.type === "npc") {
           let info = null;
           try {
-            info = API2().questMarkerInfo(n.id);
+            info = API3().questMarkerInfo(n.id);
           } catch (_) {
           }
           const mk = info ? info.mark : "";
           if (mk) {
-            g.appendChild(svg2("circle", { cx: w - 10, cy: 10, r: 9, "data-marker": mk + (info.grey ? "-grey" : ""), style: `fill:${info.grey ? "var(--rpm-fg-muted)" : mk === "!" ? "var(--rpm-quest)" : "var(--rpm-success)"}`, stroke: "#1b1b1b", "stroke-width": 1.5 }));
-            const mt = svg2("text", { x: w - 10, y: 14, "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "#1b1b1b" });
+            g.appendChild(svg3("circle", { cx: w - 10, cy: 10, r: 9, "data-marker": mk + (info.grey ? "-grey" : ""), style: `fill:${info.grey ? "var(--rpm-fg-muted)" : mk === "!" ? "var(--rpm-quest)" : "var(--rpm-success)"}`, stroke: "#1b1b1b", "stroke-width": 1.5 }));
+            const mt = svg3("text", { x: w - 10, y: 14, "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "#1b1b1b" });
             mt.textContent = mk;
             g.appendChild(mt);
           }
@@ -30367,7 +30766,7 @@ ${recent}` : "");
           draw2();
         } else if (S.linkSource !== id) {
           try {
-            API2().connect(S.linkSource, id);
+            API3().connect(S.linkSource, id);
           } catch (e) {
             toast(e.message || "cannot connect", true);
           }
@@ -30418,7 +30817,7 @@ ${recent}` : "");
     function onUp2() {
       if (S.drag && S.drag.moved) {
         const n = nodeById(S.drag.id);
-        API2().setNodePos(S.drag.id, n.x, n.y);
+        API3().setNodePos(S.drag.id, n.x, n.y);
       }
       S.drag = null;
       S.pan = null;
@@ -30476,7 +30875,7 @@ ${recent}` : "");
     function renderInspector2() {
       const box = S.inspector;
       clear2(box);
-      const A = API2();
+      const A = API3();
       if (!S.selectedId) {
         box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs);padding:8px 2px", text: "Select a node to edit, or add one from the palette." }));
         return;
@@ -30498,7 +30897,7 @@ ${recent}` : "");
         tsel.addEventListener("change", () => {
           if (tsel.value !== type && confirm(`Change this node from ${type} to ${tsel.value}? Type-specific connections will be cleared.`)) {
             const keep = S.selectedId;
-            API2().changeEntityType(keep, tsel.value);
+            API3().changeEntityType(keep, tsel.value);
             reloadGraph();
             S.selectedId = keep;
             draw2();
@@ -30551,7 +30950,7 @@ ${recent}` : "");
         const row3 = el2("div", { style: "display:flex;align-items:center;justify-content:space-between;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:4px 8px;margin-top:4px" }, [
           el2("span", { style: "font-size:var(--rpm-fs-sm);color:var(--rpm-fg)" }, [`→ ${clip2(other ? other.name : otherId, 18)} `, el2("span", { style: "color:var(--rpm-fg-muted)", text: e.kind })]),
           el2("span", { style: "cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs);padding:0 4px", text: "×", onclick: () => {
-            API2().disconnect(e.from, e.to);
+            API3().disconnect(e.from, e.to);
             reloadGraph();
             draw2();
             renderInspector2();
@@ -30564,9 +30963,9 @@ ${recent}` : "");
           class: "btn btn-primary rpm-btn rpm-block rpm-danger rpm-btn-icon",
           style: "margin-top:16px",
           onclick: () => {
-            const inner = type === "location" && API2().mapOf && ["dungeon", "town"].includes(API2().locationKind(S.selectedId)) ? API2().roomsOf(S.selectedId).length : 0;
-            if (!confirm(inner ? `Delete this ${API2().locationKind(S.selectedId)} and the ${inner} ${API2().locationKind(S.selectedId) === "town" ? "places" : "rooms"} inside it?` : "Delete this node?")) return;
-            API2().deleteEntity(S.selectedId, inner ? { withRooms: true } : void 0);
+            const inner = type === "location" && API3().mapOf && ["dungeon", "town"].includes(API3().locationKind(S.selectedId)) ? API3().roomsOf(S.selectedId).length : 0;
+            if (!confirm(inner ? `Delete this ${API3().locationKind(S.selectedId)} and the ${inner} ${API3().locationKind(S.selectedId) === "town" ? "places" : "rooms"} inside it?` : "Delete this node?")) return;
+            API3().deleteEntity(S.selectedId, inner ? { withRooms: true } : void 0);
             S.selectedId = null;
             reloadGraph();
             draw2();
@@ -30580,7 +30979,7 @@ ${recent}` : "");
     }
     const ABIL = ["str", "dex", "con", "int", "wis", "cha"];
     function renderPersonExtras(box, ent) {
-      const A = API2();
+      const A = API3();
       box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:14px 0 4px", text: "Character (from library)" }));
       const chars = A.listCharacters();
       const csel = el2("select", { style: inputCss(false) + ";cursor:pointer" });
@@ -30658,7 +31057,7 @@ ${recent}` : "");
       box.appendChild(monWrap);
     }
     function renderQuestExtras(box, ent) {
-      const A = API2();
+      const A = API3();
       const hidWrap = el2("label", { style: "display:flex;align-items:center;gap:6px;margin:12px 0 4px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer" });
       const hid = el2("input", { type: "checkbox", style: "cursor:pointer" });
       hid.checked = !!ent.hidden;
@@ -30765,7 +31164,7 @@ ${recent}` : "");
       ]));
     }
     function renderQuestPrereqs(box, ent) {
-      const A = API2();
+      const A = API3();
       const pre = Object.assign({ level: 0, quests: [], flags: [], reputation: null }, ent.prerequisites || {});
       const save = (patch) => {
         A.updateEntity(S.selectedId, { prerequisites: Object.assign({}, pre, patch) });
@@ -30822,7 +31221,7 @@ ${recent}` : "");
       box.appendChild(si);
     }
     function renderWorldExtras(box, ent) {
-      const A = API2();
+      const A = API3();
       box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px", text: "World Rules (one per line)" }));
       const ta = el2("textarea", { style: inputCss(true), rows: 5, placeholder: "e.g.\nMedieval low-fantasy tone.\nWhen the scene changes location, emit <move>Name</move>." });
       ta.value = (Array.isArray(ent.rules) ? ent.rules : []).join("\n");
@@ -30833,7 +31232,7 @@ ${recent}` : "");
       box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:10px;margin-top:3px", text: "Shown to the AI as [World Rules]. The Description above is shown as the world premise." }));
     }
     function renderFactionExtras(box, ent) {
-      const A = API2();
+      const A = API3();
       box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px;display:flex;align-items:center;gap:4px" }, [icon("castle", 13), "Headquarters (location)"]));
       const locs = A.getGraph().nodes.filter((n) => n.type === "location");
       const s = el2("select", { style: inputCss(false) + ";cursor:pointer" });
@@ -30884,7 +31283,7 @@ ${recent}` : "");
       reputation: [["factionId", "faction"], ["amount", "number"]]
     };
     function paramInput(kind, value, onChange) {
-      const A = API2();
+      const A = API3();
       if (kind === "time" || kind === "qstate" || kind === "tier") {
         const opts = kind === "time" ? TIME_SLOTS_UI : kind === "tier" ? A.reputationTiers() : QSTATES;
         const s = el2("select", { style: inputCss(false) + ";cursor:pointer;flex:1" });
@@ -30953,7 +31352,7 @@ ${recent}` : "");
       } }, [iconText("plus", "Add")]));
     }
     function renderEventExtras(box, ent) {
-      const A = API2();
+      const A = API3();
       const flags = el2("div", { style: "display:flex;gap:14px;margin:12px 0 4px" });
       const mk = (label2, key) => {
         const w = el2("label", { style: "display:flex;align-items:center;gap:5px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer" });
@@ -30992,7 +31391,7 @@ ${recent}` : "");
       location: [["locationId", "location"]]
     };
     function renderLocationExtras(box, ent) {
-      const A = API2();
+      const A = API3();
       const lab = (t) => el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px", text: t });
       const kind = A.locationKind(S.selectedId);
       box.appendChild(lab("Kind"));
@@ -31041,7 +31440,7 @@ ${recent}` : "");
       box.appendChild(w);
     }
     function renderPhases(box, ent, type) {
-      const A = API2();
+      const A = API3();
       const phases = asArrayU(ent.phases);
       const save = () => {
         A.updateEntity(S.selectedId, { phases });
@@ -31113,13 +31512,13 @@ ${recent}` : "");
       return Array.isArray(v) ? v.slice() : [];
     }
     function parseReward2(s) {
-      return API2().parseReward(s);
+      return API3().parseReward(s);
     }
     function btn3(label2, onclick, variant) {
       return el2("button", { type: "button", class: "btn btn-primary rpm-btn" + (variant ? " rpm-" + variant : ""), text: label2, onclick });
     }
     function buildEditor() {
-      const A = API2();
+      const A = API3();
       const root = el2("div", { id: "wm-editor", class: "wm-editor" });
       S.worldNameInput = el2("input", { type: "text", class: "form-control rpm-input", "aria-label": "World name", style: "width:230px;font-size:var(--rpm-fs)" });
       S.worldNameInput.value = A.activeWorld() && A.activeWorld().name || "";
@@ -31174,16 +31573,16 @@ ${recent}` : "");
       const tools = el2("div", { class: "wm-ed-tools" }, ["select", "link", "pan"].map((t) => el2("button", { type: "button", "data-tool": t, class: "btn btn-primary rpm-btn", style: "flex:1;text-transform:capitalize", text: t, onclick: () => setTool2(t) })));
       rail.appendChild(tools);
       rail.appendChild(el2("div", { class: "wm-ed-help", text: "Select: move nodes. Link: click two nodes to connect. Pan/empty-drag: move canvas. Wheel: zoom." }));
-      const svgRoot = svg2("svg", { class: "wm-ed-canvas" });
-      const defs = svg2("defs");
-      const marker = svg2("marker", { id: "wm-arrow", markerWidth: 9, markerHeight: 9, refX: 8, refY: 3, orient: "auto" });
-      const mpath = svg2("path", { d: "M0,0 L8,3 L0,6 Z", style: "fill:var(--rpm-fg-muted)" });
+      const svgRoot = svg3("svg", { class: "wm-ed-canvas" });
+      const defs = svg3("defs");
+      const marker = svg3("marker", { id: "wm-arrow", markerWidth: 9, markerHeight: 9, refX: 8, refY: 3, orient: "auto" });
+      const mpath = svg3("path", { d: "M0,0 L8,3 L0,6 Z", style: "fill:var(--rpm-fg-muted)" });
       marker.appendChild(mpath);
       defs.appendChild(marker);
       svgRoot.appendChild(defs);
-      const bg = svg2("rect", { x: -5e3, y: -5e3, width: 1e4, height: 1e4, fill: "transparent" });
-      const viewport = svg2("g");
-      const gEdges = svg2("g"), gNodes = svg2("g");
+      const bg = svg3("rect", { x: -5e3, y: -5e3, width: 1e4, height: 1e4, fill: "transparent" });
+      const viewport = svg3("g");
+      const gEdges = svg3("g"), gNodes = svg3("g");
       viewport.appendChild(bg);
       viewport.appendChild(gEdges);
       viewport.appendChild(gNodes);
@@ -31213,15 +31612,15 @@ ${recent}` : "");
     function addNodeCentered(type, kind) {
       const r = S.svgRoot.getBoundingClientRect();
       const p = screenToGraph(r.left + r.width / 2, r.top + r.height / 2);
-      const e = API2().addEntity(type, { name: kind ? "New " + kind : "", x: p.x, y: p.y });
-      if (kind) API2().setLocationKind(e.id, kind);
+      const e = API3().addEntity(type, { name: kind ? "New " + kind : "", x: p.x, y: p.y });
+      if (kind) API3().setLocationKind(e.id, kind);
       reloadGraph();
       select2(e.id);
       draw2();
     }
     function showPreview() {
       const ctx = window.KLITE_RPMod_Context;
-      const txt = (ctx ? ctx.preview() : API2().preview()) || "(nothing — enable the world and set a location, or enable a persona/character)";
+      const txt = (ctx ? ctx.preview() : API3().preview()) || "(nothing — enable the world and set a location, or enable a persona/character)";
       const modal = el2("div", { class: "rpm-themed", style: "position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center", onclick: (ev) => {
         if (ev.target === modal) modal.remove();
       } });
@@ -31258,7 +31657,7 @@ ${recent}` : "");
       }, 100);
     }
     function loadExampleFlow() {
-      const A = API2();
+      const A = API3();
       if (A.hasExample() && !confirm("Reload the example world? Changes you made to it will be discarded.")) return;
       A.loadExample().then(() => {
         refreshPanel();
@@ -31266,7 +31665,7 @@ ${recent}` : "");
       });
     }
     function importFlow() {
-      const A = API2();
+      const A = API3();
       pickFile(async (txt, name) => {
         try {
           const data = JSON.parse(txt);
@@ -31286,7 +31685,7 @@ ${recent}` : "");
       });
     }
     function exportFlow() {
-      const A = API2();
+      const A = API3();
       const w = A.activeWorld();
       if (!w) {
         toast("No active world", true);
@@ -31303,7 +31702,7 @@ ${recent}` : "");
       setTimeout(() => t.remove(), 2200);
     }
     function openEditor() {
-      const A = API2();
+      const A = API3();
       if (!A) {
         alert("Worlds engine not loaded");
         return;
@@ -31327,7 +31726,7 @@ ${recent}` : "");
       if (sh) sh.close("editor");
     }
     function mountEditor(container) {
-      const A = API2();
+      const A = API3();
       if (!A || !A.activeWorld()) {
         container.appendChild(el2("div", { class: "rpm-view-pad" }, [
           el2("p", { class: "rpm-muted", text: "No world loaded. Create one or load the example from the World tab." }),
@@ -31340,7 +31739,7 @@ ${recent}` : "");
       updateSaveState2();
     }
     function resetEditor() {
-      if (S.worldNameInput) S.worldNameInput.value = API2().activeWorld() && API2().activeWorld().name || "";
+      if (S.worldNameInput) S.worldNameInput.value = API3().activeWorld() && API3().activeWorld().name || "";
       reloadGraph();
       setTool2(S.tool || "select");
       draw2();
@@ -31369,22 +31768,22 @@ ${recent}` : "");
       }
     }
     const unsaved = () => {
-      const A = API2();
+      const A = API3();
       return !!(A && A.hasUnsavedChanges && A.hasUnsavedChanges());
     };
     const autosave = () => {
-      const A = API2();
+      const A = API3();
       return !!(A && A.autosaveEnabled && A.autosaveEnabled());
     };
     async function saveFlow() {
-      await API2().saveActiveWorld();
+      await API3().saveActiveWorld();
       toast("World saved");
       updateSaveState2();
     }
     async function revertFlow() {
       if (!unsaved()) return;
       if (!confirm("Revert to the last saved state? All unsaved world changes (including deletions) are undone.")) return;
-      const ok = await API2().revertToSaved();
+      const ok = await API3().revertToSaved();
       if (S.root) {
         S.selectedId = null;
         resetEditor();
@@ -31413,13 +31812,13 @@ ${recent}` : "");
           el2("p", { class: "rpm-muted", text: "Save them before closing? Unsaved changes stay in this session until the page reloads; Revert undoes them." }),
           row2([
             uiBtn("Save and close", async () => {
-              await API2().saveActiveWorld();
+              await API3().saveActiveWorld();
               done();
             }, { icon: "check", variant: "success" }),
             uiBtn("Close, keep unsaved", () => done()),
             uiBtn("Revert and close", async () => {
               if (!confirm("Undo all unsaved world changes?")) return;
-              await API2().revertToSaved();
+              await API3().revertToSaved();
               done();
             }, { icon: "rotate-ccw", variant: "danger" }),
             uiBtn("Stay", () => ask.remove())
@@ -31431,7 +31830,7 @@ ${recent}` : "");
     }
     let panelEl = null;
     const TIME_SLOTS_UI = ["morning", "noon", "afternoon", "evening", "night"];
-    const VIEW_IDS = ["world", "party", "quest-tracker", "questlog", "combat"];
+    const VIEW_IDS = ["world", "party", "quest-tracker", "questlog", "combat", ...MINIMAP_VIEWS];
     function uiBtn(text, onclick, opts) {
       opts = opts || {};
       const cls = "btn btn-primary rpm-btn" + (opts.block ? " rpm-block" : "") + (opts.grow ? " rpm-grow" : "") + (opts.variant ? " rpm-" + opts.variant : "") + (opts.lg ? " rpm-lg" : "") + (opts.icon ? " rpm-btn-icon" : "");
@@ -31489,7 +31888,7 @@ ${recent}` : "");
     }
     function renderPanel() {
       if (!panelEl) return;
-      const A = API2();
+      const A = API3();
       const body = panelEl;
       clear2(body);
       const mode2 = uiMode();
@@ -31600,7 +31999,7 @@ ${recent}` : "");
       }
     }
     function renderParty(box) {
-      const A = API2();
+      const A = API3();
       const world = A.activeWorld();
       const player = world && world.ruleset && world.ruleset.player || {};
       const cb = world ? A.getCombat() : null;
@@ -31624,7 +32023,7 @@ ${recent}` : "");
       }
     }
     function renderQuestTracker(box) {
-      const A = API2();
+      const A = API3();
       if (!A.activeWorld()) {
         box.appendChild(muted2("No quests yet."));
         return;
@@ -31642,7 +32041,7 @@ ${recent}` : "");
       box.appendChild(uiBtn("Open quest log", () => openView("questlog"), { icon: "scroll-text", block: true, style: "margin-top:8px" }));
     }
     function renderQuestsTab(box) {
-      const A = API2();
+      const A = API3();
       const mode2 = uiMode() === "player" ? "player" : "creator";
       const aiSel = uiSelect({ "aria-label": "What the AI sees", style: "width:auto" });
       for (const [v, t] of [["gm", "GM (all)"], ["player", "Player (visible only)"]]) {
@@ -31756,7 +32155,7 @@ ${recent}` : "");
       }
     }
     function renderReputation(box) {
-      const A = API2();
+      const A = API3();
       const list2 = A.reputation();
       if (!list2.length) return;
       box.appendChild(lbl2("Reputation"));
@@ -31786,7 +32185,7 @@ ${recent}` : "");
       renderCombat(box, () => refreshPanel());
     }
     function renderPlayTab(box) {
-      const A = API2();
+      const A = API3();
       const enabled = A.isEnabled();
       box.appendChild(uiBtn(enabled ? "● Enabled for this story" : "○ Enable for this story", () => {
         enabled ? A.disable() : A.enable();
@@ -31923,13 +32322,13 @@ ${recent}` : "");
       sh.registerView(Object.assign({ id: "party", title: "Party", place: "left", order: 10 }, view(renderParty)));
       sh.registerView(Object.assign({ id: "quest-tracker", title: "Quests", place: "left", order: 20 }, view(renderQuestTracker)));
       sh.registerView(Object.assign({ id: "questlog", title: "Quest log", place: "window", window: { width: 380, height: 520 } }, view((c) => {
-        if (API2().activeWorld()) {
+        if (API3().activeWorld()) {
           renderQuestsTab(c);
           renderReputation(c);
         } else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
       })));
       sh.registerView(Object.assign({ id: "combat", title: "Combat", place: "window", window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
-        if (API2().activeWorld()) renderCombatTab(c);
+        if (API3().activeWorld()) renderCombatTab(c);
         else {
           c.appendChild(el2("div", { class: "rpm-muted", text: "Fights happen in a world. Load one (or the example) in the World tab." }));
           c.appendChild(uiBtn("Open the World tab", () => openView("world"), { block: true, style: "margin-top:8px" }));
@@ -31955,6 +32354,7 @@ ${recent}` : "");
         unmount: unmountEditor,
         beforeClose: editorBeforeClose
       });
+      registerMinimap(sh);
       registerMapEditor(sh, { toast, onClose: () => {
         if (S.root) {
           reloadGraph();
@@ -32073,6 +32473,7 @@ ${recent}` : "");
         { list: [
           'Pick or load a world in the World tab, then "Enable for this story".',
           "Set your current location and the time of day; RPmod tracks both as you play.",
+          "The Map section on the left shows where you are. In a dungeon or town, click a neighbouring room to go there; locked doors refuse the move and the AI hears why.",
           'State slots: "working" is the live game, "base" is the start. Reset returns to the start, Commit makes now the new start.'
         ] }
       ],

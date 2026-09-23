@@ -129,9 +129,9 @@ test('engine: exploration state, doors, secrets stay out of the AI slice', async
 
     let s = W.preview();
     assert.match(s, /\[Current Location: Hall\][\s\S]*Part of: Old Crypt/);
-    assert.match(s, /Exits: [^\n]*Entrance/); assert.match(s, /Exits: [^\n]*Ossuary/);
+    assert.match(s, /Exits:\n(- .*\n)*- west: Entrance/); assert.match(s, /- south: Ossuary \(locked iron door\)/);
     assert.doesNotMatch(s, /Vault/, 'unfound secret not in the AI context');
-    assert.doesNotMatch(s, /Exits: [^\n]*Old Crypt/, 'the dungeon itself is not an exit from its rooms');
+    assert.doesNotMatch(s, /- [a-z]+: Old Crypt/, 'the dungeon itself is not an exit from its rooms');
 
     // outside, the dungeon lists only rooms the player knows
     W.moveTo(d.crypt.id);
@@ -146,7 +146,7 @@ test('engine: exploration state, doors, secrets stay out of the AI slice', async
     W.markFound('secret', d.secret.id); W.markFound('secret', d.vault.id);
     W.moveTo('Hall');
     s = W.preview();
-    assert.match(s, /Exits: [^\n]*Vault/, 'found secret door + room reach the AI');
+    assert.match(s, /- east: Vault \(closed secret door\)/, 'found secret door + room reach the AI');
     assert.equal(W.exploration().explored[d.vault.id], 'known');
 
     // board: creator sees all, the player only the known part

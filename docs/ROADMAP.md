@@ -10,8 +10,9 @@
 
 ## Current state
 
-**Now: R7 step 2** (mini-map + moving room by room — see [design/R7-world-map.md](design/R7-world-map.md)).
-R7 step 1 (location kinds + dungeon/town editor) is done.
+**Now: R7 step 3** (AI tags + exploration: open/close/unlock/search/room/door/light, secrets and
+traps by Search checks — see [design/R7-world-map.md](design/R7-world-map.md)). R7 steps 1 (location
+kinds + dungeon/town editor) and 2 (mini-map, moving room by room, AI context, issue 12) are done.
 Done since R1: R2 characters (🟨: spells open), R5 combat (🟨), R4 quests & world (✅). R3
 (compendium, spells) and R6 (chat power features) are still to do.
 
@@ -20,7 +21,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 164 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 173 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -65,7 +66,7 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
 | | Rewards XP/gold/choose-one | ✅ paid to the persona's sheet |
 | | Zones/subzones, hubs, phasing | ✅ |
 | | Factions & reputation | ✅ tiers; effects narrated (no vendors yet) |
-| Map | Places room by room, board, fog, distance bands (no VTT) | 🟡 R7 step 1: dungeon/town editor + data model; mini-map, fog, tags, generator, bands to come |
+| Map | Places room by room, board, fog, distance bands (no VTT) | 🟡 R7 steps 1–2: dungeon/town editor, mini-map with fog, moving with door rules; tags, search, generator, bands to come |
 
 ### Known issues / tech debt
 1. ~~"Monster / NPC combatant" flag does nothing~~ — decides the combat side since R5 (a monster is
@@ -93,9 +94,9 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
     `SyntaxError: Identifier 'lastPendingResponse' has already been declared`
     (`static/js/postSubmitHandler.js`). Seen with and without the mod; no visible effect so
     far. Recheck on the next host upgrade.
-12. **World state changed by AI chat tags reaches the UI only at the next send** — tags are
-    parsed in `processPendingMutations()` at generation time, not when the reply arrives.
-    The views refresh then (via `klite:worlds-change`). Parse on reply arrival in R6.
+12. ~~World state changed by AI chat tags reaches the UI only at the next send~~ — fixed in R7
+    step 2: tags are parsed when the reply arrives (wrapper around Esolite's
+    `handle_incoming_text`); the per-turn clock step stays at generation.
 13. **ALPHA inner markup** still carries many inline styles (sizes/spacing); colours follow
     the theme via its variables, but spacing is not yet on the shell's scale.
 14. **Quick Start adapter depends on Esolite internals** (`showQuickStartPopup`,
@@ -444,13 +445,22 @@ the board is derived (the LLM never writes coordinates); dungeons from editor, g
       (room, exits, way out, features, inhabitants, encounter), nested levels, styles stone/parchment/
       streets/plots; delete asks and takes the rooms along. Tests `tests/map.test.js`,
       `tests/mapEditor.test.js`. Live-checked in Esolite (build, drag, inspector, back to the world).
+- [x] **Step 2 — mini-map + moving room by room** (2026-09-23): `go()` (known exits only, a closed
+      door opens, locked/barred refuses, entrance room when going to a dungeon/town, leave only
+      through a way out; direction words and forgiving names), refusals and UI moves in the game log
+      (the AI narrates them), `<move>` through the same rules inside/into maps; AI context per room
+      (light, hazards, exits with exact names/directions/door states, unfound traps hidden, "Moving"
+      hint, optional text map — Settings → RPmod → Map, default off); **known issue 12 fixed** (tags
+      parsed on reply arrival; clock step unchanged); left-dock **Map** section (fog, you are here,
+      click a neighbour, exit buttons, refusal) and **Map** window (`src/map/minimap.js`, shared drawing
+      `src/map/board.js`). Tests `tests/move.test.js`. Live-checked in Esolite, incl. replies through
+      the real `handle_incoming_text`.
 - **Open (step 1):** moving a room does not re-aim its exits' stored direction (set it in the
   inspector); a saved encounter keeps its room id when the room is deleted (it just no longer
   matches a place); **Generate** comes with step 4; the player-facing fog/mini-map with step 2.
 Steps:
 1. ~~Location kinds + dungeon/town editor~~ (done, see above).
-2. Mini-map + room-by-room movement (door rules, refusals in the log, AI context section; parse
-   tags on reply arrival — known issue 12).
+2. ~~Mini-map + room-by-room movement~~ (done, see above).
 3. AI tags + exploration (go/open/close/unlock/search/room/door/light; fog; secrets by Search).
 4. Generator (dungeons and towns).
 5. Distance bands in combat (close/near/far/out, move actions, cover, hiding).

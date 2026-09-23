@@ -56,6 +56,7 @@ export const CHAPTERS = [
             { list: [
                 'Pick or load a world in the World tab, then "Enable for this story".',
                 'Set your current location and the time of day; RPmod tracks both as you play.',
+                'The Map section on the left shows where you are. In a dungeon or town, click a neighbouring room to go there; locked doors refuse the move and the AI hears why.',
                 'State slots: "working" is the live game, "base" is the start. Reset returns to the start, Commit makes now the new start.',
             ] },
         ],

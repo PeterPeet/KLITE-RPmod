@@ -18,6 +18,7 @@
 import { icon, iconText } from './shell/dom.js';
 import { renderCombat, AUTO_TURNS_SETTING } from './game/combatView.js';
 import { registerMapEditor, openMapEditor, closeMapEditor } from './map/mapEditor.js';
+import { registerMinimap, MINIMAP_VIEWS } from './map/minimap.js';
 
 export default function initWorldsUI() {
     'use strict';
@@ -936,7 +937,7 @@ export default function initWorldsUI() {
     // =======================================================================
     let panelEl = null;
     const TIME_SLOTS_UI = ['morning', 'noon', 'afternoon', 'evening', 'night'];
-    const VIEW_IDS = ['world', 'party', 'quest-tracker', 'questlog', 'combat'];
+    const VIEW_IDS = ['world', 'party', 'quest-tracker', 'questlog', 'combat', ...MINIMAP_VIEWS];
 
     // ---- themed control helpers ----
     // opts.icon: a Lucide name (src/shell/icons.js); icon-only buttons take opts.title as label
@@ -1316,6 +1317,7 @@ export default function initWorldsUI() {
         sh.registerView({ id: 'editor', title: 'World editor', place: 'window', window: { large: true, flush: true, minWidth: 320, minHeight: 300, restore: false },
             mount: mountEditor, unmount: unmountEditor, beforeClose: editorBeforeClose });
         // map edits (room counts, kinds, ways out) show in the world graph once it closes
+        registerMinimap(sh);   // R7: left-dock "Map" + the Map window
         registerMapEditor(sh, { toast, onClose: () => { if (S.root) { reloadGraph(); draw(); renderInspector(); } } });
     }
 

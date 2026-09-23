@@ -309,6 +309,25 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-map-exitcard.rpm-sel { border-color: var(--rpm-fg-hi); }
 .rpm-map-check { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); cursor: pointer; }
 
+/* ---- Mini-map (left dock "Map") and Map window (src/map/minimap.js) ---- */
+.rpm-map-player { display: flex; flex-direction: column; gap: 6px; }
+.rpm-map-where { display: flex; align-items: center; gap: 6px; }
+.rpm-map-boardwrap { background: var(--map-ground); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); cursor: zoom-in; padding: 4px; }
+.rpm-map-large .rpm-map-boardwrap { cursor: default; }
+.rpm-map-board { display: block; width: 100%; height: auto; max-height: 220px; }
+.rpm-map-large .rpm-map-board { max-height: none; min-height: 260px; }
+.rpm-map-fog .rpm-map-roomrect { fill: transparent; stroke-dasharray: 4 3; opacity: .75; }
+.rpm-map-fog .rpm-map-name { fill: var(--rpm-fg-muted); }
+.rpm-map-room.rpm-here .rpm-map-roomrect { stroke: var(--rpm-quest); stroke-width: 3; }
+.rpm-map-reach { cursor: pointer; }
+.rpm-map-reach:hover .rpm-map-roomrect { stroke: var(--rpm-fg-hi); stroke-width: 3; }
+.rpm-map-player .rpm-map-room { cursor: default; }
+.rpm-map-player .rpm-map-room.rpm-map-reach { cursor: pointer; }
+.rpm-map-exits { display: flex; flex-direction: column; gap: 4px; }
+.rpm-map-go.rpm-btn { display: flex; align-items: center; gap: 6px; width: 100%; }
+.rpm-map-go .rpm-grow { text-align: left; }
+.rpm-map-refused { color: var(--rpm-danger); font-size: var(--rpm-fs-sm); }
+
 /* ---- character sheet (window "sheet") + dice log ---- */
 .rpm-sheet { display: flex; flex-direction: column; gap: 4px; }
 .rpm-sheet-h { margin: 10px 0 4px; }

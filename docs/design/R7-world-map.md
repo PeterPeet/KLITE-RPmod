@@ -108,7 +108,7 @@ works and the AI only narrates.
 1. ✅ **Location kinds + dungeon/town editor** (2026-09-23): `kind`, rooms hidden from the world graph, the
    editor window with board, rooms, connections, doors, inspector; data model incl. exploration
    state and migrations/tests.
-2. **Mini-map + moving room by room**: left-dock Map, Map window, click to move, door rules,
+2. ✅ **Mini-map + moving room by room** (2026-09-23): left-dock Map, Map window, click to move, door rules,
    refusals in the log; context section for the AI; tags parsed on reply arrival (issue 12).
 3. **AI tags + exploration**: go/open/close/unlock/search/room/door/light; fog states; secrets and
    traps found by Search checks.

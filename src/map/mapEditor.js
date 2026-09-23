@@ -15,6 +15,7 @@
 // Used by src/KLITE-RPmod_WorldsUI.js. Design: docs/design/R7-world-map.md.
 // =============================================================================
 import { el, clear, iconText } from '../shell/dom.js';
+import { exitPoints, exitMarks } from './board.js';
 
 const CELL = 28;                 // px per grid cell at 100 %
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -170,34 +171,18 @@ function updateSaveState() {
 // ---- drawing -----------------------------------------------------------------------------
 const px = (c) => c * CELL;
 function roomById(id) { return M.board && M.board.rooms.find(r => r.id === id); }
-function center(r) { return { x: px(r.x + r.w / 2), y: px(r.y + r.h / 2) }; }
-// Point on a room's wall facing `dir` (n/e/s/w), else the centre.
-function wallPoint(r, dir) {
-    const c = center(r);
-    if (dir === 'n') return { x: c.x, y: px(r.y) };
-    if (dir === 's') return { x: c.x, y: px(r.y + r.h) };
-    if (dir === 'e') return { x: px(r.x + r.w), y: c.y };
-    if (dir === 'w') return { x: px(r.x), y: c.y };
-    return c;
-}
 function draw() {
     if (!M.board) return;
     clear(M.gExits); clear(M.gRooms);
     const R = MR();
     for (const e of M.board.exits) {
         const a = roomById(e.from), b = roomById(e.to); if (!a || !b) continue;
-        const dir = ['n', 'e', 's', 'w'].includes(e.dir) ? e.dir : R.dirBetween(a.rect, b.rect);
-        const p = wallPoint(a.rect, dir), q = wallPoint(b.rect, R.mirrorDir(dir));
+        const { p, q } = exitPoints(a.rect, b.rect, e.dir, CELL, R);
         const g = svg('g', { class: 'rpm-map-exit' + (e.id === M.selectedExit ? ' rpm-sel' : ''), 'data-exit': e.id, 'data-type': e.type, 'data-state': e.state });
         g.appendChild(svg('line', { x1: p.x, y1: p.y, x2: q.x, y2: q.y, class: 'rpm-map-hit' }));
         g.appendChild(svg('line', { x1: p.x, y1: p.y, x2: q.x, y2: q.y, class: 'rpm-map-link' + (e.secret ? ' rpm-map-secret' : '') + (e.type === 'corridor' ? ' rpm-map-corridor' : '') }));
         const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
-        if (e.type === 'door' || e.type === 'secret') {
-            g.appendChild(svg('rect', { x: mx - 6, y: my - 6, width: 12, height: 12, rx: 2, class: 'rpm-map-door' }));
-            if (e.state === 'locked' || e.state === 'barred') { const t = svg('text', { x: mx, y: my + 4, 'text-anchor': 'middle', class: 'rpm-map-glyph' }); t.textContent = e.state === 'locked' ? '⚿' : '#'; g.appendChild(t); }
-        }
-        if (e.type === 'stairs' || e.dir === 'up' || e.dir === 'down') { const t = svg('text', { x: mx, y: my - 9, 'text-anchor': 'middle', class: 'rpm-map-glyph' }); t.textContent = e.dir === 'up' ? '▲' : e.dir === 'down' ? '▼' : '≡'; g.appendChild(t); }
-        if (e.secret) { const t = svg('text', { x: mx, y: my + 19, 'text-anchor': 'middle', class: 'rpm-map-glyph' }); t.textContent = 'S'; g.appendChild(t); }
+        exitMarks(g, e, mx, my);
         g.addEventListener('mousedown', (ev) => { ev.stopPropagation(); M.selected = null; M.selectedExit = e.id; draw(); renderInspector(); });
         M.gExits.appendChild(g);
     }

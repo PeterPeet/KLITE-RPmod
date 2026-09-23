@@ -194,6 +194,8 @@ export default function initWorlds() {
     // library from storage (undoes e.g. an accidental delete).
     const AUTOSAVE_SETTING = 'worlds_autosave';
     const AUTOSAVE_DELAY = 1000;
+    const ASCII_MAP_SETTING = 'map_ascii_ai';
+    function settingOn(id, dflt) { try { const v = window.KLITE_RPMod_Settings?.get(id); return v == null ? dflt : !!v; } catch (_) { return dflt; } }
     const edits = { dirty: false, rev: 0, timer: null };
     function autosaveOn() { try { return !!window.KLITE_RPMod_Settings?.get(AUTOSAVE_SETTING); } catch (_) { return false; } }
     function setDirty(v) {
@@ -226,6 +228,11 @@ export default function initWorlds() {
                 help: 'Saves changes made in the world editor automatically, about a second after each change. Off: changes stay unsaved until you press Save (or Revert to saved); RPmod warns before they could be lost. With autosave on, a deletion is saved at once and cannot be reverted.',
             });
             window.KLITE_RPMod_Settings?.onChange(AUTOSAVE_SETTING, (on) => { if (on && edits.dirty) saveLibrary(); });
+            window.KLITE_RPMod_Settings?.registerSetting({
+                id: ASCII_MAP_SETTING, section: 'Map', order: 10, default: false,
+                label: 'Send a small text map to the AI',
+                help: 'Inside a dungeon or town the AI also gets a small text map of the rooms the player knows (numbers, @ = you are here). Helps larger models keep the layout straight; small models may do better without it.',
+            });
         } catch (_) {}
         window.addEventListener('beforeunload', (e) => {
             if (!edits.dirty) return;
@@ -288,7 +295,11 @@ export default function initWorlds() {
     // A secret room stays unknown to the player (and the AI) until found.
     function roomFound(loc) { return !!loc && (!loc.secret || asArray(foundState().secrets).includes(loc.id)); }
     // Exits the player may know about: secret ones once found, never into an unfound secret room.
-    function playerExits(locId) { return exitsOfLoc(locId).filter(e => MR.visibleExit(e, foundState()) && roomFound(locOf(e.to))); }
+    // sorted n, e, s, w, up, down, then undirected (a stable order for the AI and the UI)
+    function playerExits(locId) {
+        const rank = (e) => { const i = MR.DIRS.indexOf(e.dir); return i < 0 ? 99 : i; };
+        return exitsOfLoc(locId).filter(e => MR.visibleExit(e, foundState()) && roomFound(locOf(e.to))).sort((a, b) => rank(a) - rank(b));
+    }
     function findExit(exitId) {
         for (const l of asArray(activeWorld() && activeWorld().locations)) { const ex = asArray(l.exits).find(e => e && e.id === exitId); if (ex) return { owner: l, exit: ex }; }
         return null;
@@ -394,6 +405,90 @@ export default function initWorlds() {
         for (const room of rooms) for (const e of exitsOfLoc(room.id)) if (!ids.has(e.to) && !isInsideLocation(e.to, mapId) && e.to !== mapId) outside.push({ room: room.id, to: e.to, name: norm((locOf(e.to) || {}).name), dir: e.dir });
         return { id: map.id, name: norm(phasedEntity(map).name), kind: MR.kindOf(map), style: map.mapStyle || MR.STYLES[MR.kindOf(map)]?.[0] || 'stone',
             parentMap: mapOf(mapId) ? mapOf(mapId).id : null, rooms, exits, outside, here: hereRoom ? hereRoom.id : null };
+    }
+    // ---- R7 moving room by room: RPmod decides, the AI narrates ----
+    // A place as named to the player/AI: a room seen from outside its dungeon/town carries the
+    // dungeon's name ("Old Crypt (Entrance)").
+    function placeName(locId, fromId) {
+        const l = locOf(locId); if (!l) return String(locId || '');
+        const n = norm(phasedEntity(l).name); const m = mapOf(locId);
+        return m && !(fromId && isInsideLocation(fromId, graphAnchor(locId))) ? `${norm(phasedEntity(locOf(graphAnchor(locId))).name)} (${n})` : n;
+    }
+    // The room you arrive in when you go to a dungeon/town: the one with a way out to where
+    // you stand (or to a place around it), else one with any way out, else the first room.
+    function entranceRoom(mapId, fromId) {
+        const rooms = roomsOf(mapId); if (!rooms.length) return null;
+        const outward = (r) => exitsOfLoc(r.id).filter(e => !isInsideLocation(e.to, mapId) && e.to !== mapId);
+        return (fromId && rooms.find(r => outward(r).some(e => e.to === fromId || isInsideLocation(fromId, e.to)))) || rooms.find(r => outward(r).length) || rooms[0];
+    }
+    // Target of a move: an id, a direction ("north"), a neighbour's name, else any place's name.
+    function resolveGoTarget(target, curId) {
+        const w = activeWorld(); const raw = norm(target);
+        const byId = findById(w.locations, raw); if (byId) return byId;
+        const exits = curId ? playerExits(curId) : [];
+        const d = MR.parseDir(raw);
+        if (d) { const e = exits.find(x => x.dir === d); return e ? locOf(e.to) : null; }
+        const key = MR.nameKey(raw);
+        const hit = exits.map(e => locOf(e.to)).filter(Boolean).find(l => MR.nameKey(phasedEntity(l).name) === key || MR.nameKey(l.name) === key);
+        if (hit) return hit;
+        return asArray(w.locations).find(l => MR.nameKey(phasedEntity(l).name) === key || MR.nameKey(l.name) === key) || null;
+    }
+    // go(target, { source: 'ui'|'ai'|'api' }) → { ok, to, dir, opened, reason }
+    // Inside a dungeon/town you move only through known exits; a closed door is opened, a locked
+    // or barred one refuses the move. Refusals always go to the game log (the AI then narrates
+    // them); a move made in the UI is logged too, so the AI can describe it.
+    function go(target, opts = {}) {
+        const w = activeWorld(); if (!w || !ensureRuntime()) return { ok: false, reason: 'No world is active.' };
+        MR.normalizeExploration(rt());
+        const curId = rt().playerLocationId; const cur = locOf(curId);
+        const refuse = (why) => { const msg = `Move to ${norm(target)} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
+        let dest = resolveGoTarget(target, curId);
+        if (!dest) return refuse('there is no such place');
+        const destIsMap = MR.isContainer(dest);
+        if (cur && destIsMap && isInsideLocation(curId, dest.id)) return refuse(`you are already inside ${norm(dest.name)}`);
+        let viaEntrance = false;
+        if (destIsMap) { const ent = entranceRoom(dest.id, curId); if (ent) { dest = ent; viaEntrance = true; } }
+        if (cur && dest.id === curId) return { ok: true, to: dest.id, same: true };
+        let ex = null, opened = false;
+        if (cur && (mapOf(curId) || mapOf(dest.id))) {
+            ex = playerExits(curId).find(e => e.to === dest.id) || null;
+            // from the world outside you may travel to a dungeon/town's entrance without a drawn way
+            if (!ex && !(viaEntrance && !mapOf(curId))) return refuse(`there is no known way from ${placeName(curId)} to ${placeName(dest.id, curId)}`);
+            if (ex) {
+                const st = MR.doorState(ex, rt().doorState);
+                const mat = ex.door && norm(ex.door.material);
+                if (MR.blocksMove(st)) return refuse(`the ${mat ? mat + ' ' : ''}door is ${st}`);
+                if (st === 'closed') { rt().doorState[ex.id] = 'open'; opened = true; }
+            }
+        }
+        rt().playerLocationId = dest.id;
+        markVisitedRoom(dest.id);
+        const dir = ex && ex.dir ? MR.dirName(ex.dir) : '';
+        if (opts.source === 'ui') gameLog(`${opened ? 'Opens the door and goes' : 'Goes'}${dir ? ' ' + dir : ''} to ${placeName(dest.id, curId)}.`, 'map');
+        try { fireTriggers('enter:' + dest.id); } catch (_) {}
+        return { ok: true, to: dest.id, dir: ex ? ex.dir : null, opened };
+    }
+    // Exits of a room as the AI reads them: "- north: Ossuary (locked iron door)".
+    function exitLines(locId) {
+        const r = rt();
+        return playerExits(locId).map(e => {
+            const st = MR.doorState(e, r && r.doorState); const mat = e.door && norm(e.door.material);
+            const how = (e.type === 'door' || e.type === 'secret') ? `${st} ${mat ? mat + ' ' : ''}${e.type === 'secret' ? 'secret door' : 'door'}`
+                : e.type === 'open' || !e.type ? 'open' : e.type;
+            const out = !isInsideLocation(e.to, graphAnchor(locId)) ? ', leads out' : '';
+            return `- ${e.dir ? MR.dirName(e.dir) + ': ' : ''}${placeName(e.to, locId)} (${how}${out})`;
+        });
+    }
+    // Small text map of the explored part of the current dungeon/town (setting, default off).
+    function asciiMapText(locId) {
+        const m = mapOf(locId); if (!m) return '';
+        const b = mapBoard(m.id, { player: true }); if (!b || !b.rooms.length) return '';
+        return MR.asciiMap(b.rooms.map(x => ({ id: x.id, name: x.name, rect: x.rect })), b.exits.map(e => [e.from, e.to]), b.here);
+    }
+    // A feature the player can see: traps only once found, nothing marked hidden.
+    function featureVisible(o) {
+        if (o.hidden) return false;
+        return o.kind !== 'trap' || asArray(foundState().traps).includes(o.id);
     }
     function resolveNpcLocationId(npc) {
         const ov = rt()?.npcStateOverrides?.[npc.id];
@@ -906,7 +1001,10 @@ export default function initWorlds() {
         const scan = (re, fn) => { let m; re.lastIndex = 0; while ((m = re.exec(s)) !== null) { try { if (fn(m) !== false) changed = true; } catch (_) {} } };
 
         scan(/<move>\s*([^<>]+?)\s*<\/move>/gi, m => {
-            const l = findById(world.locations, m[1]) || locationByName(world, m[1]);
+            // inside or into a dungeon/town RPmod checks exits and doors (R7); refusals go to the log
+            const cur = rt().playerLocationId;
+            const l = resolveGoTarget(m[1], cur);
+            if (l && (mapOf(cur) || mapOf(l.id) || MR.isContainer(l))) return go(m[1], { source: 'ai' }).ok;
             if (l) { rt().playerLocationId = l.id; return true; } return false;
         });
         scan(/<npcmove>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/npcmove>/gi, m => {
@@ -1411,14 +1509,16 @@ export default function initWorlds() {
     }
     // Scan any chat messages we haven't parsed yet, apply their tags, advance the
     // per-turn clock if configured. Called at generation time (before slice build).
-    function processPendingMutations() {
+    // opts.advance === false: parse only (a reply just arrived); the per-turn clock step
+    // happens at the next generation, as before.
+    function processPendingMutations(opts) {
         if (!rt()) return false;
         const arr = window.gametext_arr;
         if (!Array.isArray(arr)) return false;
         const start = Math.max(0, Math.min(Number(rt().lastParsedIndex) || 0, arr.length));
         let changed = false;
         for (let i = start; i < arr.length; i++) { changed = parseMutations(arr[i]) || changed; try { detectTalk(arr[i]); } catch (_) {} }
-        const advanced = W.config.advanceClockPerTurn && arr.length > start;
+        const advanced = W.config.advanceClockPerTurn && arr.length > start && !(opts && opts.advance === false);
         rt().lastParsedIndex = arr.length;
         if (advanced) advanceClock(1);
         if (changed || advanced) dbg('applied pending mutations; loc=', rt().playerLocationId);
@@ -1523,15 +1623,19 @@ export default function initWorlds() {
         const inner = childLocations(loc.id).filter(l => MR.kindOf(loc) === 'town' ? roomFound(l)
             : MR.kindOf(loc) === 'dungeon' ? (roomFound(l) && !!(rt().explored || {})[l.id]) : true);
         const exits = playerExits(loc.id).filter(e => !e.mirrored).map(e => norm(e.name)).filter(Boolean)
-            .concat(connectedLocations(world, loc, 1).map(l => norm(phasedEntity(l).name)))
+            .concat(connectedLocations(world, loc, 1).map(l => placeName(l.id, loc.id)))
             .concat(zones.length && !inRoom ? [norm(phasedEntity(zones[zones.length - 1]).name)] : []);
         const exitsUniq = [...new Set(exits.map(norm).filter(Boolean))];
         let locText = norm(pLoc.description);
+        if (inRoom && loc.light) locText += `${locText ? '\n' : ''}Light: ${loc.light}`;
+        if (inRoom && asArray(loc.hazards).length) locText += `${locText ? '\n' : ''}Hazards: ${asArray(loc.hazards).join(', ')}`;
         if (zones.length) locText = `Part of: ${zones.map(z => norm(phasedEntity(z).name)).join(' › ')}` + (locText ? '\n' + locText : '');
         if (norm(pLoc.atmosphere)) locText += `${locText ? '\n' : ''}Atmosphere: ${norm(pLoc.atmosphere)}`;
         if (loc.hub) locText += `${locText ? '\n' : ''}A hub: travellers, traders and quest givers gather here.`;
         if (inner.length) locText += `${locText ? '\n' : ''}Places within: ${inner.map(l => norm(phasedEntity(l).name)).join(', ')}`;
-        if (exitsUniq.length) locText += `${locText ? '\n' : ''}Exits: ${exitsUniq.join(', ')}`;
+        // in a room: every exit with direction and door state (exact names for <move>)
+        if (inRoom) { const xl = exitLines(loc.id); if (xl.length) locText += `${locText ? '\n' : ''}Exits:\n${xl.join('\n')}`; }
+        else if (exitsUniq.length) locText += `${locText ? '\n' : ''}Exits: ${exitsUniq.join(', ')}`;
         const hqFactions = asArray(world.factions).filter(f => f.hqLocationId === loc.id).map(f => norm(f.name)).filter(Boolean);
         if (hqFactions.length) locText += `${locText ? '\n' : ''}Headquarters of: ${hqFactions.join(', ')}`;
         // Always emit the location header (even with an empty body) — location
@@ -1566,9 +1670,14 @@ export default function initWorlds() {
         push('Nearby NPCs', 70, npcLines.join('\n'));
 
         // 5. Nearby objects
-        const objsHere = asArray(world.objects).filter(o => o.locationId === loc.id || asArray(loc.objectIds).includes(o.id));
-        const objLines = objsHere.map(o => '- ' + norm(o.name) + (norm(o.desc) ? `: ${norm(o.desc)}` : ''));
+        const objsHere = asArray(world.objects).filter(o => (o.locationId === loc.id || asArray(loc.objectIds).includes(o.id)) && featureVisible(o));
+        const objLines = objsHere.map(o => '- ' + norm(o.name) + (MR.FEATURE_KINDS.includes(o.kind) && o.kind !== 'furniture' ? ` (${o.kind === 'light' ? (o.lit ? 'lit' : 'unlit') : o.kind})` : '') + (norm(o.desc) ? `: ${norm(o.desc)}` : ''));
         push('Nearby Objects', 50, objLines.join('\n'));
+        // 5a. Moving room by room (R7): how the AI moves the player; optional text map
+        if (inRoom) {
+            push('Moving', 24, 'The player moves room by room. To move, write <move>name</move> with a name (or direction) from the exits above. RPmod checks the doors: a locked or barred door refuses the move and the refusal appears in the log; narrate what actually happened.');
+            if (settingOn(ASCII_MAP_SETTING, false)) push('Map (explored)', 60, asciiMapText(loc.id));
+        }
 
         // 5b. Quests — active (tracked) ones in detail; visible per aiMode.
         const questLines = [];
@@ -2227,6 +2336,9 @@ export default function initWorlds() {
         setRoomRect(id, rect) { return setRoomRect(id, rect); },
         layoutMap(mapId) { return layoutMap(mapId); },
         mapBoard: (mapId, opts) => mapBoard(mapId, opts || {}),
+        go(target, opts) { const r = go(target, opts || {}); syncLive(); return r; },
+        placeName: (id, fromId) => placeName(id, fromId),
+        asciiMap: (locId) => asciiMapText(locId || (rt() && rt().playerLocationId)),
         featuresOf: (roomId) => asArray(activeWorld() && activeWorld().objects).filter(o => o.locationId === roomId),
         addFeature(roomId, fields = {}) {
             const o = addEntity('object', { name: fields.name || 'Feature' });
@@ -2375,6 +2487,7 @@ export default function initWorlds() {
         setQuest(id, state) { ensureRuntime(); rt().questState[norm(id)] = norm(state); syncLive(); return rt().questState; },
         // Apply control tags from a raw string (as the AI would emit). Returns changed.
         applyTags(text) { const c = parseMutations(text); syncLive(); return c; },
+        installReplyHook,
         refresh() { return injectManaged(); },
 
         // ----- introspection -----
@@ -2407,10 +2520,27 @@ export default function initWorlds() {
     // =======================================================================
     //  INIT — wait for host + main mod, then install hooks
     // =======================================================================
+    // Known issue 12 (fixed in R7): the AI's tags take effect when its reply arrives, not at the
+    // next send. Esolite appends the reply to gametext_arr inside handle_incoming_text (it wraps
+    // that function itself, static/js/contextUsage.js); RPmod wraps it the same way.
+    function installReplyHook() {
+        const orig = window.handle_incoming_text;
+        if (typeof orig !== 'function' || orig.__rpmod_worlds) return !!(orig && orig.__rpmod_worlds);
+        const wrapped = function () {
+            const res = orig.apply(this, arguments);
+            try { if (W.config.enabled && activeWorld() && rt()) { processPendingMutations({ advance: false }); syncLive(); } } catch (e) { err('reply tags failed', e); }
+            return res;
+        };
+        wrapped.__rpmod_worlds = true;
+        window.handle_incoming_text = wrapped;
+        return true;
+    }
+
     async function init() {
         if (W.ready) return;
         await loadLibrary();
         installSaveWrappers();
+        installReplyHook();
         registerProvider();
         registerSettingAndGuards();
         const okPrepare = getContext().install();

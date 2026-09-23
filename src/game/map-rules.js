@@ -179,3 +179,49 @@ export function raiseExplored(explored, id, level) {
     if (exploreRank(explored[id]) >= exploreRank(level)) return false;
     explored[id] = level; return true;
 }
+
+// ---- directions typed by the player / the AI ---------------------------------------------
+const DIR_WORDS = { n: 'n', north: 'n', northward: 'n', e: 'e', east: 'e', eastward: 'e', s: 's', south: 's', southward: 's',
+    w: 'w', west: 'w', westward: 'w', u: 'up', up: 'up', upstairs: 'up', d: 'down', down: 'down', downstairs: 'down' };
+// "north", "the north door", "go east" → 'n' / 'e'; else null.
+export function parseDir(text) {
+    const t = String(text || '').toLowerCase().replace(/\b(the|a|an|go|to|door|passage|exit|way|stairs|corridor|through)\b/g, ' ').trim();
+    return DIR_WORDS[t] || null;
+}
+// "The Ossuary" / "ossuary room" → "ossuary" (for forgiving name matching)
+export function nameKey(text) {
+    return String(text || '').toLowerCase().replace(/^\s*(the|a|an)\s+/, '').replace(/[.,!?;:"'`]+/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// ---- small read-only text map for the AI (explored rooms only) ----------------------------
+// rooms: [{ id, name, rect }], links: [[idA, idB]], hereId → lines like
+//   [1]-[@]
+//        |
+//       [2]
+//   @ Hall (you are here) · 1 Entrance · 2 Ossuary
+// Markers sit on a coarse grid from the rooms' positions; a dash/bar joins neighbours on the
+// same row/column. The AI reads it; it never writes coordinates back.
+export function asciiMap(rooms, links, hereId) {
+    rooms = asArray(rooms); if (!rooms.length) return '';
+    const step = ROOM.w + ROOM.gap, stepY = ROOM.h + ROOM.gap;
+    const cells = new Map(); const pos = {};
+    const byOrder = rooms.slice().sort((a, b) => (a.rect.y - b.rect.y) || (a.rect.x - b.rect.x));
+    for (const r of byOrder) {
+        let c = Math.round((r.rect.x + r.rect.w / 2) / step), row = Math.round((r.rect.y + r.rect.h / 2) / stepY);
+        while (cells.has(c + ',' + row)) c++;
+        cells.set(c + ',' + row, r.id); pos[r.id] = { c, row };
+    }
+    const cs = Object.values(pos).map(p => p.c), rs = Object.values(pos).map(p => p.row);
+    const c0 = Math.min(...cs), r0 = Math.min(...rs), W = (Math.max(...cs) - c0) * 4 + 3, H = (Math.max(...rs) - r0) * 2 + 1;
+    const grid = Array.from({ length: H }, () => Array(W).fill(' '));
+    const label = {}; let n = 0;
+    for (const r of byOrder) label[r.id] = r.id === hereId ? '@' : String(++n <= 9 ? n : String.fromCharCode(55 + n));   // 1-9, then A…
+    for (const [a, b] of asArray(links)) {
+        const p = pos[a], q = pos[b]; if (!p || !q) continue;
+        if (p.row === q.row && Math.abs(p.c - q.c) === 1) grid[(p.row - r0) * 2][(Math.min(p.c, q.c) - c0) * 4 + 3] = '-';
+        else if (p.c === q.c && Math.abs(p.row - q.row) === 1) grid[(Math.min(p.row, q.row) - r0) * 2 + 1][(p.c - c0) * 4 + 1] = '|';
+    }
+    for (const r of rooms) { const p = pos[r.id], y = (p.row - r0) * 2, x = (p.c - c0) * 4; grid[y][x] = '['; grid[y][x + 1] = label[r.id]; grid[y][x + 2] = ']'; }
+    const legend = byOrder.map(r => `${label[r.id]} ${r.name}${r.id === hereId ? ' (you are here)' : ''}`);
+    return grid.map(l => l.join('').replace(/\s+$/, '')).join('\n') + '\n' + legend.join(' · ');
+}

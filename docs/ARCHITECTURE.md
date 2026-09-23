@@ -20,6 +20,7 @@
 | `characters/builder-rules.js`, `builder.js` | `window.KLITE_RPMod_Builder` | Character builder (levels 1–20) + level up (§5b) |
 | `game/map-rules.js` | (import) | R7 map rules (pure): location kinds, exits read from both sides, doors, grid layout, exploration (§3.9) |
 | `map/mapEditor.js` | (import) | R7 dungeon/town editor window `mapeditor` (§3.9) |
+| `map/minimap.js`, `map/board.js` | (import) | R7 mini-map (left dock) + Map window; shared board drawing (§3.9) |
 | `game/log.js` | `window.KLITE_RPMod_Log` | Dice roller + per-story game log; context provider `gamelog` (§5b) |
 | `settings/settings.js` | `window.KLITE_RPMod_Settings` | "RPmod" tab in Esolite's Settings dialog; modules register options (§4c) |
 | `library/esoliteLibrary.js` | `window.KLITE_RPMod_Library` | Writes characters through Esolite's own Library (id-based since 1.35); recovers characters an older RPmod hid (§5a) |
@@ -188,8 +189,12 @@ side-effect free.
 `<move>`, `<npcmove>N=L`, `<mood>N=M`, `<flag>k=v`, `<unflag>`, `<give>Item xN`,
 `<take>Item xN` (*without a count removes the whole stack*), `<quest>id=state`, `<time>`,
 `<weather>`, `<advance>`, `<action>` (fires `action:` signal), `<roll>expr`,
-`<attack>A->B`, `<hp>N=±n`, `<check>N=abi DC`. Parsed at the start of the next generation
-from new `gametext_arr` messages (`lastParsedIndex`); tags stay visible in chat.
+`<attack>A->B`, `<hp>N=±n`, `<check>N=abi DC`. Parsed from new `gametext_arr` messages
+(`lastParsedIndex`) **when the AI's reply arrives** (R7: wrapper around Esolite's
+`handle_incoming_text`, which pushes the reply synchronously — Esolite wraps it the same way in
+`static/js/contextUsage.js`; parse only, the per-turn clock step stays at generation) and again at
+the start of the next generation (the user's own typed tags); tags stay visible in chat.
+`<move>` inside/into a dungeon or town goes through `go()` (§3.9).
 
 ### 3.5 Trigger bus
 `fireTriggers(signal)` — bounded queue (≤400 steps), per-cascade `firedNow` set,
@@ -287,7 +292,8 @@ factions (2 HQs), 3 quests (one hidden), 3 events (courier chain on quest accept
 ambush, hidden omen). Sets the authored start as the base slot and enables the world.
 
 ### 3.9 Dungeons & towns, room by room (R7) — rules in `src/game/map-rules.js` (pure)
-Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Step 1 (data model + editor) done.
+Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (data model + editor)
+and 2 (moving, mini-map, AI context) done.
 - **Kinds:** `location.kind` `'dungeon'|'town'` (else location, `kindOf`). A room/place is a location
   whose `parentId` chain reaches a dungeon/town (`mapOf` = nearest, `graphAnchor` = outermost); a
   room may itself be a dungeon/town (a level with its own map). Rooms keep working as locations
@@ -324,6 +330,23 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Step 1 (data
   with door fields, way out, features, inhabitants, encounter; delete), breadcrumbs for nested levels.
   Styles `data-style` stone/parchment/streets/plots from theme colours (`.rpm-map-*` in `styles.js`).
   Authoring calls are in the unsaved-change list; closing the world editor closes it.
+- **Moving (step 2):** `go(target, { source })` — target = id, direction word (`parseDir`), a
+  neighbour's name (`nameKey`: case/articles/punctuation ignored), else any place's name. Inside a
+  dungeon/town only through `playerExits` (sorted n,e,s,w,up,down); a closed door is opened
+  (runtime `doorState`), locked/barred refuses; going to a dungeon/town = its `entranceRoom` (way
+  out to where you stand, else any way out, else the first room; from outside also without a
+  drawn way); leaving only through a way out. Refusals always → game log (`kind: 'map'`); UI moves
+  are logged too; `enter:` triggers fire. The creator's `moveTo` stays a teleport.
+- **AI context in a room:** Current Location adds `Light`, `Hazards`, and `Exits:` one per line
+  (`- south: Ossuary (locked iron door)`, `, leads out` for ways out); rooms seen from outside
+  are named `Dungeon (Room)` (`placeName`); Nearby Objects hides unfound traps and `hidden`
+  objects and tags features (container/trap/lit); section **Moving** (24) explains `<move>`;
+  optional **Map (explored)** (60, setting `map_ascii_ai`, default off) = `MR.asciiMap`.
+- **Mini-map / Map window** (`src/map/minimap.js`, drawing `src/map/board.js` shared with the
+  editor): left-dock view `minimap` (order 15) and window `map`; player board (`mapBoard(…,
+  { player: true })`), fog (known = dashed outline), here = gold, reachable neighbours clickable →
+  `go(id, { source: 'ui' })`, exit buttons with door chips, last refusal shown. Refreshed with the
+  Worlds views on `klite:worlds-change`.
 
 ## 4a. App shell (`src/shell/`)
 - **Layout:** `#rpm-shell` is one fixed layer at **z-index 2** (below Esolite popups, z 3)
