@@ -17,6 +17,7 @@ import json, os, re, sys
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 PDF = os.path.join(ROOT, 'docs', 'reference', 'SRD_CC_v5.2.1.pdf')
 OUT = os.path.join(ROOT, 'src', 'data', 'srd52.js')
+MONSTERS_OUT = os.path.join(ROOT, 'src', 'data', 'srd52-monsters.js')
 
 ATTRIBUTION = ('This work includes material from the System Reference Document 5.2.1 ("SRD 5.2.1") by Wizards of '
                'the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the '
@@ -330,6 +331,138 @@ def _unused():
     out = {}
     return out
 
+# ---- monsters (Monsters A–Z + Animals) ----------------------------------------------------
+SIZES = r'(?:Tiny|Small|Medium|Large|Huge|Gargantuan)'
+NUM = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6}
+ABILITY_WORDS = dict(strength='str', dexterity='dex', constitution='con', intelligence='int', wisdom='wis', charisma='cha')
+SECTIONS = ('Traits', 'Actions', 'Bonus Actions', 'Reactions', 'Legendary Actions')
+
+def signed(t):
+    return int(t.replace('−', '-').replace('–', '-').replace('+', ''))
+
+def dice_expr(t):
+    # "1d6 + 2" -> "1d6+2", "1d10 − 1" -> "1d10-1"
+    return re.sub(r'\s+', '', t.replace('−', '-').replace('–', '-'))
+
+SMALL = {'of', 'the', 'and', 'in', 'a', 'an', 'to', 'with', 'or', 'on', 'from'}
+def title_case(name):
+    words = re.sub(r'\([^)]*\)', '', name).replace('-', ' ').split()
+    return bool(words) and all(w[0].isupper() or w in SMALL for w in words)
+def heading_like(ln):
+    l = ln.strip()
+    return bool(l) and len(l.split()) <= 4 and not re.search(r'[:,.;)]', l) and title_case(l)
+
+def parse_entries(lines):
+    # "Name. text…" paragraphs; a new entry starts at a line "Word Word (…). …"
+    entries, cur = [], None
+    for ln in lines:
+        m = re.match(r"^([A-Z][A-Za-z'’\-, ]{1,40}(?: \([^)]{1,40}\))?)\. (.*)$", ln)
+        if m and not title_case(m.group(1)): m = None   # "Piercing damage. …" continues the entry
+        if m and not re.match(r'^(Hit|Failure|Success|Failure or Success|Trigger|Response|At Will|\d/Day)', m.group(1)):
+            cur = dict(name=m.group(1).replace('’', "'"), text=m.group(2)); entries.append(cur)
+        elif cur:
+            if re.search(r'\w-$', cur['text']) and re.match(r'^[a-z]', ln): cur['text'] = cur['text'][:-1] + ln   # "Slash-" + "ing"
+            else: cur['text'] += ' ' + ln
+        # text before the first entry (legendary preamble) goes to a pseudo entry
+        elif ln.strip():
+            cur = dict(name='', text=ln); entries.append(cur)
+    for e in entries:
+        e['text'] = re.sub(r'(\w)- (?=[a-z])', r'\1', re.sub(r'\s+', ' ', e['text'])).strip().replace('’', "'")
+    return entries
+
+def attack_of(e):
+    t = e['text']
+    m = re.match(r'^(Melee or Ranged|Melee|Ranged) Attack Roll: ([+−–-]\d+)', t)
+    if m:
+        reach = re.search(r'(reach \d+ ft\.(?: or range [\d/]+ ft\.)?|range [\d/]+ ft\.)', t)
+        hit = t[t.index('Hit:'):] if 'Hit:' in t else ''
+        d = re.match(r'Hit: (\d+) \(([^)]+)\) (\w+) damage', hit) or re.match(r'Hit: (\d+) (\w+) damage', hit)
+        dmg = (dice_expr(d.group(2)), d.group(3)) if d and d.lastindex == 3 else ((d.group(1), d.group(2)) if d else ('', ''))
+        return dict(name=e['name'], kind=m.group(1).lower(), toHit=signed(m.group(2)), reach=reach.group(1) if reach else '',
+                    damage=dmg[0], avg=int(d.group(1)) if d else 0, type=dmg[1])
+    m = re.match(r'^(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) Saving Throw: DC (\d+)', t)
+    if m:
+        d = re.search(r'Failure: (\d+) \(([^)]+)\) (\w+) damage', t)
+        return dict(name=e['name'], kind='save', save=ABILITY_WORDS[m.group(1).lower()], dc=int(m.group(2)),
+                    damage=dice_expr(d.group(2)) if d else '', type=d.group(3) if d else '', half='Success: Half damage' in t)
+    return None
+
+def extract_monsters(txt):
+    a = txt.rindex('\nMonsters A–Z\n')
+    s = txt[a:]
+    s = re.sub(r'\n=====PAGE \d+=====\n(?:\d+\n)?System Reference Document 5\.2\.1\s*\n(?:\d+\n)?', '\n', s)
+    lines = s.split('\n')
+    starts = [i - 1 for i in range(1, len(lines) - 1) if re.match('^' + SIZES + r'( or ' + SIZES + r')? [A-Z]', lines[i]) and re.match(r'^AC \d+', lines[i + 1])]
+    out = {}
+    for k, st in enumerate(starts):
+        end = starts[k + 1] if k + 1 < len(starts) else len(lines)
+        blk = [l.rstrip() for l in lines[st:end]]
+        nxt = lines[starts[k + 1]].strip() if k + 1 < len(starts) else None
+        # group headings before the next monster ("Black Dragons", "Animated Objects")
+        stem = lambda w: w.lower().rstrip('s')
+        near_next = lambda l: nxt and {stem(w) for w in l.split()} & {stem(w) for w in nxt.split()}
+        while len(blk) > 3 and (not blk[-1].strip() or blk[-1].strip() == nxt or (heading_like(blk[-1]) and (re.search(r'[.)]\s*$', blk[-2]) or near_next(blk[-1])))): blk.pop()
+        name = blk[0].strip()
+        typ = blk[1].strip()
+        body = ' \n'.join(blk[2:])
+        g = lambda rx, d=None: (re.search(rx, body) or [None, d])[1] if re.search(rx, body) else d
+        ac = int(re.search(r'AC (\d+)', body).group(1))
+        ini = re.search(r'Initiative ([+−–-]\d+)', body)
+        hp = re.search(r'HP (\d+)(?: \(([^)]+)\))?', body)
+        speed = re.search(r'Speed ([^\n]+)', body).group(1).strip()
+        abil, saves = {}, {}
+        for m in re.finditer(r'\b(Str|Dex|Con|Int|WIS|Wis|Cha)\s+(\d+)\s*([+−–-]\d+)\s+([+−–-]?\d+)', body):
+            ab = m.group(1).lower()[:3]; abil[ab] = int(m.group(2)); sv = signed(m.group(4))
+            if sv != signed(m.group(3)): saves[ab] = sv
+        cr = re.search(r'CR ([\d/]+) \((?:XP ([\d, ]+?)|([\d, ]+?) XP)(?:, or [\d, ]+ in lair)?; PB \+(\d+)\)', body)
+        if not cr or len(abil) != 6:
+            print('  ! skipped', name, 'cr' if not cr else 'abilities'); continue
+        field = lambda key: (re.search(r'\n?' + key + r' ([^\n]+(?:\n(?!(?:Skills|Senses|Languages|CR|Gear|Immunities|Resistances|Vulnerabilities|Traits|Actions)\b)[^\n]*\)?)?)', body) or [None, ''])
+        def fld(key):
+            m = re.search(r'(?:^|\n)' + key + r' (.+?)(?= \n(?:Skills|Senses|Languages|CR|Gear|Immunities|Resistances|Vulnerabilities|Traits|Actions|Bonus Actions|Reactions)\b)', body, re.S)
+            return re.sub(r'\s+', ' ', m.group(1)).strip() if m else ''
+        # sections
+        tail = body[body.index(cr.group(0)) + len(cr.group(0)):]
+        sec, cur = {}, None
+        for ln in tail.split('\n'):
+            l = ln.strip()
+            if l in SECTIONS: cur = l; sec[cur] = []; continue
+            if cur and l: sec[cur].append(l)
+        m = dict(name=name, type=typ, ac=ac, initiative=signed(ini.group(1)) if ini else (abil['dex'] - 10) // 2,
+                 hp=int(hp.group(1)), hitDice=dice_expr(hp.group(2)) if hp and hp.group(2) else '', speed=speed,
+                 abilities=abil, saves=saves, skills=fld('Skills'), resistances=fld('Resistances'), immunities=fld('Immunities'),
+                 vulnerabilities=fld('Vulnerabilities'), senses=fld('Senses'), languages=fld('Languages'),
+                 cr=cr.group(1), xp=int(re.sub(r'[, ]', '', cr.group(2) or cr.group(3))), pb=int(cr.group(4)))
+        for key, label in (('traits', 'Traits'), ('actions', 'Actions'), ('bonusActions', 'Bonus Actions'), ('reactions', 'Reactions'), ('legendary', 'Legendary Actions')):
+            if label in sec: m[key] = parse_entries(sec[label])
+        atks = [x for x in (attack_of(e) for e in m.get('actions', [])) if x]
+        m['attacks'] = atks
+        multi = next((e for e in m.get('actions', []) if e['name'] == 'Multiattack'), None)
+        if multi:
+            n = re.search(r'makes (one|two|three|four|five|six)\b', multi['text'])
+            if n: m['multiattack'] = NUM[n.group(1)]
+        key = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+        if key in out: key += '-' + re.sub(r'[^a-z0-9]+', '-', typ.split(',')[0].lower())
+        out[key] = m
+    return out
+
+CONDITIONS = ['Blinded', 'Charmed', 'Deafened', 'Exhaustion', 'Frightened', 'Grappled', 'Incapacitated', 'Invisible',
+              'Paralyzed', 'Petrified', 'Poisoned', 'Prone', 'Restrained', 'Stunned', 'Unconscious']
+def extract_conditions(txt):
+    g = txt[txt.index(' [Condition]\n') - 40:]
+    g = re.sub(r'\n=====PAGE \d+=====\n(?:\d+\n)?System Reference Document 5\.2\.1\s*\n(?:\d+\n)?', '\n', g)
+    out = {}
+    for c in CONDITIONS:
+        m = re.search(r'\n' + c + r' \[Condition\]\n(.*?)(?=\n[A-Z][A-Za-z’\' ]+(?: \[[A-Za-z ]+\])?\n(?=[A-Z])|$)', g, re.S)
+        if m: out[c] = clean(m.group(1))
+        else: print('  ! condition not found', c)
+    return out
+
+XP_BUDGET = {1: (50, 75, 100), 2: (100, 150, 200), 3: (150, 225, 400), 4: (250, 375, 500), 5: (500, 750, 1100), 6: (600, 1000, 1400),
+             7: (750, 1300, 1700), 8: (1000, 1700, 2100), 9: (1300, 2000, 2600), 10: (1600, 2300, 3100), 11: (1900, 2900, 4100),
+             12: (2200, 3700, 4700), 13: (2600, 4200, 5400), 14: (2900, 4900, 6200), 15: (3300, 5400, 7800), 16: (3800, 6100, 9800),
+             17: (4500, 7200, 11700), 18: (5000, 8700, 14200), 19: (5500, 10700, 17200), 20: (6400, 13200, 22000)}
+
 def main():
     # page breaks → plain line breaks (headers "System Reference Document 5.2.1" + page number)
     txt = re.sub(r'\n=====PAGE \d+=====\nSystem Reference Document 5\.2\.1\s*\n\d+\n', '\n', pdf_text())
@@ -343,7 +476,10 @@ def main():
         classes={}, backgrounds=BACKGROUNDS, species=extract_species(txt), feats=extract_feats(txt),
         weapons={k: dict(damage=v[0], type=v[1], properties=v[2], mastery=v[3], category=v[4]) for k, v in WEAPONS.items()},
         armor={k: dict(category=v[0], base=v[1], dexCap=v[2]) for k, v in ARMOR.items()},
+        xpBudget={l: dict(low=v[0], moderate=v[1], high=v[2]) for l, v in XP_BUDGET.items()},
+        conditions=extract_conditions(txt),
     )
+    monsters = extract_monsters(txt)
     texts = extract_classes(txt)
     for cid, c in CLASSES.items():
         c = dict(c); c['skills'] = dict(choose=c['skills']['choose'], options=c['skills']['from_'])
@@ -374,6 +510,15 @@ def main():
           'export const SRD = ' + json.dumps(data, indent=1, ensure_ascii=False) + ';\n')
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     open(OUT, 'w').write(js)
+    mjs = ('// GENERATED by scripts/extract-srd.py from the SRD 5.2.1 PDF — do not edit; re-run the script.\n'
+           '// ' + ATTRIBUTION + '\n'
+           '// Monster stat blocks (Monsters A–Z and Animals). Attack/save actions are parsed into `attacks`.\n'
+           'export const MONSTERS = ' + json.dumps(monsters, ensure_ascii=False, separators=(',', ':')) + ';\n')
+    open(MONSTERS_OUT, 'w').write(mjs)
+    print('= wrote', os.path.relpath(MONSTERS_OUT, ROOT), f'({len(mjs) // 1024} KB, {len(monsters)} monsters)')
+    no_atk = [m['name'] for m in monsters.values() if not m['attacks']]
+    print('  monsters without a parsed attack:', len(no_atk), ', '.join(no_atk[:40]))
+    print('  conditions:', ', '.join(data['conditions']))
     print('= wrote', os.path.relpath(OUT, ROOT), f'({len(js) // 1024} KB)')
     for cid, c in data['classes'].items():
         print(f"  {c['name']:9} features: {', '.join(str(f['level']) + ':' + f['name'] for f in c['features'])} | {c['subclass']}: {', '.join(f['name'] for f in c['subclassFeatures'])}")

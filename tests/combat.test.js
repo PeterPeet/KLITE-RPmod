@@ -30,7 +30,7 @@ test('dice expressions and advantage', async (t) => {
 
 test('encounter: initiative order, HP, hit/crit/miss, damage, heal, turns', async (t) => {
     const { h, W, hero, gob } = await arena(t);
-    assert.equal(W.getStats(gob.id).hpMax, 7, 'SRD goblin preset');
+    assert.equal(W.getStats(gob.id).hpMax, 10, 'SRD 5.2.1 Goblin Warrior preset');
     h.seedRandom([0.9, 0.1, 0.5]);
     const cb = W.startEncounter([hero.id, gob.id]);
     assert.equal(cb.order.length, 3, 'player auto-included');
@@ -39,11 +39,11 @@ test('encounter: initiative order, HP, hit/crit/miss, damage, heal, turns', asyn
 
     h.seedRandom([0.999, 0.5]);
     assert.equal(W.attack('__player__', gob.id).crit, true);
-    assert.ok(W.getCombat().hp[gob.id] < 7);
-    W.getCombat().hp[gob.id] = 7;
+    assert.ok(W.getCombat().hp[gob.id] < 10);
+    W.getCombat().hp[gob.id] = 10;
     h.seedRandom([0]);
     assert.equal(W.attack('__player__', gob.id).hit, false, 'natural 1 misses');
-    assert.equal(W.getCombat().hp[gob.id], 7);
+    assert.equal(W.getCombat().hp[gob.id], 10);
 
     W.damage(gob.id, 100); assert.equal(W.getCombat().hp[gob.id], 0);
     W.heal(gob.id, 5);     assert.equal(W.getCombat().hp[gob.id], 5);

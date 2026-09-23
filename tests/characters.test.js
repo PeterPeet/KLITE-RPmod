@@ -129,9 +129,9 @@ test('AI context: persona sheet and rolls since the last reply reach the prompt;
     await w.prepare_submit_generation();
     assert.match(h.prompt, /\[User Character: Mira\][\s\S]*Character sheet: Ranger 3 — HP 20\/24/);
     assert.match(h.prompt, /Inventory: Longbow/);
-    assert.match(h.prompt, /\[Dice rolled since your last reply\]\n- Mira: Stealth check = 25 \(20\+5\) — natural 20!/);
+    assert.match(h.prompt, /\[Rolls and combat since your last reply\]\n- Mira: Stealth check = 25 \(20\+5\) — natural 20!/);
     await w.prepare_submit_generation();
-    assert.doesNotMatch(h.prompt, /Dice rolled/, 'only new rolls');
+    assert.doesNotMatch(h.prompt, /Rolls and combat/, 'only new rolls');
 
     const save = w.generate_savefile();
     assert.equal(save.rpmod_log.entries.length, 1, 'log in the story file');
@@ -179,9 +179,9 @@ test('Party section: the persona\'s HP, AC and class from its sheet; follows per
     // in a fight the tracker's HP counts
     const W = h.api(); await W.newWorld('T'); W.enable();
     W.startEncounter([], { includePlayer: true }); await sleep(40);
-    assert.match(q('hp').textContent, /^HP 24\/24/, 'combat HP from the sheet\'s maximum');
+    assert.match(q('hp').textContent, /^HP 18\/24/, 'the fight starts at the sheet\'s current HP');
     W.damage('__player__', 5); await sleep(40);
-    assert.match(q('hp').textContent, /^HP 19\/24/);
+    assert.match(q('hp').textContent, /^HP 13\/24/);
 
     // persona switched off → no persona
     w.KLITE_RPMod.panels.TOOLS.personaEnabled = false; await sleep(40);

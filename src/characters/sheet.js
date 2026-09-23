@@ -134,7 +134,7 @@ export function toCombatStats(sheet) {
     const d = derive(sheet);
     return {
         abilities: { ...d.sheet.abilities }, ac: d.sheet.ac, hpMax: d.sheet.hp.max, speed: d.sheet.speed,
-        proficiency: d.pb, initiativeMod: d.initiative,
+        proficiency: d.pb, initiativeMod: d.initiative, saves: { ...d.saves },
         attacks: d.attacks.map(a => ({ name: a.name, toHit: a.toHit, damage: a.damage || '1d4' })),
     };
 }

@@ -324,7 +324,18 @@ Acceptance: search any SRD monster/spell, open it, add a monster to an encounter
 Acceptance: play the example world's quest chain start to finish with rewards, a phased
 location and a reputation change.
 
-### R5 — Encounters & combat (D&D Beyond) ⬜
+### R5 — Encounters & combat (D&D Beyond) 🟨
+Started before R3 (owner, 2026-09-23: "so I can already play"); R3's monster *data* was pulled
+forward, the compendium window stays in R3. Owner's decisions: the mod rolls monster turns and
+the AI narrates; HP and XP are written back to the persona sheet; all SRD monsters bundled.
+- [x] **Step 1 — data + engine** (2026-09-23): 330 SRD 5.2.1 monsters (`src/data/srd52-monsters.js`,
+      parsed stat blocks incl. attacks and saving-throw actions), 15 conditions, XP budget table;
+      `src/game/combat-rules.js` (pure); Worlds combat v2: monster instances, sides, victory/
+      defeat, death saves, conditions with attack effects and durations, automatic monster
+      turns, saving-throw actions, saved encounters per world, `<encounter>` tag and trigger
+      effect, combat events in the game log, persona HP/XP write-back. SRD 5.1 presets replaced
+      (known issue 7), `isMonster` now decides sides (known issue 1), combat HP = sheet HP
+      (known issue 17).
 - Encounter builder with SRD 5.2 XP budget / difficulty; Encounter node linked to
   locations/events.
 - Combat sides from `isMonster` (known issue 1) with victory/defeat detection.

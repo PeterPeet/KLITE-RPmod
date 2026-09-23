@@ -6912,5 +6912,202 @@ export const SRD = {
    "base": 18,
    "dexCap": 0
   }
+ },
+ "xpBudget": {
+  "1": {
+   "low": 50,
+   "moderate": 75,
+   "high": 100
+  },
+  "2": {
+   "low": 100,
+   "moderate": 150,
+   "high": 200
+  },
+  "3": {
+   "low": 150,
+   "moderate": 225,
+   "high": 400
+  },
+  "4": {
+   "low": 250,
+   "moderate": 375,
+   "high": 500
+  },
+  "5": {
+   "low": 500,
+   "moderate": 750,
+   "high": 1100
+  },
+  "6": {
+   "low": 600,
+   "moderate": 1000,
+   "high": 1400
+  },
+  "7": {
+   "low": 750,
+   "moderate": 1300,
+   "high": 1700
+  },
+  "8": {
+   "low": 1000,
+   "moderate": 1700,
+   "high": 2100
+  },
+  "9": {
+   "low": 1300,
+   "moderate": 2000,
+   "high": 2600
+  },
+  "10": {
+   "low": 1600,
+   "moderate": 2300,
+   "high": 3100
+  },
+  "11": {
+   "low": 1900,
+   "moderate": 2900,
+   "high": 4100
+  },
+  "12": {
+   "low": 2200,
+   "moderate": 3700,
+   "high": 4700
+  },
+  "13": {
+   "low": 2600,
+   "moderate": 4200,
+   "high": 5400
+  },
+  "14": {
+   "low": 2900,
+   "moderate": 4900,
+   "high": 6200
+  },
+  "15": {
+   "low": 3300,
+   "moderate": 5400,
+   "high": 7800
+  },
+  "16": {
+   "low": 3800,
+   "moderate": 6100,
+   "high": 9800
+  },
+  "17": {
+   "low": 4500,
+   "moderate": 7200,
+   "high": 11700
+  },
+  "18": {
+   "low": 5000,
+   "moderate": 8700,
+   "high": 14200
+  },
+  "19": {
+   "low": 5500,
+   "moderate": 10700,
+   "high": 17200
+  },
+  "20": {
+   "low": 6400,
+   "moderate": 13200,
+   "high": 22000
+  }
+ },
+ "conditions": {
+  "Blinded": [
+   "While you have the Blinded condition, you experience the following effects.",
+   "Can't See. You can't see and automatically fail any ability check that requires sight.",
+   "Attacks Affected. Attack rolls against you have Advantage, and your attack rolls have Disadvantage."
+  ],
+  "Charmed": [
+   "While you have the Charmed condition, you experience the following effects.",
+   "Can't Harm the Charmer. You can't attack the charmer or target the charmer with damaging abilities or magical effects.",
+   "Social Advantage. The charmer has Advantage on any ability check to interact with you socially."
+  ],
+  "Deafened": [
+   "While you have the Deafened condition, you experience the following effect.",
+   "Can't Hear. You can't hear and automatically fail any ability check that requires hearing."
+  ],
+  "Exhaustion": [
+   "While you have the Exhaustion condition, you experience the following effects.",
+   "Exhaustion Levels. This condition is cumulative. Each time you receive it, you gain 1 Exhaustion level. You die if your Exhaustion level is 6.",
+   "D20 Tests Affected. When you make a D20 Test, the roll is reduced by 2 times your Exhaustion level.",
+   "Speed Reduced. Your Speed is reduced by a number of feet equal to 5 times your Exhaustion level.",
+   "Removing Exhaustion Levels. Finishing a Long Rest removes 1 of your Exhaustion levels. When your Exhaustion level reaches 0, the condition ends."
+  ],
+  "Frightened": [
+   "While you have the Frightened condition, you experience the following effects.",
+   "Ability Checks and Attacks Affected. You have Disadvantage on ability checks and attack rolls while the source of fear is within line of sight.",
+   "Can't Approach. You can't willingly move closer to the source of fear."
+  ],
+  "Grappled": [
+   "While you have the Grappled condition, you experience the following effects.",
+   "Speed 0. Your Speed is 0 and can't increase.",
+   "Attacks Affected. You have Disadvantage on attack rolls against any target other than the grappler.",
+   "Movable. The grappler can drag or carry you when it moves, but every foot of movement costs it 1 extra foot unless you are Tiny or two or more sizes smaller than it."
+  ],
+  "Incapacitated": [
+   "While you have the Incapacitated condition, you experience the following effects.",
+   "Inactive. You can't take any action, Bonus Action, or Reaction.",
+   "No Concentration. Your Concentration is broken.",
+   "Speechless. You can't speak.",
+   "Surprised. If you're Incapacitated when you roll Initiative, you have Disadvantage on the roll."
+  ],
+  "Invisible": [
+   "While you have the Invisible condition, you experience the following effects.",
+   "Surprise. If you're Invisible when you roll Initiative, you have Advantage on the roll.",
+   "Concealed. You aren't affected by any effect that requires its target to be seen unless the effect's creator can somehow see you. Any equipment you are wearing or carrying is also concealed.",
+   "Attacks Affected. Attack rolls against you have Disadvantage, and your attack rolls have Advantage. If a creature can somehow see you, you don't gain this benefit against that creature."
+  ],
+  "Paralyzed": [
+   "While you have the Paralyzed condition, you experience the following effects.",
+   "Incapacitated. You have the Incapacitated condition.",
+   "Speed 0. Your Speed is 0 and can't increase.",
+   "Saving Throws Affected. You automatically fail Strength and Dexterity saving throws.",
+   "Attacks Affected. Attack rolls against you have Advantage.",
+   "Automatic Critical Hits. Any attack roll that hits you is a Critical Hit if the attacker is within 5 feet of you."
+  ],
+  "Petrified": [
+   "While you have the Petrified condition, you experience the following effects.",
+   "Turned to Inanimate Substance. You are transformed, along with any nonmagical objects you are wearing and carrying, into a solid inanimate substance (usually stone). Your weight increases by a factor of ten, and you cease aging.",
+   "Incapacitated. You have the Incapacitated condition.",
+   "Speed 0. Your Speed is 0 and can't increase.",
+   "Attacks Affected. Attack rolls against you have Advantage.",
+   "Saving Throws Affected. You automatically fail Strength and Dexterity saving throws.",
+   "Resist Damage. You have Resistance to all damage.",
+   "Poison Immunity. You have Immunity to the Poisoned condition."
+  ],
+  "Poisoned": [
+   "While you have the Poisoned condition, you experience the following effect.",
+   "Ability Checks and Attacks Affected. You have Disadvantage on attack rolls and ability checks."
+  ],
+  "Prone": [
+   "While you have the Prone condition, you experience the following effects.",
+   "Restricted Movement. Your only movement options are to crawl or to spend an amount of movement equal to half your Speed (round down) to right yourself and thereby end the condition. If your Speed is 0, you can't right yourself.",
+   "Attacks Affected. You have Disadvantage on attack rolls. An attack roll against you has Advantage if the attacker is within 5 feet of you. Otherwise, that attack roll has Disadvantage."
+  ],
+  "Restrained": [
+   "While you have the Restrained condition, you experience the following effects.",
+   "Speed 0. Your Speed is 0 and can't increase.",
+   "Attacks Affected. Attack rolls against you have Advantage, and your attack rolls have Disadvantage.",
+   "Saving Throws Affected. You have Disadvantage on Dexterity saving throws."
+  ],
+  "Stunned": [
+   "While you have the Stunned condition, you experience the following effects.",
+   "Incapacitated. You have the Incapacitated condition.",
+   "Saving Throws Affected. You automatically fail Strength and Dexterity saving throws.",
+   "Attacks Affected. Attack rolls against you have Advantage."
+  ],
+  "Unconscious": [
+   "While you have the Unconscious condition, you experience the following effects.",
+   "Inert. You have the Incapacitated and Prone conditions, and you drop whatever you're holding. When this condition ends, you remain Prone.",
+   "Speed 0. Your Speed is 0 and can't increase.",
+   "Attacks Affected. Attack rolls against you have Advantage.",
+   "Saving Throws Affected. You automatically fail Strength and Dexterity saving throws.",
+   "Automatic Critical Hits. Any attack roll that hits you is a Critical Hit if the attacker is within 5 feet of you.",
+   "Unaware. You're unaware of your surroundings."
+  ]
  }
 };

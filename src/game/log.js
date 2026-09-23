@@ -80,7 +80,7 @@ export default function initGameLog() {
         enabled: () => state.entries.length > state.lastTurnIndex,
         collect: () => {
             const lines = sinceLastTurn().map(e => '- ' + describe(e));
-            return lines.length ? [{ title: 'Dice rolled since your last reply', priority: 92, text: lines.join('\n') }] : [];
+            return lines.length ? [{ title: 'Rolls and combat since your last reply', priority: 92, text: lines.join('\n') }] : [];
         },
         afterTurn: () => { state.lastTurnIndex = state.entries.length; },
     });

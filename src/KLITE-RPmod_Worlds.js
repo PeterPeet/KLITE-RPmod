@@ -19,6 +19,7 @@
 // until a World is enabled for the current story.
 // =============================================================================
 import { getContext } from './context/context.js';
+import * as CR from './game/combat-rules.js';
 
 export default function initWorlds() {
     'use strict';
@@ -329,15 +330,9 @@ export default function initWorlds() {
                  ac: 10, hpMax: 10, speed: 30, proficiency: 2, initiativeMod: 0,
                  skills: {}, saves: {}, attacks: [], isMonster: false };
     }
-    // A few SRD 5.1 stat blocks (WotC, CC-BY-4.0) as quick encounter presets.
-    const SRD_TEMPLATES = {
-        goblin: { name: 'Goblin', isMonster: true, ac: 15, hpMax: 7, speed: 30, proficiency: 2, initiativeMod: 2, abilities: { str: 8, dex: 14, con: 10, int: 10, wis: 8, cha: 8 }, attacks: [{ name: 'Scimitar', toHit: 4, damage: '1d6+2' }] },
-        wolf: { name: 'Wolf', isMonster: true, ac: 13, hpMax: 11, speed: 40, proficiency: 2, initiativeMod: 2, abilities: { str: 12, dex: 15, con: 12, int: 3, wis: 12, cha: 6 }, attacks: [{ name: 'Bite', toHit: 4, damage: '2d4+2' }] },
-        bandit: { name: 'Bandit', isMonster: true, ac: 12, hpMax: 11, speed: 30, proficiency: 2, initiativeMod: 1, abilities: { str: 11, dex: 12, con: 12, int: 10, wis: 10, cha: 10 }, attacks: [{ name: 'Scimitar', toHit: 3, damage: '1d6+1' }] },
-        skeleton: { name: 'Skeleton', isMonster: true, ac: 13, hpMax: 13, speed: 30, proficiency: 2, initiativeMod: 2, abilities: { str: 10, dex: 14, con: 15, int: 6, wis: 8, cha: 5 }, attacks: [{ name: 'Shortsword', toHit: 4, damage: '1d6+2' }] },
-        guard: { name: 'Guard', isMonster: true, ac: 16, hpMax: 11, speed: 30, proficiency: 2, initiativeMod: 1, abilities: { str: 13, dex: 12, con: 12, int: 10, wis: 11, cha: 10 }, attacks: [{ name: 'Spear', toHit: 3, damage: '1d6+1' }] },
-        giant_rat: { name: 'Giant Rat', isMonster: true, ac: 12, hpMax: 7, speed: 30, proficiency: 2, initiativeMod: 2, abilities: { str: 7, dex: 15, con: 11, int: 2, wis: 10, cha: 4 }, attacks: [{ name: 'Bite', toHit: 4, damage: '1d4+2' }] }
-    };
+    // Quick presets = SRD 5.2.1 monsters (src/data/srd52-monsters.js). Old preset keys of the
+    // SRD 5.1 era ('goblin', 'giant_rat') map to their 5.2.1 counterparts.
+    const TEMPLATE_KEYS = { goblin: 'goblin-warrior', wolf: 'wolf', bandit: 'bandit', skeleton: 'skeleton', guard: 'guard', giant_rat: 'giant-rat' };
     function normalizeStats(s) {
         const d = defaultStats();
         if (!s || typeof s !== 'object') return d;
@@ -347,6 +342,8 @@ export default function initWorlds() {
         d.skills = s.skills && typeof s.skills === 'object' ? { ...s.skills } : {};
         d.saves = s.saves && typeof s.saves === 'object' ? { ...s.saves } : {};
         d.attacks = asArray(s.attacks);
+        // monster extras (SRD stat blocks) are kept as they are
+        for (const k of ['saveActions', 'multiattack', 'xp', 'cr', 'key', 'name']) if (s[k] != null) d[k] = s[k];
         return d;
     }
     // Compact stat summary for injection, e.g. "AC 14, HP 30, STR 16(+3) DEX 12(+1)…, Init +2".
@@ -542,6 +539,8 @@ export default function initWorlds() {
         scan(/<unflag>\s*([^<>]+?)\s*<\/unflag>/gi, m => { delete rt().flags[norm(m[1])]; return true; });
         scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || []; inventoryAdd(nm, q); return true; });
         scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || []; inventoryRemove(nm, q); return true; });
+        // <encounter>Wolf Pack</encounter> (a saved encounter) or <encounter>2 Wolf, Goblin Warrior</encounter>
+        scan(/<encounter>\s*([^<>]+?)\s*<\/encounter>/gi, m => { if (getCombat() && getCombat().active && !getCombat().outcome) return false; return !!startSavedEncounter(m[1]); });
         scan(/<quest>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/quest>/gi, m => { rt().questState[norm(m[1])] = norm(m[2]); return true; });
         scan(/<time>\s*([^<>]+?)\s*<\/time>/gi, m => { const t = norm(m[1]).toLowerCase(); if (TIME_SLOTS.includes(t)) { rt().clock.time = t; return true; } return false; });
         scan(/<weather>\s*([^<>]+?)\s*<\/weather>/gi, m => { rt().clock.weather = norm(m[1]); return true; });
@@ -571,6 +570,7 @@ export default function initWorlds() {
             case 'npcmove': { const npc = findById(world && world.npcs, effect.npcId) || findNpcByName(world, effect.npc); const l = findById(world && world.locations, effect.locationId) || locationByName(world, effect.location); if (npc && l) (rt().npcStateOverrides[npc.id] = rt().npcStateOverrides[npc.id] || {}).locationId = l.id; break; }
             case 'advance': advanceClock(Number(effect.slots) || 1); sigs.push('time'); break;
             case 'fireEvent': if (effect.eventId) sigs.push('manual:' + norm(effect.eventId)); break;
+            case 'encounter': if (effect.value || effect.encounterId) startSavedEncounter(effect.encounterId || effect.value); break;
             default: break;
         }
         return sigs;
@@ -669,66 +669,321 @@ export default function initWorlds() {
     }
 
     function playerCombatCfg() { const w = activeWorld(); return (w && w.ruleset && w.ruleset.player) || {}; }
+    function personaName() { try { const C = window.KLITE_RPMod_Characters; return C && C.personaName ? C.personaName() : ''; } catch (_) { return ''; } }
+    function personaSheet() { try { const n = personaName(); return n ? window.KLITE_RPMod_Characters.cachedSheet(n) || null : null; } catch (_) { return null; } }
     function combatantStats(id) {
+        const cb = getCombat();
+        if (cb && cb.stats && cb.stats[id]) return cb.stats[id];          // monster instance (snapshot)
         if (id === '__player__') return normalizeStats(playerCombatCfg().stats || personaSheetStats() || {});
         const p = entityById(activeWorld(), id); return normalizeStats(p && (p.stats || cardSheetStats(p)) || {});
     }
     function combatantName(id) {
-        if (id === '__player__') return norm(playerCombatCfg().name) || 'You';
+        const cb = getCombat(); const o = cb && asArray(cb.order).find(x => x.id === id);
+        if (o && o.name) return o.name;
+        if (id === '__player__') return norm(playerCombatCfg().name) || personaName() || 'You';
         const p = entityById(activeWorld(), id); return p ? personName(p) : String(id);
     }
-    function combatLog(msg) { const cb = rt() && rt().combat; if (cb) { cb.log.push(msg); if (cb.log.length > 24) cb.log.shift(); } dbg('combat:', msg); }
+    // Combat events: the encounter's own log (last 24) + the shared game log the AI reads.
+    function combatLog(msg) {
+        const cb = rt() && rt().combat; if (cb) { cb.log.push(msg); if (cb.log.length > 24) cb.log.shift(); }
+        try { window.KLITE_RPMod_Log?.add({ what: msg, kind: 'combat' }); } catch (_) {}
+        dbg('combat:', msg);
+    }
     // Resolve a combatant id from a name/keyword ('you'/'player' → __player__, else NPC).
     function resolveCombatant(name) {
         const n = norm(name).toLowerCase(); if (!n) return null;
-        if (n === 'you' || n === 'player' || n === 'self') return '__player__';
+        if (n === 'you' || n === 'player' || n === 'self' || (personaName() && n === personaName().toLowerCase())) return '__player__';
         const cb = getCombat();
-        if (cb) { const hit = cb.order.find(o => norm(o.name).toLowerCase() === n); if (hit) return hit.id; }
+        if (cb) { const hit = cb.order.find(o => norm(o.name).toLowerCase() === n) || cb.order.find(o => norm(o.name).toLowerCase().startsWith(n)); if (hit) return hit.id; }
         const npc = findNpcByName(activeWorld(), name); return npc ? npc.id : null;
     }
 
+    // ---- encounters (v2: sides, monster instances, conditions, death saves, outcome) ----
+    // combat = { version: 2, active, round, turnIndex, order[{ id, name, init, isPlayer, side, kind, key? }],
+    //   hp, maxHp, log, stats{ id: monster stats }, conditions{ id: [{ name, rounds }] },
+    //   death{ id: { s, f, stable, dead } }, lastTarget{}, outcome: null|'victory'|'defeat',
+    //   xp, persona, synced }
+    function sideOf(id, opts) {
+        if (id === '__player__') return 'party';
+        if (opts && opts.sides && opts.sides[id]) return opts.sides[id] === 'party' ? 'party' : 'enemy';
+        const p = entityById(activeWorld(), id);
+        const monster = !!(p && (p.isMonster || (p.stats && p.stats.isMonster)));
+        return !monster && asArray(rt() && rt().party).includes(id) ? 'party' : 'enemy';
+    }
     function startEncounter(ids, opts = {}) {
         ensureRuntime();
-        const list = asArray(ids).slice();
-        if (opts.includePlayer !== false && !list.includes('__player__')) list.unshift('__player__');
-        const order = list.map(id => { const st = combatantStats(id); const init = rollD20(st.initiativeMod || abilityMod(st.abilities.dex)).total; return { id, name: combatantName(id), init, isPlayer: id === '__player__' }; });
+        const entries = asArray(ids).map(id => ({ id, kind: id === '__player__' ? 'player' : 'person' }));
+        if (opts.includePlayer !== false && !entries.some(e => e.id === '__player__')) entries.unshift({ id: '__player__', kind: 'player' });
+        const stats = {}, names = new Set();
+        for (const m of asArray(opts.monsters)) {
+            const key = CR.findMonster(m.key || m.name); if (!key) continue;
+            const count = Math.max(1, Math.min(20, Number(m.count) || 1));
+            const base = CR.MONSTERS[key].name;
+            for (let i = 1; i <= count; i++) {
+                let n = count > 1 ? `${base} ${i}` : base, k = i;
+                while (names.has(n.toLowerCase())) n = `${base} ${++k}`;
+                names.add(n.toLowerCase());
+                const id = `m:${key}:${names.size}`;
+                stats[id] = CR.monsterStats(key);
+                entries.push({ id, kind: 'monster', key, name: n });
+            }
+        }
+        const cbStats = { stats };   // lets combatantStats see monster snapshots while rolling initiative
+        const statOf = (id) => stats[id] || (id === '__player__' ? normalizeStats(playerCombatCfg().stats || personaSheetStats() || {}) : combatantStatsNoCombat(id));
+        const order = entries.map(e => {
+            const st = statOf(e.id);
+            const init = rollD20(st.initiativeMod != null ? st.initiativeMod : abilityMod(st.abilities.dex)).total;
+            const side = e.kind === 'monster' ? 'enemy' : sideOf(e.id, opts);
+            return { id: e.id, name: e.name || (e.id === '__player__' ? (norm(playerCombatCfg().name) || personaName() || 'You') : combatantNameNoCombat(e.id)), init, isPlayer: e.id === '__player__', side, kind: e.kind, key: e.key };
+        });
         order.sort((a, b) => b.init - a.init || (b.isPlayer - a.isPlayer));
-        const hp = {}, maxHp = {};
-        for (const c of order) { const st = combatantStats(c.id); maxHp[c.id] = st.hpMax; hp[c.id] = st.hpMax; }
-        rt().combat = { active: true, round: 1, turnIndex: 0, order, hp, maxHp, log: [] };
+        const hp = {}, maxHp = {}, death = {};
+        const sheet = personaSheet(); const usePersona = !playerCombatCfg().stats && sheet;
+        for (const c of order) {
+            const st = statOf(c.id); maxHp[c.id] = st.hpMax; hp[c.id] = st.hpMax;
+            if (c.id === '__player__' && usePersona) { maxHp[c.id] = sheet.hp.max; hp[c.id] = Math.max(0, Math.min(sheet.hp.max, sheet.hp.current)); }
+        }
+        rt().combat = { version: 2, active: true, round: 1, turnIndex: 0, order, hp, maxHp, log: [], stats: cbStats.stats, conditions: {}, death,
+            lastTarget: {}, outcome: null, xp: 0, persona: usePersona ? personaName() : '', synced: false,
+            encounter: opts.encounterId || null, difficulty: opts.difficulty || null };
+        const cb = rt().combat;
+        for (const c of order) if (hp[c.id] <= 0) { if (c.side === 'party') { addCond(c.id, 'Unconscious'); death[c.id] = { s: 0, f: 0, stable: false, dead: false }; } }
         combatLog(`Combat begins. Initiative: ${order.map(o => `${o.name} ${o.init}`).join(', ')}`);
-        return rt().combat;
+        skipUnableAtStart(cb);
+        return cb;
     }
-    function endEncounter() { if (rt()) rt().combat = null; }
+    function combatantStatsNoCombat(id) { const p = entityById(activeWorld(), id); return normalizeStats(p && (p.stats || cardSheetStats(p)) || {}); }
+    function combatantNameNoCombat(id) { const p = entityById(activeWorld(), id); return p ? personName(p) : String(id); }
+    function skipUnableAtStart(cb) { if (!canTakeTurn(cb, cb.order[cb.turnIndex])) nextTurn(); }
+    function endEncounter() {
+        const cb = getCombat();
+        if (cb && !cb.synced) syncPersonaSheet(cb);
+        if (rt()) rt().combat = null;
+    }
     function getCombat() { return rt() && rt().combat; }
+    const isV2 = (cb) => cb && cb.version === 2;
+    function sideList(cb, side) { return cb.order.filter(o => (o.side || (o.isPlayer ? 'party' : 'enemy')) === side); }
+    function isDown(cb, id) { return (cb.hp[id] || 0) <= 0; }
+    function deathOf(cb, id) { return (cb.death && cb.death[id]) || null; }
+    // A combatant takes a turn if it is up, or if it is a dying party member (death save).
+    function canTakeTurn(cb, o) {
+        if (!o) return false;
+        if (!isDown(cb, o.id)) return true;
+        const d = deathOf(cb, o.id);
+        return (o.side || (o.isPlayer ? 'party' : 'enemy')) === 'party' && o.isPlayer && d && !d.stable && !d.dead;
+    }
+    function conds(id) { const cb = getCombat(); return (cb && cb.conditions && cb.conditions[id]) || []; }
+    function addCond(id, name, rounds) {
+        const cb = getCombat(); if (!cb) return; cb.conditions = cb.conditions || {};
+        const list = cb.conditions[id] = asArray(cb.conditions[id]).filter(c => c.name !== name);
+        list.push({ name, rounds: rounds ? Number(rounds) : null });
+    }
+    function removeCond(id, name) { const cb = getCombat(); if (cb && cb.conditions && cb.conditions[id]) cb.conditions[id] = cb.conditions[id].filter(c => c.name !== name); }
+    function tickConditions(id) {
+        const cb = getCombat(); if (!cb || !cb.conditions || !cb.conditions[id]) return;
+        const keep = [];
+        for (const c of cb.conditions[id]) { if (c.rounds == null) { keep.push(c); continue; } c.rounds--; if (c.rounds > 0) keep.push(c); else combatLog(`${combatantName(id)} is no longer ${c.name}.`); }
+        cb.conditions[id] = keep;
+    }
     function nextTurn() {
         const cb = getCombat(); if (!cb) return null;
-        // skip downed combatants
+        const cur = cb.order[cb.turnIndex];
+        if (cur && isV2(cb)) tickConditions(cur.id);
         let guard = 0;
         do { cb.turnIndex++; if (cb.turnIndex >= cb.order.length) { cb.turnIndex = 0; cb.round++; combatLog(`— Round ${cb.round} —`); } guard++; }
-        while (guard < cb.order.length + 1 && (cb.hp[cb.order[cb.turnIndex].id] || 0) <= 0);
+        while (guard < cb.order.length + 1 && !(isV2(cb) ? canTakeTurn(cb, cb.order[cb.turnIndex]) : (cb.hp[cb.order[cb.turnIndex].id] || 0) > 0));
         return cb.order[cb.turnIndex];
     }
-    function combatDamage(targetId, amount) { const cb = getCombat(); if (!cb) return; cb.hp[targetId] = Math.max(0, (cb.hp[targetId] != null ? cb.hp[targetId] : combatantStats(targetId).hpMax) - Number(amount)); combatLog(`${combatantName(targetId)} takes ${amount} damage → HP ${cb.hp[targetId]}/${cb.maxHp[targetId]}${cb.hp[targetId] <= 0 ? ' (down!)' : ''}`); return cb.hp[targetId]; }
-    function combatHeal(targetId, amount) { const cb = getCombat(); if (!cb) return; cb.hp[targetId] = Math.min(cb.maxHp[targetId] || 999, (cb.hp[targetId] || 0) + Number(amount)); combatLog(`${combatantName(targetId)} heals ${amount} → HP ${cb.hp[targetId]}/${cb.maxHp[targetId]}`); return cb.hp[targetId]; }
-    function combatAttack(attackerId, targetId, attackIndex) {
-        const cb = getCombat(); if (!cb) return null;
-        const aSt = combatantStats(attackerId), tSt = combatantStats(targetId);
-        const atk = asArray(aSt.attacks)[Number(attackIndex) || 0] || { name: 'Attack', toHit: aSt.proficiency + abilityMod(aSt.abilities.str), damage: '1d6' };
-        const toHit = (atk.toHit != null) ? Number(atk.toHit) : (aSt.proficiency + abilityMod(aSt.abilities.str));
-        const hit = rollD20(toHit);
-        if (hit.fumble) { combatLog(`${combatantName(attackerId)} attacks ${combatantName(targetId)} with ${atk.name}: natural 1 — miss.`); return { hit: false, fumble: true, roll: hit.total }; }
-        if (hit.total >= tSt.ac || hit.crit) {
-            const base = rollExpr(atk.damage || '1d6'); let dmg = base.total;
-            if (hit.crit) dmg += rollExpr(atk.damage || '1d6').total; // crit: double the dice
-            const hpLeft = combatDamageInternal(targetId, dmg, tSt);
-            combatLog(`${combatantName(attackerId)} ${hit.crit ? 'CRITS' : 'hits'} ${combatantName(targetId)} with ${atk.name} (${hit.total} vs AC ${tSt.ac}) for ${dmg} → HP ${hpLeft}/${cb.maxHp[targetId]}${hpLeft <= 0 ? ' (down!)' : ''}`);
-            return { hit: true, crit: hit.crit, roll: hit.total, ac: tSt.ac, damage: dmg, targetHp: hpLeft };
+    // HP changes: party members at 0 HP fall Unconscious and make death saves; others die.
+    function setHp(id, value) {
+        const cb = getCombat(); const before = cb.hp[id] != null ? cb.hp[id] : combatantStats(id).hpMax;
+        cb.hp[id] = Math.max(0, Math.min(cb.maxHp[id] || 999, value));
+        if (!isV2(cb)) return cb.hp[id];
+        const o = cb.order.find(x => x.id === id); const party = o && o.side === 'party';
+        if (before > 0 && cb.hp[id] <= 0) {
+            if (party) { addCond(id, 'Unconscious'); cb.death[id] = { s: 0, f: 0, stable: false, dead: false }; combatLog(`${combatantName(id)} falls unconscious${o.isPlayer ? ' and is dying (death saving throws)' : ''}.`); }
+            else combatLog(`${combatantName(id)} is defeated.`);
         }
-        combatLog(`${combatantName(attackerId)} misses ${combatantName(targetId)} with ${atk.name} (${hit.total} vs AC ${tSt.ac}).`);
+        if (before <= 0 && cb.hp[id] > 0) { removeCond(id, 'Unconscious'); if (cb.death[id]) delete cb.death[id]; combatLog(`${combatantName(id)} is back on their feet.`); }
+        return cb.hp[id];
+    }
+    function hitWhileDown(id, crit) {
+        const cb = getCombat(); const d = deathOf(cb, id); if (!d || d.dead) return;
+        cb.death[id] = CR.damageAtZero(d, crit);
+        combatLog(`${combatantName(id)} takes damage while down: ${crit ? 'two death save failures' : 'a death save failure'} (${cb.death[id].f}/3).`);
+        if (cb.death[id].dead) combatLog(`${combatantName(id)} dies.`);
+    }
+    function combatDamage(targetId, amount) {
+        const cb = getCombat(); if (!cb) return;
+        if (isV2(cb) && isDown(cb, targetId) && deathOf(cb, targetId)) { hitWhileDown(targetId, false); checkOutcome(); return 0; }
+        const left = setHp(targetId, (cb.hp[targetId] != null ? cb.hp[targetId] : combatantStats(targetId).hpMax) - Number(amount));
+        combatLog(`${combatantName(targetId)} takes ${amount} damage → HP ${left}/${cb.maxHp[targetId]}${left <= 0 ? ' (down!)' : ''}`);
+        checkOutcome();
+        return left;
+    }
+    function combatHeal(targetId, amount) {
+        const cb = getCombat(); if (!cb) return;
+        const d = deathOf(cb, targetId); if (d && d.dead) { combatLog(`${combatantName(targetId)} is dead and cannot be healed.`); return cb.hp[targetId]; }
+        const left = setHp(targetId, (cb.hp[targetId] || 0) + Number(amount));
+        combatLog(`${combatantName(targetId)} heals ${amount} → HP ${left}/${cb.maxHp[targetId]}`);
+        checkOutcome();
+        return left;
+    }
+    // Attack roll (weapon attack index of the attacker's stats). opts.mode: 'adv' | 'dis'.
+    function combatAttack(attackerId, targetId, attackIndex, opts = {}) {
+        const cb = getCombat(); if (!cb) return null;
+        if (cb.outcome) return null;
+        const aSt = combatantStats(attackerId), tSt = combatantStats(targetId);
+        const atk = asArray(aSt.attacks)[Number(attackIndex) || 0] || { name: 'Unarmed Strike', toHit: aSt.proficiency + abilityMod(aSt.abilities.str), damage: String(Math.max(1, 1 + abilityMod(aSt.abilities.str))) };
+        const toHit = (atk.toHit != null) ? Number(atk.toHit) : (aSt.proficiency + abilityMod(aSt.abilities.str));
+        const ranged = CR.isRanged(atk);
+        const m = isV2(cb) ? CR.attackMode(conds(attackerId), conds(targetId), ranged, opts.mode) : { mode: opts.mode || null, autoCrit: false, why: [] };
+        const hit = rollD20(toHit, m.mode);
+        const how = `${m.mode ? ` (${m.mode === 'adv' ? 'advantage' : 'disadvantage'}${m.why.length ? ': ' + m.why.join(', ') : ''})` : ''}`;
+        const A = combatantName(attackerId), T = combatantName(targetId);
+        if (isV2(cb)) cb.lastTarget[attackerId] = targetId;
+        if (hit.fumble) { combatLog(`${A} attacks ${T} with ${atk.name}${how}: natural 1 — miss.`); return { hit: false, fumble: true, roll: hit.total }; }
+        if (hit.total >= tSt.ac || hit.crit) {
+            const crit = hit.crit || m.autoCrit;
+            if (isV2(cb) && isDown(cb, targetId) && deathOf(cb, targetId)) {
+                combatLog(`${A} ${crit ? 'CRITS' : 'hits'} ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}).`);
+                hitWhileDown(targetId, crit); checkOutcome();
+                return { hit: true, crit, roll: hit.total, ac: tSt.ac, damage: 0, targetHp: 0 };
+            }
+            const base = rollExpr(atk.damage || '1d6'); let dmg = base.total;
+            if (crit) dmg += rollDiceOnly(atk.damage || '1d6');   // crit: roll the damage dice twice
+            dmg = Math.max(1, dmg);
+            const left = setHp(targetId, (cb.hp[targetId] != null ? cb.hp[targetId] : tSt.hpMax) - dmg);
+            combatLog(`${A} ${crit ? 'CRITS' : 'hits'} ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}) for ${dmg}${atk.type ? ' ' + atk.type.toLowerCase() : ''} damage → HP ${left}/${cb.maxHp[targetId]}${left <= 0 ? ' (down!)' : ''}`);
+            checkOutcome();
+            return { hit: true, crit, roll: hit.total, ac: tSt.ac, damage: dmg, targetHp: left };
+        }
+        combatLog(`${A} misses ${T} with ${atk.name}${how} (${hit.total} vs AC ${tSt.ac}).`);
         return { hit: false, roll: hit.total, ac: tSt.ac };
     }
-    function combatDamageInternal(targetId, amount, tSt) { const cb = getCombat(); cb.hp[targetId] = Math.max(0, (cb.hp[targetId] != null ? cb.hp[targetId] : (tSt || combatantStats(targetId)).hpMax) - Number(amount)); return cb.hp[targetId]; }
+    function rollDiceOnly(expr) { let t = 0; for (const m of String(expr).replace(/\s+/g, '').matchAll(/(\d*)d(\d+)/g)) for (let i = 0; i < (Number(m[1]) || 1); i++) t += rollDie(Number(m[2])); return t; }
+    // Saving-throw action (breath weapon etc.): the target saves against the DC.
+    function saveAction(attackerId, targetId, actionIndex) {
+        const cb = getCombat(); if (!cb || cb.outcome) return null;
+        const act = asArray(combatantStats(attackerId).saveActions)[Number(actionIndex) || 0]; if (!act) return null;
+        const r = savingThrow(targetId, act.save, act.dc, { quiet: true });
+        let dmg = act.damage ? rollExpr(act.damage).total : 0;
+        if (r.success) dmg = act.half ? Math.floor(dmg / 2) : 0;
+        combatLog(`${combatantName(attackerId)} uses ${act.name}: ${combatantName(targetId)} ${act.save.toUpperCase()} save ${r.total} vs DC ${act.dc} — ${r.success ? 'success' : 'failure'}${dmg ? `, ${dmg} ${act.type ? act.type.toLowerCase() + ' ' : ''}damage` : ''}.`);
+        if (dmg) { if (isDown(cb, targetId) && deathOf(cb, targetId)) hitWhileDown(targetId, false); else setHp(targetId, (cb.hp[targetId] || 0) - dmg); }
+        checkOutcome();
+        return { ...r, damage: dmg };
+    }
+    function savingThrow(id, ability, dc, opts = {}) {
+        const st = combatantStats(id); const ab = norm(ability).toLowerCase().slice(0, 3);
+        const mod = st.saves && st.saves[ab] != null && typeof st.saves[ab] === 'number' ? st.saves[ab] : abilityMod(st.abilities[ab] != null ? st.abilities[ab] : 10);
+        const autoFail = (ab === 'str' || ab === 'dex') && CR.cannotAct(conds(id)) && !conds(id).some(c => c.name === 'Incapacitated' && conds(id).length === 1);
+        const r = rollD20(mod, opts.mode); const success = !autoFail && r.total >= Number(dc);
+        if (!opts.quiet) combatLog(`${combatantName(id)} ${ab.toUpperCase()} saving throw: ${r.total} vs DC ${dc} — ${success ? 'success' : 'failure'}${autoFail ? ' (automatic)' : ''}`);
+        return { ...r, ability: ab, dc: Number(dc), success };
+    }
+    function deathSaveRoll(id) {
+        const cb = getCombat(); if (!cb) return null;
+        const d = deathOf(cb, id); if (!d || d.dead || d.stable) return null;
+        const r = rollD20(0); const res = CR.deathSave(d, r.die);
+        const name = combatantName(id);
+        if (res.result === 'revived') { cb.death[id] = null; delete cb.death[id]; setHp(id, 1); combatLog(`${name} rolls a natural 20 on a death saving throw and regains 1 HP!`); }
+        else {
+            cb.death[id] = res.state;
+            combatLog(`${name} death saving throw: ${r.die} — ${res.result === 'success' ? 'success' : res.result === 'failure' ? (r.die === 1 ? 'natural 1, two failures' : 'failure') : res.result === 'stable' ? 'third success, stable' : 'third failure, dies'} (${res.state.s} successes / ${res.state.f} failures).`);
+        }
+        checkOutcome();
+        return { die: r.die, ...res };
+    }
+    // Victory: every enemy down. Defeat: no party member standing and none still dying.
+    function checkOutcome() {
+        const cb = getCombat(); if (!isV2(cb) || cb.outcome) return cb && cb.outcome;
+        const enemies = sideList(cb, 'enemy'), party = sideList(cb, 'party');
+        if (enemies.length && enemies.every(o => isDown(cb, o.id))) {
+            cb.outcome = 'victory';
+            cb.xp = enemies.reduce((n, o) => n + (Number(combatantStats(o.id).xp) || 0), 0);
+            combatLog(`Victory! All enemies are defeated.${cb.xp ? ` ${cb.xp} XP earned.` : ''}`);
+        } else if (party.length && party.every(o => isDown(cb, o.id) && !(deathOf(cb, o.id) && !deathOf(cb, o.id).stable && !deathOf(cb, o.id).dead))) {
+            cb.outcome = 'defeat';
+            const p = deathOf(cb, '__player__');
+            combatLog(`Defeat. ${p && p.dead ? 'You have died.' : 'You are unconscious but stable, at the mercy of your foes.'}`);
+        }
+        if (cb.outcome) syncPersonaSheet(cb);
+        return cb.outcome;
+    }
+    // Write HP (and XP on victory) back to the persona's sheet, once per encounter.
+    function syncPersonaSheet(cb) {
+        if (!cb || cb.synced || !cb.persona) return;
+        cb.synced = true;
+        const C = window.KLITE_RPMod_Characters; if (!C || !C.loadSheet) return;
+        const name = cb.persona, hp = cb.hp.__player__, xp = cb.outcome === 'victory' ? (Number(cb.xp) || 0) : 0;
+        Promise.resolve().then(() => C.loadSheet(name)).then(sheet => {
+            if (!sheet) return;
+            const next = Object.assign({}, sheet, { hp: Object.assign({}, sheet.hp, { current: hp != null ? hp : sheet.hp.current }), xp: (Number(sheet.xp) || 0) + xp });
+            return C.saveSheet(name, next).then(() => {
+                if (xp && CR.levelForXp(next.xp) > (Number(sheet.level) || 1)) {
+                    try { window.KLITE_RPMod_Log?.add({ what: `${name} has enough XP for level ${Number(sheet.level) + 1} — use Level up on the character sheet.`, kind: 'combat' }); } catch (_) {}
+                }
+            });
+        }).catch(e => dbg('sheet sync failed', e));
+    }
+    // A monster's (or ally's) turn: pick a target on the other side and attack
+    // (multiattack = several attacks). Returns what happened.
+    function autoTurn(id) {
+        const cb = getCombat(); if (!cb || cb.outcome) return null;
+        const o = cb.order.find(x => x.id === id); if (!o) return null;
+        if (isDown(cb, id)) return { skipped: 'down' };
+        if (CR.cannotAct(conds(id))) { combatLog(`${o.name} cannot act (${conds(id).map(c => c.name).join(', ')}).`); return { skipped: 'incapacitated' }; }
+        const st = combatantStats(id);
+        const foes = cb.order.filter(x => x.side !== o.side && !isDown(cb, x.id)).map(x => x.id);
+        if (!foes.length) { combatLog(`${o.name} has no one left to attack.`); return { skipped: 'no target' }; }
+        const idx = CR.pickAttack(st);
+        if (idx < 0) { combatLog(`${o.name} has no attack to use.`); return { skipped: 'no attack' }; }
+        const results = [];
+        for (let i = 0; i < (st.multiattack || 1) && !cb.outcome; i++) {
+            const live = cb.order.filter(x => x.side !== o.side && !isDown(cb, x.id)).map(x => x.id);
+            if (!live.length) break;
+            const target = CR.pickTarget(live, cb.lastTarget[id], Math.random);
+            results.push(combatAttack(id, target, idx));
+        }
+        return { attacks: results };
+    }
+    // Run every non-player turn until it is the player's turn again (or the fight ends).
+    function runAutoTurns() {
+        const cb = getCombat(); if (!cb || !isV2(cb)) return [];
+        const done = []; let guard = 0;
+        while (!cb.outcome && guard++ < 60) {
+            const cur = cb.order[cb.turnIndex];
+            if (!cur || cur.isPlayer) break;
+            done.push({ id: cur.id, ...(autoTurn(cur.id) || {}) });
+            if (cb.outcome) break;
+            nextTurn();
+        }
+        return done;
+    }
+    // Party for the encounter budget: the player (persona sheet level, else 1) + companions.
+    function partyInfo() {
+        const sheet = personaSheet();
+        const level = Math.max(1, Number(sheet && sheet.level) || Number(playerCombatCfg().level) || 1);
+        const allies = asArray(rt() && rt().party).filter(id => { const p = entityById(activeWorld(), id); return p && !p.isMonster; });
+        return { level, size: 1 + allies.length, allies };
+    }
+    // A saved encounter of the world (id or name), or an ad-hoc list "2 Wolf, Goblin Warrior".
+    function parseMonsterList(text) {
+        const out = [];
+        for (const part of String(text || '').split(/[,;]| and /)) {
+            const m = /^\s*(?:(\d+)\s*[x×]?\s+)?(.+?)\s*(?:[x×]\s*(\d+))?\s*$/i.exec(part); if (!m || !m[2]) continue;
+            const key = CR.findMonster(m[2]); if (key) out.push({ key, count: Number(m[1] || m[3]) || 1 });
+        }
+        return out;
+    }
+    function startSavedEncounter(idOrName) {
+        const w = activeWorld(); const q = norm(idOrName).toLowerCase();
+        const enc = asArray(w && w.encounters).find(e => e.id === idOrName || norm(e.name).toLowerCase() === q);
+        if (enc) return startEncounter(asArray(enc.personIds), { monsters: enc.monsters, encounterId: enc.id, difficulty: enc.difficulty });
+        const monsters = parseMonsterList(idOrName);
+        return monsters.length ? startEncounter([], { monsters }) : null;
+    }
     function abilityCheck(id, ability, dc, mode) {
         const st = combatantStats(id); const ab = norm(ability).toLowerCase();
         const mod = abilityMod(st.abilities[ab] != null ? st.abilities[ab] : 10);
@@ -736,13 +991,29 @@ export default function initWorlds() {
         combatLog(`${combatantName(id)} ${ab.toUpperCase()} check: ${r.total} vs DC ${dc} — ${success ? 'success' : 'fail'}`);
         return { ...r, ability: ab, dc: Number(dc), success };
     }
-    // Human-readable combat state for injection.
+    // Human-readable combat state for injection (the AI narrates, RPmod adjudicates).
     function combatText() {
         const cb = getCombat(); if (!cb || !cb.active) return '';
         const cur = cb.order[cb.turnIndex];
-        const roster = cb.order.map(o => `${o.id === cur.id ? '▶ ' : '  '}${o.name} (init ${o.init}) HP ${cb.hp[o.id]}/${cb.maxHp[o.id]}${cb.hp[o.id] <= 0 ? ' — down' : ''}`).join('\n');
-        const recent = cb.log.slice(-4).join('\n');
-        return `Round ${cb.round}. Current turn: ${cur.name}.\n${roster}` + (recent ? `\nRecent:\n${recent}` : '');
+        const line = (o) => {
+            const c = conds(o.id).map(x => x.name + (x.rounds ? ` ${x.rounds} rd` : ''));
+            const d = deathOf(cb, o.id);
+            const state = d ? (d.dead ? ' — dead' : d.stable ? ' — unconscious, stable' : ` — dying (${d.s}/3 successes, ${d.f}/3 failures)`) : (isDown(cb, o.id) ? (o.side === 'enemy' ? ' — defeated' : ' — down') : '');
+            return `${o.id === cur.id && !cb.outcome ? '▶ ' : '  '}${o.name}${o.key ? ` (${CR.MONSTERS[o.key].name}, AC ${cb.stats[o.id].ac})` : ''} HP ${cb.hp[o.id]}/${cb.maxHp[o.id]}${c.length ? ` [${c.join(', ')}]` : ''}${state}`;
+        };
+        if (!isV2(cb)) {
+            const roster = cb.order.map(o => `${o.id === cur.id ? '▶ ' : '  '}${o.name} (init ${o.init}) HP ${cb.hp[o.id]}/${cb.maxHp[o.id]}${cb.hp[o.id] <= 0 ? ' — down' : ''}`).join('\n');
+            const recent = cb.log.slice(-4).join('\n');
+            return `Round ${cb.round}. Current turn: ${cur.name}.\n${roster}` + (recent ? `\nRecent:\n${recent}` : '');
+        }
+        const parts = [`Round ${cb.round}.` + (cb.outcome ? '' : ` Current turn: ${cur.name}${cur.isPlayer ? ' (the player)' : ''}.`)];
+        parts.push('Party:\n' + sideList(cb, 'party').map(line).join('\n'));
+        parts.push('Enemies:\n' + sideList(cb, 'enemy').map(line).join('\n'));
+        if (cb.outcome === 'victory') parts.push(`OUTCOME: Victory — every enemy is defeated${cb.xp ? ` (${cb.xp} XP)` : ''}. Narrate the end of the fight.`);
+        else if (cb.outcome === 'defeat') parts.push('OUTCOME: Defeat — the party has fallen. Narrate what happens to the player character now; do not revive them by yourself.');
+        else parts.push(`RPmod rolls every attack, saving throw and HP change; narrate only the results listed under "Rolls and combat" — do not invent hits, damage or deaths.${cur.isPlayer ? ' It is the player\'s turn: set the scene and wait for their action.' : ''}`);
+        if (!window.KLITE_RPMod_Log) { const recent = cb.log.slice(-6).join('\n'); if (recent) parts.push('Recent:\n' + recent); }
+        return parts.join('\n');
     }
     // Scan any chat messages we haven't parsed yet, apply their tags, advance the
     // per-turn clock if configured. Called at generation time (before slice build).
@@ -1481,13 +1752,45 @@ export default function initWorlds() {
         heal(id, n) { const r = combatHeal(id, n); syncLive(); return r; },
         nextTurn() { const r = nextTurn(); syncLive(); return r; },
         check(id, ability, dc, mode) { const r = abilityCheck(id, ability, dc, mode); syncLive(); return r; },
-        listTemplates() { return Object.keys(SRD_TEMPLATES); },
+        listTemplates() { return Object.keys(TEMPLATE_KEYS); },
+        // A world person with an SRD monster's stat block (key of MONSTERS, a monster name or an old preset key).
         addPersonFromTemplate(key, fields = {}) {
-            const tpl = SRD_TEMPLATES[key]; if (!tpl) throw new Error('unknown template ' + key);
+            const mk = CR.findMonster(TEMPLATE_KEYS[key] || key); if (!mk) throw new Error('unknown monster ' + key);
+            const tpl = CR.monsterStats(mk);
             const p = addEntity('npc', { name: fields.name || tpl.name, x: fields.x, y: fields.y });
             const { name, ...stats } = tpl; p.stats = normalizeStats(stats); p.isMonster = true;
             return p;
         },
+        // ----- R5 encounters -----
+        monsters: () => CR.monsterList(),
+        monsterStats: (key) => CR.monsterStats(CR.findMonster(key)),
+        findMonster: (q) => CR.findMonster(q),
+        encounterBudget: (level, size) => CR.budget(level, size),
+        encounterDifficulty: (xp, level, size) => CR.difficulty(xp, level, size),
+        encounterXp: (monsters) => CR.encounterXp(asArray(monsters).map(m => ({ key: CR.findMonster(m.key || m.name), count: m.count }))),
+        partyInfo,
+        autoTurn(id) { const r = autoTurn(id); syncLive(); return r; },
+        runAutoTurns() { const r = runAutoTurns(); syncLive(); return r; },
+        deathSave(id) { const r = deathSaveRoll(id || '__player__'); syncLive(); return r; },
+        savingThrow(id, ability, dc, mode) { const r = savingThrow(id, ability, dc, { mode }); syncLive(); return r; },
+        saveAction(a, t, i) { const r = saveAction(a, t, i); syncLive(); return r; },
+        addCondition(id, name, rounds) { addCond(id, name, rounds); combatLog(`${combatantName(id)} is ${name}${rounds ? ` for ${rounds} round${rounds > 1 ? 's' : ''}` : ''}.`); syncLive(); return conds(id); },
+        removeCondition(id, name) { removeCond(id, name); combatLog(`${combatantName(id)} is no longer ${name}.`); syncLive(); return conds(id); },
+        conditionsOf: (id) => conds(id).slice(),
+        conditionNames: () => CR.CONDITIONS.slice(),
+        conditionText: (name) => CR.conditionText(name),
+        listEncounters() { const w = activeWorld(); return asArray(w && w.encounters).map(e => ({ ...e, xp: CR.encounterXp(e.monsters) })); },
+        saveEncounter(enc) {
+            const w = activeWorld(); if (!w) return null;
+            w.encounters = asArray(w.encounters);
+            const e = { id: enc.id || uid('enc'), name: norm(enc.name) || 'Encounter', monsters: asArray(enc.monsters).map(m => ({ key: CR.findMonster(m.key || m.name), count: Math.max(1, Number(m.count) || 1) })).filter(m => m.key),
+                personIds: asArray(enc.personIds), locationId: enc.locationId || null, difficulty: enc.difficulty || null };
+            const i = w.encounters.findIndex(x => x.id === e.id);
+            if (i >= 0) w.encounters[i] = e; else w.encounters.push(e);
+            return e;
+        },
+        deleteEncounter(id) { const w = activeWorld(); if (!w) return false; w.encounters = asArray(w.encounters).filter(e => e.id !== id); return true; },
+        startSavedEncounter(idOrName) { const c = startSavedEncounter(idOrName); syncLive(); return c; },
         setPlayerCombat(cfg) { const w = activeWorld(); if (w) { w.ruleset = w.ruleset || {}; w.ruleset.player = { ...(w.ruleset.player || {}), ...cfg }; if (cfg && cfg.stats) w.ruleset.player.stats = normalizeStats(cfg.stats); } return w && w.ruleset.player; },
         entityById(id) { return entityById(activeWorld(), id); },
         entityType(id) { return entityType(activeWorld(), id); },
@@ -1568,7 +1871,7 @@ export default function initWorlds() {
     // Every authoring change to a world marks it unsaved (and schedules autosave if on).
     for (const name of ['addEntity', 'updateEntity', 'deleteEntity', 'connect', 'disconnect', 'setNodePos', 'changeEntityType',
         'linkCharacter', 'unlinkCharacter', 'addPersonFromCharacter', 'setStats', 'clearStats', 'addPersonFromTemplate',
-        'setPlayerCombat', 'setAiMode']) {
+        'setPlayerCombat', 'setAiMode', 'saveEncounter', 'deleteEncounter']) {
         const fn = API[name];
         if (typeof fn !== 'function') { err('authoring API missing: ' + name); continue; }
         API[name] = function () {
