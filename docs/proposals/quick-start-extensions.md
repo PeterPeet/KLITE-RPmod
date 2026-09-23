@@ -6,7 +6,9 @@
 `remoteManagement` @ `2c3aed53d`), one file: `embd_res/js/characterManager.js` (+74 lines).
 Verified in the browser: with RPmod the section appears via the hook, counts in "Selected
 items", applies after the built-in roles and is cleared by "Clear all"; without RPmod
-Quick Start is unchanged (same sections, no errors). Pull request: pending.
+Quick Start is unchanged (same sections, no errors). Pushed to
+`PeterPeet/esobold:quickstart-extensions` (1 commit ahead of `esolithe/esobold:remoteManagement`);
+pull request to be opened by the owner.
 
 ## Why
 
