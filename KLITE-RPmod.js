@@ -6,136 +6,189 @@
 
 (() => {
   // src/shell/styles.js
+  var RPMOD_THEME_DEFAULTS = {
+    "--theme_color_rpmod_quest": "#f0c419",
+    // quest markers ! ? and tracked quest
+    "--theme_color_rpmod_danger": "#d9534f",
+    // combat, damage, destructive actions
+    "--theme_color_rpmod_success": "#5cb85c",
+    // enabled / healed / completed
+    "--theme_color_rpmod_info": "#5bc0de"
+    // player lens, hints, tracked state
+  };
   var SHELL_CSS = `
-#rpm-shell {
-    --rpm-bg: var(--theme_color_bg_popups, var(--theme_color_bg, #242424));
-    --rpm-bg-alt: var(--theme_color_bg_muted, var(--theme_color_bg_dark, #2e2e2e));
-    --rpm-bg-outer: var(--theme_color_bg_outer, #1b1b1b);
-    --rpm-fg: var(--theme_color_fg, var(--theme_color_text, #e0e0e0));
-    --rpm-fg-muted: var(--theme_color_fg_muted, var(--theme_color_placeholder_text, #9a9a9a));
-    --rpm-fg-hi: var(--theme_color_fg_highlight, #8ab4d8);
-    --rpm-border: var(--theme_color_border, #3a3a3a);
-    --rpm-border-hi: var(--theme_color_border_highlight, #5a8ac6);
-    --rpm-accent-bg: var(--theme_color_accent_bg, var(--theme_color_button_bg, #2e2e2e));
-    --rpm-accent-bg-hi: var(--theme_color_accent_bg_highlight, var(--theme_color_highlight, #3d5a78));
-    --rpm-accent-fg: var(--theme_color_accent_fg, var(--theme_color_button_text, #e0e0e0));
-    --rpm-input-bg: var(--theme_color_input_bg, #1e1e1e);
-    --rpm-input-fg: var(--theme_color_input_fg, var(--theme_color_input_text, #e0e0e0));
-    --rpm-topbar: var(--theme_color_topmenu, #1b1b1b);
-    --rpm-danger: #c9534f;
-    --rpm-success: #4f9d62;
-    --rpm-warning: #d19a3a;
-    --rpm-quest: #e8c33a;
-    --rpm-s1: 4px; --rpm-s2: 8px; --rpm-s3: 12px; --rpm-s4: 16px;
-    --rpm-radius: 6px;
-    --rpm-fs-xs: 10px; --rpm-fs-sm: 11px; --rpm-fs: 13px; --rpm-fs-lg: 15px;
-    --rpm-shadow: 0 6px 24px rgba(0,0,0,.45);
-
-    position: fixed; inset: 0; z-index: 2; pointer-events: none;
-    font-family: inherit; font-size: var(--rpm-fs); color: var(--rpm-fg);
+:root {
+${Object.entries(RPMOD_THEME_DEFAULTS).map(([k, v]) => `    ${k}: ${v};`).join("\n")}
 }
+#rpm-shell, .rpm-themed {
+    /* aliases of Esolite theme variables (fallbacks: vanilla Lite without themes) */
+    --rpm-bg: var(--theme_color_bg_popups, #263040);
+    --rpm-bg-alt: var(--theme_color_bg_muted, #484d56);
+    --rpm-bg-outer: var(--theme_color_bg_outer, #182330);
+    --rpm-bg-chat: var(--theme_color_bg_chat, #0b141a);
+    --rpm-fg: var(--theme_color_fg, #d1d1d1);
+    --rpm-fg-muted: var(--theme_color_fg_muted, #9b9b9b);
+    --rpm-fg-hi: var(--theme_color_fg_highlight, #94d7ff);
+    --rpm-border: var(--theme_color_border, #415577);
+    --rpm-border-hi: var(--theme_color_border_highlight, #596985);
+    --rpm-accent-bg: var(--theme_color_accent_bg, #32496d);
+    --rpm-accent-bg-hi: var(--theme_color_accent_bg_highlight, #596985);
+    --rpm-accent-fg: var(--theme_color_accent_fg, #d1d1d1);
+    --rpm-accent-fg-hi: var(--theme_color_accent_fg_highlight, #d1d1d1);
+    --rpm-topmenu: var(--theme_color_topmenu, #32496d);
+    --rpm-topbtn: var(--theme_color_topbtn, #415577);
+    --rpm-input-bg: var(--theme_color_input_bg, #475162);
+    --rpm-input-fg: var(--theme_color_input_fg, #e0e0e0);
+    --rpm-quest: var(--theme_color_rpmod_quest);
+    --rpm-danger: var(--theme_color_rpmod_danger);
+    --rpm-success: var(--theme_color_rpmod_success);
+    --rpm-info: var(--theme_color_rpmod_info);
+    --rpm-font: var(--theme_font_family, Helvetica, sans-serif);
+    --rpm-fs-sm: var(--theme_font_size_small, 9pt);
+    --rpm-fs: var(--theme_font_size_medium, 10pt);
+    --rpm-fs-lg: var(--theme_font_size_large, 11pt);
+    --rpm-s1: 4px; --rpm-s2: 8px; --rpm-s3: 12px;
+    --rpm-radius: 5px;               /* Esolite buttons / nav links */
+    --rpm-radius-lg: 8px;            /* Esolite floating popups */
+    --rpm-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+    font-family: var(--rpm-font); font-size: var(--rpm-fs); color: var(--rpm-fg);
+}
+#rpm-shell { position: fixed; inset: 0; z-index: 2; pointer-events: none; line-height: 1.35; }
 #rpm-shell *, #rpm-shell *::before, #rpm-shell *::after { box-sizing: border-box; }
-#rpm-shell button { font: inherit; }
+#rpm-shell button, #rpm-shell input, #rpm-shell select, #rpm-shell textarea { font-family: inherit; }
+#rpm-shell pre { background: var(--rpm-bg-chat); color: var(--rpm-fg); border: 1px solid var(--rpm-border); }   /* Esolite sets pre{background:#f5f5f5} */
 
-/* ---- docks ---- */
+/* ---- docks: Esolite side popup look ---- */
 .rpm-dock {
-    position: absolute; top: 0; bottom: 0; pointer-events: auto;
+    position: absolute; top: 0; bottom: 0; pointer-events: auto; max-width: calc(100vw - 24px);
     display: flex; flex-direction: column; background: var(--rpm-bg); color: var(--rpm-fg);
     transition: transform .18s ease;
 }
 .rpm-dock-left { left: 0; width: var(--rpm-left-w, 260px); border-right: 1px solid var(--rpm-border); }
 .rpm-dock-right { right: 0; width: var(--rpm-right-w, 350px); border-left: 1px solid var(--rpm-border); }
-.rpm-dock { max-width: calc(100vw - 24px); }   /* small phones: drawer never wider than the screen */
 .rpm-dock-left.rpm-closed { transform: translateX(-100%); }
 .rpm-dock-right.rpm-closed { transform: translateX(100%); }
 .rpm-dock.rpm-closed { visibility: hidden; }
 #rpm-shell.rpm-overlay .rpm-dock { box-shadow: var(--rpm-shadow); }
 
+/* dock header = Esolite top menu strip */
 .rpm-dock-head {
-    display: flex; align-items: center; gap: var(--rpm-s2); flex: 0 0 auto;
-    padding: var(--rpm-s2) var(--rpm-s2) var(--rpm-s2) var(--rpm-s3);
-    background: var(--rpm-topbar); border-bottom: 1px solid var(--rpm-border);
-    font-size: var(--rpm-fs-sm); font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
-    color: var(--rpm-fg-muted);
+    display: flex; align-items: center; gap: var(--rpm-s1); flex: 0 0 auto; min-height: 44px;
+    padding: 6px var(--rpm-s2); background: var(--rpm-topmenu); border-bottom: 1px solid var(--rpm-border);
+    color: var(--rpm-accent-fg); font-weight: bold; font-size: var(--rpm-fs);
 }
-.rpm-dock-head .rpm-title { flex: 1; }
+.rpm-dock-head .rpm-title { flex: 1; padding-left: var(--rpm-s1); }
 .rpm-iconbtn {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 26px; height: 26px; padding: 0; border-radius: var(--rpm-radius);
-    border: 1px solid transparent; background: transparent; color: var(--rpm-fg-muted); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+    width: 28px; height: 28px; padding: 0; border-radius: var(--rpm-radius);
+    border: 1px solid transparent; background: transparent; color: var(--rpm-accent-fg); cursor: pointer;
 }
-.rpm-iconbtn:hover { color: var(--rpm-fg); border-color: var(--rpm-border); }
-.rpm-iconbtn:focus-visible, .rpm-tab:focus-visible, .rpm-section-head:focus-visible { outline: 2px solid var(--rpm-border-hi); outline-offset: 1px; }
+.rpm-iconbtn:hover { background: var(--rpm-accent-bg-hi); border-color: var(--rpm-border-hi); color: var(--rpm-accent-fg-hi); }
+#rpm-shell :focus-visible { outline: 2px solid var(--rpm-fg-hi); outline-offset: 1px; }
 
-/* right dock: tab bar + one body per view (kept mounted) */
-.rpm-tabs { display: flex; gap: var(--rpm-s1); flex: 1; overflow-x: auto; }
+/* right dock tabs = Esolite top-bar nav links */
+.rpm-tabs { display: flex; gap: 3px; flex: 1; overflow-x: auto; scrollbar-width: none; }
+.rpm-tabs::-webkit-scrollbar { display: none; }
 .rpm-tab {
-    flex: 0 0 auto; padding: 5px 10px; border-radius: var(--rpm-radius); cursor: pointer;
-    border: 1px solid var(--rpm-border); background: var(--rpm-accent-bg); color: var(--rpm-accent-fg);
-    font-size: var(--rpm-fs-sm); font-weight: 600; text-transform: none; letter-spacing: 0;
+    flex: 1 0 auto; padding: 6px 8px; border-radius: var(--rpm-radius); cursor: pointer;
+    border: 1px solid var(--rpm-border); background: var(--rpm-topbtn); color: var(--rpm-accent-fg);
+    font-weight: bold; font-size: var(--rpm-fs-sm); white-space: nowrap;
 }
-.rpm-tab:hover { border-color: var(--rpm-border-hi); }
-.rpm-tab[aria-selected="true"] { background: var(--rpm-accent-bg-hi); border-color: var(--rpm-border-hi); }
+.rpm-tab:hover { background: var(--rpm-accent-bg-hi); border-color: var(--rpm-border-hi); color: var(--rpm-accent-fg-hi); }
+.rpm-tab[aria-selected="true"] { background: var(--rpm-accent-bg-hi); border-color: var(--rpm-border-hi); color: var(--rpm-accent-fg-hi); box-shadow: inset 0 -2px 0 var(--rpm-fg-hi); }
 .rpm-dock-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
 .rpm-view { display: none; min-height: 100%; }
 .rpm-view.rpm-active { display: block; }
 .rpm-view-pad { padding: var(--rpm-s3); }
+.rpm-stash { display: none !important; }
 
-/* left dock: stacked collapsible sections */
+/* left dock: stacked sections with Esolite popup title bars */
 .rpm-section { border-bottom: 1px solid var(--rpm-border); }
 .rpm-section-head {
-    display: flex; align-items: center; gap: var(--rpm-s2); width: 100%;
-    padding: var(--rpm-s2) var(--rpm-s3); background: var(--rpm-bg-alt); color: var(--rpm-fg);
-    border: 0; cursor: pointer; text-align: left; font-size: var(--rpm-fs-sm); font-weight: 600;
+    display: flex; align-items: center; gap: 6px; width: 100%;
+    padding: 6px var(--rpm-s2); background: var(--rpm-accent-bg); color: var(--rpm-accent-fg);
+    border: 0; cursor: pointer; text-align: left; font-weight: bold; font-size: var(--rpm-fs);
 }
-.rpm-section-head svg { transition: transform .15s; }
+.rpm-section-head:hover { background: var(--rpm-accent-bg-hi); color: var(--rpm-accent-fg-hi); }
+.rpm-section-head svg { transition: transform .15s; flex: 0 0 auto; }
 .rpm-section.rpm-collapsed .rpm-section-head svg { transform: rotate(-90deg); }
 .rpm-section.rpm-collapsed .rpm-section-body { display: none; }
-.rpm-section-body { padding: var(--rpm-s3); }
+.rpm-section-body { padding: var(--rpm-s2) var(--rpm-s3) var(--rpm-s3); }
 
 /* edge handles to reopen a closed dock */
 .rpm-handle {
     position: absolute; top: 50%; transform: translateY(-50%); pointer-events: auto;
-    width: 16px; height: 56px; display: flex; align-items: center; justify-content: center;
-    background: var(--rpm-bg); color: var(--rpm-fg-muted); border: 1px solid var(--rpm-border); cursor: pointer; padding: 0;
+    width: 16px; height: 56px; display: flex; align-items: center; justify-content: center; padding: 0;
+    background: var(--rpm-topbtn); color: var(--rpm-accent-fg); border: 1px solid var(--rpm-border); cursor: pointer;
 }
-.rpm-handle:hover { color: var(--rpm-fg); }
+.rpm-handle:hover { background: var(--rpm-accent-bg-hi); }
 .rpm-handle-left { left: 0; border-left: 0; border-radius: 0 var(--rpm-radius) var(--rpm-radius) 0; }
 .rpm-handle-right { right: 0; border-right: 0; border-radius: var(--rpm-radius) 0 0 var(--rpm-radius); }
 .rpm-handle[hidden] { display: none; }
 
-/* ---- floating windows ---- */
+/* ---- floating windows = Esolite floating popups (.context-usage-popup) ---- */
 .rpm-windows { position: absolute; inset: 0; pointer-events: none; }
 .rpm-window {
     position: absolute; pointer-events: auto; display: flex; flex-direction: column;
     background: var(--rpm-bg); color: var(--rpm-fg); border: 1px solid var(--rpm-border);
-    border-radius: var(--rpm-radius); box-shadow: var(--rpm-shadow); overflow: hidden;
+    border-radius: var(--rpm-radius-lg); box-shadow: var(--rpm-shadow); overflow: hidden;
 }
 .rpm-window.rpm-focused { border-color: var(--rpm-border-hi); }
 .rpm-window-head {
     display: flex; align-items: center; gap: var(--rpm-s2); flex: 0 0 auto; cursor: move; user-select: none;
-    padding: var(--rpm-s1) var(--rpm-s1) var(--rpm-s1) var(--rpm-s3);
-    background: var(--rpm-topbar); border-bottom: 1px solid var(--rpm-border); touch-action: none;
+    padding: 6px 6px 6px 10px; background: var(--rpm-accent-bg); color: var(--rpm-accent-fg);
+    font-size: var(--rpm-fs); font-weight: bold; touch-action: none;
 }
-.rpm-window-title { flex: 1; font-size: var(--rpm-fs-sm); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rpm-window-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rpm-window-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: var(--rpm-s3); }
 .rpm-window-grip {
     position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none;
     background: linear-gradient(135deg, transparent 50%, var(--rpm-border) 50%, var(--rpm-border) 60%, transparent 60%, transparent 70%, var(--rpm-border) 70%, var(--rpm-border) 80%, transparent 80%);
 }
-/* phones: windows fill the screen, no drag/resize */
 #rpm-shell.rpm-compact .rpm-window { left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; border-radius: 0; }
 #rpm-shell.rpm-compact .rpm-window-head { cursor: default; }
 #rpm-shell.rpm-compact .rpm-window-grip { display: none; }
 
-/* ---- shared small controls for views ---- */
-.rpm-btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: var(--rpm-s1);
-    padding: 5px 10px; border-radius: var(--rpm-radius); cursor: pointer;
-    border: 1px solid var(--rpm-border); background: var(--rpm-accent-bg); color: var(--rpm-accent-fg); font-size: var(--rpm-fs-sm);
+/* ---- controls: Esolite classes + compact sizing ---- */
+/* buttons: class="btn btn-primary rpm-btn" (colours from Esolite's .btn-primary) */
+.rpm-themed .btn.rpm-btn, #rpm-shell .btn.rpm-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    padding: 4px 8px; font-size: var(--rpm-fs-sm); line-height: 1.3; border-radius: var(--rpm-radius);
+    white-space: normal;
 }
-.rpm-btn:hover { background: var(--rpm-accent-bg-hi); }
+.btn.rpm-btn.rpm-block { width: 100%; }
+.btn.rpm-btn.rpm-lg { padding: 7px 10px; font-size: var(--rpm-fs); font-weight: bold; }
+.btn.rpm-btn.rpm-danger { border-color: var(--rpm-danger); box-shadow: inset 3px 0 0 var(--rpm-danger); }
+.btn.rpm-btn.rpm-success { border-color: var(--rpm-success); box-shadow: inset 3px 0 0 var(--rpm-success); }
+.btn.rpm-btn.rpm-on { background: var(--rpm-accent-bg-hi); border-color: var(--rpm-success); }
+/* inputs: class="form-control rpm-input" (colours from Esolite's .form-control) */
+.rpm-themed .form-control.rpm-input, #rpm-shell .form-control.rpm-input {
+    height: auto; min-height: 28px; padding: 3px 6px; font-size: var(--rpm-fs-sm); border-radius: 4px; box-shadow: none;
+}
+#rpm-shell textarea.form-control.rpm-input { min-height: 60px; resize: vertical; }
+#rpm-shell input[type=checkbox] { accent-color: var(--rpm-accent-bg-hi); }
+
+/* content building blocks */
+.rpm-row { display: flex; gap: 6px; align-items: center; }
+.rpm-row > .rpm-grow { flex: 1 1 0; min-width: 0; }
+.rpm-label { display: block; color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); margin: 10px 0 4px; }
 .rpm-muted { color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); }
+.rpm-heading { font-weight: bold; font-size: var(--rpm-fs-lg); }
+.rpm-card { background: var(--rpm-bg-alt); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); padding: 6px 8px; margin-top: 4px; }
+.rpm-card.rpm-card-hi { border-color: var(--rpm-border-hi); box-shadow: inset 3px 0 0 var(--rpm-quest); }
+.rpm-chip {
+    display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: var(--rpm-fs-sm);
+    border: 1px solid var(--rpm-border); background: var(--rpm-accent-bg); color: var(--rpm-accent-fg); cursor: default;
+}
+button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
+.rpm-chip.rpm-chip-info { border-color: var(--rpm-info); color: var(--rpm-info); background: transparent; }
+.rpm-chip.rpm-chip-quest { border-color: var(--rpm-quest); color: var(--rpm-quest); background: transparent; }
+.rpm-chip.rpm-chip-danger { border-color: var(--rpm-danger); color: var(--rpm-danger); background: transparent; }
+.rpm-divider { border: 0; border-top: 1px solid var(--rpm-border); margin: 10px 0; }
+.rpm-quest-mark { color: var(--rpm-quest); font-weight: bold; }
+.rpm-bar { height: 6px; background: var(--rpm-bg-outer); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+.rpm-bar > span { display: block; height: 100%; }
+.rpm-log { background: var(--rpm-bg-chat); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); padding: 6px; font-size: var(--rpm-fs-sm); max-height: 140px; overflow: auto; line-height: 1.5; }
 
 /* ---- Esolite layout: docked mode pushes the host column in ---- */
 body.rpm-docked #maincontainer {
@@ -149,10 +202,11 @@ body.rpm-docked #maincontainer {
     position: static !important; transform: none !important; width: auto !important; height: 100% !important;
     top: auto !important; right: auto !important; bottom: auto !important; left: auto !important;
     box-shadow: none !important; border-left: 0 !important; display: flex !important; flex-direction: column;
-    visibility: visible !important;
+    visibility: visible !important; background: transparent !important;
 }
-#rpm-shell #panel-right .klite-handle { display: none !important; }
-#rpm-shell #panel-right .klite-content { flex: 1 1 auto; max-height: none !important; }
+#rpm-shell #panel-right .klite-handle,
+#rpm-shell #panel-right > .klite-tabs { display: none !important; }   /* shell tabs replace ALPHA's tab bar */
+#rpm-shell #panel-right .klite-content { flex: 1 1 auto; max-height: none !important; padding: var(--rpm-s3); }
 `;
 
   // src/shell/dom.js
@@ -363,6 +417,7 @@ body.rpm-docked #maincontainer {
     let compact = false;
     let dom = null;
     let wm = null;
+    let shownTab = null;
     const PLACES = /* @__PURE__ */ new Set(["left", "right", "window"]);
     function sortedViews(place) {
       return [...views.values()].filter((v) => v.def.place === place).sort((a, b) => (a.def.order ?? 100) - (b.def.order ?? 100) || String(a.def.id).localeCompare(String(b.def.id)));
@@ -393,6 +448,7 @@ body.rpm-docked #maincontainer {
       } catch (_) {
       }
       views.delete(id);
+      if (shownTab === id) shownTab = null;
       if (dom) {
         if (v.def.place === "right") renderTabs();
         applyLayout();
@@ -454,6 +510,16 @@ body.rpm-docked #maincontainer {
         dom.tabs.appendChild(v.tab);
         v.container.classList.toggle("rpm-active", sel);
         if (sel && (!v.mounted || v.dirty)) mountOrUpdate(v);
+        if (sel && v.def.id !== shownTab) callShow(v);
+      }
+    }
+    function callShow(v) {
+      shownTab = v.def.id;
+      if (typeof v.def.show !== "function") return;
+      try {
+        v.def.show(v.container, api);
+      } catch (e) {
+        console.error("[RPmod shell] view show failed:", v.def.id, e);
       }
     }
     function selectTab(id, { save = true } = {}) {
@@ -466,6 +532,7 @@ body.rpm-docked #maincontainer {
         if (v.tab) v.tab.setAttribute("aria-selected", String(sel));
         if (v.container) v.container.classList.toggle("rpm-active", sel);
         if (sel && (!v.mounted || v.dirty)) mountOrUpdate(v);
+        if (sel && id !== shownTab) callShow(v);
       }
     }
     function mountOrUpdate(v) {
@@ -666,16 +733,17 @@ body.rpm-docked #maincontainer {
         if (document.getElementById("rpm-navbtn")) return true;
         const ul = document.querySelector("#navbarNavDropdown > ul");
         if (!ul) return false;
-        const btn = el("button", {
+        const btn = el("a", {
           id: "rpm-navbtn",
-          type: "button",
-          class: "rpm-navbtn",
-          title: "RPmod panels",
-          "aria-label": "Show or hide RPmod panels",
+          href: "#",
+          role: "button",
+          class: "nav-link mainnav",
+          title: "Show or hide the RPmod panels",
           "aria-pressed": "false",
-          style: "display:flex;align-items:center;justify-content:center;height:42px;width:42px;background:transparent;border:0;cursor:pointer;color:var(--theme_color_fg, inherit)"
-        }, [icon(ICONS.shell, 22)]);
-        btn.addEventListener("click", () => {
+          style: "display:flex;align-items:center;gap:6px"
+        }, [icon(ICONS.shell, 16), el("span", { text: "RPmod" })]);
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
           const anyOpen = open.left || open.right;
           if (mode === "overlay") setDockOpen("right", !anyOpen);
           else {
@@ -693,26 +761,42 @@ body.rpm-docked #maincontainer {
         if (attempt() || ++tries > 120) clearInterval(timer);
       }, 500);
     }
+    const ALPHA_TABS = [
+      { key: "CHARS", id: "chars", title: "Chars", order: 50 },
+      { key: "ROLES", id: "roles", title: "Roles", order: 51 },
+      { key: "SCENARIO", id: "scenario", title: "Scenario", order: 52 },
+      { key: "TOOLS", id: "tools", title: "Tools", order: 53 }
+    ];
     function adoptAlphaPanel() {
       let tries = 0;
       const attempt = () => {
         const panel = document.getElementById("panel-right");
         if (!panel || !panel.classList.contains("klite-panel")) return false;
         if (panel.closest("#rpm-shell")) return true;
-        registerView({
-          id: "alpha",
-          title: "Characters",
-          place: "right",
-          order: 50,
-          eager: true,
-          mount(container) {
-            container.appendChild(panel);
-            panel.classList.remove("collapsed");
-          },
-          update() {
-          }
-          // ALPHA renders itself
-        });
+        const stash = el("div", { class: "rpm-stash", "aria-hidden": "true" });
+        dom.root.appendChild(stash);
+        stash.appendChild(panel);
+        panel.classList.remove("collapsed");
+        const alpha = () => window.KLITE_RPMod;
+        for (const tab of ALPHA_TABS) {
+          registerView({
+            id: tab.id,
+            title: tab.title,
+            place: "right",
+            order: tab.order,
+            mount() {
+            },
+            update() {
+            },
+            // ALPHA renders itself
+            show(container) {
+              if (panel.parentNode !== container) container.appendChild(panel);
+              const A = alpha();
+              const current = A && A.state && A.state.tabs && A.state.tabs.right;
+              if (A && typeof A.switchTab === "function" && current !== tab.key) A.switchTab("right", tab.key);
+            }
+          });
+        }
         return true;
       };
       if (attempt()) return;
@@ -3867,20 +3951,20 @@ body.rpm-docked #maincontainer {
     };
     const STYLES_PANELS_ONLY = `
         :root {
-            --bg: var(--theme_color_bg_outer);
-            --bg2: var(--theme_color_bg);
-            --bg3: var(--theme_color_bg_dark);
-            --text: var(--theme_color_text);
-            --glowtext: var(--theme_color_glow_text);
-            --muted: var(--theme_color_placeholder_text);
-            --border: var(--theme_color_border);
-            --border-highlight: var(--theme_color_border_highlight);
-            --accent: var(--theme_color_highlight);
-            --primary: var(--theme_color_button_bg);
-            --primary-text: var(--theme_color_button_text);
-            --danger: #d9534f;
-            --success: #5cb85c;
-            --warning: #f0ad4e;
+            --bg: var(--theme_color_bg_outer, #182330);
+            --bg2: var(--theme_color_bg_popups, var(--theme_color_bg, #263040));
+            --bg3: var(--theme_color_bg_muted, var(--theme_color_bg_dark, #484d56));
+            --text: var(--theme_color_fg, var(--theme_color_text, #d1d1d1));
+            --glowtext: var(--theme_color_fg_highlight, var(--theme_color_glow_text, #94d7ff));
+            --muted: var(--theme_color_fg_muted, var(--theme_color_placeholder_text, #9b9b9b));
+            --border: var(--theme_color_border, #415577);
+            --border-highlight: var(--theme_color_border_highlight, #596985);
+            --accent: var(--theme_color_accent_bg_highlight, var(--theme_color_highlight, #596985));
+            --primary: var(--theme_color_accent_bg, var(--theme_color_button_bg, #32496d));
+            --primary-text: var(--theme_color_accent_fg, var(--theme_color_button_text, #d1d1d1));
+            --danger: var(--theme_color_rpmod_danger, #d9534f);
+            --success: var(--theme_color_rpmod_success, #5cb85c);
+            --warning: var(--theme_color_rpmod_quest, #f0ad4e);
         }
         /* Wrapper that doesn't block host interactions */
         #klite-panels-only { position: fixed; inset: 0; pointer-events: none; z-index: 2147483638; }
@@ -3890,62 +3974,53 @@ body.rpm-docked #maincontainer {
         .klite-panel { pointer-events: auto; position: fixed; background: var(--bg2); box-shadow: 0 0 10px rgba(0,0,0,0.5); z-index: 2147483640; }
         /* v2: left panel removed */
         .klite-panel-right { right: 0; top: 0; bottom: 0; width: 350px; border-left: 1px solid var(--border); transition: transform 0.2s ease; }
-        
-        /* Move full panel width; left:-15px handle remains visible */
         .klite-panel-right.collapsed { transform: translateX(350px); }
         .klite-handle { position: absolute; background: var(--bg2); border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; z-index: 9; pointer-events: auto; }
         .klite-handle:hover { background: var(--bg3); color: var(--text); }
-        
         .klite-panel-right .klite-handle { left: -15px; top: 50%; transform: translateY(-50%); width: 15px; height: 50px; border-radius: 5px 0 0 5px; }
-        .klite-tabs { display: flex; gap: 5px; padding: 10px; background: var(--theme_color_tabs); border-bottom: 1px solid var(--border); }
-        .klite-tab { padding: 6px 12px; border: 1px solid transparent; border-radius: 6px; color: var(--theme_color_tabs_text); cursor: pointer; font-size: 10px; font-weight: bold; min-width: 56px; white-space: nowrap; text-align: center; background: var(--theme_color_topbtn); }
-        .klite-tab:hover { background: var(--theme_color_topbtn_highlight); }
-        .klite-tab.active { background: var(--theme_color_tabs_highlight); }
+        /* ALPHA's own tab bar (hidden inside the RPmod shell, which has its own tabs) */
+        .klite-tabs { display: flex; gap: 3px; padding: 6px 8px; background: var(--theme_color_topmenu); border-bottom: 1px solid var(--border); }
+        .klite-tab { flex: 1; padding: 6px 4px; border: 1px solid var(--border); border-radius: 5px; color: var(--primary-text); cursor: pointer; font-size: var(--theme_font_size_small, 9pt); font-weight: bold; text-align: center; background: var(--theme_color_topbtn, var(--primary)); line-height: 1.1; }
+        .klite-tab:hover, .klite-tab.active { background: var(--theme_color_accent_bg_highlight); border-color: var(--border-highlight); color: var(--theme_color_accent_fg_highlight, var(--primary-text)); }
 
-        /* Right panel tab layout override (placed after condensed styles to win specificity) */
-        .klite-panel-right .klite-tabs {
-            display: flex !important;
-            justify-content: space-evenly !important; /* 5 equal spaces for 4 items */
-            align-items: stretch;
-            gap: 0 !important;
-            padding: 10px 0 !important; /* vertical only */
-            width: calc(100% - 1px);
-            box-sizing: content-box;
-        }
-        .klite-panel-right .klite-tab {
-            width: 80px !important;
-            flex: 0 0 80px !important;
-            white-space: normal !important; /* allow two-line labels */
-            line-height: 1.1;
-            min-height: 34px;
-        }
-        .klite-content { overflow-y: auto; overflow-x: hidden; padding: 15px; max-height: calc(100vh - 60px); color: var(--text); }
-        .klite-section { margin-bottom: 20px; background: var(--bg); border-radius: 5px; overflow: hidden; }
-        .klite-section-header { padding: 10px 15px; background: var(--bg3); cursor: pointer; display: flex; justify-content: space-between; user-select: none; color: var(--glowtext); }
-        .klite-section-header:hover { background: var(--bg3); }
+        .klite-content { overflow-y: auto; overflow-x: hidden; padding: 12px; max-height: calc(100vh - 60px); color: var(--text); font-family: var(--theme_font_family, inherit); font-size: var(--theme_font_size_medium, 10pt); }
+        /* sections = Esolite popup title bar + body */
+        .klite-section { margin-bottom: 12px; background: transparent; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+        .klite-section-header { padding: 6px 10px; background: var(--primary); color: var(--primary-text); font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+        .klite-section-header:hover { background: var(--theme_color_accent_bg_highlight); color: var(--theme_color_accent_fg_highlight, var(--primary-text)); }
         .klite-section.collapsed .klite-section-content { display: none; }
-        .klite-section-content { padding: 15px; }
+        .klite-section-content { padding: 10px; }
         /* Utilities */
-        .klite-row { display: flex; gap: 2px; align-items: center; }
-        .klite-buttons-left { display: flex; gap: 2px; justify-content: flex-start; }
-        .klite-buttons-center { display: flex; gap: 2px; justify-content: center; }
-        .klite-buttons-right { display: flex; gap: 2px; justify-content: flex-end; }
-        .klite-buttons-spread { display: flex; gap: 2px; justify-content: space-between; }
-        /* Inputs */
-        .klite-input, .klite-textarea, .klite-select { width: 100%; padding: 6px 8px; background: var(--theme_color_input_bg); border: 1px solid var(--theme_color_border); border-radius: 4px; color: var(--theme_color_input_text); font: inherit; }
+        .klite-row { display: flex; gap: 4px; align-items: center; }
+        .klite-buttons-left { display: flex; gap: 4px; justify-content: flex-start; flex-wrap: wrap; }
+        .klite-buttons-center { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+        .klite-buttons-right { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; }
+        .klite-buttons-spread { display: flex; gap: 4px; justify-content: space-between; flex-wrap: wrap; }
+        /* Inputs = Esolite .form-control */
+        .klite-input, .klite-textarea, .klite-select { width: 100%; padding: 4px 6px; background: var(--theme_color_input_bg); border: 1px solid var(--border); border-radius: 4px; color: var(--theme_color_input_fg, var(--theme_color_input_text)); font: inherit; font-size: var(--theme_font_size_small, 9pt); box-sizing: border-box; }
         .klite-textarea { resize: vertical; min-height: 80px; }
         .klite-input:focus, .klite-textarea:focus, .klite-select:focus { outline: none; border-color: var(--border-highlight); box-shadow: none; }
-        /* Buttons */
-        .klite-btn { padding: 4px 8px; background: var(--primary); border: 1px solid var(--theme_color_border); border-radius: 4px; color: var(--primary-text); cursor: pointer; font-size: 14px; transition: all 0.2s; }
-        .klite-btn:hover { background: var(--theme_color_topbtn_highlight); }
-        .klite-btn.btn.btn-primary { background-color: var(--theme_color_button_bg) !important; color: var(--theme_color_button_text) !important; border-color: var(--theme_color_border) !important; }
-        .klite-btn.danger { background: var(--danger); border-color: #c9302c; }
-        .klite-btn.danger:hover { background: #c9302c; }
-        .klite-btn.success { background: var(--success); border-color: #4cae4c; }
-        .klite-btn.warning { background: var(--warning); border-color: #eea236; }
+        .klite-input::placeholder, .klite-textarea::placeholder { color: var(--muted); }
+        /* Buttons = Esolite .btn-primary */
+        .klite-btn { padding: 4px 8px; background: var(--primary); border: 1px solid var(--border); border-radius: 5px; color: var(--primary-text); cursor: pointer; font: inherit; font-size: var(--theme_font_size_small, 9pt); line-height: 1.3; transition: background .15s, border-color .15s; }
+        .klite-btn:hover { background: var(--theme_color_accent_bg_highlight); border-color: var(--border-highlight); color: var(--theme_color_accent_fg_highlight, var(--primary-text)); }
+        .klite-btn.btn.btn-primary { background-color: var(--primary) !important; color: var(--primary-text) !important; border-color: var(--border) !important; }
+        .klite-btn.danger { box-shadow: inset 3px 0 0 var(--danger); border-color: var(--danger); }
+        .klite-btn.success { box-shadow: inset 3px 0 0 var(--success); border-color: var(--success); }
+        .klite-btn.warning { box-shadow: inset 3px 0 0 var(--warning); border-color: var(--warning); }
         .klite-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .klite-btn-sm { font-size: 12px; padding: 3px 6px; min-width: 26px; text-align: center; }
-        .klite-btn-xs { font-size: 10px; padding: 2px 6px; min-height: 22px; }
+        .klite-btn-sm { padding: 3px 6px; min-width: 26px; text-align: center; }
+        .klite-btn-xs { padding: 2px 6px; min-height: 22px; }
+        /* Modals = Esolite popups (dim layer, title bar, body, footer strip) */
+        .klite-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); font-family: var(--theme_font_family, inherit); font-size: var(--theme_font_size_medium, 10pt); color: var(--text); }
+        .klite-modal-content { display: flex; flex-direction: column; max-height: 88vh; max-width: min(800px, 94vw); min-width: min(360px, 94vw) !important; overflow: hidden; padding: 0 !important; background: var(--bg2) !important; border: 1px solid var(--border) !important; border-radius: 8px !important; box-shadow: 0 12px 36px rgba(0,0,0,0.4); color: var(--text); }
+        .klite-modal-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; margin: 0; background: var(--primary); color: var(--primary-text); border: 0; }
+        .klite-modal-header h2, .klite-modal-header h3 { margin: 0; font-size: var(--theme_font_size_large, 11pt); font-weight: bold; color: inherit; }
+        .klite-modal-close { background: none; border: 1px solid transparent; color: inherit; font-size: 18px; cursor: pointer; padding: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 5px; }
+        .klite-modal-close:hover { background: var(--theme_color_accent_bg_highlight); border-color: var(--border-highlight); }
+        .klite-modal-body { flex: 1 1 auto; overflow-y: auto; padding: 12px; }
+        .klite-modal-footer { display: flex; gap: 6px; justify-content: flex-end; padding: 8px 10px; margin: 0; border-top: 1px solid var(--border); background: var(--bg2); }
+        .klite-modal-footer .klite-btn { flex: 1; }
         /* Dice (match v1) */
         .klite-dice-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; }
         .klite-dice-btn { padding: 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); cursor: pointer; transition: all 0.2s; }
@@ -5210,25 +5285,13 @@ ${parts.join("\n")})))`;
         try {
           const wrap = document.getElementById("klite-panels-only");
           if (!wrap) return;
-          const binding = {
-            bg: "var(--theme_color_bg_outer)",
-            bg2: "var(--theme_color_bg)",
-            bg3: "var(--theme_color_bg_dark)",
-            text: "var(--theme_color_text)",
-            muted: "var(--theme_color_placeholder_text)",
-            border: "var(--theme_color_border)",
-            "border-highlight": "var(--theme_color_border_highlight)",
-            accent: "var(--theme_color_highlight)",
-            primary: "var(--theme_color_button_bg)",
-            "primary-text": "var(--theme_color_button_text)"
-          };
-          Object.entries(binding).forEach(([k, v]) => {
+          ["bg", "bg2", "bg3", "text", "muted", "border", "border-highlight", "accent", "primary", "primary-text"].forEach((k) => {
             try {
-              wrap.style.setProperty(`--${k}`, v);
+              wrap.style.removeProperty(`--${k}`);
             } catch (_) {
             }
           });
-          this.log("init", "Applied theme variable bindings to panels-only wrapper");
+          this.log("init", "Panels theme: using :root bindings to Esolite theme variables");
         } catch (e) {
           this.log("init", `Theme apply skipped: ${e?.message || e}`);
         }
@@ -18275,57 +18338,53 @@ ${char.mes_example}
     const STYLES = `
         /* ========== Corpo Theme Design System ========== */
         :root {
-            /* Base backgrounds - solid corpo colors */
-            --grp-bg-dark: var(--theme_color_bg_dark);
-            --grp-bg: var(--theme_color_main);
+            /* Same rules as the RPmod app shell (src/shell/styles.js): every colour and
+               font comes from Esolite's theme variables (1.35 names, older names as
+               fallback), so the Guided overlay follows the theme picked or edited in
+               Esolite's "Theme colours" editor. */
+            --grp-bg-dark: var(--theme_color_bg_muted, var(--theme_color_bg_dark));
+            --grp-bg: var(--theme_color_bg_popups, var(--theme_color_bg));
             --grp-bg-outer: var(--theme_color_bg_outer);
 
-            /* Accents - corpo cyan/teal highlights */
-            --grp-accent: var(--theme_color_highlight);
-            --grp-accent-light: var(--theme_color_border_highlight);
-            --grp-accent-hover: rgba(126, 157, 167, 0.2);
-            --grp-success: #22c55e;
-            --grp-warning: #f59e0b;
-            --grp-danger: #ef4444;
+            --grp-accent: var(--theme_color_accent_bg_highlight, var(--theme_color_highlight));
+            --grp-accent-light: var(--theme_color_fg_highlight, var(--theme_color_border_highlight));
+            --grp-accent-hover: color-mix(in srgb, var(--theme_color_accent_bg_highlight, #596985) 25%, transparent);
+            --grp-success: var(--theme_color_rpmod_success, #5cb85c);
+            --grp-warning: var(--theme_color_rpmod_quest, #f0c419);
+            --grp-danger: var(--theme_color_rpmod_danger, #d9534f);
 
-            /* Text hierarchy */
-            --grp-text: var(--theme_color_text);
-            --grp-text-muted: var(--theme_color_placeholder_text);
+            --grp-text: var(--theme_color_fg, var(--theme_color_text));
+            --grp-text-muted: var(--theme_color_fg_muted, var(--theme_color_placeholder_text));
             --grp-text-dim: var(--theme_color_border);
 
-            /* Solid surfaces - no transparency */
             --grp-surface: var(--theme_color_input_bg);
-            --grp-surface-raised: var(--theme_color_bg);
+            --grp-surface-raised: var(--theme_color_bg_popups, var(--theme_color_bg));
             --grp-surface-border: var(--theme_color_border);
-            --grp-surface-hover: var(--theme_color_bg_dark);
+            --grp-surface-hover: var(--theme_color_bg_muted, var(--theme_color_bg_dark));
 
-            /* Cards - opaque, structured */
-            --grp-card-bg: var(--theme_color_input_bg);
+            --grp-card-bg: var(--theme_color_bg_muted, var(--theme_color_input_bg));
             --grp-card-border: var(--theme_color_border);
-            --grp-card-hover: var(--theme_color_bg_dark);
+            --grp-card-hover: var(--theme_color_accent_bg_highlight, var(--theme_color_bg_dark));
 
-            /* Controls */
-            --grp-button-bg: var(--theme_color_button_bg);
-            --grp-button-text: var(--theme_color_text);
+            --grp-button-bg: var(--theme_color_accent_bg, var(--theme_color_button_bg));
+            --grp-button-text: var(--theme_color_accent_fg, var(--theme_color_text));
 
-            /* Typography - professional sans-serif */
-            --grp-font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            --grp-font-size: 15px;
+            --grp-font-family: var(--theme_font_family, Helvetica, sans-serif);
+            --grp-font-size: var(--theme_font_size_content, 12pt);
 
-            /* Section backgrounds - flat colors */
-            --grp-step-0: var(--theme_color_main);
-            --grp-step-1: var(--theme_color_main);
-            --grp-step-2: var(--theme_color_main);
-            --grp-step-3: var(--theme_color_main);
-            --grp-step-4: var(--theme_color_main);
-            --grp-step-5: var(--theme_color_main);
-            --grp-step-6: var(--theme_color_main);
-            --grp-step-7: var(--theme_color_main);
+            --grp-step-0: var(--grp-bg);
+            --grp-step-1: var(--grp-bg);
+            --grp-step-2: var(--grp-bg);
+            --grp-step-3: var(--grp-bg);
+            --grp-step-4: var(--grp-bg);
+            --grp-step-5: var(--grp-bg);
+            --grp-step-6: var(--grp-bg);
+            --grp-step-7: var(--grp-bg);
 
             /* Sharp, professional edges */
-            --grp-radius: 4px;
-            --grp-radius-lg: 6px;
-            --grp-radius-sm: 2px;
+            --grp-radius: 5px;
+            --grp-radius-lg: 8px;
+            --grp-radius-sm: 4px;
 
             /* Snappy transitions */
             --grp-transition: 0.15s ease;
@@ -23962,6 +24021,7 @@ ${s.text}` : `[${s.title}]`,
     function el2(tag, props, kids) {
       const e = document.createElement(tag);
       if (props) for (const k in props) {
+        if (props[k] == null) continue;
         if (k === "style") e.style.cssText = props[k];
         else if (k === "text") e.textContent = props[k];
         else if (k === "class") e.className = props[k];
@@ -24036,12 +24096,12 @@ ${s.text}` : `[${s.title}]`,
       for (const e of S.G.edges) {
         const a = nodeById(e.from), b = nodeById(e.to);
         if (!a || !b) continue;
-        const line = svg("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: e.kind === "contains" ? "#555" : "#8a8a8a", "stroke-width": e.kind === "contains" ? 1 : 1.6, "marker-end": "url(#wm-arrow)" });
+        const line = svg("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, style: e.kind === "contains" ? "stroke:var(--rpm-border);opacity:.8" : "stroke:var(--rpm-fg-muted)", "stroke-width": e.kind === "contains" ? 1 : 1.6, "marker-end": "url(#wm-arrow)" });
         if (e.kind === "contains") line.setAttribute("stroke-dasharray", "4 4");
         S.gEdges.appendChild(line);
         if (e.kind !== "contains") {
           const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-          const t = svg("text", { x: mx, y: my - 3, "text-anchor": "middle", "font-size": 9, fill: "#999" });
+          const t = svg("text", { x: mx, y: my - 3, "text-anchor": "middle", "font-size": 9, style: "fill:var(--rpm-fg-muted)" });
           t.textContent = e.kind;
           S.gEdges.appendChild(t);
         }
@@ -24060,7 +24120,7 @@ ${s.text}` : `[${s.title}]`,
         if (isRoot) g.setAttribute("transform", `translate(${n.x - w / 2},${n.y - h / 2})`);
         const rect = svg("rect", { x: 0, y: 0, width: w, height: h, rx: 10, fill: TYPE_COLOR[n.type] || "#666" });
         g.appendChild(rect);
-        if (n.id === S.selectedId) g.appendChild(svg("rect", { x: -3, y: -3, width: w + 6, height: h + 6, rx: 12, fill: "none", stroke: "#fff", "stroke-width": 2 }));
+        if (n.id === S.selectedId) g.appendChild(svg("rect", { x: -3, y: -3, width: w + 6, height: h + 6, rx: 12, fill: "none", style: "stroke:var(--rpm-fg-hi)", "stroke-width": 2.5 }));
         if (n.id === S.linkSource) g.appendChild(svg("rect", { x: -3, y: -3, width: w + 6, height: h + 6, rx: 12, fill: "none", stroke: "#ff3ea5", "stroke-width": 2 }));
         const name = svg("text", { x: 12, y: 22, "font-size": 13, "font-weight": 500, fill: "#fff" });
         name.textContent = clip(n.name, 20);
@@ -24075,7 +24135,7 @@ ${s.text}` : `[${s.title}]`,
           } catch (_) {
           }
           if (mk) {
-            g.appendChild(svg("circle", { cx: w - 10, cy: 10, r: 9, fill: mk === "!" ? "#E5B93B" : "#7Fc97F", stroke: "#1b1b1b", "stroke-width": 1.5 }));
+            g.appendChild(svg("circle", { cx: w - 10, cy: 10, r: 9, style: `fill:${mk === "!" ? "var(--rpm-quest)" : "var(--rpm-success)"}`, stroke: "#1b1b1b", "stroke-width": 1.5 }));
             const mt = svg("text", { x: w - 10, y: 14, "font-size": 13, "font-weight": 700, "text-anchor": "middle", fill: "#1b1b1b" });
             mt.textContent = mk;
             g.appendChild(mt);
@@ -24177,7 +24237,7 @@ ${s.text}` : `[${s.title}]`,
     function setTool(t) {
       S.tool = t;
       S.linkSource = null;
-      S.overlay.querySelectorAll("[data-tool]").forEach((b) => b.style.outline = b.getAttribute("data-tool") === t ? "2px solid #6cf" : "none");
+      S.overlay.querySelectorAll("[data-tool]").forEach((b) => b.style.outline = b.getAttribute("data-tool") === t ? "2px solid var(--rpm-fg-hi)" : "none");
       draw();
     }
     function fit() {
@@ -24212,15 +24272,15 @@ ${s.text}` : `[${s.title}]`,
       clear2(box);
       const A = API();
       if (!S.selectedId) {
-        box.appendChild(el2("div", { style: "color:#888;font-size:13px;padding:8px 2px", text: "Select a node to edit, or add one from the palette." }));
+        box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs);padding:8px 2px", text: "Select a node to edit, or add one from the palette." }));
         return;
       }
       const type = A.entityType(S.selectedId) || (S.selectedId === "__world__" ? "world" : null);
       const ent = A.entityById(S.selectedId);
       if (!ent || !type) return;
       box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:8px" }, [
-        el2("span", { style: `background:${TYPE_COLOR[type]};color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;text-transform:capitalize`, text: type }),
-        el2("span", { style: "color:#999;font-size:11px", text: "#" + String(S.selectedId).slice(-4) })
+        el2("span", { style: `background:${TYPE_COLOR[type]};color:#fff;border-radius:6px;padding:2px 8px;font-size:var(--rpm-fs-sm);text-transform:capitalize`, text: type }),
+        el2("span", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)", text: "#" + String(S.selectedId).slice(-4) })
       ]));
       if (type !== "world") {
         const tsel = el2("select", { style: inputCss(false) + ";cursor:pointer" });
@@ -24242,7 +24302,7 @@ ${s.text}` : `[${s.title}]`,
         box.appendChild(tsel);
       }
       for (const [field, label, kind] of FIELDS[type] || []) {
-        box.appendChild(el2("label", { style: "display:block;color:#aaa;font-size:11px;margin:8px 0 3px", text: label }));
+        box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:8px 0 3px", text: label }));
         let cur = ent[field];
         if (field === "keys") cur = Array.isArray(ent.keys) ? ent.keys.join(", ") : ent.keys || "";
         const input = kind === "area" ? el2("textarea", { style: inputCss(true), rows: 4 }) : el2("input", { type: "text", style: inputCss(false) });
@@ -24267,25 +24327,26 @@ ${s.text}` : `[${s.title}]`,
       if (type === "event") renderEventExtras(box, ent);
       if (type === "faction") renderFactionExtras(box, ent);
       const conns = S.G.edges.filter((e) => (e.from === S.selectedId || e.to === S.selectedId) && e.kind !== "contains");
-      box.appendChild(el2("div", { style: "color:#aaa;font-size:11px;font-weight:500;margin:14px 0 4px", text: "Connections" }));
-      if (!conns.length) box.appendChild(el2("div", { style: "color:#777;font-size:11px", text: "None. Use the Link tool to connect nodes." }));
+      box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:14px 0 4px", text: "Connections" }));
+      if (!conns.length) box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)", text: "None. Use the Link tool to connect nodes." }));
       for (const e of conns) {
         const otherId = e.from === S.selectedId ? e.to : e.from;
         const other = nodeById(otherId);
-        const row = el2("div", { style: "display:flex;align-items:center;justify-content:space-between;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:6px;padding:4px 8px;margin-top:4px" }, [
-          el2("span", { style: "font-size:11px;color:#ddd" }, [`→ ${clip(other ? other.name : otherId, 18)} `, el2("span", { style: "color:#888", text: e.kind })]),
-          el2("span", { style: "cursor:pointer;color:#e66;font-size:14px;padding:0 4px", text: "×", onclick: () => {
+        const row2 = el2("div", { style: "display:flex;align-items:center;justify-content:space-between;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:4px 8px;margin-top:4px" }, [
+          el2("span", { style: "font-size:var(--rpm-fs-sm);color:var(--rpm-fg)" }, [`→ ${clip(other ? other.name : otherId, 18)} `, el2("span", { style: "color:var(--rpm-fg-muted)", text: e.kind })]),
+          el2("span", { style: "cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs);padding:0 4px", text: "×", onclick: () => {
             API().disconnect(e.from, e.to);
             reloadGraph();
             draw();
             renderInspector();
           } })
         ]);
-        box.appendChild(row);
+        box.appendChild(row2);
       }
       if (type !== "world") {
         box.appendChild(el2("button", {
-          style: "margin-top:16px;background:#5a1f1f;color:#f2b8b8;border:1px solid #7a2a2a;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;width:100%",
+          class: "btn btn-primary rpm-btn rpm-block rpm-danger",
+          style: "margin-top:16px",
           text: "🗑  Delete node",
           onclick: () => {
             if (confirm("Delete this node?")) {
@@ -24300,12 +24361,12 @@ ${s.text}` : `[${s.title}]`,
       }
     }
     function inputCss(area) {
-      return `width:100%;box-sizing:border-box;background:#242424;color:#eee;border:1px solid #3a3a3a;border-radius:6px;padding:6px 8px;font-size:12px;${area ? "resize:vertical;font-family:inherit" : ""}`;
+      return `width:100%;box-sizing:border-box;background:var(--rpm-input-bg);color:var(--rpm-input-fg);border:1px solid var(--rpm-border);border-radius:4px;padding:4px 6px;font-size:var(--rpm-fs-sm);font-family:inherit;${area ? "resize:vertical" : ""}`;
     }
     const ABIL = ["str", "dex", "con", "int", "wis", "cha"];
     function renderPersonExtras(box, ent) {
       const A = API();
-      box.appendChild(el2("div", { style: "color:#aaa;font-size:11px;font-weight:500;margin:14px 0 4px", text: "Character (from library)" }));
+      box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:14px 0 4px", text: "Character (from library)" }));
       const chars = A.listCharacters();
       const csel = el2("select", { style: inputCss(false) + ";cursor:pointer" });
       csel.appendChild(el2("option", { value: "", text: chars.length ? "— not linked —" : "(no characters in library)" }));
@@ -24327,39 +24388,39 @@ ${s.text}` : `[${s.title}]`,
       });
       box.appendChild(csel);
       const resolved = A.resolvePersonCharacter(S.selectedId);
-      if (ent.characterRef) box.appendChild(el2("div", { style: `font-size:10px;margin-top:3px;color:${resolved ? "#8fca8f" : "#e0a24a"}`, text: resolved ? `Linked: ${resolved.name}` : `Linked to "${ent.characterRef.name || ent.characterRef.id}" (not found in library)` }));
+      if (ent.characterRef) box.appendChild(el2("div", { style: `font-size:10px;margin-top:3px;color:${resolved ? "var(--rpm-success)" : "var(--rpm-quest)"}`, text: resolved ? `Linked: ${resolved.name}` : `Linked to "${ent.characterRef.name || ent.characterRef.id}" (not found in library)` }));
       box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:8px;margin:14px 0 4px" }, [
-        el2("span", { style: "color:#aaa;font-size:11px;font-weight:500;flex:1", text: "Stats (d20)" }),
-        ent.stats ? el2("span", { style: "cursor:pointer;color:#e66;font-size:10px", text: "remove", onclick: () => {
+        el2("span", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;flex:1", text: "Stats (d20)" }),
+        ent.stats ? el2("span", { style: "cursor:pointer;color:var(--rpm-danger);font-size:10px", text: "remove", onclick: () => {
           A.clearStats(S.selectedId);
           renderInspector();
-        } }) : el2("span", { style: "cursor:pointer;color:#8ac6f0;font-size:10px", text: "+ add", onclick: () => {
+        } }) : el2("span", { style: "cursor:pointer;color:var(--rpm-info);font-size:10px", text: "+ add", onclick: () => {
           A.setStats(S.selectedId, {});
           renderInspector();
         } })
       ]));
       if (!ent.stats) {
-        box.appendChild(el2("div", { style: "color:#777;font-size:11px", text: "No stat block. Add one for combat & checks." }));
+        box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)", text: "No stat block. Add one for combat & checks." }));
         return;
       }
       const s = A.getStats(S.selectedId);
       const grid = el2("div", { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px" });
       for (const a of ABIL) {
         const wrap = el2("div", { style: "text-align:center" });
-        wrap.appendChild(el2("div", { style: "color:#999;font-size:9px;text-transform:uppercase", text: a }));
+        wrap.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:9px;text-transform:uppercase", text: a }));
         const inp = el2("input", { type: "number", value: s.abilities[a], style: inputCss(false) + ";text-align:center;padding:3px" });
         inp.addEventListener("change", () => {
           A.setStats(S.selectedId, { abilities: { [a]: Number(inp.value) } });
           renderInspector();
         });
         wrap.appendChild(inp);
-        wrap.appendChild(el2("div", { style: "color:#8ac6f0;font-size:9px", text: `(${A.abilityMod(Number(inp.value)) >= 0 ? "+" : ""}${A.abilityMod(Number(inp.value))})` }));
+        wrap.appendChild(el2("div", { style: "color:var(--rpm-info);font-size:9px", text: `(${A.abilityMod(Number(inp.value)) >= 0 ? "+" : ""}${A.abilityMod(Number(inp.value))})` }));
         grid.appendChild(wrap);
       }
       box.appendChild(grid);
       const numRow = (label, key) => {
         const wrap = el2("div", {});
-        wrap.appendChild(el2("label", { style: "display:block;color:#999;font-size:10px", text: label }));
+        wrap.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:10px", text: label }));
         const inp = el2("input", { type: "number", value: s[key], style: inputCss(false) + ";padding:4px" });
         inp.addEventListener("change", () => {
           A.setStats(S.selectedId, { [key]: Number(inp.value) });
@@ -24371,7 +24432,7 @@ ${s.text}` : `[${s.title}]`,
       const r2 = el2("div", { style: "display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:5px" }, [numRow("Speed", "speed"), numRow("Prof", "proficiency"), numRow("Init", "initiativeMod")]);
       box.appendChild(r1);
       box.appendChild(r2);
-      const monWrap = el2("label", { style: "display:flex;align-items:center;gap:6px;margin-top:6px;color:#bbb;font-size:11px;cursor:pointer" });
+      const monWrap = el2("label", { style: "display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer" });
       const mon = el2("input", { type: "checkbox", style: "cursor:pointer" });
       mon.checked = !!s.isMonster;
       mon.addEventListener("change", () => {
@@ -24383,7 +24444,7 @@ ${s.text}` : `[${s.title}]`,
     }
     function renderQuestExtras(box, ent) {
       const A = API();
-      const hidWrap = el2("label", { style: "display:flex;align-items:center;gap:6px;margin:12px 0 4px;color:#bbb;font-size:11px;cursor:pointer" });
+      const hidWrap = el2("label", { style: "display:flex;align-items:center;gap:6px;margin:12px 0 4px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer" });
       const hid = el2("input", { type: "checkbox", style: "cursor:pointer" });
       hid.checked = !!ent.hidden;
       hid.addEventListener("change", () => {
@@ -24394,7 +24455,7 @@ ${s.text}` : `[${s.title}]`,
       box.appendChild(hidWrap);
       const persons = A.getGraph().nodes.filter((n) => n.type === "npc");
       const personSel = (field, label, marker) => {
-        box.appendChild(el2("label", { style: "display:block;color:#aaa;font-size:11px;margin:8px 0 3px" }, [marker + " " + label]));
+        box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:8px 0 3px" }, [marker + " " + label]));
         const s = el2("select", { style: inputCss(false) + ";cursor:pointer" });
         s.appendChild(el2("option", { value: "", text: "— none —" }));
         for (const p of persons) {
@@ -24411,13 +24472,13 @@ ${s.text}` : `[${s.title}]`,
       };
       personSel("giverPersonId", "Quest giver", "!");
       personSel("turninPersonId", "Turn-in to", "?");
-      box.appendChild(el2("label", { style: "display:block;color:#aaa;font-size:11px;margin:10px 0 3px", text: "Rewards" }));
+      box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:10px 0 3px", text: "Rewards" }));
       const rewards = asArrayU(ent.rewards);
       for (let i = 0; i < rewards.length; i++) {
         const r = rewards[i];
-        box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px;background:#242424;border:1px solid #3a3a3a;border-radius:6px;padding:3px 8px;margin-top:3px" }, [
-          el2("span", { style: "flex:1;color:#ddd;font-size:11px", text: r.xp ? `${r.xp} XP` : r.item ? `${r.item}${r.qty > 1 ? " ×" + r.qty : ""}` : JSON.stringify(r) }),
-          el2("span", { style: "cursor:pointer;color:#e66;font-size:13px", text: "×", onclick: () => {
+        box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px" }, [
+          el2("span", { style: "flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm)", text: r.xp ? `${r.xp} XP` : r.item ? `${r.item}${r.qty > 1 ? " ×" + r.qty : ""}` : JSON.stringify(r) }),
+          el2("span", { style: "cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs)", text: "×", onclick: () => {
             rewards.splice(i, 1);
             A.updateEntity(S.selectedId, { rewards });
             renderInspector();
@@ -24427,7 +24488,7 @@ ${s.text}` : `[${s.title}]`,
       const rIn = el2("input", { type: "text", placeholder: "e.g. Gold Ring x1  or  100 xp", style: inputCss(false) });
       box.appendChild(el2("div", { style: "display:flex;gap:5px;margin-top:5px" }, [
         rIn,
-        el2("button", { style: "background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer", text: "＋", onclick: () => {
+        el2("button", { type: "button", class: "btn btn-primary rpm-btn", style: "", text: "＋", onclick: () => {
           const r = parseReward(rIn.value);
           if (!r) return;
           const rw = asArrayU(ent.rewards);
@@ -24436,13 +24497,13 @@ ${s.text}` : `[${s.title}]`,
           renderInspector();
         } })
       ]));
-      box.appendChild(el2("label", { style: "display:block;color:#aaa;font-size:11px;margin:10px 0 3px", text: "Objectives" }));
+      box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:10px 0 3px", text: "Objectives" }));
       const objs = asArrayU(ent.objectives);
       for (let i = 0; i < objs.length; i++) {
         const o = objs[i];
-        box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px;background:#242424;border:1px solid #3a3a3a;border-radius:6px;padding:3px 8px;margin-top:3px" }, [
-          el2("span", { style: "flex:1;color:#ddd;font-size:11px", text: (o.hidden ? "🔒 " : "") + (o.text || "") }),
-          el2("span", { style: "cursor:pointer;color:#e66;font-size:13px", text: "×", onclick: () => {
+        box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px" }, [
+          el2("span", { style: "flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm)", text: (o.hidden ? "🔒 " : "") + (o.text || "") }),
+          el2("span", { style: "cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs)", text: "×", onclick: () => {
             objs.splice(i, 1);
             A.updateEntity(S.selectedId, { objectives: objs });
             renderInspector();
@@ -24452,7 +24513,7 @@ ${s.text}` : `[${s.title}]`,
       const oIn = el2("input", { type: "text", placeholder: "objective text", style: inputCss(false) });
       box.appendChild(el2("div", { style: "display:flex;gap:5px;margin-top:5px" }, [
         oIn,
-        el2("button", { style: "background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer", text: "＋", onclick: () => {
+        el2("button", { type: "button", class: "btn btn-primary rpm-btn", style: "", text: "＋", onclick: () => {
           const t = oIn.value.trim();
           if (!t) return;
           const ob = asArrayU(ent.objectives);
@@ -24464,18 +24525,18 @@ ${s.text}` : `[${s.title}]`,
     }
     function renderWorldExtras(box, ent) {
       const A = API();
-      box.appendChild(el2("label", { style: "display:block;color:#aaa;font-size:11px;margin:12px 0 3px", text: "World Rules (one per line)" }));
+      box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px", text: "World Rules (one per line)" }));
       const ta = el2("textarea", { style: inputCss(true), rows: 5, placeholder: "e.g.\nMedieval low-fantasy tone.\nWhen the scene changes location, emit <move>Name</move>." });
       ta.value = (Array.isArray(ent.rules) ? ent.rules : []).join("\n");
       ta.addEventListener("input", () => {
         A.updateEntity("__world__", { rules: ta.value.split("\n") });
       });
       box.appendChild(ta);
-      box.appendChild(el2("div", { style: "color:#777;font-size:10px;margin-top:3px", text: "Shown to the AI as [World Rules]. The Description above is shown as the world premise." }));
+      box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:10px;margin-top:3px", text: "Shown to the AI as [World Rules]. The Description above is shown as the world premise." }));
     }
     function renderFactionExtras(box, ent) {
       const A = API();
-      box.appendChild(el2("label", { style: "display:block;color:#aaa;font-size:11px;margin:12px 0 3px", text: "🏰 Headquarters (location)" }));
+      box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px", text: "🏰 Headquarters (location)" }));
       const locs = A.getGraph().nodes.filter((n) => n.type === "location");
       const s = el2("select", { style: inputCss(false) + ";cursor:pointer" });
       s.appendChild(el2("option", { value: "", text: "— none —" }));
@@ -24546,9 +24607,9 @@ ${s.text}` : `[${s.title}]`,
       return inp;
     }
     function structuredList(box, label, items, SPEC, onSave) {
-      box.appendChild(el2("div", { style: "color:#aaa;font-size:11px;font-weight:500;margin:12px 0 4px", text: label }));
+      box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:12px 0 4px", text: label }));
       items.forEach((item, i) => {
-        const row = el2("div", { style: "background:#242424;border:1px solid #3a3a3a;border-radius:6px;padding:5px;margin-bottom:4px" });
+        const row2 = el2("div", { style: "background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:5px;margin-bottom:4px" });
         const head = el2("div", { style: "display:flex;gap:5px;align-items:center" });
         const tsel = el2("select", { style: inputCss(false) + ";cursor:pointer;flex:1" });
         for (const t of Object.keys(SPEC)) {
@@ -24561,11 +24622,11 @@ ${s.text}` : `[${s.title}]`,
           onSave(items);
         });
         head.appendChild(tsel);
-        head.appendChild(el2("span", { style: "cursor:pointer;color:#e66;font-size:14px;padding:0 3px", text: "×", onclick: () => {
+        head.appendChild(el2("span", { style: "cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs);padding:0 3px", text: "×", onclick: () => {
           items.splice(i, 1);
           onSave(items);
         } }));
-        row.appendChild(head);
+        row2.appendChild(head);
         const spec = SPEC[item.type] || [];
         if (spec.length) {
           const prow = el2("div", { style: "display:flex;gap:5px;margin-top:4px" });
@@ -24573,12 +24634,12 @@ ${s.text}` : `[${s.title}]`,
             item[field] = v;
             onSave(items);
           }));
-          row.appendChild(prow);
+          row2.appendChild(prow);
         }
-        box.appendChild(row);
+        box.appendChild(row2);
       });
       const firstType = Object.keys(SPEC)[0];
-      box.appendChild(el2("button", { style: "background:#2e2e2e;color:#9cf;border:1px solid #345;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer", text: "＋ add", onclick: () => {
+      box.appendChild(el2("button", { type: "button", class: "btn btn-primary rpm-btn", style: "", text: "＋ add", onclick: () => {
         items.push({ type: firstType });
         onSave(items);
       } }));
@@ -24587,7 +24648,7 @@ ${s.text}` : `[${s.title}]`,
       const A = API();
       const flags = el2("div", { style: "display:flex;gap:14px;margin:12px 0 4px" });
       const mk = (label, key) => {
-        const w = el2("label", { style: "display:flex;align-items:center;gap:5px;color:#bbb;font-size:11px;cursor:pointer" });
+        const w = el2("label", { style: "display:flex;align-items:center;gap:5px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer" });
         const c = el2("input", { type: "checkbox", style: "cursor:pointer" });
         c.checked = !!ent[key];
         c.addEventListener("change", () => A.updateEntity(S.selectedId, { [key]: c.checked }));
@@ -24625,14 +24686,14 @@ ${s.text}` : `[${s.title}]`,
       const m = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(s);
       return { type: "item", item: (m[1] || s).trim(), qty: Number(m[2]) || 1 };
     }
-    function btn(label, onclick, extra) {
-      return el2("button", { style: `background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer;${extra || ""}`, text: label, onclick });
+    function btn(label, onclick, variant) {
+      return el2("button", { type: "button", class: "btn btn-primary rpm-btn" + (variant ? " rpm-" + variant : ""), text: label, onclick });
     }
     function buildOverlay() {
       const A = API();
-      const overlay = el2("div", { id: "wm-overlay", style: "position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif" });
-      const panel = el2("div", { style: "width:94%;height:92%;background:#1b1b1b;border:1px solid #3a3a3a;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.5)" });
-      S.worldNameInput = el2("input", { type: "text", style: "background:#262626;color:#fff;border:1px solid #3a3a3a;border-radius:6px;padding:5px 8px;font-size:14px;width:230px" });
+      const overlay = el2("div", { id: "wm-overlay", style: "position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-family:var(--rpm-font)", class: "rpm-themed" });
+      const panel = el2("div", { role: "dialog", "aria-label": "Worlds editor", style: "width:94%;height:92%;background:var(--rpm-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:var(--rpm-radius-lg);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--rpm-shadow)" });
+      S.worldNameInput = el2("input", { type: "text", class: "form-control rpm-input", "aria-label": "World name", style: "width:230px;font-size:var(--rpm-fs)" });
       S.worldNameInput.value = A.activeWorld() && A.activeWorld().name || "";
       S.worldNameInput.addEventListener("input", () => {
         A.updateEntity("__world__", { name: S.worldNameInput.value });
@@ -24642,8 +24703,8 @@ ${s.text}` : `[${s.title}]`,
           draw();
         }
       });
-      const header = el2("div", { style: "display:flex;align-items:center;gap:10px;padding:8px 12px;background:#242424;border-bottom:1px solid #333" }, [
-        el2("span", { style: "color:#888;font-size:13px", text: "World" }),
+      const header = el2("div", { style: "display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);font-weight:bold" }, [
+        el2("span", { text: "World" }),
         S.worldNameInput,
         el2("div", { style: "flex:1" }),
         btn("−", () => {
@@ -24651,7 +24712,7 @@ ${s.text}` : `[${s.title}]`,
           applyViewport();
           updateZoomLabel();
         }),
-        el2("span", { id: "wm-zoom", style: "color:#bbb;font-size:12px;min-width:42px;text-align:center", text: "100%" }),
+        el2("span", { id: "wm-zoom", style: "font-size:var(--rpm-fs-sm);min-width:42px;text-align:center", text: "100%" }),
         btn("+", () => {
           S.scale = Math.min(3, S.scale * 1.1);
           applyViewport();
@@ -24662,25 +24723,25 @@ ${s.text}` : `[${s.title}]`,
         btn("Save", async () => {
           await A.saveActiveWorld();
           toast("World saved");
-        }, "background:#1f4a2e;color:#b8f2c8;border-color:#2a7a45"),
-        btn("✕", () => closeEditor(), "background:#333")
+        }, "success"),
+        btn("✕", () => closeEditor())
       ]);
-      const rail = el2("div", { style: "width:170px;background:#202020;border-right:1px solid #333;padding:10px;overflow:auto" });
-      rail.appendChild(el2("div", { style: "color:#999;font-size:11px;font-weight:500;margin-bottom:6px", text: "Add node" }));
+      const rail = el2("div", { style: "width:170px;background:var(--rpm-bg);border-right:1px solid var(--rpm-border);padding:10px;overflow:auto" });
+      rail.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin-bottom:6px", text: "Add node" }));
       for (const t of TYPES) rail.appendChild(el2("button", {
-        style: `display:block;width:100%;text-align:left;background:${TYPE_COLOR[t]};color:#fff;border:none;border-radius:6px;padding:6px 9px;font-size:12px;cursor:pointer;margin-bottom:5px;text-transform:capitalize`,
+        style: `display:block;width:100%;text-align:left;background:${TYPE_COLOR[t]};color:#fff;border:none;border-radius:var(--rpm-radius);padding:6px 9px;font-size:var(--rpm-fs-sm);font-weight:bold;cursor:pointer;margin-bottom:5px;text-transform:capitalize`,
         text: "＋ " + t,
         onclick: () => addNodeCentered(t)
       }));
-      rail.appendChild(el2("div", { style: "height:1px;background:#333;margin:10px 0" }));
-      rail.appendChild(el2("div", { style: "color:#999;font-size:11px;font-weight:500;margin-bottom:6px", text: "Tool" }));
-      const tools = el2("div", { style: "display:flex;gap:6px" }, ["select", "link", "pan"].map((t) => el2("button", { "data-tool": t, style: "flex:1;background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:6px 4px;font-size:11px;cursor:pointer;text-transform:capitalize", text: t, onclick: () => setTool(t) })));
+      rail.appendChild(el2("div", { style: "height:1px;background:var(--rpm-border);margin:10px 0" }));
+      rail.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin-bottom:6px", text: "Tool" }));
+      const tools = el2("div", { style: "display:flex;gap:6px" }, ["select", "link", "pan"].map((t) => el2("button", { type: "button", "data-tool": t, class: "btn btn-primary rpm-btn", style: "flex:1;text-transform:capitalize", text: t, onclick: () => setTool(t) })));
       rail.appendChild(tools);
-      rail.appendChild(el2("div", { style: "color:#777;font-size:10px;margin-top:8px;line-height:1.5", text: "Select: move nodes. Link: click two nodes to connect. Pan/empty-drag: move canvas. Wheel: zoom." }));
-      const svgRoot = svg("svg", { style: "flex:1;background:#151515;display:block" });
+      rail.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:10px;margin-top:8px;line-height:1.5", text: "Select: move nodes. Link: click two nodes to connect. Pan/empty-drag: move canvas. Wheel: zoom." }));
+      const svgRoot = svg("svg", { style: "flex:1;background:var(--rpm-bg-chat);display:block" });
       const defs = svg("defs");
       const marker = svg("marker", { id: "wm-arrow", markerWidth: 9, markerHeight: 9, refX: 8, refY: 3, orient: "auto" });
-      const mpath = svg("path", { d: "M0,0 L8,3 L0,6 Z", fill: "#8a8a8a" });
+      const mpath = svg("path", { d: "M0,0 L8,3 L0,6 Z", style: "fill:var(--rpm-fg-muted)" });
       marker.appendChild(mpath);
       defs.appendChild(marker);
       svgRoot.appendChild(defs);
@@ -24695,8 +24756,8 @@ ${s.text}` : `[${s.title}]`,
         if (ev.target === svgRoot || ev.target === bg) onCanvasDown(ev);
       });
       svgRoot.addEventListener("wheel", onWheel, { passive: false });
-      const inspector = el2("div", { style: "width:280px;background:#202020;border-left:1px solid #333;padding:12px;overflow:auto" });
-      inspector.appendChild(el2("div", { style: "color:#ddd;font-size:14px;font-weight:500;margin-bottom:8px", text: "Inspector" }));
+      const inspector = el2("div", { style: "width:280px;background:var(--rpm-bg);border-left:1px solid var(--rpm-border);padding:12px;overflow:auto" });
+      inspector.appendChild(el2("div", { style: "color:var(--rpm-fg);font-size:var(--rpm-fs);font-weight:bold;margin-bottom:8px", text: "Inspector" }));
       const inspBody = el2("div");
       inspector.appendChild(inspBody);
       const body = el2("div", { style: "flex:1;display:flex;overflow:hidden" }, [rail, svgRoot, inspector]);
@@ -24724,13 +24785,13 @@ ${s.text}` : `[${s.title}]`,
     }
     function showPreview() {
       const txt = API().preview() || "(nothing — enable the world and set a location)";
-      const modal = el2("div", { style: "position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center", onclick: (ev) => {
+      const modal = el2("div", { class: "rpm-themed", style: "position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center", onclick: (ev) => {
         if (ev.target === modal) modal.remove();
       } });
-      const box = el2("div", { style: "width:60%;max-height:75%;overflow:auto;background:#1c1c1c;border:1px solid #3a3a3a;border-radius:12px;padding:16px" }, [
-        el2("div", { style: "color:#ddd;font-size:14px;font-weight:500;margin-bottom:8px", text: "What the AI will see (current runtime slice)" }),
-        el2("pre", { style: "white-space:pre-wrap;color:#cfcfcf;background:#141414;border:1px solid #333;border-radius:8px;padding:10px;margin:0;font-size:12px;line-height:1.5;font-family:ui-monospace,monospace", text: txt }),
-        el2("button", { style: "margin-top:10px;background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:6px 12px;cursor:pointer", text: "Close", onclick: () => modal.remove() })
+      const box = el2("div", { role: "dialog", "aria-label": "What the AI will see", style: "width:min(760px,92vw);max-height:80%;display:flex;flex-direction:column;overflow:hidden;background:var(--rpm-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:var(--rpm-radius-lg);box-shadow:var(--rpm-shadow)" }, [
+        el2("div", { style: "padding:8px 10px;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);font-weight:bold", text: "What the AI will see (current runtime slice)" }),
+        el2("pre", { style: "flex:1;overflow:auto;white-space:pre-wrap;color:var(--rpm-fg);background:var(--rpm-bg-chat);border:1px solid var(--rpm-border);border-radius:var(--rpm-radius);padding:10px;margin:10px;font-size:var(--rpm-fs-sm);line-height:1.5;font-family:ui-monospace,monospace", text: txt }),
+        el2("div", { style: "display:flex;justify-content:center;padding:8px;border-top:1px solid var(--rpm-border)" }, [el2("button", { type: "button", class: "btn btn-primary rpm-btn", style: "min-width:80px", text: "Close", onclick: () => modal.remove() })])
       ]);
       modal.appendChild(box);
       document.body.appendChild(modal);
@@ -24799,7 +24860,7 @@ ${s.text}` : `[${s.title}]`,
       else download(base + ".worldinfo.json", JSON.stringify(A.exportWorldAsWI(), null, 2));
     }
     function toast(msg, isErr) {
-      const t = el2("div", { style: `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:100002;background:${isErr ? "#5a1f1f" : "#243"};color:${isErr ? "#f2b8b8" : "#bfe"};border:1px solid ${isErr ? "#7a2a2a" : "#376"};border-radius:8px;padding:8px 16px;font-size:13px`, text: msg });
+      const t = el2("div", { class: "rpm-themed", role: "status", style: `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:100002;background:var(--rpm-bg);color:var(--rpm-fg);border:1px solid ${isErr ? "var(--rpm-danger)" : "var(--rpm-border-hi)"};box-shadow:inset 3px 0 0 ${isErr ? "var(--rpm-danger)" : "var(--rpm-success)"},var(--rpm-shadow);border-radius:var(--rpm-radius-lg);padding:8px 16px;font-size:var(--rpm-fs)`, text: msg });
       document.body.appendChild(t);
       setTimeout(() => t.remove(), 2200);
     }
@@ -24838,14 +24899,25 @@ ${s.text}` : `[${s.title}]`,
     let panelEl = null;
     const TIME_SLOTS_UI = ["morning", "noon", "afternoon", "evening", "night"];
     const VIEW_IDS = ["world", "party", "quest-tracker", "questlog", "combat"];
-    function miniBtn() {
-      return "flex:1;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:5px;font-size:11px;cursor:pointer";
+    function uiBtn(text, onclick, opts) {
+      opts = opts || {};
+      const cls = "btn btn-primary rpm-btn" + (opts.block ? " rpm-block" : "") + (opts.grow ? " rpm-grow" : "") + (opts.variant ? " rpm-" + opts.variant : "") + (opts.lg ? " rpm-lg" : "");
+      return el2("button", { type: "button", class: cls, title: opts.title, style: opts.style, text, onclick });
     }
-    function selCss() {
-      return "width:100%;box-sizing:border-box;background:var(--rpm-input-bg);color:var(--rpm-input-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:5px;font-size:12px";
+    function uiInput(props) {
+      return el2("input", Object.assign({ type: "text", class: "form-control rpm-input" }, props));
+    }
+    function uiSelect(props) {
+      return el2("select", Object.assign({ class: "form-control rpm-input" }, props));
     }
     function lbl(t) {
-      return el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:11px;margin:8px 0 3px", text: t });
+      return el2("label", { class: "rpm-label", text: t });
+    }
+    function muted(t, extra) {
+      return el2("div", Object.assign({ class: "rpm-muted", text: t }, extra || {}));
+    }
+    function row(kids, style) {
+      return el2("div", { class: "rpm-row", style }, kids);
     }
     function uiMode() {
       if (!S.uiMode) {
@@ -24887,20 +24959,28 @@ ${s.text}` : `[${s.title}]`,
       const body = panelEl;
       clear2(body);
       const mode = uiMode();
-      body.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px;margin-bottom:8px" }, [
-        el2("span", { style: "color:var(--rpm-fg);font-size:13px;font-weight:600;flex:1", text: "Worlds" }),
+      body.appendChild(row([
+        el2("span", { class: "rpm-heading rpm-grow", text: "Worlds" }),
         el2("span", {
+          role: "button",
+          tabindex: "0",
           title: "Toggle Creator / Player view",
-          style: `cursor:pointer;font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${mode === "creator" ? "#7a5a2a" : "#2a5a7a"};color:${mode === "creator" ? "#f0c68a" : "#8ac6f0"};background:${mode === "creator" ? "#3a2e1a" : "#1a2e3a"}`,
+          class: "rpm-chip " + (mode === "creator" ? "rpm-chip-quest" : "rpm-chip-info"),
           text: mode === "creator" ? "Creator" : "Player",
           onclick: () => {
             setUiMode(mode === "creator" ? "player" : "creator");
             refreshPanel();
+          },
+          onkeydown: (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.target.click();
+            }
           }
         })
-      ]));
+      ], "margin-bottom:8px"));
       const worlds = A.listWorlds();
-      const sel = el2("select", { style: selCss() + ";margin-bottom:6px" });
+      const sel = uiSelect({ "aria-label": "Active world" });
       sel.appendChild(el2("option", { value: "", text: worlds.length ? "— select world —" : "(no worlds yet)" }));
       for (const w of worlds) {
         const o = el2("option", { value: w.id, text: w.name || w.id });
@@ -24914,77 +24994,71 @@ ${s.text}` : `[${s.title}]`,
         }
       });
       body.appendChild(sel);
-      body.appendChild(el2("div", { style: "display:flex;gap:6px;margin-bottom:8px" }, [
-        el2("button", { style: miniBtn(), text: "＋ New", onclick: () => {
+      body.appendChild(row([
+        uiBtn("＋ New", () => {
           const n = prompt("New world name:", "New World");
           if (n != null) A.newWorld(n).then(refreshPanel);
-        } }),
-        el2("button", { style: miniBtn(), title: "Load the ready-to-play example world", text: "🎁 Example", onclick: () => loadExampleFlow() }),
-        el2("button", { style: miniBtn(), text: "⬇ Import", onclick: () => importFlow() }),
-        el2("button", { style: miniBtn(), text: "⬆ Export", onclick: () => exportFlow() })
-      ]));
+        }, { grow: true }),
+        uiBtn("🎁 Example", () => loadExampleFlow(), { grow: true, title: "Load the ready-to-play example world" }),
+        uiBtn("⬇ Import", () => importFlow(), { grow: true }),
+        uiBtn("⬆ Export", () => exportFlow(), { grow: true })
+      ], "margin:6px 0 8px"));
       if (!A.activeWorld()) {
-        body.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:11px;margin:6px 0 8px", text: "New here? Load the ready-to-play example and just start chatting." }));
-        body.appendChild(el2("button", {
-          style: "width:100%;background:var(--rpm-accent-bg-hi);color:var(--rpm-accent-fg);border:1px solid var(--rpm-border-hi);border-radius:6px;padding:8px;font-size:12px;cursor:pointer",
-          text: "🎁 Load example world",
-          onclick: () => loadExampleFlow()
-        }));
+        body.appendChild(muted("New here? Load the ready-to-play example and just start chatting.", { style: "margin:6px 0 8px" }));
+        body.appendChild(uiBtn("🎁 Load example world", () => loadExampleFlow(), { block: true, lg: true }));
         return;
       }
-      body.appendChild(el2("div", { style: "display:flex;gap:6px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--rpm-border)" }, [
-        el2("button", { style: miniBtn(), text: "📜 Quest log", onclick: () => openView("questlog") }),
-        el2("button", { style: miniBtn(), text: "⚔ Combat", onclick: () => openView("combat") }),
-        el2("button", { style: miniBtn(), title: "Build your world as a node graph", text: "✎ Editor", onclick: () => openEditor() })
+      body.appendChild(row([
+        uiBtn("📜 Quest log", () => openView("questlog"), { grow: true }),
+        uiBtn("⚔ Combat", () => openView("combat"), { grow: true }),
+        uiBtn("✎ Editor", () => openEditor(), { grow: true, title: "Build your world as a node graph" })
       ]));
+      body.appendChild(el2("hr", { class: "rpm-divider" }));
       renderPlayTab(body);
     }
     function renderParty(box) {
       const A = API();
       const world = A.activeWorld();
       if (!world) {
-        box.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
-        box.appendChild(el2("button", { class: "rpm-btn", style: "margin-top:8px;width:100%", text: "Choose a world", onclick: () => openView("world") }));
+        box.appendChild(muted("No world loaded."));
+        box.appendChild(uiBtn("Choose a world", () => openView("world"), { block: true, style: "margin-top:8px" }));
         return;
       }
       const player = world.ruleset && world.ruleset.player || {};
       const rt = A.runtime || {};
       const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
       const c = rt.clock || {};
-      box.appendChild(el2("div", { style: "font-weight:600;font-size:13px", text: player.name || "You" }));
-      box.appendChild(el2("div", { class: "rpm-muted", "data-party": "location", style: "margin-top:2px", text: "📍 " + (loc ? loc.name || loc.id : "nowhere") }));
-      box.appendChild(el2("div", { class: "rpm-muted", text: `🕑 Day ${c.day || 1}, ${c.time || "—"}${c.weather ? " · " + c.weather : ""}` }));
+      box.appendChild(el2("div", { class: "rpm-heading", text: player.name || "You" }));
+      box.appendChild(muted("📍 " + (loc ? loc.name || loc.id : "nowhere"), { "data-party": "location", style: "margin-top:2px" }));
+      box.appendChild(muted(`🕑 Day ${c.day || 1}, ${c.time || "—"}${c.weather ? " · " + c.weather : ""}`));
       const cb = A.getCombat();
       if (cb && cb.active) {
         const cur = cb.order[cb.turnIndex];
         const hp = cb.hp.__player__, max = cb.maxHp.__player__;
-        box.appendChild(el2("button", { class: "rpm-btn", style: "margin-top:8px;width:100%;border-color:var(--rpm-danger)", text: `⚔ Round ${cb.round} · ${cur ? cur.name : ""}${hp != null ? ` · HP ${hp}/${max}` : ""}`, onclick: () => openView("combat") }));
+        box.appendChild(uiBtn(`⚔ Round ${cb.round} · ${cur ? cur.name : ""}${hp != null ? ` · HP ${hp}/${max}` : ""}`, () => openView("combat"), { block: true, variant: "danger", style: "margin-top:8px" }));
       }
     }
     function renderQuestTracker(box) {
       const A = API();
       if (!A.activeWorld()) {
-        box.appendChild(el2("div", { class: "rpm-muted", text: "No quests yet." }));
+        box.appendChild(muted("No quests yet."));
         return;
       }
       const quests = A.listQuests(uiMode() === "player" ? "player" : "creator").filter((q) => q.state === "active" || q.state === "complete").sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
-      if (!quests.length) box.appendChild(el2("div", { class: "rpm-muted", text: "No active quests." }));
+      if (!quests.length) box.appendChild(muted("No active quests."));
       for (const q of quests) {
         const ready = q.state === "complete";
-        box.appendChild(el2("div", { "data-quest": q.id, style: `padding:4px 0 4px 8px;margin-bottom:4px;border-left:2px solid ${q.active ? "var(--rpm-quest)" : "var(--rpm-border)"}` }, [
-          el2("div", { style: "font-size:12px;font-weight:600" }, [ready ? el2("span", { style: "color:var(--rpm-quest)", text: "? " }) : null, q.title]),
-          ready && q.turnin ? el2("div", { class: "rpm-muted", text: "Turn in to " + q.turnin }) : null
+        box.appendChild(el2("div", { "data-quest": q.id, class: "rpm-card" + (q.active ? " rpm-card-hi" : "") }, [
+          el2("div", { style: "font-weight:bold" }, [ready ? el2("span", { class: "rpm-quest-mark", text: "? " }) : null, q.title]),
+          ready && q.turnin ? muted("Turn in to " + q.turnin) : null
         ]));
       }
-      box.appendChild(el2("button", { class: "rpm-btn", style: "margin-top:6px;width:100%", text: "📜 Open quest log", onclick: () => openView("questlog") }));
+      box.appendChild(uiBtn("📜 Open quest log", () => openView("questlog"), { block: true, style: "margin-top:8px" }));
     }
     function renderQuestsTab(box) {
       const A = API();
       const mode = uiMode() === "player" ? "player" : "creator";
-      const aiRow = el2("div", { style: "display:flex;align-items:center;gap:6px;margin-bottom:8px" }, [
-        el2("span", { style: "color:var(--rpm-fg-muted);font-size:11px;flex:1", text: "AI sees hidden content:" })
-      ]);
-      const aiSel = el2("select", { style: "background:var(--rpm-input-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 6px;font-size:11px" });
+      const aiSel = uiSelect({ "aria-label": "What the AI sees", style: "width:auto" });
       for (const [v, t] of [["gm", "GM (all)"], ["player", "Player (visible only)"]]) {
         const o = el2("option", { value: v, text: t });
         if (A.getAiMode() === v) o.selected = true;
@@ -24993,40 +25067,43 @@ ${s.text}` : `[${s.title}]`,
       aiSel.addEventListener("change", () => {
         A.setAiMode(aiSel.value);
       });
-      aiRow.appendChild(aiSel);
-      box.appendChild(aiRow);
+      box.appendChild(row([el2("span", { class: "rpm-muted rpm-grow", text: "AI sees hidden content:" }), aiSel], "margin-bottom:8px"));
       const quests = A.listQuests(mode);
       if (!quests.length) {
-        box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:11px", text: "No quests visible. Add Quest nodes in the editor." }));
+        box.appendChild(muted("No quests visible. Add Quest nodes in the editor."));
         return;
       }
       const groups = [["available", "Available"], ["active", "Active"], ["complete", "Ready to turn in"], ["turnedin", "Completed"], ["failed", "Failed"]];
       for (const [st, label] of groups) {
         const inGroup = quests.filter((q) => q.state === st);
         if (!inGroup.length) continue;
-        box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:11px;font-weight:500;margin:10px 0 4px", text: label }));
+        box.appendChild(lbl(label));
         for (const q of inGroup) {
-          const card = el2("div", { style: `background:var(--rpm-bg-alt);border:1px solid ${q.active ? "#4a7ab0" : "var(--rpm-border)"};border-radius:8px;padding:7px 9px;margin-bottom:5px` });
-          card.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px" }, [
-            el2("span", { style: "color:var(--rpm-fg);font-size:12px;font-weight:500;flex:1" }, [(q.marker ? q.marker + " " : "") + q.title, q.hidden ? el2("span", { style: "color:#c98;font-size:9px;margin-left:5px", text: "hidden" }) : null]),
-            q.active ? el2("span", { style: "font-size:9px;color:#8ac6f0", text: "● tracked" }) : null
+          const card = el2("div", { class: "rpm-card" + (q.active ? " rpm-card-hi" : ""), "data-quest": q.id });
+          card.appendChild(row([
+            el2("span", { class: "rpm-grow", style: "font-weight:bold" }, [
+              q.marker ? el2("span", { class: "rpm-quest-mark", text: q.marker + " " }) : null,
+              q.title,
+              q.hidden ? el2("span", { class: "rpm-chip rpm-chip-danger", style: "margin-left:6px", text: "hidden" }) : null
+            ]),
+            q.active ? el2("span", { class: "rpm-chip rpm-chip-info", text: "● tracked" }) : null
           ]));
-          if (q.description) card.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:11px;margin-top:2px", text: q.description }));
-          if (q.giver || q.turnin) card.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:10px;margin-top:2px", text: (q.giver ? `From: ${q.giver}` : "") + (q.turnin ? `  Turn-in: ${q.turnin}` : "") }));
-          const ctl = el2("div", { style: "display:flex;flex-wrap:wrap;gap:4px;margin-top:5px" });
-          const btn2 = (t, fn) => el2("button", { style: "background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:5px;padding:3px 7px;font-size:10px;cursor:pointer", text: t, onclick: () => {
+          if (q.description) card.appendChild(el2("div", { style: "margin-top:3px", text: q.description }));
+          if (q.giver || q.turnin) card.appendChild(muted((q.giver ? `From: ${q.giver}` : "") + (q.turnin ? `  Turn-in: ${q.turnin}` : ""), { style: "margin-top:2px" }));
+          const ctl = el2("div", { class: "rpm-row", style: "flex-wrap:wrap;margin-top:6px" });
+          const act = (t, fn, variant) => uiBtn(t, () => {
             fn();
             refreshPanel();
-          } });
-          if (st === "available") ctl.appendChild(btn2("Accept", () => A.acceptQuest(q.id)));
+          }, { variant });
+          if (st === "available") ctl.appendChild(act("Accept", () => A.acceptQuest(q.id), "success"));
           if (st === "active") {
-            ctl.appendChild(btn2("Complete", () => A.completeQuest(q.id)));
-            ctl.appendChild(btn2(q.active ? "Untrack" : "Track", () => A.setActiveQuest(q.active ? null : q.id)));
-            ctl.appendChild(btn2("Fail", () => A.failQuest(q.id)));
+            ctl.appendChild(act("Complete", () => A.completeQuest(q.id), "success"));
+            ctl.appendChild(act(q.active ? "Untrack" : "Track", () => A.setActiveQuest(q.active ? null : q.id)));
+            ctl.appendChild(act("Fail", () => A.failQuest(q.id), "danger"));
           }
-          if (st === "complete") ctl.appendChild(btn2("Turn in", () => A.turnInQuest(q.id)));
-          if (mode === "creator" && q.hidden) ctl.appendChild(btn2("Reveal to player", () => A.discoverQuest(q.id)));
-          card.appendChild(ctl);
+          if (st === "complete") ctl.appendChild(act("Turn in", () => A.turnInQuest(q.id), "success"));
+          if (mode === "creator" && q.hidden) ctl.appendChild(act("Reveal to player", () => A.discoverQuest(q.id)));
+          if (ctl.childNodes.length) card.appendChild(ctl);
           box.appendChild(card);
         }
       }
@@ -25035,144 +25112,127 @@ ${s.text}` : `[${s.title}]`,
       const A = API();
       const cb = A.getCombat();
       if (cb && cb.active) return renderActiveCombat(box, cb);
-      box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:11px;margin-bottom:6px", text: "Select combatants for the encounter. NPCs need a stat block (add one in the editor)." }));
+      box.appendChild(muted("Select combatants for the encounter. NPCs need a stat block (add one in the editor).", { style: "margin-bottom:6px" }));
       const persons = A.getGraph().nodes.filter((n) => n.type === "npc");
       const chosen = S._encPick || (S._encPick = {});
-      if (!persons.length) box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:11px", text: "No persons yet." }));
+      if (!persons.length) box.appendChild(muted("No persons yet."));
       for (const p of persons) {
         const st = A.getStats(p.id);
-        const row = el2("label", { style: "display:flex;align-items:center;gap:6px;font-size:11px;color:var(--rpm-fg);padding:2px 0;cursor:pointer" });
-        const c = el2("input", { type: "checkbox", style: "cursor:pointer" });
+        const c = el2("input", { type: "checkbox" });
         c.checked = !!chosen[p.id];
         c.addEventListener("change", () => {
           chosen[p.id] = c.checked;
         });
-        row.appendChild(c);
-        row.appendChild(el2("span", { style: "flex:1" }, [p.name, st ? el2("span", { style: "color:#8ac6f0;font-size:9px;margin-left:5px", text: `AC ${st.ac} HP ${st.hpMax}` }) : el2("span", { style: "color:#c96;font-size:9px;margin-left:5px", text: "no stats" })]));
-        box.appendChild(row);
+        box.appendChild(el2("label", { class: "rpm-row", style: "padding:3px 0;cursor:pointer" }, [
+          c,
+          el2("span", { class: "rpm-grow" }, [p.name, st ? el2("span", { class: "rpm-chip rpm-chip-info", style: "margin-left:6px", text: `AC ${st.ac} HP ${st.hpMax}` }) : el2("span", { class: "rpm-chip rpm-chip-danger", style: "margin-left:6px", text: "no stats" })])
+        ]));
       }
-      box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:11px;margin:10px 0 4px", text: "Quick-add monster (SRD)" }));
-      const tRow = el2("div", { style: "display:flex;flex-wrap:wrap;gap:4px" });
-      for (const key of A.listTemplates()) tRow.appendChild(el2("button", { style: "background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:5px;padding:3px 7px;font-size:10px;cursor:pointer", text: key.replace("_", " "), onclick: () => {
+      box.appendChild(lbl("Quick-add monster (SRD)"));
+      const tRow = el2("div", { class: "rpm-row", style: "flex-wrap:wrap" });
+      for (const key of A.listTemplates()) tRow.appendChild(uiBtn(key.replace("_", " "), () => {
         const p = A.addPersonFromTemplate(key);
         S._encPick[p.id] = true;
         refreshPanel();
-      } }));
+      }));
       box.appendChild(tRow);
-      const incWrap = el2("label", { style: "display:flex;align-items:center;gap:6px;margin:10px 0;color:var(--rpm-fg-muted);font-size:11px;cursor:pointer" });
-      const inc = el2("input", { type: "checkbox", style: "cursor:pointer" });
+      const inc = el2("input", { type: "checkbox" });
       inc.checked = S._encPlayer !== false;
       inc.addEventListener("change", () => {
         S._encPlayer = inc.checked;
       });
-      incWrap.appendChild(inc);
-      incWrap.appendChild(document.createTextNode("Include the player"));
-      box.appendChild(incWrap);
-      box.appendChild(el2("button", {
-        style: "width:100%;background:#5a2e1f;color:#f2c8b8;border:1px solid #7a452a;border-radius:6px;padding:8px;font-size:12px;cursor:pointer",
-        text: "⚔ Start encounter",
-        onclick: () => {
-          const ids = Object.keys(chosen).filter((k) => chosen[k]);
-          A.startEncounter(ids, { includePlayer: S._encPlayer !== false });
-          S._encPick = {};
-          refreshPanel();
-        }
-      }));
+      box.appendChild(el2("label", { class: "rpm-row", style: "margin:10px 0;cursor:pointer" }, [inc, el2("span", { text: "Include the player" })]));
+      box.appendChild(uiBtn("⚔ Start encounter", () => {
+        const ids = Object.keys(chosen).filter((k) => chosen[k]);
+        A.startEncounter(ids, { includePlayer: S._encPlayer !== false });
+        S._encPick = {};
+        refreshPanel();
+      }, { block: true, lg: true, variant: "danger" }));
     }
     function renderActiveCombat(box, cb) {
       const A = API();
       const cur = cb.order[cb.turnIndex];
-      box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px;margin-bottom:8px" }, [
-        el2("span", { style: "color:var(--rpm-fg);font-size:12px;font-weight:500;flex:1", text: `Round ${cb.round}` }),
-        el2("span", { style: "font-size:10px;color:#f2c8b8;background:#5a2e1f;border-radius:10px;padding:2px 8px", text: "▶ " + cur.name })
-      ]));
+      box.appendChild(row([
+        el2("span", { class: "rpm-heading rpm-grow", text: `Round ${cb.round}` }),
+        el2("span", { class: "rpm-chip rpm-chip-danger", text: "▶ " + cur.name })
+      ], "margin-bottom:8px"));
       for (const o of cb.order) {
         const hp = cb.hp[o.id], max = cb.maxHp[o.id] || 1, pct = Math.max(0, Math.min(100, Math.round(hp / max * 100)));
         const down = hp <= 0;
-        const row = el2("div", { style: `background:var(--rpm-bg-alt);border:1px solid ${o.id === cur.id ? "#7a452a" : "var(--rpm-border)"};border-radius:6px;padding:4px 8px;margin-bottom:4px;${down ? "opacity:.5" : ""}` });
-        row.appendChild(el2("div", { style: "display:flex;justify-content:space-between;font-size:11px;color:var(--rpm-fg)" }, [
-          el2("span", {}, [(o.id === cur.id ? "▶ " : "") + o.name + (down ? " (down)" : "")]),
-          el2("span", { style: "color:var(--rpm-fg-muted)", text: `${hp}/${max} · init ${o.init}` })
+        const card = el2("div", { class: "rpm-card" + (o.id === cur.id ? " rpm-card-hi" : ""), style: down ? "opacity:.5" : null });
+        card.appendChild(row([
+          el2("span", { class: "rpm-grow", text: (o.id === cur.id ? "▶ " : "") + o.name + (down ? " (down)" : "") }),
+          el2("span", { class: "rpm-muted", text: `${hp}/${max} · init ${o.init}` })
         ]));
-        const bar = el2("div", { style: "height:5px;background:var(--rpm-bg-outer);border-radius:3px;margin-top:3px;overflow:hidden" });
-        bar.appendChild(el2("div", { style: `height:100%;width:${pct}%;background:${pct > 50 ? "#3b8f4f" : pct > 25 ? "#b8912a" : "#a33"}` }));
-        row.appendChild(bar);
-        box.appendChild(row);
+        const bar = el2("div", { class: "rpm-bar" });
+        bar.appendChild(el2("span", { style: `width:${pct}%;background:${pct > 50 ? "var(--rpm-success)" : pct > 25 ? "var(--rpm-quest)" : "var(--rpm-danger)"}` }));
+        card.appendChild(bar);
+        box.appendChild(card);
       }
       const targets = cb.order.filter((o) => cb.hp[o.id] > 0 && o.id !== cur.id);
-      const atkRow = el2("div", { style: "display:flex;gap:5px;margin-top:8px" });
-      const tSel = el2("select", { style: selCss() + ";flex:1" });
+      const tSel = uiSelect({ class: "form-control rpm-input rpm-grow", "aria-label": "Target" });
       for (const o of targets) tSel.appendChild(el2("option", { value: o.id, text: o.name }));
-      atkRow.appendChild(tSel);
-      atkRow.appendChild(el2("button", { style: "background:#5a2e1f;color:#f2c8b8;border:1px solid #7a452a;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer", text: `⚔ ${cur.name} attacks`, onclick: () => {
+      box.appendChild(row([tSel, uiBtn(`⚔ ${cur.name} attacks`, () => {
         if (tSel.value) A.attack(cur.id, tSel.value);
         refreshPanel();
-      } }));
-      box.appendChild(atkRow);
-      const rollRow = el2("div", { style: "display:flex;gap:5px;margin-top:6px" });
-      const rIn = el2("input", { type: "text", value: "1d20", style: selCss() + ";flex:1" });
-      rollRow.appendChild(rIn);
-      rollRow.appendChild(el2("button", { style: miniBtn(), text: "🎲 Roll", onclick: () => {
+      }, { variant: "danger" })], "margin-top:8px"));
+      const rIn = uiInput({ value: "1d20", class: "form-control rpm-input rpm-grow", "aria-label": "Dice expression" });
+      box.appendChild(row([rIn, uiBtn("🎲 Roll", () => {
         A.applyTags(`<roll>${rIn.value}</roll>`);
         refreshPanel();
-      } }));
-      box.appendChild(rollRow);
-      box.appendChild(el2("div", { style: "display:flex;gap:5px;margin-top:6px" }, [
-        el2("button", { style: miniBtn(), text: "⏭ Next turn", onclick: () => {
+      })], "margin-top:6px"));
+      box.appendChild(row([
+        uiBtn("⏭ Next turn", () => {
           A.nextTurn();
           refreshPanel();
-        } }),
-        el2("button", { style: miniBtn() + ";color:#f2b8b8;border-color:#7a2a2a;background:#3a1f1f", text: "✕ End", onclick: () => {
+        }, { grow: true }),
+        uiBtn("✕ End", () => {
           A.endEncounter();
           refreshPanel();
-        } })
-      ]));
-      box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:10px;font-weight:500;margin:10px 0 3px", text: "Combat log" }));
-      const log = el2("div", { style: "background:var(--rpm-bg-outer);border:1px solid var(--rpm-border);border-radius:6px;padding:6px;font-size:10px;color:var(--rpm-fg-muted);max-height:120px;overflow:auto;line-height:1.5" });
+        }, { grow: true, variant: "danger" })
+      ], "margin-top:6px"));
+      box.appendChild(lbl("Combat log"));
+      const log = el2("div", { class: "rpm-log" });
       for (const line of (cb.log || []).slice(-8)) log.appendChild(el2("div", { text: line }));
       box.appendChild(log);
     }
     function renderPlayTab(box) {
       const A = API();
       const enabled = A.isEnabled();
-      box.appendChild(el2("button", {
-        style: `width:100%;box-sizing:border-box;border-radius:6px;padding:7px;font-size:12px;cursor:pointer;margin-bottom:10px;border:1px solid ${enabled ? "#2a7a45" : "var(--rpm-border)"};background:${enabled ? "#1f4a2e" : "#2a2a2a"};color:${enabled ? "#b8f2c8" : "#ccc"}`,
-        text: enabled ? "● Enabled for this story" : "○ Enable for this story",
-        onclick: () => {
-          enabled ? A.disable() : A.enable();
-          refreshPanel();
-        }
-      }));
+      box.appendChild(uiBtn(enabled ? "● Enabled for this story" : "○ Enable for this story", () => {
+        enabled ? A.disable() : A.enable();
+        refreshPanel();
+      }, { block: true, variant: enabled ? "on" : null, style: "margin-bottom:10px" }));
       const slot = A.activeSlot || "working";
-      const slotBox = el2("div", { style: "background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:8px;padding:8px;margin-bottom:10px" });
-      slotBox.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px;margin-bottom:6px" }, [
-        el2("span", { style: "color:var(--rpm-fg-muted);font-size:11px;flex:1", text: "State slot" }),
-        el2("span", { style: `font-size:10px;padding:2px 8px;border-radius:10px;background:${slot === "working" ? "#1c3450" : "#3a2e1a"};color:${slot === "working" ? "#8ac6f0" : "#f0c68a"}`, text: slot === "working" ? "WORKING (live)" : "BASE (start)" })
-      ]));
-      slotBox.appendChild(el2("div", { style: "display:flex;gap:5px" }, [
-        el2("button", { title: "Discard live changes, back to the start state", style: miniBtn(), text: "↺ Reset", onclick: () => {
+      const slotBox = el2("div", { class: "rpm-card", style: "margin-bottom:6px" });
+      slotBox.appendChild(row([
+        el2("span", { class: "rpm-muted rpm-grow", text: "State slot" }),
+        el2("span", { class: "rpm-chip " + (slot === "working" ? "rpm-chip-info" : "rpm-chip-quest"), text: slot === "working" ? "WORKING (live)" : "BASE (start)" })
+      ], "margin-bottom:6px"));
+      slotBox.appendChild(row([
+        uiBtn("↺ Reset", () => {
           if (confirm("Reset the working state to the base (start) state? Live changes are lost.")) {
             A.resetToBase();
             refreshPanel();
           }
-        } }),
-        el2("button", { title: "Make the current live state the new start state", style: miniBtn(), text: "✔ Commit", onclick: () => {
+        }, { grow: true, title: "Discard live changes, back to the start state" }),
+        uiBtn("✔ Commit", () => {
           if (confirm("Set the current working state as the new base (start)?")) {
             A.commitToBase();
             refreshPanel();
           }
-        } }),
-        el2("button", { title: "Switch which slot is active", style: miniBtn(), text: "⇄ Swap", onclick: () => {
+        }, { grow: true, title: "Make the current live state the new start state" }),
+        uiBtn("⇄ Swap", () => {
           A.swapActive();
           refreshPanel();
-        } })
+        }, { grow: true, title: "Switch which slot is active" })
       ]));
       box.appendChild(slotBox);
       const g = A.getGraph();
       const locs = g.nodes.filter((n) => n.type === "location");
       box.appendChild(lbl("Current location"));
       if (locs.length) {
-        const msel = el2("select", { style: selCss() });
+        const msel = uiSelect({ "aria-label": "Current location" });
         msel.appendChild(el2("option", { value: "", text: "— nowhere —" }));
         for (const l of locs) {
           const o = el2("option", { value: l.id, text: l.name });
@@ -25187,11 +25247,10 @@ ${s.text}` : `[${s.title}]`,
           }
         });
         box.appendChild(msel);
-      } else box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:11px", text: "No locations yet — add some in the editor." }));
+      } else box.appendChild(muted("No locations yet — add some in the editor."));
       const c = A.runtime && A.runtime.clock || {};
       box.appendChild(lbl("Time & weather"));
-      const timeRow = el2("div", { style: "display:flex;gap:6px;align-items:center" });
-      const tsel = el2("select", { style: selCss() + ";flex:1" });
+      const tsel = uiSelect({ class: "form-control rpm-input rpm-grow", "aria-label": "Time of day" });
       for (const t of TIME_SLOTS_UI) {
         const o = el2("option", { value: t, text: t });
         if ((c.time || "") === t) o.selected = true;
@@ -25201,14 +25260,12 @@ ${s.text}` : `[${s.title}]`,
         A.setClock({ time: tsel.value });
         refreshPanel();
       });
-      timeRow.appendChild(tsel);
-      timeRow.appendChild(el2("button", { title: "Advance time one step", style: "background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer", text: "⏭", onclick: () => {
+      box.appendChild(row([tsel, uiBtn("⏭", () => {
         A.advanceClock(1);
         refreshPanel();
-      } }));
-      box.appendChild(timeRow);
-      box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:10px;margin:4px 0 2px", text: `Day ${c.day || 1}, month ${c.month || 1} · ${c.season || ""}` }));
-      const wIn = el2("input", { type: "text", value: c.weather || "", placeholder: "weather", style: selCss() });
+      }, { title: "Advance time one step" })]));
+      box.appendChild(muted(`Day ${c.day || 1}, month ${c.month || 1} · ${c.season || ""}`, { style: "margin:4px 0" }));
+      const wIn = uiInput({ value: c.weather || "", placeholder: "weather", "aria-label": "Weather" });
       wIn.addEventListener("change", () => {
         A.setClock({ weather: wIn.value });
       });
@@ -25216,55 +25273,48 @@ ${s.text}` : `[${s.title}]`,
       box.appendChild(lbl("Flags"));
       const flags = A.runtime && A.runtime.flags || {};
       const fkeys = Object.keys(flags);
-      if (!fkeys.length) box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:11px", text: "none" }));
+      if (!fkeys.length) box.appendChild(muted("none"));
       for (const k of fkeys) {
-        box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px" }, [
-          el2("span", { style: "flex:1;color:var(--rpm-fg);font-size:11px" }, [k + " = ", el2("span", { style: "color:#8ac6f0", text: String(flags[k]) })]),
-          el2("span", { style: "cursor:pointer;color:#e66;font-size:13px", text: "×", onclick: () => {
+        box.appendChild(el2("div", { class: "rpm-card rpm-row" }, [
+          el2("span", { class: "rpm-grow" }, [k + " = ", el2("span", { style: "color:var(--rpm-fg-hi)", text: String(flags[k]) })]),
+          el2("button", { type: "button", class: "rpm-iconbtn", title: "Remove flag", "aria-label": "Remove flag " + k, style: "color:var(--rpm-danger)", text: "×", onclick: () => {
             A.unsetFlag(k);
             refreshPanel();
           } })
         ]));
       }
-      const fk = el2("input", { type: "text", placeholder: "key", style: selCss() + ";flex:2" });
-      const fv = el2("input", { type: "text", placeholder: "value", style: selCss() + ";flex:1" });
-      box.appendChild(el2("div", { style: "display:flex;gap:5px;margin-top:5px" }, [
-        fk,
-        fv,
-        el2("button", { style: "background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer", text: "＋", onclick: () => {
-          const k = fk.value.trim();
-          if (!k) return;
-          A.setFlag(k, parseVal(fv.value));
-          refreshPanel();
-        } })
-      ]));
+      const fk = uiInput({ placeholder: "key", class: "form-control rpm-input rpm-grow", "aria-label": "Flag name" });
+      const fv = uiInput({ placeholder: "value", class: "form-control rpm-input rpm-grow", "aria-label": "Flag value" });
+      box.appendChild(row([fk, fv, uiBtn("＋", () => {
+        const k = fk.value.trim();
+        if (!k) return;
+        A.setFlag(k, parseVal(fv.value));
+        refreshPanel();
+      }, { title: "Set flag" })], "margin-top:5px"));
       box.appendChild(lbl("Inventory"));
       const inv = A.runtime && A.runtime.inventory || [];
-      if (!inv.length) box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:11px", text: "empty" }));
+      if (!inv.length) box.appendChild(muted("empty"));
       for (const it of inv) {
-        box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px" }, [
-          el2("span", { style: "flex:1;color:var(--rpm-fg);font-size:11px", text: it.name + (it.qty > 1 ? ` ×${it.qty}` : "") }),
-          el2("span", { style: "cursor:pointer;color:#9c9;font-size:13px", text: "＋", onclick: () => {
+        box.appendChild(el2("div", { class: "rpm-card rpm-row" }, [
+          el2("span", { class: "rpm-grow", text: it.name + (it.qty > 1 ? ` ×${it.qty}` : "") }),
+          el2("button", { type: "button", class: "rpm-iconbtn", title: "Add one", "aria-label": "Add one " + it.name, style: "color:var(--rpm-success)", text: "＋", onclick: () => {
             A.giveItem(it.name, 1);
             refreshPanel();
           } }),
-          el2("span", { style: "cursor:pointer;color:#e66;font-size:13px", text: "−", onclick: () => {
+          el2("button", { type: "button", class: "rpm-iconbtn", title: "Remove one", "aria-label": "Remove one " + it.name, style: "color:var(--rpm-danger)", text: "−", onclick: () => {
             A.takeItem(it.name, 1);
             refreshPanel();
           } })
         ]));
       }
-      const iIn = el2("input", { type: "text", placeholder: "item name", style: selCss() });
-      box.appendChild(el2("div", { style: "display:flex;gap:5px;margin-top:5px" }, [
-        iIn,
-        el2("button", { style: "background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer", text: "＋", onclick: () => {
-          const n = iIn.value.trim();
-          if (!n) return;
-          A.giveItem(n, 1);
-          refreshPanel();
-        } })
-      ]));
-      box.appendChild(el2("button", { style: "width:100%;margin-top:12px;background:var(--rpm-bg-alt);color:#9cf;border:1px solid #345;border-radius:6px;padding:6px;font-size:11px;cursor:pointer", text: "👁 Preview what the AI sees", onclick: () => showPreview() }));
+      const iIn = uiInput({ placeholder: "item name", class: "form-control rpm-input rpm-grow", "aria-label": "Item name" });
+      box.appendChild(row([iIn, uiBtn("＋", () => {
+        const n = iIn.value.trim();
+        if (!n) return;
+        A.giveItem(n, 1);
+        refreshPanel();
+      }, { title: "Give item" })], "margin-top:5px"));
+      box.appendChild(uiBtn("👁 Preview what the AI sees", () => showPreview(), { block: true, style: "margin-top:12px" }));
     }
     function parseVal(raw) {
       const v = String(raw || "").trim();

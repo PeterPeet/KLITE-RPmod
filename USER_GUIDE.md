@@ -16,8 +16,8 @@ The mod ships as a single file, `KLITE-RPmod.js`.
 3. After it loads, RPmod sits around the chat:
    - **Left panel (Adventure)** — *Party* (who you are, where, what time; combat status)
      and *Quests* (your active quests, `?` when ready to turn in).
-   - **Right panel (tools)** — tabs **World** (the Worlds panel) and **Characters**
-     (characters, roles, scenario and tools).
+   - **Right panel (tools)** — tabs **World** (the Worlds panel), **Chars**, **Roles**,
+     **Scenario** and **Tools**.
    - Bigger views — **Quest log**, **Combat** — open as **floating windows** you can drag
      (title bar), resize (bottom-right corner) and close; they remember where you left them.
    - The **panels button** in Esolite's top bar (icon with two sidebars) shows/hides both

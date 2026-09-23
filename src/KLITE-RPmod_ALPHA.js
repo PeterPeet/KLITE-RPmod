@@ -3135,22 +3135,25 @@ export default function initAlpha() {
     };
 
     // Minimal CSS for panels-only mode (no full-screen overlay, no maincontent, no top panel)
+    // Panels-only look = Esolite's own design language (same rules as the app shell,
+    // src/shell/styles.js): every colour/font from Esolite's --theme_* variables, buttons
+    // like .btn-primary, inputs like .form-control, modals like Esolite popups.
     const STYLES_PANELS_ONLY = `
         :root {
-            --bg: var(--theme_color_bg_outer);
-            --bg2: var(--theme_color_bg);
-            --bg3: var(--theme_color_bg_dark);
-            --text: var(--theme_color_text);
-            --glowtext: var(--theme_color_glow_text);
-            --muted: var(--theme_color_placeholder_text);
-            --border: var(--theme_color_border);
-            --border-highlight: var(--theme_color_border_highlight);
-            --accent: var(--theme_color_highlight);
-            --primary: var(--theme_color_button_bg);
-            --primary-text: var(--theme_color_button_text);
-            --danger: #d9534f;
-            --success: #5cb85c;
-            --warning: #f0ad4e;
+            --bg: var(--theme_color_bg_outer, #182330);
+            --bg2: var(--theme_color_bg_popups, var(--theme_color_bg, #263040));
+            --bg3: var(--theme_color_bg_muted, var(--theme_color_bg_dark, #484d56));
+            --text: var(--theme_color_fg, var(--theme_color_text, #d1d1d1));
+            --glowtext: var(--theme_color_fg_highlight, var(--theme_color_glow_text, #94d7ff));
+            --muted: var(--theme_color_fg_muted, var(--theme_color_placeholder_text, #9b9b9b));
+            --border: var(--theme_color_border, #415577);
+            --border-highlight: var(--theme_color_border_highlight, #596985);
+            --accent: var(--theme_color_accent_bg_highlight, var(--theme_color_highlight, #596985));
+            --primary: var(--theme_color_accent_bg, var(--theme_color_button_bg, #32496d));
+            --primary-text: var(--theme_color_accent_fg, var(--theme_color_button_text, #d1d1d1));
+            --danger: var(--theme_color_rpmod_danger, #d9534f);
+            --success: var(--theme_color_rpmod_success, #5cb85c);
+            --warning: var(--theme_color_rpmod_quest, #f0ad4e);
         }
         /* Wrapper that doesn't block host interactions */
         #klite-panels-only { position: fixed; inset: 0; pointer-events: none; z-index: 2147483638; }
@@ -3160,62 +3163,53 @@ export default function initAlpha() {
         .klite-panel { pointer-events: auto; position: fixed; background: var(--bg2); box-shadow: 0 0 10px rgba(0,0,0,0.5); z-index: 2147483640; }
         /* v2: left panel removed */
         .klite-panel-right { right: 0; top: 0; bottom: 0; width: 350px; border-left: 1px solid var(--border); transition: transform 0.2s ease; }
-        
-        /* Move full panel width; left:-15px handle remains visible */
         .klite-panel-right.collapsed { transform: translateX(350px); }
         .klite-handle { position: absolute; background: var(--bg2); border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; z-index: 9; pointer-events: auto; }
         .klite-handle:hover { background: var(--bg3); color: var(--text); }
-        
         .klite-panel-right .klite-handle { left: -15px; top: 50%; transform: translateY(-50%); width: 15px; height: 50px; border-radius: 5px 0 0 5px; }
-        .klite-tabs { display: flex; gap: 5px; padding: 10px; background: var(--theme_color_tabs); border-bottom: 1px solid var(--border); }
-        .klite-tab { padding: 6px 12px; border: 1px solid transparent; border-radius: 6px; color: var(--theme_color_tabs_text); cursor: pointer; font-size: 10px; font-weight: bold; min-width: 56px; white-space: nowrap; text-align: center; background: var(--theme_color_topbtn); }
-        .klite-tab:hover { background: var(--theme_color_topbtn_highlight); }
-        .klite-tab.active { background: var(--theme_color_tabs_highlight); }
+        /* ALPHA's own tab bar (hidden inside the RPmod shell, which has its own tabs) */
+        .klite-tabs { display: flex; gap: 3px; padding: 6px 8px; background: var(--theme_color_topmenu); border-bottom: 1px solid var(--border); }
+        .klite-tab { flex: 1; padding: 6px 4px; border: 1px solid var(--border); border-radius: 5px; color: var(--primary-text); cursor: pointer; font-size: var(--theme_font_size_small, 9pt); font-weight: bold; text-align: center; background: var(--theme_color_topbtn, var(--primary)); line-height: 1.1; }
+        .klite-tab:hover, .klite-tab.active { background: var(--theme_color_accent_bg_highlight); border-color: var(--border-highlight); color: var(--theme_color_accent_fg_highlight, var(--primary-text)); }
 
-        /* Right panel tab layout override (placed after condensed styles to win specificity) */
-        .klite-panel-right .klite-tabs {
-            display: flex !important;
-            justify-content: space-evenly !important; /* 5 equal spaces for 4 items */
-            align-items: stretch;
-            gap: 0 !important;
-            padding: 10px 0 !important; /* vertical only */
-            width: calc(100% - 1px);
-            box-sizing: content-box;
-        }
-        .klite-panel-right .klite-tab {
-            width: 80px !important;
-            flex: 0 0 80px !important;
-            white-space: normal !important; /* allow two-line labels */
-            line-height: 1.1;
-            min-height: 34px;
-        }
-        .klite-content { overflow-y: auto; overflow-x: hidden; padding: 15px; max-height: calc(100vh - 60px); color: var(--text); }
-        .klite-section { margin-bottom: 20px; background: var(--bg); border-radius: 5px; overflow: hidden; }
-        .klite-section-header { padding: 10px 15px; background: var(--bg3); cursor: pointer; display: flex; justify-content: space-between; user-select: none; color: var(--glowtext); }
-        .klite-section-header:hover { background: var(--bg3); }
+        .klite-content { overflow-y: auto; overflow-x: hidden; padding: 12px; max-height: calc(100vh - 60px); color: var(--text); font-family: var(--theme_font_family, inherit); font-size: var(--theme_font_size_medium, 10pt); }
+        /* sections = Esolite popup title bar + body */
+        .klite-section { margin-bottom: 12px; background: transparent; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+        .klite-section-header { padding: 6px 10px; background: var(--primary); color: var(--primary-text); font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+        .klite-section-header:hover { background: var(--theme_color_accent_bg_highlight); color: var(--theme_color_accent_fg_highlight, var(--primary-text)); }
         .klite-section.collapsed .klite-section-content { display: none; }
-        .klite-section-content { padding: 15px; }
+        .klite-section-content { padding: 10px; }
         /* Utilities */
-        .klite-row { display: flex; gap: 2px; align-items: center; }
-        .klite-buttons-left { display: flex; gap: 2px; justify-content: flex-start; }
-        .klite-buttons-center { display: flex; gap: 2px; justify-content: center; }
-        .klite-buttons-right { display: flex; gap: 2px; justify-content: flex-end; }
-        .klite-buttons-spread { display: flex; gap: 2px; justify-content: space-between; }
-        /* Inputs */
-        .klite-input, .klite-textarea, .klite-select { width: 100%; padding: 6px 8px; background: var(--theme_color_input_bg); border: 1px solid var(--theme_color_border); border-radius: 4px; color: var(--theme_color_input_text); font: inherit; }
+        .klite-row { display: flex; gap: 4px; align-items: center; }
+        .klite-buttons-left { display: flex; gap: 4px; justify-content: flex-start; flex-wrap: wrap; }
+        .klite-buttons-center { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+        .klite-buttons-right { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; }
+        .klite-buttons-spread { display: flex; gap: 4px; justify-content: space-between; flex-wrap: wrap; }
+        /* Inputs = Esolite .form-control */
+        .klite-input, .klite-textarea, .klite-select { width: 100%; padding: 4px 6px; background: var(--theme_color_input_bg); border: 1px solid var(--border); border-radius: 4px; color: var(--theme_color_input_fg, var(--theme_color_input_text)); font: inherit; font-size: var(--theme_font_size_small, 9pt); box-sizing: border-box; }
         .klite-textarea { resize: vertical; min-height: 80px; }
         .klite-input:focus, .klite-textarea:focus, .klite-select:focus { outline: none; border-color: var(--border-highlight); box-shadow: none; }
-        /* Buttons */
-        .klite-btn { padding: 4px 8px; background: var(--primary); border: 1px solid var(--theme_color_border); border-radius: 4px; color: var(--primary-text); cursor: pointer; font-size: 14px; transition: all 0.2s; }
-        .klite-btn:hover { background: var(--theme_color_topbtn_highlight); }
-        .klite-btn.btn.btn-primary { background-color: var(--theme_color_button_bg) !important; color: var(--theme_color_button_text) !important; border-color: var(--theme_color_border) !important; }
-        .klite-btn.danger { background: var(--danger); border-color: #c9302c; }
-        .klite-btn.danger:hover { background: #c9302c; }
-        .klite-btn.success { background: var(--success); border-color: #4cae4c; }
-        .klite-btn.warning { background: var(--warning); border-color: #eea236; }
+        .klite-input::placeholder, .klite-textarea::placeholder { color: var(--muted); }
+        /* Buttons = Esolite .btn-primary */
+        .klite-btn { padding: 4px 8px; background: var(--primary); border: 1px solid var(--border); border-radius: 5px; color: var(--primary-text); cursor: pointer; font: inherit; font-size: var(--theme_font_size_small, 9pt); line-height: 1.3; transition: background .15s, border-color .15s; }
+        .klite-btn:hover { background: var(--theme_color_accent_bg_highlight); border-color: var(--border-highlight); color: var(--theme_color_accent_fg_highlight, var(--primary-text)); }
+        .klite-btn.btn.btn-primary { background-color: var(--primary) !important; color: var(--primary-text) !important; border-color: var(--border) !important; }
+        .klite-btn.danger { box-shadow: inset 3px 0 0 var(--danger); border-color: var(--danger); }
+        .klite-btn.success { box-shadow: inset 3px 0 0 var(--success); border-color: var(--success); }
+        .klite-btn.warning { box-shadow: inset 3px 0 0 var(--warning); border-color: var(--warning); }
         .klite-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .klite-btn-sm { font-size: 12px; padding: 3px 6px; min-width: 26px; text-align: center; }
-        .klite-btn-xs { font-size: 10px; padding: 2px 6px; min-height: 22px; }
+        .klite-btn-sm { padding: 3px 6px; min-width: 26px; text-align: center; }
+        .klite-btn-xs { padding: 2px 6px; min-height: 22px; }
+        /* Modals = Esolite popups (dim layer, title bar, body, footer strip) */
+        .klite-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); font-family: var(--theme_font_family, inherit); font-size: var(--theme_font_size_medium, 10pt); color: var(--text); }
+        .klite-modal-content { display: flex; flex-direction: column; max-height: 88vh; max-width: min(800px, 94vw); min-width: min(360px, 94vw) !important; overflow: hidden; padding: 0 !important; background: var(--bg2) !important; border: 1px solid var(--border) !important; border-radius: 8px !important; box-shadow: 0 12px 36px rgba(0,0,0,0.4); color: var(--text); }
+        .klite-modal-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; margin: 0; background: var(--primary); color: var(--primary-text); border: 0; }
+        .klite-modal-header h2, .klite-modal-header h3 { margin: 0; font-size: var(--theme_font_size_large, 11pt); font-weight: bold; color: inherit; }
+        .klite-modal-close { background: none; border: 1px solid transparent; color: inherit; font-size: 18px; cursor: pointer; padding: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 5px; }
+        .klite-modal-close:hover { background: var(--theme_color_accent_bg_highlight); border-color: var(--border-highlight); }
+        .klite-modal-body { flex: 1 1 auto; overflow-y: auto; padding: 12px; }
+        .klite-modal-footer { display: flex; gap: 6px; justify-content: flex-end; padding: 8px 10px; margin: 0; border-top: 1px solid var(--border); background: var(--bg2); }
+        .klite-modal-footer .klite-btn { flex: 1; }
         /* Dice (match v1) */
         .klite-dice-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; }
         .klite-dice-btn { padding: 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); cursor: pointer; transition: all 0.2s; }
@@ -4528,21 +4522,11 @@ export default function initAlpha() {
                 const wrap = document.getElementById('klite-panels-only');
                 if (!wrap) return;
 
-                // Bind panel CSS vars directly to Esolite theme vars (no hardcoded RGBs)
-                const binding = {
-                    bg: 'var(--theme_color_bg_outer)',
-                    bg2: 'var(--theme_color_bg)',
-                    bg3: 'var(--theme_color_bg_dark)',
-                    text: 'var(--theme_color_text)',
-                    muted: 'var(--theme_color_placeholder_text)',
-                    border: 'var(--theme_color_border)',
-                    'border-highlight': 'var(--theme_color_border_highlight)',
-                    accent: 'var(--theme_color_highlight)',
-                    primary: 'var(--theme_color_button_bg)',
-                    'primary-text': 'var(--theme_color_button_text)'
-                };
-                Object.entries(binding).forEach(([k, v]) => { try { wrap.style.setProperty(`--${k}`, v); } catch(_){} });
-                this.log('init', 'Applied theme variable bindings to panels-only wrapper');
+                // Theme variables are bound once in STYLES_PANELS_ONLY (:root, Esolite 1.35
+                // names). Clear any per-wrapper overrides so those bindings apply everywhere.
+                ['bg','bg2','bg3','text','muted','border','border-highlight','accent','primary','primary-text']
+                    .forEach(k => { try { wrap.style.removeProperty(`--${k}`); } catch(_){} });
+                this.log('init', 'Panels theme: using :root bindings to Esolite theme variables');
             } catch (e) { this.log('init', `Theme apply skipped: ${e?.message || e}`); }
         },
 

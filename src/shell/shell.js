@@ -51,6 +51,7 @@ export default function initShell() {
     let compact = false;
     let dom = null;            // built by mount()
     let wm = null;
+    let shownTab = null;       // right-dock view whose show() ran last
 
     const PLACES = new Set(['left', 'right', 'window']);
     function sortedViews(place) {
@@ -62,7 +63,9 @@ export default function initShell() {
     // ---- views ----------------------------------------------------------------
     // def = { id, title, place: 'left'|'right'|'window', order?, mount(container, api),
     //         update?(container, api), window?: { width, height, minWidth, minHeight },
-    //         eager?: true — right-dock view mounts at once instead of on first show }
+    //         eager?: true — right-dock view mounts at once instead of on first show,
+    //         show?(container, api) — called every time a right-dock view becomes the
+    //         selected tab (after mount/update) }
     function registerView(def) {
         if (!def || !def.id || !PLACES.has(def.place) || typeof def.mount !== 'function') {
             throw new Error('KLITE_RPMod_Shell.registerView: need { id, place: left|right|window, mount }');
@@ -84,6 +87,7 @@ export default function initShell() {
         if (v.def.place === 'window' && wm) wm.close(id);
         try { v.tab && v.tab.remove(); v.section && v.section.remove(); v.def.place === 'right' && v.container && v.container.remove(); } catch (_) {}
         views.delete(id);
+        if (shownTab === id) shownTab = null;
         if (dom) { if (v.def.place === 'right') renderTabs(); applyLayout(); }
     }
 
@@ -142,7 +146,14 @@ export default function initShell() {
             dom.tabs.appendChild(v.tab);
             v.container.classList.toggle('rpm-active', sel);
             if (sel && (!v.mounted || v.dirty)) mountOrUpdate(v);
+            if (sel && v.def.id !== shownTab) callShow(v);
         }
+    }
+
+    function callShow(v) {
+        shownTab = v.def.id;
+        if (typeof v.def.show !== 'function') return;
+        try { v.def.show(v.container, api); } catch (e) { console.error('[RPmod shell] view show failed:', v.def.id, e); }
     }
 
     function selectTab(id, { save = true } = {}) {
@@ -152,6 +163,7 @@ export default function initShell() {
             if (v.tab) v.tab.setAttribute('aria-selected', String(sel));
             if (v.container) v.container.classList.toggle('rpm-active', sel);
             if (sel && (!v.mounted || v.dirty)) mountOrUpdate(v);
+            if (sel && id !== shownTab) callShow(v);
         }
     }
 
@@ -326,9 +338,12 @@ export default function initShell() {
             if (document.getElementById('rpm-navbtn')) return true;
             const ul = document.querySelector('#navbarNavDropdown > ul');
             if (!ul) return false;
-            const btn = el('button', { id: 'rpm-navbtn', type: 'button', class: 'rpm-navbtn', title: 'RPmod panels', 'aria-label': 'Show or hide RPmod panels', 'aria-pressed': 'false',
-                style: 'display:flex;align-items:center;justify-content:center;height:42px;width:42px;background:transparent;border:0;cursor:pointer;color:var(--theme_color_fg, inherit)' }, [icon(ICONS.shell, 22)]);
-            btn.addEventListener('click', () => {
+            // Esolite's own top-bar button markup (a.nav-link.mainnav), so it is themed
+            // and sized exactly like "Library" / "Quick Start".
+            const btn = el('a', { id: 'rpm-navbtn', href: '#', role: 'button', class: 'nav-link mainnav', title: 'Show or hide the RPmod panels', 'aria-pressed': 'false',
+                style: 'display:flex;align-items:center;gap:6px' }, [icon(ICONS.shell, 16), el('span', { text: 'RPmod' })]);
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
                 const anyOpen = open.left || open.right;
                 if (mode === 'overlay') setDockOpen('right', !anyOpen);
                 else { setDockOpen('left', !anyOpen); setDockOpen('right', !anyOpen); }
@@ -341,21 +356,41 @@ export default function initShell() {
         const timer = setInterval(() => { if (attempt() || ++tries > 120) clearInterval(timer); }, 500);
     }
 
-    // ---- ALPHA: adopt its right panel (CHARS/ROLES/SCENARIO/TOOLS) as a tab --------
-    // ALPHA builds #panel-right asynchronously in its own fixed wrapper; we move the
-    // element into our dock. Its event delegation keys on closest('#panel-right'), so it
-    // keeps working after the move.
+    // ---- ALPHA: its right panel becomes four shell tabs ---------------------------
+    // ALPHA builds one #panel-right (sub-tabs CHARS/ROLES/SCENARIO/TOOLS) asynchronously
+    // in its own fixed wrapper. We move that element into the shell at once (a hidden
+    // stash, so it never floats over the page), hide ALPHA's own tab bar, and register one
+    // shell tab per sub-tab: showing a tab moves the panel into it and asks ALPHA to
+    // render that sub-tab. ALPHA's event delegation (closest('#panel-right')) keeps working.
+    const ALPHA_TABS = [
+        { key: 'CHARS', id: 'chars', title: 'Chars', order: 50 },
+        { key: 'ROLES', id: 'roles', title: 'Roles', order: 51 },
+        { key: 'SCENARIO', id: 'scenario', title: 'Scenario', order: 52 },
+        { key: 'TOOLS', id: 'tools', title: 'Tools', order: 53 },
+    ];
     function adoptAlphaPanel() {
         let tries = 0;
         const attempt = () => {
             const panel = document.getElementById('panel-right');
             if (!panel || !panel.classList.contains('klite-panel')) return false;
             if (panel.closest('#rpm-shell')) return true;
-            registerView({
-                id: 'alpha', title: 'Characters', place: 'right', order: 50, eager: true,
-                mount(container) { container.appendChild(panel); panel.classList.remove('collapsed'); },
-                update() {},   // ALPHA renders itself
-            });
+            const stash = el('div', { class: 'rpm-stash', 'aria-hidden': 'true' });
+            dom.root.appendChild(stash);
+            stash.appendChild(panel);
+            panel.classList.remove('collapsed');
+            const alpha = () => window.KLITE_RPMod;
+            for (const tab of ALPHA_TABS) {
+                registerView({
+                    id: tab.id, title: tab.title, place: 'right', order: tab.order,
+                    mount() {}, update() {},   // ALPHA renders itself
+                    show(container) {
+                        if (panel.parentNode !== container) container.appendChild(panel);
+                        const A = alpha();
+                        const current = A && A.state && A.state.tabs && A.state.tabs.right;
+                        if (A && typeof A.switchTab === 'function' && current !== tab.key) A.switchTab('right', tab.key);
+                    },
+                });
+            }
             return true;
         };
         if (attempt()) return;

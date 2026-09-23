@@ -168,18 +168,30 @@ test('a failing view shows a message instead of breaking the shell', async (t) =
     assert.throws(() => sh.registerView({ id: 'x', place: 'nowhere', mount() {} }));
 });
 
-test("ALPHA's right panel is adopted into the right dock as a tab", async (t) => {
-    const h = await shellHost(t); const doc = h.window.document;
+test("ALPHA's panel is adopted and split into four shell tabs (Chars/Roles/Scenario/Tools)", async (t) => {
+    const h = await shellHost(t); const doc = h.window.document; const w = h.window;
     h.shell().registerView({ id: 'first', title: 'First', place: 'right', order: 1, mount: () => {} });
+    // stand-in for ALPHA's API: switchTab re-renders the requested sub-tab
+    const calls = [];
+    w.KLITE_RPMod = { state: { tabs: { right: 'CHARS' } }, switchTab(side, key) { calls.push(side + ':' + key); this.state.tabs.right = key; } };
     // what ALPHA's buildPanelsOnlyUI() creates, asynchronously
     const wrap = doc.createElement('div'); wrap.id = 'klite-panels-only';
-    wrap.innerHTML = '<div class="klite-panel klite-panel-right collapsed" id="panel-right"><div class="klite-handle" data-panel="right">▶</div><div class="klite-content" id="content-right">chars</div></div>';
+    wrap.innerHTML = '<div class="klite-panel klite-panel-right collapsed" id="panel-right"><div class="klite-handle" data-panel="right">▶</div><div class="klite-tabs" data-panel="right"></div><div class="klite-content" id="content-right">chars</div></div>';
     doc.body.appendChild(wrap);
     await sleep(400);
     const panel = doc.getElementById('panel-right');
-    assert.ok(panel.closest('#rpm-shell'), 'moved into the shell');
+    assert.ok(panel.closest('#rpm-shell'), 'moved into the shell at once (never floats over the page)');
+    assert.ok(panel.closest('.rpm-stash'), 'parked hidden while no ALPHA tab is shown');
     assert.ok(!panel.classList.contains('collapsed'), 'ALPHA collapse state neutralised');
-    assert.ok($(h, '[data-tab="alpha"]'), 'Characters tab');
-    assert.equal($(h, '[data-tab="alpha"]').getAttribute('aria-selected'), 'false', 'adopted even while its tab is not shown');
+    assert.deepEqual($$(h, '#rpm-dock-right [role=tab]').map(b => b.textContent), ['First', 'Chars', 'Roles', 'Scenario', 'Tools']);
+
+    click($(h, '[data-tab="tools"]'), w);
+    assert.ok(panel.closest('#rpm-view-tools'), 'panel moved into the Tools tab');
+    assert.deepEqual(calls, ['right:TOOLS']);
+    click($(h, '[data-tab="chars"]'), w);
+    assert.ok(panel.closest('#rpm-view-chars'));
+    assert.deepEqual(calls, ['right:TOOLS', 'right:CHARS']);
+    click($(h, '[data-tab="chars"]'), w);
+    assert.deepEqual(calls.length, 2, 're-clicking the shown tab does not re-render');
     assert.equal(doc.querySelectorAll('#panel-right').length, 1);
 });

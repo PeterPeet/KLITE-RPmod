@@ -187,12 +187,26 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
 - **Persistence:** `localStorage['KLITE.shell.layout']` — dock open/width, saved tab (only
   explicit clicks), collapsed sections, window geometry/open. Per-browser convenience;
   corrupt data falls back to defaults.
-- **Design tokens** (`styles.js`): `--rpm-*` colours bound to Esolite's `--theme_color_*`
-  (1.35 names, older names, then neutral defaults), spacing `--rpm-s1…s4`, type
-  `--rpm-fs-*`, `--rpm-radius`. New UI must use these, not hard-coded colours.
-- **ALPHA adoption:** the shell moves ALPHA's `#panel-right` (built async) into the
-  "Characters" tab (eager) and neutralises its fixed positioning/collapse via CSS. ALPHA's
-  event delegation (`closest('#panel-right')`) keeps working.
+- **Look & feel = Esolite's own** (`styles.js`). No RPmod palette: `--rpm-*` tokens are
+  aliases of Esolite's `--theme_color_*` / `--theme_font_*` (1.35 names, older names, then
+  fallbacks for vanilla Lite); tokens are defined on `#rpm-shell` and on any element with
+  class `rpm-themed` (overlays outside the shell). Controls use Esolite's classes —
+  buttons `btn btn-primary rpm-btn` (+ `rpm-block/grow/lg/danger/success/on`), inputs
+  `form-control rpm-input` — dock headers/tabs mirror the top menu and `.nav-link`,
+  windows mirror `.context-usage-popup`, sections mirror `.popuptitlebar`. The top-bar
+  entry is a real `a.nav-link.mainnav`. Building blocks: `rpm-row/grow/label/muted/
+  heading/card/chip/bar/log/divider`. New UI must not hard-code colours or font sizes.
+- **RPmod theme variables in Esolite's theme editor:** `--theme_color_rpmod_quest`,
+  `_danger`, `_success`, `_info` get defaults on `:root`; Esolite's "Theme colours" editor
+  lists every `--theme_*` variable, so users can edit them and they are saved with a
+  custom theme (`localsettings.customThemeColours`).
+- **ALPHA adoption:** the shell moves ALPHA's `#panel-right` (built async) into a hidden
+  stash at once, hides ALPHA's own tab bar, and registers four tabs **Chars / Roles /
+  Scenario / Tools**; a view's `show()` hook moves the panel into the shown tab and calls
+  `KLITE_RPMod.switchTab('right', KEY)`. ALPHA's event delegation
+  (`closest('#panel-right')`) keeps working. ALPHA's panels-only CSS binds its `--bg/--text/
+  --primary…` to the same Esolite variables and styles its buttons, inputs, sections and
+  modals like Esolite's (`.klite-modal` now fully styled in panels-only mode).
 - **Top bar:** one `#rpm-navbtn` in `#navbarNavDropdown > ul` toggles the docks.
 
 ## 4. Worlds UI (`src/KLITE-RPmod_WorldsUI.js`)

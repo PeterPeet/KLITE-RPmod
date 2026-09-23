@@ -78,7 +78,7 @@ test('editor: World Rules + Description on the root node', async (t) => {
     assert.match(W.preview(), /Grimdark tone/);
 });
 
-test('editor: event triggers, person character link, dark preview', async (t) => {
+test('editor: event triggers, person character link, themed preview', async (t) => {
     const h = await uiHost(t); const w = h.window; const W = h.api();
     await W.newWorld('E'); W.addEntity('location', { name: 'Tavern' });
     const ev = W.addEntity('event', { name: 'Ev' });
@@ -101,10 +101,11 @@ test('editor: event triggers, person character link, dark preview', async (t) =>
     click(findButton(ov(), /Preview/), w);
     const pre = [...w.document.querySelectorAll('pre')].find(x => /\[Current Time\]/.test(x.textContent));
     assert.ok(pre, 'preview modal open');
-    // Esolite's global `pre{background-color:#f5f5f5}` must be overridden by an inline dark
-    // background. jsdom's CSS parser drops this (valid) combined style string entirely, so we
-    // guard the fix at source level; it was verified live in the browser (rgb(20,20,20)).
+    // Esolite's global `pre{background-color:#f5f5f5}` must be overridden by an inline
+    // themed background. jsdom's CSS parser drops this (valid) combined style string, so we
+    // guard the fix at source level; it was verified live in the browser.
     const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'KLITE-RPmod_WorldsUI.js'), 'utf8');
     const showPreview = src.slice(src.indexOf('function showPreview'), src.indexOf('function showPreview') + 1500);
-    assert.match(showPreview, /el\('pre', \{ style: '[^']*background:#141414/, 'preview <pre> declares a dark background');
+    assert.match(showPreview, /el\('pre', \{ style: '[^']*background:var\(--rpm-bg-chat\)/, 'preview <pre> declares a themed background');
+    assert.ok(pre.closest('.rpm-themed'), 'preview modal carries the theme token scope');
 });

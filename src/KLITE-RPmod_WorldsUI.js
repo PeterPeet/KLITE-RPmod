@@ -34,6 +34,7 @@ export default function initWorldsUI() {
     function el(tag, props, kids) {
         const e = document.createElement(tag);
         if (props) for (const k in props) {
+            if (props[k] == null) continue;
             if (k === 'style') e.style.cssText = props[k];
             else if (k === 'text') e.textContent = props[k];
             else if (k === 'class') e.className = props[k];
@@ -98,12 +99,12 @@ export default function initWorldsUI() {
         for (const e of S.G.edges) {
             const a = nodeById(e.from), b = nodeById(e.to);
             if (!a || !b) continue;
-            const line = svg('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: e.kind === 'contains' ? '#555' : '#8a8a8a', 'stroke-width': e.kind === 'contains' ? 1 : 1.6, 'marker-end': 'url(#wm-arrow)' });
+            const line = svg('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, style: e.kind === 'contains' ? 'stroke:var(--rpm-border);opacity:.8' : 'stroke:var(--rpm-fg-muted)', 'stroke-width': e.kind === 'contains' ? 1 : 1.6, 'marker-end': 'url(#wm-arrow)' });
             if (e.kind === 'contains') line.setAttribute('stroke-dasharray', '4 4');
             S.gEdges.appendChild(line);
             if (e.kind !== 'contains') {
                 const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-                const t = svg('text', { x: mx, y: my - 3, 'text-anchor': 'middle', 'font-size': 9, fill: '#999' }); t.textContent = e.kind;
+                const t = svg('text', { x: mx, y: my - 3, 'text-anchor': 'middle', 'font-size': 9, style: 'fill:var(--rpm-fg-muted)' }); t.textContent = e.kind;
                 S.gEdges.appendChild(t);
             }
         }
@@ -120,7 +121,7 @@ export default function initWorldsUI() {
             if (isRoot) g.setAttribute('transform', `translate(${n.x - w / 2},${n.y - h / 2})`);
             const rect = svg('rect', { x: 0, y: 0, width: w, height: h, rx: 10, fill: TYPE_COLOR[n.type] || '#666' });
             g.appendChild(rect);
-            if (n.id === S.selectedId) g.appendChild(svg('rect', { x: -3, y: -3, width: w + 6, height: h + 6, rx: 12, fill: 'none', stroke: '#fff', 'stroke-width': 2 }));
+            if (n.id === S.selectedId) g.appendChild(svg('rect', { x: -3, y: -3, width: w + 6, height: h + 6, rx: 12, fill: 'none', style: 'stroke:var(--rpm-fg-hi)', 'stroke-width': 2.5 }));
             if (n.id === S.linkSource) g.appendChild(svg('rect', { x: -3, y: -3, width: w + 6, height: h + 6, rx: 12, fill: 'none', stroke: '#ff3ea5', 'stroke-width': 2 }));
             const name = svg('text', { x: 12, y: 22, 'font-size': 13, 'font-weight': 500, fill: '#fff' }); name.textContent = clip(n.name, 20);
             const type = svg('text', { x: 12, y: 37, 'font-size': 10, fill: 'rgba(255,255,255,.8)' }); type.textContent = isRoot ? 'World · root' : n.type + (n.id === S.selectedId ? ' · selected' : '');
@@ -129,7 +130,7 @@ export default function initWorldsUI() {
             if (n.type === 'npc') {
                 let mk = ''; try { mk = API().personQuestMarker(n.id) || ''; } catch (_) {}
                 if (mk) {
-                    g.appendChild(svg('circle', { cx: w - 10, cy: 10, r: 9, fill: mk === '!' ? '#E5B93B' : '#7Fc97F', stroke: '#1b1b1b', 'stroke-width': 1.5 }));
+                    g.appendChild(svg('circle', { cx: w - 10, cy: 10, r: 9, style: `fill:${mk === '!' ? 'var(--rpm-quest)' : 'var(--rpm-success)'}`, stroke: '#1b1b1b', 'stroke-width': 1.5 }));
                     const mt = svg('text', { x: w - 10, y: 14, 'font-size': 13, 'font-weight': 700, 'text-anchor': 'middle', fill: '#1b1b1b' }); mt.textContent = mk;
                     g.appendChild(mt);
                 }
@@ -208,7 +209,7 @@ export default function initWorldsUI() {
 
     function setTool(t) {
         S.tool = t; S.linkSource = null;
-        S.overlay.querySelectorAll('[data-tool]').forEach(b => b.style.outline = (b.getAttribute('data-tool') === t ? '2px solid #6cf' : 'none'));
+        S.overlay.querySelectorAll('[data-tool]').forEach(b => b.style.outline = (b.getAttribute('data-tool') === t ? '2px solid var(--rpm-fg-hi)' : 'none'));
         draw();
     }
 
@@ -243,13 +244,13 @@ export default function initWorldsUI() {
     function renderInspector() {
         const box = S.inspector; clear(box);
         const A = API();
-        if (!S.selectedId) { box.appendChild(el('div', { style: 'color:#888;font-size:13px;padding:8px 2px', text: 'Select a node to edit, or add one from the palette.' })); return; }
+        if (!S.selectedId) { box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs);padding:8px 2px', text: 'Select a node to edit, or add one from the palette.' })); return; }
         const type = A.entityType(S.selectedId) || (S.selectedId === '__world__' ? 'world' : null);
         const ent = A.entityById(S.selectedId);
         if (!ent || !type) return;
         box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:8px;margin-bottom:8px' }, [
-            el('span', { style: `background:${TYPE_COLOR[type]};color:#fff;border-radius:6px;padding:2px 8px;font-size:11px;text-transform:capitalize`, text: type }),
-            el('span', { style: 'color:#999;font-size:11px', text: '#' + String(S.selectedId).slice(-4) })
+            el('span', { style: `background:${TYPE_COLOR[type]};color:#fff;border-radius:6px;padding:2px 8px;font-size:var(--rpm-fs-sm);text-transform:capitalize`, text: type }),
+            el('span', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)', text: '#' + String(S.selectedId).slice(-4) })
         ]));
         if (type !== 'world') {
             const tsel = el('select', { style: inputCss(false) + ';cursor:pointer' });
@@ -262,7 +263,7 @@ export default function initWorldsUI() {
             box.appendChild(tsel);
         }
         for (const [field, label, kind] of (FIELDS[type] || [])) {
-            box.appendChild(el('label', { style: 'display:block;color:#aaa;font-size:11px;margin:8px 0 3px', text: label }));
+            box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:8px 0 3px', text: label }));
             let cur = ent[field]; if (field === 'keys') cur = Array.isArray(ent.keys) ? ent.keys.join(', ') : (ent.keys || '');
             const input = kind === 'area'
                 ? el('textarea', { style: inputCss(true), rows: 4 })
@@ -286,33 +287,33 @@ export default function initWorldsUI() {
         if (type === 'faction') renderFactionExtras(box, ent);
         // connections
         const conns = S.G.edges.filter(e => (e.from === S.selectedId || e.to === S.selectedId) && e.kind !== 'contains');
-        box.appendChild(el('div', { style: 'color:#aaa;font-size:11px;font-weight:500;margin:14px 0 4px', text: 'Connections' }));
-        if (!conns.length) box.appendChild(el('div', { style: 'color:#777;font-size:11px', text: 'None. Use the Link tool to connect nodes.' }));
+        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:14px 0 4px', text: 'Connections' }));
+        if (!conns.length) box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)', text: 'None. Use the Link tool to connect nodes.' }));
         for (const e of conns) {
             const otherId = e.from === S.selectedId ? e.to : e.from;
             const other = nodeById(otherId);
-            const row = el('div', { style: 'display:flex;align-items:center;justify-content:space-between;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:6px;padding:4px 8px;margin-top:4px' }, [
-                el('span', { style: 'font-size:11px;color:#ddd' }, [`→ ${clip(other ? other.name : otherId, 18)} `, el('span', { style: 'color:#888', text: e.kind })]),
-                el('span', { style: 'cursor:pointer;color:#e66;font-size:14px;padding:0 4px', text: '×', onclick: () => { API().disconnect(e.from, e.to); reloadGraph(); draw(); renderInspector(); } })
+            const row = el('div', { style: 'display:flex;align-items:center;justify-content:space-between;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:4px 8px;margin-top:4px' }, [
+                el('span', { style: 'font-size:var(--rpm-fs-sm);color:var(--rpm-fg)' }, [`→ ${clip(other ? other.name : otherId, 18)} `, el('span', { style: 'color:var(--rpm-fg-muted)', text: e.kind })]),
+                el('span', { style: 'cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs);padding:0 4px', text: '×', onclick: () => { API().disconnect(e.from, e.to); reloadGraph(); draw(); renderInspector(); } })
             ]);
             box.appendChild(row);
         }
         if (type !== 'world') {
             box.appendChild(el('button', {
-                style: 'margin-top:16px;background:#5a1f1f;color:#f2b8b8;border:1px solid #7a2a2a;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;width:100%',
+                class: 'btn btn-primary rpm-btn rpm-block rpm-danger', style: 'margin-top:16px',
                 text: '🗑  Delete node',
                 onclick: () => { if (confirm('Delete this node?')) { API().deleteEntity(S.selectedId); S.selectedId = null; reloadGraph(); draw(); renderInspector(); } }
             }));
         }
     }
-    function inputCss(area) { return `width:100%;box-sizing:border-box;background:#242424;color:#eee;border:1px solid #3a3a3a;border-radius:6px;padding:6px 8px;font-size:12px;${area ? 'resize:vertical;font-family:inherit' : ''}`; }
+    function inputCss(area) { return `width:100%;box-sizing:border-box;background:var(--rpm-input-bg);color:var(--rpm-input-fg);border:1px solid var(--rpm-border);border-radius:4px;padding:4px 6px;font-size:var(--rpm-fs-sm);font-family:inherit;${area ? 'resize:vertical' : ''}`; }
 
     // Person-only inspector extras: link a library character + a d20 stat block.
     const ABIL = ['str', 'dex', 'con', 'int', 'wis', 'cha'];
     function renderPersonExtras(box, ent) {
         const A = API();
         // ---- character link ----
-        box.appendChild(el('div', { style: 'color:#aaa;font-size:11px;font-weight:500;margin:14px 0 4px', text: 'Character (from library)' }));
+        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:14px 0 4px', text: 'Character (from library)' }));
         const chars = A.listCharacters();
         const csel = el('select', { style: inputCss(false) + ';cursor:pointer' });
         csel.appendChild(el('option', { value: '', text: chars.length ? '— not linked —' : '(no characters in library)' }));
@@ -325,33 +326,33 @@ export default function initWorldsUI() {
         });
         box.appendChild(csel);
         const resolved = A.resolvePersonCharacter(S.selectedId);
-        if (ent.characterRef) box.appendChild(el('div', { style: `font-size:10px;margin-top:3px;color:${resolved ? '#8fca8f' : '#e0a24a'}`, text: resolved ? `Linked: ${resolved.name}` : `Linked to "${ent.characterRef.name || ent.characterRef.id}" (not found in library)` }));
+        if (ent.characterRef) box.appendChild(el('div', { style: `font-size:10px;margin-top:3px;color:${resolved ? 'var(--rpm-success)' : 'var(--rpm-quest)'}`, text: resolved ? `Linked: ${resolved.name}` : `Linked to "${ent.characterRef.name || ent.characterRef.id}" (not found in library)` }));
 
         // ---- d20 stat block ----
         box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:8px;margin:14px 0 4px' }, [
-            el('span', { style: 'color:#aaa;font-size:11px;font-weight:500;flex:1', text: 'Stats (d20)' }),
+            el('span', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;flex:1', text: 'Stats (d20)' }),
             ent.stats
-                ? el('span', { style: 'cursor:pointer;color:#e66;font-size:10px', text: 'remove', onclick: () => { A.clearStats(S.selectedId); renderInspector(); } })
-                : el('span', { style: 'cursor:pointer;color:#8ac6f0;font-size:10px', text: '+ add', onclick: () => { A.setStats(S.selectedId, {}); renderInspector(); } })
+                ? el('span', { style: 'cursor:pointer;color:var(--rpm-danger);font-size:10px', text: 'remove', onclick: () => { A.clearStats(S.selectedId); renderInspector(); } })
+                : el('span', { style: 'cursor:pointer;color:var(--rpm-info);font-size:10px', text: '+ add', onclick: () => { A.setStats(S.selectedId, {}); renderInspector(); } })
         ]));
-        if (!ent.stats) { box.appendChild(el('div', { style: 'color:#777;font-size:11px', text: 'No stat block. Add one for combat & checks.' })); return; }
+        if (!ent.stats) { box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)', text: 'No stat block. Add one for combat & checks.' })); return; }
         const s = A.getStats(S.selectedId);
         // ability grid
         const grid = el('div', { style: 'display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:6px' });
         for (const a of ABIL) {
             const wrap = el('div', { style: 'text-align:center' });
-            wrap.appendChild(el('div', { style: 'color:#999;font-size:9px;text-transform:uppercase', text: a }));
+            wrap.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:9px;text-transform:uppercase', text: a }));
             const inp = el('input', { type: 'number', value: s.abilities[a], style: inputCss(false) + ';text-align:center;padding:3px' });
             inp.addEventListener('change', () => { A.setStats(S.selectedId, { abilities: { [a]: Number(inp.value) } }); renderInspector(); });
             wrap.appendChild(inp);
-            wrap.appendChild(el('div', { style: 'color:#8ac6f0;font-size:9px', text: `(${A.abilityMod(Number(inp.value)) >= 0 ? '+' : ''}${A.abilityMod(Number(inp.value))})` }));
+            wrap.appendChild(el('div', { style: 'color:var(--rpm-info);font-size:9px', text: `(${A.abilityMod(Number(inp.value)) >= 0 ? '+' : ''}${A.abilityMod(Number(inp.value))})` }));
             grid.appendChild(wrap);
         }
         box.appendChild(grid);
         // derived numeric fields
         const numRow = (label, key) => {
             const wrap = el('div', {});
-            wrap.appendChild(el('label', { style: 'display:block;color:#999;font-size:10px', text: label }));
+            wrap.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:10px', text: label }));
             const inp = el('input', { type: 'number', value: s[key], style: inputCss(false) + ';padding:4px' });
             inp.addEventListener('change', () => { A.setStats(S.selectedId, { [key]: Number(inp.value) }); });
             wrap.appendChild(inp); return wrap;
@@ -359,7 +360,7 @@ export default function initWorldsUI() {
         const r1 = el('div', { style: 'display:grid;grid-template-columns:1fr 1fr;gap:5px' }, [numRow('AC', 'ac'), numRow('HP max', 'hpMax')]);
         const r2 = el('div', { style: 'display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:5px' }, [numRow('Speed', 'speed'), numRow('Prof', 'proficiency'), numRow('Init', 'initiativeMod')]);
         box.appendChild(r1); box.appendChild(r2);
-        const monWrap = el('label', { style: 'display:flex;align-items:center;gap:6px;margin-top:6px;color:#bbb;font-size:11px;cursor:pointer' });
+        const monWrap = el('label', { style: 'display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer' });
         const mon = el('input', { type: 'checkbox', style: 'cursor:pointer' }); mon.checked = !!s.isMonster;
         mon.addEventListener('change', () => { A.setStats(S.selectedId, { isMonster: mon.checked }); });
         monWrap.appendChild(mon); monWrap.appendChild(document.createTextNode('Monster / NPC combatant'));
@@ -370,7 +371,7 @@ export default function initWorldsUI() {
     function renderQuestExtras(box, ent) {
         const A = API();
         // hidden checkbox
-        const hidWrap = el('label', { style: 'display:flex;align-items:center;gap:6px;margin:12px 0 4px;color:#bbb;font-size:11px;cursor:pointer' });
+        const hidWrap = el('label', { style: 'display:flex;align-items:center;gap:6px;margin:12px 0 4px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer' });
         const hid = el('input', { type: 'checkbox', style: 'cursor:pointer' }); hid.checked = !!ent.hidden;
         hid.addEventListener('change', () => { A.updateEntity(S.selectedId, { hidden: hid.checked }); });
         hidWrap.appendChild(hid); hidWrap.appendChild(document.createTextNode('Hidden from player until discovered'));
@@ -379,7 +380,7 @@ export default function initWorldsUI() {
         // giver / turn-in person dropdowns
         const persons = A.getGraph().nodes.filter(n => n.type === 'npc');
         const personSel = (field, label, marker) => {
-            box.appendChild(el('label', { style: 'display:block;color:#aaa;font-size:11px;margin:8px 0 3px' }, [marker + ' ' + label]));
+            box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:8px 0 3px' }, [marker + ' ' + label]));
             const s = el('select', { style: inputCss(false) + ';cursor:pointer' });
             s.appendChild(el('option', { value: '', text: '— none —' }));
             for (const p of persons) { const o = el('option', { value: p.id, text: p.name }); if (ent[field] === p.id) o.selected = true; s.appendChild(o); }
@@ -390,51 +391,51 @@ export default function initWorldsUI() {
         personSel('turninPersonId', 'Turn-in to', '?');
 
         // rewards (simple text lines: "name xN" or "N xp")
-        box.appendChild(el('label', { style: 'display:block;color:#aaa;font-size:11px;margin:10px 0 3px', text: 'Rewards' }));
+        box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:10px 0 3px', text: 'Rewards' }));
         const rewards = asArrayU(ent.rewards);
         for (let i = 0; i < rewards.length; i++) {
             const r = rewards[i];
-            box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:#242424;border:1px solid #3a3a3a;border-radius:6px;padding:3px 8px;margin-top:3px' }, [
-                el('span', { style: 'flex:1;color:#ddd;font-size:11px', text: r.xp ? `${r.xp} XP` : (r.item ? `${r.item}${r.qty > 1 ? ' ×' + r.qty : ''}` : JSON.stringify(r)) }),
-                el('span', { style: 'cursor:pointer;color:#e66;font-size:13px', text: '×', onclick: () => { rewards.splice(i, 1); A.updateEntity(S.selectedId, { rewards }); renderInspector(); } })
+            box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px' }, [
+                el('span', { style: 'flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm)', text: r.xp ? `${r.xp} XP` : (r.item ? `${r.item}${r.qty > 1 ? ' ×' + r.qty : ''}` : JSON.stringify(r)) }),
+                el('span', { style: 'cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs)', text: '×', onclick: () => { rewards.splice(i, 1); A.updateEntity(S.selectedId, { rewards }); renderInspector(); } })
             ]));
         }
         const rIn = el('input', { type: 'text', placeholder: 'e.g. Gold Ring x1  or  100 xp', style: inputCss(false) });
         box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px' }, [rIn,
-            el('button', { style: 'background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer', text: '＋', onclick: () => { const r = parseReward(rIn.value); if (!r) return; const rw = asArrayU(ent.rewards); rw.push(r); A.updateEntity(S.selectedId, { rewards: rw }); renderInspector(); } })
+            el('button', { type: 'button', class: 'btn btn-primary rpm-btn', style: '', text: '＋', onclick: () => { const r = parseReward(rIn.value); if (!r) return; const rw = asArrayU(ent.rewards); rw.push(r); A.updateEntity(S.selectedId, { rewards: rw }); renderInspector(); } })
         ]));
 
         // objectives (text + hidden toggle)
-        box.appendChild(el('label', { style: 'display:block;color:#aaa;font-size:11px;margin:10px 0 3px', text: 'Objectives' }));
+        box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:10px 0 3px', text: 'Objectives' }));
         const objs = asArrayU(ent.objectives);
         for (let i = 0; i < objs.length; i++) {
             const o = objs[i];
-            box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:#242424;border:1px solid #3a3a3a;border-radius:6px;padding:3px 8px;margin-top:3px' }, [
-                el('span', { style: 'flex:1;color:#ddd;font-size:11px', text: (o.hidden ? '🔒 ' : '') + (o.text || '') }),
-                el('span', { style: 'cursor:pointer;color:#e66;font-size:13px', text: '×', onclick: () => { objs.splice(i, 1); A.updateEntity(S.selectedId, { objectives: objs }); renderInspector(); } })
+            box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px' }, [
+                el('span', { style: 'flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm)', text: (o.hidden ? '🔒 ' : '') + (o.text || '') }),
+                el('span', { style: 'cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs)', text: '×', onclick: () => { objs.splice(i, 1); A.updateEntity(S.selectedId, { objectives: objs }); renderInspector(); } })
             ]));
         }
         const oIn = el('input', { type: 'text', placeholder: 'objective text', style: inputCss(false) });
         box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px' }, [oIn,
-            el('button', { style: 'background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer', text: '＋', onclick: () => { const t = oIn.value.trim(); if (!t) return; const ob = asArrayU(ent.objectives); ob.push({ id: 'obj_' + Math.random().toString(36).slice(2, 7), text: t, hidden: false }); A.updateEntity(S.selectedId, { objectives: ob }); renderInspector(); } })
+            el('button', { type: 'button', class: 'btn btn-primary rpm-btn', style: '', text: '＋', onclick: () => { const t = oIn.value.trim(); if (!t) return; const ob = asArrayU(ent.objectives); ob.push({ id: 'obj_' + Math.random().toString(36).slice(2, 7), text: t, hidden: false }); A.updateEntity(S.selectedId, { objectives: ob }); renderInspector(); } })
         ]));
     }
     // World root extras: the World Rules list (one rule per line) — these are what the AI
     // sees as [World Rules]. Bound to world.rules; blank lines are trimmed at injection.
     function renderWorldExtras(box, ent) {
         const A = API();
-        box.appendChild(el('label', { style: 'display:block;color:#aaa;font-size:11px;margin:12px 0 3px', text: 'World Rules (one per line)' }));
+        box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px', text: 'World Rules (one per line)' }));
         const ta = el('textarea', { style: inputCss(true), rows: 5, placeholder: 'e.g.\nMedieval low-fantasy tone.\nWhen the scene changes location, emit <move>Name</move>.' });
         ta.value = (Array.isArray(ent.rules) ? ent.rules : []).join('\n');
         ta.addEventListener('input', () => { A.updateEntity('__world__', { rules: ta.value.split('\n') }); });
         box.appendChild(ta);
-        box.appendChild(el('div', { style: 'color:#777;font-size:10px;margin-top:3px', text: 'Shown to the AI as [World Rules]. The Description above is shown as the world premise.' }));
+        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:10px;margin-top:3px', text: 'Shown to the AI as [World Rules]. The Description above is shown as the world premise.' }));
     }
 
     // Faction-only extras: headquarters location.
     function renderFactionExtras(box, ent) {
         const A = API();
-        box.appendChild(el('label', { style: 'display:block;color:#aaa;font-size:11px;margin:12px 0 3px', text: '🏰 Headquarters (location)' }));
+        box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px', text: '🏰 Headquarters (location)' }));
         const locs = A.getGraph().nodes.filter(n => n.type === 'location');
         const s = el('select', { style: inputCss(false) + ';cursor:pointer' });
         s.appendChild(el('option', { value: '', text: '— none —' }));
@@ -484,15 +485,15 @@ export default function initWorldsUI() {
     }
     // Renders an editable list of {type, ...params} against a SPEC; saves via onSave.
     function structuredList(box, label, items, SPEC, onSave) {
-        box.appendChild(el('div', { style: 'color:#aaa;font-size:11px;font-weight:500;margin:12px 0 4px', text: label }));
+        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:12px 0 4px', text: label }));
         items.forEach((item, i) => {
-            const row = el('div', { style: 'background:#242424;border:1px solid #3a3a3a;border-radius:6px;padding:5px;margin-bottom:4px' });
+            const row = el('div', { style: 'background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:5px;margin-bottom:4px' });
             const head = el('div', { style: 'display:flex;gap:5px;align-items:center' });
             const tsel = el('select', { style: inputCss(false) + ';cursor:pointer;flex:1' });
             for (const t of Object.keys(SPEC)) { const o = el('option', { value: t, text: t }); if (item.type === t) o.selected = true; tsel.appendChild(o); }
             tsel.addEventListener('change', () => { items[i] = { type: tsel.value }; onSave(items); });
             head.appendChild(tsel);
-            head.appendChild(el('span', { style: 'cursor:pointer;color:#e66;font-size:14px;padding:0 3px', text: '×', onclick: () => { items.splice(i, 1); onSave(items); } }));
+            head.appendChild(el('span', { style: 'cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs);padding:0 3px', text: '×', onclick: () => { items.splice(i, 1); onSave(items); } }));
             row.appendChild(head);
             const spec = SPEC[item.type] || [];
             if (spec.length) {
@@ -503,13 +504,13 @@ export default function initWorldsUI() {
             box.appendChild(row);
         });
         const firstType = Object.keys(SPEC)[0];
-        box.appendChild(el('button', { style: 'background:#2e2e2e;color:#9cf;border:1px solid #345;border-radius:6px;padding:4px 8px;font-size:11px;cursor:pointer', text: '＋ add', onclick: () => { items.push({ type: firstType }); onSave(items); } }));
+        box.appendChild(el('button', { type: 'button', class: 'btn btn-primary rpm-btn', style: '', text: '＋ add', onclick: () => { items.push({ type: firstType }); onSave(items); } }));
     }
     function renderEventExtras(box, ent) {
         const A = API();
         // hidden + repeatable
         const flags = el('div', { style: 'display:flex;gap:14px;margin:12px 0 4px' });
-        const mk = (label, key) => { const w = el('label', { style: 'display:flex;align-items:center;gap:5px;color:#bbb;font-size:11px;cursor:pointer' }); const c = el('input', { type: 'checkbox', style: 'cursor:pointer' }); c.checked = !!ent[key]; c.addEventListener('change', () => A.updateEntity(S.selectedId, { [key]: c.checked })); w.appendChild(c); w.appendChild(document.createTextNode(label)); return w; };
+        const mk = (label, key) => { const w = el('label', { style: 'display:flex;align-items:center;gap:5px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer' }); const c = el('input', { type: 'checkbox', style: 'cursor:pointer' }); c.checked = !!ent[key]; c.addEventListener('change', () => A.updateEntity(S.selectedId, { [key]: c.checked })); w.appendChild(c); w.appendChild(document.createTextNode(label)); return w; };
         flags.appendChild(mk('Hidden', 'hidden')); flags.appendChild(mk('Repeatable', 'repeatable'));
         box.appendChild(flags);
         structuredList(box, 'Triggers (any fires the event)', asArrayU(ent.triggers), TRIGGER_SPEC, its => { A.updateEntity(S.selectedId, { triggers: its }); reloadGraph(); draw(); renderInspectorParamsOnly(); });
@@ -524,48 +525,49 @@ export default function initWorldsUI() {
     // =======================================================================
     //  OVERLAY CHROME
     // =======================================================================
-    function btn(label, onclick, extra) { return el('button', { style: `background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer;${extra || ''}`, text: label, onclick }); }
+    // editor toolbar button: Esolite .btn-primary (variant: 'success' | 'danger')
+    function btn(label, onclick, variant) { return el('button', { type: 'button', class: 'btn btn-primary rpm-btn' + (variant ? ' rpm-' + variant : ''), text: label, onclick }); }
 
     function buildOverlay() {
         const A = API();
-        const overlay = el('div', { id: 'wm-overlay', style: 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif' });
-        const panel = el('div', { style: 'width:94%;height:92%;background:#1b1b1b;border:1px solid #3a3a3a;border-radius:14px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.5)' });
+        const overlay = el('div', { id: 'wm-overlay', style: 'position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;font-family:var(--rpm-font)', class: 'rpm-themed' });
+        const panel = el('div', { role: 'dialog', 'aria-label': 'Worlds editor', style: 'width:94%;height:92%;background:var(--rpm-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:var(--rpm-radius-lg);display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--rpm-shadow)' });
 
         // header
-        S.worldNameInput = el('input', { type: 'text', style: 'background:#262626;color:#fff;border:1px solid #3a3a3a;border-radius:6px;padding:5px 8px;font-size:14px;width:230px' });
+        S.worldNameInput = el('input', { type: 'text', class: 'form-control rpm-input', 'aria-label': 'World name', style: 'width:230px;font-size:var(--rpm-fs)' });
         S.worldNameInput.value = (A.activeWorld() && A.activeWorld().name) || '';
         S.worldNameInput.addEventListener('input', () => { A.updateEntity('__world__', { name: S.worldNameInput.value }); const n = nodeById('__world__'); if (n) { n.name = S.worldNameInput.value; draw(); } });
-        const header = el('div', { style: 'display:flex;align-items:center;gap:10px;padding:8px 12px;background:#242424;border-bottom:1px solid #333' }, [
-            el('span', { style: 'color:#888;font-size:13px', text: 'World' }), S.worldNameInput,
+        const header = el('div', { style: 'display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);font-weight:bold' }, [
+            el('span', { text: 'World' }), S.worldNameInput,
             el('div', { style: 'flex:1' }),
             btn('−', () => { S.scale = Math.max(0.2, S.scale / 1.1); applyViewport(); updateZoomLabel(); }),
-            el('span', { id: 'wm-zoom', style: 'color:#bbb;font-size:12px;min-width:42px;text-align:center', text: '100%' }),
+            el('span', { id: 'wm-zoom', style: 'font-size:var(--rpm-fs-sm);min-width:42px;text-align:center', text: '100%' }),
             btn('+', () => { S.scale = Math.min(3, S.scale * 1.1); applyViewport(); updateZoomLabel(); }),
             btn('Fit', () => fit()),
             btn('Preview', () => showPreview()),
-            btn('Save', async () => { await A.saveActiveWorld(); toast('World saved'); }, 'background:#1f4a2e;color:#b8f2c8;border-color:#2a7a45'),
-            btn('✕', () => closeEditor(), 'background:#333')
+            btn('Save', async () => { await A.saveActiveWorld(); toast('World saved'); }, 'success'),
+            btn('✕', () => closeEditor())
         ]);
 
         // palette + tools rail
-        const rail = el('div', { style: 'width:170px;background:#202020;border-right:1px solid #333;padding:10px;overflow:auto' });
-        rail.appendChild(el('div', { style: 'color:#999;font-size:11px;font-weight:500;margin-bottom:6px', text: 'Add node' }));
+        const rail = el('div', { style: 'width:170px;background:var(--rpm-bg);border-right:1px solid var(--rpm-border);padding:10px;overflow:auto' });
+        rail.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin-bottom:6px', text: 'Add node' }));
         for (const t of TYPES) rail.appendChild(el('button', {
-            style: `display:block;width:100%;text-align:left;background:${TYPE_COLOR[t]};color:#fff;border:none;border-radius:6px;padding:6px 9px;font-size:12px;cursor:pointer;margin-bottom:5px;text-transform:capitalize`,
+            style: `display:block;width:100%;text-align:left;background:${TYPE_COLOR[t]};color:#fff;border:none;border-radius:var(--rpm-radius);padding:6px 9px;font-size:var(--rpm-fs-sm);font-weight:bold;cursor:pointer;margin-bottom:5px;text-transform:capitalize`,
             text: '＋ ' + t, onclick: () => addNodeCentered(t)
         }));
-        rail.appendChild(el('div', { style: 'height:1px;background:#333;margin:10px 0' }));
-        rail.appendChild(el('div', { style: 'color:#999;font-size:11px;font-weight:500;margin-bottom:6px', text: 'Tool' }));
+        rail.appendChild(el('div', { style: 'height:1px;background:var(--rpm-border);margin:10px 0' }));
+        rail.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin-bottom:6px', text: 'Tool' }));
         const tools = el('div', { style: 'display:flex;gap:6px' }, ['select', 'link', 'pan'].map(t =>
-            el('button', { 'data-tool': t, style: 'flex:1;background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:6px 4px;font-size:11px;cursor:pointer;text-transform:capitalize', text: t, onclick: () => setTool(t) })));
+            el('button', { type: 'button', 'data-tool': t, class: 'btn btn-primary rpm-btn', style: 'flex:1;text-transform:capitalize', text: t, onclick: () => setTool(t) })));
         rail.appendChild(tools);
-        rail.appendChild(el('div', { style: 'color:#777;font-size:10px;margin-top:8px;line-height:1.5', text: 'Select: move nodes. Link: click two nodes to connect. Pan/empty-drag: move canvas. Wheel: zoom.' }));
+        rail.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:10px;margin-top:8px;line-height:1.5', text: 'Select: move nodes. Link: click two nodes to connect. Pan/empty-drag: move canvas. Wheel: zoom.' }));
 
         // canvas
-        const svgRoot = svg('svg', { style: 'flex:1;background:#151515;display:block' });
+        const svgRoot = svg('svg', { style: 'flex:1;background:var(--rpm-bg-chat);display:block' });
         const defs = svg('defs');
         const marker = svg('marker', { id: 'wm-arrow', markerWidth: 9, markerHeight: 9, refX: 8, refY: 3, orient: 'auto' });
-        const mpath = svg('path', { d: 'M0,0 L8,3 L0,6 Z', fill: '#8a8a8a' }); marker.appendChild(mpath); defs.appendChild(marker);
+        const mpath = svg('path', { d: 'M0,0 L8,3 L0,6 Z', style: 'fill:var(--rpm-fg-muted)' }); marker.appendChild(mpath); defs.appendChild(marker);
         svgRoot.appendChild(defs);
         const bg = svg('rect', { x: -5000, y: -5000, width: 10000, height: 10000, fill: 'transparent' });
         const viewport = svg('g');
@@ -576,8 +578,8 @@ export default function initWorldsUI() {
         svgRoot.addEventListener('wheel', onWheel, { passive: false });
 
         // inspector
-        const inspector = el('div', { style: 'width:280px;background:#202020;border-left:1px solid #333;padding:12px;overflow:auto' });
-        inspector.appendChild(el('div', { style: 'color:#ddd;font-size:14px;font-weight:500;margin-bottom:8px', text: 'Inspector' }));
+        const inspector = el('div', { style: 'width:280px;background:var(--rpm-bg);border-left:1px solid var(--rpm-border);padding:12px;overflow:auto' });
+        inspector.appendChild(el('div', { style: 'color:var(--rpm-fg);font-size:var(--rpm-fs);font-weight:bold;margin-bottom:8px', text: 'Inspector' }));
         const inspBody = el('div');
         inspector.appendChild(inspBody);
 
@@ -602,11 +604,11 @@ export default function initWorldsUI() {
 
     function showPreview() {
         const txt = API().preview() || '(nothing — enable the world and set a location)';
-        const modal = el('div', { style: 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center', onclick: (ev) => { if (ev.target === modal) modal.remove(); } });
-        const box = el('div', { style: 'width:60%;max-height:75%;overflow:auto;background:#1c1c1c;border:1px solid #3a3a3a;border-radius:12px;padding:16px' }, [
-            el('div', { style: 'color:#ddd;font-size:14px;font-weight:500;margin-bottom:8px', text: 'What the AI will see (current runtime slice)' }),
-            el('pre', { style: 'white-space:pre-wrap;color:#cfcfcf;background:#141414;border:1px solid #333;border-radius:8px;padding:10px;margin:0;font-size:12px;line-height:1.5;font-family:ui-monospace,monospace' , text: txt }),
-            el('button', { style: 'margin-top:10px;background:#2e2e2e;color:#ddd;border:1px solid #444;border-radius:6px;padding:6px 12px;cursor:pointer', text: 'Close', onclick: () => modal.remove() })
+        const modal = el('div', { class: 'rpm-themed', style: 'position:fixed;inset:0;z-index:100001;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center', onclick: (ev) => { if (ev.target === modal) modal.remove(); } });
+        const box = el('div', { role: 'dialog', 'aria-label': 'What the AI will see', style: 'width:min(760px,92vw);max-height:80%;display:flex;flex-direction:column;overflow:hidden;background:var(--rpm-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:var(--rpm-radius-lg);box-shadow:var(--rpm-shadow)' }, [
+            el('div', { style: 'padding:8px 10px;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);font-weight:bold', text: 'What the AI will see (current runtime slice)' }),
+            el('pre', { style: 'flex:1;overflow:auto;white-space:pre-wrap;color:var(--rpm-fg);background:var(--rpm-bg-chat);border:1px solid var(--rpm-border);border-radius:var(--rpm-radius);padding:10px;margin:10px;font-size:var(--rpm-fs-sm);line-height:1.5;font-family:ui-monospace,monospace' , text: txt }),
+            el('div', { style: 'display:flex;justify-content:center;padding:8px;border-top:1px solid var(--rpm-border)' }, [el('button', { type: 'button', class: 'btn btn-primary rpm-btn', style: 'min-width:80px', text: 'Close', onclick: () => modal.remove() })])
         ]);
         modal.appendChild(box); document.body.appendChild(modal);
     }
@@ -657,7 +659,7 @@ export default function initWorldsUI() {
     }
 
     function toast(msg, isErr) {
-        const t = el('div', { style: `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:100002;background:${isErr ? '#5a1f1f' : '#243'};color:${isErr ? '#f2b8b8' : '#bfe'};border:1px solid ${isErr ? '#7a2a2a' : '#376'};border-radius:8px;padding:8px 16px;font-size:13px`, text: msg });
+        const t = el('div', { class: 'rpm-themed', role: 'status', style: `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:100002;background:var(--rpm-bg);color:var(--rpm-fg);border:1px solid ${isErr ? 'var(--rpm-danger)' : 'var(--rpm-border-hi)'};box-shadow:inset 3px 0 0 ${isErr ? 'var(--rpm-danger)' : 'var(--rpm-success)'},var(--rpm-shadow);border-radius:var(--rpm-radius-lg);padding:8px 16px;font-size:var(--rpm-fs)`, text: msg });
         document.body.appendChild(t); setTimeout(() => t.remove(), 2200);
     }
 
@@ -689,14 +691,25 @@ export default function initWorldsUI() {
 
     // =======================================================================
     //  SHELL VIEWS — right-dock "World" tab, left-dock sections, windows
-    //  (the app shell in src/shell/ owns placement; see registerViews below)
+    //  (the app shell in src/shell/ owns placement; see registerViews below).
+    //  Look & feel: Esolite's own classes (btn btn-primary, form-control) plus the
+    //  shell's rpm-* layout classes — no hard-coded colours (see src/shell/styles.js).
     // =======================================================================
     let panelEl = null;
     const TIME_SLOTS_UI = ['morning', 'noon', 'afternoon', 'evening', 'night'];
     const VIEW_IDS = ['world', 'party', 'quest-tracker', 'questlog', 'combat'];
-    function miniBtn() { return 'flex:1;background:var(--rpm-accent-bg);color:var(--rpm-accent-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:5px;font-size:11px;cursor:pointer'; }
-    function selCss() { return 'width:100%;box-sizing:border-box;background:var(--rpm-input-bg);color:var(--rpm-input-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:5px;font-size:12px'; }
-    function lbl(t) { return el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:11px;margin:8px 0 3px', text: t }); }
+
+    // ---- themed control helpers ----
+    function uiBtn(text, onclick, opts) {
+        opts = opts || {};
+        const cls = 'btn btn-primary rpm-btn' + (opts.block ? ' rpm-block' : '') + (opts.grow ? ' rpm-grow' : '') + (opts.variant ? ' rpm-' + opts.variant : '') + (opts.lg ? ' rpm-lg' : '');
+        return el('button', { type: 'button', class: cls, title: opts.title, style: opts.style, text, onclick });
+    }
+    function uiInput(props) { return el('input', Object.assign({ type: 'text', class: 'form-control rpm-input' }, props)); }
+    function uiSelect(props) { return el('select', Object.assign({ class: 'form-control rpm-input' }, props)); }
+    function lbl(t) { return el('label', { class: 'rpm-label', text: t }); }
+    function muted(t, extra) { return el('div', Object.assign({ class: 'rpm-muted', text: t }, extra || {})); }
+    function row(kids, style) { return el('div', { class: 'rpm-row', style }, kids); }
 
     function uiMode() { if (!S.uiMode) { try { S.uiMode = localStorage.getItem('KLITE.worlds.uiMode') || 'creator'; } catch (_) { S.uiMode = 'creator'; } } return S.uiMode; }
     function setUiMode(m) { S.uiMode = m; try { localStorage.setItem('KLITE.worlds.uiMode', m); } catch (_) {} }
@@ -719,45 +732,44 @@ export default function initWorldsUI() {
 
         // ---- header: creator/player lens ----
         const mode = uiMode();
-        body.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:8px' }, [
-            el('span', { style: 'color:var(--rpm-fg);font-size:13px;font-weight:600;flex:1', text: 'Worlds' }),
+        body.appendChild(row([
+            el('span', { class: 'rpm-heading rpm-grow', text: 'Worlds' }),
             el('span', {
-                title: 'Toggle Creator / Player view', style: `cursor:pointer;font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${mode === 'creator' ? '#7a5a2a' : '#2a5a7a'};color:${mode === 'creator' ? '#f0c68a' : '#8ac6f0'};background:${mode === 'creator' ? '#3a2e1a' : '#1a2e3a'}`,
+                role: 'button', tabindex: '0', title: 'Toggle Creator / Player view',
+                class: 'rpm-chip ' + (mode === 'creator' ? 'rpm-chip-quest' : 'rpm-chip-info'),
                 text: mode === 'creator' ? 'Creator' : 'Player',
-                onclick: () => { setUiMode(mode === 'creator' ? 'player' : 'creator'); refreshPanel(); }
+                onclick: () => { setUiMode(mode === 'creator' ? 'player' : 'creator'); refreshPanel(); },
+                onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.target.click(); } }
             })
-        ]));
+        ], 'margin-bottom:8px'));
 
         // ---- world selector + new ----
         const worlds = A.listWorlds();
-        const sel = el('select', { style: selCss() + ';margin-bottom:6px' });
+        const sel = uiSelect({ 'aria-label': 'Active world' });
         sel.appendChild(el('option', { value: '', text: worlds.length ? '— select world —' : '(no worlds yet)' }));
         for (const w of worlds) { const o = el('option', { value: w.id, text: w.name || w.id }); if (A.activeWorld() && A.activeWorld().id === w.id) o.selected = true; sel.appendChild(o); }
         sel.addEventListener('change', () => { if (sel.value) { A.useWorld(sel.value); refreshPanel(); } });
         body.appendChild(sel);
-        body.appendChild(el('div', { style: 'display:flex;gap:6px;margin-bottom:8px' }, [
-            el('button', { style: miniBtn(), text: '＋ New', onclick: () => { const n = prompt('New world name:', 'New World'); if (n != null) A.newWorld(n).then(refreshPanel); } }),
-            el('button', { style: miniBtn(), title: 'Load the ready-to-play example world', text: '🎁 Example', onclick: () => loadExampleFlow() }),
-            el('button', { style: miniBtn(), text: '⬇ Import', onclick: () => importFlow() }),
-            el('button', { style: miniBtn(), text: '⬆ Export', onclick: () => exportFlow() })
-        ]));
+        body.appendChild(row([
+            uiBtn('＋ New', () => { const n = prompt('New world name:', 'New World'); if (n != null) A.newWorld(n).then(refreshPanel); }, { grow: true }),
+            uiBtn('🎁 Example', () => loadExampleFlow(), { grow: true, title: 'Load the ready-to-play example world' }),
+            uiBtn('⬇ Import', () => importFlow(), { grow: true }),
+            uiBtn('⬆ Export', () => exportFlow(), { grow: true })
+        ], 'margin:6px 0 8px'));
 
         if (!A.activeWorld()) {
-            body.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px;margin:6px 0 8px', text: 'New here? Load the ready-to-play example and just start chatting.' }));
-            body.appendChild(el('button', {
-                style: 'width:100%;background:var(--rpm-accent-bg-hi);color:var(--rpm-accent-fg);border:1px solid var(--rpm-border-hi);border-radius:6px;padding:8px;font-size:12px;cursor:pointer',
-                text: '🎁 Load example world',
-                onclick: () => loadExampleFlow()
-            }));
+            body.appendChild(muted('New here? Load the ready-to-play example and just start chatting.', { style: 'margin:6px 0 8px' }));
+            body.appendChild(uiBtn('🎁 Load example world', () => loadExampleFlow(), { block: true, lg: true }));
             return;
         }
 
         // ---- bigger views open as floating windows / the editor overlay ----
-        body.appendChild(el('div', { style: 'display:flex;gap:6px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--rpm-border)' }, [
-            el('button', { style: miniBtn(), text: '📜 Quest log', onclick: () => openView('questlog') }),
-            el('button', { style: miniBtn(), text: '⚔ Combat', onclick: () => openView('combat') }),
-            el('button', { style: miniBtn(), title: 'Build your world as a node graph', text: '✎ Editor', onclick: () => openEditor() })
+        body.appendChild(row([
+            uiBtn('📜 Quest log', () => openView('questlog'), { grow: true }),
+            uiBtn('⚔ Combat', () => openView('combat'), { grow: true }),
+            uiBtn('✎ Editor', () => openEditor(), { grow: true, title: 'Build your world as a node graph' })
         ]));
+        body.appendChild(el('hr', { class: 'rpm-divider' }));
         renderPlayTab(body);
     }
 
@@ -765,77 +777,77 @@ export default function initWorldsUI() {
     function renderParty(box) {
         const A = API(); const world = A.activeWorld();
         if (!world) {
-            box.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
-            box.appendChild(el('button', { class: 'rpm-btn', style: 'margin-top:8px;width:100%', text: 'Choose a world', onclick: () => openView('world') }));
+            box.appendChild(muted('No world loaded.'));
+            box.appendChild(uiBtn('Choose a world', () => openView('world'), { block: true, style: 'margin-top:8px' }));
             return;
         }
         const player = (world.ruleset && world.ruleset.player) || {};
         const rt = A.runtime || {};
         const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
         const c = rt.clock || {};
-        box.appendChild(el('div', { style: 'font-weight:600;font-size:13px', text: player.name || 'You' }));
-        box.appendChild(el('div', { class: 'rpm-muted', 'data-party': 'location', style: 'margin-top:2px', text: '📍 ' + (loc ? (loc.name || loc.id) : 'nowhere') }));
-        box.appendChild(el('div', { class: 'rpm-muted', text: `🕑 Day ${c.day || 1}, ${c.time || '—'}${c.weather ? ' · ' + c.weather : ''}` }));
+        box.appendChild(el('div', { class: 'rpm-heading', text: player.name || 'You' }));
+        box.appendChild(muted('📍 ' + (loc ? (loc.name || loc.id) : 'nowhere'), { 'data-party': 'location', style: 'margin-top:2px' }));
+        box.appendChild(muted(`🕑 Day ${c.day || 1}, ${c.time || '—'}${c.weather ? ' · ' + c.weather : ''}`));
         const cb = A.getCombat();
         if (cb && cb.active) {
             const cur = cb.order[cb.turnIndex];
             const hp = cb.hp.__player__, max = cb.maxHp.__player__;
-            box.appendChild(el('button', { class: 'rpm-btn', style: 'margin-top:8px;width:100%;border-color:var(--rpm-danger)', text: `⚔ Round ${cb.round} · ${cur ? cur.name : ''}${hp != null ? ` · HP ${hp}/${max}` : ''}`, onclick: () => openView('combat') }));
+            box.appendChild(uiBtn(`⚔ Round ${cb.round} · ${cur ? cur.name : ''}${hp != null ? ` · HP ${hp}/${max}` : ''}`, () => openView('combat'), { block: true, variant: 'danger', style: 'margin-top:8px' }));
         }
     }
 
     // ---- left dock: quest tracker (active + ready to turn in) ----
     function renderQuestTracker(box) {
         const A = API();
-        if (!A.activeWorld()) { box.appendChild(el('div', { class: 'rpm-muted', text: 'No quests yet.' })); return; }
+        if (!A.activeWorld()) { box.appendChild(muted('No quests yet.')); return; }
         const quests = A.listQuests(uiMode() === 'player' ? 'player' : 'creator')
             .filter(q => q.state === 'active' || q.state === 'complete')
             .sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
-        if (!quests.length) box.appendChild(el('div', { class: 'rpm-muted', text: 'No active quests.' }));
+        if (!quests.length) box.appendChild(muted('No active quests.'));
         for (const q of quests) {
             const ready = q.state === 'complete';
-            box.appendChild(el('div', { 'data-quest': q.id, style: `padding:4px 0 4px 8px;margin-bottom:4px;border-left:2px solid ${q.active ? 'var(--rpm-quest)' : 'var(--rpm-border)'}` }, [
-                el('div', { style: 'font-size:12px;font-weight:600' }, [ready ? el('span', { style: 'color:var(--rpm-quest)', text: '? ' }) : null, q.title]),
-                ready && q.turnin ? el('div', { class: 'rpm-muted', text: 'Turn in to ' + q.turnin }) : null
+            box.appendChild(el('div', { 'data-quest': q.id, class: 'rpm-card' + (q.active ? ' rpm-card-hi' : '') }, [
+                el('div', { style: 'font-weight:bold' }, [ready ? el('span', { class: 'rpm-quest-mark', text: '? ' }) : null, q.title]),
+                ready && q.turnin ? muted('Turn in to ' + q.turnin) : null
             ]));
         }
-        box.appendChild(el('button', { class: 'rpm-btn', style: 'margin-top:6px;width:100%', text: '📜 Open quest log', onclick: () => openView('questlog') }));
+        box.appendChild(uiBtn('📜 Open quest log', () => openView('questlog'), { block: true, style: 'margin-top:8px' }));
     }
+
     function renderQuestsTab(box) {
         const A = API();
         const mode = uiMode() === 'player' ? 'player' : 'creator';
         // per-world AI mode selector (gm vs player-facing)
-        const aiRow = el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:8px' }, [
-            el('span', { style: 'color:var(--rpm-fg-muted);font-size:11px;flex:1', text: 'AI sees hidden content:' })
-        ]);
-        const aiSel = el('select', { style: 'background:var(--rpm-input-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 6px;font-size:11px' });
+        const aiSel = uiSelect({ 'aria-label': 'What the AI sees', style: 'width:auto' });
         for (const [v, t] of [['gm', 'GM (all)'], ['player', 'Player (visible only)']]) { const o = el('option', { value: v, text: t }); if (A.getAiMode() === v) o.selected = true; aiSel.appendChild(o); }
         aiSel.addEventListener('change', () => { A.setAiMode(aiSel.value); });
-        aiRow.appendChild(aiSel); box.appendChild(aiRow);
+        box.appendChild(row([el('span', { class: 'rpm-muted rpm-grow', text: 'AI sees hidden content:' }), aiSel], 'margin-bottom:8px'));
 
         const quests = A.listQuests(mode);
-        if (!quests.length) { box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px', text: 'No quests visible. Add Quest nodes in the editor.' })); return; }
+        if (!quests.length) { box.appendChild(muted('No quests visible. Add Quest nodes in the editor.')); return; }
         const groups = [['available', 'Available'], ['active', 'Active'], ['complete', 'Ready to turn in'], ['turnedin', 'Completed'], ['failed', 'Failed']];
         for (const [st, label] of groups) {
             const inGroup = quests.filter(q => q.state === st);
             if (!inGroup.length) continue;
-            box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px;font-weight:500;margin:10px 0 4px', text: label }));
+            box.appendChild(lbl(label));
             for (const q of inGroup) {
-                const card = el('div', { style: `background:var(--rpm-bg-alt);border:1px solid ${q.active ? '#4a7ab0' : 'var(--rpm-border)'};border-radius:8px;padding:7px 9px;margin-bottom:5px` });
-                card.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px' }, [
-                    el('span', { style: 'color:var(--rpm-fg);font-size:12px;font-weight:500;flex:1' }, [(q.marker ? q.marker + ' ' : '') + q.title, q.hidden ? el('span', { style: 'color:#c98;font-size:9px;margin-left:5px', text: 'hidden' }) : null]),
-                    q.active ? el('span', { style: 'font-size:9px;color:#8ac6f0', text: '● tracked' }) : null
+                const card = el('div', { class: 'rpm-card' + (q.active ? ' rpm-card-hi' : ''), 'data-quest': q.id });
+                card.appendChild(row([
+                    el('span', { class: 'rpm-grow', style: 'font-weight:bold' }, [
+                        q.marker ? el('span', { class: 'rpm-quest-mark', text: q.marker + ' ' }) : null, q.title,
+                        q.hidden ? el('span', { class: 'rpm-chip rpm-chip-danger', style: 'margin-left:6px', text: 'hidden' }) : null
+                    ]),
+                    q.active ? el('span', { class: 'rpm-chip rpm-chip-info', text: '● tracked' }) : null
                 ]));
-                if (q.description) card.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px;margin-top:2px', text: q.description }));
-                if (q.giver || q.turnin) card.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:10px;margin-top:2px', text: (q.giver ? `From: ${q.giver}` : '') + (q.turnin ? `  Turn-in: ${q.turnin}` : '') }));
-                // controls
-                const ctl = el('div', { style: 'display:flex;flex-wrap:wrap;gap:4px;margin-top:5px' });
-                const btn = (t, fn) => el('button', { style: 'background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:5px;padding:3px 7px;font-size:10px;cursor:pointer', text: t, onclick: () => { fn(); refreshPanel(); } });
-                if (st === 'available') ctl.appendChild(btn('Accept', () => A.acceptQuest(q.id)));
-                if (st === 'active') { ctl.appendChild(btn('Complete', () => A.completeQuest(q.id))); ctl.appendChild(btn(q.active ? 'Untrack' : 'Track', () => A.setActiveQuest(q.active ? null : q.id))); ctl.appendChild(btn('Fail', () => A.failQuest(q.id))); }
-                if (st === 'complete') ctl.appendChild(btn('Turn in', () => A.turnInQuest(q.id)));
-                if (mode === 'creator' && q.hidden) ctl.appendChild(btn('Reveal to player', () => A.discoverQuest(q.id)));
-                card.appendChild(ctl);
+                if (q.description) card.appendChild(el('div', { style: 'margin-top:3px', text: q.description }));
+                if (q.giver || q.turnin) card.appendChild(muted((q.giver ? `From: ${q.giver}` : '') + (q.turnin ? `  Turn-in: ${q.turnin}` : ''), { style: 'margin-top:2px' }));
+                const ctl = el('div', { class: 'rpm-row', style: 'flex-wrap:wrap;margin-top:6px' });
+                const act = (t, fn, variant) => uiBtn(t, () => { fn(); refreshPanel(); }, { variant });
+                if (st === 'available') ctl.appendChild(act('Accept', () => A.acceptQuest(q.id), 'success'));
+                if (st === 'active') { ctl.appendChild(act('Complete', () => A.completeQuest(q.id), 'success')); ctl.appendChild(act(q.active ? 'Untrack' : 'Track', () => A.setActiveQuest(q.active ? null : q.id))); ctl.appendChild(act('Fail', () => A.failQuest(q.id), 'danger')); }
+                if (st === 'complete') ctl.appendChild(act('Turn in', () => A.turnInQuest(q.id), 'success'));
+                if (mode === 'creator' && q.hidden) ctl.appendChild(act('Reveal to player', () => A.discoverQuest(q.id)));
+                if (ctl.childNodes.length) card.appendChild(ctl);
                 box.appendChild(card);
             }
         }
@@ -847,80 +859,70 @@ export default function initWorldsUI() {
         if (cb && cb.active) return renderActiveCombat(box, cb);
 
         // ---- encounter builder ----
-        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px;margin-bottom:6px', text: 'Select combatants for the encounter. NPCs need a stat block (add one in the editor).' }));
+        box.appendChild(muted('Select combatants for the encounter. NPCs need a stat block (add one in the editor).', { style: 'margin-bottom:6px' }));
         const persons = A.getGraph().nodes.filter(n => n.type === 'npc');
         const chosen = S._encPick || (S._encPick = {});
-        if (!persons.length) box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px', text: 'No persons yet.' }));
+        if (!persons.length) box.appendChild(muted('No persons yet.'));
         for (const p of persons) {
             const st = A.getStats(p.id);
-            const row = el('label', { style: 'display:flex;align-items:center;gap:6px;font-size:11px;color:var(--rpm-fg);padding:2px 0;cursor:pointer' });
-            const c = el('input', { type: 'checkbox', style: 'cursor:pointer' }); c.checked = !!chosen[p.id];
+            const c = el('input', { type: 'checkbox' }); c.checked = !!chosen[p.id];
             c.addEventListener('change', () => { chosen[p.id] = c.checked; });
-            row.appendChild(c);
-            row.appendChild(el('span', { style: 'flex:1' }, [p.name, st ? el('span', { style: 'color:#8ac6f0;font-size:9px;margin-left:5px', text: `AC ${st.ac} HP ${st.hpMax}` }) : el('span', { style: 'color:#c96;font-size:9px;margin-left:5px', text: 'no stats' })]));
-            box.appendChild(row);
+            box.appendChild(el('label', { class: 'rpm-row', style: 'padding:3px 0;cursor:pointer' }, [
+                c,
+                el('span', { class: 'rpm-grow' }, [p.name, st
+                    ? el('span', { class: 'rpm-chip rpm-chip-info', style: 'margin-left:6px', text: `AC ${st.ac} HP ${st.hpMax}` })
+                    : el('span', { class: 'rpm-chip rpm-chip-danger', style: 'margin-left:6px', text: 'no stats' })])
+            ]));
         }
         // quick-add SRD monster
-        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px;margin:10px 0 4px', text: 'Quick-add monster (SRD)' }));
-        const tRow = el('div', { style: 'display:flex;flex-wrap:wrap;gap:4px' });
-        for (const key of A.listTemplates()) tRow.appendChild(el('button', { style: 'background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:5px;padding:3px 7px;font-size:10px;cursor:pointer', text: key.replace('_', ' '), onclick: () => { const p = A.addPersonFromTemplate(key); S._encPick[p.id] = true; refreshPanel(); } }));
+        box.appendChild(lbl('Quick-add monster (SRD)'));
+        const tRow = el('div', { class: 'rpm-row', style: 'flex-wrap:wrap' });
+        for (const key of A.listTemplates()) tRow.appendChild(uiBtn(key.replace('_', ' '), () => { const p = A.addPersonFromTemplate(key); S._encPick[p.id] = true; refreshPanel(); }));
         box.appendChild(tRow);
         // include player + start
-        const incWrap = el('label', { style: 'display:flex;align-items:center;gap:6px;margin:10px 0;color:var(--rpm-fg-muted);font-size:11px;cursor:pointer' });
-        const inc = el('input', { type: 'checkbox', style: 'cursor:pointer' }); inc.checked = S._encPlayer !== false;
+        const inc = el('input', { type: 'checkbox' }); inc.checked = S._encPlayer !== false;
         inc.addEventListener('change', () => { S._encPlayer = inc.checked; });
-        incWrap.appendChild(inc); incWrap.appendChild(document.createTextNode('Include the player'));
-        box.appendChild(incWrap);
-        box.appendChild(el('button', {
-            style: 'width:100%;background:#5a2e1f;color:#f2c8b8;border:1px solid #7a452a;border-radius:6px;padding:8px;font-size:12px;cursor:pointer',
-            text: '⚔ Start encounter',
-            onclick: () => { const ids = Object.keys(chosen).filter(k => chosen[k]); A.startEncounter(ids, { includePlayer: S._encPlayer !== false }); S._encPick = {}; refreshPanel(); }
-        }));
+        box.appendChild(el('label', { class: 'rpm-row', style: 'margin:10px 0;cursor:pointer' }, [inc, el('span', { text: 'Include the player' })]));
+        box.appendChild(uiBtn('⚔ Start encounter', () => { const ids = Object.keys(chosen).filter(k => chosen[k]); A.startEncounter(ids, { includePlayer: S._encPlayer !== false }); S._encPick = {}; refreshPanel(); }, { block: true, lg: true, variant: 'danger' }));
     }
 
     function renderActiveCombat(box, cb) {
         const A = API();
         const cur = cb.order[cb.turnIndex];
-        box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:8px' }, [
-            el('span', { style: 'color:var(--rpm-fg);font-size:12px;font-weight:500;flex:1', text: `Round ${cb.round}` }),
-            el('span', { style: 'font-size:10px;color:#f2c8b8;background:#5a2e1f;border-radius:10px;padding:2px 8px', text: '▶ ' + cur.name })
-        ]));
+        box.appendChild(row([
+            el('span', { class: 'rpm-heading rpm-grow', text: `Round ${cb.round}` }),
+            el('span', { class: 'rpm-chip rpm-chip-danger', text: '▶ ' + cur.name })
+        ], 'margin-bottom:8px'));
         // roster with HP bars
         for (const o of cb.order) {
             const hp = cb.hp[o.id], max = cb.maxHp[o.id] || 1, pct = Math.max(0, Math.min(100, Math.round(hp / max * 100)));
             const down = hp <= 0;
-            const row = el('div', { style: `background:var(--rpm-bg-alt);border:1px solid ${o.id === cur.id ? '#7a452a' : 'var(--rpm-border)'};border-radius:6px;padding:4px 8px;margin-bottom:4px;${down ? 'opacity:.5' : ''}` });
-            row.appendChild(el('div', { style: 'display:flex;justify-content:space-between;font-size:11px;color:var(--rpm-fg)' }, [
-                el('span', {}, [(o.id === cur.id ? '▶ ' : '') + o.name + (down ? ' (down)' : '')]),
-                el('span', { style: 'color:var(--rpm-fg-muted)', text: `${hp}/${max} · init ${o.init}` })
+            const card = el('div', { class: 'rpm-card' + (o.id === cur.id ? ' rpm-card-hi' : ''), style: down ? 'opacity:.5' : null });
+            card.appendChild(row([
+                el('span', { class: 'rpm-grow', text: (o.id === cur.id ? '▶ ' : '') + o.name + (down ? ' (down)' : '') }),
+                el('span', { class: 'rpm-muted', text: `${hp}/${max} · init ${o.init}` })
             ]));
-            const bar = el('div', { style: 'height:5px;background:var(--rpm-bg-outer);border-radius:3px;margin-top:3px;overflow:hidden' });
-            bar.appendChild(el('div', { style: `height:100%;width:${pct}%;background:${pct > 50 ? '#3b8f4f' : pct > 25 ? '#b8912a' : '#a33'}` }));
-            row.appendChild(bar);
-            box.appendChild(row);
+            const bar = el('div', { class: 'rpm-bar' });
+            bar.appendChild(el('span', { style: `width:${pct}%;background:${pct > 50 ? 'var(--rpm-success)' : pct > 25 ? 'var(--rpm-quest)' : 'var(--rpm-danger)'}` }));
+            card.appendChild(bar);
+            box.appendChild(card);
         }
         // attack controls
         const targets = cb.order.filter(o => cb.hp[o.id] > 0 && o.id !== cur.id);
-        const atkRow = el('div', { style: 'display:flex;gap:5px;margin-top:8px' });
-        const tSel = el('select', { style: selCss() + ';flex:1' });
+        const tSel = uiSelect({ class: 'form-control rpm-input rpm-grow', 'aria-label': 'Target' });
         for (const o of targets) tSel.appendChild(el('option', { value: o.id, text: o.name }));
-        atkRow.appendChild(tSel);
-        atkRow.appendChild(el('button', { style: 'background:#5a2e1f;color:#f2c8b8;border:1px solid #7a452a;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer', text: `⚔ ${cur.name} attacks`, onclick: () => { if (tSel.value) A.attack(cur.id, tSel.value); refreshPanel(); } }));
-        box.appendChild(atkRow);
+        box.appendChild(row([tSel, uiBtn(`⚔ ${cur.name} attacks`, () => { if (tSel.value) A.attack(cur.id, tSel.value); refreshPanel(); }, { variant: 'danger' })], 'margin-top:8px'));
         // dice roller
-        const rollRow = el('div', { style: 'display:flex;gap:5px;margin-top:6px' });
-        const rIn = el('input', { type: 'text', value: '1d20', style: selCss() + ';flex:1' });
-        rollRow.appendChild(rIn);
-        rollRow.appendChild(el('button', { style: miniBtn(), text: '🎲 Roll', onclick: () => { A.applyTags(`<roll>${rIn.value}</roll>`); refreshPanel(); } }));
-        box.appendChild(rollRow);
+        const rIn = uiInput({ value: '1d20', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Dice expression' });
+        box.appendChild(row([rIn, uiBtn('🎲 Roll', () => { A.applyTags(`<roll>${rIn.value}</roll>`); refreshPanel(); })], 'margin-top:6px'));
         // turn/end
-        box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:6px' }, [
-            el('button', { style: miniBtn(), text: '⏭ Next turn', onclick: () => { A.nextTurn(); refreshPanel(); } }),
-            el('button', { style: miniBtn() + ';color:#f2b8b8;border-color:#7a2a2a;background:#3a1f1f', text: '✕ End', onclick: () => { A.endEncounter(); refreshPanel(); } })
-        ]));
+        box.appendChild(row([
+            uiBtn('⏭ Next turn', () => { A.nextTurn(); refreshPanel(); }, { grow: true }),
+            uiBtn('✕ End', () => { A.endEncounter(); refreshPanel(); }, { grow: true, variant: 'danger' })
+        ], 'margin-top:6px'));
         // log
-        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:10px;font-weight:500;margin:10px 0 3px', text: 'Combat log' }));
-        const log = el('div', { style: 'background:var(--rpm-bg-outer);border:1px solid var(--rpm-border);border-radius:6px;padding:6px;font-size:10px;color:var(--rpm-fg-muted);max-height:120px;overflow:auto;line-height:1.5' });
+        box.appendChild(lbl('Combat log'));
+        const log = el('div', { class: 'rpm-log' });
         for (const line of (cb.log || []).slice(-8)) log.appendChild(el('div', { text: line }));
         box.appendChild(log);
     }
@@ -929,23 +931,19 @@ export default function initWorldsUI() {
         const A = API();
         // enable toggle
         const enabled = A.isEnabled();
-        box.appendChild(el('button', {
-            style: `width:100%;box-sizing:border-box;border-radius:6px;padding:7px;font-size:12px;cursor:pointer;margin-bottom:10px;border:1px solid ${enabled ? '#2a7a45' : 'var(--rpm-border)'};background:${enabled ? '#1f4a2e' : '#2a2a2a'};color:${enabled ? '#b8f2c8' : '#ccc'}`,
-            text: enabled ? '● Enabled for this story' : '○ Enable for this story',
-            onclick: () => { enabled ? A.disable() : A.enable(); refreshPanel(); }
-        }));
+        box.appendChild(uiBtn(enabled ? '● Enabled for this story' : '○ Enable for this story', () => { enabled ? A.disable() : A.enable(); refreshPanel(); }, { block: true, variant: enabled ? 'on' : null, style: 'margin-bottom:10px' }));
 
         // ---- state slots (base / working) ----
         const slot = A.activeSlot || 'working';
-        const slotBox = el('div', { style: 'background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:8px;padding:8px;margin-bottom:10px' });
-        slotBox.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;margin-bottom:6px' }, [
-            el('span', { style: 'color:var(--rpm-fg-muted);font-size:11px;flex:1', text: 'State slot' }),
-            el('span', { style: `font-size:10px;padding:2px 8px;border-radius:10px;background:${slot === 'working' ? '#1c3450' : '#3a2e1a'};color:${slot === 'working' ? '#8ac6f0' : '#f0c68a'}`, text: slot === 'working' ? 'WORKING (live)' : 'BASE (start)' })
-        ]));
-        slotBox.appendChild(el('div', { style: 'display:flex;gap:5px' }, [
-            el('button', { title: 'Discard live changes, back to the start state', style: miniBtn(), text: '↺ Reset', onclick: () => { if (confirm('Reset the working state to the base (start) state? Live changes are lost.')) { A.resetToBase(); refreshPanel(); } } }),
-            el('button', { title: 'Make the current live state the new start state', style: miniBtn(), text: '✔ Commit', onclick: () => { if (confirm('Set the current working state as the new base (start)?')) { A.commitToBase(); refreshPanel(); } } }),
-            el('button', { title: 'Switch which slot is active', style: miniBtn(), text: '⇄ Swap', onclick: () => { A.swapActive(); refreshPanel(); } })
+        const slotBox = el('div', { class: 'rpm-card', style: 'margin-bottom:6px' });
+        slotBox.appendChild(row([
+            el('span', { class: 'rpm-muted rpm-grow', text: 'State slot' }),
+            el('span', { class: 'rpm-chip ' + (slot === 'working' ? 'rpm-chip-info' : 'rpm-chip-quest'), text: slot === 'working' ? 'WORKING (live)' : 'BASE (start)' })
+        ], 'margin-bottom:6px'));
+        slotBox.appendChild(row([
+            uiBtn('↺ Reset', () => { if (confirm('Reset the working state to the base (start) state? Live changes are lost.')) { A.resetToBase(); refreshPanel(); } }, { grow: true, title: 'Discard live changes, back to the start state' }),
+            uiBtn('✔ Commit', () => { if (confirm('Set the current working state as the new base (start)?')) { A.commitToBase(); refreshPanel(); } }, { grow: true, title: 'Make the current live state the new start state' }),
+            uiBtn('⇄ Swap', () => { A.swapActive(); refreshPanel(); }, { grow: true, title: 'Switch which slot is active' })
         ]));
         box.appendChild(slotBox);
 
@@ -954,25 +952,22 @@ export default function initWorldsUI() {
         const locs = g.nodes.filter(n => n.type === 'location');
         box.appendChild(lbl('Current location'));
         if (locs.length) {
-            const msel = el('select', { style: selCss() });
+            const msel = uiSelect({ 'aria-label': 'Current location' });
             msel.appendChild(el('option', { value: '', text: '— nowhere —' }));
             for (const l of locs) { const o = el('option', { value: l.id, text: l.name }); if (A.runtime && A.runtime.playerLocationId === l.id) o.selected = true; msel.appendChild(o); }
             msel.addEventListener('change', () => { try { if (msel.value) A.moveTo(msel.value); refreshPanel(); } catch (_) {} });
             box.appendChild(msel);
-        } else box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px', text: 'No locations yet — add some in the editor.' }));
+        } else box.appendChild(muted('No locations yet — add some in the editor.'));
 
         // ---- time / weather ----
         const c = (A.runtime && A.runtime.clock) || {};
         box.appendChild(lbl('Time & weather'));
-        const timeRow = el('div', { style: 'display:flex;gap:6px;align-items:center' });
-        const tsel = el('select', { style: selCss() + ';flex:1' });
+        const tsel = uiSelect({ class: 'form-control rpm-input rpm-grow', 'aria-label': 'Time of day' });
         for (const t of TIME_SLOTS_UI) { const o = el('option', { value: t, text: t }); if ((c.time || '') === t) o.selected = true; tsel.appendChild(o); }
         tsel.addEventListener('change', () => { A.setClock({ time: tsel.value }); refreshPanel(); });
-        timeRow.appendChild(tsel);
-        timeRow.appendChild(el('button', { title: 'Advance time one step', style: 'background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:5px 9px;font-size:12px;cursor:pointer', text: '⏭', onclick: () => { A.advanceClock(1); refreshPanel(); } }));
-        box.appendChild(timeRow);
-        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:10px;margin:4px 0 2px', text: `Day ${c.day || 1}, month ${c.month || 1} · ${c.season || ''}` }));
-        const wIn = el('input', { type: 'text', value: c.weather || '', placeholder: 'weather', style: selCss() });
+        box.appendChild(row([tsel, uiBtn('⏭', () => { A.advanceClock(1); refreshPanel(); }, { title: 'Advance time one step' })]));
+        box.appendChild(muted(`Day ${c.day || 1}, month ${c.month || 1} · ${c.season || ''}`, { style: 'margin:4px 0' }));
+        const wIn = uiInput({ value: c.weather || '', placeholder: 'weather', 'aria-label': 'Weather' });
         wIn.addEventListener('change', () => { A.setClock({ weather: wIn.value }); });
         box.appendChild(wIn);
 
@@ -980,37 +975,33 @@ export default function initWorldsUI() {
         box.appendChild(lbl('Flags'));
         const flags = (A.runtime && A.runtime.flags) || {};
         const fkeys = Object.keys(flags);
-        if (!fkeys.length) box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px', text: 'none' }));
+        if (!fkeys.length) box.appendChild(muted('none'));
         for (const k of fkeys) {
-            box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px' }, [
-                el('span', { style: 'flex:1;color:var(--rpm-fg);font-size:11px' }, [k + ' = ', el('span', { style: 'color:#8ac6f0', text: String(flags[k]) })]),
-                el('span', { style: 'cursor:pointer;color:#e66;font-size:13px', text: '×', onclick: () => { A.unsetFlag(k); refreshPanel(); } })
+            box.appendChild(el('div', { class: 'rpm-card rpm-row' }, [
+                el('span', { class: 'rpm-grow' }, [k + ' = ', el('span', { style: 'color:var(--rpm-fg-hi)', text: String(flags[k]) })]),
+                el('button', { type: 'button', class: 'rpm-iconbtn', title: 'Remove flag', 'aria-label': 'Remove flag ' + k, style: 'color:var(--rpm-danger)', text: '×', onclick: () => { A.unsetFlag(k); refreshPanel(); } })
             ]));
         }
-        const fk = el('input', { type: 'text', placeholder: 'key', style: selCss() + ';flex:2' });
-        const fv = el('input', { type: 'text', placeholder: 'value', style: selCss() + ';flex:1' });
-        box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px' }, [fk, fv,
-            el('button', { style: 'background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer', text: '＋', onclick: () => { const k = fk.value.trim(); if (!k) return; A.setFlag(k, parseVal(fv.value)); refreshPanel(); } })
-        ]));
+        const fk = uiInput({ placeholder: 'key', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Flag name' });
+        const fv = uiInput({ placeholder: 'value', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Flag value' });
+        box.appendChild(row([fk, fv, uiBtn('＋', () => { const k = fk.value.trim(); if (!k) return; A.setFlag(k, parseVal(fv.value)); refreshPanel(); }, { title: 'Set flag' })], 'margin-top:5px'));
 
         // ---- inventory ----
         box.appendChild(lbl('Inventory'));
         const inv = (A.runtime && A.runtime.inventory) || [];
-        if (!inv.length) box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:11px', text: 'empty' }));
+        if (!inv.length) box.appendChild(muted('empty'));
         for (const it of inv) {
-            box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px' }, [
-                el('span', { style: 'flex:1;color:var(--rpm-fg);font-size:11px', text: it.name + (it.qty > 1 ? ` ×${it.qty}` : '') }),
-                el('span', { style: 'cursor:pointer;color:#9c9;font-size:13px', text: '＋', onclick: () => { A.giveItem(it.name, 1); refreshPanel(); } }),
-                el('span', { style: 'cursor:pointer;color:#e66;font-size:13px', text: '−', onclick: () => { A.takeItem(it.name, 1); refreshPanel(); } })
+            box.appendChild(el('div', { class: 'rpm-card rpm-row' }, [
+                el('span', { class: 'rpm-grow', text: it.name + (it.qty > 1 ? ` ×${it.qty}` : '') }),
+                el('button', { type: 'button', class: 'rpm-iconbtn', title: 'Add one', 'aria-label': 'Add one ' + it.name, style: 'color:var(--rpm-success)', text: '＋', onclick: () => { A.giveItem(it.name, 1); refreshPanel(); } }),
+                el('button', { type: 'button', class: 'rpm-iconbtn', title: 'Remove one', 'aria-label': 'Remove one ' + it.name, style: 'color:var(--rpm-danger)', text: '−', onclick: () => { A.takeItem(it.name, 1); refreshPanel(); } })
             ]));
         }
-        const iIn = el('input', { type: 'text', placeholder: 'item name', style: selCss() });
-        box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px' }, [iIn,
-            el('button', { style: 'background:var(--rpm-accent-bg);color:var(--rpm-fg);border:1px solid var(--rpm-border);border-radius:6px;padding:0 10px;font-size:12px;cursor:pointer', text: '＋', onclick: () => { const n = iIn.value.trim(); if (!n) return; A.giveItem(n, 1); refreshPanel(); } })
-        ]));
+        const iIn = uiInput({ placeholder: 'item name', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Item name' });
+        box.appendChild(row([iIn, uiBtn('＋', () => { const n = iIn.value.trim(); if (!n) return; A.giveItem(n, 1); refreshPanel(); }, { title: 'Give item' })], 'margin-top:5px'));
 
         // ---- what the AI sees ----
-        box.appendChild(el('button', { style: 'width:100%;margin-top:12px;background:var(--rpm-bg-alt);color:#9cf;border:1px solid #345;border-radius:6px;padding:6px;font-size:11px;cursor:pointer', text: '👁 Preview what the AI sees', onclick: () => showPreview() }));
+        box.appendChild(uiBtn('👁 Preview what the AI sees', () => showPreview(), { block: true, style: 'margin-top:12px' }));
     }
     function parseVal(raw) { const v = String(raw || '').trim(); if (v === '') return true; if (/^(true|false)$/i.test(v)) return /true/i.test(v); if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v); return v; }
 

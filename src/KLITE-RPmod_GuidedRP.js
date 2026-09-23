@@ -1434,57 +1434,53 @@ export default function initGuidedRP() {
     const STYLES = `
         /* ========== Corpo Theme Design System ========== */
         :root {
-            /* Base backgrounds - solid corpo colors */
-            --grp-bg-dark: var(--theme_color_bg_dark);
-            --grp-bg: var(--theme_color_main);
+            /* Same rules as the RPmod app shell (src/shell/styles.js): every colour and
+               font comes from Esolite's theme variables (1.35 names, older names as
+               fallback), so the Guided overlay follows the theme picked or edited in
+               Esolite's "Theme colours" editor. */
+            --grp-bg-dark: var(--theme_color_bg_muted, var(--theme_color_bg_dark));
+            --grp-bg: var(--theme_color_bg_popups, var(--theme_color_bg));
             --grp-bg-outer: var(--theme_color_bg_outer);
 
-            /* Accents - corpo cyan/teal highlights */
-            --grp-accent: var(--theme_color_highlight);
-            --grp-accent-light: var(--theme_color_border_highlight);
-            --grp-accent-hover: rgba(126, 157, 167, 0.2);
-            --grp-success: #22c55e;
-            --grp-warning: #f59e0b;
-            --grp-danger: #ef4444;
+            --grp-accent: var(--theme_color_accent_bg_highlight, var(--theme_color_highlight));
+            --grp-accent-light: var(--theme_color_fg_highlight, var(--theme_color_border_highlight));
+            --grp-accent-hover: color-mix(in srgb, var(--theme_color_accent_bg_highlight, #596985) 25%, transparent);
+            --grp-success: var(--theme_color_rpmod_success, #5cb85c);
+            --grp-warning: var(--theme_color_rpmod_quest, #f0c419);
+            --grp-danger: var(--theme_color_rpmod_danger, #d9534f);
 
-            /* Text hierarchy */
-            --grp-text: var(--theme_color_text);
-            --grp-text-muted: var(--theme_color_placeholder_text);
+            --grp-text: var(--theme_color_fg, var(--theme_color_text));
+            --grp-text-muted: var(--theme_color_fg_muted, var(--theme_color_placeholder_text));
             --grp-text-dim: var(--theme_color_border);
 
-            /* Solid surfaces - no transparency */
             --grp-surface: var(--theme_color_input_bg);
-            --grp-surface-raised: var(--theme_color_bg);
+            --grp-surface-raised: var(--theme_color_bg_popups, var(--theme_color_bg));
             --grp-surface-border: var(--theme_color_border);
-            --grp-surface-hover: var(--theme_color_bg_dark);
+            --grp-surface-hover: var(--theme_color_bg_muted, var(--theme_color_bg_dark));
 
-            /* Cards - opaque, structured */
-            --grp-card-bg: var(--theme_color_input_bg);
+            --grp-card-bg: var(--theme_color_bg_muted, var(--theme_color_input_bg));
             --grp-card-border: var(--theme_color_border);
-            --grp-card-hover: var(--theme_color_bg_dark);
+            --grp-card-hover: var(--theme_color_accent_bg_highlight, var(--theme_color_bg_dark));
 
-            /* Controls */
-            --grp-button-bg: var(--theme_color_button_bg);
-            --grp-button-text: var(--theme_color_text);
+            --grp-button-bg: var(--theme_color_accent_bg, var(--theme_color_button_bg));
+            --grp-button-text: var(--theme_color_accent_fg, var(--theme_color_text));
 
-            /* Typography - professional sans-serif */
-            --grp-font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            --grp-font-size: 15px;
+            --grp-font-family: var(--theme_font_family, Helvetica, sans-serif);
+            --grp-font-size: var(--theme_font_size_content, 12pt);
 
-            /* Section backgrounds - flat colors */
-            --grp-step-0: var(--theme_color_main);
-            --grp-step-1: var(--theme_color_main);
-            --grp-step-2: var(--theme_color_main);
-            --grp-step-3: var(--theme_color_main);
-            --grp-step-4: var(--theme_color_main);
-            --grp-step-5: var(--theme_color_main);
-            --grp-step-6: var(--theme_color_main);
-            --grp-step-7: var(--theme_color_main);
+            --grp-step-0: var(--grp-bg);
+            --grp-step-1: var(--grp-bg);
+            --grp-step-2: var(--grp-bg);
+            --grp-step-3: var(--grp-bg);
+            --grp-step-4: var(--grp-bg);
+            --grp-step-5: var(--grp-bg);
+            --grp-step-6: var(--grp-bg);
+            --grp-step-7: var(--grp-bg);
 
             /* Sharp, professional edges */
-            --grp-radius: 4px;
-            --grp-radius-lg: 6px;
-            --grp-radius-sm: 2px;
+            --grp-radius: 5px;
+            --grp-radius-lg: 8px;
+            --grp-radius-sm: 4px;
 
             /* Snappy transitions */
             --grp-transition: 0.15s ease;
