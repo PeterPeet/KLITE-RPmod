@@ -31,7 +31,7 @@
 // its own persistence, so it can be removed without touching the host or the
 // main mod. Nothing runs until a World is enabled for the current story.
 // =============================================================================
-(function () {
+export default function initWorlds() {
     'use strict';
 
     if (window.KLITE_RPMod_Worlds) return; // idempotent
@@ -1592,4 +1592,4 @@
     if (document.readyState === 'complete') whenReady();
     else window.addEventListener('load', whenReady);
 
-})();
+}

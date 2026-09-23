@@ -1,8 +1,10 @@
 'use strict';
 // Fake Esolite host for tests: a jsdom window carrying the minimal host globals the mod
 // hooks into, plus helpers to load mod sources into it (same way Esolite runs a usermod:
-// as classic script code in the page's global scope).
+// as classic script code in the page's global scope). Single src/ modules are bundled
+// on the fly with esbuild into a classic script that calls their init function.
 const { JSDOM } = require('jsdom');
+const esbuild = require('esbuild');
 const vm = require('vm');
 const fs = require('fs');
 const path = require('path');
@@ -46,7 +48,7 @@ function createHost({ settings = {} } = {}) {
     host.load = (...keys) => {
         for (const k of keys) {
             const rel = FILES[k] || k;
-            vm.runInContext(fs.readFileSync(path.join(ROOT, rel), 'utf8'), ctx, { filename: rel });
+            vm.runInContext(scriptFor(rel), ctx, { filename: rel });
         }
         return host;
     };
@@ -79,6 +81,21 @@ function createHost({ settings = {} } = {}) {
     host.worldsEntries = () => w.current_wi.filter(e => e && e.wigroup === '__worlds__');
     host.close = () => { try { w.close(); } catch (_) {} };
     return host;
+}
+
+// Classic-script source for a file: the bundle as-is; a src/ module wrapped so it runs its
+// default-exported init function (cached per test process).
+const scriptCache = new Map();
+function scriptFor(rel) {
+    if (!rel.startsWith('src/')) return fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    if (!scriptCache.has(rel)) {
+        const out = esbuild.buildSync({
+            stdin: { contents: `import init from './${rel}'; init();`, resolveDir: ROOT },
+            bundle: true, format: 'iife', write: false, logLevel: 'error',
+        });
+        scriptCache.set(rel, out.outputFiles[0].text);
+    }
+    return scriptCache.get(rel);
 }
 
 // --- DOM helpers for UI tests ---

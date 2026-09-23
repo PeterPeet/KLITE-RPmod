@@ -15,7 +15,7 @@
  * @author KLITE RPmod Team
  */
 
-(function() {
+export default function initGuidedRP() {
     'use strict';
 
     // =========================================================================
@@ -5190,4 +5190,4 @@
         init();
     }
 
-})();
+}

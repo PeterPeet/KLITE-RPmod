@@ -12,8 +12,8 @@
 
 Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
 
-### What works (verified headless 2026-09-23 — `npm test`, 28 tests)
-- Bundle builds; all four modules load (ALPHA core, GuidedRP, Worlds engine, Worlds UI).
+### What works (verified headless 2026-09-23 — `npm test`, 29 tests)
+- Bundle builds (esbuild, ES-module sources); all four modules load (ALPHA core, GuidedRP, Worlds engine, Worlds UI).
 - **Worlds engine:** graph world model (locations, NPCs/persons, factions, objects,
   events, quests, lore), compile-to-WI injection (transient/persistent, websearch- and
   agent-mode-safe), per-turn active slice, 16 chat tags, import/export, example world
@@ -72,6 +72,10 @@ Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
 8. ALPHA is a 17.7k-line monolith; GuidedRP 5.2k lines; three independent UI systems.
 9. `<take>Item</take>` **without a count removes the whole stack**, while `<give>Item</give>`
    adds one — asymmetric; decide the intended semantics (R4 or R6). Covered by a test.
+10. **Six duplicate object keys in ALPHA** (esbuild warns on every build):
+    `updateSubmitBtn`, `setMode`, `loadSettings`, `saveSettings`, `extractTalkativeness`,
+    `importWorldInfoEntry`. The last definition wins (always has); the earlier ones are dead
+    code. Remove them when those ALPHA panels migrate into the shell (R1).
 
 ## Phases
 
@@ -85,19 +89,18 @@ Goal: restart on a clean, documented, tested base without changing behavior.
       exports → `docs/exports/`; generated files untracked + `.gitignore`.
 - [x] Sources in `src/`, build scripts in `scripts/`, `package.json` with npm scripts.
 - [x] Test suite in `tests/` (Node test runner + jsdom): syntax, engine, quests, triggers,
-      combat, UI, bundle — 28 tests, ~1.5 s.
+      combat, UI, bundle — 28 tests at R0, ~1.5 s.
 - [x] Docs: `CLAUDE.md` (replaces outdated `AGENTS.md`), `docs/USERSTORY.md`,
       `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`.
 Acceptance: `npm run build` produces an identical-behaving bundle; `npm test` green;
 no functional change. ✔
 
-**Next up: R1.** Start by auditing ALPHA/GuidedRP for sloppy-mode code before the ES-module
-conversion, then design the shell layout with the owner.
-
-### R1 — App shell + design system ⬜
+### R1 — App shell + design system 🟨
 Goal: one coherent application inside Esolite instead of three overlapping UIs.
-- Convert sources to ES modules bundled with **esbuild** into the same single file
-  (first audit ALPHA/GuidedRP for sloppy-mode code — modules are strict).
+- [x] Convert sources to ES modules bundled with **esbuild** into the same single file
+      (2026-09-23). Sloppy-mode audit: nothing to fix — all four sources already ran as
+      `'use strict'` IIFEs with no code outside them. Live-checked in `index.rpmod.html`.
+- **Next:** design the shell layout with the owner, then build it.
 - App shell: docked sidebars + a window manager for sheet, quest log, compendium, combat,
   editor, map; one entry point in the Esolite top bar.
 - Design system: tokens (color, type, spacing), light/dark following Esolite's theme,

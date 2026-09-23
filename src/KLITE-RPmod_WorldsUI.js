@@ -15,7 +15,7 @@
 // consistent with the mod's sanitisation model.
 // Depends on window.KLITE_RPMod_Worlds (the data/engine module).
 // =============================================================================
-(function () {
+export default function initWorldsUI() {
     'use strict';
     if (window.KLITE_RPMod_WorldsUI) return;
 
@@ -1029,4 +1029,4 @@
     window.KLITE_RPMod_WorldsUI = { openEditor, closeEditor, refreshPanel };
     if (document.readyState === 'complete') whenReady();
     else window.addEventListener('load', whenReady);
-})();
+}

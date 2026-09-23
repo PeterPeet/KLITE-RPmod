@@ -4,7 +4,7 @@
 // https://github.com/PeterPeet/
 // =============================================
 
-(function () {
+export default function initAlpha() {
     'use strict';
 
     // Prevent duplicate loads
@@ -17712,4 +17712,4 @@ Outline:`
         })();
     })();
 
-})();
+}

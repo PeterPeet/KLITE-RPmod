@@ -13,10 +13,15 @@
 | `KLITE-RPmod_Worlds.js` (~1.6k) | `window.KLITE_RPMod_Worlds` | Worlds engine: world graph, retrieval, injection, runtime state, quests, triggers, combat |
 | `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds panel (Play/Quests/Combat/Editor tabs) + node-graph editor overlay + navbar button |
 
-- **Build** (`scripts/build-bundle.js`, `npm run build`): concatenates the four sources, in
-  this order, into `KLITE-RPmod.js` (repo root), each wrapped in `try{…}catch` so one
-  module's runtime error cannot stop the others. Safe because every source is a
-  self-contained IIFE with no top-level `return`; cross-module access is via `window.*` only.
+- **Sources are ES modules** (strict mode). Each exports one default init function
+  (`initAlpha`, `initGuidedRP`, `initWorlds`, `initWorldsUI`) whose body is the former IIFE;
+  cross-module access is still via `window.*` only. `src/main.js` imports all four and calls
+  them in the order above, each in its own `try{…}catch` so one module's runtime error
+  cannot stop the others.
+- **Build** (`scripts/build-bundle.js`, `npm run build`): **esbuild** bundles `src/main.js`
+  into one classic-script IIFE, `KLITE-RPmod.js` (repo root). Not minified; ordinary
+  comments are dropped. Tests bundle single modules on the fly the same way
+  (`tests/helpers/host.js`).
 - **Delivery A — usermod:** load `KLITE-RPmod.js` through Esolite's mod manager
   ("Apply Mod On Startup"). Esolite executes usermods late in its boot (inside
   `Promise.all([indexeddb_load…]).then()`), after the UI and top bar exist.
