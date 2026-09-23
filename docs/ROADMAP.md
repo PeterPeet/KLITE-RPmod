@@ -313,7 +313,18 @@ and re-import as a card without data loss.
 - Searchable compendium window; cross-links from sheets, encounters and chat.
 Acceptance: search any SRD monster/spell, open it, add a monster to an encounter.
 
-### R4 — Quests & world (WoW) ⬜
+### R4 — Quests & world (WoW) 🟨
+Owner's decision (2026-09-23): **one inventory — the persona's sheet.** Quest rewards,
+`<give>`/`<take>` and "collect" objectives use the persona's card; the story inventory is only
+the fallback without a persona (items stay with the character across stories; resetting the
+world's state slots does not take them back).
+- [x] **Step 1 — rewards, abandon, one inventory** (2026-09-23): `src/game/quest-rules.js` (pure:
+      rewards, objectives, prerequisites, reputation tiers, phases); turn-in pays XP, gold, items,
+      reputation and "choose one of N" once (`rewardsPaid`), to the persona's sheet via the new
+      `updateSheet` (applied at once, saved in the background; an unsaved sheet draft takes the
+      game's changes to items/coins/XP/HP so Save cannot undo a reward); abandon; quest events in
+      the game log (the AI narrates them); Quest log shows rewards with a picker; World tab
+      shows the character's inventory, gold and XP.
 - Full marker set (yellow/grey `!`, yellow/grey `?`).
 - Prerequisites (level, previous quest, flag, reputation); chains; item-started quests.
 - Objective types with counters (kill/collect/talk/visit), auto-progress from tags/events.

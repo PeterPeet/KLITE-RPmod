@@ -77,6 +77,35 @@ export async function saveSheet(name, sheet) {
 
 export function forget(name) { cache.delete(k(name)); }
 
+// Game changes to a sheet (items, coins, XP, HP from quests and fights): applied to the
+// cached sheet at once (synchronous readers see it) and saved into the card in the
+// background, one write at a time per character. `mutate(sheet)` edits a copy.
+// onMissing() runs instead when the card has no sheet. Returns the new sheet (or undefined
+// while the card is still loading — then it is applied once loaded).
+const writes = new Map();   // lower-case name -> Promise (serialised saves)
+export function updateSheet(name, mutate, opts) {
+    const onMissing = opts && opts.onMissing;
+    const apply = (entry) => {
+        const next = normalizeSheet(entry.sheet); mutate(next);
+        entry.sheet = normalizeSheet(next);
+        emit(entry.name);
+        const key = k(entry.name);
+        const chain = (writes.get(key) || Promise.resolve()).then(() => {
+            const latest = cache.get(key);
+            return latest && latest.sheet ? saveSheet(latest.name, latest.sheet) : null;
+        }).catch(() => {});
+        writes.set(key, chain);
+        return entry.sheet;
+    };
+    const hit = cache.get(k(name));
+    if (hit && hit.sheet) return apply(hit);
+    if (hit && hit.sheet === null) { if (onMissing) onMissing(); return null; }
+    loadSheet(name).then(s => { const e = cache.get(k(name)); if (s && e && e.sheet) apply(e); else if (onMissing) onMissing(); }).catch(() => { if (onMissing) onMissing(); });
+    return undefined;
+}
+// Wait until every background write of this character is done (tests, before export).
+export function flushSheet(name) { return writes.get(k(name)) || Promise.resolve(); }
+
 // A card written elsewhere (gallery editor, import, delete) may have new text or a new sheet.
 // (saveSheet refills the cache right after its own write.)
 if (typeof window !== 'undefined') {

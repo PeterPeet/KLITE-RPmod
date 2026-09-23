@@ -294,6 +294,7 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-log-line { font-size: var(--rpm-fs-sm); padding: 2px 0; border-bottom: 1px solid var(--rpm-border); }
 .rpm-log-crit { color: var(--rpm-success); font-weight: bold; }
 .rpm-log-fumble { color: var(--rpm-danger); }
+.rpm-quest-rewards { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; }
 /* combat window (src/game/combatView.js) */
 .rpm-cb select.form-control { width: auto; max-width: 100%; }
 .rpm-cb-meter { position: relative; height: 10px; background: var(--rpm-bg-outer); border-radius: 5px; margin: 6px 0 2px; overflow: hidden; }

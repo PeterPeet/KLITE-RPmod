@@ -287,6 +287,7 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-log-line { font-size: var(--rpm-fs-sm); padding: 2px 0; border-bottom: 1px solid var(--rpm-border); }
 .rpm-log-crit { color: var(--rpm-success); font-weight: bold; }
 .rpm-log-fumble { color: var(--rpm-danger); }
+.rpm-quest-rewards { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; }
 /* combat window (src/game/combatView.js) */
 .rpm-cb select.form-control { width: auto; max-width: 100%; }
 .rpm-cb-meter { position: relative; height: 10px; background: var(--rpm-bg-outer); border-radius: 5px; margin: 6px 0 2px; overflow: hidden; }
@@ -25149,6 +25150,82 @@ ${char.mes_example}
     return lvl;
   }
 
+  // src/game/quest-rules.js
+  var norm2 = (v) => String(v == null ? "" : v).trim();
+  var low = (v) => norm2(v).toLowerCase();
+  function sameName(a, b) {
+    const x = low(a).replace(/\s+\d+$/, ""), y = low(b).replace(/\s+\d+$/, "");
+    if (!x || !y) return false;
+    if (x === y) return true;
+    const forms = (s) => [s, s.replace(/ves$/, "f"), s.replace(/es$/, ""), s.replace(/s$/, "")];
+    return forms(x).some((f) => forms(y).includes(f));
+  }
+  function rewardType(r) {
+    if (!r || typeof r !== "object") return "";
+    if (r.type) return r.type;
+    if (r.xp != null) return "xp";
+    if (r.gold != null) return "gold";
+    if (r.options) return "choice";
+    if (r.factionId) return "reputation";
+    if (r.item) return "item";
+    return "";
+  }
+  function parseItem(s) {
+    const m = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm2(s));
+    return { item: norm2(m && m[1] || s), qty: Number(m && m[2]) || 1 };
+  }
+  function parseReward(text, findFaction) {
+    const s = norm2(text);
+    if (!s) return null;
+    let m = /^(\d+)\s*xp$/i.exec(s);
+    if (m) return { type: "xp", xp: Number(m[1]) };
+    m = /^(\d+)\s*(?:gold|gp)$/i.exec(s);
+    if (m) return { type: "gold", gold: Number(m[1]) };
+    m = /^(?:choose|choice|one of)\s*:?\s*(.+)$/i.exec(s);
+    if (m) {
+      const options = m[1].split(/\s*[|/]\s*|\s+or\s+/i).map(parseItem).filter((o) => o.item);
+      return options.length > 1 ? { type: "choice", options } : null;
+    }
+    m = /^(?:rep(?:utation)?)\s+(.+?)\s*([+-]\d+)$/i.exec(s);
+    if (m) {
+      const f = typeof findFaction === "function" ? findFaction(m[1]) : null;
+      return f ? { type: "reputation", factionId: f, amount: Number(m[2]) } : null;
+    }
+    return Object.assign({ type: "item" }, parseItem(s));
+  }
+  function formatReward(r, factionName) {
+    switch (rewardType(r)) {
+      case "xp":
+        return `${r.xp} XP`;
+      case "gold":
+        return `${r.gold} gold`;
+      case "item":
+        return `${r.item}${(Number(r.qty) || 1) > 1 ? " ×" + r.qty : ""}`;
+      case "reputation":
+        return `${Number(r.amount) >= 0 ? "+" : ""}${r.amount} reputation with ${factionName && factionName(r.factionId) || r.factionId}`;
+      case "choice":
+        return "Choose one: " + (r.options || []).map((o) => `${o.item}${(Number(o.qty) || 1) > 1 ? " ×" + o.qty : ""}`).join(" / ");
+      default:
+        return "";
+    }
+  }
+  var TIERS = [
+    { name: "Hated", min: -Infinity },
+    { name: "Hostile", min: -1e3 },
+    { name: "Unfriendly", min: -300 },
+    { name: "Neutral", min: -50 },
+    { name: "Friendly", min: 100 },
+    { name: "Honored", min: 500 },
+    { name: "Revered", min: 1200 },
+    { name: "Exalted", min: 2500 }
+  ];
+  function tierOf(value) {
+    const v = Number(value) || 0;
+    let t = TIERS[0];
+    for (const x of TIERS) if (v >= x.min) t = x;
+    return t.name;
+  }
+
   // src/KLITE-RPmod_Worlds.js
   function initWorlds() {
     "use strict";
@@ -25193,7 +25270,15 @@ ${char.mes_example}
         flags: {},
         // arbitrary string/number/bool flags
         inventory: [],
-        // { id, name, qty }
+        // { id, name, qty } — story inventory (used when no persona is set)
+        coins: { gp: 0 },
+        // story gold (no persona)
+        xp: 0,
+        // story XP (no persona)
+        rewardsPaid: {},
+        // { [questId]: { at, choice } } — each quest pays once
+        reputation: {},
+        // { [factionId]: number }
         questState: {},
         // { [questId]: 'available'|'active'|'complete'|'turnedin'|'failed' }
         questObjectives: {},
@@ -25254,7 +25339,7 @@ ${char.mes_example}
       }
     }
     const asArray = (v) => Array.isArray(v) ? v : [];
-    const norm2 = (s) => String(s == null ? "" : s).trim();
+    const norm3 = (s) => String(s == null ? "" : s).trim();
     function uid(prefix) {
       return (prefix || "id") + "_" + Math.random().toString(36).slice(2, 9);
     }
@@ -25267,10 +25352,10 @@ ${char.mes_example}
       return null;
     }
     function locationByName(world, name) {
-      const n = norm2(name).toLowerCase();
+      const n = norm3(name).toLowerCase();
       if (!n) return null;
       for (const l of asArray(world.locations)) {
-        if (norm2(l.name).toLowerCase() === n) return l;
+        if (norm3(l.name).toLowerCase() === n) return l;
       }
       return null;
     }
@@ -25447,15 +25532,15 @@ ${char.mes_example}
       if (ov && ov.locationId) return ov.locationId;
       const sched = asArray(npc.schedule);
       if (sched.length && rt()?.clock) {
-        const t = norm2(rt().clock.time).toLowerCase();
-        const hit = sched.find((row2) => norm2(row2.time).toLowerCase() === t);
+        const t = norm3(rt().clock.time).toLowerCase();
+        const hit = sched.find((row2) => norm3(row2.time).toLowerCase() === t);
         if (hit && hit.locationId) return hit.locationId;
       }
       return npc.homeLocationId || npc.currentLocationId || npc.defaultState && npc.defaultState.locationId || null;
     }
     function npcMood(npc) {
       const ov = rt()?.npcStateOverrides?.[npc.id];
-      return norm2(ov?.mood || npc.defaultState?.mood || npc.mood || "");
+      return norm3(ov?.mood || npc.defaultState?.mood || npc.mood || "");
     }
     function characterLibrary() {
       try {
@@ -25474,8 +25559,8 @@ ${char.mes_example}
         const lib = characterLibrary();
         let hit = null;
         if (ref.name) {
-          const n = norm2(ref.name).toLowerCase();
-          hit = lib.find((c) => norm2(c && c.name).toLowerCase() === n);
+          const n = norm3(ref.name).toLowerCase();
+          hit = lib.find((c) => norm3(c && c.name).toLowerCase() === n);
         }
         if (!hit && ref.id && !ref.name) hit = lib.find((c) => c && c.id === ref.id);
         if (hit) return hit;
@@ -25502,19 +25587,19 @@ ${char.mes_example}
       }
     }
     function personName(person) {
-      return norm2(person && person.name) || norm2(resolveCharacter(person)?.name) || "Unnamed";
+      return norm3(person && person.name) || norm3(resolveCharacter(person)?.name) || "Unnamed";
     }
     function personBlurb(person, maxLen = 160) {
-      let t = norm2(person && person.description) || norm2(person && person.personality);
+      let t = norm3(person && person.description) || norm3(person && person.personality);
       if (!t) {
         const c = resolveCharacter(person);
-        t = norm2(c && (c.personality || c.description));
+        t = norm3(c && (c.personality || c.description));
       }
       if (!t) {
         try {
           const C = window.KLITE_RPMod_Characters;
           const ref = person && person.characterRef;
-          if (C && C.blurbFor && ref && ref.name) t = norm2(C.blurbFor(ref.name, maxLen));
+          if (C && C.blurbFor && ref && ref.name) t = norm3(C.blurbFor(ref.name, maxLen));
         } catch (_) {
         }
       }
@@ -25560,7 +25645,7 @@ ${char.mes_example}
       const s = normalizeStats(stats);
       const abil = ABILITIES2.map((a) => `${a.toUpperCase()} ${s.abilities[a]}(${fmtMod(abilityMod2(s.abilities[a]))})`).join(" ");
       const init2 = s.initiativeMod || abilityMod2(s.abilities.dex);
-      const atk = asArray(s.attacks).map((a) => norm2(a && a.name)).filter(Boolean).join(", ");
+      const atk = asArray(s.attacks).map((a) => norm3(a && a.name)).filter(Boolean).join(", ");
       return `AC ${s.ac}, HP ${s.hpMax}, ${abil}, Init ${fmtMod(init2)}` + (atk ? `; Attacks: ${atk}` : "");
     }
     const QUEST_STATES = ["available", "active", "complete", "turnedin", "failed"];
@@ -25588,7 +25673,7 @@ ${char.mes_example}
     }
     function questDescription(q, mode2) {
       const revealed = mode2 === "gm" || mode2 === "creator" || !q.hiddenDescription || isDiscovered("descriptions", q.id);
-      return revealed ? norm2(q.description) : norm2(q.hiddenDescription) || "???";
+      return revealed ? norm3(q.description) : norm3(q.hiddenDescription) || "???";
     }
     function personQuestMarker(personId, mode2) {
       const world = activeWorld();
@@ -25597,6 +25682,73 @@ ${char.mes_example}
       for (const q of quests) if (q.turninPersonId === personId && questStateOf(q) === "complete" && questVisible(q, mode2)) return "?";
       for (const q of quests) if (q.giverPersonId === personId && questStateOf(q) === "available" && questVisible(q, mode2)) return "!";
       return "";
+    }
+    function questTitle(q) {
+      return norm3(q && (q.title || q.name)) || "Quest";
+    }
+    function factionName(id) {
+      const f = findById(activeWorld() && activeWorld().factions, id);
+      return f ? norm3(f.name) : id;
+    }
+    function payRewards(q, choice) {
+      rt().rewardsPaid = rt().rewardsPaid || {};
+      if (rt().rewardsPaid[q.id]) return [];
+      const picks = [].concat(choice == null ? [] : choice);
+      let ci = 0;
+      const got = [];
+      for (const r of asArray(q.rewards)) {
+        switch (rewardType(r)) {
+          case "xp":
+            addXp(r.xp);
+            got.push(`${r.xp} XP`);
+            break;
+          case "gold":
+            addCoins(r.gold);
+            got.push(`${r.gold} gold`);
+            break;
+          case "item":
+            inventoryAdd(r.item, r.qty);
+            got.push(formatReward(r));
+            break;
+          case "reputation":
+            changeReputation(r.factionId, Number(r.amount) || 0, "quest");
+            got.push(formatReward(r, factionName));
+            break;
+          case "choice": {
+            const o = asArray(r.options)[Number(picks[ci++]) || 0];
+            if (o) {
+              inventoryAdd(o.item, o.qty);
+              got.push(formatReward({ type: "item", ...o }));
+            }
+            break;
+          }
+          default:
+            break;
+        }
+      }
+      rt().rewardsPaid[q.id] = { at: Date.now(), choice: picks };
+      return got;
+    }
+    function changeReputation(factionId, amount, why) {
+      if (!factionId || !amount) return;
+      rt().reputation = rt().reputation || {};
+      const before = tierOf(repValue(factionId));
+      rt().reputation[factionId] = repValue(factionId) + amount;
+      const after = tierOf(rt().reputation[factionId]);
+      gameLog(`Reputation with ${factionName(factionId)} ${amount > 0 ? "+" : ""}${amount}${after !== before ? ` — now ${after}` : ""}.`, "quest");
+      try {
+        fireTriggers("reputation:" + factionId);
+      } catch (_) {
+      }
+    }
+    function repValue(factionId) {
+      const v = rt() && rt().reputation && rt().reputation[factionId];
+      if (v != null) return Number(v) || 0;
+      const f = findById(activeWorld() && activeWorld().factions, factionId);
+      return Number(f && f.startReputation) || 0;
+    }
+    function needsChoice(q) {
+      return asArray(q && q.rewards).filter((r) => rewardType(r) === "choice").length;
     }
     function setQuestState(questId, state) {
       ensureRuntime();
@@ -25610,6 +25762,37 @@ ${char.mes_example}
       }
       return state;
     }
+    function questById(id) {
+      return findById(activeWorld() && activeWorld().quests, id);
+    }
+    function acceptQuest(id) {
+      const q = questById(id);
+      if (!q) return null;
+      const s = setQuestState(id, "active");
+      if (s) gameLog(`Quest accepted: ${questTitle(q)}.`);
+      return s;
+    }
+    function turnInQuest(id, choice) {
+      const q = questById(id);
+      if (!q) return null;
+      if (needsChoice(q) && choice == null && !(rt().rewardsPaid && rt().rewardsPaid[id])) return null;
+      const got = payRewards(q, choice);
+      const s = setQuestState(id, "turnedin");
+      if (rt().activeQuestId === id) rt().activeQuestId = null;
+      gameLog(`Quest turned in: ${questTitle(q)}.${got.length ? " Rewards: " + got.join(", ") + "." : ""}`);
+      return s;
+    }
+    function abandonQuest(id) {
+      const q = questById(id);
+      if (!q) return null;
+      const st = questStateOf(q);
+      if (st !== "active" && st !== "complete") return null;
+      if (rt().questObjectives) delete rt().questObjectives[id];
+      if (rt().activeQuestId === id) rt().activeQuestId = null;
+      const s = setQuestState(id, "available");
+      gameLog(`Quest abandoned: ${questTitle(q)}.`);
+      return s;
+    }
     function listQuests(mode2) {
       const world = activeWorld();
       if (!world) return [];
@@ -25618,7 +25801,7 @@ ${char.mes_example}
         const giver = findById(world.npcs, q.giverPersonId), turnin = findById(world.npcs, q.turninPersonId);
         return {
           id: q.id,
-          title: norm2(q.title) || norm2(q.name) || "Quest",
+          title: norm3(q.title) || norm3(q.name) || "Quest",
           description: questDescription(q, mode2),
           hidden: !!q.hidden,
           state: questStateOf(q),
@@ -25633,13 +25816,13 @@ ${char.mes_example}
     }
     function factValue(field) {
       const c = rt()?.clock || {};
-      switch (norm2(field)) {
+      switch (norm3(field)) {
         case "time":
-          return norm2(c.time).toLowerCase();
+          return norm3(c.time).toLowerCase();
         case "season":
-          return norm2(c.season).toLowerCase();
+          return norm3(c.season).toLowerCase();
         case "weather":
-          return norm2(c.weather).toLowerCase();
+          return norm3(c.weather).toLowerCase();
         case "day":
           return Number(c.day) || 0;
         case "month":
@@ -25658,7 +25841,7 @@ ${char.mes_example}
       if (!cond || typeof cond !== "object") return true;
       const lhs = factValue(cond.field);
       const rhs = typeof cond.value === "string" ? cond.value.toLowerCase() : cond.value;
-      switch (norm2(cond.op) || "==") {
+      switch (norm3(cond.op) || "==") {
         case "==":
           return lhs == rhs;
         case "!=":
@@ -25699,7 +25882,7 @@ ${char.mes_example}
     function advanceClock(slots = 1) {
       if (!rt()) return null;
       const c = rt().clock;
-      let idx = TIME_SLOTS.indexOf(norm2(c.time).toLowerCase());
+      let idx = TIME_SLOTS.indexOf(norm3(c.time).toLowerCase());
       if (idx < 0) idx = 0;
       for (let i = 0; i < slots; i++) {
         idx++;
@@ -25722,35 +25905,104 @@ ${char.mes_example}
       return { ...c };
     }
     function findNpcByName(world, name) {
-      const n = norm2(name).toLowerCase();
+      const n = norm3(name).toLowerCase();
       if (!n) return null;
-      return asArray(world.npcs).find((x) => norm2(x.name).toLowerCase() === n) || findById(world.npcs, name);
+      return asArray(world.npcs).find((x) => norm3(x.name).toLowerCase() === n) || findById(world.npcs, name);
     }
     function parseFlagValue(raw) {
-      const v = norm2(raw);
+      const v = norm3(raw);
       if (v === "") return true;
       if (/^(true|yes|on)$/i.test(v)) return true;
       if (/^(false|no|off)$/i.test(v)) return false;
       if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
       return v;
     }
+    function sheetOwner() {
+      const n = personaName();
+      const C = window.KLITE_RPMod_Characters;
+      return n && C && typeof C.updateSheet === "function" ? n : "";
+    }
+    function withSheet(mutate, fallback) {
+      const n = sheetOwner();
+      if (!n) {
+        fallback();
+        return;
+      }
+      window.KLITE_RPMod_Characters.updateSheet(n, mutate, { onMissing: () => {
+        fallback();
+        syncLive();
+      } });
+    }
+    const sameItem = (a, b) => norm3(a).toLowerCase() === norm3(b).toLowerCase();
     function inventoryAdd(name, qty) {
-      const n = norm2(name);
+      const n = norm3(name);
       if (!n) return;
       qty = Number(qty) || 1;
-      const inv = rt().inventory;
-      const ex = inv.find((i) => norm2(i.name).toLowerCase() === n.toLowerCase());
-      if (ex) ex.qty = (Number(ex.qty) || 1) + qty;
-      else inv.push({ id: uid("item"), name: n, qty });
+      withSheet((s) => {
+        const ex = s.inventory.find((i) => sameItem(i.name, n));
+        if (ex) ex.qty = (Number(ex.qty) || 1) + qty;
+        else s.inventory.push({ name: n, qty, notes: "" });
+      }, () => {
+        const inv = rt().inventory;
+        const ex = inv.find((i) => sameItem(i.name, n));
+        if (ex) ex.qty = (Number(ex.qty) || 1) + qty;
+        else inv.push({ id: uid("item"), name: n, qty });
+      });
     }
     function inventoryRemove(name, qty) {
-      const n = norm2(name).toLowerCase();
+      const n = norm3(name);
       if (!n) return;
-      const inv = rt().inventory;
-      const i = inv.findIndex((x) => norm2(x.name).toLowerCase() === n);
-      if (i < 0) return;
-      if (qty && (Number(inv[i].qty) || 1) > Number(qty)) inv[i].qty -= Number(qty);
-      else inv.splice(i, 1);
+      const cut = (inv) => {
+        const i = inv.findIndex((x) => sameItem(x.name, n));
+        if (i < 0) return;
+        if (qty && (Number(inv[i].qty) || 1) > Number(qty)) inv[i].qty -= Number(qty);
+        else inv.splice(i, 1);
+      };
+      withSheet((s) => cut(s.inventory), () => cut(rt().inventory));
+    }
+    function itemCount(name) {
+      let n = 0;
+      for (const i of asArray(rt() && rt().inventory)) if (sameName(i.name, name)) n += Number(i.qty) || 1;
+      const sh = sheetOwner() && personaSheet();
+      if (sh) {
+        for (const i of asArray(sh.inventory)) if (sameName(i.name, name)) n += Number(i.qty) || 1;
+      }
+      return n;
+    }
+    function addCoins(gp) {
+      gp = Number(gp) || 0;
+      if (!gp) return;
+      withSheet((s) => {
+        s.coins.gp = (Number(s.coins.gp) || 0) + gp;
+      }, () => {
+        rt().coins = rt().coins || { gp: 0 };
+        rt().coins.gp = (Number(rt().coins.gp) || 0) + gp;
+      });
+    }
+    function addXp(xp, why) {
+      xp = Number(xp) || 0;
+      if (!xp) return;
+      const n = sheetOwner();
+      withSheet((s) => {
+        const before = levelForXp(s.xp);
+        s.xp = (Number(s.xp) || 0) + xp;
+        if (levelForXp(s.xp) > (Number(s.level) || 1) && levelForXp(s.xp) > before) gameLog(`${n} has enough XP for level ${(Number(s.level) || 1) + 1} — use Level up on the character sheet.`, "quest");
+      }, () => {
+        rt().xp = (Number(rt().xp) || 0) + xp;
+      });
+    }
+    function inventoryView() {
+      const sh = sheetOwner() && personaSheet();
+      const story = asArray(rt() && rt().inventory);
+      if (sh) return { source: "sheet", owner: personaName(), items: asArray(sh.inventory).concat(story), gp: Number(sh.coins && sh.coins.gp) || 0, xp: Number(sh.xp) || 0 };
+      return { source: "story", owner: "", items: story, gp: Number(rt() && rt().coins && rt().coins.gp) || 0, xp: Number(rt() && rt().xp) || 0 };
+    }
+    function gameLog(what, kind) {
+      try {
+        window.KLITE_RPMod_Log?.add({ what, kind: kind || "quest" });
+      } catch (_) {
+      }
+      dbg(kind || "quest", what);
     }
     function parseMutations(text) {
       const world = activeWorld();
@@ -25787,26 +26039,26 @@ ${char.mes_example}
       scan(/<mood>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/mood>/gi, (m) => {
         const npc = findNpcByName(world, m[1]);
         if (npc) {
-          (rt().npcStateOverrides[npc.id] = rt().npcStateOverrides[npc.id] || {}).mood = norm2(m[2]);
+          (rt().npcStateOverrides[npc.id] = rt().npcStateOverrides[npc.id] || {}).mood = norm3(m[2]);
           return true;
         }
         return false;
       });
       scan(/<flag>\s*([^=<>]+?)\s*(?:=\s*([^<>]*?))?\s*<\/flag>/gi, (m) => {
-        rt().flags[norm2(m[1])] = parseFlagValue(m[2]);
+        rt().flags[norm3(m[1])] = parseFlagValue(m[2]);
         return true;
       });
       scan(/<unflag>\s*([^<>]+?)\s*<\/unflag>/gi, (m) => {
-        delete rt().flags[norm2(m[1])];
+        delete rt().flags[norm3(m[1])];
         return true;
       });
       scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, (m) => {
-        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm2(m[1])) || [];
+        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm3(m[1])) || [];
         inventoryAdd(nm, q);
         return true;
       });
       scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, (m) => {
-        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm2(m[1])) || [];
+        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm3(m[1])) || [];
         inventoryRemove(nm, q);
         return true;
       });
@@ -25815,11 +26067,11 @@ ${char.mes_example}
         return !!startSavedEncounter(m[1]);
       });
       scan(/<quest>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/quest>/gi, (m) => {
-        rt().questState[norm2(m[1])] = norm2(m[2]);
+        rt().questState[norm3(m[1])] = norm3(m[2]);
         return true;
       });
       scan(/<time>\s*([^<>]+?)\s*<\/time>/gi, (m) => {
-        const t = norm2(m[1]).toLowerCase();
+        const t = norm3(m[1]).toLowerCase();
         if (TIME_SLOTS.includes(t)) {
           rt().clock.time = t;
           return true;
@@ -25827,7 +26079,7 @@ ${char.mes_example}
         return false;
       });
       scan(/<weather>\s*([^<>]+?)\s*<\/weather>/gi, (m) => {
-        rt().clock.weather = norm2(m[1]);
+        rt().clock.weather = norm3(m[1]);
         return true;
       });
       scan(/<advance\s*\/?>/gi, () => {
@@ -25836,7 +26088,7 @@ ${char.mes_example}
       });
       scan(/<action>\s*([^<>]+?)\s*<\/action>/gi, (m) => {
         try {
-          fireTriggers("action:" + norm2(m[1]));
+          fireTriggers("action:" + norm3(m[1]));
         } catch (_) {
         }
         return true;
@@ -25870,14 +26122,14 @@ ${char.mes_example}
       if (!effect || typeof effect !== "object" || !rt()) return [];
       const world = activeWorld();
       const sigs = [];
-      switch (norm2(effect.type)) {
+      switch (norm3(effect.type)) {
         case "flag":
-          rt().flags[norm2(effect.key)] = "value" in effect ? effect.value : true;
-          sigs.push("flag:" + norm2(effect.key));
+          rt().flags[norm3(effect.key)] = "value" in effect ? effect.value : true;
+          sigs.push("flag:" + norm3(effect.key));
           break;
         case "unflag":
-          delete rt().flags[norm2(effect.key)];
-          sigs.push("flag:" + norm2(effect.key));
+          delete rt().flags[norm3(effect.key)];
+          sigs.push("flag:" + norm3(effect.key));
           break;
         case "give":
           inventoryAdd(effect.name, effect.qty);
@@ -25886,16 +26138,16 @@ ${char.mes_example}
           inventoryRemove(effect.name, effect.qty);
           break;
         case "quest": {
-          const id = norm2(effect.id || effect.questId);
-          const st = norm2(effect.state) || "available";
+          const id = norm3(effect.id || effect.questId);
+          const st = norm3(effect.state) || "available";
           rt().questState[id] = st;
           sigs.push("quest:" + id + ":" + st);
           break;
         }
         case "discover": {
-          if (effect.quest) discover("quests", norm2(effect.quest));
-          if (effect.description) discover("descriptions", norm2(effect.description));
-          if (effect.event) discover("events", norm2(effect.event));
+          if (effect.quest) discover("quests", norm3(effect.quest));
+          if (effect.description) discover("descriptions", norm3(effect.description));
+          if (effect.event) discover("events", norm3(effect.event));
           break;
         }
         case "move": {
@@ -25917,7 +26169,7 @@ ${char.mes_example}
           sigs.push("time");
           break;
         case "fireEvent":
-          if (effect.eventId) sigs.push("manual:" + norm2(effect.eventId));
+          if (effect.eventId) sigs.push("manual:" + norm3(effect.eventId));
           break;
         case "encounter":
           if (effect.value || effect.encounterId) startSavedEncounter(effect.encounterId || effect.value);
@@ -25935,28 +26187,28 @@ ${char.mes_example}
     }
     function triggerMatches(trig, signal, ev) {
       const c = rt() && rt().clock || {};
-      switch (norm2(trig.type)) {
+      switch (norm3(trig.type)) {
         case "onTurn":
           return signal === "turn";
         case "onTime":
           if (signal !== "turn" && signal !== "time") return false;
-          if (trig.time && norm2(trig.time).toLowerCase() !== norm2(c.time).toLowerCase()) return false;
-          if (trig.season && norm2(trig.season).toLowerCase() !== norm2(c.season).toLowerCase()) return false;
+          if (trig.time && norm3(trig.time).toLowerCase() !== norm3(c.time).toLowerCase()) return false;
+          if (trig.season && norm3(trig.season).toLowerCase() !== norm3(c.season).toLowerCase()) return false;
           if (trig.day != null && Number(trig.day) !== Number(c.day)) return false;
           return true;
         case "onEnterLocation":
           return signal === "enter:" + trig.locationId || signal === "turn" && rt().playerLocationId === trig.locationId;
         case "onFlag": {
-          if (signal !== "flag:" + norm2(trig.key) && signal !== "turn") return false;
-          const v = rt().flags[norm2(trig.key)];
+          if (signal !== "flag:" + norm3(trig.key) && signal !== "turn") return false;
+          const v = rt().flags[norm3(trig.key)];
           return "value" in trig ? v == trig.value : !!v;
         }
         case "onQuestState":
-          return signal === "quest:" + norm2(trig.questId) + ":" + norm2(trig.state) || signal === "turn" && norm2(rt().questState[norm2(trig.questId)]) === norm2(trig.state);
+          return signal === "quest:" + norm3(trig.questId) + ":" + norm3(trig.state) || signal === "turn" && norm3(rt().questState[norm3(trig.questId)]) === norm3(trig.state);
         case "onEvent":
-          return signal === "event:" + norm2(trig.eventId);
+          return signal === "event:" + norm3(trig.eventId);
         case "onAction":
-          return typeof signal === "string" && signal.indexOf("action:") === 0 && (norm2(trig.pattern) === "" || signal.slice(7).toLowerCase().includes(norm2(trig.pattern).toLowerCase()));
+          return typeof signal === "string" && signal.indexOf("action:") === 0 && (norm3(trig.pattern) === "" || signal.slice(7).toLowerCase().includes(norm3(trig.pattern).toLowerCase()));
         case "manual":
           return signal === "manual:" + ev.id;
         default:
@@ -26006,7 +26258,7 @@ ${char.mes_example}
       return 1 + Math.floor(Math.random() * Math.max(1, Number(sides) || 20));
     }
     function rollExpr(expr) {
-      const s = norm2(expr).toLowerCase().replace(/\s+/g, "");
+      const s = norm3(expr).toLowerCase().replace(/\s+/g, "");
       const rolls = [];
       let total = 0;
       const re = /([+-]?)(\d*)d(\d+)|([+-]?\d+)/g;
@@ -26059,7 +26311,7 @@ ${char.mes_example}
       const cb = getCombat();
       const o = cb && asArray(cb.order).find((x) => x.id === id);
       if (o && o.name) return o.name;
-      if (id === "__player__") return norm2(playerCombatCfg().name) || personaName() || "You";
+      if (id === "__player__") return norm3(playerCombatCfg().name) || personaName() || "You";
       const p = entityById(activeWorld(), id);
       return p ? personName(p) : String(id);
     }
@@ -26076,12 +26328,12 @@ ${char.mes_example}
       dbg("combat:", msg);
     }
     function resolveCombatant(name) {
-      const n = norm2(name).toLowerCase();
+      const n = norm3(name).toLowerCase();
       if (!n) return null;
       if (n === "you" || n === "player" || n === "self" || personaName() && n === personaName().toLowerCase()) return "__player__";
       const cb = getCombat();
       if (cb) {
-        const hit = cb.order.find((o) => norm2(o.name).toLowerCase() === n) || cb.order.find((o) => norm2(o.name).toLowerCase().startsWith(n));
+        const hit = cb.order.find((o) => norm3(o.name).toLowerCase() === n) || cb.order.find((o) => norm3(o.name).toLowerCase().startsWith(n));
         if (hit) return hit.id;
       }
       const npc = findNpcByName(activeWorld(), name);
@@ -26119,7 +26371,7 @@ ${char.mes_example}
         const st = statOf(e.id);
         const init2 = rollD20(st.initiativeMod != null ? st.initiativeMod : abilityMod2(st.abilities.dex)).total;
         const side = e.kind === "monster" ? "enemy" : sideOf(e.id, opts);
-        return { id: e.id, name: e.name || (e.id === "__player__" ? norm2(playerCombatCfg().name) || personaName() || "You" : combatantNameNoCombat(e.id)), init: init2, isPlayer: e.id === "__player__", side, kind: e.kind, key: e.key };
+        return { id: e.id, name: e.name || (e.id === "__player__" ? norm3(playerCombatCfg().name) || personaName() || "You" : combatantNameNoCombat(e.id)), init: init2, isPlayer: e.id === "__player__", side, kind: e.kind, key: e.key };
       });
       order.sort((a, b) => b.init - a.init || b.isPlayer - a.isPlayer);
       const hp = {}, maxHp = {}, death = {};
@@ -26366,7 +26618,7 @@ ${char.mes_example}
     }
     function savingThrow(id, ability, dc, opts = {}) {
       const st = combatantStats(id);
-      const ab = norm2(ability).toLowerCase().slice(0, 3);
+      const ab = norm3(ability).toLowerCase().slice(0, 3);
       const mod = st.saves && st.saves[ab] != null && typeof st.saves[ab] === "number" ? st.saves[ab] : abilityMod2(st.abilities[ab] != null ? st.abilities[ab] : 10);
       const autoFail = (ab === "str" || ab === "dex") && cannotAct(conds(id)) && !conds(id).some((c) => c.name === "Incapacitated" && conds(id).length === 1);
       const r = rollD20(mod, opts.mode);
@@ -26494,15 +26746,15 @@ ${char.mes_example}
     }
     function startSavedEncounter(idOrName) {
       const w = activeWorld();
-      const q = norm2(idOrName).toLowerCase();
-      const enc = asArray(w && w.encounters).find((e) => e.id === idOrName || norm2(e.name).toLowerCase() === q);
+      const q = norm3(idOrName).toLowerCase();
+      const enc = asArray(w && w.encounters).find((e) => e.id === idOrName || norm3(e.name).toLowerCase() === q);
       if (enc) return startEncounter(asArray(enc.personIds), { monsters: enc.monsters, encounterId: enc.id, difficulty: enc.difficulty });
       const monsters = parseMonsterList(idOrName);
       return monsters.length ? startEncounter([], { monsters }) : null;
     }
     function abilityCheck(id, ability, dc, mode2) {
       const st = combatantStats(id);
-      const ab = norm2(ability).toLowerCase();
+      const ab = norm3(ability).toLowerCase();
       const mod = abilityMod2(st.abilities[ab] != null ? st.abilities[ab] : 10);
       const r = rollD20(mod, mode2);
       const success = r.total >= Number(dc);
@@ -26557,9 +26809,9 @@ ${recent}` : "");
       if (loc) return loc;
       const ctx = recentContext().toLowerCase();
       if (ctx) {
-        const sorted = asArray(world.locations).slice().sort((a, b) => norm2(b.name).length - norm2(a.name).length);
+        const sorted = asArray(world.locations).slice().sort((a, b) => norm3(b.name).length - norm3(a.name).length);
         for (const l of sorted) {
-          const n = norm2(l.name).toLowerCase();
+          const n = norm3(l.name).toLowerCase();
           if (n && ctx.includes(n)) {
             if (mutate && rt()) rt().playerLocationId = l.id;
             return l;
@@ -26599,11 +26851,11 @@ ${recent}` : "");
       const loc = resolveCurrentLocation(world, mutate);
       const sections = [];
       const push = (title, priority, text) => {
-        if (norm2(text)) sections.push({ title, priority, text: norm2(text) });
+        if (norm3(text)) sections.push({ title, priority, text: norm3(text) });
       };
-      push("World: " + nodeName("world", world), 100, norm2(world.description));
+      push("World: " + nodeName("world", world), 100, norm3(world.description));
       if (W.config.insertRules) {
-        const rules = asArray(world.rules).map(norm2).filter(Boolean).join("\n");
+        const rules = asArray(world.rules).map(norm3).filter(Boolean).join("\n");
         push("World Rules", 100, rules);
       }
       const c = rt().clock || {};
@@ -26613,10 +26865,14 @@ ${recent}` : "");
         `Day ${c.day}, ${c.season} (${c.time}). Weather: ${c.weather}.`
       );
       const stateBits = [];
-      const inv = asArray(rt().inventory).filter((i) => i && norm2(i.name));
-      if (inv.length) stateBits.push("Inventory: " + inv.map((i) => norm2(i.name) + ((Number(i.qty) || 1) > 1 ? ` x${i.qty}` : "")).join(", "));
+      const inv = asArray(rt().inventory).filter((i) => i && norm3(i.name));
+      if (inv.length) stateBits.push((sheetOwner() && personaSheet() ? "Story items: " : "Inventory: ") + inv.map((i) => norm3(i.name) + ((Number(i.qty) || 1) > 1 ? ` x${i.qty}` : "")).join(", "));
+      if (!(sheetOwner() && personaSheet())) {
+        const gp = Number(rt().coins && rt().coins.gp) || 0, xp = Number(rt().xp) || 0;
+        if (gp || xp) stateBits.push(`Gold: ${gp}, XP: ${xp}`);
+      }
       const party = asArray(rt().party).map((id) => (findById(world.npcs, id) || {}).name).filter(Boolean);
-      if (party.length) stateBits.push("Party: " + party.map(norm2).join(", "));
+      if (party.length) stateBits.push("Party: " + party.map(norm3).join(", "));
       push("Player State", 85, stateBits.join("\n"));
       push("Combat", 96, combatText());
       if (!(getCombat() && getCombat().active)) {
@@ -26627,14 +26883,14 @@ ${recent}` : "");
         return { sections, location: null };
       }
       if (mutate && rt() && !asArray(rt().visitedLocationIds).includes(loc.id)) rt().visitedLocationIds.push(loc.id);
-      const exits = asArray(loc.exits).map((e) => norm2(e && e.name) || (findById(world.locations, e && e.locationId) || {}).name).filter(Boolean).concat(connectedLocations(world, loc, 1).map((l) => norm2(l.name)));
-      const exitsUniq = [...new Set(exits.map(norm2).filter(Boolean))];
-      let locText = norm2(loc.description);
-      if (norm2(loc.atmosphere)) locText += `${locText ? "\n" : ""}Atmosphere: ${norm2(loc.atmosphere)}`;
+      const exits = asArray(loc.exits).map((e) => norm3(e && e.name) || (findById(world.locations, e && e.locationId) || {}).name).filter(Boolean).concat(connectedLocations(world, loc, 1).map((l) => norm3(l.name)));
+      const exitsUniq = [...new Set(exits.map(norm3).filter(Boolean))];
+      let locText = norm3(loc.description);
+      if (norm3(loc.atmosphere)) locText += `${locText ? "\n" : ""}Atmosphere: ${norm3(loc.atmosphere)}`;
       if (exitsUniq.length) locText += `${locText ? "\n" : ""}Exits: ${exitsUniq.join(", ")}`;
-      const hqFactions = asArray(world.factions).filter((f) => f.hqLocationId === loc.id).map((f) => norm2(f.name)).filter(Boolean);
+      const hqFactions = asArray(world.factions).filter((f) => f.hqLocationId === loc.id).map((f) => norm3(f.name)).filter(Boolean);
       if (hqFactions.length) locText += `${locText ? "\n" : ""}Headquarters of: ${hqFactions.join(", ")}`;
-      sections.push({ title: `Current Location: ${norm2(loc.name)}`, priority: 80, text: locText });
+      sections.push({ title: `Current Location: ${norm3(loc.name)}`, priority: 80, text: locText });
       const npcsHere = asArray(world.npcs).filter((npc) => resolveNpcLocationId(npc) === loc.id || asArray(loc.npcIds).includes(npc.id));
       const npcSeen = /* @__PURE__ */ new Set();
       const npcLines = [];
@@ -26650,7 +26906,7 @@ ${recent}` : "");
         if (blurb) bits.push(blurb);
         const md = npcMood(npc);
         if (md) bits.push(`Mood: ${md}`);
-        if (faction) bits.push(`Faction: ${norm2(faction.name)}`);
+        if (faction) bits.push(`Faction: ${norm3(faction.name)}`);
         const npcStats = npc.stats || cardSheetStats(npc);
         if (npcStats) bits.push(statSummary(npcStats));
         npcLines.push("- " + bits.join(" | "));
@@ -26658,42 +26914,42 @@ ${recent}` : "");
       }
       push("Nearby NPCs", 70, npcLines.join("\n"));
       const objsHere = asArray(world.objects).filter((o) => o.locationId === loc.id || asArray(loc.objectIds).includes(o.id));
-      const objLines = objsHere.map((o) => "- " + norm2(o.name) + (norm2(o.desc) ? `: ${norm2(o.desc)}` : ""));
+      const objLines = objsHere.map((o) => "- " + norm3(o.name) + (norm3(o.desc) ? `: ${norm3(o.desc)}` : ""));
       push("Nearby Objects", 50, objLines.join("\n"));
       const questLines = [];
       for (const q of asArray(world.quests)) {
         const st = questStateOf(q);
         if (st !== "active" && st !== "complete") continue;
         if (!questVisible(q, mode2)) continue;
-        const title = norm2(q.title) || norm2(q.name) || "Quest";
+        const title = norm3(q.title) || norm3(q.name) || "Quest";
         const track = rt().activeQuestId === q.id ? " [tracked]" : "";
         const desc = questDescription(q, mode2);
-        const objs = asArray(q.objectives).filter((o) => questVisible(q, mode2) && !o.hidden).map((o) => `    ${rt().questObjectives?.[q.id]?.[o.id] ? "☑" : "☐"} ${norm2(o.text)}`).filter(Boolean);
+        const objs = asArray(q.objectives).filter((o) => questVisible(q, mode2) && !o.hidden).map((o) => `    ${rt().questObjectives?.[q.id]?.[o.id] ? "☑" : "☐"} ${norm3(o.text)}`).filter(Boolean);
         questLines.push(`- ${title} [${st}]${track}` + (desc ? `: ${desc}` : "") + (objs.length ? "\n" + objs.join("\n") : ""));
       }
       push("Active Quests", 45, questLines.join("\n"));
       const evLines = [];
       const seenEv = /* @__PURE__ */ new Set();
       for (const ev of asArray(world.events)) {
-        const ambient = !asArray(ev.triggers).length || asArray(ev.triggers).some((t) => norm2(t.type) === "onTurn");
+        const ambient = !asArray(ev.triggers).length || asArray(ev.triggers).some((t) => norm3(t.type) === "onTurn");
         const show = firedEventsBuffer.includes(ev.id) || ambient && eventActive(world, ev);
         if (!show || seenEv.has(ev.id)) continue;
         if (ev.hidden && mode2 === "player" && !isDiscovered("events", ev.id)) continue;
         seenEv.add(ev.id);
-        evLines.push("- " + (norm2(ev.name) ? norm2(ev.name) + ": " : "") + norm2(ev.description));
+        evLines.push("- " + (norm3(ev.name) ? norm3(ev.name) + ": " : "") + norm3(ev.description));
       }
       push("Active Events", 40, evLines.join("\n"));
       const loreLines = [];
       for (const ll of asArray(loc.localLore)) {
-        const t = norm2(typeof ll === "string" ? ll : ll.content);
+        const t = norm3(typeof ll === "string" ? ll : ll.content);
         if (t) loreLines.push(t);
       }
       const ctx = recentContext().toLowerCase();
       for (const gl of asArray(world.globalLore)) {
-        const content = norm2(typeof gl === "string" ? gl : gl.content);
+        const content = norm3(typeof gl === "string" ? gl : gl.content);
         if (!content) continue;
         const always = gl && (gl.always || gl.constant);
-        const keys = asArray(gl && gl.keys).map((k2) => norm2(k2).toLowerCase()).filter(Boolean);
+        const keys = asArray(gl && gl.keys).map((k2) => norm3(k2).toLowerCase()).filter(Boolean);
         const hit = always || keys.length && keys.some((k2) => ctx.includes(k2));
         if (hit) loreLines.push(content);
       }
@@ -26852,20 +27108,20 @@ ${recent}` : "");
       return null;
     }
     function nodeName(type, e) {
-      if (type === "world") return norm2(e.name) || "World";
-      if (type === "lore") return norm2(e.label) || (norm2(e.content).slice(0, 28) || "Lore");
-      if (type === "npc") return norm2(e.name) || norm2(resolveCharacter(e)?.name) || "New npc";
-      if (type === "quest") return norm2(e.title) || norm2(e.name) || "New quest";
-      return norm2(e.name) || "New " + type;
+      if (type === "world") return norm3(e.name) || "World";
+      if (type === "lore") return norm3(e.label) || (norm3(e.content).slice(0, 28) || "Lore");
+      if (type === "npc") return norm3(e.name) || norm3(resolveCharacter(e)?.name) || "New npc";
+      if (type === "quest") return norm3(e.title) || norm3(e.name) || "New quest";
+      return norm3(e.name) || "New " + type;
     }
     function nodeEntry(type, e) {
-      return norm2(e[ENTRY_FIELD[type]] || "");
+      return norm3(e[ENTRY_FIELD[type]] || "");
     }
     function getGraph() {
       const world = activeWorld();
       if (!world) return { world: null, nodes: [], edges: [] };
       normalizeWorld(world);
-      const nodes = [{ id: "__world__", type: "world", name: nodeName("world", world), entry: norm2(world.description), x: world.ui?.x, y: world.ui?.y }];
+      const nodes = [{ id: "__world__", type: "world", name: nodeName("world", world), entry: norm3(world.description), x: world.ui?.x, y: world.ui?.y }];
       const edges = [];
       for (const t of Object.keys(TYPE_ARRAYS)) {
         for (const e of asArray(world[TYPE_ARRAYS[t]])) {
@@ -26892,13 +27148,13 @@ ${recent}` : "");
       }
       for (const ev of asArray(world.events)) {
         for (const t of asArray(ev.triggers)) {
-          if (norm2(t.type) === "onQuestState" && findById(world.quests, t.questId)) edges.push({ from: t.questId, to: ev.id, kind: "onquest" });
-          if (norm2(t.type) === "onEnterLocation" && findById(world.locations, t.locationId)) edges.push({ from: t.locationId, to: ev.id, kind: "onenter" });
+          if (norm3(t.type) === "onQuestState" && findById(world.quests, t.questId)) edges.push({ from: t.questId, to: ev.id, kind: "onquest" });
+          if (norm3(t.type) === "onEnterLocation" && findById(world.locations, t.locationId)) edges.push({ from: t.locationId, to: ev.id, kind: "onenter" });
         }
         for (const eff of asArray(ev.effects)) {
           const qid = eff.questId || eff.quest;
-          if ((norm2(eff.type) === "quest" || norm2(eff.type) === "discover") && findById(world.quests, qid)) edges.push({ from: ev.id, to: qid, kind: "affects" });
-          if (norm2(eff.type) === "fireEvent" && findById(world.events, eff.eventId)) edges.push({ from: ev.id, to: eff.eventId, kind: "chains" });
+          if ((norm3(eff.type) === "quest" || norm3(eff.type) === "discover") && findById(world.quests, qid)) edges.push({ from: ev.id, to: qid, kind: "affects" });
+          if (norm3(eff.type) === "fireEvent" && findById(world.events, eff.eventId)) edges.push({ from: ev.id, to: eff.eventId, kind: "chains" });
         }
       }
       return { world, nodes, edges };
@@ -26910,9 +27166,9 @@ ${recent}` : "");
       if (!key) throw new Error("bad type " + type);
       normalizeWorld(world);
       const e = { id: uid(type), ui: { x: Number(fields.x) || 300, y: Number(fields.y) || 200 } };
-      if (type === "lore") e.content = norm2(fields.name) || "";
-      else if (type === "quest") e.title = norm2(fields.title || fields.name) || "New quest";
-      else e.name = norm2(fields.name) || "New " + type;
+      if (type === "lore") e.content = norm3(fields.name) || "";
+      else if (type === "quest") e.title = norm3(fields.title || fields.name) || "New quest";
+      else e.name = norm3(fields.name) || "New " + type;
       world[key].push(e);
       dbg("addEntity", type, e.id);
       return e;
@@ -27075,7 +27331,7 @@ ${recent}` : "");
       return true;
     }
     async function createWorld(name) {
-      const w = normalizeWorld({ id: uid("world"), name: norm2(name) || "New World", description: "", ui: { x: 120, y: 260 } });
+      const w = normalizeWorld({ id: uid("world"), name: norm3(name) || "New World", description: "", ui: { x: 120, y: 260 } });
       W.library[w.id] = w;
       await saveLibrary();
       W.activeWorldId = w.id;
@@ -27086,15 +27342,15 @@ ${recent}` : "");
       if (!e || typeof e !== "object") return null;
       const keys = Array.isArray(e.keys) ? e.keys : Array.isArray(e.key) ? e.key : typeof e.key === "string" ? e.key.split(",") : [];
       const sec = Array.isArray(e.secondary_keys) ? e.secondary_keys : typeof e.keysecondary === "string" ? e.keysecondary.split(",") : [];
-      const content = norm2(e.content);
+      const content = norm3(e.content);
       if (!content) return null;
       return {
-        keys: keys.map(norm2).filter(Boolean),
-        secondary: sec.map(norm2).filter(Boolean),
+        keys: keys.map(norm3).filter(Boolean),
+        secondary: sec.map(norm3).filter(Boolean),
         content,
-        comment: norm2(e.comment || e.name || ""),
+        comment: norm3(e.comment || e.name || ""),
         constant: !!e.constant,
-        wigroup: norm2(e.wigroup || "")
+        wigroup: norm3(e.wigroup || "")
       };
     }
     function wiEntriesFrom(data) {
@@ -27158,14 +27414,14 @@ ${recent}` : "");
     function exportWorldAsWI(worldId) {
       const w = W.library[worldId || W.activeWorldId];
       if (!w) return [];
-      const mk = (key, content, comment, constant) => ({ key: norm2(key), keysecondary: "", keyanti: "", content, comment: norm2(comment), wigroup: "", constant: !!constant, selective: false, probability: 100, widisabled: false });
+      const mk = (key, content, comment, constant) => ({ key: norm3(key), keysecondary: "", keyanti: "", content, comment: norm3(comment), wigroup: "", constant: !!constant, selective: false, probability: 100, widisabled: false });
       const out = [];
-      for (const l of asArray(w.locations)) out.push(mk(l.name, `[Location: ${norm2(l.name)}]${norm2(l.description) ? "\n" + norm2(l.description) : ""}`, l.name));
-      for (const n of asArray(w.npcs)) out.push(mk(n.name, `[Character: ${norm2(n.name)}]${norm2(n.personality || n.description) ? "\n" + norm2(n.personality || n.description) : ""}`, n.name));
-      for (const f of asArray(w.factions)) out.push(mk(f.name, `[Faction: ${norm2(f.name)}]${norm2(f.description || f.goals) ? "\n" + norm2(f.description || f.goals) : ""}`, f.name));
-      for (const o of asArray(w.objects)) out.push(mk(o.name, `[Object: ${norm2(o.name)}]${norm2(o.desc) ? "\n" + norm2(o.desc) : ""}`, o.name));
-      for (const ev of asArray(w.events)) out.push(mk(ev.name, `[Event: ${norm2(ev.name)}]${norm2(ev.description) ? "\n" + norm2(ev.description) : ""}`, ev.name));
-      for (const gl of asArray(w.globalLore)) out.push(mk(asArray(gl.keys).join(",") || gl.label, norm2(gl.content), gl.label, gl.always || gl.constant));
+      for (const l of asArray(w.locations)) out.push(mk(l.name, `[Location: ${norm3(l.name)}]${norm3(l.description) ? "\n" + norm3(l.description) : ""}`, l.name));
+      for (const n of asArray(w.npcs)) out.push(mk(n.name, `[Character: ${norm3(n.name)}]${norm3(n.personality || n.description) ? "\n" + norm3(n.personality || n.description) : ""}`, n.name));
+      for (const f of asArray(w.factions)) out.push(mk(f.name, `[Faction: ${norm3(f.name)}]${norm3(f.description || f.goals) ? "\n" + norm3(f.description || f.goals) : ""}`, f.name));
+      for (const o of asArray(w.objects)) out.push(mk(o.name, `[Object: ${norm3(o.name)}]${norm3(o.desc) ? "\n" + norm3(o.desc) : ""}`, o.name));
+      for (const ev of asArray(w.events)) out.push(mk(ev.name, `[Event: ${norm3(ev.name)}]${norm3(ev.description) ? "\n" + norm3(ev.description) : ""}`, ev.name));
+      for (const gl of asArray(w.globalLore)) out.push(mk(asArray(gl.keys).join(",") || gl.label, norm3(gl.content), gl.label, gl.always || gl.constant));
       return out;
     }
     const EXAMPLE_WORLD = {
@@ -27304,10 +27560,10 @@ ${recent}` : "");
         const p = entityById(activeWorld(), personId);
         if (!p) return false;
         const lib = characterLibrary();
-        const key = norm2(idOrName).toLowerCase();
-        const c = lib.find((x) => x && norm2(x.name).toLowerCase() === key) || lib.find((x) => x && x.id != null && String(x.id) === String(idOrName));
-        p.characterRef = c ? { source: "library", id: c.id, name: c.name } : { source: "library", name: norm2(idOrName) };
-        if (c && (!norm2(p.name) || p.name === "New npc")) p.name = c.name;
+        const key = norm3(idOrName).toLowerCase();
+        const c = lib.find((x) => x && norm3(x.name).toLowerCase() === key) || lib.find((x) => x && x.id != null && String(x.id) === String(idOrName));
+        p.characterRef = c ? { source: "library", id: c.id, name: c.name } : { source: "library", name: norm3(idOrName) };
+        if (c && (!norm3(p.name) || p.name === "New npc")) p.name = c.name;
         return true;
       },
       unlinkCharacter(personId) {
@@ -27354,6 +27610,13 @@ ${recent}` : "");
       listQuests(mode2) {
         return listQuests(mode2 || aiMode());
       },
+      inventory: () => inventoryView(),
+      itemCount: (name) => itemCount(name),
+      rewardText: (r) => formatReward(r, factionName),
+      parseReward: (text) => parseReward(text, (n) => {
+        const f = asArray(activeWorld() && activeWorld().factions).find((x) => sameName(x.name, n) || x.id === n);
+        return f ? f.id : null;
+      }),
       questState(id) {
         const q = findById(activeWorld() && activeWorld().quests, id);
         return q ? questStateOf(q) : null;
@@ -27364,26 +27627,37 @@ ${recent}` : "");
         return s;
       },
       acceptQuest(id) {
-        const s = setQuestState(id, "active");
+        const s = acceptQuest(id);
         syncLive();
         return s;
       },
       completeQuest(id) {
         const s = setQuestState(id, "complete");
+        const q = questById(id);
+        if (s && q) gameLog(`Quest ready to turn in: ${questTitle(q)}.`);
         syncLive();
         return s;
       },
-      turnInQuest(id) {
-        const s = setQuestState(id, "turnedin");
-        if (rt() && rt().activeQuestId === id) rt().activeQuestId = null;
+      // choice: index of the chosen "choose one" reward (array for several choice rewards)
+      turnInQuest(id, choice) {
+        const s = turnInQuest(id, choice);
+        syncLive();
+        return s;
+      },
+      abandonQuest(id) {
+        const s = abandonQuest(id);
         syncLive();
         return s;
       },
       failQuest(id) {
         const s = setQuestState(id, "failed");
+        const q = questById(id);
+        if (s && q) gameLog(`Quest failed: ${questTitle(q)}.`);
         syncLive();
         return s;
       },
+      questNeedsChoice: (id) => needsChoice(questById(id)),
+      rewardsPaid: (id) => !!(rt() && rt().rewardsPaid && rt().rewardsPaid[id]),
       setActiveQuest(id) {
         ensureRuntime();
         rt().activeQuestId = id;
@@ -27536,7 +27810,7 @@ ${recent}` : "");
         w.encounters = asArray(w.encounters);
         const e = {
           id: enc.id || uid("enc"),
-          name: norm2(enc.name) || "Encounter",
+          name: norm3(enc.name) || "Encounter",
           monsters: asArray(enc.monsters).map((m) => ({ key: findMonster(m.key || m.name), count: Math.max(1, Number(m.count) || 1) })).filter((m) => m.key),
           personIds: asArray(enc.personIds),
           locationId: enc.locationId || null,
@@ -27700,7 +27974,7 @@ ${recent}` : "");
       },
       // Fire a named action signal (for onAction event triggers), e.g. from chat.
       fireAction(text) {
-        const f = fireTriggers("action:" + norm2(text));
+        const f = fireTriggers("action:" + norm3(text));
         syncLive();
         return f;
       },
@@ -27726,7 +28000,7 @@ ${recent}` : "");
       },
       setQuest(id, state) {
         ensureRuntime();
-        rt().questState[norm2(id)] = norm2(state);
+        rt().questState[norm3(id)] = norm3(state);
         syncLive();
         return rt().questState;
       },
@@ -28656,7 +28930,7 @@ ${recent}` : "");
       for (let i = 0; i < rewards.length; i++) {
         const r = rewards[i];
         box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px" }, [
-          el2("span", { style: "flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm)", text: r.xp ? `${r.xp} XP` : r.item ? `${r.item}${r.qty > 1 ? " ×" + r.qty : ""}` : JSON.stringify(r) }),
+          el2("span", { style: "flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm)", text: A.rewardText(r) || JSON.stringify(r) }),
           el2("span", { style: "cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs)", text: "×", onclick: () => {
             rewards.splice(i, 1);
             A.updateEntity(S.selectedId, { rewards });
@@ -28664,11 +28938,11 @@ ${recent}` : "");
           } })
         ]));
       }
-      const rIn = el2("input", { type: "text", placeholder: "e.g. Gold Ring x1  or  100 xp", style: inputCss(false) });
+      const rIn = el2("input", { type: "text", placeholder: "Ring x1 · 100 xp · 25 gold · choose: Sword | Shield · rep Royal Guard +100", title: 'An item (x2 for more), N xp, N gold, "choose: A | B | C" (one of them), or "rep <faction> +N"', style: inputCss(false) });
       box.appendChild(el2("div", { style: "display:flex;gap:5px;margin-top:5px" }, [
         rIn,
         el2("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", title: "Add reward", "aria-label": "Add reward", onclick: () => {
-          const r = parseReward(rIn.value);
+          const r = parseReward2(rIn.value);
           if (!r) return;
           const rw = asArrayU(ent.rewards);
           rw.push(r);
@@ -28859,13 +29133,8 @@ ${recent}` : "");
     function asArrayU(v) {
       return Array.isArray(v) ? v.slice() : [];
     }
-    function parseReward(s) {
-      s = String(s || "").trim();
-      if (!s) return null;
-      const xp = /^(\d+)\s*xp$/i.exec(s);
-      if (xp) return { type: "xp", xp: Number(xp[1]) };
-      const m = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(s);
-      return { type: "item", item: (m[1] || s).trim(), qty: Number(m[2]) || 1 };
+    function parseReward2(s) {
+      return API().parseReward(s);
     }
     function btn2(label2, onclick, variant) {
       return el2("button", { type: "button", class: "btn btn-primary rpm-btn" + (variant ? " rpm-" + variant : ""), text: label2, onclick });
@@ -29413,18 +29682,53 @@ ${recent}` : "");
           ]));
           if (q.description) card.appendChild(el2("div", { style: "margin-top:3px", text: q.description }));
           if (q.giver || q.turnin) card.appendChild(muted2((q.giver ? `From: ${q.giver}` : "") + (q.turnin ? `  Turn-in: ${q.turnin}` : ""), { style: "margin-top:2px" }));
+          const choices = S._questChoice = S._questChoice || {};
+          const rewards = (q.rewards || []).filter((r) => A.rewardText(r));
+          if (rewards.length) {
+            const rw = el2("div", { class: "rpm-quest-rewards", "data-rewards": q.id }, [el2("span", { class: "rpm-muted", text: A.rewardsPaid(q.id) ? "Rewards received: " : "Rewards: " })]);
+            for (const r of rewards) {
+              if (r.options && st === "complete" && !A.rewardsPaid(q.id)) {
+                const pick = uiSelect({ "aria-label": "Choose your reward", "data-choice": q.id, style: "width:auto;display:inline-block" });
+                pick.appendChild(el2("option", { value: "", text: "— choose one —" }));
+                r.options.forEach((o, i) => {
+                  const op = el2("option", { value: String(i), text: A.rewardText({ type: "item", ...o }) });
+                  if (choices[q.id] === i) op.selected = true;
+                  pick.appendChild(op);
+                });
+                pick.addEventListener("change", () => {
+                  choices[q.id] = pick.value === "" ? void 0 : Number(pick.value);
+                  refreshPanel();
+                });
+                rw.appendChild(pick);
+              } else rw.appendChild(el2("span", { class: "rpm-chip rpm-chip-quest", text: A.rewardText(r) }));
+            }
+            card.appendChild(rw);
+          }
           const ctl = el2("div", { class: "rpm-row", style: "flex-wrap:wrap;margin-top:6px" });
-          const act = (t, fn2, variant) => uiBtn(t, () => {
-            fn2();
-            refreshPanel();
-          }, { variant });
+          const act = (t, fn2, variant, disabled) => {
+            const b = uiBtn(t, () => {
+              fn2();
+              refreshPanel();
+            }, { variant });
+            if (disabled) b.disabled = true;
+            return b;
+          };
           if (st === "available") ctl.appendChild(act("Accept", () => A.acceptQuest(q.id), "success"));
           if (st === "active") {
             ctl.appendChild(act("Complete", () => A.completeQuest(q.id), "success"));
             ctl.appendChild(act(q.active ? "Untrack" : "Track", () => A.setActiveQuest(q.active ? null : q.id)));
+            ctl.appendChild(act("Abandon", () => {
+              if (confirm(`Abandon "${q.title}"? Its progress is lost; you can accept it again.`)) A.abandonQuest(q.id);
+            }));
             ctl.appendChild(act("Fail", () => A.failQuest(q.id), "danger"));
           }
-          if (st === "complete") ctl.appendChild(act("Turn in", () => A.turnInQuest(q.id), "success"));
+          if (st === "complete") {
+            const needs = A.questNeedsChoice(q.id) && !A.rewardsPaid(q.id);
+            ctl.appendChild(act("Turn in", () => A.turnInQuest(q.id, needs ? choices[q.id] : void 0), "success", needs && choices[q.id] == null));
+            ctl.appendChild(act("Abandon", () => {
+              if (confirm(`Abandon "${q.title}"?`)) A.abandonQuest(q.id);
+            }));
+          }
           if (mode2 === "creator" && q.hidden) ctl.appendChild(act("Reveal to player", () => A.discoverQuest(q.id)));
           if (ctl.childNodes.length) card.appendChild(ctl);
           box.appendChild(card);
@@ -29529,8 +29833,10 @@ ${recent}` : "");
         A.setFlag(k2, parseVal(fv.value));
         refreshPanel();
       }, { icon: "plus", title: "Set flag" })], "margin-top:5px"));
-      box.appendChild(lbl("Inventory"));
-      const inv = A.runtime && A.runtime.inventory || [];
+      const iv = A.inventory();
+      box.appendChild(lbl(iv.source === "sheet" ? `Inventory — ${iv.owner}` : "Inventory (story)"));
+      box.appendChild(muted2(`${iv.gp} gold · ${iv.xp} XP${iv.source === "sheet" ? " · saved on the character sheet" : " · choose a persona to keep them on its sheet"}`, { "data-inv": "summary" }));
+      const inv = iv.items;
       if (!inv.length) box.appendChild(muted2("empty"));
       for (const it of inv) {
         box.appendChild(el2("div", { class: "rpm-card rpm-row" }, [
@@ -30933,6 +31239,41 @@ ${recent}` : "");
   function forget(name) {
     cache.delete(k(name));
   }
+  var writes = /* @__PURE__ */ new Map();
+  function updateSheet(name, mutate, opts) {
+    const onMissing = opts && opts.onMissing;
+    const apply = (entry) => {
+      const next = normalizeSheet(entry.sheet);
+      mutate(next);
+      entry.sheet = normalizeSheet(next);
+      emit(entry.name);
+      const key = k(entry.name);
+      const chain = (writes.get(key) || Promise.resolve()).then(() => {
+        const latest = cache.get(key);
+        return latest && latest.sheet ? saveSheet(latest.name, latest.sheet) : null;
+      }).catch(() => {
+      });
+      writes.set(key, chain);
+      return entry.sheet;
+    };
+    const hit = cache.get(k(name));
+    if (hit && hit.sheet) return apply(hit);
+    if (hit && hit.sheet === null) {
+      if (onMissing) onMissing();
+      return null;
+    }
+    loadSheet(name).then((s) => {
+      const e = cache.get(k(name));
+      if (s && e && e.sheet) apply(e);
+      else if (onMissing) onMissing();
+    }).catch(() => {
+      if (onMissing) onMissing();
+    });
+    return void 0;
+  }
+  function flushSheet(name) {
+    return writes.get(k(name)) || Promise.resolve();
+  }
   if (typeof window !== "undefined") {
     window.addEventListener("klite:library-change", (e) => {
       const d = e && e.detail || {};
@@ -30952,6 +31293,7 @@ ${recent}` : "");
   // src/characters/characters.js
   var LAST_KEY = "KLITE.sheet.last";
   var AUTOSAVE_SETTING = "sheets_autosave";
+  var GAME_FIELDS = ["inventory", "coins", "xp", "hp"];
   function initCharacters() {
     "use strict";
     if (window.KLITE_RPMod_Characters) return;
@@ -31438,14 +31780,21 @@ OK = save and close · Cancel = close and discard them`);
       } catch (_) {
       }
       window.addEventListener("klite:sheet-change", (e) => {
-        if (V.box && e.detail && e.detail.name === V.name && !dirty()) {
-          const s = cachedSheet(V.name);
-          if (s) {
-            V.saved = normalizeSheet(s);
-            V.draft = normalizeSheet(s);
-            render();
-          }
+        if (!V.box || !e.detail || e.detail.name !== V.name) return;
+        const s = cachedSheet(V.name);
+        if (!s) return;
+        if (!dirty()) {
+          V.saved = normalizeSheet(s);
+          V.draft = normalizeSheet(s);
+          render();
+          return;
         }
+        const fresh = normalizeSheet(s);
+        for (const key of GAME_FIELDS) {
+          if (JSON.stringify(V.draft[key]) === JSON.stringify(V.saved[key])) V.draft[key] = JSON.parse(JSON.stringify(fresh[key]));
+        }
+        V.saved = fresh;
+        render();
       });
       return true;
     }
@@ -31467,6 +31816,8 @@ OK = save and close · Cancel = close and discard them`);
       combatStatsFor,
       summaryFor,
       blurbFor,
+      updateSheet,
+      flushSheet,
       // the player's persona (ALPHA Tools): name when chosen and enabled, else ''
       personaName: () => {
         try {
@@ -32181,7 +32532,7 @@ OK = save and close · Cancel = close and discard them`);
     if (!String(choices.name || "").trim()) errs.push("Give your character a name.");
     return errs;
   }
-  function parseItem(text) {
+  function parseItem2(text) {
     const m = /^(\d+)\s+(.+)$/.exec(String(text).trim());
     let qty = 1, name = String(text).trim();
     if (m) {
@@ -32200,7 +32551,7 @@ OK = save and close · Cancel = close and discard them`);
     const pick = (list2, id) => (list2 || []).find((o) => o.id === id) || (list2 || [])[0];
     const ce = cls ? pick(cls.equipment, choices.classEquipment) : null;
     const be = bg ? pick(bg.equipment, choices.backgroundEquipment) : null;
-    const items = [...ce ? ce.items : [], ...be ? be.items : []].map(parseItem);
+    const items = [...ce ? ce.items : [], ...be ? be.items : []].map(parseItem2);
     const merged = [];
     for (const it of items) {
       const hit = merged.find((x) => x.name === it.name);

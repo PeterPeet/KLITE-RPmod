@@ -12,11 +12,12 @@
 // =============================================================================
 import { el, clear, icon, iconText } from '../shell/dom.js';
 import { ABILITIES, ABILITY_NAMES, SKILLS, defaultSheet, normalizeSheet, derive, fmt, fromCombatStats } from './sheet.js';
-import { loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor } from './store.js';
+import { loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor, updateSheet, flushSheet } from './store.js';
 import { characterNames } from '../library/esoliteLibrary.js';
 
 const LAST_KEY = 'KLITE.sheet.last';
 const AUTOSAVE_SETTING = 'sheets_autosave';
+const GAME_FIELDS = ['inventory', 'coins', 'xp', 'hp'];   // changed by quests and fights while you play
 
 export default function initCharacters() {
     'use strict';
@@ -338,15 +339,23 @@ export default function initCharacters() {
             });
         } catch (_) {}
         window.addEventListener('klite:sheet-change', (e) => {
-            // another view saved this character's sheet: refresh a clean view
-            if (V.box && e.detail && e.detail.name === V.name && !dirty()) { const s = cachedSheet(V.name); if (s) { V.saved = normalizeSheet(s); V.draft = normalizeSheet(s); render(); } }
+            if (!V.box || !e.detail || e.detail.name !== V.name) return;
+            const s = cachedSheet(V.name); if (!s) return;
+            if (!dirty()) { V.saved = normalizeSheet(s); V.draft = normalizeSheet(s); render(); return; }
+            // unsaved edits: take the game's changes (items, coins, XP, HP) into the draft for
+            // every field the player has not edited, so Save does not undo a quest reward
+            const fresh = normalizeSheet(s);
+            for (const key of GAME_FIELDS) {
+                if (JSON.stringify(V.draft[key]) === JSON.stringify(V.saved[key])) V.draft[key] = JSON.parse(JSON.stringify(fresh[key]));
+            }
+            V.saved = fresh; render();
         });
         return true;
     }
 
     const api = {
         open(name) { const sh = Shell(); if (!sh) return false; if (name && name !== V.name) { V.name = null; V.draft = null; select(name); } sh.open('sheet'); return true; },
-        loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor,
+        loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor, updateSheet, flushSheet,
         // the player's persona (ALPHA Tools): name when chosen and enabled, else ''
         personaName: () => { try { const T = window.KLITE_RPMod?.panels?.TOOLS; return (T && T.personaEnabled && T.selectedPersona && T.selectedPersona.name) || ''; } catch (_) { return ''; } },
         current: () => ({ name: V.name, sheet: V.draft ? normalizeSheet(V.draft) : null, dirty: dirty() }),

@@ -20,6 +20,7 @@
 // =============================================================================
 import { getContext } from './context/context.js';
 import * as CR from './game/combat-rules.js';
+import * as QR from './game/quest-rules.js';
 
 export default function initWorlds() {
     'use strict';
@@ -64,7 +65,11 @@ export default function initWorlds() {
             knownNpcIds: [],
             visitedLocationIds: [],
             flags: {},               // arbitrary string/number/bool flags
-            inventory: [],           // { id, name, qty }
+            inventory: [],           // { id, name, qty } — story inventory (used when no persona is set)
+            coins: { gp: 0 },        // story gold (no persona)
+            xp: 0,                   // story XP (no persona)
+            rewardsPaid: {},         // { [questId]: { at, choice } } — each quest pays once
+            reputation: {},          // { [factionId]: number }
             questState: {},          // { [questId]: 'available'|'active'|'complete'|'turnedin'|'failed' }
             questObjectives: {},     // { [questId]: { [objId]: true } }
             activeQuestId: null,     // the quest the player is currently tracking
@@ -385,6 +390,44 @@ export default function initWorlds() {
         for (const q of quests) if (q.giverPersonId === personId && questStateOf(q) === 'available' && questVisible(q, mode)) return '!';
         return '';
     }
+    function questTitle(q) { return norm(q && (q.title || q.name)) || 'Quest'; }
+    function factionName(id) { const f = findById(activeWorld() && activeWorld().factions, id); return f ? norm(f.name) : id; }
+    // Pay a quest's rewards once (turn-in). choice = index into the "choose one" options
+    // (per choice reward, in order: a number or an array of numbers).
+    function payRewards(q, choice) {
+        rt().rewardsPaid = rt().rewardsPaid || {};
+        if (rt().rewardsPaid[q.id]) return [];
+        const picks = [].concat(choice == null ? [] : choice); let ci = 0;
+        const got = [];
+        for (const r of asArray(q.rewards)) {
+            switch (QR.rewardType(r)) {
+                case 'xp': addXp(r.xp); got.push(`${r.xp} XP`); break;
+                case 'gold': addCoins(r.gold); got.push(`${r.gold} gold`); break;
+                case 'item': inventoryAdd(r.item, r.qty); got.push(QR.formatReward(r)); break;
+                case 'reputation': changeReputation(r.factionId, Number(r.amount) || 0, 'quest'); got.push(QR.formatReward(r, factionName)); break;
+                case 'choice': { const o = asArray(r.options)[Number(picks[ci++]) || 0]; if (o) { inventoryAdd(o.item, o.qty); got.push(QR.formatReward({ type: 'item', ...o })); } break; }
+                default: break;
+            }
+        }
+        rt().rewardsPaid[q.id] = { at: Date.now(), choice: picks };
+        return got;
+    }
+    function changeReputation(factionId, amount, why) {
+        if (!factionId || !amount) return;
+        rt().reputation = rt().reputation || {};
+        const before = QR.tierOf(repValue(factionId));
+        rt().reputation[factionId] = repValue(factionId) + amount;
+        const after = QR.tierOf(rt().reputation[factionId]);
+        gameLog(`Reputation with ${factionName(factionId)} ${amount > 0 ? '+' : ''}${amount}${after !== before ? ` — now ${after}` : ''}.`, 'quest');
+        try { fireTriggers('reputation:' + factionId); } catch (_) {}
+    }
+    function repValue(factionId) {
+        const v = rt() && rt().reputation && rt().reputation[factionId];
+        if (v != null) return Number(v) || 0;
+        const f = findById(activeWorld() && activeWorld().factions, factionId);
+        return Number(f && f.startReputation) || 0;
+    }
+    function needsChoice(q) { return asArray(q && q.rewards).filter(r => QR.rewardType(r) === 'choice').length; }
     function setQuestState(questId, state) {
         ensureRuntime();
         if (!QUEST_STATES.includes(state)) return null;
@@ -393,6 +436,33 @@ export default function initWorlds() {
         dbg('quest', questId, '->', state);
         try { fireTriggers('quest:' + questId + ':' + state); } catch (_) {}   // quest -> event chains
         return state;
+    }
+    function questById(id) { return findById(activeWorld() && activeWorld().quests, id); }
+    function acceptQuest(id) {
+        const q = questById(id); if (!q) return null;
+        const s = setQuestState(id, 'active');
+        if (s) gameLog(`Quest accepted: ${questTitle(q)}.`);
+        return s;
+    }
+    // Turn in: pays the rewards (once) and closes the quest. A "choose one" reward needs a choice.
+    function turnInQuest(id, choice) {
+        const q = questById(id); if (!q) return null;
+        if (needsChoice(q) && choice == null && !(rt().rewardsPaid && rt().rewardsPaid[id])) return null;
+        const got = payRewards(q, choice);
+        const s = setQuestState(id, 'turnedin');
+        if (rt().activeQuestId === id) rt().activeQuestId = null;
+        gameLog(`Quest turned in: ${questTitle(q)}.${got.length ? ' Rewards: ' + got.join(', ') + '.' : ''}`);
+        return s;
+    }
+    // Abandon: back to available, progress reset (can be accepted again).
+    function abandonQuest(id) {
+        const q = questById(id); if (!q) return null;
+        const st = questStateOf(q); if (st !== 'active' && st !== 'complete') return null;
+        if (rt().questObjectives) delete rt().questObjectives[id];
+        if (rt().activeQuestId === id) rt().activeQuestId = null;
+        const s = setQuestState(id, 'available');
+        gameLog(`Quest abandoned: ${questTitle(q)}.`);
+        return s;
     }
     // Render-ready quest list for the log UI (respects the given viewer mode).
     function listQuests(mode) {
@@ -497,21 +567,54 @@ export default function initWorlds() {
         if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
         return v;
     }
+    // ---- inventory, coins, XP: the persona's sheet (owner's decision, R4), else the story ----
+    // The persona is the player character; its card holds items, coins and XP across stories.
+    // Without a persona (or a persona without a sheet) the story's runtime keeps them.
+    function sheetOwner() { const n = personaName(); const C = window.KLITE_RPMod_Characters; return n && C && typeof C.updateSheet === 'function' ? n : ''; }
+    function withSheet(mutate, fallback) {
+        const n = sheetOwner(); if (!n) { fallback(); return; }
+        window.KLITE_RPMod_Characters.updateSheet(n, mutate, { onMissing: () => { fallback(); syncLive(); } });
+    }
+    const sameItem = (a, b) => norm(a).toLowerCase() === norm(b).toLowerCase();
     function inventoryAdd(name, qty) {
         const n = norm(name); if (!n) return;
         qty = Number(qty) || 1;
-        const inv = rt().inventory;
-        const ex = inv.find(i => norm(i.name).toLowerCase() === n.toLowerCase());
-        if (ex) ex.qty = (Number(ex.qty) || 1) + qty; else inv.push({ id: uid('item'), name: n, qty });
+        withSheet(s => { const ex = s.inventory.find(i => sameItem(i.name, n)); if (ex) ex.qty = (Number(ex.qty) || 1) + qty; else s.inventory.push({ name: n, qty, notes: '' }); }, () => {
+            const inv = rt().inventory;
+            const ex = inv.find(i => sameItem(i.name, n));
+            if (ex) ex.qty = (Number(ex.qty) || 1) + qty; else inv.push({ id: uid('item'), name: n, qty });
+        });
     }
     function inventoryRemove(name, qty) {
-        const n = norm(name).toLowerCase(); if (!n) return;
-        const inv = rt().inventory;
-        const i = inv.findIndex(x => norm(x.name).toLowerCase() === n);
-        if (i < 0) return;
-        if (qty && (Number(inv[i].qty) || 1) > Number(qty)) inv[i].qty -= Number(qty);
-        else inv.splice(i, 1);
+        const n = norm(name); if (!n) return;
+        const cut = (inv) => { const i = inv.findIndex(x => sameItem(x.name, n)); if (i < 0) return; if (qty && (Number(inv[i].qty) || 1) > Number(qty)) inv[i].qty -= Number(qty); else inv.splice(i, 1); };
+        withSheet(s => cut(s.inventory), () => cut(rt().inventory));
     }
+    // Items the player holds (sheet + story inventory).
+    function itemCount(name) {
+        let n = 0;
+        for (const i of asArray(rt() && rt().inventory)) if (QR.sameName(i.name, name)) n += Number(i.qty) || 1;
+        const sh = sheetOwner() && personaSheet();
+        if (sh) for (const i of asArray(sh.inventory)) if (QR.sameName(i.name, name)) n += Number(i.qty) || 1;
+        return n;
+    }
+    function addCoins(gp) { gp = Number(gp) || 0; if (!gp) return; withSheet(s => { s.coins.gp = (Number(s.coins.gp) || 0) + gp; }, () => { rt().coins = rt().coins || { gp: 0 }; rt().coins.gp = (Number(rt().coins.gp) || 0) + gp; }); }
+    function addXp(xp, why) {
+        xp = Number(xp) || 0; if (!xp) return;
+        const n = sheetOwner();
+        withSheet(s => {
+            const before = CR.levelForXp(s.xp); s.xp = (Number(s.xp) || 0) + xp;
+            if (CR.levelForXp(s.xp) > (Number(s.level) || 1) && CR.levelForXp(s.xp) > before) gameLog(`${n} has enough XP for level ${(Number(s.level) || 1) + 1} — use Level up on the character sheet.`, 'quest');
+        }, () => { rt().xp = (Number(rt().xp) || 0) + xp; });
+    }
+    // What the player carries now: { source: 'sheet' | 'story', owner, items, gp, xp }.
+    function inventoryView() {
+        const sh = sheetOwner() && personaSheet();
+        const story = asArray(rt() && rt().inventory);
+        if (sh) return { source: 'sheet', owner: personaName(), items: asArray(sh.inventory).concat(story), gp: Number(sh.coins && sh.coins.gp) || 0, xp: Number(sh.xp) || 0 };
+        return { source: 'story', owner: '', items: story, gp: Number(rt() && rt().coins && rt().coins.gp) || 0, xp: Number(rt() && rt().xp) || 0 };
+    }
+    function gameLog(what, kind) { try { window.KLITE_RPMod_Log?.add({ what, kind: kind || 'quest' }); } catch (_) {} dbg(kind || 'quest', what); }
 
     // Parse explicit control tags out of one message. Returns true if state changed.
     // Supported: <move>, <npcmove>NPC=Loc, <mood>NPC=Mood, <flag>k=v, <unflag>k,
@@ -1104,7 +1207,8 @@ export default function initWorlds() {
         // 2b. Player state (runtime) — high priority per spec
         const stateBits = [];
         const inv = asArray(rt().inventory).filter(i => i && norm(i.name));
-        if (inv.length) stateBits.push('Inventory: ' + inv.map(i => norm(i.name) + ((Number(i.qty) || 1) > 1 ? ` x${i.qty}` : '')).join(', '));
+        if (inv.length) stateBits.push((sheetOwner() && personaSheet() ? 'Story items: ' : 'Inventory: ') + inv.map(i => norm(i.name) + ((Number(i.qty) || 1) > 1 ? ` x${i.qty}` : '')).join(', '));
+        if (!(sheetOwner() && personaSheet())) { const gp = Number(rt().coins && rt().coins.gp) || 0, xp = Number(rt().xp) || 0; if (gp || xp) stateBits.push(`Gold: ${gp}, XP: ${xp}`); }
         const party = asArray(rt().party).map(id => (findById(world.npcs, id) || {}).name).filter(Boolean);
         if (party.length) stateBits.push('Party: ' + party.map(norm).join(', '));
         push('Player State', 85, stateBits.join('\n'));
@@ -1738,12 +1842,20 @@ export default function initWorlds() {
 
         // ----- Quests (Phase D) -----
         listQuests(mode) { return listQuests(mode || aiMode()); },
+        inventory: () => inventoryView(),
+        itemCount: (name) => itemCount(name),
+        rewardText: (r) => QR.formatReward(r, factionName),
+        parseReward: (text) => QR.parseReward(text, (n) => { const f = asArray(activeWorld() && activeWorld().factions).find(x => QR.sameName(x.name, n) || x.id === n); return f ? f.id : null; }),
         questState(id) { const q = findById(activeWorld() && activeWorld().quests, id); return q ? questStateOf(q) : null; },
         setQuestState(id, state) { const s = setQuestState(id, state); syncLive(); return s; },
-        acceptQuest(id) { const s = setQuestState(id, 'active'); syncLive(); return s; },
-        completeQuest(id) { const s = setQuestState(id, 'complete'); syncLive(); return s; },
-        turnInQuest(id) { const s = setQuestState(id, 'turnedin'); if (rt() && rt().activeQuestId === id) rt().activeQuestId = null; syncLive(); return s; },
-        failQuest(id) { const s = setQuestState(id, 'failed'); syncLive(); return s; },
+        acceptQuest(id) { const s = acceptQuest(id); syncLive(); return s; },
+        completeQuest(id) { const s = setQuestState(id, 'complete'); const q = questById(id); if (s && q) gameLog(`Quest ready to turn in: ${questTitle(q)}.`); syncLive(); return s; },
+        // choice: index of the chosen "choose one" reward (array for several choice rewards)
+        turnInQuest(id, choice) { const s = turnInQuest(id, choice); syncLive(); return s; },
+        abandonQuest(id) { const s = abandonQuest(id); syncLive(); return s; },
+        failQuest(id) { const s = setQuestState(id, 'failed'); const q = questById(id); if (s && q) gameLog(`Quest failed: ${questTitle(q)}.`); syncLive(); return s; },
+        questNeedsChoice: (id) => needsChoice(questById(id)),
+        rewardsPaid: (id) => !!(rt() && rt().rewardsPaid && rt().rewardsPaid[id]),
         setActiveQuest(id) { ensureRuntime(); rt().activeQuestId = id; syncLive(); return id; },
         discoverQuest(id) { discover('quests', id); discover('descriptions', id); syncLive(); return true; },
         completeObjective(qid, oid, done = true) { ensureRuntime(); const o = rt().questObjectives[qid] = rt().questObjectives[qid] || {}; o[oid] = !!done; syncLive(); return o; },

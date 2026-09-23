@@ -399,11 +399,11 @@ export default function initWorldsUI() {
         for (let i = 0; i < rewards.length; i++) {
             const r = rewards[i];
             box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px' }, [
-                el('span', { style: 'flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm)', text: r.xp ? `${r.xp} XP` : (r.item ? `${r.item}${r.qty > 1 ? ' ×' + r.qty : ''}` : JSON.stringify(r)) }),
+                el('span', { style: 'flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm)', text: A.rewardText(r) || JSON.stringify(r) }),
                 el('span', { style: 'cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs)', text: '×', onclick: () => { rewards.splice(i, 1); A.updateEntity(S.selectedId, { rewards }); renderInspector(); } })
             ]));
         }
-        const rIn = el('input', { type: 'text', placeholder: 'e.g. Gold Ring x1  or  100 xp', style: inputCss(false) });
+        const rIn = el('input', { type: 'text', placeholder: 'Ring x1 · 100 xp · 25 gold · choose: Sword | Shield · rep Royal Guard +100', title: 'An item (x2 for more), N xp, N gold, "choose: A | B | C" (one of them), or "rep <faction> +N"', style: inputCss(false) });
         box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px' }, [rIn,
             el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', title: 'Add reward', 'aria-label': 'Add reward', onclick: () => { const r = parseReward(rIn.value); if (!r) return; const rw = asArrayU(ent.rewards); rw.push(r); A.updateEntity(S.selectedId, { rewards: rw }); renderInspector(); } }, [icon('plus', 15)])
         ]));
@@ -524,7 +524,7 @@ export default function initWorldsUI() {
     function renderInspectorParamsOnly() { renderInspector(); }
 
     function asArrayU(v) { return Array.isArray(v) ? v.slice() : []; }
-    function parseReward(s) { s = String(s || '').trim(); if (!s) return null; const xp = /^(\d+)\s*xp$/i.exec(s); if (xp) return { type: 'xp', xp: Number(xp[1]) }; const m = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(s); return { type: 'item', item: (m[1] || s).trim(), qty: Number(m[2]) || 1 }; }
+    function parseReward(s) { return API().parseReward(s); }
 
     // =======================================================================
     //  EDITOR CHROME (inside the shell window "editor")
@@ -960,11 +960,31 @@ export default function initWorldsUI() {
                 ]));
                 if (q.description) card.appendChild(el('div', { style: 'margin-top:3px', text: q.description }));
                 if (q.giver || q.turnin) card.appendChild(muted((q.giver ? `From: ${q.giver}` : '') + (q.turnin ? `  Turn-in: ${q.turnin}` : ''), { style: 'margin-top:2px' }));
+                // rewards; "choose one" rewards get a picker before turn-in
+                const choices = S._questChoice = S._questChoice || {};
+                const rewards = (q.rewards || []).filter(r => A.rewardText(r));
+                if (rewards.length) {
+                    const rw = el('div', { class: 'rpm-quest-rewards', 'data-rewards': q.id }, [el('span', { class: 'rpm-muted', text: A.rewardsPaid(q.id) ? 'Rewards received: ' : 'Rewards: ' })]);
+                    for (const r of rewards) {
+                        if (r.options && st === 'complete' && !A.rewardsPaid(q.id)) {
+                            const pick = uiSelect({ 'aria-label': 'Choose your reward', 'data-choice': q.id, style: 'width:auto;display:inline-block' });
+                            pick.appendChild(el('option', { value: '', text: '— choose one —' }));
+                            r.options.forEach((o, i) => { const op = el('option', { value: String(i), text: A.rewardText({ type: 'item', ...o }) }); if (choices[q.id] === i) op.selected = true; pick.appendChild(op); });
+                            pick.addEventListener('change', () => { choices[q.id] = pick.value === '' ? undefined : Number(pick.value); refreshPanel(); });
+                            rw.appendChild(pick);
+                        } else rw.appendChild(el('span', { class: 'rpm-chip rpm-chip-quest', text: A.rewardText(r) }));
+                    }
+                    card.appendChild(rw);
+                }
                 const ctl = el('div', { class: 'rpm-row', style: 'flex-wrap:wrap;margin-top:6px' });
-                const act = (t, fn, variant) => uiBtn(t, () => { fn(); refreshPanel(); }, { variant });
+                const act = (t, fn, variant, disabled) => { const b = uiBtn(t, () => { fn(); refreshPanel(); }, { variant }); if (disabled) b.disabled = true; return b; };
                 if (st === 'available') ctl.appendChild(act('Accept', () => A.acceptQuest(q.id), 'success'));
-                if (st === 'active') { ctl.appendChild(act('Complete', () => A.completeQuest(q.id), 'success')); ctl.appendChild(act(q.active ? 'Untrack' : 'Track', () => A.setActiveQuest(q.active ? null : q.id))); ctl.appendChild(act('Fail', () => A.failQuest(q.id), 'danger')); }
-                if (st === 'complete') ctl.appendChild(act('Turn in', () => A.turnInQuest(q.id), 'success'));
+                if (st === 'active') { ctl.appendChild(act('Complete', () => A.completeQuest(q.id), 'success')); ctl.appendChild(act(q.active ? 'Untrack' : 'Track', () => A.setActiveQuest(q.active ? null : q.id))); ctl.appendChild(act('Abandon', () => { if (confirm(`Abandon "${q.title}"? Its progress is lost; you can accept it again.`)) A.abandonQuest(q.id); })); ctl.appendChild(act('Fail', () => A.failQuest(q.id), 'danger')); }
+                if (st === 'complete') {
+                    const needs = A.questNeedsChoice(q.id) && !A.rewardsPaid(q.id);
+                    ctl.appendChild(act('Turn in', () => A.turnInQuest(q.id, needs ? choices[q.id] : undefined), 'success', needs && choices[q.id] == null));
+                    ctl.appendChild(act('Abandon', () => { if (confirm(`Abandon "${q.title}"?`)) A.abandonQuest(q.id); }));
+                }
                 if (mode === 'creator' && q.hidden) ctl.appendChild(act('Reveal to player', () => A.discoverQuest(q.id)));
                 if (ctl.childNodes.length) card.appendChild(ctl);
                 box.appendChild(card);
@@ -1034,9 +1054,11 @@ export default function initWorldsUI() {
         const fv = uiInput({ placeholder: 'value', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Flag value' });
         box.appendChild(row([fk, fv, uiBtn('', () => { const k = fk.value.trim(); if (!k) return; A.setFlag(k, parseVal(fv.value)); refreshPanel(); }, { icon: 'plus', title: 'Set flag' })], 'margin-top:5px'));
 
-        // ---- inventory ----
-        box.appendChild(lbl('Inventory'));
-        const inv = (A.runtime && A.runtime.inventory) || [];
+        // ---- inventory: the persona's sheet (plus any story items), else the story's ----
+        const iv = A.inventory();
+        box.appendChild(lbl(iv.source === 'sheet' ? `Inventory — ${iv.owner}` : 'Inventory (story)'));
+        box.appendChild(muted(`${iv.gp} gold · ${iv.xp} XP${iv.source === 'sheet' ? ' · saved on the character sheet' : ' · choose a persona to keep them on its sheet'}`, { 'data-inv': 'summary' }));
+        const inv = iv.items;
         if (!inv.length) box.appendChild(muted('empty'));
         for (const it of inv) {
             box.appendChild(el('div', { class: 'rpm-card rpm-row' }, [
