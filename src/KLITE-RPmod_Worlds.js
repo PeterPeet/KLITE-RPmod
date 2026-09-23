@@ -168,8 +168,60 @@ export default function initWorlds() {
         } catch (e) { err('loadLibrary failed', e); W.library = {}; }
     }
     async function saveLibrary() {
-        try { await idbSave(IDB_LIBRARY_KEY, JSON.stringify(W.library)); dbg('library saved'); }
-        catch (e) { err('saveLibrary failed', e); }
+        const rev = edits.rev;
+        try {
+            await idbSave(IDB_LIBRARY_KEY, JSON.stringify(W.library)); dbg('library saved');
+            if (edits.rev === rev) setDirty(false);   // edits made during the save stay unsaved
+            return true;
+        } catch (e) { err('saveLibrary failed', e); return false; }
+    }
+
+    // ---- unsaved world edits + optional autosave ----------------------------------
+    // Authoring changes (editor, API) live in memory until saved. With the RPmod setting
+    // "Autosave world edits" (Esolite Settings → RPmod; default off) they are saved about a
+    // second after the last change; otherwise the UI shows them as unsaved, asks before the
+    // editor closes and the browser warns before leaving. "Revert to saved" reloads the
+    // library from storage (undoes e.g. an accidental delete).
+    const AUTOSAVE_SETTING = 'worlds_autosave';
+    const AUTOSAVE_DELAY = 1000;
+    const edits = { dirty: false, rev: 0, timer: null };
+    function autosaveOn() { try { return !!window.KLITE_RPMod_Settings?.get(AUTOSAVE_SETTING); } catch (_) { return false; } }
+    function setDirty(v) {
+        if (edits.dirty === !!v) return;
+        edits.dirty = !!v;
+        try { window.dispatchEvent(new CustomEvent('klite:worlds-dirty', { detail: { dirty: edits.dirty } })); } catch (_) {}
+    }
+    function markDirty() {
+        edits.rev++;
+        setDirty(true);
+        clearTimeout(edits.timer); edits.timer = null;
+        if (autosaveOn()) edits.timer = setTimeout(() => { edits.timer = null; saveLibrary(); }, AUTOSAVE_DELAY);
+    }
+    async function revertLibrary() {
+        clearTimeout(edits.timer); edits.timer = null;
+        let raw = null;
+        try { raw = await idbLoad(IDB_LIBRARY_KEY); } catch (_) {}
+        if (!raw) return false;
+        try { W.library = JSON.parse(raw) || {}; } catch (e) { err('revert failed', e); return false; }
+        for (const w of Object.values(W.library)) { try { normalizeWorld(w); } catch (_) {} }
+        edits.rev++; setDirty(false);
+        syncLive();
+        return true;
+    }
+    function registerSettingAndGuards() {
+        try {
+            window.KLITE_RPMod_Settings?.registerSetting({
+                id: AUTOSAVE_SETTING, section: 'Worlds', order: 10, default: false,
+                label: 'Autosave world edits',
+                help: 'Saves changes made in the world editor automatically, about a second after each change. Off: changes stay unsaved until you press Save (or Revert to saved); RPmod warns before they could be lost. With autosave on, a deletion is saved at once and cannot be reverted.',
+            });
+            window.KLITE_RPMod_Settings?.onChange(AUTOSAVE_SETTING, (on) => { if (on && edits.dirty) saveLibrary(); });
+        } catch (_) {}
+        window.addEventListener('beforeunload', (e) => {
+            if (!edits.dirty) return;
+            if (autosaveOn()) { saveLibrary(); if (!edits.timer) return; }
+            e.preventDefault(); e.returnValue = '';
+        });
     }
 
     // Per-story state that rides inside the host savefile object.
@@ -1475,8 +1527,26 @@ export default function initWorlds() {
         previewSlice: computeActiveSlice,
 
         // ----- persistence passthrough (used by save wrappers) -----
-        collectSaveState, restoreSaveState, saveLibrary, loadLibrary
+        collectSaveState, restoreSaveState, saveLibrary, loadLibrary,
+
+        // ----- unsaved edits (see markDirty) -----
+        hasUnsavedChanges() { return edits.dirty; },
+        async revertToSaved() { return revertLibrary(); },
+        autosaveEnabled: autosaveOn,
     };
+    // Every authoring change to a world marks it unsaved (and schedules autosave if on).
+    for (const name of ['addEntity', 'updateEntity', 'deleteEntity', 'connect', 'disconnect', 'setNodePos', 'changeEntityType',
+        'linkCharacter', 'unlinkCharacter', 'addPersonFromCharacter', 'setStats', 'clearStats', 'addPersonFromTemplate',
+        'setPlayerCombat', 'setAiMode']) {
+        const fn = API[name];
+        if (typeof fn !== 'function') { err('authoring API missing: ' + name); continue; }
+        API[name] = function () {
+            const r = fn.apply(this, arguments);
+            const auto = name === 'setNodePos' && arguments[3] && arguments[3].layout;   // editor auto-layout
+            if (activeWorld() && !auto) markDirty();
+            return r;
+        };
+    }
 
     // =======================================================================
     //  INIT — wait for host + main mod, then install hooks
@@ -1486,6 +1556,7 @@ export default function initWorlds() {
         await loadLibrary();
         installSaveWrappers();
         registerProvider();
+        registerSettingAndGuards();
         const okPrepare = getContext().install();
         W.ready = true;
         try { if (W.config.enabled) syncLive(); } catch (_) {}

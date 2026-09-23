@@ -251,6 +251,11 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .wm-ed-help { color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); margin-top: 8px; line-height: 1.5; }
 .wm-ed-canvas { flex: 1 1 auto; min-width: 0; min-height: 0; display: block; background: var(--rpm-bg-chat); touch-action: none; }
 .wm-ed-insp { flex: 0 0 280px; padding: 12px; overflow: auto; border-left: 1px solid var(--rpm-border); }
+.wm-editor { position: relative; }
+.wm-ed-ask { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .45); }
+.wm-ed-ask-box { max-width: 460px; margin: 16px; background: var(--rpm-bg); }
+.rpm-btn.rpm-unsaved { box-shadow: inset 0 -3px 0 var(--rpm-quest); }
+.rpm-unsaved-card { border-color: var(--rpm-quest); box-shadow: inset 3px 0 0 var(--rpm-quest); }
 /* narrow window or phone: palette becomes a strip on top, inspector goes below the canvas */
 @container (max-width: 720px) {
     .wm-ed-body { flex-direction: column; }

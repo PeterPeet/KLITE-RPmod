@@ -4925,6 +4925,8 @@ export default function initAlpha() {
         installSettingsEnhancer() {
             try {
                 if (this._settingsEnhanced) return;
+                // ALPHA's options live in the "RPmod" tab of Esolite's Settings (src/settings)
+                try { window.KLITE_RPMod_Settings?.registerBlock({ id: 'alpha', section: 'Debug & compatibility', order: 50, mount() {} }); } catch(_){}
                 if (typeof window.display_settings === 'function') {
                     const orig = window.display_settings;
                     const self = this;
@@ -4953,8 +4955,8 @@ export default function initAlpha() {
         },
         injectOverlayCheckboxIntoSettings() {
             try {
-                // Find the Advanced tab content pane
-                let pane = document.querySelector('#settingsmenuadvanced') || document.querySelector('#advanced') || document.querySelector('#settings-advanced');
+                // The RPmod tab's block (src/settings) first; Esolite's Misc tab as fallback
+                let pane = document.getElementById('rpmod-settings-alpha') || document.querySelector('#settingsmenuadvanced') || document.querySelector('#advanced') || document.querySelector('#settings-advanced');
                 if (!pane) {
                     // Try to resolve via nav link text
                     const links = Array.from(document.querySelectorAll('.settingsnav a, .nav-tabs a'));
@@ -4970,27 +4972,8 @@ export default function initAlpha() {
                 if (!pane) return;
 
                 // If overlay block already exists, ensure debug settings are present and wired
-                if (pane.querySelector('#rpmod-overlay-sidepanel')) {
-                    let wrap = pane.querySelector('#rpmod-overlay-sidepanel')?.closest('div');
-                    // Update overlay label to single-line text and remove old helper
-                    try {
-                        const cb = pane.querySelector('#rpmod-overlay-sidepanel');
-                        const lbl = cb ? cb.closest('label') : null;
-                        if (lbl && cb) {
-                            // Preserve the existing checkbox node; rebuild the label content
-                            const input = cb;
-                            const parent = lbl;
-                            while (parent.firstChild) parent.removeChild(parent.firstChild);
-                            parent.appendChild(input);
-                            const span = document.createElement('span');
-                            span.textContent = ' RPmod sidepanel overlays chat area (otherwise reduces area width)';
-                            parent.appendChild(span);
-                        }
-                        const helper = (lbl && lbl.nextElementSibling && lbl.nextElementSibling.tagName === 'DIV') ? lbl.nextElementSibling : null;
-                        if (helper && /Disable to make space so chat stays fully visible/i.test(helper.textContent||'')) {
-                            helper.remove();
-                        }
-                    } catch(_){}
+                if (pane.querySelector('#rpmod-settings-wrapper')) {
+                    let wrap = pane.querySelector('#rpmod-settings-wrapper');
                     if (!pane.querySelector('#rpmod-debug-settings')) {
                         const dbg = document.createElement('div');
                         dbg.id = 'rpmod-debug-settings';
@@ -5116,12 +5099,8 @@ export default function initAlpha() {
                 const wrap = document.createElement('div');
                 wrap.id = 'rpmod-settings-wrapper';
                 wrap.style.margin = '8px 0';
+                // (The old "sidepanel overlays chat area" option is gone: the app shell owns layout.)
                 wrap.innerHTML = `
-                    <label style="display:flex; align-items:center; gap:8px; font-size: 13px; color: var(--muted);">
-                        <input type="checkbox" id="rpmod-overlay-sidepanel" ${this.getOverlaySidepanelEnabled() ? 'checked' : ''}>
-                        RPmod sidepanel overlays chat area (otherwise reduces area width)
-                    </label>
-                    <div style="height:8px"></div>
                     <label style="display:flex; align-items:center; gap:8px; font-size: 13px; color: var(--muted);">
                         <input type="checkbox" id="rpmod-hide-corpo-leftpanel" ${this.getHideCorpoLeftpanelEnabled() ? 'checked' : ''}>
                         Hide Corpo-LeftPanel in Corpo-Theme
@@ -5149,17 +5128,6 @@ export default function initAlpha() {
                     </div>
                 `;
                 pane.appendChild(wrap);
-
-                const cb = wrap.querySelector('#rpmod-overlay-sidepanel');
-                cb.addEventListener('change', () => {
-                    this.setOverlaySidepanelEnabled(cb.checked);
-                    try {
-                        // Persist if possible
-                        if (typeof window.indexeddb_save === 'function') {
-                            window.indexeddb_save('localsettings', window.localsettings);
-                        }
-                    } catch(_){}
-                });
 
                 const cbCorpo = wrap.querySelector('#rpmod-hide-corpo-leftpanel');
                 cbCorpo.addEventListener('change', () => {
@@ -5338,6 +5306,13 @@ export default function initAlpha() {
         },
         updatePanelsOnlyOverlayPadding() {
             try {
+                // The app shell (src/shell) owns the layout; never add inline margins then.
+                if (window.KLITE_RPMod_Shell) {
+                    const mc = document.getElementById('maincontainer');
+                    if (mc && mc.style.marginRight === '350px') mc.style.marginRight = '';
+                    document.body.classList.remove('klite-panels-nonoverlay-right');
+                    return;
+                }
                 const panelsOnly = !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.panelsOnly);
                 if (!panelsOnly) return;
                 const overlay = this.getOverlaySidepanelEnabled();

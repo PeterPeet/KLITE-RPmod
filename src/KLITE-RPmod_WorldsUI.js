@@ -70,14 +70,15 @@ export default function initWorldsUI() {
         if (!missing.length) return;
         const cx = 460, cy = 300;
         const root = S.G.nodes.find(n => n.type === 'world');
-        if (root && (root.x == null)) { root.x = 150; root.y = cy; API().setNodePos(root.id, root.x, root.y); }
+        // automatic placement is not a user edit: { layout: true } keeps the world "saved"
+        if (root && (root.x == null)) { root.x = 150; root.y = cy; API().setNodePos(root.id, root.x, root.y, { layout: true }); }
         let i = 0;
         for (const n of missing) {
             if (n.type === 'world') continue;
             const ang = (i / Math.max(1, missing.length)) * Math.PI * 2;
             n.x = Math.round(cx + Math.cos(ang) * (180 + (i % 3) * 70));
             n.y = Math.round(cy + Math.sin(ang) * (150 + (i % 4) * 55));
-            API().setNodePos(n.id, n.x, n.y);
+            API().setNodePos(n.id, n.x, n.y, { layout: true });
             i++;
         }
     }
@@ -545,8 +546,10 @@ export default function initWorldsUI() {
             btn('+', () => { S.scale = Math.min(3, S.scale * 1.1); applyViewport(); updateZoomLabel(); }),
             btn('Fit', () => fit()),
             btn('Preview', () => showPreview()),
-            btn('Save', async () => { await A.saveActiveWorld(); toast('World saved'); }, 'success')
+            S.revertBtn = btn('Revert', () => revertFlow()),
+            S.saveBtn = btn('Save', () => saveFlow(), 'success')
         ]);
+        S.saveBtn.setAttribute('data-save', 'world'); S.revertBtn.setAttribute('data-revert', 'world');
 
         // palette + tools rail
         const rail = el('div', { class: 'wm-ed-rail' });
@@ -695,6 +698,7 @@ export default function initWorldsUI() {
         }
         container.appendChild(buildEditor());
         resetEditor();
+        updateSaveState();
     }
     function resetEditor() {
         if (S.worldNameInput) S.worldNameInput.value = (API().activeWorld() && API().activeWorld().name) || '';
@@ -705,8 +709,49 @@ export default function initWorldsUI() {
     function unmountEditor() {
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
-        S.root = null; S.selectedId = null; S.linkSource = null; S.drag = null; S.pan = null;
+        S.root = null; S.selectedId = null; S.linkSource = null; S.drag = null; S.pan = null; S.saveBtn = null; S.revertBtn = null;
         try { refreshPanel(); } catch (_) {}
+    }
+
+    // ---- unsaved world edits (engine: hasUnsavedChanges / revertToSaved; setting:
+    //      Esolite Settings → RPmod → "Autosave world edits") ----
+    const unsaved = () => { const A = API(); return !!(A && A.hasUnsavedChanges && A.hasUnsavedChanges()); };
+    const autosave = () => { const A = API(); return !!(A && A.autosaveEnabled && A.autosaveEnabled()); };
+    async function saveFlow() { await API().saveActiveWorld(); toast('World saved'); updateSaveState(); }
+    async function revertFlow() {
+        if (!unsaved()) return;
+        if (!confirm('Revert to the last saved state? All unsaved world changes (including deletions) are undone.')) return;
+        const ok = await API().revertToSaved();
+        if (S.root) { S.selectedId = null; resetEditor(); }
+        refreshPanel(); toast(ok ? 'Reverted to the last save' : 'Nothing saved yet to revert to', !ok);
+    }
+    function updateSaveState() {
+        if (!S.saveBtn) return;
+        const dirty = unsaved(), auto = autosave();
+        S.saveBtn.textContent = dirty ? (auto ? 'Saving…' : 'Save •') : 'Saved';
+        S.saveBtn.title = dirty ? (auto ? 'Autosave is on — saving shortly' : 'Unsaved changes — click to save') : 'All changes saved';
+        S.saveBtn.classList.toggle('rpm-unsaved', dirty && !auto);
+        S.revertBtn.hidden = !dirty || auto;
+    }
+    // Closing the editor with unsaved changes (autosave off): ask inside the window.
+    function editorBeforeClose() {
+        if (!unsaved() || autosave() || !S.root) return true;
+        if (S.root.querySelector('.wm-ed-ask')) return false;
+        const done = () => { const sh = Shell(); if (sh) sh.close('editor', { force: true }); };
+        const ask = el('div', { class: 'wm-ed-ask', role: 'alertdialog', 'aria-label': 'Unsaved world changes' }, [
+            el('div', { class: 'wm-ed-ask-box rpm-card' }, [
+                el('div', { class: 'rpm-heading', text: 'Unsaved world changes' }),
+                el('p', { class: 'rpm-muted', text: 'Save them before closing? Unsaved changes stay in this session until the page reloads; Revert undoes them.' }),
+                row([
+                    uiBtn('Save and close', async () => { await API().saveActiveWorld(); done(); }, { icon: 'check', variant: 'success' }),
+                    uiBtn('Close, keep unsaved', () => done()),
+                    uiBtn('Revert and close', async () => { if (!confirm('Undo all unsaved world changes?')) return; await API().revertToSaved(); done(); }, { icon: 'rotate-ccw', variant: 'danger' }),
+                    uiBtn('Stay', () => ask.remove()),
+                ], 'flex-wrap:wrap;margin-top:8px'),
+            ]),
+        ]);
+        S.root.appendChild(ask);
+        return false;
     }
 
     // =======================================================================
@@ -778,6 +823,14 @@ export default function initWorldsUI() {
             uiBtn('Import', () => importFlow(), { icon: 'upload', grow: true }),
             uiBtn('Export', () => exportFlow(), { icon: 'download', grow: true })
         ], 'margin:6px 0 8px'));
+
+        if (unsaved() && !autosave()) {
+            body.appendChild(el('div', { class: 'rpm-card rpm-unsaved-card', 'data-unsaved': 'world', style: 'margin:0 0 8px' }, [
+                el('div', { style: 'font-weight:bold;margin-bottom:4px', text: 'Unsaved world changes' }),
+                row([uiBtn('Save', () => saveFlow().then(refreshPanel), { icon: 'check', grow: true, variant: 'success' }),
+                     uiBtn('Revert', () => revertFlow(), { icon: 'rotate-ccw', grow: true })]),
+            ]));
+        }
 
         if (!A.activeWorld()) {
             body.appendChild(muted('New here? Load the ready-to-play example and just start chatting.', { style: 'margin:6px 0 8px' }));
@@ -1043,7 +1096,7 @@ export default function initWorldsUI() {
         })));
         // not restored at startup: the world library loads asynchronously
         sh.registerView({ id: 'editor', title: 'World editor', place: 'window', window: { large: true, flush: true, minWidth: 320, minHeight: 300, restore: false },
-            mount: mountEditor, unmount: unmountEditor });
+            mount: mountEditor, unmount: unmountEditor, beforeClose: editorBeforeClose });
     }
 
     function init() {
@@ -1054,6 +1107,7 @@ export default function initWorldsUI() {
         // engine state changed (chat tags, triggers, API calls) -> re-render, but never
         // under the user's cursor while they type
         window.addEventListener('klite:worlds-change', () => { try { refreshPanel({ soft: true }); } catch (_) {} });
+        window.addEventListener('klite:worlds-dirty', () => { try { updateSaveState(); refreshPanel({ soft: true }); } catch (_) {} });
     }
 
     function whenReady() {

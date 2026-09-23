@@ -16,6 +16,7 @@ const FILES = {
     worldsUI: 'src/KLITE-RPmod_WorldsUI.js',
     onboarding: 'src/onboarding/onboarding.js',
     library: 'src/library/esoliteLibrary.js',
+    settings: 'src/settings/settings.js',
     bundle: 'KLITE-RPmod.js',
 };
 
@@ -112,6 +113,36 @@ function createHost({ settings = {} } = {}) {
         function getCharacterData(n) { const meta = findCharacterMetaById(n) || findCharacterMetaByName(n); const k = getCharacterStorageKey(meta ? meta.id : normalizeCharacterStorageName(n)); return indexeddb_load(k, '{}').then(r => JSON.parse(r || '{}')); }
         async function __addEsoCharacter(name, inner, extra) { const id = normalizeCharacterStorageName(name); await indexeddb_save('character_' + id, JSON.stringify(Object.assign({ id, name: id, data: Object.assign({ name: id }, inner) }, extra || {}))); upsertCharacterMetadata({ id, name: id, type: 'Character' }); await updateCharacterListFromAll(); return id; }
         window.__lib = () => allCharacterNames;
+    `);
+
+    // Stand-in for Esolite's Settings dialog: #settingscontainer with .settingsnav tabs and
+    // .settingsbody panes, display_settings / display_settings_tab / confirm_settings (OK,
+    // which saves localsettings) like index.html + Esobold's newMenuOptions.js. Records
+    // saves in window.__settingsSaved.
+    host.installFakeSettingsDialog = () => host.eval(`
+        var __settingsSaved = 0;
+        (function () {
+            const c = document.createElement('div'); c.id = 'settingscontainer'; c.className = 'popupcontainer hidden';
+            c.innerHTML = '<ul class="settingsnav"></ul><div class="settingsbody"></div>';
+            document.body.appendChild(c);
+            for (const [id, label] of [['general', 'General'], ['advanced', 'Misc'], ['esobold', 'Esobold']]) {
+                const li = document.createElement('li'); li.id = 'settingsmenu' + id + '_tab';
+                const a = document.createElement('a'); a.textContent = label; li.appendChild(a);
+                c.querySelector('.settingsnav').appendChild(li);
+                const pane = document.createElement('div'); pane.id = 'settingsmenu' + id; pane.className = 'settingsmenu hidden';
+                c.querySelector('.settingsbody').appendChild(pane);
+            }
+        })();
+        function display_settings() { document.getElementById('settingscontainer').classList.remove('hidden'); }
+        function display_settings_tab(i) {
+            const nav = document.querySelector('#settingscontainer .settingsnav');
+            document.querySelectorAll('#settingscontainer .settingsmenu').forEach(e => e.classList.add('hidden'));
+            const li = nav.querySelector(':nth-child(' + (i + 1) + ')');
+            document.getElementById(li.id.replace(/_tab$/, '')).classList.remove('hidden');
+            window.__settingsTab = i;
+        }
+        function save_settings() { __settingsSaved++; }
+        function confirm_settings() { save_settings(); document.getElementById('settingscontainer').classList.add('hidden'); }
     `);
 
     // Deterministic Math.random inside the page context (for dice tests).

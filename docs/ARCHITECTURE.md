@@ -12,6 +12,7 @@
 | `KLITE-RPmod_Worlds.js` (~1.6k) | `window.KLITE_RPMod_Worlds` | Worlds engine: world graph, retrieval, injection, runtime state, quests, triggers, combat |
 | `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds views for the shell (World tab, Party/Quests sections, Quest log/Combat/World editor windows) |
 | `context/context.js` | `window.KLITE_RPMod_Context` | **Single owner of per-turn prompt context**: providers, the one `prepare_submit_generation` wrapper, managed WI entries, save stripping (§3.3) |
+| `settings/settings.js` | `window.KLITE_RPMod_Settings` | "RPmod" tab in Esolite's Settings dialog; modules register options (§4c) |
 | `library/esoliteLibrary.js` | `window.KLITE_RPMod_Library` | Writes characters through Esolite's own Library (id-based since 1.35); recovers characters an older RPmod hid (§5a) |
 | `shell/shell.js`, `windows.js`, `styles.js`, `dom.js` | `window.KLITE_RPMod_Shell` | App shell: docks, view registry, floating windows, design tokens, top-bar button (§4a) |
 | `onboarding/onboarding.js`, `quickStart.js`, `guide.js`, `chapters.js`, `hostGlobals.js` | `window.KLITE_RPMod_Onboarding` | Getting started: RPmod section in Esolite's Quick Start, the Guide window with "Show me", "New here?" card, GuidedRP save passthrough (§4b) |
@@ -269,6 +270,27 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
   (`KLITE_RPMod_Shell.addDockAction`), "What is RPmod?" in the Quick Start section.
 - **GuidedRP save passthrough:** remembers `guided_rp` from a loaded save and re-attaches
   it on `generate_savefile` so old stories keep it.
+
+## 4c. Settings (`src/settings/settings.js`)
+- An **RPmod** tab in Esolite's Settings dialog, built like Esobold's `createNewSettingsSection`
+  (`static/js/newMenuOptions.js`): `li#settingsmenurpmod_tab` in `.settingsnav`, pane
+  `div#settingsmenurpmod.settingsmenu` with `.settingitem.wide`; rows `.settinglabel` /
+  `.settingsmall` / `.helpicon` (built with `textContent`). The tab is created on the first
+  `display_settings` (after Esobold's own tabs); its click computes its index at click time.
+- Values live in `localsettings.rpmod_<id>` (Esolite keeps unknown keys): filled in the
+  wrapped `display_settings`, written in the wrapped `confirm_settings` (which saves), so OK
+  applies and Cancel discards — like Esolite's options.
+- API: `registerSetting({ id, section, label, help, default, order })` (checkbox),
+  `registerBlock({ id, section, mount })` (free-form; ALPHA's debug block = `alpha`, which
+  ALPHA fills into `#rpmod-settings-alpha` and which applies immediately),
+  `get/set/onChange/open`.
+- **Worlds autosave** (`worlds_autosave`, default off): the Worlds API wraps every authoring
+  method (add/update/delete entity, connect, positions, stats, links, player combat, AI
+  mode) to mark the library unsaved (`klite:worlds-dirty`); autosave saves 1 s after the last
+  change; `saveLibrary` clears the flag only if nothing changed meanwhile; `revertToSaved()`
+  reloads from IndexedDB; editor auto-layout (`setNodePos(…, { layout: true })`) is not an
+  edit. The editor window's `beforeClose` asks (save / keep unsaved / revert / stay);
+  `beforeunload` warns. Shell windows support `beforeClose` (`close(id, { force })`).
 
 ## 4. Worlds UI (`src/KLITE-RPmod_WorldsUI.js`)
 - **Shell views:** right tab **World** (`#wm-panel`: world selector,

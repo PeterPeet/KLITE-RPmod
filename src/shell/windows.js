@@ -8,7 +8,7 @@ import { el, icon, ICONS } from './dom.js';
 
 const MIN_VISIBLE = 48;   // px of a window that must stay on screen when clamping
 
-export function createWindowManager({ layer, getGeom, setGeom, onClose }) {
+export function createWindowManager({ layer, getGeom, setGeom, onClose, canClose }) {
     const wins = new Map();   // id -> { el, body, opts }
     let zTop = 1;
     let cascade = 0;
@@ -121,8 +121,10 @@ export function createWindowManager({ layer, getGeom, setGeom, onClose }) {
         return win;
     }
 
-    function close(id) {
+    // canClose(id) === false keeps the window open (e.g. "unsaved changes?"); force skips it.
+    function close(id, { force = false } = {}) {
         const win = wins.get(id); if (!win) return false;
+        if (!force && typeof canClose === 'function') { try { if (canClose(id) === false) return false; } catch (_) {} }
         wins.delete(id);
         try { win.el.remove(); } catch (_) {}
         try { onClose(id); } catch (_) {}

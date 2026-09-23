@@ -103,6 +103,13 @@ screens the palette becomes a strip on top and the inspector moves below the can
   review/remove its connections; change its **type**; or delete it.
 - **Save** writes the world to your library; **Preview** shows exactly *what the AI will
   see* for your current location.
+- **Unsaved changes:** until you save, the button reads **Save •** and the World tab shows
+  *Unsaved world changes*. **Revert** undoes everything since the last save, including
+  deletions. Closing the editor asks whether to save, keep the changes unsaved or revert,
+  and the browser warns before you leave the page.
+- **Autosave** (off by default): Esolite **Settings → RPmod → Autosave world edits** saves
+  about a second after each change. It's convenient, but a deletion is then saved at once
+  and can't be reverted.
 
 ### Connections carry meaning
 
@@ -275,7 +282,17 @@ stories never contain the temporary injected entries.
 
 ---
 
-## 9. Power-user console commands
+## 9. RPmod settings
+
+RPmod's options are in Esolite's own **Settings** dialog, on the **RPmod** tab (next to
+*Agent* and *Esobold*). Like every Esolite setting they apply when you press **OK**, and
+**Cancel** discards your changes.
+
+- **Worlds → Autosave world edits**: see *Unsaved changes* in section 4.
+- **Debug & compatibility**: hide the Corpo theme's left panel, and debug logging with
+  topics for bug reports.
+
+## 10. Power-user console commands
 
 Everything is scriptable via `KLITE_RPMod_Worlds` (alias `W` below):
 
@@ -298,7 +315,7 @@ W.exportWorldAsWI();              // flat WorldInfo array
 
 ---
 
-## 10. Tips & troubleshooting
+## 11. Tips & troubleshooting
 
 - **Nothing is injected?** Make sure a world is selected **and** "Enable for this story" is
   on, and that you've set a current location.

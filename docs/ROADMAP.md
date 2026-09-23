@@ -15,7 +15,7 @@ Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
 `BackupData/`.
 
-### What works (verified headless 2026-09-23 — `npm test`, 81 tests)
+### What works (verified headless 2026-09-23 — `npm test`, 88 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -199,6 +199,13 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
 - [x] Test runner: dropped `--test-force-exit` — on Node 22 it ended a test file part-way
       (exit 0) once that file ran ~1 s, silently dropping tests; the count guard caught it.
       A 180 s timeout replaces it.
+- [x] **RPmod settings in Esolite's Settings dialog + world autosave option** (2026-09-23):
+      `src/settings/settings.js` adds an **RPmod** tab built like Esobold's own tabs
+      (values in `localsettings.rpmod_*`, applied on OK, discarded on Cancel); ALPHA's
+      debug/Corpo options moved there from Misc; the obsolete "sidepanel overlays chat" option
+      is gone (it could push the chat aside next to the shell). Worlds: **"Autosave world
+      edits"** (default off, owner's call); unsaved-change tracking (`Save •`, World-tab card,
+      ask on editor close, browser warning on leave), **Revert to saved**. Live-checked.
 - **R1 acceptance met** (no overlapping panels, everything reachable from the shell, tests
   green, live-checked). Carried into later phases: ALPHA's code still lives in the
   monolith (known issues 8, 10, 13) — its panels migrate as R2 rebuilds characters.

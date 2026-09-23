@@ -67,7 +67,9 @@ export default function initShell() {
     //         show?(container, api) — called every time a right-dock view becomes the
     //         selected tab (after mount/update),
     //         unmount?(container, api) — window views: called when the window closes
-    //         (remove global listeners etc.) }
+    //         (remove global listeners etc.),
+    //         beforeClose?(container, api) — window views: return false to keep the window
+    //         open (e.g. after asking about unsaved changes) }
     // def.window may also carry { large, flush } (see windows.js) and restore: false —
     // do not reopen the window at startup even if it was open last time.
     function registerView(def) {
@@ -88,7 +90,7 @@ export default function initShell() {
 
     function unregisterView(id) {
         const v = views.get(id); if (!v) return;
-        if (v.def.place === 'window' && wm) wm.close(id);
+        if (v.def.place === 'window' && wm) wm.close(id, { force: true });
         try { v.tab && v.tab.remove(); v.section && v.section.remove(); v.def.place === 'right' && v.container && v.container.remove(); } catch (_) {}
         views.delete(id);
         if (shownTab === id) shownTab = null;
@@ -221,9 +223,9 @@ export default function initShell() {
         return true;
     }
 
-    function closeView(id) {
+    function closeView(id, opts) {
         const v = views.get(id); if (!v) return false;
-        if (v.def.place === 'window') return wm ? wm.close(id) : false;
+        if (v.def.place === 'window') return wm ? wm.close(id, opts) : false;
         return false;
     }
 
@@ -321,6 +323,11 @@ export default function initShell() {
             layer,
             getGeom: (id) => layout.windows[id] || null,
             setGeom: (id, g) => { layout.windows[id] = Object.assign({}, layout.windows[id], g, { open: true }); saveLayout(); },
+            canClose: (id) => {
+                const v = views.get(id);
+                if (!v || typeof v.def.beforeClose !== 'function') return true;
+                return v.def.beforeClose(v.container, api) !== false;
+            },
             onClose: (id) => {
                 layout.windows[id] = Object.assign({}, layout.windows[id], { open: false }); saveLayout();
                 const v = views.get(id); if (!v) return;

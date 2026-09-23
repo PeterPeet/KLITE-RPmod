@@ -244,6 +244,11 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .wm-ed-help { color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); margin-top: 8px; line-height: 1.5; }
 .wm-ed-canvas { flex: 1 1 auto; min-width: 0; min-height: 0; display: block; background: var(--rpm-bg-chat); touch-action: none; }
 .wm-ed-insp { flex: 0 0 280px; padding: 12px; overflow: auto; border-left: 1px solid var(--rpm-border); }
+.wm-editor { position: relative; }
+.wm-ed-ask { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .45); }
+.wm-ed-ask-box { max-width: 460px; margin: 16px; background: var(--rpm-bg); }
+.rpm-btn.rpm-unsaved { box-shadow: inset 0 -3px 0 var(--rpm-quest); }
+.rpm-unsaved-card { border-color: var(--rpm-quest); box-shadow: inset 3px 0 0 var(--rpm-quest); }
 /* narrow window or phone: palette becomes a strip on top, inspector goes below the canvas */
 @container (max-width: 720px) {
     .wm-ed-body { flex-direction: column; }
@@ -455,7 +460,7 @@ body.rpm-docked #maincontainer {
 
   // src/shell/windows.js
   var MIN_VISIBLE = 48;
-  function createWindowManager({ layer, getGeom, setGeom, onClose }) {
+  function createWindowManager({ layer, getGeom, setGeom, onClose, canClose }) {
     const wins = /* @__PURE__ */ new Map();
     let zTop = 1;
     let cascade = 0;
@@ -578,9 +583,15 @@ body.rpm-docked #maincontainer {
       else setGeom(opts.id, Object.assign({}, win.geom, { max: false }));
       return win;
     }
-    function close(id) {
+    function close(id, { force = false } = {}) {
       const win = wins.get(id);
       if (!win) return false;
+      if (!force && typeof canClose === "function") {
+        try {
+          if (canClose(id) === false) return false;
+        } catch (_) {
+        }
+      }
       wins.delete(id);
       try {
         win.el.remove();
@@ -670,7 +681,7 @@ body.rpm-docked #maincontainer {
     function unregisterView(id) {
       const v = views.get(id);
       if (!v) return;
-      if (v.def.place === "window" && wm) wm.close(id);
+      if (v.def.place === "window" && wm) wm.close(id, { force: true });
       try {
         v.tab && v.tab.remove();
         v.section && v.section.remove();
@@ -831,10 +842,10 @@ body.rpm-docked #maincontainer {
       saveLayout();
       return true;
     }
-    function closeView(id) {
+    function closeView(id, opts) {
       const v = views.get(id);
       if (!v) return false;
-      if (v.def.place === "window") return wm ? wm.close(id) : false;
+      if (v.def.place === "window") return wm ? wm.close(id, opts) : false;
       return false;
     }
     function setDockOpen(side, value) {
@@ -935,6 +946,11 @@ body.rpm-docked #maincontainer {
         setGeom: (id, g) => {
           layout.windows[id] = Object.assign({}, layout.windows[id], g, { open: true });
           saveLayout();
+        },
+        canClose: (id) => {
+          const v = views.get(id);
+          if (!v || typeof v.def.beforeClose !== "function") return true;
+          return v.def.beforeClose(v.container, api) !== false;
         },
         onClose: (id) => {
           layout.windows[id] = Object.assign({}, layout.windows[id], { open: false });
@@ -6327,6 +6343,11 @@ ${parts.join("\n")})))`;
       installSettingsEnhancer() {
         try {
           if (this._settingsEnhanced) return;
+          try {
+            window.KLITE_RPMod_Settings?.registerBlock({ id: "alpha", section: "Debug & compatibility", order: 50, mount() {
+            } });
+          } catch (_) {
+          }
           if (typeof window.display_settings === "function") {
             const orig = window.display_settings;
             const self = this;
@@ -6365,7 +6386,7 @@ ${parts.join("\n")})))`;
       },
       injectOverlayCheckboxIntoSettings() {
         try {
-          let pane = document.querySelector("#settingsmenuadvanced") || document.querySelector("#advanced") || document.querySelector("#settings-advanced");
+          let pane = document.getElementById("rpmod-settings-alpha") || document.querySelector("#settingsmenuadvanced") || document.querySelector("#advanced") || document.querySelector("#settings-advanced");
           if (!pane) {
             const links = Array.from(document.querySelectorAll(".settingsnav a, .nav-tabs a"));
             const advLink = links.find((a) => /advanced/i.test(a.textContent || ""));
@@ -6376,26 +6397,8 @@ ${parts.join("\n")})))`;
           }
           if (!pane) pane = document.querySelector(".settingsbody") || document.body;
           if (!pane) return;
-          if (pane.querySelector("#rpmod-overlay-sidepanel")) {
-            let wrap2 = pane.querySelector("#rpmod-overlay-sidepanel")?.closest("div");
-            try {
-              const cb2 = pane.querySelector("#rpmod-overlay-sidepanel");
-              const lbl = cb2 ? cb2.closest("label") : null;
-              if (lbl && cb2) {
-                const input = cb2;
-                const parent = lbl;
-                while (parent.firstChild) parent.removeChild(parent.firstChild);
-                parent.appendChild(input);
-                const span = document.createElement("span");
-                span.textContent = " RPmod sidepanel overlays chat area (otherwise reduces area width)";
-                parent.appendChild(span);
-              }
-              const helper = lbl && lbl.nextElementSibling && lbl.nextElementSibling.tagName === "DIV" ? lbl.nextElementSibling : null;
-              if (helper && /Disable to make space so chat stays fully visible/i.test(helper.textContent || "")) {
-                helper.remove();
-              }
-            } catch (_) {
-            }
+          if (pane.querySelector("#rpmod-settings-wrapper")) {
+            let wrap2 = pane.querySelector("#rpmod-settings-wrapper");
             if (!pane.querySelector("#rpmod-debug-settings")) {
               const dbg = document.createElement("div");
               dbg.id = "rpmod-debug-settings";
@@ -6427,13 +6430,13 @@ ${parts.join("\n")})))`;
                 row.style.alignItems = "center";
                 row.style.gap = "8px";
                 row.style.margin = "6px 0";
-                const cb2 = document.createElement("input");
-                cb2.type = "checkbox";
-                cb2.id = "rpmod-debug-restore-console";
-                cb2.checked = localStorage.getItem("rpmod_enable_console_restore") === "1" || !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.enableConsoleRestore);
+                const cb = document.createElement("input");
+                cb.type = "checkbox";
+                cb.id = "rpmod-debug-restore-console";
+                cb.checked = localStorage.getItem("rpmod_enable_console_restore") === "1" || !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.enableConsoleRestore);
                 const sp = document.createElement("span");
                 sp.textContent = "Restore console (iframe workaround)";
-                row.appendChild(cb2);
+                row.appendChild(cb);
                 row.appendChild(sp);
                 if (btnRow && dbg.contains(btnRow)) dbg.insertBefore(row, btnRow);
                 else dbg.appendChild(row);
@@ -6456,9 +6459,9 @@ ${parts.join("\n")})))`;
               };
               const syncTopicsUIFromLevels2 = () => {
                 try {
-                  (wrap2 || pane).querySelectorAll(".rpmod-debug-topic").forEach((cb2) => {
-                    const topic = cb2.getAttribute("data-topic");
-                    cb2.checked = !!(this.debugLevels && this.debugLevels[topic]);
+                  (wrap2 || pane).querySelectorAll(".rpmod-debug-topic").forEach((cb) => {
+                    const topic = cb.getAttribute("data-topic");
+                    cb.checked = !!(this.debugLevels && this.debugLevels[topic]);
                   });
                   const m = (wrap2 || pane).querySelector("#rpmod-debug-enabled");
                   if (m) m.checked = !!this.debug;
@@ -6497,12 +6500,12 @@ ${parts.join("\n")})))`;
                 } catch (_) {
                 }
               });
-              (wrap2 || pane).querySelectorAll(".rpmod-debug-topic").forEach((cb2) => {
-                cb2.addEventListener("change", () => {
+              (wrap2 || pane).querySelectorAll(".rpmod-debug-topic").forEach((cb) => {
+                cb.addEventListener("change", () => {
                   try {
-                    const topic = cb2.getAttribute("data-topic");
+                    const topic = cb.getAttribute("data-topic");
                     if (!this.debugLevels) this.debugLevels = {};
-                    this.debugLevels[topic] = !!cb2.checked;
+                    this.debugLevels[topic] = !!cb.checked;
                     persistLevelsToLocalStorage2();
                     if (window.KLITE_RPDebug) window.KLITE_RPDebug.applyTopicsFromLocalStorage();
                     updateActiveLabel2();
@@ -6547,11 +6550,6 @@ ${parts.join("\n")})))`;
           wrap.style.margin = "8px 0";
           wrap.innerHTML = `
                     <label style="display:flex; align-items:center; gap:8px; font-size: 13px; color: var(--muted);">
-                        <input type="checkbox" id="rpmod-overlay-sidepanel" ${this.getOverlaySidepanelEnabled() ? "checked" : ""}>
-                        RPmod sidepanel overlays chat area (otherwise reduces area width)
-                    </label>
-                    <div style="height:8px"></div>
-                    <label style="display:flex; align-items:center; gap:8px; font-size: 13px; color: var(--muted);">
                         <input type="checkbox" id="rpmod-hide-corpo-leftpanel" ${this.getHideCorpoLeftpanelEnabled() ? "checked" : ""}>
                         Hide Corpo-LeftPanel in Corpo-Theme
                     </label>
@@ -6578,16 +6576,6 @@ ${parts.join("\n")})))`;
                     </div>
                 `;
           pane.appendChild(wrap);
-          const cb = wrap.querySelector("#rpmod-overlay-sidepanel");
-          cb.addEventListener("change", () => {
-            this.setOverlaySidepanelEnabled(cb.checked);
-            try {
-              if (typeof window.indexeddb_save === "function") {
-                window.indexeddb_save("localsettings", window.localsettings);
-              }
-            } catch (_) {
-            }
-          });
           const cbCorpo = wrap.querySelector("#rpmod-hide-corpo-leftpanel");
           cbCorpo.addEventListener("change", () => {
             this.setHideCorpoLeftpanelEnabled(cbCorpo.checked);
@@ -6641,9 +6629,9 @@ ${parts.join("\n")})))`;
           };
           const syncTopicsUIFromLevels = () => {
             try {
-              wrap.querySelectorAll(".rpmod-debug-topic").forEach((cb2) => {
-                const topic = cb2.getAttribute("data-topic");
-                cb2.checked = !!(this.debugLevels && this.debugLevels[topic]);
+              wrap.querySelectorAll(".rpmod-debug-topic").forEach((cb) => {
+                const topic = cb.getAttribute("data-topic");
+                cb.checked = !!(this.debugLevels && this.debugLevels[topic]);
               });
               const m = wrap.querySelector("#rpmod-debug-enabled");
               if (m) m.checked = !!this.debug;
@@ -6682,12 +6670,12 @@ ${parts.join("\n")})))`;
             } catch (_) {
             }
           });
-          wrap.querySelectorAll(".rpmod-debug-topic").forEach((cb2) => {
-            cb2.addEventListener("change", () => {
+          wrap.querySelectorAll(".rpmod-debug-topic").forEach((cb) => {
+            cb.addEventListener("change", () => {
               try {
-                const topic = cb2.getAttribute("data-topic");
+                const topic = cb.getAttribute("data-topic");
                 if (!this.debugLevels) this.debugLevels = {};
-                this.debugLevels[topic] = !!cb2.checked;
+                this.debugLevels[topic] = !!cb.checked;
                 persistLevelsToLocalStorage();
                 if (window.KLITE_RPDebug) window.KLITE_RPDebug.applyTopicsFromLocalStorage();
                 updateActiveLabel();
@@ -6775,6 +6763,12 @@ ${parts.join("\n")})))`;
       },
       updatePanelsOnlyOverlayPadding() {
         try {
+          if (window.KLITE_RPMod_Shell) {
+            const mc = document.getElementById("maincontainer");
+            if (mc && mc.style.marginRight === "350px") mc.style.marginRight = "";
+            document.body.classList.remove("klite-panels-nonoverlay-right");
+            return;
+          }
           const panelsOnly = !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.panelsOnly);
           if (!panelsOnly) return;
           const overlay = this.getOverlaySidepanelEnabled();
@@ -17716,12 +17710,95 @@ ${char.mes_example}
       }
     }
     async function saveLibrary() {
+      const rev = edits.rev;
       try {
         await idbSave(IDB_LIBRARY_KEY, JSON.stringify(W.library));
         dbg("library saved");
+        if (edits.rev === rev) setDirty(false);
+        return true;
       } catch (e) {
         err("saveLibrary failed", e);
+        return false;
       }
+    }
+    const AUTOSAVE_SETTING = "worlds_autosave";
+    const AUTOSAVE_DELAY = 1e3;
+    const edits = { dirty: false, rev: 0, timer: null };
+    function autosaveOn() {
+      try {
+        return !!window.KLITE_RPMod_Settings?.get(AUTOSAVE_SETTING);
+      } catch (_) {
+        return false;
+      }
+    }
+    function setDirty(v) {
+      if (edits.dirty === !!v) return;
+      edits.dirty = !!v;
+      try {
+        window.dispatchEvent(new CustomEvent("klite:worlds-dirty", { detail: { dirty: edits.dirty } }));
+      } catch (_) {
+      }
+    }
+    function markDirty() {
+      edits.rev++;
+      setDirty(true);
+      clearTimeout(edits.timer);
+      edits.timer = null;
+      if (autosaveOn()) edits.timer = setTimeout(() => {
+        edits.timer = null;
+        saveLibrary();
+      }, AUTOSAVE_DELAY);
+    }
+    async function revertLibrary() {
+      clearTimeout(edits.timer);
+      edits.timer = null;
+      let raw = null;
+      try {
+        raw = await idbLoad(IDB_LIBRARY_KEY);
+      } catch (_) {
+      }
+      if (!raw) return false;
+      try {
+        W.library = JSON.parse(raw) || {};
+      } catch (e) {
+        err("revert failed", e);
+        return false;
+      }
+      for (const w of Object.values(W.library)) {
+        try {
+          normalizeWorld(w);
+        } catch (_) {
+        }
+      }
+      edits.rev++;
+      setDirty(false);
+      syncLive();
+      return true;
+    }
+    function registerSettingAndGuards() {
+      try {
+        window.KLITE_RPMod_Settings?.registerSetting({
+          id: AUTOSAVE_SETTING,
+          section: "Worlds",
+          order: 10,
+          default: false,
+          label: "Autosave world edits",
+          help: "Saves changes made in the world editor automatically, about a second after each change. Off: changes stay unsaved until you press Save (or Revert to saved); RPmod warns before they could be lost. With autosave on, a deletion is saved at once and cannot be reverted."
+        });
+        window.KLITE_RPMod_Settings?.onChange(AUTOSAVE_SETTING, (on) => {
+          if (on && edits.dirty) saveLibrary();
+        });
+      } catch (_) {
+      }
+      window.addEventListener("beforeunload", (e) => {
+        if (!edits.dirty) return;
+        if (autosaveOn()) {
+          saveLibrary();
+          if (!edits.timer) return;
+        }
+        e.preventDefault();
+        e.returnValue = "";
+      });
     }
     function collectSaveState() {
       if (!W.config.enabled && !W.activeWorldId) return void 0;
@@ -19549,13 +19626,51 @@ ${recent}` : "");
       collectSaveState,
       restoreSaveState,
       saveLibrary,
-      loadLibrary
+      loadLibrary,
+      // ----- unsaved edits (see markDirty) -----
+      hasUnsavedChanges() {
+        return edits.dirty;
+      },
+      async revertToSaved() {
+        return revertLibrary();
+      },
+      autosaveEnabled: autosaveOn
     };
+    for (const name of [
+      "addEntity",
+      "updateEntity",
+      "deleteEntity",
+      "connect",
+      "disconnect",
+      "setNodePos",
+      "changeEntityType",
+      "linkCharacter",
+      "unlinkCharacter",
+      "addPersonFromCharacter",
+      "setStats",
+      "clearStats",
+      "addPersonFromTemplate",
+      "setPlayerCombat",
+      "setAiMode"
+    ]) {
+      const fn2 = API[name];
+      if (typeof fn2 !== "function") {
+        err("authoring API missing: " + name);
+        continue;
+      }
+      API[name] = function() {
+        const r = fn2.apply(this, arguments);
+        const auto = name === "setNodePos" && arguments[3] && arguments[3].layout;
+        if (activeWorld() && !auto) markDirty();
+        return r;
+      };
+    }
     async function init() {
       if (W.ready) return;
       await loadLibrary();
       installSaveWrappers();
       registerProvider();
+      registerSettingAndGuards();
       const okPrepare = getContext().install();
       W.ready = true;
       try {
@@ -19653,7 +19768,7 @@ ${recent}` : "");
       if (root && root.x == null) {
         root.x = 150;
         root.y = cy;
-        API().setNodePos(root.id, root.x, root.y);
+        API().setNodePos(root.id, root.x, root.y, { layout: true });
       }
       let i = 0;
       for (const n of missing) {
@@ -19661,7 +19776,7 @@ ${recent}` : "");
         const ang = i / Math.max(1, missing.length) * Math.PI * 2;
         n.x = Math.round(cx + Math.cos(ang) * (180 + i % 3 * 70));
         n.y = Math.round(cy + Math.sin(ang) * (150 + i % 4 * 55));
-        API().setNodePos(n.id, n.x, n.y);
+        API().setNodePos(n.id, n.x, n.y, { layout: true });
         i++;
       }
     }
@@ -20303,11 +20418,11 @@ ${recent}` : "");
         }),
         btn("Fit", () => fit()),
         btn("Preview", () => showPreview()),
-        btn("Save", async () => {
-          await A.saveActiveWorld();
-          toast("World saved");
-        }, "success")
+        S.revertBtn = btn("Revert", () => revertFlow()),
+        S.saveBtn = btn("Save", () => saveFlow(), "success")
       ]);
+      S.saveBtn.setAttribute("data-save", "world");
+      S.revertBtn.setAttribute("data-revert", "world");
       const rail = el2("div", { class: "wm-ed-rail" });
       rail.appendChild(el2("div", { class: "wm-ed-label", text: "Add node" }));
       const palette = el2("div", { class: "wm-ed-palette" });
@@ -20484,6 +20599,7 @@ ${recent}` : "");
       }
       container.appendChild(buildEditor());
       resetEditor();
+      updateSaveState();
     }
     function resetEditor() {
       if (S.worldNameInput) S.worldNameInput.value = API().activeWorld() && API().activeWorld().name || "";
@@ -20503,10 +20619,73 @@ ${recent}` : "");
       S.linkSource = null;
       S.drag = null;
       S.pan = null;
+      S.saveBtn = null;
+      S.revertBtn = null;
       try {
         refreshPanel();
       } catch (_) {
       }
+    }
+    const unsaved = () => {
+      const A = API();
+      return !!(A && A.hasUnsavedChanges && A.hasUnsavedChanges());
+    };
+    const autosave = () => {
+      const A = API();
+      return !!(A && A.autosaveEnabled && A.autosaveEnabled());
+    };
+    async function saveFlow() {
+      await API().saveActiveWorld();
+      toast("World saved");
+      updateSaveState();
+    }
+    async function revertFlow() {
+      if (!unsaved()) return;
+      if (!confirm("Revert to the last saved state? All unsaved world changes (including deletions) are undone.")) return;
+      const ok = await API().revertToSaved();
+      if (S.root) {
+        S.selectedId = null;
+        resetEditor();
+      }
+      refreshPanel();
+      toast(ok ? "Reverted to the last save" : "Nothing saved yet to revert to", !ok);
+    }
+    function updateSaveState() {
+      if (!S.saveBtn) return;
+      const dirty = unsaved(), auto = autosave();
+      S.saveBtn.textContent = dirty ? auto ? "Saving…" : "Save •" : "Saved";
+      S.saveBtn.title = dirty ? auto ? "Autosave is on — saving shortly" : "Unsaved changes — click to save" : "All changes saved";
+      S.saveBtn.classList.toggle("rpm-unsaved", dirty && !auto);
+      S.revertBtn.hidden = !dirty || auto;
+    }
+    function editorBeforeClose() {
+      if (!unsaved() || autosave() || !S.root) return true;
+      if (S.root.querySelector(".wm-ed-ask")) return false;
+      const done = () => {
+        const sh = Shell();
+        if (sh) sh.close("editor", { force: true });
+      };
+      const ask = el2("div", { class: "wm-ed-ask", role: "alertdialog", "aria-label": "Unsaved world changes" }, [
+        el2("div", { class: "wm-ed-ask-box rpm-card" }, [
+          el2("div", { class: "rpm-heading", text: "Unsaved world changes" }),
+          el2("p", { class: "rpm-muted", text: "Save them before closing? Unsaved changes stay in this session until the page reloads; Revert undoes them." }),
+          row([
+            uiBtn("Save and close", async () => {
+              await API().saveActiveWorld();
+              done();
+            }, { icon: "check", variant: "success" }),
+            uiBtn("Close, keep unsaved", () => done()),
+            uiBtn("Revert and close", async () => {
+              if (!confirm("Undo all unsaved world changes?")) return;
+              await API().revertToSaved();
+              done();
+            }, { icon: "rotate-ccw", variant: "danger" }),
+            uiBtn("Stay", () => ask.remove())
+          ], "flex-wrap:wrap;margin-top:8px")
+        ])
+      ]);
+      S.root.appendChild(ask);
+      return false;
     }
     let panelEl = null;
     const TIME_SLOTS_UI = ["morning", "noon", "afternoon", "evening", "night"];
@@ -20616,6 +20795,15 @@ ${recent}` : "");
         uiBtn("Import", () => importFlow(), { icon: "upload", grow: true }),
         uiBtn("Export", () => exportFlow(), { icon: "download", grow: true })
       ], "margin:6px 0 8px"));
+      if (unsaved() && !autosave()) {
+        body.appendChild(el2("div", { class: "rpm-card rpm-unsaved-card", "data-unsaved": "world", style: "margin:0 0 8px" }, [
+          el2("div", { style: "font-weight:bold;margin-bottom:4px", text: "Unsaved world changes" }),
+          row([
+            uiBtn("Save", () => saveFlow().then(refreshPanel), { icon: "check", grow: true, variant: "success" }),
+            uiBtn("Revert", () => revertFlow(), { icon: "rotate-ccw", grow: true })
+          ])
+        ]));
+      }
       if (!A.activeWorld()) {
         body.appendChild(muted("New here? Load the ready-to-play example and just start chatting.", { style: "margin:6px 0 8px" }));
         body.appendChild(uiBtn("Load example world", () => loadExampleFlow(), { icon: "sparkles", block: true, lg: true }));
@@ -20958,7 +21146,8 @@ ${recent}` : "");
         place: "window",
         window: { large: true, flush: true, minWidth: 320, minHeight: 300, restore: false },
         mount: mountEditor,
-        unmount: unmountEditor
+        unmount: unmountEditor,
+        beforeClose: editorBeforeClose
       });
     }
     function init() {
@@ -20971,6 +21160,13 @@ ${recent}` : "");
       registerViews(sh);
       window.addEventListener("klite:worlds-change", () => {
         try {
+          refreshPanel({ soft: true });
+        } catch (_) {
+        }
+      });
+      window.addEventListener("klite:worlds-dirty", () => {
+        try {
+          updateSaveState();
           refreshPanel({ soft: true });
         } catch (_) {
         }
@@ -21669,9 +21865,194 @@ ${recent}` : "");
     }, 100);
   }
 
+  // src/settings/settings.js
+  var TAB_ID = "rpmod";
+  var PANE_ID = "settingsmenu" + TAB_ID;
+  function initSettings() {
+    "use strict";
+    if (window.KLITE_RPMod_Settings) return;
+    const settings = /* @__PURE__ */ new Map();
+    const blocks = /* @__PURE__ */ new Map();
+    const listeners = /* @__PURE__ */ new Map();
+    const SECTION_ORDER = ["Worlds", "Characters", "Display", "Debug & compatibility"];
+    const key = (id) => "rpmod_" + id;
+    function get(id) {
+      const s = settings.get(id);
+      try {
+        const v = window.localsettings && window.localsettings[key(id)];
+        if (v !== void 0) return v;
+      } catch (_) {
+      }
+      return s ? s.default : void 0;
+    }
+    function set(id, value) {
+      try {
+        if (window.localsettings) window.localsettings[key(id)] = value;
+      } catch (_) {
+      }
+      try {
+        window.save_settings?.();
+      } catch (_) {
+      }
+      notify(id, value);
+    }
+    function notify(id, value) {
+      for (const fn2 of listeners.get(id) || []) {
+        try {
+          fn2(value);
+        } catch (e) {
+          console.error("[RPmod settings]", id, e);
+        }
+      }
+    }
+    function onChange(id, fn2) {
+      if (!listeners.has(id)) listeners.set(id, []);
+      listeners.get(id).push(fn2);
+    }
+    function registerSetting(def) {
+      if (!def || !def.id || !def.label) throw new Error("KLITE_RPMod_Settings.registerSetting: need { id, label }");
+      settings.set(def.id, Object.assign({ section: "General", help: "", default: false, order: 100 }, def));
+      rebuildIfOpen();
+      return api;
+    }
+    function registerBlock(def) {
+      if (!def || !def.id || typeof def.mount !== "function") throw new Error("KLITE_RPMod_Settings.registerBlock: need { id, mount }");
+      blocks.set(def.id, Object.assign({ section: "General", order: 100 }, def));
+      rebuildIfOpen();
+      return api;
+    }
+    function nav() {
+      return document.querySelector("#settingscontainer .settingsnav");
+    }
+    function body() {
+      return document.querySelector("#settingscontainer .settingsbody");
+    }
+    function ensureTab() {
+      const n = nav(), b = body();
+      if (!n || !b) return null;
+      let pane = document.getElementById(PANE_ID);
+      if (pane) return pane;
+      pane = el("div", { id: PANE_ID, class: "settingsmenu hidden" }, [el("div", { class: "settingitem wide" })]);
+      b.appendChild(pane);
+      const link = el("a", { text: "RPmod", title: "RPmod" });
+      link.addEventListener("click", () => {
+        const idx = [...nav().querySelectorAll(":scope > li")].indexOf(li);
+        if (idx >= 0 && typeof window.display_settings_tab === "function") window.display_settings_tab(idx);
+      });
+      const li = el("li", { id: PANE_ID + "_tab" }, [link]);
+      n.appendChild(li);
+      render();
+      return pane;
+    }
+    function sectionsInOrder() {
+      const names = new Set([...settings.values(), ...blocks.values()].map((x) => x.section));
+      return [...names].sort((a, b) => {
+        const ia = SECTION_ORDER.indexOf(a), ib = SECTION_ORDER.indexOf(b);
+        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+      });
+    }
+    function boolRow(s) {
+      const label = el("div", { class: "justifyleft settingsmall" }, [s.label + " "]);
+      if (s.help) label.appendChild(el("span", { class: "helpicon", text: "?" }, [el("span", { class: "helptext", text: s.help })]));
+      const input = el("input", { type: "checkbox", id: "rpmodset_" + s.id, title: s.label, "data-rpmod-setting": s.id, style: "margin:0px 0px 0px auto;" });
+      return el("div", { class: "settinglabel" }, [label, input]);
+    }
+    function render() {
+      const pane = document.getElementById(PANE_ID);
+      if (!pane) return;
+      const box = pane.querySelector(".settingitem");
+      clear(box);
+      let first = true;
+      for (const section of sectionsInOrder()) {
+        const h = el("h3", { text: section });
+        if (first) h.style.marginTop = "4px";
+        first = false;
+        box.appendChild(h);
+        const items = [
+          ...[...settings.values()].filter((s) => s.section === section).map((s) => ({ kind: "bool", x: s })),
+          ...[...blocks.values()].filter((b) => b.section === section).map((b) => ({ kind: "block", x: b }))
+        ].sort((a, b) => a.x.order - b.x.order || String(a.x.id).localeCompare(String(b.x.id)));
+        for (const it of items) {
+          if (it.kind === "bool") box.appendChild(boolRow(it.x));
+          else {
+            const c = el("div", { id: "rpmod-settings-" + it.x.id, "data-rpmod-block": it.x.id });
+            box.appendChild(c);
+            try {
+              it.x.mount(c);
+            } catch (e) {
+              console.error("[RPmod settings] block failed:", it.x.id, e);
+            }
+          }
+        }
+      }
+      fill();
+    }
+    function rebuildIfOpen() {
+      if (document.getElementById(PANE_ID)) render();
+    }
+    function fill() {
+      for (const s of settings.values()) {
+        const input = document.getElementById("rpmodset_" + s.id);
+        if (input) input.checked = !!get(s.id);
+      }
+    }
+    function apply() {
+      for (const s of settings.values()) {
+        const input = document.getElementById("rpmodset_" + s.id);
+        if (!input) continue;
+        const before = !!get(s.id), now = !!input.checked;
+        try {
+          if (window.localsettings) window.localsettings[key(s.id)] = now;
+        } catch (_) {
+        }
+        if (before !== now) notify(s.id, now);
+      }
+    }
+    let hooked = false;
+    function install() {
+      if (hooked) return true;
+      if (typeof window.display_settings !== "function" || typeof window.confirm_settings !== "function") return false;
+      const origDisplay = window.display_settings;
+      window.display_settings = function() {
+        const r = origDisplay.apply(this, arguments);
+        try {
+          ensureTab();
+          fill();
+        } catch (e) {
+          console.error("[RPmod settings]", e);
+        }
+        return r;
+      };
+      const origConfirm = window.confirm_settings;
+      window.confirm_settings = function() {
+        try {
+          apply();
+        } catch (e) {
+          console.error("[RPmod settings]", e);
+        }
+        return origConfirm.apply(this, arguments);
+      };
+      hooked = true;
+      return true;
+    }
+    const api = { registerSetting, registerBlock, get, set, onChange, install, paneId: PANE_ID, open: () => {
+      window.display_settings?.();
+      const li = document.getElementById(PANE_ID + "_tab");
+      li?.querySelector("a")?.click();
+    } };
+    window.KLITE_RPMod_Settings = api;
+    let tries = 0;
+    const attempt = () => {
+      if (!install() && ++tries < 120) setTimeout(attempt, 500);
+    };
+    if (document.readyState === "complete") attempt();
+    else window.addEventListener("load", attempt);
+  }
+
   // src/main.js
   var MODULES = [
     ["shell/shell.js", initShell],
+    ["settings/settings.js", initSettings],
     ["library/esoliteLibrary.js", initLibrary],
     ["KLITE-RPmod_ALPHA.js", initAlpha],
     ["KLITE-RPmod_Worlds.js", initWorlds],
