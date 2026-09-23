@@ -325,6 +325,12 @@ world's state slots does not take them back).
       game's changes to items/coins/XP/HP so Save cannot undo a reward); abandon; quest events in
       the game log (the AI narrates them); Quest log shows rewards with a picker; World tab
       shows the character's inventory, gold and XP.
+- [x] **Step 2 — objectives with counters** (2026-09-23): kinds manual / kill (monster or person;
+      counts every defeat in a fight) / collect (follows the inventory; handed over on turn-in) /
+      talk (the person is here and named in a message, or `<talk>Name</talk>`) / visit (standing
+      there; a zone counts its places). All done → "ready to turn in"; a collect objective lost
+      again → back to active. Quest log (tick manual objectives) and tracker show counters;
+      editor adds objectives by kind with target and count. Item stacks merge singular/plural.
 - Full marker set (yellow/grey `!`, yellow/grey `?`).
 - Prerequisites (level, previous quest, flag, reputation); chains; item-started quests.
 - Objective types with counters (kill/collect/talk/visit), auto-progress from tags/events.

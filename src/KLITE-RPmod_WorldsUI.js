@@ -414,13 +414,36 @@ export default function initWorldsUI() {
         for (let i = 0; i < objs.length; i++) {
             const o = objs[i];
             box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px' }, [
-                el('span', { style: 'flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm);display:flex;align-items:center;gap:4px', title: o.hidden ? 'Hidden objective' : null }, [o.hidden ? icon('lock', 12) : null, o.text || '']),
+                el('span', { style: 'flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm);display:flex;align-items:center;gap:4px', title: o.hidden ? 'Hidden objective' : null }, [o.hidden ? icon('lock', 12) : null, (o.text || '') + (o.kind && o.kind !== 'manual' ? ` · ${o.kind}${o.count > 1 ? ' ×' + o.count : ''}` : '')]),
                 el('span', { style: 'cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs)', text: '×', onclick: () => { objs.splice(i, 1); A.updateEntity(S.selectedId, { objectives: objs }); renderInspector(); } })
             ]));
         }
-        const oIn = el('input', { type: 'text', placeholder: 'objective text', style: inputCss(false) });
+        // new objective: kind + target (+ count) — kill/collect/talk/visit progress by themselves
+        const OK = S._objKind = S._objKind || { kind: 'manual' };
+        const kindSel = el('select', { style: inputCss(false) + ';width:auto', 'aria-label': 'Objective kind' });
+        for (const [v, t] of [['manual', 'Manual'], ['kill', 'Defeat'], ['collect', 'Collect'], ['talk', 'Talk to'], ['visit', 'Go to']]) { const o = el('option', { value: v, text: t }); if (OK.kind === v) o.selected = true; kindSel.appendChild(o); }
+        kindSel.addEventListener('change', () => { OK.kind = kindSel.value; OK.target = ''; renderInspector(); });
+        const g = A.getGraph();
+        let target = null;
+        if (OK.kind === 'talk' || OK.kind === 'visit') {
+            target = el('select', { style: inputCss(false), 'aria-label': 'Objective target' });
+            target.appendChild(el('option', { value: '', text: OK.kind === 'talk' ? '— person —' : '— place —' }));
+            for (const n of g.nodes.filter(n => n.type === (OK.kind === 'talk' ? 'npc' : 'location'))) target.appendChild(el('option', { value: n.id, text: n.name }));
+        } else if (OK.kind !== 'manual') target = el('input', { type: 'text', style: inputCss(false), 'aria-label': 'Objective target', placeholder: OK.kind === 'kill' ? 'monster or person name, e.g. Wolf' : 'item name, e.g. Wolf Pelt' });
+        const count = (OK.kind === 'kill' || OK.kind === 'collect') ? el('input', { type: 'number', min: '1', value: '1', style: inputCss(false) + ';width:4.5em', 'aria-label': 'Objective count' }) : null;
+        const oIn = el('input', { type: 'text', placeholder: 'objective text (optional for kinds)', style: inputCss(false), 'aria-label': 'Objective text' });
+        box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px;flex-wrap:wrap' }, [kindSel, target, count]));
         box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px' }, [oIn,
-            el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', title: 'Add objective', 'aria-label': 'Add objective', onclick: () => { const t = oIn.value.trim(); if (!t) return; const ob = asArrayU(ent.objectives); ob.push({ id: 'obj_' + Math.random().toString(36).slice(2, 7), text: t, hidden: false }); A.updateEntity(S.selectedId, { objectives: ob }); renderInspector(); } }, [icon('plus', 15)])
+            el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', title: 'Add objective', 'aria-label': 'Add objective', onclick: () => {
+                const tv = target ? target.value.trim() : ''; const n = count ? Math.max(1, Number(count.value) || 1) : 1;
+                if (OK.kind !== 'manual' && !tv) return;
+                const tName = target && target.tagName === 'SELECT' ? (g.nodes.find(x => x.id === tv) || {}).name : tv;
+                const auto = { kill: `Defeat ${n > 1 ? n + ' ' : ''}${tName}`, collect: `Collect ${n > 1 ? n + ' ' : ''}${tName}`, talk: `Talk to ${tName}`, visit: `Go to ${tName}` }[OK.kind];
+                const t = oIn.value.trim() || auto; if (!t) return;
+                const ob = asArrayU(ent.objectives);
+                ob.push(Object.assign({ id: 'obj_' + Math.random().toString(36).slice(2, 7), text: t, hidden: false }, OK.kind === 'manual' ? {} : { kind: OK.kind, target: tv }, count ? { count: n } : {}));
+                A.updateEntity(S.selectedId, { objectives: ob }); renderInspector();
+            } }, [icon('plus', 15)])
         ]));
     }
     // World root extras: the World Rules list (one rule per line) — these are what the AI
@@ -927,7 +950,8 @@ export default function initWorldsUI() {
             const ready = q.state === 'complete';
             box.appendChild(el('div', { 'data-quest': q.id, class: 'rpm-card' + (q.active ? ' rpm-card-hi' : '') }, [
                 el('div', { style: 'font-weight:bold' }, [ready ? el('span', { class: 'rpm-quest-mark', text: '? ' }) : null, q.title]),
-                ready && q.turnin ? muted('Turn in to ' + q.turnin) : null
+                ready && q.turnin ? muted('Turn in to ' + q.turnin) : null,
+                ...(ready ? [] : (q.objectives || []).map(o => el('div', { class: 'rpm-muted rpm-quest-obj' + (o.done ? ' rpm-done' : ''), 'data-objective': o.id, text: (o.done ? '☑ ' : '☐ ') + o.label })))
             ]));
         }
         box.appendChild(uiBtn('Open quest log', () => openView('questlog'), { icon: 'scroll-text', block: true, style: 'margin-top:8px' }));
@@ -960,6 +984,21 @@ export default function initWorldsUI() {
                 ]));
                 if (q.description) card.appendChild(el('div', { style: 'margin-top:3px', text: q.description }));
                 if (q.giver || q.turnin) card.appendChild(muted((q.giver ? `From: ${q.giver}` : '') + (q.turnin ? `  Turn-in: ${q.turnin}` : ''), { style: 'margin-top:2px' }));
+                // objectives: counters; manual ones can be ticked while the quest is accepted
+                if (q.objectives && q.objectives.length) {
+                    const ol = el('div', { class: 'rpm-quest-objs', 'data-objectives': q.id });
+                    for (const o of q.objectives) {
+                        const line = el('label', { class: 'rpm-quest-obj' + (o.done ? ' rpm-done' : ''), 'data-objective': o.id });
+                        if (o.kind === 'manual' && (st === 'active' || st === 'complete')) {
+                            const cbx = el('input', { type: 'checkbox', 'aria-label': o.text }); cbx.checked = !!o.done;
+                            cbx.addEventListener('change', () => { A.completeObjective(q.id, o.id, cbx.checked); refreshPanel(); });
+                            line.appendChild(cbx);
+                        } else line.appendChild(el('span', { class: 'rpm-quest-tick', text: o.done ? '☑' : '☐' }));
+                        line.appendChild(el('span', { text: ' ' + o.label }));
+                        ol.appendChild(line);
+                    }
+                    card.appendChild(ol);
+                }
                 // rewards; "choose one" rewards get a picker before turn-in
                 const choices = S._questChoice = S._questChoice || {};
                 const rewards = (q.rewards || []).filter(r => A.rewardText(r));

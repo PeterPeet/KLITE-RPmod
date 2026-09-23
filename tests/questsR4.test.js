@@ -134,3 +134,70 @@ test('inventory without a persona: the story keeps items, gold and XP', async (t
     assert.equal(W.inventory().source, 'story');
     assert.match(W.preview(), /Inventory: Silver Ring\nGold: 0, XP: 100/);
 });
+
+test('objectives: kill (combat), collect, talk, visit and manual progress by themselves; the quest completes', async (t) => {
+    const { h, w, W } = await personaWorld(t, { persona: false });
+    W.updateEntity('q_bounty', { objectives: [
+        { id: 'k', kind: 'kill', target: 'Wolf', count: 2, text: 'Defeat 2 Wolf' },
+        { id: 'c', kind: 'collect', target: 'Wolf Pelt', count: 2, text: 'Collect 2 Wolf Pelt' },
+        { id: 't', kind: 'talk', target: 'npc_bram', text: 'Talk to Innkeeper Bram' },
+        { id: 'v', kind: 'visit', target: 'loc_forest', text: 'Go to the Forest Road' },
+        { id: 'm', text: 'Think it over' },
+    ] });
+    W.acceptQuest('q_bounty');
+    const st = (oid) => plain(W.objectiveStatus('q_bounty', oid));
+    // kill: every defeated wolf in a fight counts
+    h.seedRandom([0.5]);
+    W.startEncounter([], { monsters: [{ key: 'wolf', count: 3 }] });
+    const wolves = W.getCombat().order.filter(o => o.kind === 'monster').map(o => o.id);
+    W.damage(wolves[0], 50);
+    assert.deepEqual(st('k'), { current: 1, needed: 2, done: false });
+    W.damage(wolves[1], 50); W.damage(wolves[2], 50);
+    assert.deepEqual(st('k'), { current: 2, needed: 2, done: true }, 'capped at the count');
+    W.endEncounter();
+    // collect: follows the inventory
+    W.giveItem('Wolf Pelt', 1);
+    assert.equal(st('c').current, 1);
+    W.applyTags('<give>Wolf Pelts x2</give>');
+    assert.equal(st('c').done, true);
+    // talk: named in a message while the person is here (Bram is in the tavern)
+    W.moveTo('The Prancing Pony'); w.gametext_arr.push('I lean on the bar and ask Bram about the road.');
+    await w.prepare_submit_generation();
+    assert.equal(st('t').done, true);
+    // visit
+    assert.equal(st('v').done, false);
+    W.moveTo('Forest Road');
+    assert.equal(st('v').done, true);
+    assert.equal(W.questState('q_bounty'), 'active', 'the manual objective is still open');
+    assert.match(W.preview(), /☑ Defeat 2 Wolf \(2\/2\)[\s\S]*☐ Think it over/);
+    W.completeObjective('q_bounty', 'm', true);
+    assert.equal(W.questState('q_bounty'), 'complete', 'all done → ready to turn in');
+    assert.ok(w.KLITE_RPMod_Log.entries().some(e => /Quest ready to turn in: Bandit Bounty \(to Captain Rowan\)\./.test(e.what)));
+    // giving the pelts away drops it back to active; turn-in consumes them
+    W.takeItem('Wolf Pelt', 3);
+    assert.equal(W.questState('q_bounty'), 'active');
+    W.giveItem('Wolf Pelt', 3);
+    assert.equal(W.questState('q_bounty'), 'complete');
+    W.turnInQuest('q_bounty');
+    assert.equal(W.itemCount('Wolf Pelt'), 1, 'two pelts handed over');
+    // <talk> tag
+    W.updateEntity('q_merchant', { objectives: [{ id: 't2', kind: 'talk', target: 'npc_rowan', text: 'Talk to Rowan' }] });
+    W.acceptQuest('q_merchant');
+    W.applyTags('<talk>Captain Rowan</talk>');
+    assert.equal(W.questState('q_merchant'), 'complete');
+});
+
+test('Quest log and tracker show objectives with counters; manual ones can be ticked', async (t) => {
+    const { w, W } = await personaWorld(t, { persona: false });
+    W.updateEntity('q_merchant', { objectives: [{ id: 'o1', text: 'Search the Forest Road' }, { id: 'k', kind: 'kill', target: 'Wolf', count: 3, text: 'Defeat 3 Wolf' }] });
+    W.acceptQuest('q_merchant');
+    w.KLITE_RPMod_Shell.open('questlog'); await sleep(30);
+    const doc = w.document; const win = doc.querySelector('[data-window="questlog"]');
+    assert.match(win.querySelector('[data-objectives="q_merchant"]').textContent, /Search the Forest Road[\s\S]*Defeat 3 Wolf \(0\/3\)/);
+    const cbx = win.querySelector('[data-objective="o1"] input');
+    cbx.checked = true; cbx.dispatchEvent(new w.Event('change'));
+    await sleep(30);
+    assert.equal(W.objectiveStatus('q_merchant', 'o1').done, true);
+    const tracker = doc.querySelector('[data-section="quest-tracker"]');
+    assert.match(tracker.textContent, /☑ Search the Forest Road[\s\S]*☐ Defeat 3 Wolf \(0\/3\)/);
+});

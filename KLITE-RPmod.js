@@ -287,6 +287,9 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-log-line { font-size: var(--rpm-fs-sm); padding: 2px 0; border-bottom: 1px solid var(--rpm-border); }
 .rpm-log-crit { color: var(--rpm-success); font-weight: bold; }
 .rpm-log-fumble { color: var(--rpm-danger); }
+.rpm-quest-objs { margin-top: 4px; display: flex; flex-direction: column; gap: 2px; }
+.rpm-quest-obj { font-size: var(--rpm-fs-sm); display: block; }
+.rpm-quest-obj.rpm-done { color: var(--rpm-fg-muted); text-decoration: line-through; }
 .rpm-quest-rewards { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-top: 4px; }
 /* combat window (src/game/combatView.js) */
 .rpm-cb select.form-control { width: auto; max-width: 100%; }
@@ -25209,6 +25212,26 @@ ${char.mes_example}
         return "";
     }
   }
+  var OBJECTIVE_KINDS = ["manual", "kill", "collect", "talk", "visit"];
+  var objectiveKind = (o) => o && OBJECTIVE_KINDS.includes(o.kind) ? o.kind : "manual";
+  var objectiveCount = (o) => Math.max(1, Number(o && o.count) || 1);
+  function objectiveStatus(o, progress, have) {
+    const kind = objectiveKind(o), needed = objectiveCount(o);
+    if (kind === "collect") {
+      const current = Math.max(0, Number(have) || 0);
+      return { current: Math.min(current, needed), needed, done: current >= needed };
+    }
+    if (kind === "kill") {
+      const current = Math.max(0, Number(progress) || 0);
+      return { current: Math.min(current, needed), needed, done: current >= needed };
+    }
+    const done = progress === true || Number(progress) >= 1;
+    return { current: done ? 1 : 0, needed: 1, done };
+  }
+  function objectiveLabel(o, st) {
+    const t = norm2(o && o.text);
+    return objectiveKind(o) === "kill" || objectiveKind(o) === "collect" ? `${t} (${st.current}/${st.needed})` : t;
+  }
   var TIERS = [
     { name: "Hated", min: -Infinity },
     { name: "Hostile", min: -1e3 },
@@ -25776,11 +25799,113 @@ ${char.mes_example}
       const q = questById(id);
       if (!q) return null;
       if (needsChoice(q) && choice == null && !(rt().rewardsPaid && rt().rewardsPaid[id])) return null;
+      if (!(rt().rewardsPaid && rt().rewardsPaid[id])) {
+        for (const o of asArray(q.objectives)) if (objectiveKind(o) === "collect" && o.consume !== false) inventoryRemove(o.target || o.text, objectiveCount(o));
+      }
       const got = payRewards(q, choice);
       const s = setQuestState(id, "turnedin");
       if (rt().activeQuestId === id) rt().activeQuestId = null;
       gameLog(`Quest turned in: ${questTitle(q)}.${got.length ? " Rewards: " + got.join(", ") + "." : ""}`);
       return s;
+    }
+    function objProgress(qid, oid) {
+      return rt() && rt().questObjectives && rt().questObjectives[qid] ? rt().questObjectives[qid][oid] : void 0;
+    }
+    function setObjProgress(qid, oid, v) {
+      rt().questObjectives = rt().questObjectives || {};
+      (rt().questObjectives[qid] = rt().questObjectives[qid] || {})[oid] = v;
+    }
+    function objectiveStatusOf(q, o) {
+      const kind = objectiveKind(o);
+      return objectiveStatus(o, objProgress(q.id, o.id), kind === "collect" ? itemCount(o.target || o.text) : null);
+    }
+    function objectiveTargetName(o) {
+      const w = activeWorld();
+      const t = o && o.target;
+      const p = findById(w && w.npcs, t) || findById(w && w.locations, t);
+      return p ? norm3(p.name) : norm3(t);
+    }
+    function questEvent(kind, info) {
+      const w = activeWorld();
+      if (!w || !rt()) return;
+      for (const q of asArray(w.quests)) {
+        if (questStateOf(q) !== "active") continue;
+        for (const o of asArray(q.objectives)) {
+          if (objectiveKind(o) !== kind) continue;
+          const st = objectiveStatusOf(q, o);
+          if (st.done) continue;
+          let hit = false;
+          if (kind === "kill") hit = info.personId && o.target === info.personId || sameName(o.target, info.name) || info.key && sameName(o.target, (MONSTERS[info.key] || {}).name);
+          else if (kind === "talk") hit = o.target === info.personId;
+          else if (kind === "visit") hit = isInsideLocation(info.locationId, o.target);
+          if (!hit) continue;
+          if (kind === "kill") {
+            const n = (Number(objProgress(q.id, o.id)) || 0) + 1;
+            setObjProgress(q.id, o.id, n);
+            gameLog(`${questTitle(q)}: ${objectiveLabel(o, objectiveStatus(o, n))}.`);
+          } else {
+            setObjProgress(q.id, o.id, true);
+            gameLog(`${questTitle(q)}: ${norm3(o.text)} — done.`);
+          }
+        }
+      }
+      updateQuestProgress();
+    }
+    function isInsideLocation(locId, targetId) {
+      const w = activeWorld();
+      let cur = locId, guard = 0;
+      while (cur && guard++ < 20) {
+        if (cur === targetId) return true;
+        const l = findById(w && w.locations, cur);
+        cur = l && l.parentId;
+      }
+      return false;
+    }
+    let progressing = false;
+    function updateQuestProgress() {
+      const w = activeWorld();
+      if (!w || !rt() || progressing) return;
+      progressing = true;
+      try {
+        const here = rt().playerLocationId;
+        for (const q of asArray(w.quests)) {
+          const st = questStateOf(q);
+          if (st !== "active" && st !== "complete") continue;
+          const objs = asArray(q.objectives);
+          if (!objs.length) continue;
+          if (st === "active" && here) {
+            for (const o of objs) if (objectiveKind(o) === "visit" && !objectiveStatusOf(q, o).done && isInsideLocation(here, o.target)) {
+              setObjProgress(q.id, o.id, true);
+              gameLog(`${questTitle(q)}: ${norm3(o.text)} — done.`);
+            }
+          }
+          const all = objs.every((o) => objectiveStatusOf(q, o).done);
+          if (st === "active" && all) {
+            setQuestState(q.id, "complete");
+            gameLog(`Quest ready to turn in: ${questTitle(q)}${q.turninPersonId ? ` (to ${objectiveTargetName({ target: q.turninPersonId })})` : ""}.`);
+          } else if (st === "complete" && !all && !(rt().rewardsPaid && rt().rewardsPaid[q.id]) && objs.some((o) => objectiveKind(o) === "collect" && !objectiveStatusOf(q, o).done)) setQuestState(q.id, "active");
+        }
+      } finally {
+        progressing = false;
+      }
+    }
+    function detectTalk(text) {
+      const w = activeWorld();
+      if (!w || !rt()) return;
+      const here = rt().playerLocationId;
+      const t = norm3(text).toLowerCase();
+      if (!t) return;
+      for (const q of asArray(w.quests)) {
+        if (questStateOf(q) !== "active") continue;
+        for (const o of asArray(q.objectives)) {
+          if (objectiveKind(o) !== "talk" || objectiveStatusOf(q, o).done) continue;
+          const npc = findById(w.npcs, o.target);
+          if (!npc || resolveNpcLocationId(npc) !== here) continue;
+          const name = personName(npc).toLowerCase();
+          const first = name.split(/\s+/).pop();
+          if (t.includes(name) || first.length > 2 && new RegExp("\\b" + first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b").test(t)) questEvent("talk", { personId: npc.id });
+        }
+      }
     }
     function abandonQuest(id) {
       const q = questById(id);
@@ -25809,7 +25934,10 @@ ${char.mes_example}
           giver: giver ? personName(giver) : "",
           turnin: turnin ? personName(turnin) : "",
           rewards: asArray(q.rewards),
-          objectives: asArray(q.objectives),
+          objectives: asArray(q.objectives).filter((o) => mode2 !== "player" || !o.hidden).map((o) => {
+            const os = objectiveStatusOf(q, o);
+            return { ...o, kind: objectiveKind(o), ...os, label: objectiveLabel(o, os) };
+          }),
           marker: personQuestMarker(q.giverPersonId, mode2) || personQuestMarker(q.turninPersonId, mode2)
         };
       });
@@ -25933,7 +26061,7 @@ ${char.mes_example}
         syncLive();
       } });
     }
-    const sameItem = (a, b) => norm3(a).toLowerCase() === norm3(b).toLowerCase();
+    const sameItem = (a, b) => sameName(a, b);
     function inventoryAdd(name, qty) {
       const n = norm3(name);
       if (!n) return;
@@ -26060,6 +26188,12 @@ ${char.mes_example}
       scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, (m) => {
         const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm3(m[1])) || [];
         inventoryRemove(nm, q);
+        return true;
+      });
+      scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, (m) => {
+        const npc = findNpcByName(world, m[1]);
+        if (!npc) return false;
+        questEvent("talk", { personId: npc.id });
         return true;
       });
       scan(/<encounter>\s*([^<>]+?)\s*<\/encounter>/gi, (m) => {
@@ -26511,7 +26645,10 @@ ${char.mes_example}
           addCond(id, "Unconscious");
           cb.death[id] = { s: 0, f: 0, stable: false, dead: false };
           combatLog(`${combatantName(id)} falls unconscious${o.isPlayer ? " and is dying (death saving throws)" : ""}.`);
-        } else combatLog(`${combatantName(id)} is defeated.`);
+        } else {
+          combatLog(`${combatantName(id)} is defeated.`);
+          questEvent("kill", { key: o && o.key, name: o && o.key ? MONSTERS[o.key].name : combatantName(id), personId: o && o.kind === "person" ? id : null });
+        }
       }
       if (before <= 0 && cb.hp[id] > 0) {
         removeCond(id, "Unconscious");
@@ -26797,7 +26934,13 @@ ${recent}` : "");
       if (!Array.isArray(arr)) return false;
       const start = Math.max(0, Math.min(Number(rt().lastParsedIndex) || 0, arr.length));
       let changed = false;
-      for (let i = start; i < arr.length; i++) changed = parseMutations(arr[i]) || changed;
+      for (let i = start; i < arr.length; i++) {
+        changed = parseMutations(arr[i]) || changed;
+        try {
+          detectTalk(arr[i]);
+        } catch (_) {
+        }
+      }
       const advanced = W.config.advanceClockPerTurn && arr.length > start;
       rt().lastParsedIndex = arr.length;
       if (advanced) advanceClock(1);
@@ -26924,7 +27067,10 @@ ${recent}` : "");
         const title = norm3(q.title) || norm3(q.name) || "Quest";
         const track = rt().activeQuestId === q.id ? " [tracked]" : "";
         const desc = questDescription(q, mode2);
-        const objs = asArray(q.objectives).filter((o) => questVisible(q, mode2) && !o.hidden).map((o) => `    ${rt().questObjectives?.[q.id]?.[o.id] ? "☑" : "☐"} ${norm3(o.text)}`).filter(Boolean);
+        const objs = asArray(q.objectives).filter((o) => questVisible(q, mode2) && !o.hidden).map((o) => {
+          const os = objectiveStatusOf(q, o);
+          return `    ${os.done ? "☑" : "☐"} ${objectiveLabel(o, os)}`;
+        }).filter(Boolean);
         questLines.push(`- ${title} [${st}]${track}` + (desc ? `: ${desc}` : "") + (objs.length ? "\n" + objs.join("\n") : ""));
       }
       push("Active Quests", 45, questLines.join("\n"));
@@ -26989,6 +27135,11 @@ ${recent}` : "");
       return getContext().inject(opts);
     }
     function syncLive() {
+      try {
+        updateQuestProgress();
+      } catch (e) {
+        dbg("quest progress", e);
+      }
       getContext().sync();
       notifyChange();
     }
@@ -27672,10 +27823,19 @@ ${recent}` : "");
       },
       completeObjective(qid, oid, done = true) {
         ensureRuntime();
-        const o = rt().questObjectives[qid] = rt().questObjectives[qid] || {};
-        o[oid] = !!done;
+        setObjProgress(qid, oid, !!done);
+        updateQuestProgress();
         syncLive();
-        return o;
+        return rt().questObjectives[qid];
+      },
+      objectiveStatus(qid, oid) {
+        const q = questById(qid);
+        const o = q && asArray(q.objectives).find((x) => x.id === oid);
+        return o ? objectiveStatusOf(q, o) : null;
+      },
+      questEvent(kind, info) {
+        questEvent(kind, info || {});
+        syncLive();
       },
       personQuestMarker(personId) {
         return personQuestMarker(personId, aiMode());
@@ -28070,6 +28230,15 @@ ${recent}` : "");
       registerProvider();
       registerSettingAndGuards();
       const okPrepare = getContext().install();
+      window.addEventListener("klite:sheet-change", () => {
+        try {
+          if (activeWorld() && rt()) {
+            updateQuestProgress();
+            notifyChange();
+          }
+        } catch (_) {
+        }
+      });
       W.ready = true;
       try {
         if (W.config.enabled) syncLive();
@@ -28955,7 +29124,7 @@ ${recent}` : "");
       for (let i = 0; i < objs.length; i++) {
         const o = objs[i];
         box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:6px;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:3px 8px;margin-top:3px" }, [
-          el2("span", { style: "flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm);display:flex;align-items:center;gap:4px", title: o.hidden ? "Hidden objective" : null }, [o.hidden ? icon("lock", 12) : null, o.text || ""]),
+          el2("span", { style: "flex:1;color:var(--rpm-fg);font-size:var(--rpm-fs-sm);display:flex;align-items:center;gap:4px", title: o.hidden ? "Hidden objective" : null }, [o.hidden ? icon("lock", 12) : null, (o.text || "") + (o.kind && o.kind !== "manual" ? ` · ${o.kind}${o.count > 1 ? " ×" + o.count : ""}` : "")]),
           el2("span", { style: "cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs)", text: "×", onclick: () => {
             objs.splice(i, 1);
             A.updateEntity(S.selectedId, { objectives: objs });
@@ -28963,14 +29132,40 @@ ${recent}` : "");
           } })
         ]));
       }
-      const oIn = el2("input", { type: "text", placeholder: "objective text", style: inputCss(false) });
+      const OK = S._objKind = S._objKind || { kind: "manual" };
+      const kindSel = el2("select", { style: inputCss(false) + ";width:auto", "aria-label": "Objective kind" });
+      for (const [v, t] of [["manual", "Manual"], ["kill", "Defeat"], ["collect", "Collect"], ["talk", "Talk to"], ["visit", "Go to"]]) {
+        const o = el2("option", { value: v, text: t });
+        if (OK.kind === v) o.selected = true;
+        kindSel.appendChild(o);
+      }
+      kindSel.addEventListener("change", () => {
+        OK.kind = kindSel.value;
+        OK.target = "";
+        renderInspector();
+      });
+      const g = A.getGraph();
+      let target = null;
+      if (OK.kind === "talk" || OK.kind === "visit") {
+        target = el2("select", { style: inputCss(false), "aria-label": "Objective target" });
+        target.appendChild(el2("option", { value: "", text: OK.kind === "talk" ? "— person —" : "— place —" }));
+        for (const n of g.nodes.filter((n2) => n2.type === (OK.kind === "talk" ? "npc" : "location"))) target.appendChild(el2("option", { value: n.id, text: n.name }));
+      } else if (OK.kind !== "manual") target = el2("input", { type: "text", style: inputCss(false), "aria-label": "Objective target", placeholder: OK.kind === "kill" ? "monster or person name, e.g. Wolf" : "item name, e.g. Wolf Pelt" });
+      const count = OK.kind === "kill" || OK.kind === "collect" ? el2("input", { type: "number", min: "1", value: "1", style: inputCss(false) + ";width:4.5em", "aria-label": "Objective count" }) : null;
+      const oIn = el2("input", { type: "text", placeholder: "objective text (optional for kinds)", style: inputCss(false), "aria-label": "Objective text" });
+      box.appendChild(el2("div", { style: "display:flex;gap:5px;margin-top:5px;flex-wrap:wrap" }, [kindSel, target, count]));
       box.appendChild(el2("div", { style: "display:flex;gap:5px;margin-top:5px" }, [
         oIn,
         el2("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", title: "Add objective", "aria-label": "Add objective", onclick: () => {
-          const t = oIn.value.trim();
+          const tv = target ? target.value.trim() : "";
+          const n = count ? Math.max(1, Number(count.value) || 1) : 1;
+          if (OK.kind !== "manual" && !tv) return;
+          const tName = target && target.tagName === "SELECT" ? (g.nodes.find((x) => x.id === tv) || {}).name : tv;
+          const auto = { kill: `Defeat ${n > 1 ? n + " " : ""}${tName}`, collect: `Collect ${n > 1 ? n + " " : ""}${tName}`, talk: `Talk to ${tName}`, visit: `Go to ${tName}` }[OK.kind];
+          const t = oIn.value.trim() || auto;
           if (!t) return;
           const ob = asArrayU(ent.objectives);
-          ob.push({ id: "obj_" + Math.random().toString(36).slice(2, 7), text: t, hidden: false });
+          ob.push(Object.assign({ id: "obj_" + Math.random().toString(36).slice(2, 7), text: t, hidden: false }, OK.kind === "manual" ? {} : { kind: OK.kind, target: tv }, count ? { count: n } : {}));
           A.updateEntity(S.selectedId, { objectives: ob });
           renderInspector();
         } }, [icon("plus", 15)])
@@ -29642,7 +29837,8 @@ ${recent}` : "");
         const ready = q.state === "complete";
         box.appendChild(el2("div", { "data-quest": q.id, class: "rpm-card" + (q.active ? " rpm-card-hi" : "") }, [
           el2("div", { style: "font-weight:bold" }, [ready ? el2("span", { class: "rpm-quest-mark", text: "? " }) : null, q.title]),
-          ready && q.turnin ? muted2("Turn in to " + q.turnin) : null
+          ready && q.turnin ? muted2("Turn in to " + q.turnin) : null,
+          ...ready ? [] : (q.objectives || []).map((o) => el2("div", { class: "rpm-muted rpm-quest-obj" + (o.done ? " rpm-done" : ""), "data-objective": o.id, text: (o.done ? "☑ " : "☐ ") + o.label }))
         ]));
       }
       box.appendChild(uiBtn("Open quest log", () => openView("questlog"), { icon: "scroll-text", block: true, style: "margin-top:8px" }));
@@ -29682,6 +29878,24 @@ ${recent}` : "");
           ]));
           if (q.description) card.appendChild(el2("div", { style: "margin-top:3px", text: q.description }));
           if (q.giver || q.turnin) card.appendChild(muted2((q.giver ? `From: ${q.giver}` : "") + (q.turnin ? `  Turn-in: ${q.turnin}` : ""), { style: "margin-top:2px" }));
+          if (q.objectives && q.objectives.length) {
+            const ol = el2("div", { class: "rpm-quest-objs", "data-objectives": q.id });
+            for (const o of q.objectives) {
+              const line = el2("label", { class: "rpm-quest-obj" + (o.done ? " rpm-done" : ""), "data-objective": o.id });
+              if (o.kind === "manual" && (st === "active" || st === "complete")) {
+                const cbx = el2("input", { type: "checkbox", "aria-label": o.text });
+                cbx.checked = !!o.done;
+                cbx.addEventListener("change", () => {
+                  A.completeObjective(q.id, o.id, cbx.checked);
+                  refreshPanel();
+                });
+                line.appendChild(cbx);
+              } else line.appendChild(el2("span", { class: "rpm-quest-tick", text: o.done ? "☑" : "☐" }));
+              line.appendChild(el2("span", { text: " " + o.label }));
+              ol.appendChild(line);
+            }
+            card.appendChild(ol);
+          }
           const choices = S._questChoice = S._questChoice || {};
           const rewards = (q.rewards || []).filter((r) => A.rewardText(r));
           if (rewards.length) {

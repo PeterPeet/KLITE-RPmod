@@ -448,11 +448,82 @@ export default function initWorlds() {
     function turnInQuest(id, choice) {
         const q = questById(id); if (!q) return null;
         if (needsChoice(q) && choice == null && !(rt().rewardsPaid && rt().rewardsPaid[id])) return null;
+        if (!(rt().rewardsPaid && rt().rewardsPaid[id])) for (const o of asArray(q.objectives)) if (QR.objectiveKind(o) === 'collect' && o.consume !== false) inventoryRemove(o.target || o.text, QR.objectiveCount(o));
         const got = payRewards(q, choice);
         const s = setQuestState(id, 'turnedin');
         if (rt().activeQuestId === id) rt().activeQuestId = null;
         gameLog(`Quest turned in: ${questTitle(q)}.${got.length ? ' Rewards: ' + got.join(', ') + '.' : ''}`);
         return s;
+    }
+    // ---- objectives with counters (kill / collect / talk / visit / manual) ----
+    function objProgress(qid, oid) { return rt() && rt().questObjectives && rt().questObjectives[qid] ? rt().questObjectives[qid][oid] : undefined; }
+    function setObjProgress(qid, oid, v) { rt().questObjectives = rt().questObjectives || {}; (rt().questObjectives[qid] = rt().questObjectives[qid] || {})[oid] = v; }
+    function objectiveStatusOf(q, o) {
+        const kind = QR.objectiveKind(o);
+        return QR.objectiveStatus(o, objProgress(q.id, o.id), kind === 'collect' ? itemCount(o.target || o.text) : null);
+    }
+    function objectiveTargetName(o) {
+        const w = activeWorld(); const t = o && o.target;
+        const p = findById(w && w.npcs, t) || findById(w && w.locations, t);
+        return p ? norm(p.name) : norm(t);
+    }
+    // Something happened in the game: advance matching objectives of accepted quests.
+    // kill: { key, name, personId } · talk: { personId } · visit: { locationId }
+    function questEvent(kind, info) {
+        const w = activeWorld(); if (!w || !rt()) return;
+        for (const q of asArray(w.quests)) {
+            if (questStateOf(q) !== 'active') continue;
+            for (const o of asArray(q.objectives)) {
+                if (QR.objectiveKind(o) !== kind) continue;
+                const st = objectiveStatusOf(q, o); if (st.done) continue;
+                let hit = false;
+                if (kind === 'kill') hit = (info.personId && o.target === info.personId) || QR.sameName(o.target, info.name) || (info.key && QR.sameName(o.target, (CR.MONSTERS[info.key] || {}).name));
+                else if (kind === 'talk') hit = o.target === info.personId;
+                else if (kind === 'visit') hit = isInsideLocation(info.locationId, o.target);
+                if (!hit) continue;
+                if (kind === 'kill') { const n = (Number(objProgress(q.id, o.id)) || 0) + 1; setObjProgress(q.id, o.id, n); gameLog(`${questTitle(q)}: ${QR.objectiveLabel(o, QR.objectiveStatus(o, n))}.`); }
+                else { setObjProgress(q.id, o.id, true); gameLog(`${questTitle(q)}: ${norm(o.text)} — done.`); }
+            }
+        }
+        updateQuestProgress();
+    }
+    // A location "is inside" a target when it is the target or one of its sub-places (zones, step 5).
+    function isInsideLocation(locId, targetId) {
+        const w = activeWorld(); let cur = locId, guard = 0;
+        while (cur && guard++ < 20) { if (cur === targetId) return true; const l = findById(w && w.locations, cur); cur = l && l.parentId; }
+        return false;
+    }
+    // Completion follows the objectives: all done → ready to turn in ('complete'); a collect
+    // objective no longer met (items given away) → back to active. Visit = standing there.
+    let progressing = false;
+    function updateQuestProgress() {
+        const w = activeWorld(); if (!w || !rt() || progressing) return;
+        progressing = true;
+        try {
+            const here = rt().playerLocationId;
+            for (const q of asArray(w.quests)) {
+                const st = questStateOf(q); if (st !== 'active' && st !== 'complete') continue;
+                const objs = asArray(q.objectives); if (!objs.length) continue;
+                if (st === 'active' && here) for (const o of objs) if (QR.objectiveKind(o) === 'visit' && !objectiveStatusOf(q, o).done && isInsideLocation(here, o.target)) { setObjProgress(q.id, o.id, true); gameLog(`${questTitle(q)}: ${norm(o.text)} — done.`); }
+                const all = objs.every(o => objectiveStatusOf(q, o).done);
+                if (st === 'active' && all) { setQuestState(q.id, 'complete'); gameLog(`Quest ready to turn in: ${questTitle(q)}${q.turninPersonId ? ` (to ${objectiveTargetName({ target: q.turninPersonId })})` : ''}.`); }
+                else if (st === 'complete' && !all && !(rt().rewardsPaid && rt().rewardsPaid[q.id]) && objs.some(o => QR.objectiveKind(o) === 'collect' && !objectiveStatusOf(q, o).done)) setQuestState(q.id, 'active');
+            }
+        } finally { progressing = false; }
+    }
+    // Talking: a person with an open "talk" objective who is here and named in the new messages.
+    function detectTalk(text) {
+        const w = activeWorld(); if (!w || !rt()) return;
+        const here = rt().playerLocationId; const t = norm(text).toLowerCase(); if (!t) return;
+        for (const q of asArray(w.quests)) {
+            if (questStateOf(q) !== 'active') continue;
+            for (const o of asArray(q.objectives)) {
+                if (QR.objectiveKind(o) !== 'talk' || objectiveStatusOf(q, o).done) continue;
+                const npc = findById(w.npcs, o.target); if (!npc || resolveNpcLocationId(npc) !== here) continue;
+                const name = personName(npc).toLowerCase(); const first = name.split(/\s+/).pop();
+                if (t.includes(name) || (first.length > 2 && new RegExp('\\b' + first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b').test(t))) questEvent('talk', { personId: npc.id });
+            }
+        }
     }
     // Abandon: back to available, progress reset (can be accepted again).
     function abandonQuest(id) {
@@ -475,7 +546,8 @@ export default function initWorlds() {
                 description: questDescription(q, mode), hidden: !!q.hidden,
                 state: questStateOf(q), active: rt() && rt().activeQuestId === q.id,
                 giver: giver ? personName(giver) : '', turnin: turnin ? personName(turnin) : '',
-                rewards: asArray(q.rewards), objectives: asArray(q.objectives),
+                rewards: asArray(q.rewards),
+                objectives: asArray(q.objectives).filter(o => mode !== 'player' || !o.hidden).map(o => { const os = objectiveStatusOf(q, o); return { ...o, kind: QR.objectiveKind(o), ...os, label: QR.objectiveLabel(o, os) }; }),
                 marker: personQuestMarker(q.giverPersonId, mode) || personQuestMarker(q.turninPersonId, mode)
             };
         });
@@ -575,7 +647,7 @@ export default function initWorlds() {
         const n = sheetOwner(); if (!n) { fallback(); return; }
         window.KLITE_RPMod_Characters.updateSheet(n, mutate, { onMissing: () => { fallback(); syncLive(); } });
     }
-    const sameItem = (a, b) => norm(a).toLowerCase() === norm(b).toLowerCase();
+    const sameItem = (a, b) => QR.sameName(a, b);   // "Wolf Pelts" stacks with "Wolf Pelt"
     function inventoryAdd(name, qty) {
         const n = norm(name); if (!n) return;
         qty = Number(qty) || 1;
@@ -642,6 +714,8 @@ export default function initWorlds() {
         scan(/<unflag>\s*([^<>]+?)\s*<\/unflag>/gi, m => { delete rt().flags[norm(m[1])]; return true; });
         scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || []; inventoryAdd(nm, q); return true; });
         scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || []; inventoryRemove(nm, q); return true; });
+        // <talk>Captain Rowan</talk>: the player spoke with this person (quest "talk" objectives)
+        scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, m => { const npc = findNpcByName(world, m[1]); if (!npc) return false; questEvent('talk', { personId: npc.id }); return true; });
         // <encounter>Wolf Pack</encounter> (a saved encounter) or <encounter>2 Wolf, Goblin Warrior</encounter>
         scan(/<encounter>\s*([^<>]+?)\s*<\/encounter>/gi, m => { if (getCombat() && getCombat().active && !getCombat().outcome) return false; return !!startSavedEncounter(m[1]); });
         scan(/<quest>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/quest>/gi, m => { rt().questState[norm(m[1])] = norm(m[2]); return true; });
@@ -905,7 +979,7 @@ export default function initWorlds() {
         const o = cb.order.find(x => x.id === id); const party = o && o.side === 'party';
         if (before > 0 && cb.hp[id] <= 0) {
             if (party) { addCond(id, 'Unconscious'); cb.death[id] = { s: 0, f: 0, stable: false, dead: false }; combatLog(`${combatantName(id)} falls unconscious${o.isPlayer ? ' and is dying (death saving throws)' : ''}.`); }
-            else combatLog(`${combatantName(id)} is defeated.`);
+            else { combatLog(`${combatantName(id)} is defeated.`); questEvent('kill', { key: o && o.key, name: o && o.key ? CR.MONSTERS[o.key].name : combatantName(id), personId: o && o.kind === 'person' ? id : null }); }
         }
         if (before <= 0 && cb.hp[id] > 0) { removeCond(id, 'Unconscious'); if (cb.death[id]) delete cb.death[id]; combatLog(`${combatantName(id)} is back on their feet.`); }
         return cb.hp[id];
@@ -1130,7 +1204,7 @@ export default function initWorlds() {
         if (!Array.isArray(arr)) return false;
         const start = Math.max(0, Math.min(Number(rt().lastParsedIndex) || 0, arr.length));
         let changed = false;
-        for (let i = start; i < arr.length; i++) changed = parseMutations(arr[i]) || changed;
+        for (let i = start; i < arr.length; i++) { changed = parseMutations(arr[i]) || changed; try { detectTalk(arr[i]); } catch (_) {} }
         const advanced = W.config.advanceClockPerTurn && arr.length > start;
         rt().lastParsedIndex = arr.length;
         if (advanced) advanceClock(1);
@@ -1279,7 +1353,7 @@ export default function initWorlds() {
             const track = (rt().activeQuestId === q.id) ? ' [tracked]' : '';
             const desc = questDescription(q, mode);
             const objs = asArray(q.objectives).filter(o => questVisible(q, mode) && !o.hidden)
-                .map(o => `    ${(rt().questObjectives?.[q.id]?.[o.id]) ? '☑' : '☐'} ${norm(o.text)}`).filter(Boolean);
+                .map(o => { const os = objectiveStatusOf(q, o); return `    ${os.done ? '☑' : '☐'} ${QR.objectiveLabel(o, os)}`; }).filter(Boolean);
             questLines.push(`- ${title} [${st}]${track}` + (desc ? `: ${desc}` : '') + (objs.length ? '\n' + objs.join('\n') : ''));
         }
         push('Active Quests', 45, questLines.join('\n'));
@@ -1349,6 +1423,7 @@ export default function initWorlds() {
 
     // Keep current_wi consistent after a state change outside of generation.
     function syncLive() {
+        try { updateQuestProgress(); } catch (e) { dbg('quest progress', e); }
         getContext().sync();
         notifyChange();
     }
@@ -1858,7 +1933,9 @@ export default function initWorlds() {
         rewardsPaid: (id) => !!(rt() && rt().rewardsPaid && rt().rewardsPaid[id]),
         setActiveQuest(id) { ensureRuntime(); rt().activeQuestId = id; syncLive(); return id; },
         discoverQuest(id) { discover('quests', id); discover('descriptions', id); syncLive(); return true; },
-        completeObjective(qid, oid, done = true) { ensureRuntime(); const o = rt().questObjectives[qid] = rt().questObjectives[qid] || {}; o[oid] = !!done; syncLive(); return o; },
+        completeObjective(qid, oid, done = true) { ensureRuntime(); setObjProgress(qid, oid, !!done); updateQuestProgress(); syncLive(); return rt().questObjectives[qid]; },
+        objectiveStatus(qid, oid) { const q = questById(qid); const o = q && asArray(q.objectives).find(x => x.id === oid); return o ? objectiveStatusOf(q, o) : null; },
+        questEvent(kind, info) { questEvent(kind, info || {}); syncLive(); },
         personQuestMarker(personId) { return personQuestMarker(personId, aiMode()); },
         setAiMode(mode) { const w = activeWorld(); if (w) { w.ruleset = w.ruleset || {}; w.ruleset.aiMode = (mode === 'player' ? 'player' : 'gm'); } return w && w.ruleset.aiMode; },
         getAiMode() { return aiMode(); },
@@ -2014,6 +2091,8 @@ export default function initWorlds() {
         registerProvider();
         registerSettingAndGuards();
         const okPrepare = getContext().install();
+        // the persona's items changed (sheet window, rewards): "collect" objectives follow
+        window.addEventListener('klite:sheet-change', () => { try { if (activeWorld() && rt()) { updateQuestProgress(); notifyChange(); } } catch (_) {} });
         W.ready = true;
         try { if (W.config.enabled) syncLive(); } catch (_) {}
         dbg('KLITE Worlds ready. prepare-wrap=', okPrepare, '— use KLITE_RPMod_Worlds API to import/enable a world.');
