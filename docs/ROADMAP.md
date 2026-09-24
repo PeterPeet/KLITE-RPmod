@@ -24,6 +24,8 @@ removed (git history; 1.32.0 is archived in `BackupData/`). Esobold has mod hook
 contributed by RPmod — Quick Start (esolithe/esobold#65, merged), settings tabs (#66) and a
 top-bar Guide with mod tabs (#67, both open); RPmod uses them and keeps fallbacks for hosts
 without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-24).
+Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
+during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
 ### What works (verified headless 2026-09-24 — `npm test`, 198 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
@@ -328,8 +330,9 @@ play test with a real backend, owner's decision 2026-09-23).
       (live check). The **bare inner JSON** Esolite downloads for a character without a portrait
       is read as V1 and loses system prompt, post-history instructions, version, alternate
       greetings, lorebook and all extensions (the sheet) — so RPmod's gallery **Download** now
-      writes a complete V2 JSON for such characters (Esolite's own Library download still gives
-      the bare object: a point for Jaxxks). Fixtures `tests/fixtures/sillytavern/`, test
+      writes a complete V2 JSON for such characters. Upstream fix for Esolite's own Library download
+      (and two existing "Upload all" data-loss bugs found while testing it: a name race and old
+      archives' empty-description characters): **esolithe/esobold#68** (open). Fixtures `tests/fixtures/sillytavern/`, test
       `tests/roundtrip.test.js`. **R2 acceptance met** except spells.
 - **Next (R2):** spells from the SRD spell list (extract the SRD 5.2.1 spells — pulled forward
   from R3 like the monsters — then choose cantrips/prepared spells in the builder and at level up).
