@@ -55,6 +55,11 @@ const NAMES = {
     'search': 'Search the room (map)',
     'wand-sparkles': 'Generate a dungeon or town',
     'dices': 'new random seed (generator)',
+    'footprints': 'zone combat: move',
+    'wind': 'zone combat: flee',
+    'shield': 'zone combat: take cover',
+    'eye-off': 'zone combat: hide',
+    'circle-dot': 'Guide: zone combat diagrams',
 };
 
 const pkg = JSON.parse(fs.readFileSync(path.join(PKG, 'package.json'), 'utf8'));

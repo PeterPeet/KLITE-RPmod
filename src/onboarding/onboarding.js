@@ -17,10 +17,13 @@
 import { el, iconText } from '../shell/dom.js';
 import { createGuideView, highlight, clearHighlight } from './guide.js';
 import { CHAPTERS } from './chapters.js';
+import { ZONE_CHAPTERS } from './zoneChapters.js';
+import { createZoneDemoView } from './zoneDemo.js';
 import { registerQuickStartExtension, installQuickStartHooks, quickStartMode, quickStartTile } from './quickStart.js';
 import { hostGet, esoExtensionClass } from './hostGlobals.js';
 
 const GUIDE_TAB = 'rpmod-guide';   // ids are unique across all extension types; 'rpmod' is the settings tab
+const ZONES_TAB = 'rpmod-zones';   // Guide tab "Zone combat" (R7 step 5)
 
 const WELCOME_KEY = 'KLITE.onboarding.welcome';
 
@@ -31,13 +34,15 @@ export default function initOnboarding() {
     let guide = null;
     const esoGuide = registerEsoGuide();   // Esolite's Guide, or null (then our own window)
     const api = {
-        openGuide(chapterId) {
-            if (esoGuide) { window.eso.guide.open(GUIDE_TAB, chapterId || null); return true; }
+        openGuide(chapterId, book) {
+            if (esoGuide) { window.eso.guide.open(book === 'zones' ? ZONES_TAB : GUIDE_TAB, chapterId || null); return true; }
             const sh = window.KLITE_RPMod_Shell; if (!sh || !guide) return false;
-            if (chapterId) guide.goTo(chapterId);
+            if (chapterId || book) guide.goTo(chapterId, book);
             if (sh.isOpen('guide')) sh.refresh(['guide']);
             return sh.open('guide');
         },
+        // "How zone combat works" (Combat window, settings help)
+        openZoneGuide(chapterId) { return api.openGuide(chapterId || ZONE_CHAPTERS[0].id, 'zones'); },
         openQuickStart() { const fn = hostGet('showQuickStartPopup'); if (typeof fn === 'function') { fn(); return true; } return false; },
         highlight, clearHighlight,
         quickStartMode,
@@ -59,7 +64,8 @@ export default function initOnboarding() {
         const sh = window.KLITE_RPMod_Shell;
         if (!sh) { if (++shTries > 300) clearInterval(shTimer); return; }
         clearInterval(shTimer);
-        if (!esoGuide) { guide = createGuideView(sh); sh.registerView(guide); }
+        if (!esoGuide) { guide = createGuideView(sh, [{ id: 'rpmod', label: 'RPmod', chapters: CHAPTERS }, { id: 'zones', label: 'Zone combat', chapters: ZONE_CHAPTERS }]); sh.registerView(guide); }
+        sh.registerView(createZoneDemoView());
         sh.addDockAction('left', { id: 'guide', title: 'RPmod Guide', label: '?', icon: 'circle-help', onClick: () => api.openGuide() });
         if (!welcomeDismissed()) sh.registerView(welcomeView(sh, api));
     }, 100);
@@ -78,12 +84,16 @@ function registerEsoGuide() {
         highlight: (target, note) => setTimeout(() => hostCtx.highlight(target, note), 60),
         hostCall: (name) => hostCtx.run(() => { const fn = hostGet(name); if (typeof fn === 'function') fn(); }),
         navLink: hostCtx.navLink,
+        zoneGuide: () => hostCtx.run(() => window.eso.guide.open(ZONES_TAB, null)),
+        show: (id) => hostCtx.run(() => { try { window.KLITE_RPMod_Shell?.open(id); } catch (_) {} }),   // a window of its own: close the Guide first
     });
-    const chapters = () => CHAPTERS.map(ch => ({
+    const toHost = (list) => () => list.map(ch => ({
         id: ch.id, title: ch.title, blocks: ch.blocks,
         show: (ch.show || []).map(s => ({ label: s.label, run: (hostCtx) => s.run(adapt(hostCtx)) })),
     }));
-    return window.eso.extensions.register(new GuideExtension(GUIDE_TAB, 'RPmod', chapters)) !== false;
+    const ok = window.eso.extensions.register(new GuideExtension(GUIDE_TAB, 'RPmod', toHost(CHAPTERS))) !== false;
+    if (ok) window.eso.extensions.register(new GuideExtension(ZONES_TAB, 'Zone combat', toHost(ZONE_CHAPTERS)));
+    return ok;
 }
 
 // ---- "New here?" card (left dock, top) ------------------------------------------

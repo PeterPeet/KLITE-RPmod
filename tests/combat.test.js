@@ -32,7 +32,7 @@ test('encounter: initiative order, HP, hit/crit/miss, damage, heal, turns', asyn
     const { h, W, hero, gob } = await arena(t);
     assert.equal(W.getStats(gob.id).hpMax, 10, 'SRD 5.2.1 Goblin Warrior preset');
     h.seedRandom([0.9, 0.1, 0.5]);
-    const cb = W.startEncounter([hero.id, gob.id]);
+    const cb = W.startEncounter([hero.id, gob.id], { zones: false });   // the rules without zones (zones: zones.test.js)
     assert.equal(cb.order.length, 3, 'player auto-included');
     for (let i = 1; i < cb.order.length; i++) assert.ok(cb.order[i - 1].init >= cb.order[i].init);
     assert.equal(cb.hp.__player__, 24);
@@ -61,7 +61,7 @@ test('encounter: initiative order, HP, hit/crit/miss, damage, heal, turns', asyn
 
 test('combat chat tags', async (t) => {
     const { h, W, gob } = await arena(t);
-    W.startEncounter([gob.id]);
+    W.startEncounter([gob.id], { zones: false });
     h.seedRandom([0.999, 0.5]);
     W.applyTags('<attack>You->Goblin</attack>');
     assert.ok(W.getCombat().hp[gob.id] < 7, '<attack>');

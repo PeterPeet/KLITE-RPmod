@@ -193,3 +193,55 @@ test('saves written by the retired GuidedRP keep their guided_rp block', async (
     w.kai_json_load({});
     assert.equal(w.generate_savefile().guided_rp, undefined, 'not added to unrelated stories');
 });
+
+test('Guide: the "Zone combat" tab — Esolite\'s Guide gets a second RPmod tab; openZoneGuide opens it', async (t) => {
+    const h = await fullHost(t, { before: (hh) => hh.installFakeEsoHooks({ guide: true }) });
+    const w = h.window; const O = w.KLITE_RPMod_Onboarding;
+    assert.equal(O.guideMode(), 'eso');
+    const tabs = h.eval('window.eso.extensions.getByType(EsoExtensionType.GUIDE)');
+    assert.deepEqual(JSON.parse(JSON.stringify(tabs.map(x => [x.id, x.getLabel()]))), [['rpmod-guide', 'RPmod'], ['rpmod-zones', 'Zone combat']]);
+    const zc = tabs[1].getChapters();
+    assert.deepEqual(Array.from(zc, c => c.id), ['zones-idea', 'zones-layouts', 'zones-moving', 'zones-attacking', 'zones-cover', 'zones-play']);
+    assert.ok(zc.every(c => c.blocks.every(b => b.p || b.list || b.table || b.tip)), 'only block types Esolite renders');
+    O.openZoneGuide();
+    assert.deepEqual(Array.from(w.__eso.guideOpened.at(-1)), ['rpmod-zones', 'zones-idea']);
+    // "How zone combat works" in the RPmod tab goes there too (through Esolite's run)
+    const calls = [];
+    const hostCtx = { highlight: () => {}, run: (fn) => { calls.push('run'); return fn(); }, navLink: () => () => null };
+    tabs[0].getChapters().find(c => c.id === 'combat').show.find(s => s.label === 'How zone combat works').run(hostCtx);
+    assert.deepEqual(calls, ['run']);
+    assert.deepEqual(Array.from(w.__eso.guideOpened.at(-1)), ['rpmod-zones', null]);
+    // the diagrams window works in both modes
+    calls.length = 0;
+    zc[0].show[0].run(hostCtx);
+    assert.deepEqual(calls, ['run'], 'Esolite\'s Guide closes first');
+    await until(() => $(h, '[data-window="zones-demo"]'));
+    assert.deepEqual([...$(h, '[data-zone-demo]').querySelectorAll('svg.rpm-zone-board')].map(s => s.getAttribute('data-layout')), ['small', 'large', 'corridor']);
+});
+
+test('Guide: own window — book tabs RPmod / Zone combat, remembered, opened from the Combat window', async (t) => {
+    const h = await fullHost(t); const w = h.window; const O = w.KLITE_RPMod_Onboarding;
+    O.openZoneGuide();
+    const win = () => $(h, '[data-window="guide"]');
+    assert.ok(win());
+    assert.equal(win().querySelector('[data-book="zones"]').getAttribute('aria-selected'), 'true');
+    assert.equal(win().querySelector('article').dataset.chapter, 'zones-idea');
+    assert.equal(w.localStorage.getItem('KLITE.guide.book'), 'zones');
+    click(findButton(win(), /^Next: /), w);
+    assert.equal(win().querySelector('article').dataset.chapter, 'zones-layouts');
+    assert.ok([...win().querySelectorAll('td')].some(td => /Small room/.test(td.textContent) && !td.querySelector('code')), 'plain table cells');
+    click(win().querySelector('[data-book="rpmod"]'), w);
+    assert.equal(win().querySelector('article').dataset.chapter, 'welcome');
+    // "How zone combat works" in the combat chapter switches the book
+    O.openGuide('combat');
+    click(findButton(win(), /^How zone combat works$/), w);
+    assert.equal(win().querySelector('article').dataset.chapter, 'zones-idea');
+    // the Combat window's link
+    await h.api().loadExample();
+    w.KLITE_RPMod_Shell.close('guide');
+    w.KLITE_RPMod_Shell.open('combat');
+    await until(() => $(h, '[data-window="combat"] [data-cb="zone-help"]'));
+    click($(h, '[data-window="combat"] [data-cb="zone-help"]'), w);
+    await until(() => win());
+    assert.equal(win().querySelector('article').dataset.chapter, 'zones-idea');
+});

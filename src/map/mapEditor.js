@@ -397,6 +397,11 @@ function renderRoom(box, id) {
     box.appendChild(select([['', '— not set —'], ...R.LIGHT.map(l => [l, cap(l)])], room.light || '', v => { A.updateEntity(id, { light: v || undefined }); refreshAll(); }, { 'aria-label': 'Light' }));
     box.appendChild(lbl('Hazards (comma separated, e.g. fire, water)'));
     box.appendChild(input((room.hazards || []).join(', '), v => A.updateEntity(id, { hazards: v.split(',').map(s => s.trim()).filter(Boolean) }), { attrs: { 'aria-label': 'Hazards' } }));
+    // zone combat: the fighting space (derived from the size and exits unless set)
+    const Z = A.zoneRules; const auto = Z.layoutFor(Object.assign({}, room, { combatSpace: undefined }), A.exitsOf(id).map(e => e.dir));
+    box.appendChild(lbl('Fighting space (zone combat)'));
+    box.appendChild(select([['', `Automatic: ${Z.layoutName(auto)}`], ['small', 'Small room — one zone'], ['large', 'Large space — centre + 4 sides'], ['corridor', 'Corridor — centre + its passages']],
+        room.combatSpace || '', v => { A.updateEntity(id, { combatSpace: v || undefined }); renderInspector(); }, { 'aria-label': 'Fighting space' }));
     const sw = el('label', { class: 'rpm-map-check' });
     const sc = el('input', { type: 'checkbox', 'aria-label': 'Secret room' }); sc.checked = !!room.secret;
     sc.addEventListener('change', () => { A.updateEntity(id, { secret: sc.checked || undefined }); refreshAll(); });
@@ -417,7 +422,7 @@ function renderRoom(box, id) {
 
     // features
     box.appendChild(heading('Features'));
-    for (const f of A.featuresOf(id).filter(o => R.FEATURE_KINDS.includes(o.kind))) box.appendChild(featureCard(f));
+    for (const f of A.featuresOf(id).filter(o => R.FEATURE_KINDS.includes(o.kind))) box.appendChild(featureCard(f, id));
     box.appendChild(btn('Add feature', () => { A.addFeature(id, { name: 'Feature', kind: 'furniture' }); renderInspector(); }, { icon: 'plus', data: { feature: 'add' } }));
 
     // inhabitants
@@ -496,8 +501,8 @@ function renderExitOnly(box) {
     box.appendChild(el('div', { class: 'rpm-muted', text: `${(roomById(e.from) || {}).name} ↔ ${(roomById(e.to) || {}).name}` }));
     if (full) box.appendChild(exitCard(e.from, full));
 }
-function featureCard(f) {
-    const A = API(); const R = MR();
+function featureCard(f, roomId) {
+    const A = API(); const R = MR(); const Z = A.zoneRules;
     const card = el('div', { class: 'rpm-card', 'data-featurecard': f.id });
     const up = (p) => A.updateEntity(f.id, p);
     card.appendChild(el('div', { class: 'rpm-row' }, [
@@ -512,5 +517,16 @@ function featureCard(f) {
         const w = el('label', { class: 'rpm-map-check' }); const c = el('input', { type: 'checkbox', 'aria-label': 'Lit' }); c.checked = !!f.lit;
         c.addEventListener('change', () => up({ lit: c.checked })); w.appendChild(c); w.appendChild(document.createTextNode(' Lit')); card.appendChild(w);
     }
+    // zone combat: cover and where in the room it stands
+    const L = A.zoneLayoutOf(roomId);
+    const autoCover = Z.coverOf(Object.assign({}, f, { cover: undefined }));
+    const autoZone = Z.featureZone(L, Object.assign({}, f, { zone: undefined }));
+    const zones = Z.zonesOf(L).filter(z => Z.inside(L, z));
+    card.appendChild(el('div', { class: 'rpm-row' }, [
+        select([['', `Cover: automatic (${autoCover ? Z.COVER_NAMES[autoCover] : 'none'})`], ['none', 'No cover'], ['half', 'Half cover (+2 AC)'], ['three', 'Three-quarters cover (+5 AC)']],
+            f.cover || '', v => { up({ cover: v || undefined }); renderInspector(); }, { 'aria-label': 'Cover' }),
+        zones.length > 1 ? select([['', `Zone: automatic (${Z.zoneShort(autoZone)})`], ...zones.map(z => [z, 'Zone: ' + Z.zoneShort(z)])],
+            f.zone || '', v => { up({ zone: v || undefined }); renderInspector(); }, { 'aria-label': 'Zone' }) : null,
+    ].filter(Boolean)));
     return card;
 }

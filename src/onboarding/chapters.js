@@ -5,7 +5,7 @@
 // Block types: { p: 'text' } paragraph, { list: ['…'] } bullet list,
 //              { table: [['col', 'col'], …] } two-column table (first row = header),
 //              { tip: 'text' } highlighted hint.
-// show: [{ label, run(ctx) }] — ctx: { open(viewId), highlight(target, note), hostCall(fn), navLink(text) }
+// show: [{ label, run(ctx) }] — ctx: { open(viewId), highlight(target, note), hostCall(fn), navLink(text), zoneGuide(), show(viewId) = open a window (Esolite's Guide closes first) }
 
 export const CHAPTERS = [
     {
@@ -87,13 +87,17 @@ export const CHAPTERS = [
             { p: 'RPmod does the maths, the AI tells the story. Combat follows the free SRD 5.2.1 rules: initiative, attacks against armour class, damage, conditions, death saving throws.' },
             { list: [
                 'Open Combat, add SRD monsters (search by name or challenge rating) and watch the difficulty meter: Low, Moderate or High for your level.',
-                'On your turn pick weapon and target and press Attack, then End turn: the enemies act automatically until it is your turn again.',
+                'Fights take place in zones of the room you are in: melee in the same zone, ranged by weapon range, moving one zone per turn, cover and hiding. The Guide\'s "Zone combat" tab explains it.',
+                'On your turn move, take cover or hide, pick weapon and target and press Attack, then End turn: the enemies act automatically until it is your turn again.',
                 'Then write in the chat what you do — the AI narrates the rolls from the combat log.',
                 'After a victory your HP and the XP earned are saved to your persona\'s sheet.',
                 'The AI can start a fight too: it writes <encounter>2 Wolf</encounter>.',
             ] },
         ],
-        show: [{ label: 'Combat window', run: (c) => { c.open('combat'); c.highlight('[data-window="combat"]', 'Encounters and dice'); } }],
+        show: [
+            { label: 'Combat window', run: (c) => { c.open('combat'); c.highlight('[data-window="combat"]', 'Encounters and dice'); } },
+            { label: 'How zone combat works', run: (c) => c.zoneGuide && c.zoneGuide() },
+        ],
     },
     {
         id: 'editor', title: 'Building worlds',

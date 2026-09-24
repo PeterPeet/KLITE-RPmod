@@ -12,13 +12,16 @@
 // =============================================================================
 import { el } from '../shell/dom.js';
 import { iconText } from '../shell/dom.js';
+import { renderZoneBoard } from './zoneBoard.js';
 
 export const AUTO_TURNS_SETTING = 'combat_auto_turns';
+export const ZONES_SETTING = 'combat_zones';
+const STARTS = [['auto', 'Enemies start: across the room'], ['same', 'Enemies start: right beside you'], ['near', 'Enemies start: the next zone'], ['outside', 'Enemies start: outside the room']];
 const CR_BANDS = [['', 'Any CR'], ['0-0.25', 'CR 0–1/4'], ['0.5-1', 'CR 1/2–1'], ['2-4', 'CR 2–4'], ['5-10', 'CR 5–10'], ['11-30', 'CR 11+']];
 const DIFF_LABEL = { none: 'No enemies yet', trivial: 'Trivial', low: 'Low', moderate: 'Moderate', high: 'High', beyond: 'Beyond High (deadly)' };
 
 // Builder / fight choices that survive re-renders (per session).
-const U = { monsters: {}, persons: {}, q: '', band: '', name: '', atk: 0, target: '', mode: '', tool: { who: '', amount: 5, cond: 'Prone', rounds: 1, action: 0, actTarget: '' } };
+const U = { monsters: {}, persons: {}, q: '', band: '', name: '', start: 'auto', atk: 0, target: '', mode: '', moveTo: '', cover: '', tool: { who: '', amount: 5, cond: 'Prone', rounds: 1, action: 0, actTarget: '', zone: '' } };
 
 export function renderCombat(box, refresh) {
     const A = window.KLITE_RPMod_Worlds;
@@ -26,6 +29,12 @@ export function renderCombat(box, refresh) {
     const root = el('div', { class: 'rpm-cb' }); box.appendChild(root);
     if (cb && cb.active) return renderFight(root, cb, A, refresh);
     return renderBuilder(root, A, refresh);
+}
+export function zonesOn() { try { const S = window.KLITE_RPMod_Settings; const v = S && S.get(ZONES_SETTING); return v !== false; } catch (_) { return true; } }
+// "How zone combat works": the Guide's zone tab (Esolite's Guide or RPmod's own window).
+export function openZoneGuide() { try { window.KLITE_RPMod_Onboarding?.openZoneGuide?.(); } catch (_) {} }
+function zoneHelp() {
+    return el('button', { type: 'button', class: 'rpm-linkbtn', 'data-cb': 'zone-help', text: 'How zone combat works', onclick: openZoneGuide });
 }
 export function autoTurnsOn() { try { const S = window.KLITE_RPMod_Settings; const v = S && S.get(AUTO_TURNS_SETTING); return v !== false; } catch (_) { return true; } }
 
@@ -150,12 +159,13 @@ function renderBuilder(box, A, refresh) {
     name.value = U.name;
     name.addEventListener('input', () => { U.name = name.value; });
     if (world) box.appendChild(row([name, btn('Save to world', () => {
-        A.saveEncounter({ name: U.name || 'Encounter', monsters: chosen, personIds: Object.keys(U.persons).filter(id => U.persons[id] === 'enemy'), locationId: (A.runtime || {}).playerLocationId || null, difficulty: diff });
+        A.saveEncounter({ name: U.name || 'Encounter', monsters: chosen, personIds: Object.keys(U.persons).filter(id => U.persons[id] === 'enemy'), locationId: (A.runtime || {}).playerLocationId || null, difficulty: diff, start: U.start });
         refresh();
     }, { disabled: !chosen.length, id: 'save' })], 'margin-top:12px'));
+    if (zonesOn()) box.appendChild(row([sel(STARTS, U.start, v => { U.start = v; }, 'Where the enemies start', 'enemy-start'), zoneHelp()], 'margin-top:8px;align-items:center'));
     box.appendChild(btn('Start encounter', () => {
         const ids = Object.keys(U.persons);
-        A.startEncounter(ids, { monsters: chosen, sides: U.persons, difficulty: diff });
+        A.startEncounter(ids, { monsters: chosen, sides: U.persons, difficulty: diff, enemyStart: U.start });
         U.monsters = {}; U.persons = {}; U.name = '';
         afterStart(A); refresh();
     }, { icon: 'swords', block: true, variant: 'danger', disabled: !hasAny, id: 'start' }));
@@ -179,6 +189,9 @@ function renderFight(box, cb, A, refresh) {
         ]));
     }
 
+    const zv = A.zoneView && A.zoneView();
+    if (zv) renderZones(box, cb, cur, zv, A, refresh);
+
     // initiative list
     for (const side of ['party', 'enemy']) {
         box.appendChild(label(side === 'party' ? 'Party' : 'Enemies'));
@@ -189,6 +202,7 @@ function renderFight(box, cb, A, refresh) {
             const card = el('div', { class: 'rpm-card' + (o.id === cur.id && !cb.outcome ? ' rpm-card-hi' : ''), 'data-combatant': o.id, style: down ? 'opacity:.6' : null }, [
                 row([
                     el('span', { class: 'rpm-grow', style: 'font-weight:bold', text: o.name }),
+                    zv ? el('span', { class: 'rpm-chip', 'data-cb': 'zone-' + o.id, text: zoneChip(zv, o.id) }) : null,
                     el('span', { class: 'rpm-muted', text: `AC ${st.ac} · init ${o.init}` }),
                     el('span', { 'data-cb': 'hp', text: `${hp}/${max}` }),
                 ]),
@@ -231,12 +245,17 @@ function renderTurn(box, cb, cur, A, refresh) {
         if (U.atk >= attacks.length) U.atk = 0;
         wrap.appendChild(el('div', { style: 'font-weight:bold', text: cur.isPlayer ? 'Your turn' : `${cur.name}'s turn` }));
         wrap.appendChild(row([
-            attacks.length ? sel(attacks, U.atk, v => { U.atk = Number(v); }, 'Weapon', 'weapon') : muted('No attacks on the sheet — Unarmed Strike.'),
-            sel(foes.map(f => [f.id, `${f.name} (${cb.hp[f.id]} HP)`]), U.target, v => { U.target = v; }, 'Target', 'target'),
+            attacks.length ? sel(attacks, U.atk, v => { U.atk = Number(v); refresh(); }, 'Weapon', 'weapon') : muted('No attacks on the sheet — Unarmed Strike.'),
+            sel(foes.map(f => [f.id, `${f.name} (${cb.hp[f.id]} HP)`]), U.target, v => { U.target = v; refresh(); }, 'Target', 'target'),
             sel([['', 'Normal'], ['adv', 'Advantage'], ['dis', 'Disadvantage']], U.mode, v => { U.mode = v; }, 'Roll mode', 'mode'),
         ], 'margin-top:4px'));
+        const zv = A.zoneView && A.zoneView();
+        const why = zv && U.target ? zv.canAttack(cur.id, U.target, U.atk) : null;
+        if (zv) zoneControls(wrap, cb, cur, zv, A, refresh);
+        if (why && !why.ok) wrap.appendChild(muted(`Attack not possible: ${why.reason}.`, { 'data-cb': 'attack-why', style: 'margin-top:4px' }));
+        else if (why && (why.penalty || why.cover)) wrap.appendChild(muted([why.penalty ? `−${why.penalty} to hit (the target attacked you in melee)` : '', why.cover ? `the target is in ${why.cover === 'three' ? 'three-quarters' : 'half'} cover` : ''].filter(Boolean).join(' · '), { 'data-cb': 'attack-note', style: 'margin-top:4px' }));
         wrap.appendChild(row([
-            btn('Attack', () => { if (U.target) A.attack(cur.id, U.target, U.atk, { mode: U.mode || undefined }); refresh(); }, { icon: 'swords', variant: 'danger', grow: true, disabled: !foes.length, id: 'attack' }),
+            btn('Attack', () => { if (U.target) A.attack(cur.id, U.target, U.atk, { mode: U.mode || undefined }); refresh(); }, { icon: 'swords', variant: 'danger', grow: true, disabled: !foes.length || (why && !why.ok), id: 'attack' }),
             btn('End turn', endTurn, { icon: 'arrow-right', grow: true, id: 'end-turn' }),
         ], 'margin-top:6px'));
         wrap.appendChild(muted('Then tell the AI in the chat what you do — it narrates the rolls from the log.', { style: 'margin-top:4px' }));
@@ -267,6 +286,15 @@ function toolsPanel(cb, A, refresh) {
         sel(A.conditionNames().map(c => [c, c]), T.cond, v => { T.cond = v; }, 'Condition', 'condition'), rounds,
         btn('Add condition', () => { A.addCondition(T.who, T.cond, T.rounds || null); refresh(); }, { id: 'add-condition' }),
     ], 'margin-top:6px'));
+    const zv = A.zoneView && A.zoneView();
+    if (zv) {
+        const zs = zv.zones.map(z => [z.id, z.short]);
+        if (!zs.some(z => z[0] === T.zone)) T.zone = zs[0][0];
+        box.appendChild(row([
+            sel(zs, T.zone, v => { T.zone = v; }, 'Zone', 'set-zone'),
+            btn('Put there', () => { A.zoneMove(T.who, T.zone, { free: true }); refresh(); }, { id: 'put-zone', title: 'Game master: place the creature without rules or opportunity attacks' }),
+        ], 'margin-top:6px'));
+    }
     const ct = A.conditionText(T.cond);
     if (ct.length) box.appendChild(muted(ct.slice(0, 3).join(' '), { style: 'margin-top:2px' }));
     // monster saving-throw actions (breath weapons, …)
@@ -282,4 +310,45 @@ function toolsPanel(cb, A, refresh) {
         ], 'margin-top:6px'));
     }
     return box;
+}
+
+// ---- zones ----------------------------------------------------------------------------------
+function zoneChip(zv, id) {
+    const z = zv.zones.find(x => x.id === zv.pos[id]);
+    return (z ? z.short : '?') + (zv.cover[id] ? ' · cover' : '') + (zv.hidden.includes(id) ? ' · hidden' : '');
+}
+function renderZones(box, cb, cur, zv, A, refresh) {
+    const mover = !cb.outcome && (cur.isPlayer || cur.side === 'party') && cb.hp[cur.id] > 0 ? cur.id : null;
+    const reach = new Set();
+    if (mover) { const left = zv.movesLeft(mover); for (const z of zv.zones) { const d = zv.distanceTo(mover, z.id); if (d > 0 && d <= left) reach.add(z.id); } }
+    const tokens = cb.order.map(o => ({ id: o.id, name: o.name, side: o.side || (o.isPlayer ? 'party' : 'enemy'), current: o.id === cur.id && !cb.outcome, down: cb.hp[o.id] <= 0, hidden: zv.hidden.includes(o.id), cover: !!zv.cover[o.id] }));
+    const { svg, outOfRange } = renderZoneBoard(zv, { tokens, reachable: reach, onZone: (z) => { A.zoneMove(mover, z); refresh(); }, label: `Zones of ${zv.room || 'the fight'}` });
+    const card = el('div', { class: 'rpm-card rpm-zone-card', 'data-cb': 'zones' }, [
+        row([el('span', { class: 'rpm-grow', style: 'font-weight:bold', text: zv.room || 'Battlefield' }), el('span', { class: 'rpm-muted', text: zv.name + (zv.dark ? ' · dark' : '') })]),
+    ]);
+    card.appendChild(svg);
+    if (outOfRange.length) card.appendChild(muted('Out of range: ' + outOfRange.map(t => t.name).join(', '), { 'data-cb': 'out-of-range' }));
+    card.appendChild(row([muted(mover && reach.size ? 'Click a highlighted zone to move there.' : 'Same zone = melee; ranged by weapon range.', { class: 'rpm-muted rpm-grow' }), zoneHelp()], 'align-items:center'));
+    box.appendChild(card);
+}
+function zoneControls(wrap, cb, cur, zv, A, refresh) {
+    const here = zv.zones.find(z => z.id === zv.pos[cur.id]);
+    const left = zv.movesLeft(cur.id);
+    const T = zv.turn && zv.turn.id === cur.id ? zv.turn : { moved: 0 };
+    const action = T.fled ? 'used (fled)' : T.acted ? 'used' : T.attacked ? 'attacking' : 'free';
+    wrap.appendChild(muted(`At ${here ? here.name : '?'} · movement left: ${Math.max(0, left)} zone${left === 1 ? '' : 's'} · action: ${action}`, { 'data-cb': 'zone-status', style: 'margin-top:4px' }));
+    const dests = zv.zones.filter(z => z.id !== zv.pos[cur.id] && Number.isFinite(zv.distanceTo(cur.id, z.id))).map(z => [z.id, `${z.short} (${zv.distanceTo(cur.id, z.id)})`]);
+    if (!dests.some(d => d[0] === U.moveTo)) U.moveTo = dests[0] ? dests[0][0] : '';
+    const feats = zv.features.filter(f => f.cover && f.zone === zv.pos[cur.id]);
+    if (!feats.some(f => f.id === U.cover)) U.cover = feats[0] ? feats[0].id : '';
+    const kids = [
+        sel(dests, U.moveTo, v => { U.moveTo = v; }, 'Move to zone', 'move-to'),
+        btn('Move', () => { A.zoneMove(cur.id, U.moveTo); refresh(); }, { icon: 'footprints', id: 'move', disabled: !U.moveTo || left <= 0, title: 'One zone per turn; leaving by one zone provokes no opportunity attack' }),
+        btn('Flee', () => { A.zoneFlee(cur.id, U.moveTo); refresh(); }, { icon: 'wind', id: 'flee', disabled: !U.moveTo || T.attacked || T.acted, title: 'Up to two zones, no attack this turn; enemies in your zone get an opportunity attack' }),
+    ];
+    if (feats.length) kids.push(sel(feats.map(f => [f.id, `${f.name} (${f.cover === 'three' ? '¾' : '½'} cover)`]), U.cover, v => { U.cover = v; }, 'Cover', 'cover-pick'),
+        btn('Take cover', () => { A.takeCover(cur.id, U.cover); refresh(); }, { icon: 'shield', id: 'take-cover', disabled: zv.cover[cur.id] === U.cover }));
+    kids.push(btn('Hide', () => { A.hide(cur.id); refresh(); }, { icon: 'eye-off', id: 'hide', disabled: T.attacked || T.acted || T.fled || zv.hidden.includes(cur.id), title: 'Stealth DC 15 behind three-quarters cover or in darkness (your action)' }));
+    if (cb.order.some(o => o.side !== cur.side && zv.hidden.includes(o.id))) kids.push(btn('Search', () => { A.zoneSearch(cur.id); refresh(); }, { icon: 'search', id: 'search', disabled: T.attacked || T.acted }));
+    wrap.appendChild(row(kids, 'margin-top:4px'));
 }

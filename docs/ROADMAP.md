@@ -6,13 +6,15 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-25 (R2 done)
+> Last updated: 2026-09-25 (R7 step 5: zone combat)
 
 ## Current state
 
-**Now: R7 step 5** (combat distance bands, cover, hiding — see [design/R7-world-map.md](design/R7-world-map.md)).
+**Now: R7 acceptance check** (see R7 below), then spells in the Combat window (R5) and the
+real-backend play test (known issue 5).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
-issue 12), 3 (AI map tags, fog, doors, Search checks) and 4 (dungeon/town generator) are done.
+issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
+combat: zones of the room, moving/fleeing, cover, hiding, Guide tab) are done.
 Done since R1: R2 characters (✅ 2026-09-25), R5 combat (🟨), R4 quests & world (✅). R3
 (compendium window; monster and spell data already bundled) and R6 (chat power features) are still to do.
 
@@ -27,7 +29,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 213 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 229 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -40,7 +42,9 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 - **Quests:** giver/turn-in, yellow `!`/`?` markers, quest log, hidden/discovered,
   per-world `aiMode` (gm/player).
 - **Trigger bus:** event triggers/conditions/effects with chains; faction HQs.
-- **Combat:** dice, initiative, attack vs AC, HP, checks, 6 SRD **5.1** monster presets.
+- **Combat:** dice, initiative, attack vs AC, HP, checks, 330 SRD 5.2.1 monsters; **zone combat**
+  (R7 step 5): positions in zones of the room, moving/fleeing with opportunity attacks, reach and
+  range by zone, −3 in melee, cover and hiding, drawn in the Combat window, explained in the Guide.
 - **UI (in the app shell):** World tab, Party + Quests sections, Quest log / Combat /
   World editor (node graph) windows; Creator/Player lens.
 - **Delivery:** usermod bundle, or `index.rpmod.html` that autoloads the mod after
@@ -72,7 +76,7 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 | | Rewards XP/gold/choose-one | ✅ paid to the persona's sheet |
 | | Zones/subzones, hubs, phasing | ✅ |
 | | Factions & reputation | ✅ tiers; effects narrated (no vendors yet) |
-| Map | Places room by room, board, fog, distance bands (no VTT) | 🟡 R7 steps 1–4: dungeon/town editor, mini-map with fog, moving with door rules, AI map tags, doors/Search checks, seeded generator; distance bands to come |
+| Map | Places room by room, board, fog, zone combat (no VTT) | ✅ R7 steps 1–5: dungeon/town editor, mini-map with fog, moving with door rules, AI map tags, doors/Search checks, seeded generator, zone combat with cover and hiding (acceptance check open) |
 
 ### Known issues / tech debt
 1. ~~"Monster / NPC combatant" flag does nothing~~ — decides the combat side since R5 (a monster is
@@ -489,12 +493,13 @@ as a lorebook and re-import it.
 
 ### R7 — World map: dungeons & towns, room by room 🟨 (revised 2026-09-23)
 **Design: [docs/design/R7-world-map.md](design/R7-world-map.md)** (decisions, data model, AI
-interface, UI, generator, distance bands, AI-capability analysis). Owner's decisions: no VTT;
+interface, UI, generator, zone combat, AI-capability analysis). Owner's decisions: no VTT;
 room-by-room movement, towns as places; location kinds `location` / `dungeon` / `town`; a
 dungeon/town is one node in the world graph with its own **dungeon/town editor over the world
 editor**; rooms stay locations (`parentId`) hidden from the world graph; world state is the truth,
 the board is derived (the LLM never writes coordinates); dungeons from editor, generator and AI;
-**mini-map** for the player; combat distance bands.
+**mini-map** for the player; **zone combat** (revised 2026-09-25 from "distance bands", which
+misread the reference: creatures stand in zones of the room).
 - [x] **Step 1 — location kinds + dungeon/town editor** (2026-09-23): `src/game/map-rules.js` (pure)
       + engine: `kind` dungeon/town, rooms = locations inside (hidden from the world graph, edges drawn
       at the dungeon/town node, labels "Crypt › Hall" in dropdowns), **exits stored once and read from
@@ -544,6 +549,34 @@ the board is derived (the LLM never writes coordinates); dungeons from editor, g
       place reach the AI as **Waiting here** until started (runtime `startedEncounters`, additive).
       Tests `tests/generator.test.js`. Live-checked in Esolite (generate in the editor, play in,
       naming by a reply through the real `handle_incoming_text`).
+- [x] **Step 5 — zone combat** (2026-09-25): `src/game/zone-rules.js` (pure) — layouts from the
+      room (small ≤ 30 × 30 ft = one zone; large = centre + four sides; corridor = middle + its
+      passages; plus just outside / out of range; 1 cell = 10 ft; `room.combatSpace` overrides),
+      adjacency, line of fire, reach/range profiles (monster range text, SRD weapon properties),
+      cover defaults by feature name, start positions. Engine: `cb.zones` (additive — fights saved
+      without it keep the old rules; plain JSON), party on the side it came in by (`runtime.entry`,
+      additive), enemies across/beside/next zone/outside (builder, saved encounters' `start`);
+      move one zone (60 ft: two), **flee** two without attacking (opportunity attacks from the zone
+      left; a one-zone retreat is safe), melee same zone, ranged ≤ 30 ft next zone / longer any in
+      line of fire, **−3** vs. a melee attacker of last round (owner's choice over SRD
+      disadvantage), one ranged attack per round through a doorway, **cover** +2/+5 from room
+      features in the zone (SRD), **Hide** DC 15 → Invisible, **Search**; monster tactics (close
+      in / dash / shoot; archers step out of melee and take cover; search when blind). AI:
+      "Battlefield" + each combatant's zone/cover/hidden; everything in the combat log. Combat
+      window: zone board drawn like the reference (`src/game/zoneBoard.js`), click to move,
+      Move/Flee/Take cover/Hide/Search, attack reasons, "Enemies start", Tools "Put there".
+      Dungeon editor: room fighting space, feature cover and zone. **Guide tab "Zone combat"**
+      (Esolite's Guide gets a second RPmod tab `rpmod-zones`; RPmod's own guide window gets book
+      tabs) with a diagrams window; linked from the Combat window and the "Dice & combat" chapter.
+      Setting `combat_zones` (default on). Tests `tests/zones.test.js` (+ onboarding/editor).
+      Live-checked in Esolite (a fight in a large hall: shoot, move, take cover, enemies close in;
+      Guide tab and diagrams).
+- **Open (step 5):** positions are per zone only (no facing, no flanking, no difficult terrain);
+  areas of effect and spells in zones wait for spells in the Combat window (R5 — "a spell of 30 ft
+  or less reaches the next zone" is prepared in the rules text only); companions use the same
+  tactics as monsters; the player's own opportunity attacks are rolled automatically with their
+  best melee attack; the AI cannot move creatures between zones by tag (it narrates, the UI acts);
+  a fight stays in the room it started in (moving rooms mid-fight is not modelled).
 - **Open (step 4):** generated rooms have no descriptions (the AI describes and names them in play);
   no multi-level dungeons from one click (generate a level inside a room instead); a generated key
   sits in a container but taking it is narrated (`<give>`), containers have no loot system; town
@@ -560,10 +593,10 @@ Steps:
 2. ~~Mini-map + room-by-room movement~~ (done, see above).
 3. ~~AI tags + exploration~~ (done, see above).
 4. ~~Generator~~ (done, see above).
-5. Distance bands in combat (close/near/far/out, move actions, cover, hiding).
+5. ~~Zone combat (zones of the room, moving/fleeing, cover, hiding, Guide tab)~~ (done, see above).
 Acceptance: build a small dungeon and a town in the editor, generate a second dungeon, let the AI
 add a room with a locked door, explore room by room with fog on the mini-map, find a secret door
-by searching, and fight an encounter using distance bands and cover.
+by searching, and fight an encounter using zones and cover.
 
 ## Working agreement
 1. Plan the phase (or item) briefly; confirm scope with the owner when unclear.

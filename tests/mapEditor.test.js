@@ -114,6 +114,17 @@ test('dungeon editor: opens over the world editor, add/drag/resize/connect rooms
     click(insp().querySelector('[data-monster="add"]'), w);
     const enc = W.listEncounters().find(e => e.locationId === c);
     assert.ok(enc && enc.monsters[0].count === 3, 'saved encounter in this room');
+    // zone combat: the fighting space of the room, cover and zone of a feature
+    assert.match(byLabel(insp(), 'Fighting space').options[0].text, /Automatic: large space/);
+    change(w, byLabel(insp(), 'Fighting space'), 'small');
+    assert.equal(W.entityById(c).combatSpace, 'small');
+    change(w, byLabel(insp(), 'Fighting space'), '');
+    assert.equal(W.entityById(c).combatSpace, undefined);
+    assert.match(byLabel(insp(), 'Cover').options[0].text, /automatic \(none\)/, 'a container gives no cover by default');
+    change(w, byLabel(insp(), 'Cover'), 'half');
+    assert.equal(W.entityById(f.id).cover, 'half');
+    change(w, byLabel(insp(), 'Zone'), 'n');
+    assert.equal(W.entityById(f.id).zone, 'n');
     const sec = byLabel(insp(), 'Secret room'); sec.checked = true; sec.dispatchEvent(new w.Event('change'));
     assert.equal(W.entityById(c).secret, true);
     assert.ok(W.hasUnsavedChanges(), 'unsaved state shown');

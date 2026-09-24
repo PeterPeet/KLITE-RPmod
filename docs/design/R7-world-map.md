@@ -24,9 +24,11 @@ mini-map. **No virtual tabletop** (no free tokens, no measuring, no map images).
 5. **Dungeons come from three sources:** the editor, a generator, the AI during play.
 6. **Mini-map for the player** (left dock) with fog and "you are here"; click a neighbouring room
    to go there; opens large as a window.
-7. **Combat distance bands** instead of a grid: close / near / far / out; one move action = one
-   band; cover and hiding from the SRD (idea from "Ultimate Dungeon Terrain", Dungeon Craft —
-   rules reimplemented, nothing copied).
+7. **Zone combat** instead of a grid (idea from the zone combat of "Ultimate Dungeon Terrain",
+   Dungeon Craft — rules reimplemented, nothing copied; reference PDF in `docs/reference/`); cover
+   and hiding from the SRD. *Revised 2026-09-25:* first written as "distance bands close/near/far/
+   out", which misread the idea — creatures stand in **zones of the room**, and adjacency of zones
+   decides reach (see "Zone combat (step 5)").
 
 ## Data model (additive — never break old worlds)
 - `location.kind: 'location' | 'dungeon' | 'town'` (missing = `location`).
@@ -88,13 +90,42 @@ encounters (SRD monsters by the party's level/XP budget, R5). Names are placehol
 the AI can rename/describe them via `<room>`. Towns: places from a list the creator ticks
 (market, temple, guild, inn, bathhouse, smithy, …) around a square.
 
-## Combat distance bands (step 5)
-Bands per combatant: close · near · far · out. Move action = one band (Dash = two). Melee only at
-close; ranged at near/far (long range → disadvantage; ranged attack at close → disadvantage,
-SRD). Leaving close provokes an opportunity attack unless Disengage. Monsters choose a band by
-their attacks (melee closes in, ranged keeps near). Cover: half +2 / three-quarters +5 AC (from
-room features: pillars, tables); Hide → Invisible (SRD 5.2.1). Shown in the Combat window as
-three rings/columns; the AI gets each combatant's band.
+## Zone combat (step 5)
+Agreed with the owner 2026-09-25 (−3 instead of SRD disadvantage; 1 board cell = 10 ft; an
+explanation in the Guide as its own tab, linked from the Combat window).
+- **Every creature stands in one zone of the room the fight starts in.** Layout from the room:
+  **small** (≤ 30 × 30 ft, i.e. ≤ 3 × 3 cells) = one zone; **large** (bigger rooms, anything
+  outdoors / without a board) = centre + north/east/south/west, each side touching the centre and
+  its two neighbours; **corridor** (a side of 1 cell) = the middle + only the arms its exits lead to
+  (walls between the arms). Plus **just outside** (reached only through the room's openings: the
+  sides with an exit) and **out of range**. The creator can override (`room.combatSpace`).
+- **Moving:** stay in the zone (e.g. take cover) or move to an adjacent zone; speed ≥ 60 ft → two
+  zones. **Flee** (Dash): double, no attack that turn, opportunity attacks from enemies in the zone
+  left; a one-zone fighting retreat provokes nothing (UDT's rule; also: moving 2+ zones at once
+  provokes).
+- **Melee:** same zone (reach > 30 ft: adjacent). **Ranged:** normal range ≤ 30 ft → same or
+  adjacent zone; longer → any zone in line of fire (corridor corners block; from outside only
+  through an opening; out of range never). **−3** to hit against an enemy that attempted a melee
+  attack on the shooter within the last round (replaces SRD's disadvantage within 5 ft). **One
+  ranged attack per round through a doorway.**
+- **Cover** (SRD 5.2.1): room features stand in a zone (`feature.zone`, else a stable spread) and
+  give `half` (+2) or `three` (+5) AC (`feature.cover`, else by name: pillar/statue/boulder… three,
+  other furniture half); counts against attacks from another zone. **Hide** (SRD 5.2.1): action,
+  DC 15 Stealth behind three-quarters cover with no enemy in the zone, or in a dark room →
+  Invisible, total = DC to find; ends on attacking (or moving into light); enemies **Search**
+  (Perception) when they see no one.
+- **Start:** party on the side it came in by (`runtime.entry`, set by `go`), else the centre;
+  enemies across the room / beside you / next zone / outside (builder; saved with an encounter).
+- **Monsters:** melee closes in (dash if out of one move, or shoots when it has a bow), ranged
+  steps out of melee to a zone with a shot (preferring cover), takes cover, shoots.
+- **UI:** the Combat window draws the room as circles like the reference (small: room + ring;
+  large: centre + four sectors + ring; corridor: a cross of passages cut into rock), doors on the
+  rim, features, tokens; reachable zones are clickable; Move/Flee/Take cover/Hide/Search; attack
+  reasons. **Guide tab "Zone combat"** (Esolite's Guide: a second RPmod tab; own guide window: a
+  book tab) + a diagrams window; "How zone combat works" in the Combat window.
+- **AI:** "Battlefield" (layout, zones with doors and terrain, one-line rules) and each
+  combatant's zone/cover/hidden in the Combat section; moves, opportunity attacks, cover and hide
+  results in the combat log.
 
 ## Would the AI manage it? (analysis, 2026-09-23)
 Handles well: narrating from the per-turn state, choosing exits by name from a list, short tags,
@@ -124,8 +155,11 @@ works and the AI only narrates.
    encounters within the party's XP budget; towns from ticked places around a square. A way out
    to the map's world neighbour (a level: stairs up). Placeholder rooms are named by the AI with
    `<room>Name, here: …</room>`; prepared encounters reach the AI as "Waiting here".
-5. **Distance bands** in combat (+ cover, hiding).
+5. ✅ **Zone combat** (2026-09-25): `src/game/zone-rules.js` (pure) + engine (`cb.zones`, additive:
+   fights without it keep the old rules) + Combat window board (`src/game/zoneBoard.js`) + editor
+   fields (fighting space, feature cover/zone) + Guide tab "Zone combat" with a diagrams window.
+   Setting `combat_zones` (default on).
 
 Acceptance: build a small dungeon and a town in the editor, generate a second dungeon, let the AI
 add a room with a locked door, explore room by room with fog on the mini-map, find a secret door
-by searching, and fight an encounter using distance bands and cover.
+by searching, and fight an encounter using zones and cover.

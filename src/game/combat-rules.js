@@ -36,14 +36,14 @@ export function findMonster(nameOrKey) {
 // Combat stats (the Worlds stat-block shape plus monster extras).
 export function monsterStats(key) {
     const m = MONSTERS[key]; if (!m) return null;
-    const attacks = (m.attacks || []).filter(a => a.kind !== 'save' && a.damage).map(a => ({ name: a.name, toHit: a.toHit, damage: a.damage, type: a.type, kind: a.kind, avg: a.avg || 0 }));
+    const attacks = (m.attacks || []).filter(a => a.kind !== 'save' && a.damage).map(a => ({ name: a.name, toHit: a.toHit, damage: a.damage, type: a.type, kind: a.kind, avg: a.avg || 0, reach: a.reach || '' }));
     const saveActions = (m.attacks || []).filter(a => a.kind === 'save').map(a => ({ name: a.name, save: a.save, dc: a.dc, damage: a.damage, type: a.type, half: !!a.half }));
     const saves = {};
     for (const [ab, score] of Object.entries(m.abilities)) saves[ab] = m.saves && m.saves[ab] != null ? m.saves[ab] : Math.floor((score - 10) / 2);
     return {
         key, name: m.name, isMonster: true, abilities: { ...m.abilities }, ac: m.ac, hpMax: m.hp, speed: parseInt(m.speed, 10) || 30,
         proficiency: m.pb, initiativeMod: m.initiative, saves, skills: {}, attacks, saveActions, multiattack: m.multiattack || 1,
-        xp: m.xp, cr: m.cr,
+        xp: m.xp, cr: m.cr, skillText: m.skills || '', senses: m.senses || '',
     };
 }
 
@@ -80,6 +80,7 @@ export function attackMode(attackerConds, targetConds, ranged, extra) {
     const autoCrit = !ranged && (has(targetConds, 'Paralyzed') || has(targetConds, 'Unconscious'));
     return { mode: adv && dis ? null : adv ? 'adv' : dis ? 'dis' : null, autoCrit, why };
 }
+export function weaponInfo(name) { return (SRD.weapons && SRD.weapons[name]) || null; }
 export function isRanged(attack) {
     if (!attack) return false;
     if (attack.kind) return attack.kind === 'ranged';

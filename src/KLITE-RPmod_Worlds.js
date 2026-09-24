@@ -24,6 +24,7 @@ import * as QR from './game/quest-rules.js';
 import * as MR from './game/map-rules.js';
 import * as MT from './game/map-tags.js';
 import * as MG from './game/map-gen.js';
+import * as ZR from './game/zone-rules.js';
 import { derive as deriveSheet } from './characters/sheet.js';
 
 export default function initWorlds() {
@@ -200,6 +201,7 @@ export default function initWorlds() {
     const AUTOSAVE_SETTING = 'worlds_autosave';
     const AUTOSAVE_DELAY = 1000;
     const ASCII_MAP_SETTING = 'map_ascii_ai';
+    const ZONES_SETTING = 'combat_zones';
     function settingOn(id, dflt) { try { const v = window.KLITE_RPMod_Settings?.get(id); return v == null ? dflt : !!v; } catch (_) { return dflt; } }
     const edits = { dirty: false, rev: 0, timer: null };
     function autosaveOn() { try { return !!window.KLITE_RPMod_Settings?.get(AUTOSAVE_SETTING); } catch (_) { return false; } }
@@ -237,6 +239,11 @@ export default function initWorlds() {
                 id: ASCII_MAP_SETTING, section: 'Map', order: 10, default: false,
                 label: 'Send a small text map to the AI',
                 help: 'Inside a dungeon or town the AI also gets a small text map of the rooms the player knows (numbers, @ = you are here). Helps larger models keep the layout straight; small models may do better without it.',
+            });
+            window.KLITE_RPMod_Settings?.registerSetting({
+                id: ZONES_SETTING, section: 'Combat', order: 20, default: true,
+                label: 'Zone combat (positions without a grid)',
+                help: 'New fights take place in the zones of the room you are in: melee only in the same zone, ranged by weapon range, moving one zone per turn, cover behind room features, hiding. Off: everyone can reach everyone, as before. Fights already running keep their mode. See the Guide, tab "Zone combat".',
             });
         } catch (_) {}
         window.addEventListener('beforeunload', (e) => {
@@ -345,7 +352,7 @@ export default function initWorlds() {
         else want = placed.length ? { x: 0, y: Math.max(...placed.map(p => p.y + p.h)) + MR.ROOM.gap, ...size } : { x: 0, y: 0, ...size };
         const rect = (fields.x != null && fields.y != null) ? want : MR.freeSpot(want, placed, MR.ROOM.gap);
         const room = { id: uid('location'), name: norm(fields.name) || defaultRoomName(map), parentId: map.id, map: rect };
-        for (const k of ['description', 'kind', 'light', 'secret', 'hazards', 'origin']) if (fields[k] != null) room[k] = fields[k];
+        for (const k of ['description', 'kind', 'light', 'secret', 'hazards', 'origin', 'combatSpace']) if (fields[k] != null) room[k] = fields[k];
         activeWorld().locations.push(room);
         if (fields.near && locOf(fields.near) && fields.connect !== false) addExit(fields.near, room.id, { dir: fields.dir });
         return room;
@@ -492,6 +499,7 @@ export default function initWorlds() {
             }
         }
         rt().playerLocationId = dest.id;
+        rt().entry = ex && ZR.RING.includes(ex.dir) ? { roomId: dest.id, dir: MR.mirrorDir(ex.dir) } : null;   // zone combat: where the party stands
         markVisitedRoom(dest.id);
         passiveNotice(dest.id);
         const dir = ex && ex.dir ? MR.dirName(ex.dir) : '';
@@ -525,7 +533,7 @@ export default function initWorlds() {
     // Player actions (UI buttons or the AI's tags) go through these rules; results and refusals
     // go to the game log, which the AI reads before its next reply.
     const isDoorExit = (e) => !!e && (e.type === 'door' || e.type === 'secret');
-    const SKILL_ABILITY = { perception: 'wis', investigation: 'int' };
+    const SKILL_ABILITY = { perception: 'wis', investigation: 'int', stealth: 'dex' };
     // "the north iron door" / "the door to Ossuary"
     function doorLabel(e, fromId) {
         const mat = e.door && norm(e.door.material);
@@ -734,7 +742,7 @@ export default function initWorlds() {
     function addFeatureTo(roomId, fields = {}) {
         const o = addEntity('object', { name: fields.name || 'Feature' });
         o.locationId = roomId; o.kind = MR.FEATURE_KINDS.includes(fields.kind) ? fields.kind : 'furniture';
-        for (const k of ['desc', 'contains', 'trapDC', 'lit', 'hidden']) if (fields[k] != null) o[k] = fields[k];
+        for (const k of ['desc', 'contains', 'trapDC', 'lit', 'hidden', 'cover', 'zone']) if (fields[k] != null) o[k] = fields[k];
         return o;
     }
     // Encounters saved at a place (generated ones name the dungeon and room).
@@ -1573,8 +1581,10 @@ export default function initWorlds() {
             lastTarget: {}, outcome: null, xp: 0, persona: usePersona ? personaName() : '', synced: false,
             encounter: opts.encounterId || null, difficulty: opts.difficulty || null };
         const cb = rt().combat;
+        if (opts.zones != null ? !!opts.zones : zonesSettingOn()) cb.zones = initZones(order, opts);
         for (const c of order) if (hp[c.id] <= 0) { if (c.side === 'party') { addCond(c.id, 'Unconscious'); death[c.id] = { s: 0, f: 0, stable: false, dead: false }; } }
         combatLog(`Combat begins. Initiative: ${order.map(o => `${o.name} ${o.init}`).join(', ')}`);
+        if (cb.zones) { const L = cb.zones.layout; const at = (side) => [...new Set(sideList(cb, side).map(o => ZR.zoneName(L, cb.zones.pos[o.id])))].join(', '); combatLog(`Zones: ${ZR.layoutName(L)}. Party: ${at('party')}; enemies: ${at('enemy')}.`); }
         skipUnableAtStart(cb);
         return cb;
     }
@@ -1618,7 +1628,9 @@ export default function initWorlds() {
         let guard = 0;
         do { cb.turnIndex++; if (cb.turnIndex >= cb.order.length) { cb.turnIndex = 0; cb.round++; combatLog(`— Round ${cb.round} —`); } guard++; }
         while (guard < cb.order.length + 1 && !(isV2(cb) ? canTakeTurn(cb, cb.order[cb.turnIndex]) : (cb.hp[cb.order[cb.turnIndex].id] || 0) > 0));
-        return cb.order[cb.turnIndex];
+        const Z = zoneState(cb); const now = cb.order[cb.turnIndex];
+        if (Z && now) { Z.turn = newZoneTurn(now.id); delete Z.reaction[now.id]; }
+        return now;
     }
     // HP changes: party members at 0 HP fall Unconscious and make death saves; others die.
     function setHp(id, value) {
@@ -1662,15 +1674,29 @@ export default function initWorlds() {
     function combatAttack(attackerId, targetId, attackIndex, opts = {}) {
         const cb = getCombat(); if (!cb) return null;
         if (cb.outcome) return null;
-        const aSt = combatantStats(attackerId), tSt = combatantStats(targetId);
-        const atk = asArray(aSt.attacks)[Number(attackIndex) || 0] || { name: 'Unarmed Strike', toHit: aSt.proficiency + abilityMod(aSt.abilities.str), damage: String(Math.max(1, 1 + abilityMod(aSt.abilities.str))) };
-        const toHit = (atk.toHit != null) ? Number(atk.toHit) : (aSt.proficiency + abilityMod(aSt.abilities.str));
-        const ranged = CR.isRanged(atk);
+        const aSt = combatantStats(attackerId), tSt0 = combatantStats(targetId);
+        const { atk, P } = attackOf(attackerId, attackIndex);
+        const A = combatantName(attackerId), T = combatantName(targetId);
+        // zone combat: reach/range, −3 in melee, cover, the doorway limit (RPmod refuses, logged)
+        const Z = zoneState(cb); let zc = null;
+        if (Z) {
+            zc = zoneAttackCheck(cb, Z, attackerId, targetId, P, opts);
+            if (!zc.ok) { combatLog(`${A} cannot attack ${T} with ${atk.name}: ${zc.reason}.`); return { hit: false, refused: zc.reason }; }
+        }
+        const tSt = zc && zc.cover ? Object.assign({}, tSt0, { ac: tSt0.ac + ZR.coverBonus(zc.cover) }) : tSt0;
+        const toHit = ((atk.toHit != null) ? Number(atk.toHit) : (aSt.proficiency + abilityMod(aSt.abilities.str))) - (zc ? zc.penalty : 0);
+        const ranged = zc ? zc.ranged : CR.isRanged(atk);
         const m = isV2(cb) ? CR.attackMode(conds(attackerId), conds(targetId), ranged, opts.mode) : { mode: opts.mode || null, autoCrit: false, why: [] };
         const hit = rollD20(toHit, m.mode);
-        const how = `${m.mode ? ` (${m.mode === 'adv' ? 'advantage' : 'disadvantage'}${m.why.length ? ': ' + m.why.join(', ') : ''})` : ''}`;
-        const A = combatantName(attackerId), T = combatantName(targetId);
+        const zoneNotes = zc ? [zc.penalty ? `−${zc.penalty}: ${T} attacked in melee` : '', zc.cover ? `${ZR.COVER_NAMES[zc.cover]} +${ZR.coverBonus(zc.cover)} AC` : ''].filter(Boolean) : [];
+        const how = `${m.mode ? ` (${m.mode === 'adv' ? 'advantage' : 'disadvantage'}${m.why.length ? ': ' + m.why.join(', ') : ''})` : ''}${zoneNotes.length ? ` [${zoneNotes.join('; ')}]` : ''}`;
         if (isV2(cb)) cb.lastTarget[attackerId] = targetId;
+        if (Z) {
+            if (!ranged) Z.melee[`${attackerId}>${targetId}`] = turnPos(cb);
+            if (zc.doorway) Z.doorShot = cb.round;
+            if (!opts.reaction && zoneOnTurn(Z, attackerId)) Z.turn.attacked = true;
+            if (isHidden(Z, attackerId)) { delete Z.hidden[attackerId]; removeCond(attackerId, 'Invisible'); }   // after the roll (Invisible gave advantage)
+        }
         if (hit.fumble) { combatLog(`Miss (natural 1): ${A} → ${T} with ${atk.name}${how}.`); return { hit: false, fumble: true, roll: hit.total }; }
         if (hit.total >= tSt.ac || hit.crit) {
             const crit = hit.crit || m.autoCrit;
@@ -1762,6 +1788,7 @@ export default function initWorlds() {
         const o = cb.order.find(x => x.id === id); if (!o) return null;
         if (isDown(cb, id)) return { skipped: 'down' };
         if (CR.cannotAct(conds(id))) { combatLog(`${o.name} cannot act (${conds(id).map(c => c.name).join(', ')}).`); return { skipped: 'incapacitated' }; }
+        if (zoneState(cb)) return zoneAutoTurn(id);
         const st = combatantStats(id);
         const foes = cb.order.filter(x => x.side !== o.side && !isDown(cb, x.id)).map(x => x.id);
         if (!foes.length) { combatLog(`${o.name} has no one left to attack.`); return { skipped: 'no target' }; }
@@ -1809,7 +1836,7 @@ export default function initWorlds() {
         const w = activeWorld(); const q = norm(idOrName).toLowerCase();
         const enc = asArray(w && w.encounters).find(e => e.id === idOrName || norm(e.name).toLowerCase() === q);
         if (enc) {
-            const c = startEncounter(asArray(enc.personIds), { monsters: enc.monsters, encounterId: enc.id, difficulty: enc.difficulty });
+            const c = startEncounter(asArray(enc.personIds), { monsters: enc.monsters, encounterId: enc.id, difficulty: enc.difficulty, enemyStart: enc.start || undefined });
             if (c && rt()) { rt().startedEncounters = asArray(rt().startedEncounters); if (!rt().startedEncounters.includes(enc.id)) rt().startedEncounters.push(enc.id); }
             return c;
         }
@@ -1823,6 +1850,270 @@ export default function initWorlds() {
         combatLog(`${combatantName(id)} ${ab.toUpperCase()} check: ${r.total} vs DC ${dc} — ${success ? 'success' : 'fail'}`);
         return { ...r, ability: ab, dc: Number(dc), success };
     }
+    // ---- R7 step 5: zone combat (rules: src/game/zone-rules.js) ----
+    // cb.zones = { layout{ kind, arms, open }, roomId, pos{ id: zone }, cover{ id: featureId },
+    //   hidden{ id: stealth total }, melee{ 'attacker>target': round*N+turnIndex }, reaction{ id: true },
+    //   doorShot: round|null, turn{ id, moved, fled, attacked, acted } }
+    // A fight without `zones` (saved before step 5, or zones switched off) keeps the old rules.
+    function zoneState(cb) { return cb && cb.zones && cb.zones.layout && cb.zones.pos ? cb.zones : null; }
+    function zonesSettingOn() { return settingOn(ZONES_SETTING, true); }
+    // The room's zone layout: board size and its visible exits (an unfound secret door is a wall).
+    function roomLayout(roomId) {
+        const room = locOf(roomId);
+        const dirs = room ? playerExits(roomId).map(e => e.dir) : [];
+        return ZR.layoutFor(room && mapOf(roomId) ? room : null, dirs);
+    }
+    function roomFeatures(roomId) { return asArray(activeWorld() && activeWorld().objects).filter(o => o.locationId === roomId && featureVisible(o)); }
+    function newZoneTurn(id) { return { id, moved: 0, fled: false, attacked: false, acted: false }; }
+    function initZones(order, opts) {
+        const roomId = (rt() && rt().playerLocationId) || null;
+        const layout = roomLayout(roomId);
+        const entry = rt() && rt().entry && rt().entry.roomId === roomId ? rt().entry.dir : null;
+        const P = ZR.isZone(layout, opts.partyStart) ? opts.partyStart : ZR.partyStart(layout, entry);
+        const E = ZR.enemyStart(layout, P, ZR.ENEMY_STARTS.includes(opts.enemyStart) ? opts.enemyStart : 'auto');
+        const pos = {};
+        for (const o of order) pos[o.id] = (opts.positions && ZR.isZone(layout, opts.positions[o.id])) ? opts.positions[o.id] : (o.side === 'party' ? P : E);
+        return { layout, roomId, pos, cover: {}, hidden: {}, melee: {}, reaction: {}, doorShot: null, turn: newZoneTurn(order[0] && order[0].id) };
+    }
+    const zOrder = (cb, id) => cb.order.find(x => x.id === id);
+    const turnPos = (cb) => cb.round * cb.order.length + cb.turnIndex;
+    function zoneOnTurn(Z, id) { return Z.turn && Z.turn.id === id; }
+    function combatantSpeed(id) { const s = Number(combatantStats(id).speed); return s > 0 ? s : 30; }
+    // An attack of a combatant and its zone profile (monster range text: the stat snapshot, or the
+    // SRD data for snapshots saved before step 5; weapons: SRD weapon properties).
+    function attackOf(id, idx) {
+        const st = combatantStats(id); const list = asArray(st.attacks);
+        const atk = list[Number(idx) || 0] || { name: 'Unarmed Strike', toHit: st.proficiency + abilityMod(st.abilities.str), damage: String(Math.max(1, 1 + abilityMod(st.abilities.str))) };
+        let reach = atk.reach;
+        const o = getCombat() && zOrder(getCombat(), id);
+        if (!reach && o && o.key && CR.MONSTERS[o.key]) { const src = asArray(CR.MONSTERS[o.key].attacks).find(a => a.name === atk.name); if (src) reach = src.reach; }
+        const wp = CR.weaponInfo(atk.name);
+        return { atk, P: ZR.attackProfile(Object.assign({}, atk, { reach }), wp && wp.properties, wp && wp.category) };
+    }
+    function attackChoices(id) { return asArray(combatantStats(id).attacks).map((a, i) => Object.assign({ i, avg: a.avg || CR.avgDamage(a.damage) }, attackOf(id, i))); }
+    function bestMeleeIndex(id) {
+        const m = attackChoices(id).filter(x => x.P.melee).sort((a, b) => b.avg - a.avg)[0];
+        return m ? m.i : asArray(combatantStats(id).attacks).length;   // none: Unarmed Strike
+    }
+    function coverLevelOf(Z, id) { const f = Z.cover[id] && findById(activeWorld() && activeWorld().objects, Z.cover[id]); return f ? ZR.coverOf(f) : null; }
+    function isHidden(Z, id) { return Z.hidden[id] != null; }
+    function unhide(id, why) {
+        const Z = zoneState(getCombat()); if (!Z || !isHidden(Z, id)) return;
+        delete Z.hidden[id]; removeCond(id, 'Invisible');
+        combatLog(`${combatantName(id)} is no longer hidden${why ? ' (' + why + ')' : ''}.`);
+    }
+    // Can attacker hit target from where they stand? → { ok, ranged, reason, penalty, cover }
+    function zoneAttackCheck(cb, Z, attackerId, targetId, P, opts) {
+        const T = Z.turn;
+        if (!opts.reaction && zoneOnTurn(Z, attackerId) && T.fled) return { ok: false, reason: 'a creature that flees or dashes cannot attack this turn' };
+        if (!opts.reaction && zoneOnTurn(Z, attackerId) && T.acted) return { ok: false, reason: 'the action is already used this turn' };
+        const a = Z.pos[attackerId], t = Z.pos[targetId];
+        const r = ZR.attackCheck(Z.layout, a, t, P);
+        if (!r.ok) return r;
+        const doorway = r.ranged && ZR.throughDoorway(a, t);
+        if (doorway && Z.doorShot === cb.round && !opts.reaction) return { ok: false, reason: 'only one ranged attack per round can go through a doorway' };
+        const when = Z.melee[`${targetId}>${attackerId}`];
+        const penalty = r.ranged && when != null && turnPos(cb) - when <= cb.order.length ? ZR.IN_MELEE_PENALTY : 0;
+        const cover = a !== t ? coverLevelOf(Z, targetId) : null;
+        return { ok: true, ranged: r.ranged, penalty, cover, doorway };
+    }
+    function refuseMove(id, to, why) { const Z = zoneState(getCombat()); combatLog(`${combatantName(id)} cannot move to ${Z ? ZR.zoneName(Z.layout, to) : to}: ${why}.`); return { ok: false, reason: why }; }
+    // Move a combatant to a zone. opts: { flee } (two zones, no attack, provokes), { free } (the
+    // GM's tool: no turn limits, no opportunity attacks), { verb } for the log ('dashes').
+    function zoneMove(id, to, opts = {}) {
+        const cb = getCombat(); const Z = zoneState(cb);
+        if (!Z || cb.outcome) return { ok: false, reason: 'no zone fight is running' };
+        const L = Z.layout, from = Z.pos[id];
+        if (!ZR.isZone(L, to)) return refuseMove(id, to, 'there is no such zone here');
+        if (from === to) return { ok: true, same: true, zone: to };
+        if (!opts.free) {
+            if (isDown(cb, id)) return refuseMove(id, to, 'they are down');
+            if (CR.cannotAct(conds(id))) return refuseMove(id, to, 'they cannot act');
+            if (conds(id).some(c => c.name === 'Grappled' || c.name === 'Restrained')) return refuseMove(id, to, 'their speed is 0 (' + conds(id).filter(c => c.name === 'Grappled' || c.name === 'Restrained').map(c => c.name).join(', ') + ')');
+        }
+        const d = ZR.distance(L, from, to);
+        if (!Number.isFinite(d)) return refuseMove(id, to, 'there is no way there');
+        const onTurn = !opts.free && zoneOnTurn(Z, id);
+        const flee = !!opts.flee || (onTurn && Z.turn.fled);
+        if (onTurn) {
+            if (opts.flee && (Z.turn.attacked || Z.turn.acted)) return refuseMove(id, to, 'fleeing needs the action, which is already used');
+            const left = ZR.moveAllowance(combatantSpeed(id), flee) - Z.turn.moved;
+            if (d > left) return refuseMove(id, to, left <= 0 ? 'no movement left this turn' : `only ${left} zone${left > 1 ? 's' : ''} of movement left${flee ? '' : ' (Flee moves two, without attacking)'}`);
+        }
+        const me = zOrder(cb, id);
+        if (!opts.free && ZR.provokes(d, flee)) {
+            for (const f of cb.order) {
+                if (!me || f.side === me.side || Z.pos[f.id] !== from || isDown(cb, f.id) || CR.cannotAct(conds(f.id)) || Z.reaction[f.id]) continue;
+                Z.reaction[f.id] = true;
+                combatLog(`${f.name} makes an opportunity attack as ${combatantName(id)} ${flee ? 'flees' : 'rushes past'}.`);
+                combatAttack(f.id, id, bestMeleeIndex(f.id), { reaction: true });
+                if (cb.outcome || isDown(cb, id)) return { ok: false, reason: 'struck down while leaving', down: true };
+            }
+        }
+        Z.pos[id] = to; delete Z.cover[id];
+        if (onTurn) { Z.turn.moved += d; if (opts.flee) Z.turn.fled = true; }
+        if (isHidden(Z, id) && roomLightOf(locOf(Z.roomId)) !== 'dark') unhide(id, 'moved into the open');
+        combatLog(`${combatantName(id)} ${opts.verb || (opts.flee ? 'flees' : 'moves')} to ${ZR.zoneName(L, to)}.${to === 'out' && id === '__player__' ? ' Out of range: end the encounter to escape.' : ''}`);
+        return { ok: true, zone: to, moved: d };
+    }
+    // Take cover behind a feature in the combatant's zone (part of moving: no action).
+    function zoneTakeCover(id, target) {
+        const cb = getCombat(); const Z = zoneState(cb); if (!Z || cb.outcome) return { ok: false, reason: 'no zone fight is running' };
+        const name = combatantName(id);
+        const refuse = (why) => { combatLog(`${name} cannot take cover: ${why}.`); return { ok: false, reason: why }; };
+        const key = MT.looseKey(norm(target));
+        const f = roomFeatures(Z.roomId).find(o => o.id === target || MT.looseKey(o.name) === key);
+        if (!f) return refuse('there is no such feature here');
+        const lvl = ZR.coverOf(f); if (!lvl) return refuse(`${norm(f.name)} gives no cover`);
+        const fz = ZR.featureZone(Z.layout, f);
+        if (fz !== Z.pos[id]) return refuse(`${norm(f.name)} is at ${ZR.zoneName(Z.layout, fz)} — move there first`);
+        if (isDown(cb, id) || CR.cannotAct(conds(id))) return refuse('they cannot move');
+        Z.cover[id] = f.id;
+        combatLog(`${name} takes cover behind ${norm(f.name)} (${ZR.COVER_NAMES[lvl]}, +${ZR.COVER[lvl]} AC against attacks from other zones).`);
+        return { ok: true, cover: lvl, feature: f.id };
+    }
+    // A combatant's skill bonus: the persona sheet for the player, a monster's skill line
+    // ("Stealth +6"; Perception also from "Passive Perception 12"), else the ability modifier.
+    function combatSkill(id, skill) {
+        if (id === '__player__') return playerSkill(skill);
+        const st = combatantStats(id);
+        if (st.skills && Number.isFinite(Number(st.skills[skill]))) return Number(st.skills[skill]);
+        const text = String(st.skillText || '') + ' ' + String(st.senses || '');
+        const m = new RegExp(skill + '\\s*([+-]\\d+)', 'i').exec(text); if (m) return Number(m[1]);
+        if (skill === 'perception') { const p = /passive perception\s*(\d+)/i.exec(text); if (p) return Number(p[1]) - 10; }
+        return abilityMod(st.abilities[SKILL_ABILITY[skill] || 'dex']);
+    }
+    // Hide (SRD 5.2.1): an action; DC 15 Dexterity (Stealth) behind three-quarters cover or in
+    // darkness, with no enemy in the same zone watching. Success: Invisible; the total is the DC
+    // to find you. It ends when you attack (or leave cover into light).
+    function zoneHide(id) {
+        const cb = getCombat(); const Z = zoneState(cb); if (!Z || cb.outcome) return { ok: false, reason: 'no zone fight is running' };
+        const name = combatantName(id);
+        const refuse = (why) => { combatLog(`${name} cannot hide: ${why}.`); return { ok: false, reason: why }; };
+        if (isDown(cb, id) || CR.cannotAct(conds(id))) return refuse('they cannot act');
+        if (zoneOnTurn(Z, id) && (Z.turn.attacked || Z.turn.acted || Z.turn.fled)) return refuse('the action is already used this turn');
+        if (isHidden(Z, id)) return refuse('already hidden');
+        const dark = roomLightOf(locOf(Z.roomId)) === 'dark';
+        if (!dark && coverLevelOf(Z, id) !== 'three') return refuse('hiding needs three-quarters cover or darkness');
+        const me = zOrder(cb, id);
+        const watcher = cb.order.find(f => me && f.side !== me.side && Z.pos[f.id] === Z.pos[id] && !isDown(cb, f.id) && !CR.cannotAct(conds(f.id)));
+        if (watcher && !dark) return refuse(`${watcher.name} is right there and sees it`);
+        if (zoneOnTurn(Z, id)) Z.turn.acted = true;
+        const r = rollD20(combatSkill(id, 'stealth'));
+        if (r.total >= ZR.HIDE_DC) {
+            Z.hidden[id] = r.total; addCond(id, 'Invisible');
+            combatLog(`${name} hides: Stealth ${r.total} vs DC ${ZR.HIDE_DC} — success, now hidden (Invisible) until attacking or found.`);
+            return { ok: true, hidden: true, total: r.total };
+        }
+        combatLog(`${name} tries to hide: Stealth ${r.total} vs DC ${ZR.HIDE_DC} — failure.`);
+        return { ok: true, hidden: false, total: r.total };
+    }
+    // Search (an action): Wisdom (Perception) against each hidden foe's Stealth total.
+    function zoneSearch(id) {
+        const cb = getCombat(); const Z = zoneState(cb); if (!Z) return null;
+        const me = zOrder(cb, id);
+        const hidden = cb.order.filter(f => me && f.side !== me.side && isHidden(Z, f.id));
+        if (zoneOnTurn(Z, id)) Z.turn.acted = true;
+        const r = rollD20(combatSkill(id, 'perception'));
+        const found = hidden.filter(f => r.total >= Z.hidden[f.id]);
+        combatLog(`${combatantName(id)} searches: Perception ${r.total}${found.length ? ` — finds ${found.map(f => f.name).join(', ')}` : ' — finds no one'}.`);
+        for (const f of found) unhide(f.id, 'found');
+        return { total: r.total, found: found.map(f => f.id) };
+    }
+    // A monster's (or companion's) turn in zones: melee fighters close in (a dash when too far)
+    // and attack; ranged fighters step away from melee, prefer cover and shoot; with no one to
+    // see they search.
+    function zoneAutoTurn(id) {
+        const cb = getCombat(); const Z = zoneState(cb); const L = Z.layout;
+        const o = zOrder(cb, id); const st = combatantStats(id);
+        const foes = cb.order.filter(x => x.side !== o.side && !isDown(cb, x.id) && Z.pos[x.id] !== 'out');
+        if (!foes.length) { combatLog(`${o.name} has no one left to attack.`); return { skipped: 'no target' }; }
+        const visible = foes.filter(f => !isHidden(Z, f.id));
+        if (!visible.length) return { searched: zoneSearch(id) };
+        const choices = attackChoices(id);
+        if (!choices.length) choices.push(Object.assign({ i: 0, avg: 1 }, attackOf(id, 0)));
+        const melee = choices.filter(x => x.P.melee).sort((a, b) => b.avg - a.avg)[0];
+        const ranged = choices.filter(x => x.P.ranged).sort((a, b) => b.avg - a.avg)[0];
+        const prefersRanged = !!ranged && (!melee || ranged.avg * 0.75 > melee.avg);
+        const near = (list) => { const best = Math.min(...list.map(f => ZR.distance(L, Z.pos[id], Z.pos[f.id]))); return list.filter(f => ZR.distance(L, Z.pos[id], Z.pos[f.id]) === best); };
+        const pickFrom = (list) => { const ids = list.map(f => f.id); return CR.pickTarget(ids, cb.lastTarget[id], Math.random); };
+        const canHit = (x) => visible.filter(f => ZR.attackCheck(L, Z.pos[id], Z.pos[f.id], x.P).ok);
+        const tryCover = () => {
+            if (Z.cover[id]) return;
+            const f = roomFeatures(Z.roomId).filter(f => ZR.coverOf(f) && ZR.featureZone(L, f) === Z.pos[id]).sort((a, b) => ZR.COVER[ZR.coverOf(b)] - ZR.COVER[ZR.coverOf(a)])[0];
+            if (f) zoneTakeCover(id, f.id);
+        };
+        const strike = (x) => {
+            const results = [];
+            for (let i = 0; i < (st.multiattack || 1) && !cb.outcome; i++) {
+                const live = canHit(x).filter(f => !isDown(cb, f.id)); if (!live.length) break;
+                results.push(combatAttack(id, pickFrom(live), x.i));
+            }
+            return results;
+        };
+        let use = prefersRanged ? ranged : melee;
+        if (prefersRanged) {
+            // step back out of melee (one zone: no opportunity attacks) to a zone with a shot
+            if (visible.some(f => Z.pos[f.id] === Z.pos[id])) {
+                const spots = ZR.neighbours(L, Z.pos[id]).filter(z => z !== 'out' && !foes.some(f => Z.pos[f.id] === z) && visible.some(f => ZR.attackCheck(L, z, Z.pos[f.id], ranged.P).ok));
+                const withCover = spots.find(z => roomFeatures(Z.roomId).some(f => ZR.coverOf(f) && ZR.featureZone(L, f) === z));
+                if (spots.length) zoneMove(id, withCover || spots[0]);
+            }
+            if (!canHit(ranged).length) zoneMove(id, ZR.stepToward(L, Z.pos[id], Z.pos[near(visible)[0].id], 1));
+            if (cb.outcome || isDown(cb, id)) return { moved: true };
+            tryCover();
+            if (!canHit(ranged).length && melee && canHit(melee).length) use = melee;
+        } else {
+            if (!canHit(melee).length) {
+                const target = zOrder(cb, pickFrom(near(visible))) || near(visible)[0];
+                const d = ZR.distance(L, Z.pos[id], Z.pos[target.id]);
+                const allow = ZR.moveAllowance(combatantSpeed(id), false);
+                if (d <= allow) zoneMove(id, ZR.stepToward(L, Z.pos[id], Z.pos[target.id], d));
+                else if (ranged && canHit(ranged).length) use = ranged;
+                else { zoneMove(id, ZR.stepToward(L, Z.pos[id], Z.pos[target.id], ZR.moveAllowance(combatantSpeed(id), true)), { flee: true, verb: 'dashes' }); return { moved: true }; }
+                if (cb.outcome || isDown(cb, id)) return { moved: true };
+            }
+        }
+        if (!use || !canHit(use).length) { tryCover(); combatLog(`${o.name} finds no one to attack from ${ZR.zoneName(L, Z.pos[id])}.`); return { skipped: 'out of reach' }; }
+        return { attacks: strike(use) };
+    }
+    // The zone picture for the UI and tests: layout, zones with names, doors, features, who is where.
+    function zoneView() {
+        const cb = getCombat(); const Z = zoneState(cb); if (!Z) return null;
+        const L = Z.layout;
+        const doors = Z.roomId ? playerExits(Z.roomId).filter(e => ZR.RING.includes(e.dir)).map(e => ({ dir: e.dir, to: playerPlaceName(e.to, Z.roomId), type: e.type || 'open', state: MR.doorState(e, rt().doorState) })) : [];
+        const features = Z.roomId ? roomFeatures(Z.roomId).map(f => ({ id: f.id, name: norm(f.name), cover: ZR.coverOf(f), zone: ZR.featureZone(L, f) })) : [];
+        return {
+            layout: L, kind: L.kind, name: ZR.layoutName(L), room: Z.roomId ? placeName(Z.roomId) : '',
+            dark: !!Z.roomId && roomLightOf(locOf(Z.roomId)) === 'dark',
+            zones: ZR.zonesOf(L).map(z => ({ id: z, name: ZR.zoneName(L, z), short: ZR.zoneShort(z), inside: ZR.inside(L, z) })),
+            doors, features,
+            pos: Object.assign({}, Z.pos), cover: Object.assign({}, Z.cover), hidden: Object.keys(Z.hidden),
+            turn: Object.assign({}, Z.turn),
+            movesLeft: (id) => ZR.moveAllowance(combatantSpeed(id), Z.turn && Z.turn.fled) - (Z.turn && Z.turn.id === id ? Z.turn.moved : 0),
+            distance: (a, b) => ZR.distance(L, Z.pos[a], Z.pos[b]),
+            distanceTo: (id, zone) => ZR.distance(L, Z.pos[id], zone),
+            neighbours: (z) => ZR.neighbours(L, z),
+            canAttack: (a, t, i) => { const { P } = attackOf(a, i); return zoneAttackCheck(cb, Z, a, t, P, {}); },
+        };
+    }
+    // Combat text lines for the AI (the battlefield and where everyone is).
+    function zoneText(cb) {
+        const Z = zoneState(cb); if (!Z) return '';
+        const v = zoneView(); const L = Z.layout;
+        const inner = v.zones.filter(z => z.inside).map(z => {
+            const door = v.doors.filter(d => d.dir === z.id).map(d => `${d.type === 'door' || d.type === 'secret' ? d.state + ' door' : 'way'} to ${d.to}`);
+            const terr = v.features.filter(f => f.zone === z.id).map(f => `${f.name}${f.cover ? ` (${ZR.COVER_NAMES[f.cover]})` : ''}`);
+            return `- ${z.name}${door.length ? ': ' + door.join(', ') : ''}${terr.length ? `${door.length ? '; ' : ': '}${terr.join(', ')}` : ''}`;
+        });
+        return `Battlefield${v.room ? ' — ' + v.room : ''}: ${ZR.layoutName(L)}${v.dark ? ', dark' : ''}. Zones:\n${inner.join('\n')}\n` +
+            'Same zone = melee range; ranged weapons of 30 ft or less reach the next zone, longer ones any zone in line of fire; moving = one zone per turn; cover from terrain gives +2 or +5 AC.';
+    }
+    function zoneTag(cb, id) {
+        const Z = zoneState(cb); if (!Z) return '';
+        const lvl = coverLevelOf(Z, id); const f = lvl && findById(activeWorld().objects, Z.cover[id]);
+        return ` — ${ZR.zoneName(Z.layout, Z.pos[id])}${lvl ? `, behind ${norm(f.name)} (${ZR.COVER_NAMES[lvl]})` : ''}${isHidden(Z, id) ? ', hidden' : ''}`;
+    }
     // Human-readable combat state for injection (the AI narrates, RPmod adjudicates).
     function combatText() {
         const cb = getCombat(); if (!cb || !cb.active) return '';
@@ -1831,7 +2122,7 @@ export default function initWorlds() {
             const c = conds(o.id).map(x => x.name + (x.rounds ? ` ${x.rounds} rd` : ''));
             const d = deathOf(cb, o.id);
             const state = d ? (d.dead ? ' — dead' : d.stable ? ' — unconscious, stable' : ` — dying (${d.s}/3 successes, ${d.f}/3 failures)`) : (isDown(cb, o.id) ? (o.side === 'enemy' ? ' — defeated' : ' — down') : '');
-            return `${o.id === cur.id && !cb.outcome ? '▶ ' : '  '}${o.name}${o.key ? ` (${CR.MONSTERS[o.key].name}, AC ${cb.stats[o.id].ac})` : ''} HP ${cb.hp[o.id]}/${cb.maxHp[o.id]}${c.length ? ` [${c.join(', ')}]` : ''}${state}`;
+            return `${o.id === cur.id && !cb.outcome ? '▶ ' : '  '}${o.name}${o.key ? ` (${CR.MONSTERS[o.key].name}, AC ${cb.stats[o.id].ac})` : ''} HP ${cb.hp[o.id]}/${cb.maxHp[o.id]}${c.length ? ` [${c.join(', ')}]` : ''}${state}${zoneTag(cb, o.id)}`;
         };
         if (!isV2(cb)) {
             const roster = cb.order.map(o => `${o.id === cur.id ? '▶ ' : '  '}${o.name} (init ${o.init}) HP ${cb.hp[o.id]}/${cb.maxHp[o.id]}${cb.hp[o.id] <= 0 ? ' — down' : ''}`).join('\n');
@@ -1839,6 +2130,7 @@ export default function initWorlds() {
             return `Round ${cb.round}. Current turn: ${cur.name}.\n${roster}` + (recent ? `\nRecent:\n${recent}` : '');
         }
         const parts = [`Round ${cb.round}.` + (cb.outcome ? '' : ` Current turn: ${cur.name}${cur.isPlayer ? ' (the player)' : ''}.`)];
+        if (zoneState(cb)) parts.push(zoneText(cb));
         parts.push('Party:\n' + sideList(cb, 'party').map(line).join('\n'));
         parts.push('Enemies:\n' + sideList(cb, 'enemy').map(line).join('\n'));
         if (cb.outcome === 'victory') parts.push(`OUTCOME: Victory — every enemy is defeated${cb.xp ? ` (${cb.xp} XP)` : ''}. Narrate the end of the fight.`);
@@ -2672,6 +2964,7 @@ export default function initWorlds() {
 
         // ----- R7 maps: dungeons & towns, room by room (src/game/map-rules.js) -----
         mapRules: MR,
+        zoneRules: ZR,
         setLocationKind(id, kind) { const k = setLocationKind(id, kind); syncLive(); return k; },
         locationKind: (id) => MR.kindOf(locOf(id)),
         mapOf: (id) => { const m = mapOf(id); return m ? m.id : null; },
@@ -2759,12 +3052,20 @@ export default function initWorlds() {
         encounterXp: (monsters) => CR.encounterXp(asArray(monsters).map(m => ({ key: CR.findMonster(m.key || m.name), count: m.count }))),
         partyInfo,
         autoTurn(id) { const r = autoTurn(id); syncLive(); return r; },
+        // ----- R7 step 5: zone combat -----
+        zoneView,
+        zoneMove(id, zone, opts) { const r = zoneMove(id || '__player__', zone, opts || {}); syncLive(); return r; },
+        zoneFlee(id, zone) { const r = zoneMove(id || '__player__', zone, { flee: true }); syncLive(); return r; },
+        takeCover(id, feature) { const r = zoneTakeCover(id || '__player__', feature); syncLive(); return r; },
+        hide(id) { const r = zoneHide(id || '__player__'); syncLive(); return r; },
+        zoneSearch(id) { const r = zoneSearch(id || '__player__'); syncLive(); return r; },
+        zoneLayoutOf(locId) { return roomLayout(locId); },
         runAutoTurns() { const r = runAutoTurns(); syncLive(); return r; },
         deathSave(id) { const r = deathSaveRoll(id || '__player__'); syncLive(); return r; },
         savingThrow(id, ability, dc, mode) { const r = savingThrow(id, ability, dc, { mode }); syncLive(); return r; },
         saveAction(a, t, i) { const r = saveAction(a, t, i); syncLive(); return r; },
         addCondition(id, name, rounds) { addCond(id, name, rounds); combatLog(`${combatantName(id)} is ${name}${rounds ? ` for ${rounds} round${rounds > 1 ? 's' : ''}` : ''}.`); syncLive(); return conds(id); },
-        removeCondition(id, name) { removeCond(id, name); combatLog(`${combatantName(id)} is no longer ${name}.`); syncLive(); return conds(id); },
+        removeCondition(id, name) { removeCond(id, name); const Z = zoneState(getCombat()); if (Z && name === 'Invisible') delete Z.hidden[id]; combatLog(`${combatantName(id)} is no longer ${name}.`); syncLive(); return conds(id); },
         conditionsOf: (id) => conds(id).slice(),
         conditionNames: () => CR.CONDITIONS.slice(),
         conditionText: (name) => CR.conditionText(name),
@@ -2774,6 +3075,7 @@ export default function initWorlds() {
             w.encounters = asArray(w.encounters);
             const e = { id: enc.id || uid('enc'), name: norm(enc.name) || 'Encounter', monsters: asArray(enc.monsters).map(m => ({ key: CR.findMonster(m.key || m.name), count: Math.max(1, Number(m.count) || 1) })).filter(m => m.key),
                 personIds: asArray(enc.personIds), locationId: enc.locationId || null, difficulty: enc.difficulty || null };
+            if (ZR.ENEMY_STARTS.includes(enc.start) && enc.start !== 'auto') e.start = enc.start;
             const i = w.encounters.findIndex(x => x.id === e.id);
             if (i >= 0) w.encounters[i] = e; else w.encounters.push(e);
             return e;

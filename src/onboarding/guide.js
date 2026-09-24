@@ -5,9 +5,12 @@ import { hostGet } from './hostGlobals.js';
 import { CHAPTERS } from './chapters.js';
 
 const STORE_KEY = 'KLITE.guide.chapter';
+const BOOK_KEY = 'KLITE.guide.book';
 
 function savedChapter() { try { return localStorage.getItem(STORE_KEY); } catch (_) { return null; } }
 function saveChapter(id) { try { localStorage.setItem(STORE_KEY, id); } catch (_) {} }
+function savedBook() { try { return localStorage.getItem(BOOK_KEY); } catch (_) { return null; } }
+function saveBook(id) { try { localStorage.setItem(BOOK_KEY, id); } catch (_) {} }
 
 // ---- spotlight: ring around a UI element + a short note ------------------------
 let spot = null;
@@ -54,14 +57,19 @@ export function highlight(target, note) {
 }
 
 // ---- guide view ----------------------------------------------------------------
-export function createGuideView(shell) {
-    let current = CHAPTERS.some(c => c.id === savedChapter()) ? savedChapter() : CHAPTERS[0].id;
+// books: tabs of the guide ([{ id, label, chapters }]); default: RPmod's chapters only.
+export function createGuideView(shell, books) {
+    books = books && books.length ? books : [{ id: 'rpmod', label: 'RPmod', chapters: CHAPTERS }];
+    let book = books.find(b => b.id === savedBook()) || books[0];
+    let current = book.chapters.some(c => c.id === savedChapter()) ? savedChapter() : book.chapters[0].id;
 
     const ctx = {
         open: (id) => { try { shell.open(id); } catch (_) {} },
         highlight: (target, note) => setTimeout(() => highlight(target, note), 60),   // after panels/windows opened
         hostCall: (name) => { const fn = hostGet(name); if (typeof fn === 'function') fn(); },
         navLink: (text) => () => [...document.querySelectorAll('#navbarNavDropdown a.nav-link')].find(a => a.textContent.trim() === text && a.offsetParent !== null),
+        show: (id) => { try { shell.open(id); } catch (_) {} },
+        zoneGuide: () => { const b = books.find(x => x.id === 'zones'); if (b) { book = b; current = b.chapters[0].id; saveBook(b.id); saveChapter(current); shell.refresh(['guide']); } },
     };
 
     function renderBlock(b) {
@@ -72,7 +80,7 @@ export function createGuideView(shell) {
             const [headRow, ...rows] = b.table;
             return el('table', { class: 'rpm-guide-table' }, [
                 el('thead', null, [el('tr', null, headRow.map(h => el('th', { text: h })))]),
-                el('tbody', null, rows.map(r => el('tr', null, [el('td', null, [el('code', { text: r[0] })]), el('td', { text: r[1] })])))
+                el('tbody', null, rows.map(r => el('tr', null, [b.code === false ? el('td', { text: r[0] }) : el('td', null, [el('code', { text: r[0] })]), el('td', { text: r[1] })])))
             ]);
         }
         return null;
@@ -80,9 +88,14 @@ export function createGuideView(shell) {
 
     function render(box) {
         clear(box);
+        const CHAPTERS = book.chapters;
         const idx = Math.max(0, CHAPTERS.findIndex(c => c.id === current));
         const ch = CHAPTERS[idx];
         const go = (id) => { current = id; saveChapter(id); render(box); };
+        const tabs = books.length > 1 ? el('div', { class: 'rpm-tabs rpm-guide-books', role: 'tablist' }, books.map(b => el('button', {
+            type: 'button', role: 'tab', class: 'rpm-tab' + (b.id === book.id ? ' rpm-active' : ''), 'aria-selected': b.id === book.id ? 'true' : 'false', 'data-book': b.id, text: b.label,
+            onclick: () => { book = b; saveBook(b.id); current = b.chapters[0].id; saveChapter(current); render(box); },
+        }))) : null;
 
         const toc = el('nav', { class: 'rpm-guide-toc', 'aria-label': 'Guide chapters' },
             CHAPTERS.map((c, i) => el('button', {
@@ -108,6 +121,7 @@ export function createGuideView(shell) {
                 : el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-lg', text: 'Done', onclick: () => shell.close('guide') }),
         ]));
 
+        if (tabs) box.appendChild(tabs);
         box.appendChild(el('div', { class: 'rpm-guide' }, [toc, article]));
     }
 
@@ -115,6 +129,10 @@ export function createGuideView(shell) {
         id: 'guide', title: 'RPmod Guide', place: 'window',
         window: { width: 680, height: 560, minWidth: 320, minHeight: 280 },
         mount: render, update: render,
-        goTo: (id) => { if (CHAPTERS.some(c => c.id === id)) { current = id; saveChapter(id); } },
+        goTo: (id, bookId) => {
+            const b = books.find(x => x.id === bookId) || (id && books.find(x => x.chapters.some(c => c.id === id))) || book;
+            book = b; saveBook(b.id);
+            current = b.chapters.some(c => c.id === id) ? id : b.chapters[0].id; saveChapter(current);
+        },
     };
 }

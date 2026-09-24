@@ -376,6 +376,34 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-cb-item { display: flex; gap: 6px; align-items: center; padding: 3px 6px; border-bottom: 1px solid var(--rpm-border); font-size: var(--rpm-fs-sm); }
 .rpm-cb-item > .rpm-grow { flex: 1 1 0; min-width: 0; }
 .rpm-cb-outcome.rpm-cb-victory { border-color: var(--rpm-success); }
+/* zone combat board (src/game/zoneBoard.js) */
+.rpm-zone-card { padding: var(--rpm-s2); }
+.rpm-zone-board { display: block; width: 100%; max-width: 340px; margin: 4px auto; }
+.rpm-zone-area { fill: var(--rpm-bg-alt); stroke: var(--rpm-border-hi); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.rpm-zone-outer .rpm-zone-area { fill: var(--rpm-bg-outer); stroke-dasharray: none; }
+.rpm-zone-dark .rpm-zone-area { fill: var(--rpm-bg-chat); }
+.rpm-zone-wall { fill: color-mix(in srgb, var(--rpm-fg-muted) 28%, var(--rpm-bg-outer)); stroke: var(--rpm-border-hi); }
+.rpm-zone-reach { cursor: pointer; }
+.rpm-zone-reach .rpm-zone-area { fill: color-mix(in srgb, var(--rpm-fg-hi) 18%, var(--rpm-bg-alt)); stroke: var(--rpm-fg-hi); stroke-width: 2; stroke-dasharray: none; }
+.rpm-zone-reach:hover .rpm-zone-area, .rpm-zone-reach:focus .rpm-zone-area { fill: color-mix(in srgb, var(--rpm-fg-hi) 34%, var(--rpm-bg-alt)); }
+.rpm-zone-reach:focus { outline: none; }
+.rpm-zone-label { fill: var(--rpm-fg-muted); font-size: 10px; pointer-events: none; }
+.rpm-zone-door rect { fill: var(--rpm-quest, #c9a227); stroke: var(--rpm-bg-outer); }
+.rpm-zone-door[data-state="locked"] rect, .rpm-zone-door[data-state="barred"] rect { fill: var(--rpm-danger, #c0392b); }
+.rpm-zone-feature rect { fill: var(--rpm-fg-muted); stroke: var(--rpm-bg-outer); }
+.rpm-zone-feature.rpm-zone-cover-three rect { fill: var(--rpm-fg); }
+.rpm-zone-token { pointer-events: none; }
+.rpm-zone-token circle { stroke: var(--rpm-bg-outer); stroke-width: 2; }
+.rpm-zone-party circle { fill: var(--rpm-info, #2f80ed); }
+.rpm-zone-enemy circle { fill: var(--rpm-danger, #c0392b); }
+.rpm-zone-token text { fill: #fff; font-size: 9px; font-weight: bold; }
+.rpm-zone-current circle { stroke: var(--rpm-quest, #f1c40f); stroke-width: 3; }
+.rpm-zone-down { opacity: .45; }
+.rpm-zone-hidden circle { stroke-dasharray: 3 2; fill-opacity: .5; }
+.rpm-zone-shield { fill: var(--rpm-fg-hi); font-size: 9px; }
+.rpm-guide-books { flex: none; margin-bottom: var(--rpm-s2); }
+.rpm-zone-demo .rpm-card { margin-bottom: var(--rpm-s2); }
+.rpm-linkbtn { background: none; border: 0; padding: 0; color: var(--rpm-fg-hi); text-decoration: underline; cursor: pointer; font-size: var(--rpm-fs-sm); }
 .rpm-cb-outcome.rpm-cb-defeat { border-color: var(--rpm-danger); }
 .rpm-cb-turn { margin-top: 10px; border-color: var(--rpm-border-hi); }
 .rpm-cb-tools { margin-top: 10px; }

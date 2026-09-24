@@ -20,7 +20,7 @@ test('rules: SRD monsters, XP budget and difficulty, conditions, death saves, ta
     assert.ok(Object.keys(CR.MONSTERS).length >= 320, 'the SRD 5.2.1 monsters');
     const gob = CR.monsterStats('goblin-warrior');
     assert.deepEqual([gob.ac, gob.hpMax, gob.initiativeMod, gob.xp, gob.cr], [15, 10, 2, 50, '1/4']);
-    assert.deepEqual(plain(gob.attacks[0]), { name: 'Scimitar', toHit: 4, damage: '1d6+2', type: 'Slashing', kind: 'melee', avg: 5 });
+    assert.deepEqual(plain(gob.attacks[0]), { name: 'Scimitar', toHit: 4, damage: '1d6+2', type: 'Slashing', kind: 'melee', avg: 5, reach: 'reach 5 ft.' });
     const dragon = CR.monsterStats('adult-red-dragon');
     assert.equal(dragon.multiattack, 3); assert.equal(dragon.saves.dex, 6);
     assert.deepEqual(plain(dragon.saveActions[0]), { name: 'Fire Breath (Recharge 5–6)', save: 'dex', dc: 21, damage: '17d6', type: 'Fire', half: true });
@@ -60,6 +60,7 @@ async function field(t, playerStats) {
     const h = createHost(); t.after(h.close);
     h.load('bundle'); await h.ready({ ui: true });
     const W = h.api();
+    h.window.KLITE_RPMod_Settings.set('combat_zones', false);   // these tests cover the rules without zones (zones: zones.test.js)
     await W.newWorld('Road');
     W.addEntity('location', { name: 'Road' });
     W.setPlayerCombat({ name: 'Kara', stats: Object.assign({ abilities: { str: 16, dex: 14 }, ac: 16, hpMax: 12, attacks: [{ name: 'Longsword', toHit: 5, damage: '1d8+3' }] }, playerStats || {}) });

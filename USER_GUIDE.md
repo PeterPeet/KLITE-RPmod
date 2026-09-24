@@ -155,6 +155,9 @@ its inside is built in the **dungeon/town editor**, which opens over the world e
   its exits, a **way out** to a place in the world (e.g. the crypt entrance on the Forest Road),
   **features** (furniture, containers with contents, traps with a DC, lights), **inhabitants**
   (persons who live there) and an **encounter** of SRD monsters waiting there.
+  For **zone combat** (section 6b): the room's **fighting space** (automatic from its size and
+  exits, or small room / large space / corridor) and, per feature, its **cover** (automatic from
+  the name: pillars, statues, boulders three-quarters, other furniture half) and its **zone**.
 - A room can be a **dungeon level** (or town district) with its own map: double-click it;
   the breadcrumbs at the top lead back.
 - Nothing selected: the dungeon/town's name, description and **style** (dungeon: stone or
@@ -489,6 +492,43 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
   fight it is told how to start one: `<encounter>2 Wolf</encounter>`. The older tags `<attack>`,
   `<roll>`, `<hp>` and `<check>` still work.
 
+**Zone combat (positions without a grid).** A fight takes place in the room you are in, split
+into a few **zones**; every creature stands in one zone. No grid, no measuring. The Guide has a
+tab **Zone combat** with the rules and diagrams of the three layouts (also: *How zone combat
+works* in the Combat window).
+
+- **Layouts** (one map square = 10 ft): a **small room** (up to 30 × 30 ft) is one zone; a
+  **large space** (bigger rooms, caverns, anything outdoors) has a **centre** and four **sides**
+  (north, east, south, west — each side touches the centre and its two neighbours); a **corridor**
+  (one square wide) has a middle and only the arms its passages lead to. Every layout also has
+  **just outside** (behind the doors) and **out of range**. Doors are drawn on the room's edge.
+- **Start:** you stand on the side of the room you came in by (else the centre); enemies start
+  across the room, or — chosen in the builder or stored with a saved encounter — right beside
+  you, in the next zone or outside.
+- **Moving:** one zone per turn (speed 60 ft or more: two). **Flee** moves two zones but allows
+  no attack, and enemies in the zone you leave get an **opportunity attack**; a one-zone
+  *fighting retreat* is safe. Click a highlighted zone on the board, or pick one and press
+  **Move** / **Flee**.
+- **Attacks:** melee only in the **same zone** (reach over 30 ft: the next zone); ranged weapons
+  with a range of 30 ft or less reach the same or the next zone, longer ones any zone in the line
+  of fire (walls block it in corridors; from outside only through a doorway, and only one ranged
+  attack per round goes through a doorway). Shooting at an enemy who attacked you in melee within
+  the last round: **−3 to hit**. When an attack is not possible, the window says why.
+- **Cover** (SRD 5.2.1): **Take cover** behind a feature in your zone — half cover +2 AC,
+  three-quarters +5 AC against attacks from other zones.
+- **Hide** (SRD 5.2.1, your action): Stealth against DC 15, behind three-quarters cover with no
+  enemy in your zone, or in a dark room. Success = **Invisible** (attacks against you with
+  disadvantage, yours with advantage) until you attack or an enemy finds you with **Search**
+  (Perception against your Stealth total).
+- **Enemies** follow the same rules: melee fighters close in (and dash when too far), archers
+  step out of melee, take cover and shoot, and enemies who see no one search.
+- The board shows everyone as tokens (blue = party, red = enemies, gold ring = whose turn),
+  doors on the edge and features that give cover; the AI gets the battlefield (zones with doors
+  and terrain) and each combatant's zone and cover.
+- **Tools → Put there** places a creature in a zone without rules (game-master fix).
+- Switch zones off in Settings → RPmod → **Zone combat**: everyone can reach everyone again.
+  A fight already running keeps its mode; fights saved before zones existed keep working.
+
 ---
 
 ## 7. What the AI actually sees
@@ -553,6 +593,8 @@ RPmod's options are in Esolite's own **Settings** dialog, on the **RPmod** tab (
 **Cancel** discards your changes.
 
 - **Worlds → Autosave world edits**: see *Unsaved changes* in section 4.
+- **Combat → Run enemy turns automatically** and **Zone combat** (positions without a grid, on by
+  default): see *Combat* in section 6b.
 - **Debug & compatibility**: hide the Corpo theme's left panel, and debug logging with
   topics for bug reports.
 
@@ -600,3 +642,6 @@ W.exportWorldAsWI();              // flat WorldInfo array
 This work includes material from the System Reference Document 5.2.1 ("SRD 5.2.1") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.
 
 Icons: Lucide (ISC license; some icons derived from Feather, MIT license).
+
+Zone combat: the idea of zones instead of a grid comes from the zone combat house rules of
+Ultimate Dungeon Terrain (Dungeon Craft); RPmod implements its own rules, nothing is copied.
