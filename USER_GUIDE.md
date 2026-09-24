@@ -345,7 +345,8 @@ per-class suggestion, point buy with the 27-point budget, or 4d6), **Feats** (fr
 each *Ability Score Improvement* level pick the Ability Score Improvement feat — +2 to one score
 or +1 to two, maximum 20 — or another feat such as Grappler, an origin feat or a fighting style;
 at level 19 an *Epic Boon*, which can raise a score to 30), **Skills & choices**
-(class skills, species skill, expertise, fighting styles, languages), **Spells** (see below), **Equipment** (the class
+(class skills, species skill, expertise, fighting styles, the Cleric's *Divine Order* / the Druid's
+*Primal Order*, languages), **Spells** (see below), **Equipment** (the class
 and background packages or gold) and **Details & review**, which shows HP, AC, attacks,
 skills and spellcasting before anything is saved. It creates a new character in your
 Library with the sheet on its card, or puts the sheet on an existing character. **Level up**
@@ -372,6 +373,12 @@ writes it to the game log, so the AI narrates it; species and Magic Initiate spe
 Rest)** clears used slots and free casts. **Change spells** (built characters) opens the same
 lists to swap cantrips, prepared spells, the spellbook or the land type; level up keeps them. The
 text box below is for other spells and notes (scrolls, items).
+
+The sheet also applies a few rules for you (shown under *Combat*): **Alert** adds your Proficiency
+Bonus to Initiative (also in fights), a Bard's **Jack of All Trades** adds half of it to skill checks
+you are not proficient in, and the Cleric's *Thaumaturge* / Druid's *Magician* add your Wisdom
+modifier (at least +1) to Arcana and Religion / Nature checks. *Protector* and *Warden* make you
+proficient with Martial weapons (and list the armor training).
 
 **Character sheets.** Every character in your Library can have a d20 sheet (SRD 5.2.1 rules):
 species, class, level, background, the six abilities, saving throws, the 18 skills

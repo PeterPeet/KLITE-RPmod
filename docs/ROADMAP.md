@@ -6,15 +6,15 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-25 (R2 spells)
+> Last updated: 2026-09-25 (R2 done)
 
 ## Current state
 
 **Now: R7 step 5** (combat distance bands, cover, hiding — see [design/R7-world-map.md](design/R7-world-map.md)).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
 issue 12), 3 (AI map tags, fog, doors, Search checks) and 4 (dungeon/town generator) are done.
-Done since R1: R2 characters (🟨: spells open), R5 combat (🟨), R4 quests & world (✅). R3
-(compendium, spells) and R6 (chat power features) are still to do.
+Done since R1: R2 characters (✅ 2026-09-25), R5 combat (🟨), R4 quests & world (✅). R3
+(compendium window; monster and spell data already bundled) and R6 (chat power features) are still to do.
 
 Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
 Supported host: **current Esobold** (esolithe/esobold `remoteManagement`), run from the local
@@ -27,7 +27,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 211 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 213 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -249,7 +249,7 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
 Acceptance: no overlapping panels; all existing features reachable from the shell; tests
 green; live check in `index.rpmod.html`.
 
-### R2 — Characters (D&D Beyond × SillyTavern) 🟨
+### R2 — Characters (D&D Beyond × SillyTavern) ✅ (2026-09-25)
 Rollback point before R2: tag **`r1-complete-2026-09-23`** (R2 started before the first
 play test with a real backend, owner's decision 2026-09-23).
 - [x] **Step 1 — sheet on the card** (2026-09-23): `src/characters/` — sheet model (SRD 5.2
@@ -319,8 +319,8 @@ play test with a real backend, owner's decision 2026-09-23).
       sheet. Fixes found on the way: **Draconic Resilience HP** was missing (sorcerer 3+);
       **level up dropped the spells** written on the sheet (now kept, with used slots); level up
       computed AC/attacks from the starting equipment instead of the current inventory.
-      Not modelled (text only): Alert's initiative bonus, Jack of All Trades, Cleric/Druid
-      order choices, Magic Initiate spells. Live-checked.
+      Not modelled then (text only): Alert's initiative bonus, Jack of All Trades, Cleric/Druid
+      order choices, Magic Initiate spells — all done since (spells and small rules, below). Live-checked.
 - [x] **SillyTavern round trip** (2026-09-24, owner, SillyTavern; test card from
       `scripts/roundtrip-card.js make`, returned files checked with `… check`): RPmod's PNG comes back
       from SillyTavern as a **V3** card (`chara` + `ccv3`, same data) with **every field, the
@@ -354,10 +354,21 @@ play test with a real backend, owner's decision 2026-09-23).
       spells. Sheet fields additive (`cantripsKnown, preparedSpells, spellbook, granted, freeUsed`;
       unknown spellcasting fields are now kept). Shared picker `spellPicker.js`. Tests
       `tests/spells.test.js`. Live-checked in Esolite (Life Domain cleric 3 with Magic Initiate).
-- **Open (R2):** Alert's initiative bonus, Jack of All Trades, Cleric Divine Order / Druid Primal
-  Order choices; casting at a higher level (upcasting) is not offered (Cast uses the lowest free
-  slot); ritual casting without a slot and copying spells into a wizard's spellbook from scrolls
-  are narrated; spells in combat (Combat window) come with R5.
+- [x] **Small rules** (2026-09-25): **Alert** (from the human origin feat, the Criminal background
+      or a feat level) adds the Proficiency Bonus to Initiative — on the sheet and in combat
+      (`toCombatStats`); **Jack of All Trades** (Bard 2+) adds half the PB to skill checks without
+      proficiency (and passive Perception); **Divine Order** (Cleric 1: Protector — Martial weapons +
+      Heavy armor training; Thaumaturge — one extra cantrip + WIS modifier, min +1, on Arcana and
+      Religion) and **Primal Order** (Druid 1: Magician — extra cantrip + WIS on Arcana and Nature;
+      Warden — Martial weapons + Medium armor) are chosen in *Skills & choices* (required, like a
+      Fighting Style; an older built sheet asks for it at level up). Sheet field `extras { alert,
+      jackOfAllTrades, skillBonus }` (additive; `derive` applies it, so it follows level and scores).
+      Tests in `tests/builder.test.js`. Live-checked (order cards with the SRD text).
+- **R2 done** — acceptance ("build a level-1 character end to end, roll from the sheet, level up,
+  export and re-import as a card without data loss") met, incl. the SillyTavern round trip.
+  Carried over (not blocking): casting a spell at a higher level (Cast uses the lowest free slot),
+  ritual casting and copying spells into a wizard's spellbook are narrated; spells in the Combat
+  window come with R5; ALPHA's card code still in the monolith (known issues 8, 10, 15).
 - One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,
   background, abilities, proficiencies, skills, saves, AC, HP, speed, equipment,
   inventory, spells, features). Migration from existing `characterRef` + `stats`.

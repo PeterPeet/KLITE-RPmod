@@ -164,6 +164,14 @@ export default function initBuilder() {
             el('div', { class: 'rpm-bld-grid' }, R.FIGHTING_STYLES.map(f => pickCard(f, f, (SRD.feats[f] ? SRD.feats[f].text[0] : '').slice(0, 90), V.c.fightingStyle === f, () => set('fightingStyle', f))))]));
         if (R.secondFightingStyleAt(V.c)) root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: 'Additional Fighting Style (Champion 7)' }),
             el('div', { class: 'rpm-bld-grid' }, R.FIGHTING_STYLES.filter(f => f !== V.c.fightingStyle).map(f => pickCard('2-' + f, f, (SRD.feats[f] ? SRD.feats[f].text[0] : '').slice(0, 90), V.c.fightingStyle2 === f, () => set('fightingStyle2', f))))]));
+        const order = R.ORDERS[V.c.class];
+        if (order) {
+            const feat = SRD.classes[V.c.class].features.find(f => f.name === order.feature);
+            const paras = feat ? feat.text : [];
+            root.appendChild(el('div', { class: 'rpm-bld-detail', 'data-order': order.key }, [el('h3', { text: order.feature }),
+                el('div', { class: 'rpm-bld-grid' }, Object.entries(order.options).map(([id, name]) =>
+                    pickCard(id, name, (paras.find(p => p.startsWith(name + '.')) || '').slice(name.length + 2), V.c[order.key] === id, () => set(order.key, id))))]));
+        }
         if (V.levelUp) return;   // languages were chosen at level 1
         root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: 'Languages — Common plus two' }), checkList(SRD.languages.standard, V.c.languages, 2, v => set('languages', v), 'Languages')]));
     }

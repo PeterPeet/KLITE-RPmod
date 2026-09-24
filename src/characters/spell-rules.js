@@ -13,7 +13,7 @@
 // ctx = { cls, level, species, speciesOption, backgroundFeat, originFeat, asiFeats: [{ level, feat }],
 //         abilities: { str, … } (final scores), spells: { cantrips, prepared, spellbook },
 //         magicInitiate: { [source]: { list, ability, cantrips: [2 keys], spell: key } },
-//         speciesSpellAbility, landType }
+//         speciesSpellAbility, landType, divineOrder, primalOrder }
 // Data: src/data/srd52-spells.js (SRD 5.2.1, CC-BY-4.0): per spell level, school, classes, casting
 // time, range, components, duration, text, higher/upgrade, and best-effort attack, save, damage
 // (+ damageType) and heal ('2d8+mod' = plus the spellcasting ability modifier).
@@ -56,7 +56,8 @@ export function spellLimits(ctx) {
     const sc = SRD.classes[ctx.cls] && SRD.classes[ctx.cls].spellcasting;
     if (!sc) return { caster: false, cantrips: 0, prepared: 0, maxLevel: 0, spellbook: 0 };
     const row = sc.levels[Math.min(20, Math.max(1, Number(ctx.level) || 1))] || {};
-    return { caster: true, ability: sc.ability, cantrips: row.cantrips || 0, prepared: row.prepared || 0, maxLevel: maxSpellLevel(ctx.cls, ctx.level),
+    const extra = (ctx.cls === 'cleric' && ctx.divineOrder === 'thaumaturge') || (ctx.cls === 'druid' && ctx.primalOrder === 'magician') ? 1 : 0;   // one extra cantrip
+    return { caster: true, ability: sc.ability, cantrips: (row.cantrips || 0) + extra, prepared: row.prepared || 0, maxLevel: maxSpellLevel(ctx.cls, ctx.level),
         spellbook: ctx.cls === 'wizard' ? 6 + 2 * (Math.max(1, Number(ctx.level) || 1) - 1) : 0 };   // Wizard: 6 level 1 spells, +2 per level
 }
 

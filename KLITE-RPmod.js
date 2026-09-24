@@ -26190,10 +26190,11 @@ ${char.mes_example}
     const sc = SRD.classes[ctx.cls] && SRD.classes[ctx.cls].spellcasting;
     if (!sc) return { caster: false, cantrips: 0, prepared: 0, maxLevel: 0, spellbook: 0 };
     const row2 = sc.levels[Math.min(20, Math.max(1, Number(ctx.level) || 1))] || {};
+    const extra = ctx.cls === "cleric" && ctx.divineOrder === "thaumaturge" || ctx.cls === "druid" && ctx.primalOrder === "magician" ? 1 : 0;
     return {
       caster: true,
       ability: sc.ability,
-      cantrips: row2.cantrips || 0,
+      cantrips: (row2.cantrips || 0) + extra,
       prepared: row2.prepared || 0,
       maxLevel: maxSpellLevel(ctx.cls, ctx.level),
       spellbook: ctx.cls === "wizard" ? 6 + 2 * (Math.max(1, Number(ctx.level) || 1) - 1) : 0
@@ -26386,7 +26387,9 @@ ${char.mes_example}
       // [{ name, qty, notes }]
       coins: { cp: 0, sp: 0, gp: 0, pp: 0 },
       features: "",
-      notes: ""
+      notes: "",
+      extras: null
+      // { alert, jackOfAllTrades, skillBonus: { [skill]: ability } } (rules the builder applies)
     };
   }
   function normalizeSheet(raw) {
@@ -26448,6 +26451,13 @@ ${char.mes_example}
       });
     } else s.spellcasting = null;
     if (!s.build || typeof s.build !== "object") s.build = null;
+    if (s.extras && typeof s.extras === "object") {
+      const ex = s.extras, sb = {};
+      if (ex.skillBonus && typeof ex.skillBonus === "object") {
+        for (const [k2, a] of Object.entries(ex.skillBonus)) if (SKILL_IDS.has(k2) && ABILITIES.includes(a)) sb[k2] = a;
+      }
+      s.extras = Object.assign({}, ex, { alert: !!ex.alert, jackOfAllTrades: !!ex.jackOfAllTrades, skillBonus: sb });
+    } else s.extras = null;
     return s;
   }
   function derive(sheet) {
@@ -26455,10 +26465,11 @@ ${char.mes_example}
     const pb = proficiencyBonus(s.level);
     const mods = Object.fromEntries(ABILITIES.map((a) => [a, abilityMod(s.abilities[a])]));
     const saves = Object.fromEntries(ABILITIES.map((a) => [a, mods[a] + (s.saves.includes(a) ? pb : 0)]));
-    const skills = Object.fromEntries(SKILLS.map((k2) => [k2.id, mods[k2.ability] + (s.skills[k2.id] || 0) * pb]));
+    const ex = s.extras || {};
+    const skills = Object.fromEntries(SKILLS.map((k2) => [k2.id, mods[k2.ability] + (s.skills[k2.id] || 0) * pb + (!s.skills[k2.id] && ex.jackOfAllTrades ? Math.floor(pb / 2) : 0) + (ex.skillBonus && ex.skillBonus[k2.id] ? Math.max(1, mods[ex.skillBonus[k2.id]]) : 0)]));
     const attacks = s.attacks.map((a) => ({ ...a, toHit: mods[a.ability] + (a.proficient ? pb : 0) + (a.bonus || 0) }));
     const spell2 = s.spellcasting ? { ...s.spellcasting, saveDC: 8 + mods[s.spellcasting.ability] + pb, attack: mods[s.spellcasting.ability] + pb } : null;
-    return { sheet: s, pb, mods, saves, skills, attacks, spell: spell2, initiative: mods.dex, passivePerception: 10 + skills.perception };
+    return { sheet: s, pb, mods, saves, skills, attacks, spell: spell2, initiative: mods.dex + (ex.alert ? pb : 0), passivePerception: 10 + skills.perception };
   }
   function readSheet(inner) {
     const ext = inner && inner.extensions && inner.extensions[EXT_KEY];
@@ -35125,6 +35136,23 @@ ${xl.join("\n")}`;
   var SKILL_IDS2 = SKILLS.map((s) => s.id);
   var levelOf = (choices) => Math.min(MAX_LEVEL, Math.max(1, Number(choices && choices.level) || 1));
   var ORIGIN_FEATS = ["Alert", "Magic Initiate", "Savage Attacker", "Skilled"];
+  var ORDERS = {
+    cleric: { key: "divineOrder", feature: "Divine Order", options: { protector: "Protector", thaumaturge: "Thaumaturge" } },
+    druid: { key: "primalOrder", feature: "Primal Order", options: { magician: "Magician", warden: "Warden" } }
+  };
+  function orderOf(choices) {
+    const o = ORDERS[choices && choices.class];
+    if (!o) return null;
+    const v = choices[o.key];
+    return o.options[v] ? { class: choices.class, key: o.key, value: v, name: o.options[v], feature: o.feature } : null;
+  }
+  var MARTIAL_ORDER = ["protector", "warden"];
+  function hasFeat(choices, name) {
+    const bg = SRD.backgrounds[choices.background];
+    if (bg && bg.feat.replace(/ \(.+\)$/, "") === name) return true;
+    if (choices.species === "human" && choices.originFeat === name) return true;
+    return chosenFeats(choices).some((x) => x.pick.feat === name);
+  }
   var EPIC_BOONS = Object.keys(SRD.feats).filter((n) => /^Epic Boon/.test(SRD.feats[n].category));
   function featLevels(choices) {
     const cls = SRD.classes[choices.class];
@@ -35163,6 +35191,8 @@ ${xl.join("\n")}`;
       backgroundFeat: bg ? bg.feat : "",
       originFeat: choices.originFeat,
       asiFeats: chosenFeats(choices).filter((x) => x.pick.feat).map((x) => ({ level: x.level, feat: x.pick.feat })),
+      divineOrder: choices.divineOrder,
+      primalOrder: choices.primalOrder,
       abilities: finalAbilities(choices),
       spells: choices.spells || {},
       magicInitiate: choices.magicInitiate || {},
@@ -35284,6 +35314,7 @@ ${xl.join("\n")}`;
     const exp = expertisePicks(choices);
     if (exp && (choices.expertise || []).filter((s) => proficientSkills(choices).includes(s)).length !== exp) errs.push(`Choose ${exp} skills for Expertise (from your proficiencies).`);
     if (fightingStyleAt(choices) && !FIGHTING_STYLES.includes(choices.fightingStyle)) errs.push("Choose a Fighting Style.");
+    if (ORDERS[choices.class] && !orderOf(choices)) errs.push(`Choose your ${ORDERS[choices.class].feature} (${Object.values(ORDERS[choices.class].options).join(" or ")}).`);
     if (secondFightingStyleAt(choices) && (!FIGHTING_STYLES.includes(choices.fightingStyle2) || choices.fightingStyle2 === choices.fightingStyle)) errs.push("Choose a second, different Fighting Style (Additional Fighting Style).");
     const styles = fightingStyles(choices);
     if (new Set(styles).size !== styles.length) errs.push("A Fighting Style feat can be taken only once.");
@@ -35339,9 +35370,10 @@ ${xl.join("\n")}`;
     }
     return { items: merged, gp: (ce ? ce.gp : 0) + (be ? be.gp : 0) };
   }
-  function weaponProficient(cls, weapon, name) {
+  function weaponProficient(cls, weapon, name, martial) {
     if (!cls || !weapon) return false;
     if (weapon.category.startsWith("simple")) return true;
+    if (martial) return true;
     if (/Martial/.test(cls.weapons) && !/that have/.test(cls.weapons)) return true;
     if (cls.name === "Monk") return /Light/.test(weapon.properties) && weapon.category === "martial melee";
     if (cls.name === "Rogue") return /(Finesse|Light)/.test(weapon.properties);
@@ -35365,7 +35397,7 @@ ${xl.join("\n")}`;
     }
     return options.sort((x, y) => y.ac - x.ac)[0];
   }
-  function attacksFor(abilities, items, cls, style) {
+  function attacksFor(abilities, items, cls, style, opts) {
     const out = [];
     for (const it of items) {
       const w = SRD.weapons[it.name];
@@ -35380,7 +35412,7 @@ ${xl.join("\n")}`;
       out.push({
         name: it.name,
         ability,
-        proficient: weaponProficient(cls, w, it.name),
+        proficient: weaponProficient(cls, w, it.name, opts && opts.martial),
         damage: w.damage + (mod2 ? (mod2 > 0 ? "+" : "") + mod2 : ""),
         notes: [w.type, w.properties, w.mastery && "Mastery: " + w.mastery, bonusHit && "+2 to hit (Archery)"].filter(Boolean).join(" · "),
         hitBonus: bonusHit
@@ -35405,7 +35437,9 @@ ${xl.join("\n")}`;
     const level = levelOf(choices);
     const out = [];
     if (cls) {
-      for (const f of cls.features) if (f.level <= level && !/ Subclass$/.test(f.name) && f.name !== "Ability Score Improvement" && f.name !== "Epic Boon") out.push({ name: f.name, source: `${cls.name} ${f.level}`, text: f.text });
+      const order = orderOf(choices);
+      for (const f of cls.features) if (f.level <= level && !/ Subclass$/.test(f.name) && f.name !== "Ability Score Improvement" && f.name !== "Epic Boon")
+        out.push({ name: order && f.name === order.feature ? `${f.name}: ${order.name}` : f.name, source: `${cls.name} ${f.level}`, text: f.text });
       for (const f of cls.subclassFeatures) if (f.level <= level) out.push({ name: f.name, source: `${cls.subclass} ${f.level}`, text: f.text });
       for (const { level: l, pick: pick2 } of chosenFeats(choices)) {
         if (!SRD.feats[pick2.feat]) continue;
@@ -35473,7 +35507,7 @@ ${xl.join("\n")}`;
       ac: ac.ac,
       speed,
       hp: { max: hp, current: previous && previous.hp ? Math.min(hp, (Number(previous.hp.current) || 0) + (hp - (Number(previous.hp.max) || hp))) : hp, temp: 0 },
-      attacks: attacksFor(abilities, gear, cls, styles).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
+      attacks: attacksFor(abilities, gear, cls, styles, { martial: MARTIAL_ORDER.includes((orderOf(choices) || {}).value) }).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
       // level up keeps what the character owns now; a new character gets the starting equipment
       inventory: prevInv || items,
       coins: previous && previous.coins ? previous.coins : { cp: 0, sp: 0, gp, pp: 0 },
@@ -35482,15 +35516,22 @@ ${xl.join("\n")}`;
       notes: previous && previous.notes ? previous.notes : "",
       acNote: ac.how,
       proficiencies: [
-        cls && `Weapons: ${cls.weapons}`,
-        cls && `Armor: ${cls.armor}`,
+        cls && `Weapons: ${cls.weapons}${MARTIAL_ORDER.includes((orderOf(choices) || {}).value) ? ` and Martial weapons (${orderOf(choices).name})` : ""}`,
+        cls && `Armor: ${cls.armor}${(orderOf(choices) || {}).value === "protector" ? " and Heavy armor (Protector)" : (orderOf(choices) || {}).value === "warden" ? " and Medium armor (Warden)" : ""}`,
         [cls && cls.tools, bg && bg.tool].filter(Boolean).length ? `Tools: ${[cls && cls.tools, bg && bg.tool].filter(Boolean).join("; ")}` : "",
         `Languages: Common${(choices.languages || []).length ? ", " + choices.languages.join(", ") : ""}${choices.class === "rogue" ? ", Thieves' Cant" : ""}${choices.class === "druid" ? ", Druidic" : ""}`
       ].filter(Boolean).join("\n"),
       spellcasting: spellcastingFor(choices, spell2, level, previous),
-      build: Object.assign({}, choices, { level, source: SRD.source })
+      build: Object.assign({}, choices, { level, source: SRD.source }),
+      extras: extrasFor(choices, level)
     };
     return normalizeSheet(sheet);
+  }
+  function extrasFor(choices, level) {
+    const order = (orderOf(choices) || {}).value;
+    const skillBonus = order === "thaumaturge" ? { arcana: "wis", religion: "wis" } : order === "magician" ? { arcana: "wis", nature: "wis" } : {};
+    const ex = { alert: hasFeat(choices, "Alert"), jackOfAllTrades: choices.class === "bard" && level >= 2, skillBonus };
+    return ex.alert || ex.jackOfAllTrades || Object.keys(skillBonus).length ? ex : null;
   }
   function spellcastingFor(choices, spell2, level, previous) {
     const ctx = spellContext(choices);
@@ -35501,7 +35542,9 @@ ${xl.join("\n")}`;
     if (spell2) return Object.assign(
       { ability: spell2.ability, pact: !!spell2.pact },
       spell2.levels[level],
+      { cantrips: spellLimits(ctx).cantrips },
       chosen,
+      // + Thaumaturge/Magician cantrip
       prev ? { spells: prev.spells || "", used: (prev.used || []).map((u, i) => Math.min(u, (spell2.levels[level].slots || [])[i] || 0)) } : {}
     );
     if (!granted.length) return null;
@@ -35988,6 +36031,14 @@ ${xl.join("\n")}`;
         field("Passive Perception", el("div", { class: "rpm-sheet-static", text: String(D.passivePerception) }))
       ]));
       if (s.acNote) root.appendChild(el("div", { class: "rpm-muted", text: "AC: " + s.acNote }));
+      if (s.extras) {
+        const ex = s.extras, bits = [];
+        if (ex.alert) bits.push(`Alert: +${D.pb} to Initiative`);
+        if (ex.jackOfAllTrades) bits.push(`Jack of All Trades: +${Math.floor(D.pb / 2)} to skill checks without proficiency`);
+        const sb = Object.entries(ex.skillBonus || {});
+        if (sb.length) bits.push(`${sb.map(([k2]) => (SKILLS.find((x) => x.id === k2) || {}).name).join(" and ")}: +${ABILITY_NAMES[sb[0][1]]} modifier (min +1)`);
+        if (bits.length) root.appendChild(el("div", { class: "rpm-muted", "data-extras": "1", text: bits.join(" · ") }));
+      }
       root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
         field("HP", numIn(s.hp.current, set((v) => {
           V.draft.hp.current = v;
@@ -37030,6 +37081,15 @@ OK = save and close · Cancel = close and discard them`);
         el("h3", { text: "Additional Fighting Style (Champion 7)" }),
         el("div", { class: "rpm-bld-grid" }, FIGHTING_STYLES.filter((f) => f !== V.c.fightingStyle).map((f) => pickCard("2-" + f, f, (SRD.feats[f] ? SRD.feats[f].text[0] : "").slice(0, 90), V.c.fightingStyle2 === f, () => set("fightingStyle2", f))))
       ]));
+      const order = ORDERS[V.c.class];
+      if (order) {
+        const feat = SRD.classes[V.c.class].features.find((f) => f.name === order.feature);
+        const paras = feat ? feat.text : [];
+        root.appendChild(el("div", { class: "rpm-bld-detail", "data-order": order.key }, [
+          el("h3", { text: order.feature }),
+          el("div", { class: "rpm-bld-grid" }, Object.entries(order.options).map(([id, name]) => pickCard(id, name, (paras.find((p) => p.startsWith(name + ".")) || "").slice(name.length + 2), V.c[order.key] === id, () => set(order.key, id))))
+        ]));
+      }
       if (V.levelUp) return;
       root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: "Languages — Common plus two" }), checkList(SRD.languages.standard, V.c.languages, 2, (v) => set("languages", v), "Languages")]));
     }

@@ -262,3 +262,62 @@ test('builder window: level up a level-3 fighter to 4 with an Ability Score Impr
     assert.equal(up.level, 4); assert.equal(up.abilities.str, 18); assert.equal(up.abilities.con, 15);
     assert.equal(up.build.asi[4].feat, 'Ability Score Improvement');
 });
+
+// ---- the small rules that close R2 ---------------------------------------------------------
+test('Alert, Jack of All Trades, Divine Order / Primal Order: numbers on the sheet and in combat', () => {
+    const d = (c) => S.derive(B.buildSheet(c));
+    // Alert: human origin feat → initiative = DEX + PB (also in the combat stat block)
+    const alert = d(fighter());   // fighter(): human with originFeat 'Alert', DEX 14 → +2, PB +2
+    assert.equal(alert.initiative, 4);
+    assert.equal(S.toCombatStats(B.buildSheet(fighter())).initiativeMod, 4);
+    assert.equal(d(fighter({ originFeat: 'Skilled', extraSkills: ['arcana', 'history', 'nature'] })).initiative, 2, 'without Alert');
+    assert.equal(d(fighter({ background: 'criminal', originFeat: 'Skilled', extraSkills: ['arcana', 'history', 'nature'], bgBonus: { plus2: 'dex', plus1: 'con' } })).sheet.extras.alert, true, 'Criminal background gives Alert');
+    // Jack of All Trades: bard 2+, half PB on skills without proficiency (passive Perception too)
+    const bardC = (level) => fighter({ class: 'bard', level, fightingStyle: undefined, classSkills: ['performance', 'persuasion', 'deception'], scores: { str: 8, dex: 14, con: 12, int: 10, wis: 13, cha: 15 }, bgBonus: { plus2: 'cha', plus1: 'dex' } });
+    const b1 = d(bardC(1)), b2 = d(bardC(2)), b5 = d(bardC(5));
+    assert.equal(b2.skills.nature - b1.skills.nature, 1, 'half of PB 2 (Nature: no proficiency)');
+    assert.equal(b2.skills.performance, b1.skills.performance, 'proficient skills unchanged');
+    assert.equal(b5.skills.nature, 0 + 1, 'INT 10 (0) + half of PB 3 (1)');
+    assert.equal(b2.skills.athletics, b1.skills.athletics, 'Athletics is proficient (Soldier): no Jack of All Trades');
+    assert.equal(b2.passivePerception - b1.passivePerception, 1);
+    // Divine Order: required at cleric 1; Thaumaturge = +1 cantrip and WIS on Arcana/Religion
+    const cleric = (over) => fighter(Object.assign({ class: 'cleric', fightingStyle: undefined, classSkills: ['medicine', 'religion'], scores: { str: 13, dex: 10, con: 14, int: 8, wis: 15, cha: 12 }, bgBonus: { plus2: 'wis', plus1: 'con' } }, over));
+    assert.match(B.validate(cleric()).join(), /Choose your Divine Order \(Protector or Thaumaturge\)/);
+    assert.deepEqual(B.validate(cleric({ divineOrder: 'thaumaturge' })), []);
+    const th = d(cleric({ divineOrder: 'thaumaturge' })), plainC = d(cleric({ divineOrder: 'protector' }));
+    assert.equal(th.skills.arcana - plainC.skills.arcana, 2, 'WIS 15 → +2 (the Soldier background cannot raise WIS)');
+    assert.equal(th.skills.nature, plainC.skills.nature, 'Nature is not part of it');
+    assert.equal(th.sheet.spellcasting.cantrips, 4, 'one extra cantrip (3 + 1)');
+    assert.match(th.sheet.features, /Divine Order: Thaumaturge \(Cleric 1\)/);
+    // Protector: martial weapons proficient, heavy armor training in the proficiencies
+    const prot = B.buildSheet(cleric({ divineOrder: 'protector' }));
+    assert.match(prot.proficiencies, /Martial weapons \(Protector\)/); assert.match(prot.proficiencies, /Heavy armor \(Protector\)/);
+    // Primal Order: Warden → martial weapons + medium armor; Magician → extra cantrip, WIS on Arcana/Nature (min +1)
+    const druid = (over) => fighter(Object.assign({ class: 'druid', fightingStyle: undefined, classSkills: ['nature', 'survival'], scores: { str: 10, dex: 13, con: 14, int: 12, wis: 8, cha: 15 }, bgBonus: { plus2: 'con', plus1: 'str' } }, over));
+    const mag = d(druid({ primalOrder: 'magician' })), war = B.buildSheet(druid({ primalOrder: 'warden' }));
+    assert.equal(mag.skills.arcana - S.derive(war).skills.arcana, 1, 'WIS 8 (−1) → minimum +1');
+    assert.equal(mag.sheet.spellcasting.cantrips, 3);
+    assert.match(war.proficiencies, /Martial weapons \(Warden\)/); assert.match(war.proficiencies, /Medium armor \(Warden\)/);
+    // an old cleric sheet built before the choice existed: level up asks for it
+    const old = B.buildSheet(cleric({ divineOrder: 'protector' })); delete old.build.divineOrder;
+    assert.match(B.validate(B.nextLevelChoices(old)).join(), /Divine Order/);
+    // hand-made sheets without extras behave as before
+    assert.equal(S.derive({ abilities: { dex: 14 } }).initiative, 2);
+});
+
+test('builder window: Divine Order is chosen with the skills (SRD text on the cards)', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const doc = w.document;
+    const $ = (s) => doc.querySelector('[data-window="builder"] ' + s);
+    w.KLITE_RPMod_Builder.open(); await sleep(20);
+    click($('[data-pick="cleric"]'), w);
+    click($('[data-step="skills"]'), w);
+    const box = $('[data-order="divineOrder"]');
+    assert.ok(box, 'Divine Order shown');
+    assert.match(box.querySelector('[data-pick="protector"]').textContent, /Trained for battle, you gain proficiency with Martial weapons/);
+    click(box.querySelector('[data-pick="thaumaturge"]'), w);
+    assert.equal(w.KLITE_RPMod_Builder._state.c.divineOrder, 'thaumaturge');
+    assert.equal($('[data-order="divineOrder"] [data-pick="thaumaturge"]').getAttribute('aria-pressed'), 'true');
+});

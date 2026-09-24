@@ -310,6 +310,14 @@ export default function initCharacters() {
             field('Passive Perception', el('div', { class: 'rpm-sheet-static', text: String(D.passivePerception) })),
         ]));
         if (s.acNote) root.appendChild(el('div', { class: 'rpm-muted', text: 'AC: ' + s.acNote }));
+        if (s.extras) {   // rules the builder applies (Alert, Jack of All Trades, Thaumaturge/Magician)
+            const ex = s.extras, bits = [];
+            if (ex.alert) bits.push(`Alert: +${D.pb} to Initiative`);
+            if (ex.jackOfAllTrades) bits.push(`Jack of All Trades: +${Math.floor(D.pb / 2)} to skill checks without proficiency`);
+            const sb = Object.entries(ex.skillBonus || {});
+            if (sb.length) bits.push(`${sb.map(([k]) => (SKILLS.find(x => x.id === k) || {}).name).join(' and ')}: +${ABILITY_NAMES[sb[0][1]]} modifier (min +1)`);
+            if (bits.length) root.appendChild(el('div', { class: 'rpm-muted', 'data-extras': '1', text: bits.join(' · ') }));
+        }
         root.appendChild(el('div', { class: 'rpm-sheet-grid4' }, [
             field('HP', numIn(s.hp.current, set(v => { V.draft.hp.current = v; }), { 'aria-label': 'Current hit points' })),
             field('HP max', numIn(s.hp.max, set(v => { V.draft.hp.max = v; }))),

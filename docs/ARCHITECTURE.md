@@ -662,6 +662,12 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   UI: builder step `spells`, sheet `spellsSection` (Cast → `used`, log kind `spell`; Free →
   `freeUsed`; Restore; **Change spells** writes the sheet arrays and `build.spells`), picker
   `spellPicker.js` (search, level headings, ⓘ details).
+- **Rule extras** (2026-09-25): `sheet.extras { alert, jackOfAllTrades, skillBonus: {skill: ability} }`
+  set by `buildSheet` (`extrasFor`: `hasFeat(choices, 'Alert')` — background, human origin feat or a
+  feat level; bard ≥ 2; `orderOf(choices)` — `ORDERS` cleric `divineOrder` / druid `primalOrder`) and
+  applied in `derive` (initiative + PB; skills + ⌊PB/2⌋ when not proficient; + max(1, mod) for the
+  listed skills). Protector/Warden → `weaponProficient(…, martial)` and the proficiencies text;
+  Thaumaturge/Magician → `spellLimits` +1 cantrip. `validate` requires the order.
 - **Uses:** ALPHA's `characters` provider appends the sheet summary; Worlds'
   `combatantStats`/slice fall back to the linked card's sheet (`cardSheetStats`) and the
   persona sheet for the player (`personaSheetStats`); `personBlurb` falls back to the card's

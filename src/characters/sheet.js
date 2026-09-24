@@ -10,7 +10,10 @@
 // Rules used (SRD 5.2): ability modifier = floor((score − 10) / 2); proficiency bonus by
 // level (+2 at 1–4, +3 at 5–8, +4 at 9–12, +5 at 13–16, +6 at 17–20); saving throw / skill
 // = ability modifier (+ proficiency bonus if proficient, ×2 with expertise); initiative =
-// DEX modifier; passive Perception = 10 + Perception bonus.
+// DEX modifier (+ proficiency bonus with Alert); passive Perception = 10 + Perception bonus.
+// Rule extras (`sheet.extras`, set by the builder): Alert → PB to Initiative; Jack of All Trades →
+// half PB (round down) to skill checks without proficiency; Thaumaturge/Magician → an ability's
+// modifier (minimum +1) added to certain skills (Arcana/Religion, Arcana/Nature: Wisdom).
 // =============================================================================
 
 import { spellName } from './spell-rules.js';
@@ -61,6 +64,7 @@ export function defaultSheet() {
         inventory: [],             // [{ name, qty, notes }]
         coins: { cp: 0, sp: 0, gp: 0, pp: 0 },
         features: '', notes: '',
+        extras: null,              // { alert, jackOfAllTrades, skillBonus: { [skill]: ability } } (rules the builder applies)
     };
 }
 
@@ -105,6 +109,11 @@ export function normalizeSheet(raw) {
             freeUsed: Object.fromEntries(Object.entries(sc.freeUsed && typeof sc.freeUsed === 'object' ? sc.freeUsed : {}).map(([k, v]) => [k, Math.max(0, int(v, 0))]).filter(([, v]) => v > 0)) });
     } else s.spellcasting = null;
     if (!s.build || typeof s.build !== 'object') s.build = null;
+    if (s.extras && typeof s.extras === 'object') {
+        const ex = s.extras, sb = {};
+        if (ex.skillBonus && typeof ex.skillBonus === 'object') for (const [k, a] of Object.entries(ex.skillBonus)) if (SKILL_IDS.has(k) && ABILITIES.includes(a)) sb[k] = a;
+        s.extras = Object.assign({}, ex, { alert: !!ex.alert, jackOfAllTrades: !!ex.jackOfAllTrades, skillBonus: sb });
+    } else s.extras = null;
     return s;
 }
 
@@ -114,10 +123,13 @@ export function derive(sheet) {
     const pb = proficiencyBonus(s.level);
     const mods = Object.fromEntries(ABILITIES.map(a => [a, abilityMod(s.abilities[a])]));
     const saves = Object.fromEntries(ABILITIES.map(a => [a, mods[a] + (s.saves.includes(a) ? pb : 0)]));
-    const skills = Object.fromEntries(SKILLS.map(k => [k.id, mods[k.ability] + (s.skills[k.id] || 0) * pb]));
+    const ex = s.extras || {};
+    const skills = Object.fromEntries(SKILLS.map(k => [k.id, mods[k.ability] + (s.skills[k.id] || 0) * pb
+        + (!s.skills[k.id] && ex.jackOfAllTrades ? Math.floor(pb / 2) : 0)                                        // Jack of All Trades
+        + (ex.skillBonus && ex.skillBonus[k.id] ? Math.max(1, mods[ex.skillBonus[k.id]]) : 0)]));                  // Thaumaturge / Magician
     const attacks = s.attacks.map(a => ({ ...a, toHit: mods[a.ability] + (a.proficient ? pb : 0) + (a.bonus || 0) }));
     const spell = s.spellcasting ? { ...s.spellcasting, saveDC: 8 + mods[s.spellcasting.ability] + pb, attack: mods[s.spellcasting.ability] + pb } : null;
-    return { sheet: s, pb, mods, saves, skills, attacks, spell, initiative: mods.dex, passivePerception: 10 + skills.perception };
+    return { sheet: s, pb, mods, saves, skills, attacks, spell, initiative: mods.dex + (ex.alert ? pb : 0), passivePerception: 10 + skills.perception };
 }
 
 // ---- card <-> sheet ------------------------------------------------------------------

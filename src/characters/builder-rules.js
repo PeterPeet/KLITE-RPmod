@@ -8,7 +8,7 @@
 // =============================================================================
 import { SRD } from '../data/srd52.js';
 import { ABILITIES, SKILLS, abilityMod, proficiencyBonus, normalizeSheet } from './sheet.js';
-import { grantedSpells, spellErrors, defaultMentalAbility } from './spell-rules.js';
+import { grantedSpells, spellErrors, defaultMentalAbility, spellLimits } from './spell-rules.js';
 
 export const MAX_LEVEL = 20;
 const SKILL_IDS = SKILLS.map(s => s.id);
@@ -20,6 +20,25 @@ const levelOf = (choices) => Math.min(MAX_LEVEL, Math.max(1, Number(choices && c
 //   a feat with an ability increase (Grappler, epic boons): one pick of +by (feat.increase)
 //   Skilled: three skills
 export const ORIGIN_FEATS = ['Alert', 'Magic Initiate', 'Savage Attacker', 'Skilled'];
+// Level 1 choices of the Cleric (Divine Order) and the Druid (Primal Order): choices.divineOrder /
+// choices.primalOrder. Protector/Warden: Martial weapons + Heavy/Medium armor training;
+// Thaumaturge/Magician: one extra cantrip + WIS modifier (min +1) on Arcana and Religion/Nature.
+export const ORDERS = {
+    cleric: { key: 'divineOrder', feature: 'Divine Order', options: { protector: 'Protector', thaumaturge: 'Thaumaturge' } },
+    druid: { key: 'primalOrder', feature: 'Primal Order', options: { magician: 'Magician', warden: 'Warden' } },
+};
+export function orderOf(choices) {
+    const o = ORDERS[choices && choices.class]; if (!o) return null;
+    const v = choices[o.key]; return o.options[v] ? { class: choices.class, key: o.key, value: v, name: o.options[v], feature: o.feature } : null;
+}
+const MARTIAL_ORDER = ['protector', 'warden'];
+// Does the character have this feat (origin feat of the background or the human, or a feat level)?
+export function hasFeat(choices, name) {
+    const bg = SRD.backgrounds[choices.background];
+    if (bg && bg.feat.replace(/ \(.+\)$/, '') === name) return true;
+    if (choices.species === 'human' && choices.originFeat === name) return true;
+    return chosenFeats(choices).some(x => x.pick.feat === name);
+}
 export const EPIC_BOONS = Object.keys(SRD.feats).filter(n => /^Epic Boon/.test(SRD.feats[n].category));
 export function featLevels(choices) {
     const cls = SRD.classes[choices.class]; if (!cls || !cls.levels) return [];
@@ -57,6 +76,7 @@ export function spellContext(choices) {
     return { cls: choices.class, level: levelOf(choices), species: choices.species, speciesOption: choices.speciesOption,
         backgroundFeat: bg ? bg.feat : '', originFeat: choices.originFeat,
         asiFeats: chosenFeats(choices).filter(x => x.pick.feat).map(x => ({ level: x.level, feat: x.pick.feat })),
+        divineOrder: choices.divineOrder, primalOrder: choices.primalOrder,
         abilities: finalAbilities(choices), spells: choices.spells || {}, magicInitiate: choices.magicInitiate || {},
         speciesSpellAbility: choices.speciesSpellAbility, landType: choices.landType };
 }
@@ -179,6 +199,7 @@ export function validate(choices) {
     const exp = expertisePicks(choices);
     if (exp && (choices.expertise || []).filter(s => proficientSkills(choices).includes(s)).length !== exp) errs.push(`Choose ${exp} skills for Expertise (from your proficiencies).`);
     if (fightingStyleAt(choices) && !FIGHTING_STYLES.includes(choices.fightingStyle)) errs.push('Choose a Fighting Style.');
+    if (ORDERS[choices.class] && !orderOf(choices)) errs.push(`Choose your ${ORDERS[choices.class].feature} (${Object.values(ORDERS[choices.class].options).join(' or ')}).`);
     if (secondFightingStyleAt(choices) && (!FIGHTING_STYLES.includes(choices.fightingStyle2) || choices.fightingStyle2 === choices.fightingStyle)) errs.push('Choose a second, different Fighting Style (Additional Fighting Style).');
     const styles = fightingStyles(choices);
     if (new Set(styles).size !== styles.length) errs.push('A Fighting Style feat can be taken only once.');
@@ -228,9 +249,10 @@ export function startingItems(choices) {
     return { items: merged, gp: (ce ? ce.gp : 0) + (be ? be.gp : 0) };
 }
 
-function weaponProficient(cls, weapon, name) {
+function weaponProficient(cls, weapon, name, martial) {
     if (!cls || !weapon) return false;
     if (weapon.category.startsWith('simple')) return true;
+    if (martial) return true;                                                  // Protector / Warden
     if (/Martial/.test(cls.weapons) && !/that have/.test(cls.weapons)) return true;
     if (cls.name === 'Monk') return /Light/.test(weapon.properties) && weapon.category === 'martial melee';
     if (cls.name === 'Rogue') return /(Finesse|Light)/.test(weapon.properties);
@@ -254,7 +276,7 @@ export function armorClass(abilities, items, cls, sheetExtras) {
     }
     return options.sort((x, y) => y.ac - x.ac)[0];
 }
-export function attacksFor(abilities, items, cls, style) {
+export function attacksFor(abilities, items, cls, style, opts) {
     const out = [];
     for (const it of items) {
         const w = SRD.weapons[it.name]; if (!w) continue;
@@ -266,7 +288,7 @@ export function attacksFor(abilities, items, cls, style) {
         const mod = abilityMod(abilities[ability]);
         const bonusHit = ranged && [].concat(style || []).includes('Archery') ? 2 : 0;
         out.push({
-            name: it.name, ability, proficient: weaponProficient(cls, w, it.name),
+            name: it.name, ability, proficient: weaponProficient(cls, w, it.name, opts && opts.martial),
             damage: w.damage + (mod ? (mod > 0 ? '+' : '') + mod : ''),
             notes: [w.type, w.properties, w.mastery && 'Mastery: ' + w.mastery, bonusHit && '+2 to hit (Archery)'].filter(Boolean).join(' · '),
             hitBonus: bonusHit,
@@ -290,7 +312,9 @@ export function featureList(choices) {
     const out = [];
     if (cls) {
         // "Ability Score Improvement" / "Epic Boon" are listed as the feats chosen there
-        for (const f of cls.features) if (f.level <= level && !/ Subclass$/.test(f.name) && f.name !== 'Ability Score Improvement' && f.name !== 'Epic Boon') out.push({ name: f.name, source: `${cls.name} ${f.level}`, text: f.text });
+        const order = orderOf(choices);
+        for (const f of cls.features) if (f.level <= level && !/ Subclass$/.test(f.name) && f.name !== 'Ability Score Improvement' && f.name !== 'Epic Boon')
+            out.push({ name: order && f.name === order.feature ? `${f.name}: ${order.name}` : f.name, source: `${cls.name} ${f.level}`, text: f.text });
         for (const f of cls.subclassFeatures) if (f.level <= level) out.push({ name: f.name, source: `${cls.subclass} ${f.level}`, text: f.text });
         for (const { level: l, pick } of chosenFeats(choices)) {
             if (!SRD.feats[pick.feat]) continue;
@@ -351,18 +375,29 @@ export function buildSheet(choices, previous) {
         xp: Math.max(previous ? Number(previous.xp) || 0 : 0, SRD.xp[level - 1]),
         abilities, saves: ABILITIES.filter(a => saves.has(a)), skills, ac: ac.ac, speed,
         hp: { max: hp, current: previous && previous.hp ? Math.min(hp, (Number(previous.hp.current) || 0) + (hp - (Number(previous.hp.max) || hp))) : hp, temp: 0 },
-        attacks: attacksFor(abilities, gear, cls, styles).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
+        attacks: attacksFor(abilities, gear, cls, styles, { martial: MARTIAL_ORDER.includes((orderOf(choices) || {}).value) }).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
         // level up keeps what the character owns now; a new character gets the starting equipment
         inventory: prevInv || items, coins: previous && previous.coins ? previous.coins : { cp: 0, sp: 0, gp, pp: 0 },
         features: (resources ? `${cls.name} ${level}: ${resources}\n` : '') + feats.map(f => `• ${f.name} (${f.source}): ${firstSentence(f.text)}`).join('\n'),
         notes: previous && previous.notes ? previous.notes : '',
         acNote: ac.how,
-        proficiencies: [cls && `Weapons: ${cls.weapons}`, cls && `Armor: ${cls.armor}`, [cls && cls.tools, bg && bg.tool].filter(Boolean).length ? `Tools: ${[cls && cls.tools, bg && bg.tool].filter(Boolean).join('; ')}` : '',
+        proficiencies: [cls && `Weapons: ${cls.weapons}${MARTIAL_ORDER.includes((orderOf(choices) || {}).value) ? ` and Martial weapons (${orderOf(choices).name})` : ''}`,
+            cls && `Armor: ${cls.armor}${(orderOf(choices) || {}).value === 'protector' ? ' and Heavy armor (Protector)' : (orderOf(choices) || {}).value === 'warden' ? ' and Medium armor (Warden)' : ''}`, [cls && cls.tools, bg && bg.tool].filter(Boolean).length ? `Tools: ${[cls && cls.tools, bg && bg.tool].filter(Boolean).join('; ')}` : '',
             `Languages: Common${(choices.languages || []).length ? ', ' + choices.languages.join(', ') : ''}${choices.class === 'rogue' ? ", Thieves' Cant" : ''}${choices.class === 'druid' ? ', Druidic' : ''}`].filter(Boolean).join('\n'),
         spellcasting: spellcastingFor(choices, spell, level, previous),
         build: Object.assign({}, choices, { level, source: SRD.source }),
+        extras: extrasFor(choices, level),
     };
     return normalizeSheet(sheet);
+}
+
+// Rules the sheet applies itself (sheet.js derive): Alert, Jack of All Trades (Bard 2),
+// Thaumaturge (Arcana, Religion) / Magician (Arcana, Nature) with the Wisdom modifier.
+function extrasFor(choices, level) {
+    const order = (orderOf(choices) || {}).value;
+    const skillBonus = order === 'thaumaturge' ? { arcana: 'wis', religion: 'wis' } : order === 'magician' ? { arcana: 'wis', nature: 'wis' } : {};
+    const ex = { alert: hasFeat(choices, 'Alert'), jackOfAllTrades: choices.class === 'bard' && level >= 2, skillBonus };
+    return ex.alert || ex.jackOfAllTrades || Object.keys(skillBonus).length ? ex : null;
 }
 
 // Spellcasting on the sheet: the class table's counts and slots, the chosen spells (choices.spells)
@@ -375,7 +410,7 @@ function spellcastingFor(choices, spell, level, previous) {
     const ch = choices.spells || {};
     const prev = previous && previous.spellcasting;
     const chosen = { cantripsKnown: (ch.cantrips || []).slice(), preparedSpells: (ch.prepared || []).slice(), spellbook: (ch.spellbook || []).slice(), granted };
-    if (spell) return Object.assign({ ability: spell.ability, pact: !!spell.pact }, spell.levels[level], chosen,
+    if (spell) return Object.assign({ ability: spell.ability, pact: !!spell.pact }, spell.levels[level], { cantrips: spellLimits(ctx).cantrips }, chosen,   // + Thaumaturge/Magician cantrip
         prev ? { spells: prev.spells || '', used: (prev.used || []).map((u, i) => Math.min(u, (spell.levels[level].slots || [])[i] || 0)) } : {});
     if (!granted.length) return null;
     return Object.assign({ ability: granted[0].ability || defaultMentalAbility(ctx), pact: false, cantrips: 0, prepared: 0, slots: [] }, chosen, prev ? { spells: prev.spells || '' } : {});
