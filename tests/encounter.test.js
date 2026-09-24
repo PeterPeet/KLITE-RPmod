@@ -211,8 +211,9 @@ test('persona sheet: the fight starts at its current HP; HP and XP are written b
 test('Combat window: build an encounter with the XP meter, save it, fight it through to victory', async (t) => {
     const { h, W, w } = await field(t, { hpMax: 40, ac: 18, attacks: [{ name: 'Longsword', toHit: 7, damage: '1d8+30' }] });
     const doc = w.document;
-    w.KLITE_RPMod_Shell.open('combat'); await sleep(20);
+    w.KLITE_RPMod_Shell.open('combat');
     const win = () => doc.querySelector('[data-window="combat"]');
+    for (let i = 0; i < 100 && !win(); i++) await sleep(20);   // under load the window can take longer
     const $ = (s) => win().querySelector(s);
     assert.match($('[data-cb="difficulty"]').textContent, /No enemies yet/);
     const search = $('[data-cb="search"]'); search.value = 'goblin warrior'; search.dispatchEvent(new w.Event('input'));

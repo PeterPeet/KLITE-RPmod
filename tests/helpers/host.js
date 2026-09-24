@@ -147,6 +147,79 @@ function createHost({ settings = {} } = {}) {
         function confirm_settings() { save_settings(); document.getElementById('settingscontainer').classList.add('hidden'); }
     `);
 
+    // Stand-in for Esolite's mod hooks (Esobold static/js/modHooks.js, esoGuide.js and the
+    // settings-tab code in newMenuOptions.js): window.eso.extensions with the extension
+    // classes, one EsoExtensionType per supported feature, and window.eso.guide (records
+    // open calls in window.__eso.guideOpened). With settings: true, call
+    // installFakeSettingsDialog first; display_settings then builds each SettingsExtension's
+    // tab (#settingsmenuext_<id>), calls render once and load every time, confirm_settings
+    // calls save.
+    host.installFakeEsoHooks = ({ quickStart = false, settings = false, guide = false } = {}) => host.eval(`
+        var __eso = { guideOpened: [] };
+        window.eso = window.eso || {};
+        class EsoExtensionType { constructor(type) { this.type = type; } }
+        ${quickStart ? "EsoExtensionType.QUICK_START = new EsoExtensionType('QUICK_START');" : ''}
+        ${settings ? "EsoExtensionType.SETTINGS = new EsoExtensionType('SETTINGS');" : ''}
+        ${guide ? "EsoExtensionType.GUIDE = new EsoExtensionType('GUIDE');" : ''}
+        class EsoExtensions {
+            constructor() { this._list = []; }
+            register(ext) { if (!ext || !ext.id || this._list.some(e => e.id === ext.id)) return false; this._list.push(ext); return true; }
+            unregister(id) { this._list = this._list.filter(e => e.id !== id); }
+            getByType(type) { return this._list.filter(e => e.type === type); }
+        }
+        class EsoExtension {
+            constructor(id, type) { this.id = id; this.type = type; this.label = null; }
+            getId() { return this.id; }
+            getLabel() { return this.label || this.id; }
+        }
+        class QuickStartExtension extends EsoExtension {
+            constructor(id, label, helpText, render, hasSelection, apply, clear) {
+                super(id, EsoExtensionType.QUICK_START);
+                Object.assign(this, { label, helpText, _render: render, _hasSelection: hasSelection, _apply: apply, _clear: clear });
+            }
+            render(c, rerender) { return this._render(c, rerender); }
+            hasSelection() { return !!this._hasSelection(); }
+            apply() { return this._apply(); }
+            clear() { return this._clear(); }
+        }
+        class SettingsExtension extends EsoExtension {
+            constructor(id, label, render, load, save) {
+                super(id, EsoExtensionType.SETTINGS);
+                Object.assign(this, { label, _render: render, _load: load, _save: save });
+            }
+            render(c, ui) { return this._render(c, ui); }
+            load() { return this._load(); }
+            save() { return this._save(); }
+        }
+        class GuideExtension extends EsoExtension {
+            constructor(id, label, chapters) { super(id, EsoExtensionType.GUIDE); this.label = label; this._chapters = chapters; }
+            getChapters() { return typeof this._chapters === 'function' ? this._chapters() : this._chapters; }
+        }
+        window.eso.extensions = new EsoExtensions();
+        ${guide ? "window.eso.guide = { open(tab, chapter) { __eso.guideOpened.push([tab, chapter]); } };" : ''}
+        ${settings ? `
+        (function () {
+            const built = new Set();
+            const origDisplay = display_settings, origConfirm = confirm_settings;
+            const exts = () => window.eso.extensions.getByType(EsoExtensionType.SETTINGS);
+            display_settings = function () {
+                exts().filter(ext => !built.has(ext.id)).forEach(ext => {
+                    const li = document.createElement('li'); li.id = 'settingsmenuext_' + ext.id + '_tab';
+                    const a = document.createElement('a'); a.textContent = ext.getLabel(); li.appendChild(a);
+                    document.querySelector('#settingscontainer .settingsnav').appendChild(li);
+                    const pane = document.createElement('div'); pane.id = 'settingsmenuext_' + ext.id; pane.className = 'settingsmenu hidden';
+                    const box = document.createElement('div'); box.className = 'settingitem wide'; pane.appendChild(box);
+                    document.querySelector('#settingscontainer .settingsbody').appendChild(pane);
+                    ext.render(box, {});
+                    built.add(ext.id);
+                });
+                origDisplay();
+                exts().forEach(ext => ext.load());
+            };
+            confirm_settings = function () { exts().forEach(ext => ext.save()); origConfirm(); };
+        })();` : ''}
+    `);
+
     // Esolite's real tavernTool.js (PNG tEXt card embedding) from the host reference folder.
     host.installTavernTool = () => {
         const src = fs.readFileSync(path.join(ROOT, 'Esobold Esolite a fork of KoboldAI Lite RMv1.35.0', 'static', 'js', 'tavernTool.js'), 'utf8');

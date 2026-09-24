@@ -1568,6 +1568,12 @@ ${s.text}` : s.text : `[${s.title}]`;
       return false;
     }
   }
+  function esoExtensionClass(className, typeName) {
+    const registry = window.eso && window.eso.extensions;
+    const cls = hostGet(className), types = hostGet("EsoExtensionType");
+    if (!registry || typeof registry.register !== "function" || typeof cls !== "function" || !types || !types[typeName]) return null;
+    return cls;
+  }
 
   // src/library/esoliteLibrary.js
   var fn = (name) => typeof window[name] === "function" ? window[name] : hostGet(name);
@@ -32796,17 +32802,28 @@ ${xl.join("\n")}`;
   function quickStartMode() {
     return mode;
   }
+  function registerWithEso(ext) {
+    const QuickStartExtension = esoExtensionClass("QuickStartExtension", "QUICK_START");
+    window.eso.extensions.register(new QuickStartExtension(
+      ext.id,
+      ext.label,
+      ext.helpText,
+      (container, rerender) => ext.render(container, rerender),
+      () => ext.hasSelection(),
+      () => ext.apply(),
+      () => ext.clear()
+    ));
+  }
   function registerQuickStartExtension(ext) {
     if (!ext || !ext.id || extensions.some((e) => e.id === ext.id)) return;
     extensions.push(ext);
-    if (mode === "api") window.quickStartExtensions.register(ext);
+    if (mode === "eso") registerWithEso(ext);
   }
   function installQuickStartHooks() {
     if (mode) return true;
-    const api = window.quickStartExtensions;
-    if (api && typeof api.register === "function") {
-      extensions.forEach((e) => api.register(e));
-      mode = "api";
+    if (esoExtensionClass("QuickStartExtension", "QUICK_START")) {
+      extensions.forEach(registerWithEso);
+      mode = "eso";
       return true;
     }
     const show = hostGet("showQuickStartPopup");
@@ -32925,13 +32942,19 @@ ${xl.join("\n")}`;
   }
 
   // src/onboarding/onboarding.js
+  var GUIDE_TAB = "rpmod-guide";
   var WELCOME_KEY = "KLITE.onboarding.welcome";
   function initOnboarding() {
     "use strict";
     if (window.KLITE_RPMod_Onboarding) return;
     let guide = null;
+    const esoGuide = registerEsoGuide();
     const api = {
       openGuide(chapterId) {
+        if (esoGuide) {
+          window.eso.guide.open(GUIDE_TAB, chapterId || null);
+          return true;
+        }
         const sh = window.KLITE_RPMod_Shell;
         if (!sh || !guide) return false;
         if (chapterId) guide.goTo(chapterId);
@@ -32949,6 +32972,7 @@ ${xl.join("\n")}`;
       highlight,
       clearHighlight,
       quickStartMode,
+      guideMode: () => esoGuide ? "eso" : "own",
       legacySaveHookInstalled: () => legacyInstalled
     };
     window.KLITE_RPMod_Onboarding = api;
@@ -32966,11 +32990,39 @@ ${xl.join("\n")}`;
         return;
       }
       clearInterval(shTimer);
-      guide = createGuideView(sh);
-      sh.registerView(guide);
+      if (!esoGuide) {
+        guide = createGuideView(sh);
+        sh.registerView(guide);
+      }
       sh.addDockAction("left", { id: "guide", title: "RPmod Guide", label: "?", icon: "circle-help", onClick: () => api.openGuide() });
       if (!welcomeDismissed()) sh.registerView(welcomeView(sh, api));
     }, 100);
+  }
+  function registerEsoGuide() {
+    const GuideExtension = esoExtensionClass("GuideExtension", "GUIDE");
+    if (!GuideExtension || !window.eso.guide || typeof window.eso.guide.open !== "function") return false;
+    const adapt = (hostCtx) => ({
+      open: (id) => {
+        try {
+          window.KLITE_RPMod_Shell?.open(id);
+        } catch (_) {
+        }
+      },
+      // after RPmod panels/windows opened (same delay as our own guide)
+      highlight: (target, note) => setTimeout(() => hostCtx.highlight(target, note), 60),
+      hostCall: (name) => hostCtx.run(() => {
+        const fn2 = hostGet(name);
+        if (typeof fn2 === "function") fn2();
+      }),
+      navLink: hostCtx.navLink
+    });
+    const chapters = () => CHAPTERS.map((ch) => ({
+      id: ch.id,
+      title: ch.title,
+      blocks: ch.blocks,
+      show: (ch.show || []).map((s) => ({ label: s.label, run: (hostCtx) => s.run(adapt(hostCtx)) }))
+    }));
+    return window.eso.extensions.register(new GuideExtension(GUIDE_TAB, "RPmod", chapters)) !== false;
   }
   function welcomeDismissed() {
     try {
@@ -33120,6 +33172,7 @@ ${xl.join("\n")}`;
   // src/settings/settings.js
   var TAB_ID = "rpmod";
   var PANE_ID = "settingsmenu" + TAB_ID;
+  var ESO_PANE_ID = "settingsmenuext_" + TAB_ID;
   function initSettings() {
     "use strict";
     if (window.KLITE_RPMod_Settings) return;
@@ -33209,10 +33262,16 @@ ${xl.join("\n")}`;
       const input2 = el("input", { type: "checkbox", id: "rpmodset_" + s.id, title: s.label, "data-rpmod-setting": s.id, style: "margin:0px 0px 0px auto;" });
       return el("div", { class: "settinglabel" }, [label2, input2]);
     }
-    function render() {
+    let mode2 = null;
+    let esoBox = null;
+    function boxEl() {
+      if (mode2 === "eso") return esoBox && esoBox.isConnected ? esoBox : null;
       const pane = document.getElementById(PANE_ID);
-      if (!pane) return;
-      const box = pane.querySelector(".settingitem");
+      return pane ? pane.querySelector(".settingitem") : null;
+    }
+    function render() {
+      const box = boxEl();
+      if (!box) return;
       clear(box);
       let first = true;
       for (const section of sectionsInOrder()) {
@@ -33240,7 +33299,7 @@ ${xl.join("\n")}`;
       fill();
     }
     function rebuildIfOpen() {
-      if (document.getElementById(PANE_ID)) render();
+      if (boxEl()) render();
     }
     function fill() {
       for (const s of settings.values()) {
@@ -33260,9 +33319,22 @@ ${xl.join("\n")}`;
         if (before !== now) notify(s.id, now);
       }
     }
-    let hooked = false;
     function install() {
-      if (hooked) return true;
+      if (mode2) return true;
+      const SettingsExtension = esoExtensionClass("SettingsExtension", "SETTINGS");
+      if (SettingsExtension && window.eso.extensions.register(new SettingsExtension(
+        TAB_ID,
+        "RPmod",
+        (container) => {
+          esoBox = container;
+          render();
+        },
+        () => fill(),
+        () => apply()
+      )) !== false) {
+        mode2 = "eso";
+        return true;
+      }
       if (typeof window.display_settings !== "function" || typeof window.confirm_settings !== "function") return false;
       const origDisplay = window.display_settings;
       window.display_settings = function() {
@@ -33284,14 +33356,27 @@ ${xl.join("\n")}`;
         }
         return origConfirm.apply(this, arguments);
       };
-      hooked = true;
+      mode2 = "adapter";
       return true;
     }
-    const api = { registerSetting, registerBlock, get, set, onChange, install, paneId: PANE_ID, open: () => {
-      window.display_settings?.();
-      const li = document.getElementById(PANE_ID + "_tab");
-      li?.querySelector("a")?.click();
-    } };
+    const paneId = () => mode2 === "eso" ? ESO_PANE_ID : PANE_ID;
+    const api = {
+      registerSetting,
+      registerBlock,
+      get,
+      set,
+      onChange,
+      install,
+      mode: () => mode2,
+      get paneId() {
+        return paneId();
+      },
+      open: () => {
+        window.display_settings?.();
+        const li = document.getElementById(paneId() + "_tab");
+        li?.querySelector("a")?.click();
+      }
+    };
     window.KLITE_RPMod_Settings = api;
     let tries = 0;
     const attempt = () => {

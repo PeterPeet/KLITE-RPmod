@@ -2,7 +2,13 @@
 
 *For Jaxxks (Esolite / Esobold maintainer), from the KLITE RPmod project, 2026-09-23.*
 
-**Status:** implemented as commit `78e971ffb` on branch `quickstart-extensions` (based on
+**Status (2026-09-24): merged** as esolithe/esobold#65 in a reworked, more general form:
+Jaxxks turned it into the registry `window.eso.extensions` with a `QuickStartExtension`
+class (`embd_res/js/modHooks.js`), awaited `apply()`, and RPmod added error collection for
+async hooks. Follow-ups by RPmod: settings tabs (#66) and the Guide (#67). RPmod uses the
+merged API (see ARCHITECTURE §4b). The text below is the original proposal.
+
+**Original status:** implemented as commit `78e971ffb` on branch `quickstart-extensions` (based on
 `remoteManagement` @ `2c3aed53d`), one file: `embd_res/js/characterManager.js` (+74 lines).
 Verified in the browser: with RPmod the section appears via the hook, counts in "Selected
 items", applies after the built-in roles and is cleared by "Clear all"; without RPmod

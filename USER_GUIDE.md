@@ -38,7 +38,9 @@ Worlds editor).
 **New here?** The Adventure panel shows a **New here?** card on your first visit:
 - **📖 Open the Guide** — short chapters on everything RPmod does, each with **Show me**
   buttons that open and highlight the part of the screen being explained. Reopen it any time
-  with the **?** button in the Adventure panel's header.
+  with the **?** button in the Adventure panel's header. With a newer Esolite that has its
+  own **Guide** in the top bar, RPmod's chapters are the **RPmod** tab of that Guide (next
+  to Esolite's own chapters), and the **?** button opens it there.
 - **▶ Quick Start** — Esolite's own session starter. RPmod adds an **RPmod world** section
   to it: choose a world (for example **Eldoria**, the ready-made example) together with
   characters from your Library, press **Confirm**, and you start in that world.

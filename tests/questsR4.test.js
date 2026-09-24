@@ -269,7 +269,8 @@ test('reputation: rewards, tags, effects, triggers and conditions; tiers reach t
     const b = W.reputation().find(r => r.id === bandits.id);
     assert.equal(b.tier, 'Hated'); assert.equal(b.hostile, true);
     // the Quest log window lists the standings
-    w.KLITE_RPMod_Shell.open('questlog'); await sleep(30);
+    w.KLITE_RPMod_Shell.open('questlog');
+    for (let i = 0; i < 100 && !w.document.querySelector('[data-window="questlog"] [data-rep]'); i++) await sleep(20);   // under load it can take longer
     const win = w.document.querySelector('[data-window="questlog"]');
     assert.equal(win.querySelector(`[data-rep="${guard.id}"] [data-tier]`).textContent, 'Honored');
     assert.equal(win.querySelector(`[data-rep="${bandits.id}"] [data-tier]`).textContent, 'Hated');

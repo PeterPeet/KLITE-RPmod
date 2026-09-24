@@ -1,11 +1,16 @@
 // =============================================================================
 // KLITE RPmod — Settings: an "RPmod" tab in Esolite's own Settings dialog
 // -----------------------------------------------------------------------------
-// Built exactly like Esobold's own "Agent" / "Esobold" tabs (static/js/newMenuOptions.js,
-// createNewSettingsSection): an <li id="settingsmenu<id>_tab"> in .settingsnav and a
-// <div id="settingsmenu<id>" class="settingsmenu hidden"> with a .settingitem.wide box;
-// rows use Esolite's .settinglabel / .settingsmall / .helpicon markup. Esolite's
-// display_settings_tab(index) shows it (it resolves the pane from the li id).
+// Two ways to get the tab, in order of preference:
+//   'eso'     Esolite's mod hook (static/js/modHooks.js, esolithe/esobold#66): a
+//             SettingsExtension; Esolite builds the tab, calls render once, load when the
+//             dialog opens and save on OK.
+//   'adapter' older hosts (e.g. Esolite 1.35.0): the tab is built like Esobold's own
+//             "Agent" / "Esobold" tabs (newMenuOptions.js, createNewSettingsSection): an
+//             <li id="settingsmenu<id>_tab"> in .settingsnav and a <div id="settingsmenu<id>"
+//             class="settingsmenu hidden"> with a .settingitem.wide box, shown by
+//             display_settings_tab(index); display_settings / confirm_settings are wrapped.
+// Rows use Esolite's .settinglabel / .settingsmall / .helpicon markup in both cases.
 //
 // Values live in `localsettings` (keys `rpmod_<id>`) like Esolite's own options: the
 // dialog is filled on display_settings, written on OK (confirm_settings, which also saves
@@ -16,9 +21,11 @@
 // Public API: window.KLITE_RPMod_Settings.
 // =============================================================================
 import { el, clear } from '../shell/dom.js';
+import { esoExtensionClass } from '../onboarding/hostGlobals.js';
 
 const TAB_ID = 'rpmod';
-const PANE_ID = 'settingsmenu' + TAB_ID;
+const PANE_ID = 'settingsmenu' + TAB_ID;             // adapter
+const ESO_PANE_ID = 'settingsmenuext_' + TAB_ID;     // built by Esolite's SettingsExtension
 
 export default function initSettings() {
     'use strict';
@@ -98,9 +105,17 @@ export default function initSettings() {
         return el('div', { class: 'settinglabel' }, [label, input]);
     }
 
+    let mode = null;       // 'eso' | 'adapter' | null (not installed yet)
+    let esoBox = null;     // the container Esolite gave to render()
+    function boxEl() {
+        if (mode === 'eso') return esoBox && esoBox.isConnected ? esoBox : null;
+        const pane = document.getElementById(PANE_ID);
+        return pane ? pane.querySelector('.settingitem') : null;
+    }
+
     function render() {
-        const pane = document.getElementById(PANE_ID); if (!pane) return;
-        const box = pane.querySelector('.settingitem'); clear(box);
+        const box = boxEl(); if (!box) return;
+        clear(box);
         let first = true;
         for (const section of sectionsInOrder()) {
             const h = el('h3', { text: section }); if (first) h.style.marginTop = '4px'; first = false;
@@ -119,7 +134,7 @@ export default function initSettings() {
         }
         fill();
     }
-    function rebuildIfOpen() { if (document.getElementById(PANE_ID)) render(); }
+    function rebuildIfOpen() { if (boxEl()) render(); }
 
     // dialog <- localsettings
     function fill() {
@@ -140,9 +155,17 @@ export default function initSettings() {
     }
 
     // ---- hooks into Esolite's dialog ---------------------------------------------------
-    let hooked = false;
     function install() {
-        if (hooked) return true;
+        if (mode) return true;
+        const SettingsExtension = esoExtensionClass('SettingsExtension', 'SETTINGS');
+        // register() refuses an id that is already taken (by any extension type)
+        if (SettingsExtension && window.eso.extensions.register(new SettingsExtension(TAB_ID, 'RPmod',
+            (container) => { esoBox = container; render(); },
+            () => fill(),
+            () => apply())) !== false) {
+            mode = 'eso';
+            return true;
+        }
         if (typeof window.display_settings !== 'function' || typeof window.confirm_settings !== 'function') return false;
         const origDisplay = window.display_settings;
         window.display_settings = function () {
@@ -155,11 +178,17 @@ export default function initSettings() {
             try { apply(); } catch (e) { console.error('[RPmod settings]', e); }
             return origConfirm.apply(this, arguments);   // Esolite saves localsettings
         };
-        hooked = true;
+        mode = 'adapter';
         return true;
     }
 
-    const api = { registerSetting, registerBlock, get, set, onChange, install, paneId: PANE_ID, open: () => { window.display_settings?.(); const li = document.getElementById(PANE_ID + '_tab'); li?.querySelector('a')?.click(); } };
+    const paneId = () => mode === 'eso' ? ESO_PANE_ID : PANE_ID;
+    const api = {
+        registerSetting, registerBlock, get, set, onChange, install,
+        mode: () => mode,
+        get paneId() { return paneId(); },
+        open: () => { window.display_settings?.(); const li = document.getElementById(paneId() + '_tab'); li?.querySelector('a')?.click(); },
+    };
     window.KLITE_RPMod_Settings = api;
 
     let tries = 0;

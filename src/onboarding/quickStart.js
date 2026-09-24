@@ -10,32 +10,42 @@
 //                    apply(): Promise, clear() }
 //
 // Integration, in order of preference:
-//   1. window.quickStartExtensions.register(ext) — the official hook proposed to Esolite
-//      (docs/proposals/quick-start-extensions.md). Used as soon as Esolite provides it.
-//   2. Adapter: wrap the top-level bindings showQuickStartPopup / applyQuickStartSelection /
-//      clearAllQuickStartSelections (see hostGlobals.js). Esolite's own behaviour is
-//      untouched; RPmod sections are appended to the popup after Esolite renders it.
+//   1. 'eso': Esolite's mod hook (static/js/modHooks.js, esolithe/esobold#65): each
+//      extension is registered as a QuickStartExtension in window.eso.extensions; Esolite
+//      renders, counts, clears and applies it (awaiting apply, reporting its errors).
+//   2. 'adapter' (older hosts, e.g. Esolite 1.35.0): wrap the top-level bindings
+//      showQuickStartPopup / applyQuickStartSelection / clearAllQuickStartSelections (see
+//      hostGlobals.js). Esolite's own behaviour is untouched; RPmod sections are appended
+//      to the popup after Esolite renders it.
 // =============================================================================
-import { hostGet, hostSet } from './hostGlobals.js';
+import { hostGet, hostSet, esoExtensionClass } from './hostGlobals.js';
 
 const extensions = [];
-let mode = null;   // 'api' | 'adapter' | null (Quick Start not available yet)
+let mode = null;   // 'eso' | 'adapter' | null (Quick Start not available yet)
 
 export function quickStartMode() { return mode; }
+
+function registerWithEso(ext) {
+    const QuickStartExtension = esoExtensionClass('QuickStartExtension', 'QUICK_START');
+    window.eso.extensions.register(new QuickStartExtension(ext.id, ext.label, ext.helpText,
+        (container, rerender) => ext.render(container, rerender),
+        () => ext.hasSelection(),
+        () => ext.apply(),
+        () => ext.clear()));
+}
 
 export function registerQuickStartExtension(ext) {
     if (!ext || !ext.id || extensions.some(e => e.id === ext.id)) return;
     extensions.push(ext);
-    if (mode === 'api') window.quickStartExtensions.register(ext);
+    if (mode === 'eso') registerWithEso(ext);
 }
 
 // Try to hook into Quick Start; returns true once installed (safe to call repeatedly).
 export function installQuickStartHooks() {
     if (mode) return true;
-    const api = window.quickStartExtensions;
-    if (api && typeof api.register === 'function') {
-        extensions.forEach(e => api.register(e));
-        mode = 'api';
+    if (esoExtensionClass('QuickStartExtension', 'QUICK_START')) {
+        extensions.forEach(registerWithEso);
+        mode = 'eso';
         return true;
     }
     const show = hostGet('showQuickStartPopup');

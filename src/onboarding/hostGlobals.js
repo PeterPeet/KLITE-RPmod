@@ -22,3 +22,14 @@ export function hostSet(name, value) {
         return true;
     } catch (_) { return false; }
 }
+
+// Esolite's mod hooks (static/js/modHooks.js, Esobold after 1.35.0): the registry
+// window.eso.extensions plus one class per extension type (QuickStartExtension +
+// EsoExtensionType.QUICK_START, SettingsExtension + SETTINGS, GuideExtension + GUIDE).
+// Returns the class when this host supports that type, else null (older host: use a fallback).
+export function esoExtensionClass(className, typeName) {
+    const registry = window.eso && window.eso.extensions;
+    const cls = hostGet(className), types = hostGet('EsoExtensionType');
+    if (!registry || typeof registry.register !== 'function' || typeof cls !== 'function' || !types || !types[typeName]) return null;
+    return cls;
+}

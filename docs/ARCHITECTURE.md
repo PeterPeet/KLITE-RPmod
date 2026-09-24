@@ -83,6 +83,10 @@ Gotchas:
   `get_groupchat_context_memory()`. Relevant when ALPHA's speaker modes are migrated.
 
 ### Upgrading the host
+
+To try RPmod against another Esolite build (e.g. a local build of an Esobold branch:
+copy `docs/` + `embd_res/*` → `static/` + `klite.embd` → `index.html`, as Esobold's
+`updateHTML` workflow does), run `ESOLITE_DIR=<folder> npm run build:index`.
 1. Add the new Esolite folder next to the current one (`Esobold Esolite a fork of KoboldAI
    Lite RMv<x.y.z>/`).
 2. Diff the globals in the table above (`prepare_submit_generation`, `submit_generation`,
@@ -404,17 +408,30 @@ and 2 (moving, mini-map, AI context) done.
 - **Principle:** Esolite's **Quick Start** (Jaxxks, `static/js/characterManager.js`) is the
   way to begin a session; RPmod extends it instead of shipping its own wizard. GuidedRP is
   retired (source in `BackupData/legacy/`).
+- **Esolite mod hooks** (Esobold `static/js/modHooks.js`, contributed by RPmod): a registry
+  `window.eso.extensions` and one class per type — `QuickStartExtension` (QUICK_START,
+  esolithe/esobold#65, merged), `SettingsExtension` (SETTINGS, #66) and `GuideExtension`
+  (GUIDE, #67, with Esolite's top-bar Guide `window.eso.guide`). `hostGlobals.js`
+  `esoExtensionClass(className, typeName)` returns the class only if this host supports the
+  type; each feature below uses the hook when present and its own fallback otherwise
+  (Esolite 1.35.0 has none). **Ids are unique across all types** — RPmod uses
+  `rpmod-world` (Quick Start), `rpmod` (settings), `rpmod-guide` (guide).
 - **Quick Start extension** (`quickStart.js`): extensions `{ id, label, helpText,
-  render(container, rerender), hasSelection(), apply(), clear() }`. Uses
-  `window.quickStartExtensions.register` if Esolite provides it (proposal:
-  `docs/proposals/quick-start-extensions.md`); otherwise an **adapter** wraps the top-level
+  render(container, rerender), hasSelection(), apply(), clear() }`. Mode `'eso'`: each is
+  registered as a `QuickStartExtension`; Esolite renders, counts, clears and applies it
+  (awaiting `apply`, listing its errors). Mode `'adapter'` (older hosts): wraps the top-level
   `let` bindings `showQuickStartPopup` / `applyQuickStartSelection` /
   `clearAllQuickStartSelections` through `hostGlobals.js` (`new Function` code runs in the
   page's global scope and can read/reassign such bindings — they are not on `window`).
   RPmod's apply runs after Esolite's. Section "RPmod world": choose a Worlds world or the
   example; apply = `useWorld`/`loadExample` + `enable` + first location if none + show the
   World tab.
-- **Guide** (`guide.js`, content `chapters.js`): window view `guide`; chapters of
+- **Guide** (`guide.js`, content `chapters.js`). With Esolite's Guide (`guideMode() === 'eso'`)
+  the chapters are registered as its **RPmod** tab (`GuideExtension('rpmod-guide')`);
+  `openGuide(id)` calls `window.eso.guide.open('rpmod-guide', id)` and each `show` action gets
+  an adapted context (`open` = shell view, `highlight` = Esolite's spotlight after 60 ms,
+  `hostCall` via Esolite's `run`, which closes the guide first); no shell `guide` view then.
+  Otherwise (`'own'`): window view `guide`; chapters of
   paragraphs/lists/tables/tips rendered as text; `show` actions get `{ open, highlight,
   hostCall, navLink }`. `highlight()` draws a ring + note (`.rpm-spot-*`, z-index above
   everything), ends on click, Escape or after 6 s. Chapter remembered in
@@ -426,7 +443,11 @@ and 2 (moving, mini-map, AI context) done.
   it on `generate_savefile` so old stories keep it.
 
 ## 4c. Settings (`src/settings/settings.js`)
-- An **RPmod** tab in Esolite's Settings dialog, built like Esobold's `createNewSettingsSection`
+- An **RPmod** tab in Esolite's Settings dialog. Mode `'eso'` (`KLITE_RPMod_Settings.mode()`):
+  registered as `SettingsExtension('rpmod')`; Esolite builds the tab
+  (`li#settingsmenuext_rpmod_tab`, pane `#settingsmenuext_rpmod`) and calls render once, load
+  on open, save on OK — the rows below are rendered into the container it passes. Mode
+  `'adapter'` (older hosts): built like Esobold's `createNewSettingsSection`
   (`static/js/newMenuOptions.js`): `li#settingsmenurpmod_tab` in `.settingsnav`, pane
   `div#settingsmenurpmod.settingsmenu` with `.settingitem.wide`; rows `.settinglabel` /
   `.settingsmall` / `.helpicon` (built with `textContent`). The tab is created on the first
@@ -580,7 +601,8 @@ via `vm` like a usermod (single `src/` modules are bundled on the fly with esbui
 viewport is 1400×900, `host.resize()` changes it). Suites: `syntax`, `engine`, `quests`,
 `triggers`, `combat`, `context`, `library`, `settings`, `characters`, `shell`, `ui`, `onboarding`, `bundle` (built file end-to-end).
 `host.installTavernTool()` loads Esolite's real `tavernTool.js`; `host.installFakeSettingsDialog()`
-mimics the Settings dialog.
+mimics the Settings dialog; `host.installFakeEsoHooks({ quickStart, settings, guide })` mimics
+Esolite's mod hooks (registry, extension classes, `eso.guide`) for the `'eso'` modes.
 `host.installFakeLibrary()` mimics Esolite 1.35's id-based Library (incl. the id-less drop).
 `host.installFakeQuickStart()` mimics Esolite's Quick Start (top-level `let` bindings +
 popupUtils). The helper uses jsdom's own VM context (`runScripts: 'outside-only'`) so page

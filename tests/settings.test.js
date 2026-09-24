@@ -46,6 +46,41 @@ test('settings: RPmod tab like Esobold\'s tabs; OK applies and saves, Cancel dis
     assert.equal(w.document.querySelectorAll('#settingsmenurpmod').length, 1);
 });
 
+test('settings: with Esolite\'s SettingsExtension hook the tab is Esolite\'s; OK applies, Cancel discards', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeSettingsDialog();
+    h.installFakeEsoHooks({ settings: true });
+    h.load('settings');
+    h.window.dispatchEvent(new h.window.Event('load')); await sleep(20);
+    const w = h.window; const S = w.KLITE_RPMod_Settings;
+    assert.equal(S.mode(), 'eso');
+    assert.ok(h.eval('window.eso.extensions.getByType(EsoExtensionType.SETTINGS)[0] instanceof SettingsExtension'));
+    const changes = [];
+    S.registerSetting({ id: 'demo', section: 'Worlds', label: 'Demo option', help: '<b>not html</b>', default: false });
+    S.onChange('demo', (v) => changes.push(v));
+
+    w.display_settings();
+    assert.equal($(w, '#settingsmenurpmod'), null, 'no tab of our own');
+    const pane = $(w, '#settingsmenuext_rpmod');
+    assert.equal($(w, '#settingsmenuext_rpmod_tab').textContent, 'RPmod');
+    assert.equal(pane.querySelector('h3').textContent, 'Worlds');
+    assert.equal(pane.querySelector('.helptext').textContent, '<b>not html</b>');
+    assert.equal(S.paneId, 'settingsmenuext_rpmod');
+
+    // registered after the tab was built: shows up
+    S.registerSetting({ id: 'late', section: 'Map', label: 'Late option', default: true });
+    assert.equal($(w, '#rpmodset_late').checked, true);
+
+    const cb = $(w, '#rpmodset_demo');
+    cb.checked = true;                       // Cancel
+    w.display_settings();
+    assert.equal($(w, '#rpmodset_demo').checked, false, 'reopening refills from localsettings');
+    $(w, '#rpmodset_demo').checked = true; w.confirm_settings();   // OK
+    assert.equal(w.localsettings.rpmod_demo, true);
+    assert.deepEqual([...changes], [true]);
+    assert.equal(w.document.querySelectorAll('#settingsmenuext_rpmod').length, 1);
+});
+
 async function worldsHost(t) {
     const h = createHost(); t.after(h.close);
     h.installFakeSettingsDialog();

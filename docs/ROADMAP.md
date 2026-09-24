@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-23
+> Last updated: 2026-09-24
 
 ## Current state
 
@@ -19,9 +19,12 @@ Done since R1: R2 characters (🟨: spells open), R5 combat (🟨), R4 quests & 
 Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
 Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks diffed,
 all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
-`BackupData/`.
+`BackupData/`. **Newer Esobold** (`remoteManagement`) has mod hooks contributed by RPmod —
+Quick Start (esolithe/esobold#65, merged), settings tabs (#66) and a top-bar Guide with mod
+tabs (#67, both open); RPmod uses them when present and falls back otherwise (2026-09-24,
+live-checked against a local build of #67 and against 1.35.0).
 
-### What works (verified headless 2026-09-23 — `npm test`, 173 tests)
+### What works (verified headless 2026-09-24 — `npm test`, 176 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -101,10 +104,11 @@ all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is a
     the theme via its variables, but spacing is not yet on the shell's scale.
 14. **Quick Start adapter depends on Esolite internals** (`showQuickStartPopup`,
     `applyQuickStartSelection`, `clearAllQuickStartSelections`, `popupUtils.contentElem`).
-    Falls back gracefully (no RPmod section) if they change; goes away once Esolite adopts
-    `window.quickStartExtensions` — implemented for Esobold on branch
-    `quickstart-extensions` (pushed to fork PeterPeet/esobold), PR to be opened. RPmod already prefers the
-    hook (verified live).
+    Falls back gracefully (no RPmod section) if they change. Only used on hosts without
+    Esolite's mod hooks: Esobold merged the Quick Start hook (esolithe/esobold#65,
+    `QuickStartExtension`), which RPmod prefers (2026-09-24). The same holds for RPmod's
+    own settings tab (hook: #66) and guide window (hook: #67). Drop the fallbacks once the
+    supported host version has the hooks.
 15. ~~Two character libraries~~ — decided: Esolite's Library is the master; ALPHA's
     `KLITE_RPMod.characters` is a gallery view rebuilt from it (plus RPmod-only rating/
     talkativeness/tag cache in `characters_v3`). Remaining (R2): gallery ids are list
@@ -173,6 +177,13 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
       `docs/proposals/quick-start-extensions.md`). New **RPmod Guide** window (11 chapters, 12 since R2,
       "Show me" highlights), "New here?" card and `?` button. **GuidedRP retired** (source in
       `BackupData/legacy/`, `guided_rp` save blocks preserved). Live-checked in Esolite.
+- [x] **Esolite mod hooks (2026-09-24):** contributed upstream and adopted — Quick Start
+      section via `QuickStartExtension` (esolithe/esobold#65, merged), RPmod settings tab via
+      `SettingsExtension` (#66), RPmod Guide as a tab of Esolite's new top-bar Guide via
+      `GuideExtension` (#67). Each falls back to RPmod's own adapter/tab/window on older
+      hosts. `ESOLITE_DIR=<folder> npm run build:index` builds against another Esolite.
+      Two timing-sensitive tests (Combat window, reputation Quest log) now wait for their
+      window instead of a fixed delay.
 - [x] Test runner guard: `npm test` fails if fewer tests ran than `tests/.test-count`
       (a test file had been ending early without any failure).
 - [x] **World editor is a shell window** (2026-09-23): the full-screen `#wm-overlay` is

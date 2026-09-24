@@ -11,13 +11,14 @@ async function until(fn, ms = 3000) {
     throw new Error('condition not met in time');
 }
 
-async function fullHost(t, { quickStart = true, before } = {}) {
+async function fullHost(t, { quickStart = true, before, settings = false } = {}) {
     const h = createHost(); t.after(h.close);
     if (quickStart) h.installFakeQuickStart();
     if (before) before(h);
-    h.load('shell', 'worlds', 'worldsUI', 'onboarding');
+    h.load(...(settings ? ['settings'] : []), 'shell', 'worlds', 'worldsUI', 'onboarding');
     await h.ready({ ui: true });
-    await until(() => h.shell().views().includes('guide'));
+    // the ? button exists in both modes; the guide view only without Esolite's Guide
+    await until(() => h.window.document.querySelector('#rpm-dock-left [data-action="guide"]'));
     return h;
 }
 const $ = (h, sel) => h.window.document.querySelector(sel);
@@ -68,13 +69,77 @@ test('Quick Start: an existing world without a current place starts at its first
     assert.equal(W.runtime.playerLocationId, loc.id);
 });
 
-test('Quick Start: uses the official extension hook when Esolite provides one', async (t) => {
-    const registered = [];
-    const h = await fullHost(t, { quickStart: false, before: (hh) => { hh.window.quickStartExtensions = { register: (e) => registered.push(e) }; } });
-    await until(() => h.window.KLITE_RPMod_Onboarding.quickStartMode() === 'api');
-    assert.deepEqual(registered.map(e => e.id), ['rpmod-world']);
-    assert.equal(typeof registered[0].render, 'function');
-    assert.equal(typeof registered[0].apply, 'function');
+test('Quick Start: registers a QuickStartExtension when Esolite has mod hooks (no wrapping)', async (t) => {
+    const h = await fullHost(t, { before: (hh) => hh.installFakeEsoHooks({ quickStart: true }) });
+    const w = h.window; const W = h.api();
+    await until(() => w.KLITE_RPMod_Onboarding.quickStartMode() === 'eso');
+    const exts = h.eval('window.eso.extensions.getByType(EsoExtensionType.QUICK_START)');
+    assert.deepEqual(Array.from(exts, e => e.id), ['rpmod-world']);
+    assert.ok(h.eval('window.eso.extensions.getByType(EsoExtensionType.QUICK_START)[0] instanceof QuickStartExtension'));
+    assert.equal(exts[0].label, 'RPmod world (optional)');
+    assert.match(exts[0].helpText, /Eldoria/);
+
+    // Esolite renders our section itself: nothing is appended by RPmod any more
+    w.showQuickStartPopup();
+    assert.equal($(h, '[data-rpmod-quickstart]'), null, 'showQuickStartPopup not wrapped');
+
+    // what Esolite does with the extension: render (with rerender), hasSelection, apply, clear
+    const ext = exts[0];
+    const box = w.document.createElement('div'); w.document.body.appendChild(box);
+    const rerender = () => { box.replaceChildren(); ext.render(box, rerender); };
+    rerender();
+    assert.equal(ext.hasSelection(), false);
+    click(findButton(box, /^Choose world$/), w);
+    click(findButton(box, /Eldoria \(example world\)/), w);
+    assert.equal(ext.hasSelection(), true);
+    await ext.apply();
+    assert.equal(W.activeWorld().id, 'world_example');
+    assert.equal(W.isEnabled(), true);
+    assert.equal(ext.hasSelection(), false, 'selection used up by apply');
+    click(findButton(box, /^Choose world$/), w);
+    click(findButton(box, /Eldoria/), w);
+    ext.clear();
+    assert.equal(ext.hasSelection(), false, 'Clear all clears it');
+});
+
+test('Quick Start: an older host without mod hooks keeps the adapter', async (t) => {
+    const h = await fullHost(t, { before: (hh) => hh.installFakeEsoHooks({ guide: true }) });   // hooks, but no QUICK_START type
+    await until(() => h.window.KLITE_RPMod_Onboarding.quickStartMode() === 'adapter');
+});
+
+test('Guide: with Esolite\'s Guide the chapters become its RPmod tab; Show me works there', async (t) => {
+    // all three hooks together, as in Esolite: the ids must not collide across types
+    const h = await fullHost(t, { settings: true, before: (hh) => { hh.installFakeSettingsDialog(); hh.installFakeEsoHooks({ quickStart: true, settings: true, guide: true }); } });
+    const w = h.window; const O = w.KLITE_RPMod_Onboarding;
+    assert.equal(O.guideMode(), 'eso');
+    await until(() => O.quickStartMode() === 'eso' && w.KLITE_RPMod_Settings.mode() === 'eso');
+    const ext = h.eval('window.eso.extensions.getByType(EsoExtensionType.GUIDE)[0]');
+    assert.ok(h.eval('window.eso.extensions.getByType(EsoExtensionType.GUIDE)[0] instanceof GuideExtension'));
+    assert.equal(ext.id, 'rpmod-guide'); assert.equal(ext.getLabel(), 'RPmod');
+    const chapters = ext.getChapters();
+    assert.ok(chapters.length >= 10);
+    assert.equal(chapters[0].id, 'welcome');
+    assert.ok(chapters.every(c => c.title && Array.isArray(c.blocks)));
+    await sleep(150);
+    assert.ok(!h.shell().views().includes('guide'), 'no second guide window');
+
+    // openGuide and the ? button open Esolite's Guide on the RPmod tab
+    O.openGuide('quests');
+    click($(h, '#rpm-dock-left [data-action="guide"]'), w);
+    assert.deepEqual(Array.from(w.__eso.guideOpened, x => Array.from(x)), [['rpmod-guide', 'quests'], ['rpmod-guide', null]]);
+
+    // "Show me" gets Esolite's context: RPmod views open, Esolite's highlight is used
+    const calls = [];
+    const hostCtx = { highlight: (target, note) => calls.push(['highlight', target, note]), run: (fn) => { calls.push(['run']); return fn(); }, navLink: (text) => () => text };
+    chapters.find(c => c.id === 'quests').show.find(s => s.label === 'Quest log').run(hostCtx);
+    await until(() => $(h, '[data-window="questlog"]'));
+    await until(() => calls.length);
+    assert.deepEqual(calls[0], ['highlight', '[data-window="questlog"]', 'Your quest log']);
+    // hostCall goes through Esolite's run (the guide closes first)
+    calls.length = 0;
+    chapters.find(c => c.id === 'esolite').show.find(s => s.label === 'Open Quick Start').run(hostCtx);
+    assert.deepEqual(calls[0], ['run']);
+    assert.ok($(h, '#popupContainer'), 'Quick Start opened');
 });
 
 test('Guide: chapters, navigation, remembered chapter, Show me opens and highlights', async (t) => {

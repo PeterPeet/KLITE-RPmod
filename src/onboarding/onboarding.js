@@ -4,9 +4,11 @@
 // Getting started builds on Esolite instead of competing with it:
 //   • Esolite's "Quick Start" (Jaxxks) stays THE way to begin a session; RPmod adds an
 //     "RPmod world" section to it (quickStart.js).
-//   • The RPmod Guide (guide.js + chapters.js) explains RPmod's features in short
-//     chapters with "Show me" highlights; its first chapters point newcomers to
-//     Esolite's AI, Library and Quick Start.
+//   • The RPmod Guide (chapters.js) explains RPmod's features in short chapters with
+//     "Show me" highlights; its first chapters point newcomers to Esolite's AI, Library
+//     and Quick Start. When Esolite has its own Guide (top bar, esolithe/esobold#67) the
+//     chapters become its "RPmod" tab (a GuideExtension); otherwise RPmod shows them in
+//     its own guide window (guide.js).
 //   • A dismissible "New here?" card in the Adventure panel, and a ? button in its header.
 // Replaces the retired GuidedRP wizard (source archived in BackupData/legacy/); saves
 // that carry GuidedRP's `guided_rp` block keep it when saved again.
@@ -14,8 +16,11 @@
 // =============================================================================
 import { el, iconText } from '../shell/dom.js';
 import { createGuideView, highlight, clearHighlight } from './guide.js';
+import { CHAPTERS } from './chapters.js';
 import { registerQuickStartExtension, installQuickStartHooks, quickStartMode, quickStartTile } from './quickStart.js';
-import { hostGet } from './hostGlobals.js';
+import { hostGet, esoExtensionClass } from './hostGlobals.js';
+
+const GUIDE_TAB = 'rpmod-guide';   // ids are unique across all extension types; 'rpmod' is the settings tab
 
 const WELCOME_KEY = 'KLITE.onboarding.welcome';
 
@@ -24,8 +29,10 @@ export default function initOnboarding() {
     if (window.KLITE_RPMod_Onboarding) return;
 
     let guide = null;
+    const esoGuide = registerEsoGuide();   // Esolite's Guide, or null (then our own window)
     const api = {
         openGuide(chapterId) {
+            if (esoGuide) { window.eso.guide.open(GUIDE_TAB, chapterId || null); return true; }
             const sh = window.KLITE_RPMod_Shell; if (!sh || !guide) return false;
             if (chapterId) guide.goTo(chapterId);
             if (sh.isOpen('guide')) sh.refresh(['guide']);
@@ -34,6 +41,7 @@ export default function initOnboarding() {
         openQuickStart() { const fn = hostGet('showQuickStartPopup'); if (typeof fn === 'function') { fn(); return true; } return false; },
         highlight, clearHighlight,
         quickStartMode,
+        guideMode: () => esoGuide ? 'eso' : 'own',
         legacySaveHookInstalled: () => legacyInstalled,
     };
     window.KLITE_RPMod_Onboarding = api;
@@ -51,11 +59,31 @@ export default function initOnboarding() {
         const sh = window.KLITE_RPMod_Shell;
         if (!sh) { if (++shTries > 300) clearInterval(shTimer); return; }
         clearInterval(shTimer);
-        guide = createGuideView(sh);
-        sh.registerView(guide);
+        if (!esoGuide) { guide = createGuideView(sh); sh.registerView(guide); }
         sh.addDockAction('left', { id: 'guide', title: 'RPmod Guide', label: '?', icon: 'circle-help', onClick: () => api.openGuide() });
         if (!welcomeDismissed()) sh.registerView(welcomeView(sh, api));
     }, 100);
+}
+
+// ---- Esolite's Guide: RPmod chapters as its "RPmod" tab ------------------------------
+// The chapter format is the same; only the "Show me" context differs. Ours offers
+// open(viewId) / highlight / hostCall / navLink; Esolite's offers highlight / run /
+// openSettings / navLink, so each action gets an adapted context.
+function registerEsoGuide() {
+    const GuideExtension = esoExtensionClass('GuideExtension', 'GUIDE');
+    if (!GuideExtension || !window.eso.guide || typeof window.eso.guide.open !== 'function') return false;
+    const adapt = (hostCtx) => ({
+        open: (id) => { try { window.KLITE_RPMod_Shell?.open(id); } catch (_) {} },
+        // after RPmod panels/windows opened (same delay as our own guide)
+        highlight: (target, note) => setTimeout(() => hostCtx.highlight(target, note), 60),
+        hostCall: (name) => hostCtx.run(() => { const fn = hostGet(name); if (typeof fn === 'function') fn(); }),
+        navLink: hostCtx.navLink,
+    });
+    const chapters = () => CHAPTERS.map(ch => ({
+        id: ch.id, title: ch.title, blocks: ch.blocks,
+        show: (ch.show || []).map(s => ({ label: s.label, run: (hostCtx) => s.run(adapt(hostCtx)) })),
+    }));
+    return window.eso.extensions.register(new GuideExtension(GUIDE_TAB, 'RPmod', chapters)) !== false;
 }
 
 // ---- "New here?" card (left dock, top) ------------------------------------------
