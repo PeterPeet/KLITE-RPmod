@@ -19,6 +19,7 @@
 | `game/combat-rules.js`, `game/combatView.js` | (import) | Combat rules (pure) and the Combat window (§3.7) |
 | `characters/builder-rules.js`, `builder.js` | `window.KLITE_RPMod_Builder` | Character builder (levels 1–20) + level up (§5b) |
 | `game/map-rules.js` | (import) | R7 map rules (pure): location kinds, exits read from both sides, doors, grid layout, exploration (§3.9) |
+| `game/map-tags.js` | (import) | R7 map tags (pure): ordered scan of go/open/close/unlock/search/room/door/light, room/door/light specs (§3.9) |
 | `map/mapEditor.js` | (import) | R7 dungeon/town editor window `mapeditor` (§3.9) |
 | `map/minimap.js`, `map/board.js` | (import) | R7 mini-map (left dock) + Map window; shared board drawing (§3.9) |
 | `game/log.js` | `window.KLITE_RPMod_Log` | Dice roller + per-story game log; context provider `gamelog` (§5b) |
@@ -151,7 +152,8 @@ read/write goes through **`rt()`** (active snapshot). Snapshot:
 xp, questState{}, questObjectives{ qid: { oid: true | count } }, rewardsPaid{}, reputation{},
 activeQuestId, discovered{quests,events,descriptions},
 combat, npcStateOverrides{}, completedEventIds[], lastParsedIndex, clock{day,month,year,time,season,weather},
-explored{}, found{secrets[],traps[]}, doorState{}` (R7, §3.9; older saves get them via `toRuntimeContainer`).
+explored{}, found{secrets[],traps[],searched{}}, doorState{}, roomLight{}` (R7, §3.9; older saves get them via
+`toRuntimeContainer` / `MR.normalizeExploration`).
 Ops: `resetToBase / commitToBase / swapActive / setActiveSlot` (deep clones).
 `toRuntimeContainer()` migrates old flat saves. Saved in the story file under key
 **`rpmod_worlds`** (wrapped `generate_savefile` / `kai_json_load`). `API.runtime` returns
@@ -206,7 +208,9 @@ side-effect free.
 `handle_incoming_text`, which pushes the reply synchronously — Esolite wraps it the same way in
 `static/js/contextUsage.js`; parse only, the per-turn clock step stays at generation) and again at
 the start of the next generation (the user's own typed tags); tags stay visible in chat.
-`<move>` inside/into a dungeon or town goes through `go()` (§3.9).
+The map tags `<move>`/`<go>`, `<open>`, `<close>`, `<unlock>`, `<search>`, `<room>`, `<door>`,
+`<light>` are applied in **reply order** in one pass (`MT.scanMapTags` → `applyMapTag`, §3.9);
+`<move>` inside/into a dungeon or town goes through `go()`.
 
 ### 3.5 Trigger bus
 `fireTriggers(signal)` — bounded queue (≤400 steps), per-cascade `firedNow` set,
@@ -305,7 +309,7 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
 
 ### 3.9 Dungeons & towns, room by room (R7) — rules in `src/game/map-rules.js` (pure)
 Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (data model + editor)
-and 2 (moving, mini-map, AI context) done.
+2 (moving, mini-map, AI context) and 3 (AI tags, fog, searching) done.
 - **Kinds:** `location.kind` `'dungeon'|'town'` (else location, `kindOf`). A room/place is a location
   whose `parentId` chain reaches a dungeon/town (`mapOf` = nearest, `graphAnchor` = outermost); a
   room may itself be a dungeon/town (a level with its own map). Rooms keep working as locations
@@ -326,9 +330,16 @@ and 2 (moving, mini-map, AI context) done.
   "Places within" lists a dungeon's rooms only when explored (a town's non-secret places always);
   a room's own dungeon is not listed as an exit.
 - **Exploration** (runtime, both slots): `explored { id: known|discovered|visited }` (only rises),
-  `found { secrets, traps }`, `doorState { exitId: state }` (overrides the authored state,
-  `MR.doorState`). Entering a room (`moveTo`, the slice's mutate path) marks it visited and the
-  rooms behind its visible exits known. API: `exploration/setExplored/setDoorState/doorState/markFound`.
+  `found { secrets, traps, searched { roomId: n } }`, `doorState { exitId: state }` (overrides the
+  authored state, `MR.doorState`), `roomLight { roomId: light }` (overrides `room.light`,
+  `roomLightOf`). Entering a room (`moveTo`, `go`, the slice's mutate path) marks it visited and the
+  rooms behind its visible exits **discovered** when the way is see-through (`MR.seeThrough`: no
+  door, or the door open) else **known**. Opening a door raises the room behind to discovered.
+  **Names:** `roomNameKnown` — a dungeon room's name is known once discovered/visited (town places
+  and non-map places always); `playerPlaceName` returns "unexplored room" otherwise and feeds the
+  AI's exit lines, the mini-map's exit buttons, `mapBoard(…, { player })` (`name: '?'`, `named`)
+  and the text map. API: `exploration/setExplored/setDoorState/doorState/markFound/roomLight/
+  setRoomLight/playerPlaceName`.
 - **World graph:** `getGraph()` nodes carry `kind`, `rooms` (count), and for rooms and the features in
   them `mapId`, `graphId` (the dungeon/town node) and `label` ("Crypt › Hall"); stored exits add
   `exit` edges. The editor skips `mapId` nodes and draws their edges at `graphId`.
@@ -352,13 +363,35 @@ and 2 (moving, mini-map, AI context) done.
 - **AI context in a room:** Current Location adds `Light`, `Hazards`, and `Exits:` one per line
   (`- south: Ossuary (locked iron door)`, `, leads out` for ways out); rooms seen from outside
   are named `Dungeon (Room)` (`placeName`); Nearby Objects hides unfound traps and `hidden`
-  objects and tags features (container/trap/lit); section **Moving** (24) explains `<move>`;
+  objects and tags features (container/trap/lit); section **Exploring** (24) lists the map tags;
   optional **Map (explored)** (60, setting `map_ascii_ai`, default off) = `MR.asciiMap`.
 - **Mini-map / Map window** (`src/map/minimap.js`, drawing `src/map/board.js` shared with the
   editor): left-dock view `minimap` (order 15) and window `map`; player board (`mapBoard(…,
   { player: true })`), fog (known = dashed outline), here = gold, reachable neighbours clickable →
   `go(id, { source: 'ui' })`, exit buttons with door chips, last refusal shown. Refreshed with the
-  Worlds views on `klite:worlds-change`.
+  Worlds views on `klite:worlds-change`. Step 3: known-behind-a-closed-door rooms `rpm-map-unseen`
+  ("?"), dark rooms `rpm-map-dark`, per-door **Open/Close/Unlock** buttons (`data-door`,
+  `door(action, exitId, { source: 'ui' })`), **Search** (`data-map-search`, `search()`), light chip;
+  the last result/refusal is shown while the player stays in that room.
+- **Doors, searching, AI rooms (step 3, RPmod decides):**
+  - `door(action, target)` — `exitForTarget` resolves id / direction / neighbour name (`MT.looseKey`)
+    / door material / "door" when only one. open: closed → open, locked/barred refuse; close: open
+    → closed; unlock: key item held (`itemCount(door.keyItem)`) → closed without a roll; else
+    thieves' tools in the inventory → d20 + DEX (+ PB if the sheet's proficiencies mention them)
+    vs `lockDC` (15); barred refuses. UI successes and every roll/refusal are logged (`kind: 'map'`).
+  - `search()` — d20 + max(Perception, Investigation) (`playerSkill`: persona sheet via `derive`,
+    else world player stats `skills` totals, else the ability modifier) against `hiddenHere(room)`:
+    unfound secret exits (`secretDC`), secret rooms behind visible exits (`room.secretDC`), unfound
+    non-`hidden` trap features (`trapDC`), default DC 15. Hits → `found`; the log never shows a
+    DC. `passiveNotice` does the same with passive Perception (10 + Perception) on `go`/`moveTo`.
+  - `<room>` → `aiAddRoom`: only inside a dungeon/town; a free side (the given direction, else
+    n/e/s/w), `addRoom` beside the current room with `origin: 'ai'`, dungeon: door `open`, town:
+    `open` way; room discovered; **world edit** (`markDirty`, editor badge "AI"). Same name in the
+    map → no new room (fills an empty description). Side taken → refused (the text does not
+    reveal an unfound secret there).
+  - `<door>` → `aiDoor`: state only harder (`MT.harderOrSame`, runtime `doorState`); a doorless way
+    becomes a door (world edit); material/lockDC/keyItem only where empty.
+  - `<light>` → runtime `roomLight`; the context shows it (also outside rooms when overridden).
 
 ## 4a. App shell (`src/shell/`)
 - **Layout:** `#rpm-shell` is one fixed layer at **z-index 2** (below Esolite popups, z 3)

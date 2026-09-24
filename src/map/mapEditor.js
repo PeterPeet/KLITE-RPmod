@@ -188,7 +188,7 @@ function draw() {
     }
     for (const r of M.board.rooms) {
         const x = px(r.rect.x), y = px(r.rect.y), w = px(r.rect.w), h = px(r.rect.h);
-        const g = svg('g', { class: 'rpm-map-room' + (r.id === M.selected ? ' rpm-sel' : '') + (r.id === M.linkFrom ? ' rpm-link' : '') + (r.secret ? ' rpm-map-secretroom' : ''), 'data-room': r.id, 'data-kind': r.kind });
+        const g = svg('g', { class: 'rpm-map-room' + (r.id === M.selected ? ' rpm-sel' : '') + (r.id === M.linkFrom ? ' rpm-link' : '') + (r.secret ? ' rpm-map-secretroom' : '') + (r.origin === 'ai' ? ' rpm-map-airoom' : ''), 'data-room': r.id, 'data-kind': r.kind, 'data-origin': r.origin || null });
         g.appendChild(svg('rect', { x, y, width: w, height: h, rx: M.board.kind === 'town' ? 6 : 1, class: 'rpm-map-roomrect' }));
         const name = svg('text', { x: x + w / 2, y: y + h / 2 + 4, 'text-anchor': 'middle', class: 'rpm-map-name' });
         name.textContent = clip(r.name, Math.max(4, Math.floor(r.rect.w * 3.2)));
@@ -196,6 +196,7 @@ function draw() {
         const sub = r.kind !== 'location' ? `${r.kind === 'town' ? 'town' : 'level'} · ${r.rooms}` : (r.light && r.light !== 'bright' ? r.light : '');
         if (sub) { const t = svg('text', { x: x + w / 2, y: y + h / 2 + 17, 'text-anchor': 'middle', class: 'rpm-map-sub' }); t.textContent = sub; g.appendChild(t); }
         if (r.here) g.appendChild(svg('circle', { cx: x + 9, cy: y + 9, r: 4, class: 'rpm-map-here' }));
+        if (r.origin === 'ai') { const t = svg('text', { x: x + w - 5, y: y + 12, 'text-anchor': 'end', class: 'rpm-map-sub rpm-map-aibadge' }); t.textContent = 'AI'; const tt = svg('title'); tt.textContent = 'Added by the AI during play'; t.appendChild(tt); g.appendChild(t); }
         g.addEventListener('mousedown', (ev) => onRoomDown(ev, r.id));
         g.addEventListener('dblclick', () => { if (r.kind !== 'location') openMapEditor(r.id); });
         if (r.id === M.selected && M.tool === 'select') {
@@ -313,6 +314,7 @@ function renderRoom(box, id) {
     const A = API(); const R = MR(); const room = A.entityById(id); if (!room) return;
     const town = M.board.kind === 'town';
     box.appendChild(heading(town ? 'Place' : 'Room'));
+    if (room.origin === 'ai') box.appendChild(el('p', { class: 'rpm-muted', 'data-ai-room': '1', text: 'Added by the AI during play. Keep it, edit it, or delete it.' }));
     box.appendChild(lbl('Name'));
     box.appendChild(input(room.name, v => { A.updateEntity(id, { name: v }); const r = roomById(id); if (r) { r.name = v; draw(); } }, { live: true, attrs: { 'aria-label': 'Room name' } }));
     box.appendChild(lbl('Description'));

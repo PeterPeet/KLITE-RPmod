@@ -163,8 +163,12 @@ its inside is built in the **dungeon/town editor**, which opens over the world e
 Rooms are ordinary places underneath: you can move there, "Go to" objectives, events on
 entering, phases and encounters all work for them. **Secret doors and rooms stay hidden from the
 AI** until they are found, and the AI only hears about dungeon rooms the player knows.
-Deleting a dungeon or town asks first and removes its rooms with it. The player's mini-map and
-moving room by room come in the next steps of R7.
+Deleting a dungeon or town asks first and removes its rooms with it. Rooms the **AI added
+during play** (`<room>` tag, below) are world edits like yours: they carry a small **AI** badge
+on the board and a note in the inspector — keep, edit or delete them, then Save.
+
+For searching: a secret door or room uses its **Secret DC**, a trap feature its **trap DC**, a
+locked door its **lock DC** (each 15 when empty). A door's **key** item unlocks it without a roll.
 
 ---
 
@@ -184,9 +188,18 @@ there, active events, and relevant lore — and nothing from the far side of the
 ### The map and moving room by room
 
 The left panel's **Map** section shows where you are. Inside a dungeon or town you see its
-board: the room you are in (gold, with a dot), rooms you have visited, and — as dashed
-outlines — rooms you know of but have not entered. Unknown rooms and undiscovered secret doors
-are not shown. Below the board are the exits of your room (direction, name, door state).
+board with fog:
+
+- the room you are in (gold, with a dot) and rooms you have **visited** (solid);
+- rooms you have **seen** but not entered — through an open door or archway — as dashed
+  outlines with their name;
+- rooms behind a **closed door** as a faint dashed **"?"**: you know something is there, not what
+  (its name stays hidden from you and from the AI until you see it);
+- unknown rooms and undiscovered secret doors are not shown. In a town every place is common
+  knowledge, so its names always show.
+
+Below the board are the exits of your room (direction, name, door state) and a **Search**
+button; darkness or dim light shows as a chip.
 
 - **Click a neighbouring room** (or its exit button) to go there. RPmod applies the rules:
   you can only use known exits, a closed door is opened on the way, a **locked or barred door
@@ -195,9 +208,20 @@ are not shown. Below the board are the exits of your room (direction, name, door
 - Going to a dungeon or town from outside puts you in its entrance room (the room with the way
   out to where you stand). From inside you leave only through a way out.
 - Click the small board (or the map icon) to open the large **Map** window; it works the same.
-- The AI gets your room's description, light, hazards, the exits with exact names, directions
-  and door states, and what can be seen (unfound traps stay hidden). It moves you with
-  `<move>Ossuary</move>` or `<move>north</move>` — through the same rules.
+- **Doors:** next to a door's exit button is **Open**, **Close** or **Unlock**. A locked door
+  opens with its **key** if you carry it; otherwise, with **thieves' tools** in your inventory,
+  RPmod rolls d20 + DEX (+ proficiency when your sheet lists thieves' tools) against the lock's DC.
+  Without key or tools it refuses. A **barred** door cannot be opened from your side.
+- **Search:** rolls d20 + your better skill of **Perception** and **Investigation** against every
+  hidden thing in the room — secret doors, hidden rooms, traps. What you find appears on the map,
+  in the exits and in the AI's context; a miss just says "nothing found" (the DCs are never
+  shown). Walking in, your **passive Perception** (10 + Perception) already spots whatever it
+  beats. Rolls use your persona's sheet, else the world's player stats.
+- Every result and refusal goes to the game log, so the AI narrates what actually happened.
+- The AI gets your room's description, light, hazards, the exits with exact names (or
+  "unexplored room" behind a closed door), directions and door states, and what can be seen
+  (unfound secrets and traps stay out). It acts with the exploration tags below — through the
+  same rules, as if you had clicked.
 - Optional: **Settings → RPmod → Map → Send a small text map to the AI** adds a tiny map of
   the explored rooms (off by default; helps bigger models, may confuse small ones).
 - The World tab's **Current location** is the creator's shortcut: it puts you anywhere,
@@ -218,7 +242,7 @@ are applied when you send. Either way the next slice reflects them.
 
 | Command | Example | Effect |
 |---|---|---|
-| `<move>…</move>` | `<move>Forest Road</move>`, `<move>north</move>` | Move the **player** to a location. Inside (or into) a dungeon/town RPmod checks exits and doors; a refusal goes to the log |
+| `<move>…</move>` / `<go>…</go>` | `<move>Forest Road</move>`, `<go>north</go>` | Move the **player** to a location. Inside (or into) a dungeon/town RPmod checks exits and doors; a refusal goes to the log |
 | `<npcmove>NPC=Loc</npcmove>` | `<npcmove>Captain Rowan=Village</npcmove>` | Move an **NPC** to a location |
 | `<mood>NPC=Mood</mood>` | `<mood>Bram=cheerful</mood>` | Set an NPC's mood |
 | `<flag>key=value</flag>` | `<flag>metRowan=true</flag>` | Set a story flag (`<flag>key</flag>` = true) |
@@ -237,6 +261,22 @@ are applied when you send. Either way the next slice reflects them.
 | `<talk>Name</talk>` | `<talk>Captain Rowan</talk>` | The player spoke with this person (quest objectives) |
 | `<rep>Faction=±N</rep>` | `<rep>Royal Guard=+50</rep>` | Change the player's reputation with a faction |
 | `<encounter>…</encounter>` | `<encounter>2 Wolf, Goblin Warrior</encounter>` | Start a fight: SRD monster names with counts, or a saved encounter's name |
+
+### Exploring dungeons and towns (map tags)
+
+Inside a dungeon or town the AI (or you) can also write these. Names or directions come from the
+room's exits; articles, case and a plural *s* don't matter, and `door` alone means the only door.
+Several tags in one reply run **in order**, so `<unlock>south</unlock><open>south</open><go>south</go>`
+works in one go. RPmod applies the rules; refusals and rolls go to the game log.
+
+| Tag | Example | Effect |
+|---|---|---|
+| `<open>…</open>` / `<close>…</close>` | `<open>north</open>`, `<close>the iron door</close>` | Open or close a door (a locked or barred one refuses) |
+| `<unlock>…</unlock>` | `<unlock>south</unlock>` | Key if carried, else a thieves' tools roll; barred refuses |
+| `<search></search>` | `<search/>` | Search the current room (Perception/Investigation roll) |
+| `<room>Name, dir: text</room>` | `<room>Bone Pit, west: a pit of old bones</room>` | The AI adds a room next to the current one. RPmod places it, names it exactly and joins it by an open door (town: an open way). Refused if that side already has a way; a room with that name is not added twice |
+| `<door>dir = …</door>` | `<door>west = locked, iron, DC 15, key: Iron Key</door>` | Gives a way a door or makes it harder (open → closed → locked → barred). It never opens a door — that is `<open>`/`<unlock>`. Material, DC and key only fill in what the creator left empty |
+| `<light>…</light>` | `<light>dark</light>` | Light in the current room (bright, dim, dark) for the rest of the story |
 
 **Time slots:** `morning → noon → afternoon → evening → night`. Advancing past night rolls
 to the next day, and the **season** follows the month automatically.

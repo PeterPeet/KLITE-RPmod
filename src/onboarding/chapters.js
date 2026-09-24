@@ -114,10 +114,12 @@ export const CHAPTERS = [
     {
         id: 'tags', title: 'Changing the world from chat',
         blocks: [
-            { p: 'Small tags in the chat change the world. The AI can write them (ask for it in your World Rules) or you can type them yourself. They take effect on your next message.' },
+            { p: 'Small tags in the chat change the world. The AI can write them (ask for it in your World Rules) or you can type them yourself. The AI\'s tags take effect as soon as its reply arrives, yours when you send.' },
             { table: [
                 ['Tag', 'Effect'],
                 ['<move>Forest Road</move>', 'you go somewhere'],
+                ['<open>north</open> · <unlock>north</unlock> · <search/>', 'doors and searching in a dungeon (RPmod rolls)'],
+                ['<room>Bone Pit, west: old bones</room> · <door>west = locked</door>', 'the AI adds a room or locks a door'],
                 ['<give>Torch x2</give> · <take>Torch</take>', 'inventory'],
                 ['<quest>find_sword=active</quest>', 'quest state'],
                 ['<flag>metRowan=true</flag>', 'story flag'],

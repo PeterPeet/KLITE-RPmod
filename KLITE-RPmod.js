@@ -326,6 +326,13 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-map-go.rpm-btn { display: flex; align-items: center; gap: 6px; width: 100%; }
 .rpm-map-go .rpm-grow { text-align: left; }
 .rpm-map-refused { color: var(--rpm-danger); font-size: var(--rpm-fs-sm); }
+.rpm-map-result { color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); }
+.rpm-map-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rpm-map-exitrow { display: flex; gap: 4px; }
+.rpm-map-exitrow .rpm-map-go { flex: 1 1 auto; min-width: 0; }
+.rpm-map-door-btn.rpm-btn { flex: 0 0 auto; }
+.rpm-map-unseen .rpm-map-roomrect { opacity: .5; }
+.rpm-map-dark .rpm-map-roomrect { fill: color-mix(in srgb, var(--map-ground) 60%, #000); }
 
 /* ---- character sheet (window "sheet") + dice log ---- */
 .rpm-sheet { display: flex; flex-direction: column; gap: 4px; }
@@ -624,7 +631,9 @@ body.rpm-docked #maincontainer {
     // map editor: connect tool
     "link-2": [["path", { "d": "M9 17H7A5 5 0 0 1 7 7h2" }], ["path", { "d": "M15 7h2a5 5 0 1 1 0 10h-2" }], ["line", {}]],
     // mini-map / Map window
-    "map": [["path", { "d": "M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" }], ["path", { "d": "M15 5.764v15" }], ["path", { "d": "M9 3.236v15" }]]
+    "map": [["path", { "d": "M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" }], ["path", { "d": "M15 5.764v15" }], ["path", { "d": "M9 3.236v15" }]],
+    // Search the room (map)
+    "search": [["path", { "d": "m21 21-4.34-4.34" }], ["circle", { "cx": "11", "cy": "11", "r": "8" }]]
   };
 
   // src/shell/dom.js
@@ -1020,7 +1029,7 @@ body.rpm-docked #maincontainer {
       if (v.def.place === "left") return !v.section.classList.contains("rpm-collapsed");
       return wm && wm.isOpen(v.def.id);
     }
-    function refresh(ids, { soft = false } = {}) {
+    function refresh2(ids, { soft = false } = {}) {
       const want = ids ? new Set([].concat(ids)) : null;
       for (const v of views.values()) {
         if (want && !want.has(v.def.id)) continue;
@@ -1088,7 +1097,7 @@ body.rpm-docked #maincontainer {
         open[other] = false;
       }
       applyLayout();
-      if (open[side]) refresh(sortedViews(side).filter((v) => v.dirty).map((v) => v.def.id));
+      if (open[side]) refresh2(sortedViews(side).filter((v) => v.dirty).map((v) => v.def.id));
     }
     function toggleDock(side) {
       setDockOpen(side, !open[side]);
@@ -1314,7 +1323,7 @@ body.rpm-docked #maincontainer {
       unregisterView,
       open: openView,
       close: closeView,
-      refresh,
+      refresh: refresh2,
       isOpen: (id) => {
         const v = views.get(id);
         return !!(v && isVisible(v) && (v.def.place !== "right" || open.right) && (v.def.place !== "left" || open.left));
@@ -25403,6 +25412,7 @@ ${char.mes_example}
   // src/game/map-rules.js
   var map_rules_exports = {};
   __export(map_rules_exports, {
+    DEFAULT_DC: () => DEFAULT_DC,
     DIRS: () => DIRS,
     DIR_NAMES: () => DIR_NAMES,
     DOOR_STATES: () => DOOR_STATES,
@@ -25439,6 +25449,7 @@ ${char.mes_example}
     parseDir: () => parseDir,
     raiseExplored: () => raiseExplored,
     rectOf: () => rectOf,
+    seeThrough: () => seeThrough,
     visibleExit: () => visibleExit
   });
   var KINDS = ["location", "dungeon", "town"];
@@ -25591,17 +25602,24 @@ ${char.mes_example}
     return { x, y, w: Math.max(...rects.map((r) => r.x + r.w)) - x, h: Math.max(...rects.map((r) => r.y + r.h)) - y };
   }
   function defaultExploration() {
-    return { explored: {}, found: { secrets: [], traps: [] }, doorState: {} };
+    return { explored: {}, found: { secrets: [], traps: [], searched: {} }, doorState: {}, roomLight: {} };
   }
+  var isMap = (v) => !!v && typeof v === "object" && !Array.isArray(v);
   function normalizeExploration(snap) {
     if (!snap || typeof snap !== "object") return snap;
-    if (!snap.explored || typeof snap.explored !== "object" || Array.isArray(snap.explored)) snap.explored = {};
+    if (!isMap(snap.explored)) snap.explored = {};
     if (!snap.found || typeof snap.found !== "object") snap.found = {};
     snap.found.secrets = asArray(snap.found.secrets);
     snap.found.traps = asArray(snap.found.traps);
-    if (!snap.doorState || typeof snap.doorState !== "object" || Array.isArray(snap.doorState)) snap.doorState = {};
+    if (!isMap(snap.found.searched)) snap.found.searched = {};
+    if (!isMap(snap.doorState)) snap.doorState = {};
+    if (!isMap(snap.roomLight)) snap.roomLight = {};
     return snap;
   }
+  function seeThrough(ex, state) {
+    return !!ex && (!(ex.type === "door" || ex.type === "secret") || state === "open");
+  }
+  var DEFAULT_DC = 15;
   function exploreRank(level) {
     return EXPLORE.indexOf(level) + 1;
   }
@@ -25671,6 +25689,299 @@ ${char.mes_example}
     }
     const legend = byOrder.map((r) => `${label2[r.id]} ${r.name}${r.id === hereId ? " (you are here)" : ""}`);
     return grid.map((l) => l.join("").replace(/\s+$/, "")).join("\n") + "\n" + legend.join(" · ");
+  }
+
+  // src/game/map-tags.js
+  var MAP_TAGS = ["go", "move", "open", "close", "unlock", "search", "room", "door", "light"];
+  var ALT = MAP_TAGS.join("|");
+  var TAG_RE = new RegExp(`<(${ALT})\\s*>([^<>]*?)<\\/\\1\\s*>|<(${ALT})\\s*\\/>|<(${ALT})\\s*>`, "gi");
+  function scanMapTags(text) {
+    const s = String(text || "");
+    const out = [];
+    let m;
+    TAG_RE.lastIndex = 0;
+    while ((m = TAG_RE.exec(s)) !== null) {
+      const tag = (m[1] || m[3] || m[4]).toLowerCase();
+      out.push({ tag: tag === "move" ? "go" : tag, arg: String(m[2] || "").replace(/\s+/g, " ").trim(), index: m.index, raw: tag });
+    }
+    return out;
+  }
+  function looseKey(text) {
+    return nameKey(text).replace(/(\w{3})s$/, "$1");
+  }
+  function parseRoomSpec(arg) {
+    let s = String(arg || "").trim();
+    let description = "";
+    const colon = s.indexOf(":");
+    if (colon >= 0) {
+      description = s.slice(colon + 1).trim();
+      s = s.slice(0, colon).trim();
+    }
+    let name = s, dir = null;
+    const paren = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(s);
+    if (paren && parseDir(paren[2])) {
+      name = paren[1];
+      dir = parseDir(paren[2]);
+    } else if (s.includes(",")) {
+      const i = s.lastIndexOf(",");
+      const a = s.slice(0, i).trim(), b = s.slice(i + 1).trim();
+      if (parseDir(b)) {
+        name = a;
+        dir = parseDir(b);
+      } else if (parseDir(a)) {
+        name = b;
+        dir = parseDir(a);
+      }
+    } else {
+      const to = /^(.*?)\s+(?:to the|to|on the|toward|towards)\s+(\w+)$/i.exec(s);
+      if (to && parseDir(to[2])) {
+        name = to[1];
+        dir = parseDir(to[2]);
+      }
+    }
+    if (!dir && parseDir(name) && description) {
+      dir = parseDir(name);
+      const c = description.split(/[,:.–—-]\s*/);
+      name = c[0];
+      description = description.slice(c[0].length).replace(/^[,:.–—-]\s*/, "");
+    }
+    name = String(name || "").replace(/^\s*(the|a|an)\s+/i, "").replace(/[.!?]+$/, "").trim();
+    return { name, dir, description: description.trim() };
+  }
+  function parseDoorSpec(arg) {
+    const s = String(arg || "");
+    const eq = s.indexOf("=");
+    const target = (eq >= 0 ? s.slice(0, eq) : s).trim();
+    const out = { target };
+    if (eq < 0) return out;
+    for (let part of s.slice(eq + 1).split(/[,;]/)) {
+      part = part.trim();
+      if (!part) continue;
+      const low2 = part.toLowerCase();
+      let m;
+      if (m = /^key\s*[:=]?\s*(.+)$/i.exec(part)) {
+        out.keyItem = m[1].trim();
+        continue;
+      }
+      if (m = /^(?:lock\s*)?dc\s*(\d+)$/i.exec(low2)) {
+        out.lockDC = Number(m[1]);
+        continue;
+      }
+      const word = low2.replace(/\b(the|a|an|door|is|now)\b/g, " ").trim();
+      if (word === "unlocked" || word === "shut") {
+        out.state = "closed";
+        continue;
+      }
+      if (DOOR_STATES.includes(word)) {
+        out.state = word;
+        continue;
+      }
+      if (word && !out.material) out.material = word;
+    }
+    return out;
+  }
+  var DOOR_RANK = { open: 0, closed: 1, locked: 2, barred: 3 };
+  function harderOrSame(from, to) {
+    return (DOOR_RANK[to] ?? 0) >= (DOOR_RANK[from] ?? 0);
+  }
+  function parseLight(arg) {
+    const t = String(arg || "").toLowerCase();
+    if (/\bdark|pitch|black/.test(t)) return "dark";
+    if (/\bdim|gloom|shadow|twilight/.test(t)) return "dim";
+    if (/\bbright|lit\b|light|daylight/.test(t)) return "bright";
+    return LIGHT.includes(t.trim()) ? t.trim() : null;
+  }
+
+  // src/characters/sheet.js
+  var EXT_KEY = "klite_rpmod";
+  var SHEET_VERSION = 1;
+  var ABILITIES = ["str", "dex", "con", "int", "wis", "cha"];
+  var ABILITY_NAMES = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
+  var SKILLS = [
+    ["acrobatics", "Acrobatics", "dex"],
+    ["animal_handling", "Animal Handling", "wis"],
+    ["arcana", "Arcana", "int"],
+    ["athletics", "Athletics", "str"],
+    ["deception", "Deception", "cha"],
+    ["history", "History", "int"],
+    ["insight", "Insight", "wis"],
+    ["intimidation", "Intimidation", "cha"],
+    ["investigation", "Investigation", "int"],
+    ["medicine", "Medicine", "wis"],
+    ["nature", "Nature", "int"],
+    ["perception", "Perception", "wis"],
+    ["performance", "Performance", "cha"],
+    ["persuasion", "Persuasion", "cha"],
+    ["religion", "Religion", "int"],
+    ["sleight_of_hand", "Sleight of Hand", "dex"],
+    ["stealth", "Stealth", "dex"],
+    ["survival", "Survival", "wis"]
+  ].map(([id, name, ability]) => ({ id, name, ability }));
+  var SKILL_IDS = new Set(SKILLS.map((s) => s.id));
+  var num = (v, d = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : d;
+  };
+  var int = (v, d = 0) => Math.trunc(num(v, d));
+  var clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  var str = (v) => (v == null ? "" : String(v)).trim();
+  function abilityMod(score) {
+    return Math.floor((num(score, 10) - 10) / 2);
+  }
+  function proficiencyBonus(level) {
+    return 2 + Math.floor((clamp(int(level, 1), 1, 20) - 1) / 4);
+  }
+  function fmt(n) {
+    return (n >= 0 ? "+" : "") + n;
+  }
+  function defaultSheet() {
+    return {
+      version: SHEET_VERSION,
+      level: 1,
+      className: "",
+      species: "",
+      background: "",
+      alignment: "",
+      xp: 0,
+      abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
+      saves: [],
+      // proficient saving throws (ability ids)
+      skills: {},
+      // skill id -> 1 (proficient) | 2 (expertise)
+      ac: 10,
+      speed: 30,
+      hp: { max: 10, current: 10, temp: 0 },
+      attacks: [],
+      // [{ name, ability: 'str'|'dex'|…, proficient, bonus (extra to hit), damage: '1d8+3', notes }]
+      spellcasting: null,
+      // { ability, cantrips, prepared, slots: [per spell level], pact } (from the builder)
+      proficiencies: "",
+      // weapons / armor / tools / languages (text)
+      acNote: "",
+      // how AC is made up, e.g. "Chain Mail + Shield"
+      build: null,
+      // builder choices (builder-rules.js) — used for level up
+      inventory: [],
+      // [{ name, qty, notes }]
+      coins: { cp: 0, sp: 0, gp: 0, pp: 0 },
+      features: "",
+      notes: ""
+    };
+  }
+  function normalizeSheet(raw) {
+    const d = defaultSheet();
+    const s = Object.assign({}, raw && typeof raw === "object" ? raw : {});
+    s.version = SHEET_VERSION;
+    s.level = clamp(int(s.level, 1), 1, 20);
+    for (const k2 of ["className", "species", "background", "alignment", "features", "notes", "proficiencies", "acNote"]) s[k2] = str(s[k2]);
+    s.xp = Math.max(0, int(s.xp, 0));
+    const ab = Object.assign({}, d.abilities, s.abilities && typeof s.abilities === "object" ? s.abilities : {});
+    for (const a of ABILITIES) ab[a] = clamp(int(ab[a], 10), 1, 30);
+    s.abilities = ab;
+    s.saves = [...new Set((Array.isArray(s.saves) ? s.saves : []).filter((a) => ABILITIES.includes(a)))];
+    const sk = {};
+    if (s.skills && typeof s.skills === "object") {
+      for (const [k2, v] of Object.entries(s.skills)) if (SKILL_IDS.has(k2) && (v === 1 || v === 2 || v === true)) sk[k2] = v === true ? 1 : v;
+    }
+    s.skills = sk;
+    s.ac = clamp(int(s.ac, 10), 0, 40);
+    s.speed = Math.max(0, int(s.speed, 30));
+    const hp = Object.assign({}, d.hp, s.hp && typeof s.hp === "object" ? s.hp : {});
+    hp.max = Math.max(1, int(hp.max, 10));
+    hp.current = clamp(int(hp.current, hp.max), -hp.max, hp.max);
+    hp.temp = Math.max(0, int(hp.temp, 0));
+    s.hp = hp;
+    s.attacks = (Array.isArray(s.attacks) ? s.attacks : []).filter((a) => a && str(a.name)).map((a) => ({
+      name: str(a.name),
+      ability: ABILITIES.includes(a.ability) ? a.ability : "str",
+      proficient: a.proficient !== false,
+      bonus: int(a.bonus, 0),
+      damage: str(a.damage),
+      notes: str(a.notes)
+    }));
+    s.inventory = (Array.isArray(s.inventory) ? s.inventory : []).filter((i) => i && str(i.name)).map((i) => ({ name: str(i.name), qty: Math.max(1, int(i.qty, 1)), notes: str(i.notes) }));
+    const coins = Object.assign({}, d.coins, s.coins && typeof s.coins === "object" ? s.coins : {});
+    for (const c of Object.keys(d.coins)) coins[c] = Math.max(0, int(coins[c], 0));
+    s.coins = coins;
+    if (s.spellcasting && typeof s.spellcasting === "object" && ABILITIES.includes(s.spellcasting.ability)) {
+      const sc = s.spellcasting;
+      s.spellcasting = {
+        ability: sc.ability,
+        pact: !!sc.pact,
+        cantrips: Math.max(0, int(sc.cantrips, 0)),
+        prepared: Math.max(0, int(sc.prepared, 0)),
+        slots: (Array.isArray(sc.slots) ? sc.slots : []).map((n) => Math.max(0, int(n, 0))).slice(0, 9),
+        slotLevel: int(sc.slotLevel, 0) || void 0,
+        used: (Array.isArray(sc.used) ? sc.used : []).map((n) => Math.max(0, int(n, 0))).slice(0, 9),
+        spells: str(sc.spells)
+      };
+    } else s.spellcasting = null;
+    if (!s.build || typeof s.build !== "object") s.build = null;
+    return s;
+  }
+  function derive(sheet) {
+    const s = normalizeSheet(sheet);
+    const pb = proficiencyBonus(s.level);
+    const mods = Object.fromEntries(ABILITIES.map((a) => [a, abilityMod(s.abilities[a])]));
+    const saves = Object.fromEntries(ABILITIES.map((a) => [a, mods[a] + (s.saves.includes(a) ? pb : 0)]));
+    const skills = Object.fromEntries(SKILLS.map((k2) => [k2.id, mods[k2.ability] + (s.skills[k2.id] || 0) * pb]));
+    const attacks = s.attacks.map((a) => ({ ...a, toHit: mods[a.ability] + (a.proficient ? pb : 0) + (a.bonus || 0) }));
+    const spell = s.spellcasting ? { ...s.spellcasting, saveDC: 8 + mods[s.spellcasting.ability] + pb, attack: mods[s.spellcasting.ability] + pb } : null;
+    return { sheet: s, pb, mods, saves, skills, attacks, spell, initiative: mods.dex, passivePerception: 10 + skills.perception };
+  }
+  function readSheet(inner) {
+    const ext = inner && inner.extensions && inner.extensions[EXT_KEY];
+    return ext && ext.sheet ? normalizeSheet(ext.sheet) : null;
+  }
+  function writeSheet(inner, sheet) {
+    const out = Object.assign({}, inner || {});
+    const ext = Object.assign({}, out.extensions && typeof out.extensions === "object" ? out.extensions : {});
+    const mine = Object.assign({}, ext[EXT_KEY] && typeof ext[EXT_KEY] === "object" ? ext[EXT_KEY] : {});
+    if (sheet) mine.sheet = normalizeSheet(sheet);
+    else delete mine.sheet;
+    if (Object.keys(mine).length) ext[EXT_KEY] = mine;
+    else delete ext[EXT_KEY];
+    out.extensions = ext;
+    return out;
+  }
+  function toCombatStats(sheet) {
+    const d = derive(sheet);
+    return {
+      abilities: { ...d.sheet.abilities },
+      ac: d.sheet.ac,
+      hpMax: d.sheet.hp.max,
+      speed: d.sheet.speed,
+      proficiency: d.pb,
+      initiativeMod: d.initiative,
+      saves: { ...d.saves },
+      attacks: d.attacks.map((a) => ({ name: a.name, toHit: a.toHit, damage: a.damage || "1d4" }))
+    };
+  }
+  function fromCombatStats(stats, extra) {
+    const st = stats || {};
+    return normalizeSheet(Object.assign({
+      abilities: st.abilities,
+      ac: st.ac,
+      speed: st.speed,
+      hp: { max: st.hpMax, current: st.hpMax },
+      attacks: (Array.isArray(st.attacks) ? st.attacks : []).map((a) => ({ name: a.name, ability: "str", proficient: true, damage: a.damage }))
+    }, extra || {}));
+  }
+  function sheetSummary(sheet) {
+    const d = derive(sheet);
+    const s = d.sheet;
+    const who = [s.species, s.className && `${s.className} ${s.level}`, !s.className && `level ${s.level}`].filter(Boolean).join(" ");
+    const lines = [
+      `${who || "Level " + s.level} — HP ${s.hp.current}/${s.hp.max}${s.hp.temp ? ` (+${s.hp.temp} temp)` : ""}, AC ${s.ac}, Speed ${s.speed} ft.`,
+      ABILITIES.map((a) => `${a.toUpperCase()} ${s.abilities[a]} (${fmt(d.mods[a])})`).join(", ")
+    ];
+    const prof = SKILLS.filter((k2) => s.skills[k2.id]).map((k2) => `${k2.name} ${fmt(d.skills[k2.id])}`);
+    if (prof.length) lines.push("Skills: " + prof.join(", "));
+    if (d.spell) lines.push(`Spellcasting (${d.spell.ability.toUpperCase()}): save DC ${d.spell.saveDC}, spell attack ${fmt(d.spell.attack)}` + (d.spell.slots.length ? `, slots ${d.spell.slots.map((n, i) => n ? `L${i + 1}×${n}` : "").filter(Boolean).join(" ")}` : "") + (d.spell.spells ? `; spells: ${d.spell.spells}` : ""));
+    if (s.inventory.length) lines.push("Inventory: " + s.inventory.map((i) => i.name + (i.qty > 1 ? ` x${i.qty}` : "")).join(", "));
+    const coins = Object.entries(s.coins).filter(([, v]) => v > 0).map(([k2, v]) => `${v} ${k2}`);
+    if (coins.length) lines.push("Coins: " + coins.join(", "));
+    return lines.join("\n");
   }
 
   // src/KLITE-RPmod_Worlds.js
@@ -25743,10 +26054,12 @@ ${char.mes_example}
         lastParsedIndex: 0,
         // gametext_arr index up to which tags were applied
         // R7 exploration of dungeons/towns (map-rules.js): { [roomId]: 'known'|'discovered'|'visited' },
-        // found secrets (exit/room ids) and traps, door states that override the authored ones
+        // found secrets (exit/room ids) and traps, rooms searched, door states and room light
+        // that override the authored ones
         explored: {},
-        found: { secrets: [], traps: [] },
+        found: { secrets: [], traps: [], searched: {} },
         doorState: {},
+        roomLight: {},
         clock: { day: 1, month: 1, year: 1, time: "morning", season: "spring", weather: "clear" }
       };
     }
@@ -26073,8 +26386,25 @@ ${char.mes_example}
       if (!r || !mapOf(locId)) return false;
       normalizeExploration(r);
       let changed = raiseExplored(r.explored, locId, "visited");
-      for (const e of playerExits(locId)) if (mapOf(e.to)) changed = raiseExplored(r.explored, e.to, "known") || changed;
+      for (const e of playerExits(locId)) if (mapOf(e.to)) changed = raiseExplored(r.explored, e.to, seeThrough(e, doorState(e, r.doorState)) ? "discovered" : "known") || changed;
       return changed;
+    }
+    function roomNameKnown(locId) {
+      const m = mapOf(locId);
+      if (!m || kindOf(m) === "town") return true;
+      const r = rt();
+      if (!r) return true;
+      if (r.playerLocationId === locId) return true;
+      return exploreRank((r.explored || {})[locId]) >= exploreRank("discovered");
+    }
+    function playerPlaceName(locId, fromId) {
+      const m = mapOf(locId), fm = fromId && mapOf(fromId);
+      if (m && fm && m.id === fm.id && !roomNameKnown(locId)) return "unexplored room";
+      return placeName(locId, fromId);
+    }
+    function roomLightOf(loc) {
+      const o = rt() && rt().roomLight && loc && rt().roomLight[loc.id];
+      return LIGHT.includes(o) ? o : loc && loc.light || null;
     }
     function defaultRoomName(map) {
       const n = roomsOf(map.id).length + 1;
@@ -26091,7 +26421,7 @@ ${char.mes_example}
       else want = placed.length ? { x: 0, y: Math.max(...placed.map((p) => p.y + p.h)) + ROOM.gap, ...size } : { x: 0, y: 0, ...size };
       const rect = fields.x != null && fields.y != null ? want : freeSpot(want, placed, ROOM.gap);
       const room = { id: uid("location"), name: norm3(fields.name) || defaultRoomName(map), parentId: map.id, map: rect };
-      for (const k2 of ["description", "kind", "light", "secret", "hazards"]) if (fields[k2] != null) room[k2] = fields[k2];
+      for (const k2 of ["description", "kind", "light", "secret", "hazards", "origin"]) if (fields[k2] != null) room[k2] = fields[k2];
       activeWorld().locations.push(room);
       if (fields.near && locOf(fields.near) && fields.connect !== false) addExit(fields.near, room.id, { dir: fields.dir });
       return room;
@@ -26157,15 +26487,17 @@ ${char.mes_example}
       if (!map) return null;
       const r = rt();
       if (r) normalizeExploration(r);
-      const explored = r && r.explored || {}, here = r && r.playerLocationId;
-      const hereRoom = here && (here === mapId ? null : isInsideLocation(here, mapId) ? zonePath(here).concat([locOf(here)]).find((l) => l && l.parentId === mapId) : null);
+      const explored = r && r.explored || {}, here2 = r && r.playerLocationId;
+      const hereRoom = here2 && (here2 === mapId ? null : isInsideLocation(here2, mapId) ? zonePath(here2).concat([locOf(here2)]).find((l) => l && l.parentId === mapId) : null);
       let rooms = roomsOf(mapId).map((l) => ({
         id: l.id,
-        name: norm3(phasedEntity(l).name),
+        name: opts.player && !roomNameKnown(l.id) ? "?" : norm3(phasedEntity(l).name),
+        named: !opts.player || roomNameKnown(l.id),
         kind: kindOf(l),
         rect: rectOf(l),
         placed: hasRect(l),
-        light: l.light || null,
+        origin: l.origin || null,
+        light: opts.player ? roomLightOf(l) : l.light || null,
         secret: !!l.secret,
         found: roomFound(l),
         explored: explored[l.id] || null,
@@ -26221,6 +26553,11 @@ ${char.mes_example}
       const outward = (r) => exitsOfLoc(r.id).filter((e) => !isInsideLocation(e.to, mapId) && e.to !== mapId);
       return fromId && rooms.find((r) => outward(r).some((e) => e.to === fromId || isInsideLocation(fromId, e.to))) || rooms.find((r) => outward(r).length) || rooms[0];
     }
+    function unexploredExit(exits, key, curId) {
+      if (!/^unexplored( room)?$/.test(key) || !curId) return null;
+      const u = exits.filter((e) => playerPlaceName(e.to, curId) === "unexplored room");
+      return u.length === 1 ? u[0] : null;
+    }
     function resolveGoTarget(target, curId) {
       const w = activeWorld();
       const raw = norm3(target);
@@ -26233,6 +26570,8 @@ ${char.mes_example}
         return e ? locOf(e.to) : null;
       }
       const key = nameKey(raw);
+      const unseen = unexploredExit(exits, key, curId);
+      if (unseen) return locOf(unseen.to);
       const hit = exits.map((e) => locOf(e.to)).filter(Boolean).find((l) => nameKey(phasedEntity(l).name) === key || nameKey(l.name) === key);
       if (hit) return hit;
       return asArray2(w.locations).find((l) => nameKey(phasedEntity(l).name) === key || nameKey(l.name) === key) || null;
@@ -26277,6 +26616,7 @@ ${char.mes_example}
       }
       rt().playerLocationId = dest.id;
       markVisitedRoom(dest.id);
+      passiveNotice(dest.id);
       const dir = ex && ex.dir ? dirName(ex.dir) : "";
       if (opts.source === "ui") gameLog(`${opened ? "Opens the door and goes" : "Goes"}${dir ? " " + dir : ""} to ${placeName(dest.id, curId)}.`, "map");
       try {
@@ -26292,7 +26632,7 @@ ${char.mes_example}
         const mat = e.door && norm3(e.door.material);
         const how = e.type === "door" || e.type === "secret" ? `${st} ${mat ? mat + " " : ""}${e.type === "secret" ? "secret door" : "door"}` : e.type === "open" || !e.type ? "open" : e.type;
         const out = !isInsideLocation(e.to, graphAnchor(locId)) ? ", leads out" : "";
-        return `- ${e.dir ? dirName(e.dir) + ": " : ""}${placeName(e.to, locId)} (${how}${out})`;
+        return `- ${e.dir ? dirName(e.dir) + ": " : ""}${playerPlaceName(e.to, locId)} (${how}${out})`;
       });
     }
     function asciiMapText(locId) {
@@ -26300,11 +26640,302 @@ ${char.mes_example}
       if (!m) return "";
       const b = mapBoard(m.id, { player: true });
       if (!b || !b.rooms.length) return "";
-      return asciiMap(b.rooms.map((x) => ({ id: x.id, name: x.name, rect: x.rect })), b.exits.map((e) => [e.from, e.to]), b.here);
+      return asciiMap(b.rooms.map((x) => ({ id: x.id, name: x.named ? x.name : "unexplored", rect: x.rect })), b.exits.map((e) => [e.from, e.to]), b.here);
     }
     function featureVisible(o) {
       if (o.hidden) return false;
       return o.kind !== "trap" || asArray2(foundState().traps).includes(o.id);
+    }
+    const isDoorExit = (e) => !!e && (e.type === "door" || e.type === "secret");
+    const SKILL_ABILITY = { perception: "wis", investigation: "int" };
+    function doorLabel(e, fromId) {
+      const mat = e.door && norm3(e.door.material);
+      const kind = e.type === "secret" ? "secret door" : "door";
+      return e.dir ? `the ${dirName(e.dir)} ${mat ? mat + " " : ""}${kind}` : `the ${mat ? mat + " " : ""}${kind} to ${playerPlaceName(e.to, fromId)}`;
+    }
+    function exitForTarget(target, curId) {
+      const exits = playerExits(curId);
+      const raw = norm3(target);
+      const byId = exits.find((e) => e.id === raw || e.to === raw);
+      if (byId) return byId;
+      const bare = raw.toLowerCase().replace(/\b(the|a|an)\b/g, " ").trim();
+      if (!bare || bare === "door" || bare === "doors") {
+        const doors = exits.filter(isDoorExit);
+        return doors.length === 1 ? doors[0] : null;
+      }
+      const d = parseDir(raw);
+      if (d) return exits.find((e) => e.dir === d) || null;
+      const unseen = unexploredExit(exits, nameKey(raw), curId);
+      if (unseen) return unseen;
+      const key = looseKey(raw.replace(/\b(door|doors|gate|passage|way)\b/gi, " "));
+      const hit = exits.find((e) => {
+        const l = locOf(e.to);
+        return l && (looseKey(phasedEntity(l).name) === key || looseKey(l.name) === key);
+      });
+      if (hit) return hit;
+      const byMat = exits.filter((e) => isDoorExit(e) && e.door && e.door.material && looseKey(e.door.material) === key);
+      return byMat.length === 1 ? byMat[0] : null;
+    }
+    function playerStatsBlock() {
+      return normalizeStats(playerCombatCfg().stats || {});
+    }
+    function playerSkill(skill) {
+      const sh = personaSheet();
+      if (sh) {
+        try {
+          const v = derive(sh).skills[skill];
+          if (Number.isFinite(v)) return v;
+        } catch (_) {
+        }
+      }
+      const st = playerStatsBlock();
+      if (Number.isFinite(Number(st.skills[skill]))) return Number(st.skills[skill]);
+      return abilityMod2(st.abilities[SKILL_ABILITY[skill] || "wis"]);
+    }
+    function passivePerception() {
+      return 10 + playerSkill("perception");
+    }
+    function searchSkill() {
+      const p = playerSkill("perception"), i = playerSkill("investigation");
+      return i > p ? { name: "Investigation", bonus: i } : { name: "Perception", bonus: p };
+    }
+    function hasThievesTools() {
+      return asArray2(inventoryView().items).some((i) => /thie(f|ves)['’]?s?\s*tools/i.test(norm3(i && i.name)));
+    }
+    function lockpickBonus() {
+      const sh = personaSheet();
+      if (sh) {
+        try {
+          const d = derive(sh);
+          return d.mods.dex + (/thie(f|ves)['’]?s?\s*tools/i.test(norm3(d.sheet.proficiencies)) ? d.pb : 0);
+        } catch (_) {
+        }
+      }
+      return abilityMod2(playerStatsBlock().abilities.dex);
+    }
+    function rollText(r) {
+      return `${r.total} [d20 ${r.die}${r.mod ? (r.mod > 0 ? "+" : "") + r.mod : ""}]`;
+    }
+    function doorAction(action, target, opts = {}) {
+      if (!activeWorld() || !ensureRuntime()) return { ok: false, reason: "No world is active." };
+      normalizeExploration(rt());
+      const verb = { open: "Open", close: "Close", unlock: "Unlock" }[action];
+      if (!verb) return { ok: false, reason: "unknown action" };
+      const curId = rt().playerLocationId;
+      const refuse = (why) => {
+        const msg2 = `${verb} ${norm3(target) || "door"} refused: ${why}.`;
+        gameLog(msg2, "map");
+        return { ok: false, reason: msg2 };
+      };
+      const ex = curId ? exitForTarget(target, curId) : null;
+      if (!ex) return refuse(norm3(target) ? "there is no such door here" : "name the door or give its direction");
+      if (!isDoorExit(ex)) return refuse(`the way ${ex.dir ? dirName(ex.dir) : "to " + playerPlaceName(ex.to, curId)} has no door`);
+      const label2 = doorLabel(ex, curId), st = doorState(ex, rt().doorState);
+      const done = (state, text, extra) => {
+        if (text) gameLog(text, "map");
+        return Object.assign({ ok: true, state, text: text || null }, extra || {});
+      };
+      if (action === "open") {
+        if (st === "open") return done("open", null, { same: true });
+        if (blocksMove(st)) return refuse(`${label2} is ${st}`);
+        rt().doorState[ex.id] = "open";
+        if (mapOf(ex.to)) raiseExplored(rt().explored, ex.to, "discovered");
+        return done("open", opts.source === "ui" ? `Opens ${label2}.` : null);
+      }
+      if (action === "close") {
+        if (st !== "open") return done(st, null, { same: true });
+        rt().doorState[ex.id] = "closed";
+        return done("closed", opts.source === "ui" ? `Closes ${label2}.` : null);
+      }
+      if (st === "open" || st === "closed") return done(st, null, { same: true });
+      if (st === "barred") return refuse(`${label2} is barred from the other side`);
+      const key = ex.door && norm3(ex.door.keyItem);
+      if (key && itemCount(key) > 0) {
+        rt().doorState[ex.id] = "closed";
+        return done("closed", `Unlocks ${label2} with the ${key}.`);
+      }
+      if (!hasThievesTools()) return refuse(`${label2} is locked, and there is no key or thieves' tools to open it`);
+      const r = rollD20(lockpickBonus());
+      const dc = Number(ex.door && ex.door.lockDC) || DEFAULT_DC;
+      if (r.total >= dc) {
+        rt().doorState[ex.id] = "closed";
+        return done("closed", `Picks the lock of ${label2} (Thieves' Tools): ${rollText(r)} — the lock opens.`, { roll: r });
+      }
+      const msg = `Picks the lock of ${label2} (Thieves' Tools): ${rollText(r)} — the lock holds.`;
+      gameLog(msg, "map");
+      return { ok: false, state: st, reason: msg, text: msg, roll: r };
+    }
+    function hiddenHere(locId) {
+      const f = foundState(), out = [];
+      for (const e of exitsOfLoc(locId)) {
+        const to = locOf(e.to);
+        const dirTxt = e.dir ? ` (${dirName(e.dir)})` : "";
+        if (isSecret(e) && !asArray2(f.secrets).includes(e.id)) out.push({ kind: "secret", id: e.id, dc: Number(e.secretDC) || DEFAULT_DC, label: `a secret door${dirTxt}`, room: to && to.secret && !roomFound(to) ? to.id : null, exit: e });
+        else if (to && to.secret && !roomFound(to) && visibleExit(e, f)) out.push({ kind: "room", id: to.id, dc: Number(to.secretDC) || DEFAULT_DC, label: `a hidden way${dirTxt}`, exit: e });
+      }
+      for (const o of asArray2(activeWorld() && activeWorld().objects)) {
+        if (o.locationId !== locId || o.kind !== "trap" || o.hidden || asArray2(f.traps).includes(o.id)) continue;
+        out.push({ kind: "trap", id: o.id, dc: Number(o.trapDC) || DEFAULT_DC, label: `a trap (${norm3(o.name) || "trap"})` });
+      }
+      return out;
+    }
+    function reveal(c) {
+      const f = rt().found;
+      if (c.kind === "trap") {
+        if (!f.traps.includes(c.id)) f.traps.push(c.id);
+        return;
+      }
+      for (const id of [c.id, c.room].filter(Boolean)) if (!f.secrets.includes(id)) f.secrets.push(id);
+      const to = c.exit && c.exit.to;
+      if (to && mapOf(to)) raiseExplored(rt().explored, to, seeThrough(c.exit, doorState(c.exit, rt().doorState)) ? "discovered" : "known");
+    }
+    function searchRoom(opts = {}) {
+      if (!activeWorld() || !ensureRuntime()) return { ok: false, reason: "No world is active." };
+      normalizeExploration(rt());
+      const curId = rt().playerLocationId;
+      if (!curId || !locOf(curId)) {
+        const msg = "Search refused: you are nowhere yet.";
+        gameLog(msg, "map");
+        return { ok: false, reason: msg };
+      }
+      const sk = searchSkill();
+      const r = rollD20(sk.bonus);
+      const hits = hiddenHere(curId).filter((c) => r.total >= c.dc);
+      hits.forEach(reveal);
+      rt().found.searched[curId] = (Number(rt().found.searched[curId]) || 0) + 1;
+      const text = `Searches ${playerPlaceName(curId, curId)} (${sk.name}): ${rollText(r)} — ${hits.length ? "found " + hits.map((h) => h.label).join(", ") : "nothing found"}.`;
+      gameLog(text, "map");
+      return { ok: true, text, roll: r, skill: sk.name, found: hits.map((h) => ({ kind: h.kind, id: h.id, label: h.label })), source: opts.source || null };
+    }
+    function passiveNotice(locId) {
+      if (!rt() || !locOf(locId)) return [];
+      normalizeExploration(rt());
+      const pp = passivePerception();
+      const hits = hiddenHere(locId).filter((c) => pp >= c.dc);
+      if (!hits.length) return [];
+      hits.forEach(reveal);
+      gameLog(`Notices ${hits.map((h) => h.label).join(", ")} in ${playerPlaceName(locId, locId)} (passive Perception ${pp}).`, "map");
+      return hits;
+    }
+    function aiAddRoom(arg) {
+      const spec = parseRoomSpec(arg);
+      const curId = rt().playerLocationId;
+      const map = curId && mapOf(curId);
+      const refuse = (why) => {
+        const msg = `Room ${spec.name || norm3(arg) || "(no name)"} refused: ${why}.`;
+        gameLog(msg, "map");
+        return { ok: false, reason: msg };
+      };
+      if (!spec.name) return refuse("it needs a name");
+      if (!map) return refuse("new rooms can only be added inside a dungeon or town");
+      normalizeExploration(rt());
+      const town = kindOf(map) === "town";
+      const existing = roomsOf(map.id).find((l) => looseKey(l.name) === looseKey(spec.name));
+      if (existing) {
+        let w = false;
+        if (spec.description && !norm3(existing.description)) {
+          existing.description = spec.description;
+          w = true;
+        }
+        const ex2 = playerExits(curId).find((e) => e.to === existing.id);
+        if (ex2 && seeThrough(ex2, doorState(ex2, rt().doorState))) raiseExplored(rt().explored, existing.id, "discovered");
+        if (w) markDirty();
+        return { ok: true, room: existing.id, existing: true };
+      }
+      const all = exitsOfLoc(curId), taken = new Set(all.map((e) => e.dir).filter(Boolean));
+      let dir = spec.dir;
+      if (dir && taken.has(dir)) {
+        const vis = playerExits(curId).find((e) => e.dir === dir);
+        return refuse(vis ? `there is already a way ${dirName(dir)} (${playerPlaceName(vis.to, curId)})` : `there is no space for it to the ${dirName(dir)}`);
+      }
+      if (!dir) dir = ["n", "e", "s", "w"].find((d) => !taken.has(d));
+      if (!dir) return refuse(`${placeName(curId, curId)} has no free side`);
+      const room = addRoom2(map.id, { name: spec.name, near: curId, dir, description: spec.description || null, origin: "ai", connect: false });
+      const ex = addExit(curId, room.id, { dir, type: town ? "open" : "door", door: town ? void 0 : { state: "open" } });
+      raiseExplored(rt().explored, room.id, "discovered");
+      markDirty();
+      gameLog(`New ${town ? "place" : "room"}: ${room.name}, ${dirName(dir)} of ${placeName(curId, curId)}.`, "map");
+      return { ok: true, room: room.id, exit: ex.id };
+    }
+    function aiDoor(arg) {
+      const spec = parseDoorSpec(arg);
+      const curId = rt().playerLocationId;
+      const refuse = (why) => {
+        const msg = `Door ${spec.target || "(no direction)"} refused: ${why}.`;
+        gameLog(msg, "map");
+        return { ok: false, reason: msg };
+      };
+      normalizeExploration(rt());
+      const ex = curId ? exitForTarget(spec.target, curId) : null;
+      if (!ex) return refuse("there is no such way here");
+      const f = findExit(ex.id);
+      if (!f) return refuse("this way cannot have a door");
+      let world = false;
+      if (!isDoorExit(f.exit)) {
+        if (!spec.state && !spec.material) return { ok: true, same: true };
+        updateExit(ex.id, { type: "door", door: { state: "open" } });
+        world = true;
+      }
+      f.exit.door = f.exit.door || { state: "closed" };
+      const st = doorState(f.exit, rt().doorState);
+      if (spec.state && spec.state !== st) {
+        if (!harderOrSame(st, spec.state)) {
+          if (world) markDirty();
+          return refuse(`the door is ${st} — only <open> or <unlock> opens it`);
+        }
+        rt().doorState[ex.id] = spec.state;
+      }
+      for (const k2 of ["material", "lockDC", "keyItem"]) if (spec[k2] != null && (f.exit.door[k2] == null || f.exit.door[k2] === "")) {
+        f.exit.door[k2] = spec[k2];
+        world = true;
+      }
+      if (world) markDirty();
+      if (spec.state && spec.state !== st) gameLog(`${doorLabel(Object.assign({}, ex, { door: f.exit.door }), curId).replace(/^the/, "The")} is now ${spec.state}.`, "map");
+      return { ok: true, state: doorState(f.exit, rt().doorState) };
+    }
+    function setRoomLight(arg, roomId) {
+      const lvl = LIGHT.includes(arg) ? arg : parseLight(arg);
+      const id = roomId || rt().playerLocationId;
+      if (!lvl || !locOf(id)) {
+        const msg = `Light ${norm3(arg)} refused: use bright, dim or dark.`;
+        gameLog(msg, "map");
+        return { ok: false, reason: msg };
+      }
+      normalizeExploration(rt());
+      rt().roomLight[id] = lvl;
+      return { ok: true, light: lvl };
+    }
+    function applyMapTag(t) {
+      switch (t.tag) {
+        case "go": {
+          const cur = rt().playerLocationId;
+          const l = resolveGoTarget(t.arg, cur);
+          if (l && (mapOf(cur) || mapOf(l.id) || isContainer(l))) return go(t.arg, { source: "ai" }).ok;
+          if (l) {
+            rt().playerLocationId = l.id;
+            return true;
+          }
+          if (mapOf(cur)) return go(t.arg, { source: "ai" }).ok;
+          return false;
+        }
+        case "open":
+        case "close":
+        case "unlock":
+          doorAction(t.tag, t.arg, { source: "ai" });
+          return true;
+        case "search":
+          searchRoom({ source: "ai" });
+          return true;
+        case "room":
+          aiAddRoom(t.arg);
+          return true;
+        case "door":
+          aiDoor(t.arg);
+          return true;
+        case "light":
+          return setRoomLight(t.arg).ok;
+      }
+      return false;
     }
     function resolveNpcLocationId(npc) {
       const ov = rt()?.npcStateOverrides?.[npc.id];
@@ -26681,7 +27312,7 @@ ${char.mes_example}
       if (!w || !rt() || progressing) return;
       progressing = true;
       try {
-        const here = rt().playerLocationId;
+        const here2 = rt().playerLocationId;
         for (const q of asArray2(w.quests)) {
           if (!q.startItem || questStateOf(q) !== "available" || isDiscovered("quests", q.id) || itemCount(q.startItem) <= 0) continue;
           discover("quests", q.id);
@@ -26693,8 +27324,8 @@ ${char.mes_example}
           if (st !== "active" && st !== "complete") continue;
           const objs = asArray2(q.objectives);
           if (!objs.length) continue;
-          if (st === "active" && here) {
-            for (const o of objs) if (objectiveKind(o) === "visit" && !objectiveStatusOf(q, o).done && isInsideLocation(here, o.target)) {
+          if (st === "active" && here2) {
+            for (const o of objs) if (objectiveKind(o) === "visit" && !objectiveStatusOf(q, o).done && isInsideLocation(here2, o.target)) {
               setObjProgress(q.id, o.id, true);
               gameLog(`${questTitle(q)}: ${norm3(o.text)} — done.`);
             }
@@ -26712,7 +27343,7 @@ ${char.mes_example}
     function detectTalk(text) {
       const w = activeWorld();
       if (!w || !rt()) return;
-      const here = rt().playerLocationId;
+      const here2 = rt().playerLocationId;
       const t = norm3(text).toLowerCase();
       if (!t) return;
       for (const q of asArray2(w.quests)) {
@@ -26720,7 +27351,7 @@ ${char.mes_example}
         for (const o of asArray2(q.objectives)) {
           if (objectiveKind(o) !== "talk" || objectiveStatusOf(q, o).done) continue;
           const npc = findById(w.npcs, o.target);
-          if (!npc || resolveNpcLocationId(npc) !== here) continue;
+          if (!npc || resolveNpcLocationId(npc) !== here2) continue;
           const name = personName(npc).toLowerCase();
           const first = name.split(/\s+/).pop();
           if (t.includes(name) || first.length > 2 && new RegExp("\\b" + first.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b").test(t)) questEvent("talk", { personId: npc.id });
@@ -26998,16 +27629,13 @@ ${char.mes_example}
           }
         }
       };
-      scan(/<move>\s*([^<>]+?)\s*<\/move>/gi, (m) => {
-        const cur = rt().playerLocationId;
-        const l = resolveGoTarget(m[1], cur);
-        if (l && (mapOf(cur) || mapOf(l.id) || isContainer(l))) return go(m[1], { source: "ai" }).ok;
-        if (l) {
-          rt().playerLocationId = l.id;
-          return true;
+      for (const t of scanMapTags(s)) {
+        try {
+          if (applyMapTag(t) !== false) changed = true;
+        } catch (e) {
+          err("map tag failed", t.tag, e);
         }
-        return false;
-      });
+      }
       scan(/<npcmove>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/npcmove>/gi, (m) => {
         const npc = findNpcByName(world, m[1]);
         const l = findById(world.locations, m[2]) || locationByName(world, m[2]);
@@ -27893,11 +28521,12 @@ ${recent}` : "");
       if (mutate) markVisitedRoom(loc.id);
       const pLoc = phasedEntity(loc);
       const zones = zonePath(loc.id), inRoom = !!mapOf(loc.id);
-      const inner = childLocations(loc.id).filter((l) => kindOf(loc) === "town" ? roomFound(l) : kindOf(loc) === "dungeon" ? roomFound(l) && !!(rt().explored || {})[l.id] : true);
+      const inner = childLocations(loc.id).filter((l) => kindOf(loc) === "town" ? roomFound(l) : kindOf(loc) === "dungeon" ? roomFound(l) && roomNameKnown(l.id) : true);
       const exits = playerExits(loc.id).filter((e) => !e.mirrored).map((e) => norm3(e.name)).filter(Boolean).concat(connectedLocations(world, loc, 1).map((l) => placeName(l.id, loc.id))).concat(zones.length && !inRoom ? [norm3(phasedEntity(zones[zones.length - 1]).name)] : []);
       const exitsUniq = [...new Set(exits.map(norm3).filter(Boolean))];
       let locText = norm3(pLoc.description);
-      if (inRoom && loc.light) locText += `${locText ? "\n" : ""}Light: ${loc.light}`;
+      const light = roomLightOf(loc);
+      if (light && (inRoom || light !== loc.light)) locText += `${locText ? "\n" : ""}Light: ${light}`;
       if (inRoom && asArray2(loc.hazards).length) locText += `${locText ? "\n" : ""}Hazards: ${asArray2(loc.hazards).join(", ")}`;
       if (zones.length) locText = `Part of: ${zones.map((z) => norm3(phasedEntity(z).name)).join(" › ")}` + (locText ? "\n" + locText : "");
       if (norm3(pLoc.atmosphere)) locText += `${locText ? "\n" : ""}Atmosphere: ${norm3(pLoc.atmosphere)}`;
@@ -27940,7 +28569,7 @@ ${xl.join("\n")}`;
       const objLines = objsHere.map((o) => "- " + norm3(o.name) + (FEATURE_KINDS.includes(o.kind) && o.kind !== "furniture" ? ` (${o.kind === "light" ? o.lit ? "lit" : "unlit" : o.kind})` : "") + (norm3(o.desc) ? `: ${norm3(o.desc)}` : ""));
       push("Nearby Objects", 50, objLines.join("\n"));
       if (inRoom) {
-        push("Moving", 24, "The player moves room by room. To move, write <move>name</move> with a name (or direction) from the exits above. RPmod checks the doors: a locked or barred door refuses the move and the refusal appears in the log; narrate what actually happened.");
+        push("Exploring", 24, "The player explores room by room. Use a name or direction from the exits above: <go>name</go> moves (a closed door opens on the way), <open>north</open>, <close>north</close>, <unlock>north</unlock> (RPmod uses a key or rolls thieves' tools), <search></search> when the player searches this room (RPmod rolls Perception/Investigation). To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>; to change the light here: <light>dark</light>. RPmod applies the rules: rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found.");
         if (settingOn(ASCII_MAP_SETTING, false)) push("Map (explored)", 60, asciiMapText(loc.id));
       }
       const questLines = [];
@@ -28849,8 +29478,29 @@ ${xl.join("\n")}`;
       exploration() {
         const r = ensureRuntime();
         normalizeExploration(r);
-        return deepClone({ explored: r.explored, found: r.found, doorState: r.doorState });
+        return deepClone({ explored: r.explored, found: r.found, doorState: r.doorState, roomLight: r.roomLight });
       },
+      // R7 step 3: player actions (UI or API) through the rules; results/refusals are logged
+      door(action, target, opts) {
+        const r = doorAction(action, target, opts || {});
+        syncLive();
+        return r;
+      },
+      search(opts) {
+        const r = searchRoom(opts || {});
+        syncLive();
+        return r;
+      },
+      setRoomLight(level, roomId) {
+        ensureRuntime();
+        const r = setRoomLight(level, roomId);
+        syncLive();
+        return r;
+      },
+      roomLight: (id) => roomLightOf(locOf(id || rt() && rt().playerLocationId)),
+      playerPlaceName: (id, fromId) => playerPlaceName(id, fromId),
+      hiddenIn: (roomId) => hiddenHere(roomId).map((c) => ({ kind: c.kind, id: c.id, dc: c.dc })),
+      passivePerception: () => passivePerception(),
       setExplored(roomId, level) {
         const r = ensureRuntime();
         normalizeExploration(r);
@@ -29198,6 +29848,7 @@ ${xl.join("\n")}`;
         ensureRuntime();
         rt().playerLocationId = loc.id;
         markVisitedRoom(loc.id);
+        passiveNotice(loc.id);
         try {
           fireTriggers("enter:" + loc.id);
         } catch (_) {
@@ -29413,13 +30064,13 @@ ${xl.join("\n")}`;
   var CR_BANDS = [["", "Any CR"], ["0-0.25", "CR 0–1/4"], ["0.5-1", "CR 1/2–1"], ["2-4", "CR 2–4"], ["5-10", "CR 5–10"], ["11-30", "CR 11+"]];
   var DIFF_LABEL = { none: "No enemies yet", trivial: "Trivial", low: "Low", moderate: "Moderate", high: "High", beyond: "Beyond High (deadly)" };
   var U = { monsters: {}, persons: {}, q: "", band: "", name: "", atk: 0, target: "", mode: "", tool: { who: "", amount: 5, cond: "Prone", rounds: 1, action: 0, actTarget: "" } };
-  function renderCombat(box, refresh) {
+  function renderCombat(box, refresh2) {
     const A = window.KLITE_RPMod_Worlds;
     const cb = A.getCombat();
     const root = el("div", { class: "rpm-cb" });
     box.appendChild(root);
-    if (cb && cb.active) return renderFight(root, cb, A, refresh);
-    return renderBuilder(root, A, refresh);
+    if (cb && cb.active) return renderFight(root, cb, A, refresh2);
+    return renderBuilder(root, A, refresh2);
   }
   function autoTurnsOn() {
     try {
@@ -29457,7 +30108,7 @@ ${xl.join("\n")}`;
   function chosenMonsters() {
     return Object.entries(U.monsters).filter(([, n]) => n > 0).map(([key, count]) => ({ key, count }));
   }
-  function renderBuilder(box, A, refresh) {
+  function renderBuilder(box, A, refresh2) {
     const world = A.activeWorld();
     const party = A.partyInfo();
     const xp = A.encounterXp(chosenMonsters()) + Object.entries(U.persons).filter(([, s]) => s === "enemy").reduce((n, [id]) => n + (Number((A.getStats(id) || {}).xp) || 0), 0);
@@ -29484,11 +30135,11 @@ ${xl.join("\n")}`;
           el("span", { class: "rpm-muted", text: `CR ${m.cr} · ${m.xp * count} XP` }),
           btn("−", () => {
             U.monsters[key] = count - 1;
-            refresh();
+            refresh2();
           }, { label: `One ${m.name} less`, id: "less-" + key }),
           btn("+", () => {
             U.monsters[key] = count + 1;
-            refresh();
+            refresh2();
           }, { label: `One more ${m.name}`, id: "more-" + key })
         ], "margin-top:4px"));
       }
@@ -29516,7 +30167,7 @@ ${xl.join("\n")}`;
           el("span", { class: "rpm-grow" }, [el("b", { text: m.name }), el("span", { class: "rpm-muted", text: ` · CR ${m.cr} · ${m.xp} XP · ${m.type.split(",")[0]}` })]),
           btn("Add", () => {
             U.monsters[m.key] = (U.monsters[m.key] || 0) + 1;
-            refresh();
+            refresh2();
           }, { label: "Add " + m.name, id: "add-" + m.key })
         ]));
       }
@@ -29536,7 +30187,7 @@ ${xl.join("\n")}`;
           sel([["", "—"], ["enemy", "Enemy"], ["party", "Ally"]], side, (v) => {
             if (v) U.persons[p.id] = v;
             else delete U.persons[p.id];
-            refresh();
+            refresh2();
           }, `${p.name}: side`, "side-" + p.id)
         ], "margin-top:3px"));
       }
@@ -29553,17 +30204,17 @@ ${xl.join("\n")}`;
             U.monsters = Object.fromEntries(e.monsters.map((m) => [m.key, m.count]));
             U.persons = Object.fromEntries(e.personIds.map((id) => [id, "enemy"]));
             U.name = e.name;
-            refresh();
+            refresh2();
           }, { id: "load-" + e.id }),
           btn("Start", () => {
             A.startSavedEncounter(e.id);
             afterStart(A);
-            refresh();
+            refresh2();
           }, { variant: "danger", id: "start-" + e.id }),
           btn("", () => {
             if (confirm(`Delete the encounter "${e.name}"?`)) {
               A.deleteEncounter(e.id);
-              refresh();
+              refresh2();
             }
           }, { icon: "trash-2", label: "Delete " + e.name, id: "delete-" + e.id })
         ], "margin-top:3px"));
@@ -29577,7 +30228,7 @@ ${xl.join("\n")}`;
     });
     if (world) box.appendChild(row([name, btn("Save to world", () => {
       A.saveEncounter({ name: U.name || "Encounter", monsters: chosen, personIds: Object.keys(U.persons).filter((id) => U.persons[id] === "enemy"), locationId: (A.runtime || {}).playerLocationId || null, difficulty: diff });
-      refresh();
+      refresh2();
     }, { disabled: !chosen.length, id: "save" })], "margin-top:12px"));
     box.appendChild(btn("Start encounter", () => {
       const ids = Object.keys(U.persons);
@@ -29586,14 +30237,14 @@ ${xl.join("\n")}`;
       U.persons = {};
       U.name = "";
       afterStart(A);
-      refresh();
+      refresh2();
     }, { icon: "swords", block: true, variant: "danger", disabled: !hasAny, id: "start" }));
     box.appendChild(muted("Tip: the AI can start a fight too — it writes <encounter>2 Wolf</encounter> or the name of a saved encounter.", { style: "margin-top:6px" }));
   }
   function afterStart(A) {
     if (autoTurnsOn()) A.runAutoTurns();
   }
-  function renderFight(box, cb, A, refresh) {
+  function renderFight(box, cb, A, refresh2) {
     const cur = cb.order[cb.turnIndex];
     const conds = (id) => A.conditionsOf(id);
     box.appendChild(row([
@@ -29624,15 +30275,15 @@ ${xl.join("\n")}`;
         if (cs.length || d) card.appendChild(row([
           ...cs.map((c) => btn(`${c.name}${c.rounds ? ` (${c.rounds})` : ""} ×`, () => {
             A.removeCondition(o.id, c.name);
-            refresh();
+            refresh2();
           }, { title: "Remove " + c.name, id: `cond-${o.id}-${c.name}` })),
           d ? el("span", { class: "rpm-chip " + (d.dead ? "rpm-chip-danger" : "rpm-chip-quest"), "data-cb": "death", text: d.dead ? "dead" : d.stable ? "stable" : `death saves ✓${d.s} ✗${d.f}` }) : null
         ], "margin-top:4px"));
         box.appendChild(card);
       }
     }
-    if (!cb.outcome) renderTurn(box, cb, cur, A, refresh);
-    box.appendChild(el("details", { class: "rpm-cb-tools" }, [el("summary", { text: "Tools: damage, healing, conditions, special actions" }), toolsPanel(cb, A, refresh)]));
+    if (!cb.outcome) renderTurn(box, cb, cur, A, refresh2);
+    box.appendChild(el("details", { class: "rpm-cb-tools" }, [el("summary", { text: "Tools: damage, healing, conditions, special actions" }), toolsPanel(cb, A, refresh2)]));
     box.appendChild(label("Combat log"));
     const log = el("div", { class: "rpm-log", "data-cb": "log" });
     for (const line of (cb.log || []).slice(-10)) log.appendChild(el("div", { text: line }));
@@ -29640,17 +30291,17 @@ ${xl.join("\n")}`;
     box.appendChild(btn(cb.outcome ? "Close the fight" : "End encounter", () => {
       if (cb.outcome || confirm("End the fight now (flee / stop)? HP is kept.")) {
         A.endEncounter();
-        refresh();
+        refresh2();
       }
     }, { icon: "x", block: true, variant: cb.outcome ? null : "danger", id: "end" }));
   }
-  function renderTurn(box, cb, cur, A, refresh) {
+  function renderTurn(box, cb, cur, A, refresh2) {
     const wrap = el("div", { class: "rpm-card rpm-cb-turn", "data-cb": "turn-panel" });
     box.appendChild(wrap);
     const endTurn = () => {
       A.nextTurn();
       if (autoTurnsOn()) A.runAutoTurns();
-      refresh();
+      refresh2();
     };
     const d = cb.death && cb.death[cur.id];
     if (cur.isPlayer && d && !d.dead && !d.stable) {
@@ -29682,7 +30333,7 @@ ${xl.join("\n")}`;
       wrap.appendChild(row([
         btn("Attack", () => {
           if (U.target) A.attack(cur.id, U.target, U.atk, { mode: U.mode || void 0 });
-          refresh();
+          refresh2();
         }, { icon: "swords", variant: "danger", grow: true, disabled: !foes.length, id: "attack" }),
         btn("End turn", endTurn, { icon: "arrow-right", grow: true, id: "end-turn" })
       ], "margin-top:6px"));
@@ -29693,15 +30344,15 @@ ${xl.join("\n")}`;
       el("span", { class: "rpm-grow", text: `${cur.name}'s turn` }),
       btn("Run enemy turns", () => {
         A.runAutoTurns();
-        refresh();
+        refresh2();
       }, { icon: "play", variant: "danger", id: "run-enemies" }),
       btn("Skip", () => {
         A.nextTurn();
-        refresh();
+        refresh2();
       }, { id: "skip" })
     ]));
   }
-  function toolsPanel(cb, A, refresh) {
+  function toolsPanel(cb, A, refresh2) {
     const T = U.tool;
     const people = cb.order.map((o) => [o.id, o.name]);
     if (!people.some((p) => p[0] === T.who)) T.who = "__player__";
@@ -29718,11 +30369,11 @@ ${xl.join("\n")}`;
       amount,
       btn("Damage", () => {
         A.damage(T.who, T.amount);
-        refresh();
+        refresh2();
       }, { variant: "danger", id: "damage" }),
       btn("Heal", () => {
         A.heal(T.who, T.amount);
-        refresh();
+        refresh2();
       }, { variant: "success", id: "heal" })
     ]));
     const rounds = el("input", { type: "number", min: "0", class: "form-control rpm-input fullScreenTextEditExclude", style: "width:4.5em", "aria-label": "Rounds (0 = until removed)", title: "Rounds (0 = until removed)", "data-cb": "rounds" });
@@ -29737,7 +30388,7 @@ ${xl.join("\n")}`;
       rounds,
       btn("Add condition", () => {
         A.addCondition(T.who, T.cond, T.rounds || null);
-        refresh();
+        refresh2();
       }, { id: "add-condition" })
     ], "margin-top:6px"));
     const ct = A.conditionText(T.cond);
@@ -29757,7 +30408,7 @@ ${xl.join("\n")}`;
         btn("Use", () => {
           const [id, i] = T.action.split("|");
           A.saveAction(id, T.actTarget || "__player__", Number(i));
-          refresh();
+          refresh2();
         }, { id: "use-action" })
       ], "margin-top:6px"));
     }
@@ -29837,14 +30488,15 @@ ${xl.join("\n")}`;
     for (const r of board.rooms) {
       const x = r.rect.x * cell, y = r.rect.y * cell, w = r.rect.w * cell, h = r.rect.h * cell;
       const fog = !r.here && r.explored !== "visited";
+      const unseen = fog && r.named === false;
       const reach = opts.reachable && opts.reachable.has(r.id);
       const g = svg("g", {
-        class: "rpm-map-room" + (r.here ? " rpm-here" : "") + (fog ? " rpm-map-fog" : "") + (reach ? " rpm-map-reach" : ""),
+        class: "rpm-map-room" + (r.here ? " rpm-here" : "") + (fog ? " rpm-map-fog" : "") + (unseen ? " rpm-map-unseen" : "") + (reach ? " rpm-map-reach" : "") + (r.light === "dark" ? " rpm-map-dark" : ""),
         "data-room": r.id,
         "data-explored": r.here ? "here" : r.explored || "known"
       });
       const title = svg("title");
-      title.textContent = r.name + (r.here ? " — you are here" : reach ? " — click to go there" : "");
+      title.textContent = (unseen ? "Unexplored room" : r.name) + (r.here ? " — you are here" : reach ? " — click to go there" : "");
       g.appendChild(title);
       g.appendChild(svg("rect", { x, y, width: w, height: h, rx: board.kind === "town" ? 6 : 1, class: "rpm-map-roomrect" }));
       const t = svg("text", { x: x + w / 2, y: y + h / 2 + 4, "text-anchor": "middle", class: "rpm-map-name" });
@@ -30129,7 +30781,7 @@ ${xl.join("\n")}`;
     }
     for (const r of M.board.rooms) {
       const x = px(r.rect.x), y = px(r.rect.y), w = px(r.rect.w), h = px(r.rect.h);
-      const g = svg2("g", { class: "rpm-map-room" + (r.id === M.selected ? " rpm-sel" : "") + (r.id === M.linkFrom ? " rpm-link" : "") + (r.secret ? " rpm-map-secretroom" : ""), "data-room": r.id, "data-kind": r.kind });
+      const g = svg2("g", { class: "rpm-map-room" + (r.id === M.selected ? " rpm-sel" : "") + (r.id === M.linkFrom ? " rpm-link" : "") + (r.secret ? " rpm-map-secretroom" : "") + (r.origin === "ai" ? " rpm-map-airoom" : ""), "data-room": r.id, "data-kind": r.kind, "data-origin": r.origin || null });
       g.appendChild(svg2("rect", { x, y, width: w, height: h, rx: M.board.kind === "town" ? 6 : 1, class: "rpm-map-roomrect" }));
       const name = svg2("text", { x: x + w / 2, y: y + h / 2 + 4, "text-anchor": "middle", class: "rpm-map-name" });
       name.textContent = clip(r.name, Math.max(4, Math.floor(r.rect.w * 3.2)));
@@ -30141,6 +30793,14 @@ ${xl.join("\n")}`;
         g.appendChild(t);
       }
       if (r.here) g.appendChild(svg2("circle", { cx: x + 9, cy: y + 9, r: 4, class: "rpm-map-here" }));
+      if (r.origin === "ai") {
+        const t = svg2("text", { x: x + w - 5, y: y + 12, "text-anchor": "end", class: "rpm-map-sub rpm-map-aibadge" });
+        t.textContent = "AI";
+        const tt = svg2("title");
+        tt.textContent = "Added by the AI during play";
+        t.appendChild(tt);
+        g.appendChild(t);
+      }
       g.addEventListener("mousedown", (ev) => onRoomDown(ev, r.id));
       g.addEventListener("dblclick", () => {
         if (r.kind !== "location") openMapEditor(r.id);
@@ -30317,6 +30977,7 @@ ${xl.join("\n")}`;
     if (!room) return;
     const town = M.board.kind === "town";
     box.appendChild(heading(town ? "Place" : "Room"));
+    if (room.origin === "ai") box.appendChild(el("p", { class: "rpm-muted", "data-ai-room": "1", text: "Added by the AI during play. Keep it, edit it, or delete it." }));
     box.appendChild(lbl("Name"));
     box.appendChild(input(room.name, (v) => {
       A.updateEntity(id, { name: v });
@@ -30378,15 +31039,15 @@ ${xl.join("\n")}`;
     box.appendChild(heading("Inhabitants"));
     const g = A.getGraph();
     const persons = g.nodes.filter((n) => n.type === "npc");
-    const here = persons.filter((n) => (A.entityById(n.id) || {}).homeLocationId === id);
-    for (const p of here) box.appendChild(el("div", { class: "rpm-card rpm-row" }, [
+    const here2 = persons.filter((n) => (A.entityById(n.id) || {}).homeLocationId === id);
+    for (const p of here2) box.appendChild(el("div", { class: "rpm-card rpm-row" }, [
       el("span", { class: "rpm-grow", text: p.name }),
       el("button", { type: "button", class: "rpm-iconbtn", title: "Moves out", "aria-label": "Remove " + p.name, text: "×", onclick: () => {
         A.disconnect(p.id, id);
         renderInspector();
       } })
     ]));
-    const others = persons.filter((n) => !here.includes(n));
+    const others = persons.filter((n) => !here2.includes(n));
     if (others.length) box.appendChild(select([["", "— a person lives here … —"], ...others.map((n) => [n.id, n.name])], "", (v) => {
       if (v) {
         A.connect(v, id);
@@ -30509,18 +31170,41 @@ ${xl.join("\n")}`;
 
   // src/map/minimap.js
   var MINIMAP_VIEWS = ["minimap", "map"];
-  var U2 = { last: null };
+  var U2 = { last: null, ok: false, at: null };
   function API2() {
     return window.KLITE_RPMod_Worlds;
+  }
+  function here() {
+    const A = API2();
+    return A && A.runtime ? A.runtime.playerLocationId : null;
+  }
+  function refresh() {
+    U2.at = here();
+    try {
+      window.KLITE_RPMod_Shell?.refresh(MINIMAP_VIEWS);
+    } catch (_) {
+    }
   }
   function doGo(targetId) {
     const A = API2();
     const r = A.go(targetId, { source: "ui" });
     U2.last = r.ok ? null : r.reason;
-    try {
-      window.KLITE_RPMod_Shell?.refresh(MINIMAP_VIEWS);
-    } catch (_) {
-    }
+    U2.ok = false;
+    refresh();
+    return r;
+  }
+  function doDoor(action, exitId) {
+    const r = API2().door(action, exitId, { source: "ui" });
+    U2.last = r.ok ? r.text || null : r.reason;
+    U2.ok = !!r.ok;
+    refresh();
+    return r;
+  }
+  function doSearch() {
+    const r = API2().search({ source: "ui" });
+    U2.last = r.ok ? r.text : r.reason;
+    U2.ok = !!r.ok;
+    refresh();
     return r;
   }
   function renderMap(box, large) {
@@ -30531,17 +31215,17 @@ ${xl.join("\n")}`;
       root.appendChild(el("div", { class: "rpm-muted", text: "No world loaded. Load one (or the example) in the World tab." }));
       return;
     }
-    const here = A.runtime && A.runtime.playerLocationId;
-    if (!here || !A.entityById(here)) {
+    const here2 = A.runtime && A.runtime.playerLocationId;
+    if (!here2 || !A.entityById(here2)) {
       root.appendChild(el("div", { class: "rpm-muted", text: "Nowhere yet — choose a starting place in the World tab." }));
       return;
     }
     const R = A.mapRules;
-    const mapId = A.mapOf(here);
-    const exits = A.exitsOf(here, { player: true });
-    const path = (A.zonePath(here) || []).map((z) => z.name);
+    const mapId = A.mapOf(here2);
+    const exits = A.exitsOf(here2, { player: true });
+    const path = (A.zonePath(here2) || []).map((z) => z.name);
     root.appendChild(el("div", { class: "rpm-map-where" }, [
-      el("span", { class: "rpm-grow" }, [el("strong", { text: (A.phased(here) || {}).name || A.entityById(here).name }), path.length ? el("span", { class: "rpm-muted", text: " · " + path.join(" › ") }) : null]),
+      el("span", { class: "rpm-grow" }, [el("strong", { text: (A.phased(here2) || {}).name || A.entityById(here2).name }), path.length ? el("span", { class: "rpm-muted", text: " · " + path.join(" › ") }) : null]),
       large ? null : el("button", { type: "button", class: "rpm-iconbtn", title: "Open the map", "aria-label": "Open the map", "data-map-open": "1", onclick: () => window.KLITE_RPMod_Shell?.open("map") }, [iconText("map", "", 16)])
     ]));
     if (mapId) {
@@ -30555,20 +31239,42 @@ ${xl.join("\n")}`;
       if (!large) wrap.addEventListener("click", () => window.KLITE_RPMod_Shell?.open("map"));
       root.appendChild(wrap);
     }
-    if (U2.last) root.appendChild(el("div", { class: "rpm-map-refused", role: "status", text: U2.last }));
+    if (mapId || A.hiddenIn && exits.length) {
+      const light = A.roomLight ? A.roomLight(here2) : null;
+      root.appendChild(el("div", { class: "rpm-map-actions" }, [
+        el("button", { type: "button", class: "btn btn-primary rpm-btn", "data-map-search": "1", title: "Search this room (d20 + Perception or Investigation)", onclick: doSearch }, [iconText("search", "Search", 14)]),
+        light ? el("span", { class: "rpm-chip", "data-map-light": light, text: light === "bright" ? "bright light" : light === "dim" ? "dim light" : "darkness" }) : null
+      ]));
+    }
+    if (U2.last && U2.at === here2) root.appendChild(el("div", { class: U2.ok ? "rpm-map-result" : "rpm-map-refused", role: "status", text: U2.last }));
     const list2 = el("div", { class: "rpm-map-exits" });
     if (!exits.length) list2.appendChild(el("div", { class: "rpm-muted", text: "No known way on from here." }));
     for (const e of exits) {
       const st = e.type === "door" || e.type === "secret" ? A.doorState(e.id) : null;
-      const label2 = `${e.dir ? R.dirName(e.dir) + ": " : ""}${A.placeName(e.to, here)}`;
+      const label2 = `${e.dir ? R.dirName(e.dir) + ": " : ""}${(A.playerPlaceName || A.placeName)(e.to, here2)}`;
       const b = el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-map-go", "data-go": e.to, title: st ? `Door: ${st}` : "Go there", onclick: () => doGo(e.to) }, [
         el("span", { class: "rpm-grow", text: label2 }),
         st && st !== "open" ? el("span", { class: "rpm-chip" + (R.blocksMove(st) ? " rpm-chip-danger" : ""), text: st }) : null
       ]);
-      list2.appendChild(b);
+      if (!st) {
+        list2.appendChild(b);
+        continue;
+      }
+      const act = st === "open" ? ["close", "Close"] : st === "closed" ? ["open", "Open"] : st === "locked" ? ["unlock", "Unlock"] : null;
+      list2.appendChild(el("div", { class: "rpm-map-exitrow" }, [
+        b,
+        act ? el("button", {
+          type: "button",
+          class: "btn btn-primary rpm-btn rpm-map-door-btn",
+          "data-door": act[0],
+          "data-exit": e.id,
+          title: `${act[1]} the door`,
+          onclick: () => doDoor(act[0], e.id)
+        }, [el("span", { text: act[1] })]) : null
+      ]));
     }
     root.appendChild(list2);
-    if (large && mapId) root.appendChild(el("div", { class: "rpm-muted", style: "margin-top:6px", text: "Outlined rooms are known but not yet visited. Unknown rooms and undiscovered secrets are not shown." }));
+    if (large && mapId) root.appendChild(el("div", { class: "rpm-muted", style: "margin-top:6px", text: 'Dashed rooms are seen but not yet visited; "?" marks a room behind a closed door. Unknown rooms and undiscovered secrets are not shown.' }));
   }
   function registerMinimap(sh) {
     sh.registerView({
@@ -32559,10 +33265,12 @@ ${xl.join("\n")}`;
       id: "tags",
       title: "Changing the world from chat",
       blocks: [
-        { p: "Small tags in the chat change the world. The AI can write them (ask for it in your World Rules) or you can type them yourself. They take effect on your next message." },
+        { p: "Small tags in the chat change the world. The AI can write them (ask for it in your World Rules) or you can type them yourself. The AI's tags take effect as soon as its reply arrives, yours when you send." },
         { table: [
           ["Tag", "Effect"],
           ["<move>Forest Road</move>", "you go somewhere"],
+          ["<open>north</open> · <unlock>north</unlock> · <search/>", "doors and searching in a dungeon (RPmod rolls)"],
+          ["<room>Bone Pit, west: old bones</room> · <door>west = locked</door>", "the AI adds a room or locks a door"],
           ["<give>Torch x2</give> · <take>Torch</take>", "inventory"],
           ["<quest>find_sword=active</quest>", "quest state"],
           ["<flag>metRowan=true</flag>", "story flag"],
@@ -33530,198 +34238,6 @@ ${xl.join("\n")}`;
     };
     if (document.readyState === "complete") attempt();
     else window.addEventListener("load", attempt);
-  }
-
-  // src/characters/sheet.js
-  var EXT_KEY = "klite_rpmod";
-  var SHEET_VERSION = 1;
-  var ABILITIES = ["str", "dex", "con", "int", "wis", "cha"];
-  var ABILITY_NAMES = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
-  var SKILLS = [
-    ["acrobatics", "Acrobatics", "dex"],
-    ["animal_handling", "Animal Handling", "wis"],
-    ["arcana", "Arcana", "int"],
-    ["athletics", "Athletics", "str"],
-    ["deception", "Deception", "cha"],
-    ["history", "History", "int"],
-    ["insight", "Insight", "wis"],
-    ["intimidation", "Intimidation", "cha"],
-    ["investigation", "Investigation", "int"],
-    ["medicine", "Medicine", "wis"],
-    ["nature", "Nature", "int"],
-    ["perception", "Perception", "wis"],
-    ["performance", "Performance", "cha"],
-    ["persuasion", "Persuasion", "cha"],
-    ["religion", "Religion", "int"],
-    ["sleight_of_hand", "Sleight of Hand", "dex"],
-    ["stealth", "Stealth", "dex"],
-    ["survival", "Survival", "wis"]
-  ].map(([id, name, ability]) => ({ id, name, ability }));
-  var SKILL_IDS = new Set(SKILLS.map((s) => s.id));
-  var num = (v, d = 0) => {
-    const n = Number(v);
-    return Number.isFinite(n) ? n : d;
-  };
-  var int = (v, d = 0) => Math.trunc(num(v, d));
-  var clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-  var str = (v) => (v == null ? "" : String(v)).trim();
-  function abilityMod(score) {
-    return Math.floor((num(score, 10) - 10) / 2);
-  }
-  function proficiencyBonus(level) {
-    return 2 + Math.floor((clamp(int(level, 1), 1, 20) - 1) / 4);
-  }
-  function fmt(n) {
-    return (n >= 0 ? "+" : "") + n;
-  }
-  function defaultSheet() {
-    return {
-      version: SHEET_VERSION,
-      level: 1,
-      className: "",
-      species: "",
-      background: "",
-      alignment: "",
-      xp: 0,
-      abilities: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 },
-      saves: [],
-      // proficient saving throws (ability ids)
-      skills: {},
-      // skill id -> 1 (proficient) | 2 (expertise)
-      ac: 10,
-      speed: 30,
-      hp: { max: 10, current: 10, temp: 0 },
-      attacks: [],
-      // [{ name, ability: 'str'|'dex'|…, proficient, bonus (extra to hit), damage: '1d8+3', notes }]
-      spellcasting: null,
-      // { ability, cantrips, prepared, slots: [per spell level], pact } (from the builder)
-      proficiencies: "",
-      // weapons / armor / tools / languages (text)
-      acNote: "",
-      // how AC is made up, e.g. "Chain Mail + Shield"
-      build: null,
-      // builder choices (builder-rules.js) — used for level up
-      inventory: [],
-      // [{ name, qty, notes }]
-      coins: { cp: 0, sp: 0, gp: 0, pp: 0 },
-      features: "",
-      notes: ""
-    };
-  }
-  function normalizeSheet(raw) {
-    const d = defaultSheet();
-    const s = Object.assign({}, raw && typeof raw === "object" ? raw : {});
-    s.version = SHEET_VERSION;
-    s.level = clamp(int(s.level, 1), 1, 20);
-    for (const k2 of ["className", "species", "background", "alignment", "features", "notes", "proficiencies", "acNote"]) s[k2] = str(s[k2]);
-    s.xp = Math.max(0, int(s.xp, 0));
-    const ab = Object.assign({}, d.abilities, s.abilities && typeof s.abilities === "object" ? s.abilities : {});
-    for (const a of ABILITIES) ab[a] = clamp(int(ab[a], 10), 1, 30);
-    s.abilities = ab;
-    s.saves = [...new Set((Array.isArray(s.saves) ? s.saves : []).filter((a) => ABILITIES.includes(a)))];
-    const sk = {};
-    if (s.skills && typeof s.skills === "object") {
-      for (const [k2, v] of Object.entries(s.skills)) if (SKILL_IDS.has(k2) && (v === 1 || v === 2 || v === true)) sk[k2] = v === true ? 1 : v;
-    }
-    s.skills = sk;
-    s.ac = clamp(int(s.ac, 10), 0, 40);
-    s.speed = Math.max(0, int(s.speed, 30));
-    const hp = Object.assign({}, d.hp, s.hp && typeof s.hp === "object" ? s.hp : {});
-    hp.max = Math.max(1, int(hp.max, 10));
-    hp.current = clamp(int(hp.current, hp.max), -hp.max, hp.max);
-    hp.temp = Math.max(0, int(hp.temp, 0));
-    s.hp = hp;
-    s.attacks = (Array.isArray(s.attacks) ? s.attacks : []).filter((a) => a && str(a.name)).map((a) => ({
-      name: str(a.name),
-      ability: ABILITIES.includes(a.ability) ? a.ability : "str",
-      proficient: a.proficient !== false,
-      bonus: int(a.bonus, 0),
-      damage: str(a.damage),
-      notes: str(a.notes)
-    }));
-    s.inventory = (Array.isArray(s.inventory) ? s.inventory : []).filter((i) => i && str(i.name)).map((i) => ({ name: str(i.name), qty: Math.max(1, int(i.qty, 1)), notes: str(i.notes) }));
-    const coins = Object.assign({}, d.coins, s.coins && typeof s.coins === "object" ? s.coins : {});
-    for (const c of Object.keys(d.coins)) coins[c] = Math.max(0, int(coins[c], 0));
-    s.coins = coins;
-    if (s.spellcasting && typeof s.spellcasting === "object" && ABILITIES.includes(s.spellcasting.ability)) {
-      const sc = s.spellcasting;
-      s.spellcasting = {
-        ability: sc.ability,
-        pact: !!sc.pact,
-        cantrips: Math.max(0, int(sc.cantrips, 0)),
-        prepared: Math.max(0, int(sc.prepared, 0)),
-        slots: (Array.isArray(sc.slots) ? sc.slots : []).map((n) => Math.max(0, int(n, 0))).slice(0, 9),
-        slotLevel: int(sc.slotLevel, 0) || void 0,
-        used: (Array.isArray(sc.used) ? sc.used : []).map((n) => Math.max(0, int(n, 0))).slice(0, 9),
-        spells: str(sc.spells)
-      };
-    } else s.spellcasting = null;
-    if (!s.build || typeof s.build !== "object") s.build = null;
-    return s;
-  }
-  function derive(sheet) {
-    const s = normalizeSheet(sheet);
-    const pb = proficiencyBonus(s.level);
-    const mods = Object.fromEntries(ABILITIES.map((a) => [a, abilityMod(s.abilities[a])]));
-    const saves = Object.fromEntries(ABILITIES.map((a) => [a, mods[a] + (s.saves.includes(a) ? pb : 0)]));
-    const skills = Object.fromEntries(SKILLS.map((k2) => [k2.id, mods[k2.ability] + (s.skills[k2.id] || 0) * pb]));
-    const attacks = s.attacks.map((a) => ({ ...a, toHit: mods[a.ability] + (a.proficient ? pb : 0) + (a.bonus || 0) }));
-    const spell = s.spellcasting ? { ...s.spellcasting, saveDC: 8 + mods[s.spellcasting.ability] + pb, attack: mods[s.spellcasting.ability] + pb } : null;
-    return { sheet: s, pb, mods, saves, skills, attacks, spell, initiative: mods.dex, passivePerception: 10 + skills.perception };
-  }
-  function readSheet(inner) {
-    const ext = inner && inner.extensions && inner.extensions[EXT_KEY];
-    return ext && ext.sheet ? normalizeSheet(ext.sheet) : null;
-  }
-  function writeSheet(inner, sheet) {
-    const out = Object.assign({}, inner || {});
-    const ext = Object.assign({}, out.extensions && typeof out.extensions === "object" ? out.extensions : {});
-    const mine = Object.assign({}, ext[EXT_KEY] && typeof ext[EXT_KEY] === "object" ? ext[EXT_KEY] : {});
-    if (sheet) mine.sheet = normalizeSheet(sheet);
-    else delete mine.sheet;
-    if (Object.keys(mine).length) ext[EXT_KEY] = mine;
-    else delete ext[EXT_KEY];
-    out.extensions = ext;
-    return out;
-  }
-  function toCombatStats(sheet) {
-    const d = derive(sheet);
-    return {
-      abilities: { ...d.sheet.abilities },
-      ac: d.sheet.ac,
-      hpMax: d.sheet.hp.max,
-      speed: d.sheet.speed,
-      proficiency: d.pb,
-      initiativeMod: d.initiative,
-      saves: { ...d.saves },
-      attacks: d.attacks.map((a) => ({ name: a.name, toHit: a.toHit, damage: a.damage || "1d4" }))
-    };
-  }
-  function fromCombatStats(stats, extra) {
-    const st = stats || {};
-    return normalizeSheet(Object.assign({
-      abilities: st.abilities,
-      ac: st.ac,
-      speed: st.speed,
-      hp: { max: st.hpMax, current: st.hpMax },
-      attacks: (Array.isArray(st.attacks) ? st.attacks : []).map((a) => ({ name: a.name, ability: "str", proficient: true, damage: a.damage }))
-    }, extra || {}));
-  }
-  function sheetSummary(sheet) {
-    const d = derive(sheet);
-    const s = d.sheet;
-    const who = [s.species, s.className && `${s.className} ${s.level}`, !s.className && `level ${s.level}`].filter(Boolean).join(" ");
-    const lines = [
-      `${who || "Level " + s.level} — HP ${s.hp.current}/${s.hp.max}${s.hp.temp ? ` (+${s.hp.temp} temp)` : ""}, AC ${s.ac}, Speed ${s.speed} ft.`,
-      ABILITIES.map((a) => `${a.toUpperCase()} ${s.abilities[a]} (${fmt(d.mods[a])})`).join(", ")
-    ];
-    const prof = SKILLS.filter((k2) => s.skills[k2.id]).map((k2) => `${k2.name} ${fmt(d.skills[k2.id])}`);
-    if (prof.length) lines.push("Skills: " + prof.join(", "));
-    if (d.spell) lines.push(`Spellcasting (${d.spell.ability.toUpperCase()}): save DC ${d.spell.saveDC}, spell attack ${fmt(d.spell.attack)}` + (d.spell.slots.length ? `, slots ${d.spell.slots.map((n, i) => n ? `L${i + 1}×${n}` : "").filter(Boolean).join(" ")}` : "") + (d.spell.spells ? `; spells: ${d.spell.spells}` : ""));
-    if (s.inventory.length) lines.push("Inventory: " + s.inventory.map((i) => i.name + (i.qty > 1 ? ` x${i.qty}` : "")).join(", "));
-    const coins = Object.entries(s.coins).filter(([, v]) => v > 0).map(([k2, v]) => `${v} ${k2}`);
-    if (coins.length) lines.push("Coins: " + coins.join(", "));
-    return lines.join("\n");
   }
 
   // src/characters/store.js

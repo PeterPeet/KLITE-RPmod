@@ -65,7 +65,7 @@ test('map rules: layout, free spots, directions', () => {
 
     const ex = {}; assert.ok(MR.raiseExplored(ex, 'r', 'known')); assert.ok(MR.raiseExplored(ex, 'r', 'visited'));
     assert.ok(!MR.raiseExplored(ex, 'r', 'known'), 'never lowered'); assert.equal(ex.r, 'visited');
-    assert.deepEqual(plain(MR.normalizeExploration({ found: { secrets: 'x' } })), { explored: {}, found: { secrets: [], traps: [] }, doorState: {} });
+    assert.deepEqual(plain(MR.normalizeExploration({ found: { secrets: 'x' } })), { explored: {}, found: { secrets: [], traps: [], searched: {} }, doorState: {}, roomLight: {} });
 });
 
 async function mapHost(t) {
@@ -129,7 +129,9 @@ test('engine: exploration state, doors, secrets stay out of the AI slice', async
 
     let s = W.preview();
     assert.match(s, /\[Current Location: Hall\][\s\S]*Part of: Old Crypt/);
-    assert.match(s, /Exits:\n(- .*\n)*- west: Entrance/); assert.match(s, /- south: Ossuary \(locked iron door\)/);
+    // behind closed doors: the rooms are there, their names are not known yet (step 3 fog)
+    assert.match(s, /Exits:\n(- .*\n)*- west: unexplored room \(closed door\)/); assert.match(s, /- south: unexplored room \(locked iron door\)/);
+    assert.doesNotMatch(s, /Ossuary|Entrance/, 'unseen room names stay out of the AI context');
     assert.doesNotMatch(s, /Vault/, 'unfound secret not in the AI context');
     assert.doesNotMatch(s, /- [a-z]+: Old Crypt/, 'the dungeon itself is not an exit from its rooms');
 
@@ -146,7 +148,7 @@ test('engine: exploration state, doors, secrets stay out of the AI slice', async
     W.markFound('secret', d.secret.id); W.markFound('secret', d.vault.id);
     W.moveTo('Hall');
     s = W.preview();
-    assert.match(s, /- east: Vault \(closed secret door\)/, 'found secret door + room reach the AI');
+    assert.match(s, /- east: unexplored room \(closed secret door\)/, 'found secret door reaches the AI (the room behind it is unseen)');
     assert.equal(W.exploration().explored[d.vault.id], 'known');
 
     // board: creator sees all, the player only the known part
@@ -157,8 +159,9 @@ test('engine: exploration state, doors, secrets stay out of the AI slice', async
     assert.ok(mine.rooms.every(r => r.explored || r.here));
 
     // exploration lives in the runtime slot (reset brings back the base)
+    // (the door to the Ossuary was set open above, so the room behind it is seen: discovered)
     W.commitToBase(); W.setExplored(d.oss.id, 'visited'); W.resetToBase();
-    assert.equal(W.exploration().explored[d.oss.id], 'known');
+    assert.equal(W.exploration().explored[d.oss.id], 'discovered');
 });
 
 test('engine: exits edit/remove, delete a dungeon with its rooms, kind change marks unsaved', async (t) => {
@@ -205,11 +208,11 @@ test('migration: older worlds and saves load with R7 fields, nothing lost', asyn
 
     // an old save without exploration fields (flat and two-slot)
     W.restoreSaveState({ version: 1, enabled: true, activeWorldId: 'w_old', runtime: { playerLocationId: 'l2', flags: { a: 1 } } });
-    assert.deepEqual(plain(W.exploration()), { explored: {}, found: { secrets: [], traps: [] }, doorState: {} });
+    assert.deepEqual(plain(W.exploration()), { explored: {}, found: { secrets: [], traps: [], searched: {} }, doorState: {}, roomLight: {} });
     assert.equal(W.runtime.flags.a, 1);
     W.restoreSaveState({ version: 1, enabled: true, activeWorldId: 'w_old', runtime: { active: 'working', base: { flags: { b: 2 } }, working: { flags: { c: 3 }, found: { secrets: ['s'] } } } });
-    assert.deepEqual(plain(W.runtimeSlots.base.found), { secrets: [], traps: [] });
-    assert.deepEqual(plain(W.runtimeSlots.working.found), { secrets: ['s'], traps: [] }, 'existing found kept, traps added');
+    assert.deepEqual(plain(W.runtimeSlots.base.found), { secrets: [], traps: [], searched: {} });
+    assert.deepEqual(plain(W.runtimeSlots.working.found), { secrets: ['s'], traps: [], searched: {} }, 'existing found kept, traps added');
     assert.equal(W.runtimeSlots.working.flags.c, 3);
     // exploration survives the story save round trip
     W.setExplored('l1', 'visited');

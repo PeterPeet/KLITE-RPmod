@@ -37,8 +37,9 @@ export function exitMarks(g, e, mx, my) {
     if (e.secret) { const t = svg('text', { x: mx, y: my + 19, 'text-anchor': 'middle', class: 'rpm-map-glyph' }); t.textContent = 'S'; g.appendChild(t); }
 }
 
-// The player's board: fog (only known/visited rooms are in a player board; known ones are
-// drawn as outlines), "you are here", reachable neighbours clickable.
+// The player's board: fog (only known/seen/visited rooms are in a player board; seen ones are
+// dashed outlines, known ones behind a closed door "?"), "you are here", reachable neighbours
+// clickable.
 // opts: { cell, reachable: Set of room ids, onRoom(id), R: map rules }
 export function renderPlayerBoard(board, opts) {
     const R = opts.R, cell = opts.cell || 20;
@@ -60,10 +61,11 @@ export function renderPlayerBoard(board, opts) {
     for (const r of board.rooms) {
         const x = r.rect.x * cell, y = r.rect.y * cell, w = r.rect.w * cell, h = r.rect.h * cell;
         const fog = !r.here && r.explored !== 'visited';
+        const unseen = fog && r.named === false;   // behind a closed door: "?" (name unknown)
         const reach = opts.reachable && opts.reachable.has(r.id);
-        const g = svg('g', { class: 'rpm-map-room' + (r.here ? ' rpm-here' : '') + (fog ? ' rpm-map-fog' : '') + (reach ? ' rpm-map-reach' : ''),
+        const g = svg('g', { class: 'rpm-map-room' + (r.here ? ' rpm-here' : '') + (fog ? ' rpm-map-fog' : '') + (unseen ? ' rpm-map-unseen' : '') + (reach ? ' rpm-map-reach' : '') + (r.light === 'dark' ? ' rpm-map-dark' : ''),
             'data-room': r.id, 'data-explored': r.here ? 'here' : (r.explored || 'known') });
-        const title = svg('title'); title.textContent = r.name + (r.here ? ' — you are here' : reach ? ' — click to go there' : ''); g.appendChild(title);
+        const title = svg('title'); title.textContent = (unseen ? 'Unexplored room' : r.name) + (r.here ? ' — you are here' : reach ? ' — click to go there' : ''); g.appendChild(title);
         g.appendChild(svg('rect', { x, y, width: w, height: h, rx: board.kind === 'town' ? 6 : 1, class: 'rpm-map-roomrect' }));
         const t = svg('text', { x: x + w / 2, y: y + h / 2 + 4, 'text-anchor': 'middle', class: 'rpm-map-name' });
         t.textContent = r.name.length > r.rect.w * 3 ? r.name.slice(0, Math.max(3, r.rect.w * 3 - 1)) + '…' : r.name;

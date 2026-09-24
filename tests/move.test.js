@@ -95,18 +95,21 @@ test('AI context in a room: light, exits with directions and doors, visible feat
     W.moveTo('Hall');
     let s = W.preview();
     assert.match(s, /Light: dim/);
-    assert.match(s, /Exits:\n- south: Ossuary \(locked iron door\)\n- west: Entrance \(closed door\)/, 'exact names, directions, door states');
+    assert.match(s, /Exits:\n- south: unexplored room \(locked iron door\)\n- west: unexplored room \(closed door\)/, 'directions and door states; unseen names hidden');
+    W.go('west'); W.go('east');   // through the door: Entrance visited, its name known
+    s = W.preview();
+    assert.match(s, /Exits:\n- south: unexplored room \(locked iron door\)\n- west: Entrance \(open door\)/, 'exact names once seen');
     assert.doesNotMatch(s, /Vault|secret/i);
     assert.match(s, /Brazier \(lit\)/);
     assert.doesNotMatch(s, /Pressure plate/, 'unfound trap hidden');
-    assert.match(s, /\[Moving\][\s\S]*<move>name<\/move>/);
+    assert.match(s, /\[Exploring\][\s\S]*<go>name<\/go>[\s\S]*<search><\/search>[\s\S]*<room>Name, east/);
     assert.doesNotMatch(s, /\[Map \(explored\)\]/, 'text map off by default');
     W.markFound('trap', d.trap.id);
     assert.match(W.preview(), /Pressure plate \(trap\)/);
     // outside: the dungeon's room is named with the dungeon
     W.moveTo('Forest Road');
     assert.match(W.preview(), /Exits: [^\n]*Old Crypt \(Entrance\)/);
-    assert.doesNotMatch(W.preview(), /\[Moving\]/);
+    assert.doesNotMatch(W.preview(), /\[Exploring\]/);
     // text map on request
     w.KLITE_RPMod_Settings = { get: (id) => id === 'map_ascii_ai', registerSetting() {}, onChange() {} };
     W.moveTo('Hall');

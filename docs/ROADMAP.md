@@ -6,13 +6,13 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-24
+> Last updated: 2026-09-24 (R7 step 3)
 
 ## Current state
 
-**Now: R7 step 3** (AI tags + exploration: open/close/unlock/search/room/door/light, secrets and
-traps by Search checks — see [design/R7-world-map.md](design/R7-world-map.md)). R7 steps 1 (location
-kinds + dungeon/town editor) and 2 (mini-map, moving room by room, AI context, issue 12) are done.
+**Now: R7 step 4** (generator for dungeons and towns — see [design/R7-world-map.md](design/R7-world-map.md)).
+R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
+issue 12) and 3 (AI map tags, fog, doors, Search checks) are done.
 Done since R1: R2 characters (🟨: spells open), R5 combat (🟨), R4 quests & world (✅). R3
 (compendium, spells) and R6 (chat power features) are still to do.
 
@@ -25,7 +25,7 @@ contributed by RPmod — Quick Start (esolithe/esobold#65, merged), settings tab
 top-bar Guide with mod tabs (#67, both open); RPmod uses them and keeps fallbacks for hosts
 without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-24).
 
-### What works (verified headless 2026-09-24 — `npm test`, 176 tests)
+### What works (verified headless 2026-09-24 — `npm test`, 186 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -70,7 +70,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 | | Rewards XP/gold/choose-one | ✅ paid to the persona's sheet |
 | | Zones/subzones, hubs, phasing | ✅ |
 | | Factions & reputation | ✅ tiers; effects narrated (no vendors yet) |
-| Map | Places room by room, board, fog, distance bands (no VTT) | 🟡 R7 steps 1–2: dungeon/town editor, mini-map with fog, moving with door rules; tags, search, generator, bands to come |
+| Map | Places room by room, board, fog, distance bands (no VTT) | 🟡 R7 steps 1–3: dungeon/town editor, mini-map with fog, moving with door rules, AI map tags, doors/Search checks; generator, bands to come |
 
 ### Known issues / tech debt
 1. ~~"Monster / NPC combatant" flag does nothing~~ — decides the combat side since R5 (a monster is
@@ -125,7 +125,9 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
     and writes HP/XP back (R5, owner's decision). Companions (world persons) still start at full HP.
 18. **Flaky test seen once (2026-09-23):** "Combat window: build an encounter…" failed in one full
     run and passed in ~10 runs since; the failure text was not captured. Full-run output is now
-    kept while developing; investigate if it shows up again.
+    kept while developing; investigate if it shows up again. **Seen again 2026-09-24** (one full run
+   during R7 step 3; passed in 6 isolated runs and the next full run; the failure text was again not
+   captured — keep the full `npm test` output next time it fails).
 
 ## Phases
 
@@ -468,13 +470,31 @@ the board is derived (the LLM never writes coordinates); dungeons from editor, g
       click a neighbour, exit buttons, refusal) and **Map** window (`src/map/minimap.js`, shared drawing
       `src/map/board.js`). Tests `tests/move.test.js`. Live-checked in Esolite, incl. replies through
       the real `handle_incoming_text`.
+- [x] **Step 3 — AI tags + exploration** (2026-09-24): `src/game/map-tags.js` (pure) — map tags in
+      **reply order** (`<go>`/`<move>`, `<open>`, `<close>`, `<unlock>`, `<search>`, `<room>`, `<door>`,
+      `<light>`), forgiving targets (direction, name, plural, material, "door"), self-closing/empty tags.
+      **Fog:** known (behind a closed door; name hidden from player and AI — "unexplored room", "?")
+      / seen (open way or door) / visited. **Doors:** Open/Close/Unlock in the mini-map and by tag;
+      key without a roll, else thieves' tools d20 + DEX (+PB) vs lock DC; barred refuses. **Search:**
+      d20 + better of Perception/Investigation vs secret doors, secret rooms and traps (DC 15 default,
+      never shown), passive Perception on entering; results in the log and the AI context.
+      **`<room>`**: the AI adds a room beside the current one (placed, named, open door; stored in the
+      world with `origin: 'ai'`, "AI" badge in the editor); **`<door>`** only makes doors harder;
+      **`<light>`** per story. Owner's decisions on these four points: 2026-09-24 (design doc, step 3).
+      New runtime fields `found.searched`, `roomLight` (additive, migration tested). Tests
+      `tests/explore.test.js`. Live-checked in Esolite (clicks + replies through the real
+      `handle_incoming_text`, editor badge).
+- **Open (step 3):** traps are only *found* — triggering, disarming and damage are not modelled;
+  no forcing doors (Athletics); a door locked by the AI has no key unless the tag names one, so
+  without thieves' tools it stays shut (by design: RPmod decides); `<room>` adds only beside the
+  current room (no up/down stairs by tag); searching is unlimited (no time cost yet).
 - **Open (step 1):** moving a room does not re-aim its exits' stored direction (set it in the
   inspector); a saved encounter keeps its room id when the room is deleted (it just no longer
   matches a place); **Generate** comes with step 4; the player-facing fog/mini-map with step 2.
 Steps:
 1. ~~Location kinds + dungeon/town editor~~ (done, see above).
 2. ~~Mini-map + room-by-room movement~~ (done, see above).
-3. AI tags + exploration (go/open/close/unlock/search/room/door/light; fog; secrets by Search).
+3. ~~AI tags + exploration~~ (done, see above).
 4. Generator (dungeons and towns).
 5. Distance bands in combat (close/near/far/out, move actions, cover, hiding).
 Acceptance: build a small dungeon and a town in the editor, generate a second dungeon, let the AI

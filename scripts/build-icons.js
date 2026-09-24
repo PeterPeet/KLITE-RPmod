@@ -52,6 +52,7 @@ const NAMES = {
     'mouse-pointer-2': 'map editor: select tool',
     'link-2': 'map editor: connect tool',
     'map': 'mini-map / Map window',
+    'search': 'Search the room (map)',
 };
 
 const pkg = JSON.parse(fs.readFileSync(path.join(PKG, 'package.json'), 'utf8'));

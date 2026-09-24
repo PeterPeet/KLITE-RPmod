@@ -327,6 +327,13 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-map-go.rpm-btn { display: flex; align-items: center; gap: 6px; width: 100%; }
 .rpm-map-go .rpm-grow { text-align: left; }
 .rpm-map-refused { color: var(--rpm-danger); font-size: var(--rpm-fs-sm); }
+.rpm-map-result { color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); }
+.rpm-map-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rpm-map-exitrow { display: flex; gap: 4px; }
+.rpm-map-exitrow .rpm-map-go { flex: 1 1 auto; min-width: 0; }
+.rpm-map-door-btn.rpm-btn { flex: 0 0 auto; }
+.rpm-map-unseen .rpm-map-roomrect { opacity: .5; }
+.rpm-map-dark .rpm-map-roomrect { fill: color-mix(in srgb, var(--map-ground) 60%, #000); }
 
 /* ---- character sheet (window "sheet") + dice log ---- */
 .rpm-sheet { display: flex; flex-direction: column; gap: 4px; }

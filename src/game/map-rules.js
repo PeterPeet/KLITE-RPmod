@@ -13,8 +13,10 @@
 //
 // Board position: `room.map = { x, y, w, h }` in grid cells (layout engine or dragging).
 // Exploration per story (runtime, both slots): `explored { [roomId]: 'known'|'discovered'|
-// 'visited' }` (missing = unknown), `found { secrets: [exit or room ids], traps: [ids] }`,
-// `doorState { [exitId]: state }` (overrides the authored door state).
+// 'visited' }` (missing = unknown; known = behind a closed door, name hidden in dungeons;
+// discovered = seen), `found { secrets: [exit or room ids], traps: [ids], searched: { [roomId]: n } }`,
+// `doorState { [exitId]: state }` and `roomLight { [roomId]: light }` (override the authored ones).
+// The AI's map tags: map-tags.js.
 // Design: docs/design/R7-world-map.md.
 // =============================================================================
 
@@ -161,17 +163,25 @@ export function boardBounds(rects) {
 }
 
 // ---- exploration (runtime, per story) ----------------------------------------------------
-export function defaultExploration() { return { explored: {}, found: { secrets: [], traps: [] }, doorState: {} }; }
+export function defaultExploration() { return { explored: {}, found: { secrets: [], traps: [], searched: {} }, doorState: {}, roomLight: {} }; }
+const isMap = v => !!v && typeof v === 'object' && !Array.isArray(v);
 // Ensures the exploration fields on a runtime snapshot (older saves have none). Mutates.
+// Step 3 added found.searched { [roomId]: n } and roomLight { [roomId]: light } (additive).
 export function normalizeExploration(snap) {
     if (!snap || typeof snap !== 'object') return snap;
-    if (!snap.explored || typeof snap.explored !== 'object' || Array.isArray(snap.explored)) snap.explored = {};
+    if (!isMap(snap.explored)) snap.explored = {};
     if (!snap.found || typeof snap.found !== 'object') snap.found = {};
     snap.found.secrets = asArray(snap.found.secrets);
     snap.found.traps = asArray(snap.found.traps);
-    if (!snap.doorState || typeof snap.doorState !== 'object' || Array.isArray(snap.doorState)) snap.doorState = {};
+    if (!isMap(snap.found.searched)) snap.found.searched = {};
+    if (!isMap(snap.doorState)) snap.doorState = {};
+    if (!isMap(snap.roomLight)) snap.roomLight = {};
     return snap;
 }
+// Fog: a room behind an exit the player can see through (open way, open door) is
+// 'discovered' (seen, name known); behind a closed door only 'known' (there is something).
+export function seeThrough(ex, state) { return !!ex && (!(ex.type === 'door' || ex.type === 'secret') || state === 'open'); }
+export const DEFAULT_DC = 15;   // secret doors/rooms, traps and locks without a DC of their own
 export function exploreRank(level) { return EXPLORE.indexOf(level) + 1; }   // 0 = unknown
 // Raises a room's exploration level (never lowers it). Returns true if it changed.
 export function raiseExplored(explored, id, level) {

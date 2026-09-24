@@ -22,6 +22,8 @@ import { getContext } from './context/context.js';
 import * as CR from './game/combat-rules.js';
 import * as QR from './game/quest-rules.js';
 import * as MR from './game/map-rules.js';
+import * as MT from './game/map-tags.js';
+import { derive as deriveSheet } from './characters/sheet.js';
 
 export default function initWorlds() {
     'use strict';
@@ -80,8 +82,9 @@ export default function initWorlds() {
             completedEventIds: [],   // non-repeatable events already fired
             lastParsedIndex: 0,      // gametext_arr index up to which tags were applied
             // R7 exploration of dungeons/towns (map-rules.js): { [roomId]: 'known'|'discovered'|'visited' },
-            // found secrets (exit/room ids) and traps, door states that override the authored ones
-            explored: {}, found: { secrets: [], traps: [] }, doorState: {},
+            // found secrets (exit/room ids) and traps, rooms searched, door states and room light
+            // that override the authored ones
+            explored: {}, found: { secrets: [], traps: [], searched: {} }, doorState: {}, roomLight: {},
             clock: { day: 1, month: 1, year: 1, time: 'morning', season: 'spring', weather: 'clear' }
         };
     }
@@ -304,14 +307,31 @@ export default function initWorlds() {
         for (const l of asArray(activeWorld() && activeWorld().locations)) { const ex = asArray(l.exits).find(e => e && e.id === exitId); if (ex) return { owner: l, exit: ex }; }
         return null;
     }
-    // Entering a room: visited; the rooms behind its visible exits become known.
+    // Entering a room: visited; the rooms behind its visible exits become known — or
+    // discovered (seen, name known) when the way is open (fog, R7 step 3).
     function markVisitedRoom(locId) {
         const r = rt(); if (!r || !mapOf(locId)) return false;
         MR.normalizeExploration(r);
         let changed = MR.raiseExplored(r.explored, locId, 'visited');
-        for (const e of playerExits(locId)) if (mapOf(e.to)) changed = MR.raiseExplored(r.explored, e.to, 'known') || changed;
+        for (const e of playerExits(locId)) if (mapOf(e.to)) changed = MR.raiseExplored(r.explored, e.to, MR.seeThrough(e, MR.doorState(e, r.doorState)) ? 'discovered' : 'known') || changed;
         return changed;
     }
+    // Does the player know this room's name? Dungeon rooms only once seen (discovered) or
+    // visited; a town's places and everything outside dungeons always.
+    function roomNameKnown(locId) {
+        const m = mapOf(locId); if (!m || MR.kindOf(m) === 'town') return true;
+        const r = rt(); if (!r) return true;
+        if (r.playerLocationId === locId) return true;
+        return MR.exploreRank((r.explored || {})[locId]) >= MR.exploreRank('discovered');
+    }
+    // placeName as the player sees it from `fromId`: an unseen room of the same dungeon is
+    // "unexplored room" (the AI gets the same, so it cannot leak the name).
+    function playerPlaceName(locId, fromId) {
+        const m = mapOf(locId), fm = fromId && mapOf(fromId);
+        if (m && fm && m.id === fm.id && !roomNameKnown(locId)) return 'unexplored room';
+        return placeName(locId, fromId);
+    }
+    function roomLightOf(loc) { const o = rt() && rt().roomLight && loc && rt().roomLight[loc.id]; return MR.LIGHT.includes(o) ? o : (loc && loc.light) || null; }
     function defaultRoomName(map) { const n = roomsOf(map.id).length + 1; return (MR.kindOf(map) === 'town' ? 'Place ' : 'Room ') + n; }
     function addRoom(mapId, fields = {}) {
         const map = locOf(mapId); if (!map) throw new Error('unknown dungeon/town ' + mapId);
@@ -323,7 +343,7 @@ export default function initWorlds() {
         else want = placed.length ? { x: 0, y: Math.max(...placed.map(p => p.y + p.h)) + MR.ROOM.gap, ...size } : { x: 0, y: 0, ...size };
         const rect = (fields.x != null && fields.y != null) ? want : MR.freeSpot(want, placed, MR.ROOM.gap);
         const room = { id: uid('location'), name: norm(fields.name) || defaultRoomName(map), parentId: map.id, map: rect };
-        for (const k of ['description', 'kind', 'light', 'secret', 'hazards']) if (fields[k] != null) room[k] = fields[k];
+        for (const k of ['description', 'kind', 'light', 'secret', 'hazards', 'origin']) if (fields[k] != null) room[k] = fields[k];
         activeWorld().locations.push(room);
         if (fields.near && locOf(fields.near) && fields.connect !== false) addExit(fields.near, room.id, { dir: fields.dir });
         return room;
@@ -386,8 +406,9 @@ export default function initWorlds() {
         const explored = (r && r.explored) || {}, here = r && r.playerLocationId;
         const hereRoom = here && (here === mapId ? null : (isInsideLocation(here, mapId) ? zonePath(here).concat([locOf(here)]).find(l => l && l.parentId === mapId) : null));
         let rooms = roomsOf(mapId).map(l => ({
-            id: l.id, name: norm(phasedEntity(l).name), kind: MR.kindOf(l), rect: MR.rectOf(l), placed: MR.hasRect(l),
-            light: l.light || null, secret: !!l.secret, found: roomFound(l), explored: explored[l.id] || null,
+            id: l.id, name: opts.player && !roomNameKnown(l.id) ? '?' : norm(phasedEntity(l).name), named: !opts.player || roomNameKnown(l.id),
+            kind: MR.kindOf(l), rect: MR.rectOf(l), placed: MR.hasRect(l), origin: l.origin || null,
+            light: opts.player ? roomLightOf(l) : (l.light || null), secret: !!l.secret, found: roomFound(l), explored: explored[l.id] || null,
             here: !!hereRoom && hereRoom.id === l.id, rooms: roomsOf(l.id).length,
         }));
         if (opts.player) rooms = rooms.filter(x => x.found && (MR.kindOf(map) === 'town' || x.explored || x.here));
@@ -421,6 +442,12 @@ export default function initWorlds() {
         const outward = (r) => exitsOfLoc(r.id).filter(e => !isInsideLocation(e.to, mapId) && e.to !== mapId);
         return (fromId && rooms.find(r => outward(r).some(e => e.to === fromId || isInsideLocation(fromId, e.to)))) || rooms.find(r => outward(r).length) || rooms[0];
     }
+    // "unexplored room" (as the AI reads an unseen exit) = that exit when it is the only one.
+    function unexploredExit(exits, key, curId) {
+        if (!/^unexplored( room)?$/.test(key) || !curId) return null;
+        const u = exits.filter(e => playerPlaceName(e.to, curId) === 'unexplored room');
+        return u.length === 1 ? u[0] : null;
+    }
     // Target of a move: an id, a direction ("north"), a neighbour's name, else any place's name.
     function resolveGoTarget(target, curId) {
         const w = activeWorld(); const raw = norm(target);
@@ -429,6 +456,7 @@ export default function initWorlds() {
         const d = MR.parseDir(raw);
         if (d) { const e = exits.find(x => x.dir === d); return e ? locOf(e.to) : null; }
         const key = MR.nameKey(raw);
+        const unseen = unexploredExit(exits, key, curId); if (unseen) return locOf(unseen.to);
         const hit = exits.map(e => locOf(e.to)).filter(Boolean).find(l => MR.nameKey(phasedEntity(l).name) === key || MR.nameKey(l.name) === key);
         if (hit) return hit;
         return asArray(w.locations).find(l => MR.nameKey(phasedEntity(l).name) === key || MR.nameKey(l.name) === key) || null;
@@ -463,6 +491,7 @@ export default function initWorlds() {
         }
         rt().playerLocationId = dest.id;
         markVisitedRoom(dest.id);
+        passiveNotice(dest.id);
         const dir = ex && ex.dir ? MR.dirName(ex.dir) : '';
         if (opts.source === 'ui') gameLog(`${opened ? 'Opens the door and goes' : 'Goes'}${dir ? ' ' + dir : ''} to ${placeName(dest.id, curId)}.`, 'map');
         try { fireTriggers('enter:' + dest.id); } catch (_) {}
@@ -476,19 +505,242 @@ export default function initWorlds() {
             const how = (e.type === 'door' || e.type === 'secret') ? `${st} ${mat ? mat + ' ' : ''}${e.type === 'secret' ? 'secret door' : 'door'}`
                 : e.type === 'open' || !e.type ? 'open' : e.type;
             const out = !isInsideLocation(e.to, graphAnchor(locId)) ? ', leads out' : '';
-            return `- ${e.dir ? MR.dirName(e.dir) + ': ' : ''}${placeName(e.to, locId)} (${how}${out})`;
+            return `- ${e.dir ? MR.dirName(e.dir) + ': ' : ''}${playerPlaceName(e.to, locId)} (${how}${out})`;
         });
     }
     // Small text map of the explored part of the current dungeon/town (setting, default off).
     function asciiMapText(locId) {
         const m = mapOf(locId); if (!m) return '';
         const b = mapBoard(m.id, { player: true }); if (!b || !b.rooms.length) return '';
-        return MR.asciiMap(b.rooms.map(x => ({ id: x.id, name: x.name, rect: x.rect })), b.exits.map(e => [e.from, e.to]), b.here);
+        return MR.asciiMap(b.rooms.map(x => ({ id: x.id, name: x.named ? x.name : 'unexplored', rect: x.rect })), b.exits.map(e => [e.from, e.to]), b.here);
     }
     // A feature the player can see: traps only once found, nothing marked hidden.
     function featureVisible(o) {
         if (o.hidden) return false;
         return o.kind !== 'trap' || asArray(foundState().traps).includes(o.id);
+    }
+    // ---- R7 step 3: doors, searching, rooms and light — RPmod decides, the AI narrates ----
+    // Player actions (UI buttons or the AI's tags) go through these rules; results and refusals
+    // go to the game log, which the AI reads before its next reply.
+    const isDoorExit = (e) => !!e && (e.type === 'door' || e.type === 'secret');
+    const SKILL_ABILITY = { perception: 'wis', investigation: 'int' };
+    // "the north iron door" / "the door to Ossuary"
+    function doorLabel(e, fromId) {
+        const mat = e.door && norm(e.door.material);
+        const kind = e.type === 'secret' ? 'secret door' : 'door';
+        return e.dir ? `the ${MR.dirName(e.dir)} ${mat ? mat + ' ' : ''}${kind}` : `the ${mat ? mat + ' ' : ''}${kind} to ${playerPlaceName(e.to, fromId)}`;
+    }
+    // An exit of the current room named by the player/AI: its id, a direction, the room behind
+    // it, a door's material ("the iron door"), or just "door" when there is only one.
+    function exitForTarget(target, curId) {
+        const exits = playerExits(curId); const raw = norm(target);
+        const byId = exits.find(e => e.id === raw || e.to === raw); if (byId) return byId;
+        const bare = raw.toLowerCase().replace(/\b(the|a|an)\b/g, ' ').trim();
+        if (!bare || bare === 'door' || bare === 'doors') { const doors = exits.filter(isDoorExit); return doors.length === 1 ? doors[0] : null; }
+        const d = MR.parseDir(raw); if (d) return exits.find(e => e.dir === d) || null;
+        const unseen = unexploredExit(exits, MR.nameKey(raw), curId); if (unseen) return unseen;
+        const key = MT.looseKey(raw.replace(/\b(door|doors|gate|passage|way)\b/gi, ' '));
+        const hit = exits.find(e => { const l = locOf(e.to); return l && (MT.looseKey(phasedEntity(l).name) === key || MT.looseKey(l.name) === key); });
+        if (hit) return hit;
+        const byMat = exits.filter(e => isDoorExit(e) && e.door && e.door.material && MT.looseKey(e.door.material) === key);
+        return byMat.length === 1 ? byMat[0] : null;
+    }
+    // The player's skill bonus: the persona's sheet, else the world's player stats.
+    function playerStatsBlock() { return normalizeStats(playerCombatCfg().stats || {}); }
+    function playerSkill(skill) {
+        const sh = personaSheet();
+        if (sh) { try { const v = deriveSheet(sh).skills[skill]; if (Number.isFinite(v)) return v; } catch (_) {} }
+        const st = playerStatsBlock();
+        if (Number.isFinite(Number(st.skills[skill]))) return Number(st.skills[skill]);
+        return abilityMod(st.abilities[SKILL_ABILITY[skill] || 'wis']);
+    }
+    function passivePerception() { return 10 + playerSkill('perception'); }
+    // Search = d20 + the better of Perception and Investigation.
+    function searchSkill() {
+        const p = playerSkill('perception'), i = playerSkill('investigation');
+        return i > p ? { name: 'Investigation', bonus: i } : { name: 'Perception', bonus: p };
+    }
+    // Picking a lock needs thieves' tools: d20 + DEX (+ proficiency when the sheet lists them).
+    function hasThievesTools() { return asArray(inventoryView().items).some(i => /thie(f|ves)['’]?s?\s*tools/i.test(norm(i && i.name))); }
+    function lockpickBonus() {
+        const sh = personaSheet();
+        if (sh) { try { const d = deriveSheet(sh); return d.mods.dex + (/thie(f|ves)['’]?s?\s*tools/i.test(norm(d.sheet.proficiencies)) ? d.pb : 0); } catch (_) {} }
+        return abilityMod(playerStatsBlock().abilities.dex);
+    }
+    function rollText(r) { return `${r.total} [d20 ${r.die}${r.mod ? (r.mod > 0 ? '+' : '') + r.mod : ''}]`; }
+
+    // Open / close / unlock a door of the current room. action: 'open'|'close'|'unlock'.
+    // → { ok, same?, state, reason?, text?, roll? }
+    function doorAction(action, target, opts = {}) {
+        if (!activeWorld() || !ensureRuntime()) return { ok: false, reason: 'No world is active.' };
+        MR.normalizeExploration(rt());
+        const verb = { open: 'Open', close: 'Close', unlock: 'Unlock' }[action]; if (!verb) return { ok: false, reason: 'unknown action' };
+        const curId = rt().playerLocationId;
+        const refuse = (why) => { const msg = `${verb} ${norm(target) || 'door'} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
+        const ex = curId ? exitForTarget(target, curId) : null;
+        if (!ex) return refuse(norm(target) ? 'there is no such door here' : 'name the door or give its direction');
+        if (!isDoorExit(ex)) return refuse(`the way ${ex.dir ? MR.dirName(ex.dir) : 'to ' + playerPlaceName(ex.to, curId)} has no door`);
+        const label = doorLabel(ex, curId), st = MR.doorState(ex, rt().doorState);
+        const done = (state, text, extra) => { if (text) gameLog(text, 'map'); return Object.assign({ ok: true, state, text: text || null }, extra || {}); };
+        if (action === 'open') {
+            if (st === 'open') return done('open', null, { same: true });
+            if (MR.blocksMove(st)) return refuse(`${label} is ${st}`);
+            rt().doorState[ex.id] = 'open';
+            if (mapOf(ex.to)) MR.raiseExplored(rt().explored, ex.to, 'discovered');
+            return done('open', opts.source === 'ui' ? `Opens ${label}.` : null);
+        }
+        if (action === 'close') {
+            if (st !== 'open') return done(st, null, { same: true });
+            rt().doorState[ex.id] = 'closed';
+            return done('closed', opts.source === 'ui' ? `Closes ${label}.` : null);
+        }
+        // unlock
+        if (st === 'open' || st === 'closed') return done(st, null, { same: true });
+        if (st === 'barred') return refuse(`${label} is barred from the other side`);
+        const key = ex.door && norm(ex.door.keyItem);
+        if (key && itemCount(key) > 0) { rt().doorState[ex.id] = 'closed'; return done('closed', `Unlocks ${label} with the ${key}.`); }
+        if (!hasThievesTools()) return refuse(`${label} is locked, and there is no key or thieves' tools to open it`);
+        const r = rollD20(lockpickBonus()); const dc = Number(ex.door && ex.door.lockDC) || MR.DEFAULT_DC;
+        if (r.total >= dc) { rt().doorState[ex.id] = 'closed'; return done('closed', `Picks the lock of ${label} (Thieves' Tools): ${rollText(r)} — the lock opens.`, { roll: r }); }
+        const msg = `Picks the lock of ${label} (Thieves' Tools): ${rollText(r)} — the lock holds.`;
+        gameLog(msg, 'map');
+        return { ok: false, state: st, reason: msg, text: msg, roll: r };
+    }
+
+    // What is still hidden in a room: unfound secret doors, hidden rooms behind its exits and
+    // unfound traps (not those the creator marked hidden). [{ kind, id, dc, label, room? }]
+    function hiddenHere(locId) {
+        const f = foundState(), out = [];
+        for (const e of exitsOfLoc(locId)) {
+            const to = locOf(e.to);
+            const dirTxt = e.dir ? ` (${MR.dirName(e.dir)})` : '';
+            if (MR.isSecret(e) && !asArray(f.secrets).includes(e.id)) out.push({ kind: 'secret', id: e.id, dc: Number(e.secretDC) || MR.DEFAULT_DC, label: `a secret door${dirTxt}`, room: to && to.secret && !roomFound(to) ? to.id : null, exit: e });
+            else if (to && to.secret && !roomFound(to) && MR.visibleExit(e, f)) out.push({ kind: 'room', id: to.id, dc: Number(to.secretDC) || MR.DEFAULT_DC, label: `a hidden way${dirTxt}`, exit: e });
+        }
+        for (const o of asArray(activeWorld() && activeWorld().objects)) {
+            if (o.locationId !== locId || o.kind !== 'trap' || o.hidden || asArray(f.traps).includes(o.id)) continue;
+            out.push({ kind: 'trap', id: o.id, dc: Number(o.trapDC) || MR.DEFAULT_DC, label: `a trap (${norm(o.name) || 'trap'})` });
+        }
+        return out;
+    }
+    function reveal(c) {
+        const f = rt().found;
+        if (c.kind === 'trap') { if (!f.traps.includes(c.id)) f.traps.push(c.id); return; }
+        for (const id of [c.id, c.room].filter(Boolean)) if (!f.secrets.includes(id)) f.secrets.push(id);
+        const to = c.exit && c.exit.to;
+        if (to && mapOf(to)) MR.raiseExplored(rt().explored, to, MR.seeThrough(c.exit, MR.doorState(c.exit, rt().doorState)) ? 'discovered' : 'known');
+    }
+    // Search the current room (Search action). The DCs are never revealed.
+    function searchRoom(opts = {}) {
+        if (!activeWorld() || !ensureRuntime()) return { ok: false, reason: 'No world is active.' };
+        MR.normalizeExploration(rt());
+        const curId = rt().playerLocationId;
+        if (!curId || !locOf(curId)) { const msg = 'Search refused: you are nowhere yet.'; gameLog(msg, 'map'); return { ok: false, reason: msg }; }
+        const sk = searchSkill(); const r = rollD20(sk.bonus);
+        const hits = hiddenHere(curId).filter(c => r.total >= c.dc);
+        hits.forEach(reveal);
+        rt().found.searched[curId] = (Number(rt().found.searched[curId]) || 0) + 1;
+        const text = `Searches ${playerPlaceName(curId, curId)} (${sk.name}): ${rollText(r)} — ${hits.length ? 'found ' + hits.map(h => h.label).join(', ') : 'nothing found'}.`;
+        gameLog(text, 'map');
+        return { ok: true, text, roll: r, skill: sk.name, found: hits.map(h => ({ kind: h.kind, id: h.id, label: h.label })), source: opts.source || null };
+    }
+    // Passive Perception on entering a room: whatever it beats is found without a roll.
+    function passiveNotice(locId) {
+        if (!rt() || !locOf(locId)) return [];
+        MR.normalizeExploration(rt());
+        const pp = passivePerception();
+        const hits = hiddenHere(locId).filter(c => pp >= c.dc);
+        if (!hits.length) return [];
+        hits.forEach(reveal);
+        gameLog(`Notices ${hits.map(h => h.label).join(', ')} in ${playerPlaceName(locId, locId)} (passive Perception ${pp}).`, 'map');
+        return hits;
+    }
+    // <room>Ossuary, east: bones…</room> — the AI adds a room next to the current one. RPmod
+    // places it, names it exactly and connects it (dungeon: an open door, town: an open way).
+    // Stored in the world (origin 'ai'), so the creator sees it in the dungeon/town editor.
+    function aiAddRoom(arg) {
+        const spec = MT.parseRoomSpec(arg); const curId = rt().playerLocationId; const map = curId && mapOf(curId);
+        const refuse = (why) => { const msg = `Room ${spec.name || norm(arg) || '(no name)'} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
+        if (!spec.name) return refuse('it needs a name');
+        if (!map) return refuse('new rooms can only be added inside a dungeon or town');
+        MR.normalizeExploration(rt());
+        const town = MR.kindOf(map) === 'town';
+        const existing = roomsOf(map.id).find(l => MT.looseKey(l.name) === MT.looseKey(spec.name));
+        if (existing) {
+            let w = false;
+            if (spec.description && !norm(existing.description)) { existing.description = spec.description; w = true; }
+            const ex = playerExits(curId).find(e => e.to === existing.id);
+            if (ex && MR.seeThrough(ex, MR.doorState(ex, rt().doorState))) MR.raiseExplored(rt().explored, existing.id, 'discovered');
+            if (w) markDirty();
+            return { ok: true, room: existing.id, existing: true };
+        }
+        const all = exitsOfLoc(curId), taken = new Set(all.map(e => e.dir).filter(Boolean));
+        let dir = spec.dir;
+        if (dir && taken.has(dir)) {
+            const vis = playerExits(curId).find(e => e.dir === dir);
+            return refuse(vis ? `there is already a way ${MR.dirName(dir)} (${playerPlaceName(vis.to, curId)})` : `there is no space for it to the ${MR.dirName(dir)}`);
+        }
+        if (!dir) dir = ['n', 'e', 's', 'w'].find(d => !taken.has(d));
+        if (!dir) return refuse(`${placeName(curId, curId)} has no free side`);
+        const room = addRoom(map.id, { name: spec.name, near: curId, dir, description: spec.description || null, origin: 'ai', connect: false });
+        const ex = addExit(curId, room.id, { dir, type: town ? 'open' : 'door', door: town ? undefined : { state: 'open' } });
+        MR.raiseExplored(rt().explored, room.id, 'discovered');
+        markDirty();
+        gameLog(`New ${town ? 'place' : 'room'}: ${room.name}, ${MR.dirName(dir)} of ${placeName(curId, curId)}.`, 'map');
+        return { ok: true, room: room.id, exit: ex.id };
+    }
+    // <door>east = locked, iron, DC 15, key: Iron Key</door> — the AI may only make a door
+    // harder (open → closed → locked → barred); opening goes through <open>/<unlock>. A way
+    // without a door gets one. Material, lock DC and key fill in only what the creator left empty.
+    function aiDoor(arg) {
+        const spec = MT.parseDoorSpec(arg); const curId = rt().playerLocationId;
+        const refuse = (why) => { const msg = `Door ${spec.target || '(no direction)'} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
+        MR.normalizeExploration(rt());
+        const ex = curId ? exitForTarget(spec.target, curId) : null;
+        if (!ex) return refuse('there is no such way here');
+        const f = findExit(ex.id); if (!f) return refuse('this way cannot have a door');
+        let world = false;
+        if (!isDoorExit(f.exit)) {
+            if (!spec.state && !spec.material) return { ok: true, same: true };
+            updateExit(ex.id, { type: 'door', door: { state: 'open' } }); world = true;
+        }
+        f.exit.door = f.exit.door || { state: 'closed' };
+        const st = MR.doorState(f.exit, rt().doorState);
+        if (spec.state && spec.state !== st) {
+            if (!MT.harderOrSame(st, spec.state)) { if (world) markDirty(); return refuse(`the door is ${st} — only <open> or <unlock> opens it`); }
+            rt().doorState[ex.id] = spec.state;
+        }
+        for (const k of ['material', 'lockDC', 'keyItem']) if (spec[k] != null && (f.exit.door[k] == null || f.exit.door[k] === '')) { f.exit.door[k] = spec[k]; world = true; }
+        if (world) markDirty();
+        if (spec.state && spec.state !== st) gameLog(`${doorLabel(Object.assign({}, ex, { door: f.exit.door }), curId).replace(/^the/, 'The')} is now ${spec.state}.`, 'map');
+        return { ok: true, state: MR.doorState(f.exit, rt().doorState) };
+    }
+    // <light>dark</light> — the current room's light for the rest of the story.
+    function setRoomLight(arg, roomId) {
+        const lvl = MR.LIGHT.includes(arg) ? arg : MT.parseLight(arg); const id = roomId || rt().playerLocationId;
+        if (!lvl || !locOf(id)) { const msg = `Light ${norm(arg)} refused: use bright, dim or dark.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; }
+        MR.normalizeExploration(rt());
+        rt().roomLight[id] = lvl;
+        return { ok: true, light: lvl };
+    }
+    // One map tag from the AI's reply (map-tags.js), applied through the rules above.
+    function applyMapTag(t) {
+        switch (t.tag) {
+            case 'go': {
+                // inside or into a dungeon/town RPmod checks exits and doors (R7); refusals go to the log
+                const cur = rt().playerLocationId; const l = resolveGoTarget(t.arg, cur);
+                if (l && (mapOf(cur) || mapOf(l.id) || MR.isContainer(l))) return go(t.arg, { source: 'ai' }).ok;
+                if (l) { rt().playerLocationId = l.id; return true; }
+                if (mapOf(cur)) return go(t.arg, { source: 'ai' }).ok;   // logs the refusal
+                return false;
+            }
+            case 'open': case 'close': case 'unlock': doorAction(t.tag, t.arg, { source: 'ai' }); return true;
+            case 'search': searchRoom({ source: 'ai' }); return true;
+            case 'room': aiAddRoom(t.arg); return true;
+            case 'door': aiDoor(t.arg); return true;
+            case 'light': return setRoomLight(t.arg).ok;
+        }
+        return false;
     }
     function resolveNpcLocationId(npc) {
         const ov = rt()?.npcStateOverrides?.[npc.id];
@@ -991,7 +1243,7 @@ export default function initWorlds() {
     function gameLog(what, kind) { try { window.KLITE_RPMod_Log?.add({ what, kind: kind || 'quest' }); } catch (_) {} dbg(kind || 'quest', what); }
 
     // Parse explicit control tags out of one message. Returns true if state changed.
-    // Supported: <move>, <npcmove>NPC=Loc, <mood>NPC=Mood, <flag>k=v, <unflag>k,
+    // Supported: <move>/<go> and the other map tags (applyMapTag), <npcmove>NPC=Loc, <mood>NPC=Mood, <flag>k=v, <unflag>k,
     //            <give>Item [xN], <take>Item [xN], <quest>id=state,
     //            <time>slot, <weather>desc, <advance> (advance clock one slot)
     function parseMutations(text) {
@@ -1000,13 +1252,9 @@ export default function initWorlds() {
         const s = String(text || '');
         const scan = (re, fn) => { let m; re.lastIndex = 0; while ((m = re.exec(s)) !== null) { try { if (fn(m) !== false) changed = true; } catch (_) {} } };
 
-        scan(/<move>\s*([^<>]+?)\s*<\/move>/gi, m => {
-            // inside or into a dungeon/town RPmod checks exits and doors (R7); refusals go to the log
-            const cur = rt().playerLocationId;
-            const l = resolveGoTarget(m[1], cur);
-            if (l && (mapOf(cur) || mapOf(l.id) || MR.isContainer(l))) return go(m[1], { source: 'ai' }).ok;
-            if (l) { rt().playerLocationId = l.id; return true; } return false;
-        });
+        // map tags (R7): <move>/<go>, <open>, <close>, <unlock>, <search>, <room>, <door>, <light>
+        // in the order they appear in the reply ("unlock, open, go" works in one message)
+        for (const t of MT.scanMapTags(s)) { try { if (applyMapTag(t) !== false) changed = true; } catch (e) { err('map tag failed', t.tag, e); } }
         scan(/<npcmove>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/npcmove>/gi, m => {
             const npc = findNpcByName(world, m[1]); const l = findById(world.locations, m[2]) || locationByName(world, m[2]);
             if (npc && l) { (rt().npcStateOverrides[npc.id] = rt().npcStateOverrides[npc.id] || {}).locationId = l.id; return true; } return false;
@@ -1621,13 +1869,14 @@ export default function initWorlds() {
         // places within: a town's (non-secret) places are common knowledge; a dungeon only
         // shows the rooms the player knows — never the whole dungeon or its secrets (R7)
         const inner = childLocations(loc.id).filter(l => MR.kindOf(loc) === 'town' ? roomFound(l)
-            : MR.kindOf(loc) === 'dungeon' ? (roomFound(l) && !!(rt().explored || {})[l.id]) : true);
+            : MR.kindOf(loc) === 'dungeon' ? (roomFound(l) && roomNameKnown(l.id)) : true);
         const exits = playerExits(loc.id).filter(e => !e.mirrored).map(e => norm(e.name)).filter(Boolean)
             .concat(connectedLocations(world, loc, 1).map(l => placeName(l.id, loc.id)))
             .concat(zones.length && !inRoom ? [norm(phasedEntity(zones[zones.length - 1]).name)] : []);
         const exitsUniq = [...new Set(exits.map(norm).filter(Boolean))];
         let locText = norm(pLoc.description);
-        if (inRoom && loc.light) locText += `${locText ? '\n' : ''}Light: ${loc.light}`;
+        const light = roomLightOf(loc);
+        if (light && (inRoom || light !== loc.light)) locText += `${locText ? '\n' : ''}Light: ${light}`;
         if (inRoom && asArray(loc.hazards).length) locText += `${locText ? '\n' : ''}Hazards: ${asArray(loc.hazards).join(', ')}`;
         if (zones.length) locText = `Part of: ${zones.map(z => norm(phasedEntity(z).name)).join(' › ')}` + (locText ? '\n' + locText : '');
         if (norm(pLoc.atmosphere)) locText += `${locText ? '\n' : ''}Atmosphere: ${norm(pLoc.atmosphere)}`;
@@ -1675,7 +1924,9 @@ export default function initWorlds() {
         push('Nearby Objects', 50, objLines.join('\n'));
         // 5a. Moving room by room (R7): how the AI moves the player; optional text map
         if (inRoom) {
-            push('Moving', 24, 'The player moves room by room. To move, write <move>name</move> with a name (or direction) from the exits above. RPmod checks the doors: a locked or barred door refuses the move and the refusal appears in the log; narrate what actually happened.');
+            push('Exploring', 24, 'The player explores room by room. Use a name or direction from the exits above: <go>name</go> moves (a closed door opens on the way), <open>north</open>, <close>north</close>, <unlock>north</unlock> (RPmod uses a key or rolls thieves\' tools), <search></search> when the player searches this room (RPmod rolls Perception/Investigation). ' +
+                'To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>; to change the light here: <light>dark</light>. ' +
+                'RPmod applies the rules: rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found.');
             if (settingOn(ASCII_MAP_SETTING, false)) push('Map (explored)', 60, asciiMapText(loc.id));
         }
 
@@ -2347,7 +2598,15 @@ export default function initWorlds() {
             syncLive(); return o;
         },
         // exploration (runtime, per story; both state slots)
-        exploration() { const r = ensureRuntime(); MR.normalizeExploration(r); return deepClone({ explored: r.explored, found: r.found, doorState: r.doorState }); },
+        exploration() { const r = ensureRuntime(); MR.normalizeExploration(r); return deepClone({ explored: r.explored, found: r.found, doorState: r.doorState, roomLight: r.roomLight }); },
+        // R7 step 3: player actions (UI or API) through the rules; results/refusals are logged
+        door(action, target, opts) { const r = doorAction(action, target, opts || {}); syncLive(); return r; },
+        search(opts) { const r = searchRoom(opts || {}); syncLive(); return r; },
+        setRoomLight(level, roomId) { ensureRuntime(); const r = setRoomLight(level, roomId); syncLive(); return r; },
+        roomLight: (id) => roomLightOf(locOf(id || (rt() && rt().playerLocationId))),
+        playerPlaceName: (id, fromId) => playerPlaceName(id, fromId),
+        hiddenIn: (roomId) => hiddenHere(roomId).map(c => ({ kind: c.kind, id: c.id, dc: c.dc })),
+        passivePerception: () => passivePerception(),
         setExplored(roomId, level) { const r = ensureRuntime(); MR.normalizeExploration(r); if (!level) delete r.explored[roomId]; else if (MR.EXPLORE.includes(level)) r.explored[roomId] = level; syncLive(); return r.explored[roomId] || null; },
         setDoorState(exitId, state) { const r = ensureRuntime(); MR.normalizeExploration(r); if (!findExit(exitId) || !MR.DOOR_STATES.includes(state)) return null; r.doorState[exitId] = state; syncLive(); return state; },
         doorState(exitId) { const f = findExit(exitId); return f ? MR.doorState(f.exit, rt() && rt().doorState) : null; },
@@ -2469,6 +2728,7 @@ export default function initWorlds() {
             ensureRuntime();
             rt().playerLocationId = loc.id;
             markVisitedRoom(loc.id);
+            passiveNotice(loc.id);
             try { fireTriggers('enter:' + loc.id); } catch (_) {}
             syncLive();
             dbg('moved to', loc.name);

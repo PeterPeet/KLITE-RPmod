@@ -45,8 +45,10 @@ mini-map. **No virtual tabletop** (no free tokens, no measuring, no map images).
 - **Environment per room:** `light: 'bright'|'dim'|'dark'`, `hazards: ['fire', 'water', …]`
   (can be phased, R4).
 - **Exploration per story** (runtime, both slots): `explored: { [roomId]: 'known'|'discovered'|
-  'visited' }` (missing = unknown); `found: { secrets: [exitIds], traps: [ids] }`; door states in
-  `doorState: { [exitId]: state }` (runtime overrides the authored state).
+  'visited' }` (missing = unknown; known = behind a closed door, name hidden; discovered = seen);
+  `found: { secrets: [exitIds], traps: [ids], searched: { [roomId]: n } }`; door states in
+  `doorState: { [exitId]: state }` and light in `roomLight: { [roomId]: light }` (runtime overrides
+  the authored values; step 3 fields added additively).
 
 ## AI interface (why and how — see "Would the AI manage it?" below)
 - **Context section every turn:** current room (name, description as phased, light), **exits
@@ -110,8 +112,12 @@ works and the AI only narrates.
    state and migrations/tests.
 2. ✅ **Mini-map + moving room by room** (2026-09-23): left-dock Map, Map window, click to move, door rules,
    refusals in the log; context section for the AI; tags parsed on reply arrival (issue 12).
-3. **AI tags + exploration**: go/open/close/unlock/search/room/door/light; fog states; secrets and
-   traps found by Search checks.
+3. ✅ **AI tags + exploration** (2026-09-24): go/open/close/unlock/search/room/door/light (ordered,
+   forgiving parser `src/game/map-tags.js`); fog states; secrets and traps found by Search checks
+   and passive Perception; door buttons and Search in the mini-map. **Decided (owner, 2026-09-24):**
+   rooms the AI adds are stored in the world (`origin: 'ai'`, shown in the editor); a room behind
+   a closed door keeps its name hidden until seen ("unexplored room", "?" on the map); `<door>` may
+   only make a door harder; unlocking needs the key or thieves' tools (no forcing yet).
 4. **Generator** for dungeons and towns.
 5. **Distance bands** in combat (+ cover, hiding).
 
