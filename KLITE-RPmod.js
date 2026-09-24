@@ -35878,11 +35878,23 @@ OK = save and close · Cancel = close and discard them`);
     }
     async function download(name) {
       const get = hostGet("getDownloadDataFromManager"), dl = hostGet("downloadB64URL");
-      if (typeof get !== "function" || typeof dl !== "function") {
+      if (typeof dl !== "function") {
         alert("Download is available in Esolite's Library.");
         return;
       }
       try {
+        const rec = await loadCharacter(name);
+        if (rec && rec.data && !rec.image) {
+          const bytes = new TextEncoder().encode(JSON.stringify(v2Card(Object.assign({}, rec.data, { name: rec.data.name || name }))));
+          let bin = "";
+          for (let i = 0; i < bytes.length; i += 32768) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
+          dl(`${name}.json`, "data:application/json;base64," + btoa(bin));
+          return;
+        }
+        if (typeof get !== "function") {
+          alert("Download is available in Esolite's Library.");
+          return;
+        }
         const data = await get(name);
         if (data) dl(data.fileName, data.b64Url);
       } catch (e) {

@@ -17,7 +17,7 @@
 // =============================================================================
 import { el, clear, icon, iconText } from '../shell/dom.js';
 import { readSheet } from './sheet.js';
-import { loadCharacter, deleteCharacter } from '../library/esoliteLibrary.js';
+import { loadCharacter, deleteCharacter, v2Card } from '../library/esoliteLibrary.js';
 import { hostGet } from '../onboarding/hostGlobals.js';
 
 const PREFS_KEY = 'KLITE.gallery';
@@ -330,10 +330,24 @@ export default function initGallery() {
         }
         render();
     }
+    // With a portrait: Esolite's download (the stored PNG carries the complete V2 card).
+    // Without one Esolite downloads the bare inner object, which SillyTavern reads as V1 and
+    // drops system prompt, lorebook, alternate greetings and every extension (the RPmod sheet
+    // too — SillyTavern round trip, 2026-09-24); RPmod downloads a complete V2 JSON instead.
     async function download(name) {
         const get = hostGet('getDownloadDataFromManager'), dl = hostGet('downloadB64URL');
-        if (typeof get !== 'function' || typeof dl !== 'function') { alert('Download is available in Esolite\'s Library.'); return; }
-        try { const data = await get(name); if (data) dl(data.fileName, data.b64Url); } catch (e) { console.error('[RPmod gallery] download failed', e); }
+        if (typeof dl !== 'function') { alert('Download is available in Esolite\'s Library.'); return; }
+        try {
+            const rec = await loadCharacter(name);
+            if (rec && rec.data && !rec.image) {
+                const bytes = new TextEncoder().encode(JSON.stringify(v2Card(Object.assign({}, rec.data, { name: rec.data.name || name }))));
+                let bin = ''; for (let i = 0; i < bytes.length; i += 32768) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 32768));
+                dl(`${name}.json`, 'data:application/json;base64,' + btoa(bin));
+                return;
+            }
+            if (typeof get !== 'function') { alert('Download is available in Esolite\'s Library.'); return; }
+            const data = await get(name); if (data) dl(data.fileName, data.b64Url);
+        } catch (e) { console.error('[RPmod gallery] download failed', e); }
     }
 
     // ---- import ------------------------------------------------------------------------

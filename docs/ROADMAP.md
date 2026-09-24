@@ -25,7 +25,7 @@ contributed by RPmod — Quick Start (esolithe/esobold#65, merged), settings tab
 top-bar Guide with mod tabs (#67, both open); RPmod uses them and keeps fallbacks for hosts
 without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-24).
 
-### What works (verified headless 2026-09-24 — `npm test`, 195 tests)
+### What works (verified headless 2026-09-24 — `npm test`, 198 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -57,7 +57,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 | | Encounter builder with difficulty | ✅ SRD XP budget, 330 monsters, saved encounters |
 | | Combat tracker | ✅ sides, conditions, death saves, auto enemy turns (spell slots not used in combat) |
 | | Click-to-roll + game log | ✅ dice log the AI sees (combat log separate) |
-| | Leveling / XP | 🟡 level up 1–20; XP is not awarded yet |
+| | Leveling / XP | ✅ level up 1–20; XP from quest rewards and fights is paid to the persona's sheet |
 | SillyTavern | Character cards V1/V2/V3 | ✅ V2, 🟡 V3 (ALPHA) |
 | | Personas, group chat | ✅ ALPHA |
 | | World Info / lorebooks | ✅ Esolite + Worlds graph |
@@ -286,8 +286,8 @@ play test with a real backend, owner's decision 2026-09-23).
       on an existing one), sheet: spellcasting section (DC, spell attack roll, slot tracking,
       spells text), proficiencies, AC note, **Level up**. Choices stored in `sheet.build`.
       Acceptance "build a level-1 character end to end, roll from the sheet, level up" covered
-      by tests + live check; "export and re-import as a card" relies on the portrait/V2 card
-      embedding (tested) — a real import round trip in SillyTavern is still to do.
+      by tests + live check; "export and re-import as a card": SillyTavern round trip done
+      2026-09-24 (below).
 - [x] **Party shows the persona; person blurbs from linked cards** (2026-09-23): the Party
       section shows the enabled persona (name, species · class level, HP bar, AC, speed; the
       combat tracker's HP during a fight), "Choose in gallery" without a persona and **Build**
@@ -305,9 +305,8 @@ play test with a real backend, owner's decision 2026-09-23).
 - [x] **Exported card = complete V2** (2026-09-23): the card embedded in the portrait PNG fills
       every field the V2 spec requires (empty values; builder/editor cards lacked several) and
       leaves out ALPHA's WI-group *name* stored in `character_book` (the spec wants a lorebook
-      object). The stored record is unchanged. Still to do by hand: import into SillyTavern.
-      Characters **without a portrait** download through Esolite as the bare inner object
-      (SillyTavern then drops `extensions`, i.e. the sheet) — one of the points for Jaxxks.
+      object). The stored record is unchanged. (SillyTavern round trip and the portrait-less
+      download: see below.)
 - [x] **Levels 4–20** (2026-09-23): `extract-srd.py` now parses the 12 class tables (features,
       class resources, spell slots per level 1–20; level 1–3 results asserted against the old
       hand-checked values), all class/subclass feature levels and the 7 Epic Boon feats.
@@ -320,8 +319,22 @@ play test with a real backend, owner's decision 2026-09-23).
       computed AC/attacks from the starting equipment instead of the current inventory.
       Not modelled (text only): Alert's initiative bonus, Jack of All Trades, Cleric/Druid
       order choices, Magic Initiate spells. Live-checked.
-- **Next (R2):** spells from the SRD spell list (pick cantrips/prepared spells — with R3's
-  compendium), SillyTavern import round trip (owner).
+- [x] **SillyTavern round trip** (2026-09-24, owner, SillyTavern; test card from
+      `scripts/roundtrip-card.js make`, returned files checked with `… check`): RPmod's PNG comes back
+      from SillyTavern as a **V3** card (`chara` + `ccv3`, same data) with **every field, the
+      lorebook, an unknown extension and the RPmod sheet intact** — also after editing the card
+      in SillyTavern (only line endings become CRLF). SillyTavern's edited V3 PNG imported back
+      through Esolite's real importer (`managerUploadHandler`) keeps the sheet: RPmod reads it
+      (live check). The **bare inner JSON** Esolite downloads for a character without a portrait
+      is read as V1 and loses system prompt, post-history instructions, version, alternate
+      greetings, lorebook and all extensions (the sheet) — so RPmod's gallery **Download** now
+      writes a complete V2 JSON for such characters (Esolite's own Library download still gives
+      the bare object: a point for Jaxxks). Fixtures `tests/fixtures/sillytavern/`, test
+      `tests/roundtrip.test.js`. **R2 acceptance met** except spells.
+- **Next (R2):** spells from the SRD spell list (extract the SRD 5.2.1 spells — pulled forward
+  from R3 like the monsters — then choose cantrips/prepared spells in the builder and at level up).
+  Not modelled yet: Alert's initiative bonus, Jack of All Trades, Cleric/Druid order choices,
+  Magic Initiate spells.
 - One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,
   background, abilities, proficiencies, skills, saves, AC, HP, speed, equipment,
   inventory, spells, features). Migration from existing `characterRef` + `stats`.

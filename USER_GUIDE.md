@@ -328,6 +328,13 @@ sheet**, **Edit**, **Download**, **Favorite** and **Delete**. **Import** (next t
 character*) adds cards (PNG, WebP, JSON) with Esolite's own importer. Make the window smaller with
 the restore button if you want it next to the chat; it remembers that.
 
+**Sharing cards with SillyTavern.** **Download** gives the portrait PNG with the complete card
+inside (a character without a portrait downloads as a complete V2 JSON). SillyTavern keeps
+everything — lorebook, alternate greetings, and the **character sheet** stored in the card —
+also when you edit the card there; its export (a V3 card) imports back into Esolite with the
+sheet intact (tested 2026-09-24). Avoid Esolite Library's own download for characters without
+a portrait: it writes a bare JSON that SillyTavern reads as an old V1 card and drops the sheet.
+
 **Character builder (SRD 5.2.1, levels 1–20).** **New character** in the gallery (or **Build
 with the SRD rules** on a character without a sheet) walks you through the official
 character-creation steps: **Class** (12 classes, start at any level 1–20, with their features,
