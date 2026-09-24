@@ -41,7 +41,7 @@
   ("Apply Mod On Startup"). Esolite executes usermods late in its boot (inside
   `Promise.all([indexeddb_load…]).then()`), after the UI and top bar exist.
 - **Delivery B — integrated page** (`scripts/build-integrated-index.js`,
-  `npm run build:index`): writes `index.rpmod.html` into the host folder (original
+  `npm run build:index`): writes `index.rpmod.html` into the built host site (original
   `index.html` untouched) and copies the bundle next to it. The injected loader appends
   `KLITE-RPmod.js?v=<build time>` **after `window.load`** — a parse-time `<script>` would
   run before Esolite's init and break top-bar placement (ALPHA hooks the top bar). The `?v=` query busts the browser cache.
@@ -50,9 +50,11 @@
 
 ## 2. Host integration (Esolite) — hard-won facts
 
-Host reference: `Esobold Esolite a fork of KoboldAI Lite RMv1.35.0/` (monolithic
-`index.html` + `static/js/*`). Vanilla KoboldAI Lite provides the same core globals, so
-the Worlds modules also run there.
+Host: the **current Esobold** (esolithe/esobold, `remoteManagement`) from the local clone
+`../esobold` (`ESOBOLD_DIR`, see `scripts/esolite-paths.js`); Esolite's source is the clone's
+`embd_res/` (`klite.embd` = the monolithic `index.html`, `js/*` = `static/js/*`). Vanilla
+KoboldAI Lite provides the same core globals, so the Worlds modules also run there.
+(Until 2026-09-24 the repo carried a copy of Esolite 1.35.0; removed, it is in git history.)
 
 | Global | Kind | Use |
 |---|---|---|
@@ -82,18 +84,24 @@ Gotchas:
   names through `sanitize_groupchat_participant_name`; memory gains
   `get_groupchat_context_memory()`. Relevant when ALPHA's speaker modes are migrated.
 
-### Upgrading the host
+### Running and updating the host
 
-To try RPmod against another Esolite build (e.g. a local build of an Esobold branch:
-copy `docs/` + `embd_res/*` → `static/` + `klite.embd` → `index.html`, as Esobold's
-`updateHTML` workflow does), run `ESOLITE_DIR=<folder> npm run build:index`.
-1. Add the new Esolite folder next to the current one (`Esobold Esolite a fork of KoboldAI
-   Lite RMv<x.y.z>/`).
-2. Diff the globals in the table above (`prepare_submit_generation`, `submit_generation`,
-   `generate_savefile`, `kai_json_load`, `update_wi`, the injection marker
-   `<!-- EsoLite modifications end -->`, `static/js/agent.js` override) between versions.
-3. Change `ESO_DIR` in `scripts/build-integrated-index.js` and `.claude/launch.json`, run
-   `npm test` and `npm run build:index`, live-check, update docs.
+- `npm run build:host` copies the clone into a runnable site in
+  `~/.cache/klite-rpmod/esolite` (`ESOLITE_DIR`; outside the repo and iCloud, ~250 MB):
+  `docs/` + `embd_res/*` → `static/`, `klite.embd` → `index.html` — exactly Esobold's
+  `updateHTML` workflow — plus `esobold-version.txt` (branch @ commit). Because it copies
+  `embd_res/`, it contains unmerged changes of the checked-out branch (our Esobold PRs).
+- Then `npm run build:index` and `npm run serve` (or the preview config `esolite-rpmod`,
+  which runs python directly: the preview runner may not start node inside iCloud).
+- After switching the host build on the same port, the browser may keep old Esolite scripts
+  cached (they have no `?v=`): hard-reload (Cmd+Shift+R) if something looks old.
+- Updating: `git pull` in the clone, `npm run build:host`, diff the globals in the table
+  above (`prepare_submit_generation`, `submit_generation`, `generate_savefile`,
+  `kai_json_load`, `update_wi`, the injection marker `<!-- EsoLite modifications end -->`,
+  `static/js/agent.js` override) against the previous commit, `npm test`, live-check,
+  update docs.
+- Tests need the clone too: `host.installTavernTool()` loads its `embd_res/js/tavernTool.js`
+  (Esolite code is not copied into this repo).
 - Esolite has a global CSS rule `pre{background-color:#f5f5f5}` — always set explicit
   backgrounds on our `<pre>` elements.
 - ALPHA installs a **consent `Proxy` on `window.localsettings`**

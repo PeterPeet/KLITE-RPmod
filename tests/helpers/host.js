@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
+const { ESOBOLD_DIR } = require('../../scripts/esolite-paths');
 const FILES = {
     shell: 'src/shell/shell.js',
     worlds: 'src/KLITE-RPmod_Worlds.js',
@@ -220,9 +221,12 @@ function createHost({ settings = {} } = {}) {
         })();` : ''}
     `);
 
-    // Esolite's real tavernTool.js (PNG tEXt card embedding) from the host reference folder.
+    // Esolite's real tavernTool.js (PNG tEXt card embedding) from the Esobold clone
+    // (scripts/esolite-paths.js; not copied into this repo).
     host.installTavernTool = () => {
-        const src = fs.readFileSync(path.join(ROOT, 'Esobold Esolite a fork of KoboldAI Lite RMv1.35.0', 'static', 'js', 'tavernTool.js'), 'utf8');
+        const file = path.join(ESOBOLD_DIR, 'embd_res', 'js', 'tavernTool.js');
+        if (!fs.existsSync(file)) throw new Error(`Esobold clone not found (${file}); clone esolithe/esobold next to this repo or set ESOBOLD_DIR`);
+        const src = fs.readFileSync(file, 'utf8');
         vm.runInContext(src, ctx, { filename: 'tavernTool.js' });
     };
 

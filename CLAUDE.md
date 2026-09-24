@@ -17,8 +17,10 @@ JavaScript usermod.
 ```
 npm install          # once (dev dependency: jsdom)
 npm run build        # src/* -> KLITE-RPmod.js (the file users load)
-npm run build:index  # -> <host>/index.rpmod.html that autoloads the mod (generated, git-ignored)
-npm test             # rebuilds, then runs all tests (node:test + jsdom)
+npm run build:host   # Esobold clone (../esobold) -> Esolite site in ~/.cache/klite-rpmod/esolite
+npm run build:index  # -> index.rpmod.html in that site, autoloads the mod
+npm run serve        # serve it: http://localhost:8747/index.rpmod.html (preview: "esolite-rpmod")
+npm test             # rebuilds, then runs all tests (node:test + jsdom); needs the Esobold clone
 npm run icons        # after changing the icon list: regenerates src/shell/icons.js (Lucide)
 ```
 
@@ -30,7 +32,10 @@ npm run icons        # after changing the icon list: regenerates src/shell/icons
 - `KLITE-RPmod.js` — **generated** bundle (committed for users). Never hand-edit.
 - `scripts/` — build scripts. `tests/` — test suite (`tests/helpers/host.js` = fake Esolite host).
 - `docs/` — USERSTORY, ROADMAP, ARCHITECTURE, `design/` (phase designs), diagrams, `exports/` (guide PDFs/HTML).
-- `Esobold Esolite a fork of KoboldAI Lite RMv1.35.0/` — Esolite host reference (read-only, **supported version 1.35.0**).
+- Host: **current Esobold** (esolithe/esobold, branch `remoteManagement`) from the local clone
+  `../esobold` (`ESOBOLD_DIR`); `npm run build:host` builds the site from whatever branch it has
+  checked out (incl. our open PRs). Paths: `scripts/esolite-paths.js`. Read Esolite code in
+  the clone's `embd_res/` (source; its `docs/` is the generated site).
 - `BackupData/` — archived material (old host copy, old AGENTS.md, specs). Not built.
 
 ## Rules

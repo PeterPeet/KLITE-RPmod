@@ -3,13 +3,10 @@
   "configurations": [
     {
       "name": "esolite-rpmod",
-      "runtimeExecutable": "python3",
+      "runtimeExecutable": "sh",
       "runtimeArgs": [
-        "-m",
-        "http.server",
-        "--directory",
-        "Esobold Esolite a fork of KoboldAI Lite RMv1.35.0",
-        "8747"
+        "-c",
+        "exec python3 -m http.server --directory \"${ESOLITE_DIR:-$HOME/.cache/klite-rpmod/esolite}\" 8747"
       ],
       "port": 8747
     }

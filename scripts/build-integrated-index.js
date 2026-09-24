@@ -5,33 +5,27 @@
 // for host globals), so a <script> after Esolite's own scripts runs at the
 // right time.
 //
-// Output is written non-destructively as `index.rpmod.html` inside the Esolite
-// folder, next to the untouched original `index.html`.
+// Output is written non-destructively as `index.rpmod.html` inside the built Esolite
+// site (`npm run build:host`, see esolite-paths.js), next to the untouched `index.html`.
 //
 // Usage:
 //   npm run build:index                                  # external include (copies bundle in)
 //   node scripts/build-integrated-index.js --inline      # inline the bundle (single file)
-//   ESOLITE_DIR=<folder> npm run build:index             # another Esolite build, e.g. a local
-//                                                        # build of an Esobold branch
+//   ESOLITE_DIR=<folder> npm run build:index             # another Esolite folder
 //
-// Re-run after `npm run build`. Both outputs are generated and git-ignored.
+// Re-run after `npm run build` and after `npm run build:host`.
 // =============================================================================
 const fs = require('fs');
 const path = require('path');
 
-const DIR = path.join(__dirname, '..');   // repo root
-// The supported Esolite version. When upgrading the host, add the new folder, diff the
-// hooks listed in docs/ARCHITECTURE.md §2, then change this line.
-const ESO_DIR = process.env.ESOLITE_DIR
-    ? path.resolve(process.env.ESOLITE_DIR)
-    : path.join(DIR, 'Esobold Esolite a fork of KoboldAI Lite RMv1.35.0');
+const { ROOT: DIR, ESOLITE_DIR: ESO_DIR } = require('./esolite-paths');
 const SRC_HTML = path.join(ESO_DIR, 'index.html');
 const OUT_HTML = path.join(ESO_DIR, 'index.rpmod.html');
 const BUNDLE = path.join(DIR, 'KLITE-RPmod.js');
 const MARKER = '<!-- EsoLite modifications end -->';
 const inline = process.argv.includes('--inline');
 
-for (const [p, label] of [[SRC_HTML, 'Esolite index.html'], [BUNDLE, 'KLITE-RPmod.js bundle']]) {
+for (const [p, label] of [[SRC_HTML, 'Esolite index.html (run: npm run build:host)'], [BUNDLE, 'KLITE-RPmod.js bundle (run: npm run build)']]) {
     if (!fs.existsSync(p)) { console.error(`! missing ${label}: ${p}`); process.exit(1); }
 }
 
@@ -70,6 +64,6 @@ if (inline) {
 html = html.slice(0, at) + injection + html.slice(at);
 fs.writeFileSync(OUT_HTML, html, 'utf8');
 
-console.log(`= wrote ${path.relative(DIR, OUT_HTML)}  (${(Buffer.byteLength(html) / 1024).toFixed(0)} KB, ${inline ? 'inlined' : 'external include'})`);
+console.log(`= wrote ${OUT_HTML}  (${(Buffer.byteLength(html) / 1024).toFixed(0)} KB, ${inline ? 'inlined' : 'external include'})`);
 if (!inline) console.log(`= copied KLITE-RPmod.js into the Esolite folder`);
-console.log(`  Open that file directly — the mod loads automatically. Original index.html is untouched.`);
+console.log(`  Serve it (npm run serve) and open http://localhost:8747/index.rpmod.html — the mod loads automatically.`);

@@ -6,7 +6,9 @@
   "license": "GPL-3.0",
   "scripts": {
     "build": "node scripts/build-bundle.js",
+    "build:host": "node scripts/build-host.js",
     "build:index": "node scripts/build-integrated-index.js",
+    "serve": "node scripts/serve-host.js",
     "test": "npm run build && node scripts/run-tests.js",
     "icons": "node scripts/build-icons.js"
   },

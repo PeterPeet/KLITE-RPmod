@@ -17,12 +17,13 @@ Done since R1: R2 characters (🟨: spells open), R5 combat (🟨), R4 quests & 
 (compendium, spells) and R6 (chat power features) are still to do.
 
 Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
-Supported host: **Esolite RMv1.35.0** (upgraded from 1.32.0 on 2026-09-23; hooks diffed,
-all present — see ARCHITECTURE §2 "Upgrading the host"). The 1.32.0 copy is archived in
-`BackupData/`. **Newer Esobold** (`remoteManagement`) has mod hooks contributed by RPmod —
-Quick Start (esolithe/esobold#65, merged), settings tabs (#66) and a top-bar Guide with mod
-tabs (#67, both open); RPmod uses them when present and falls back otherwise (2026-09-24,
-live-checked against a local build of #67 and against 1.35.0).
+Supported host: **current Esobold** (esolithe/esobold `remoteManagement`), run from the local
+clone `../esobold` via `npm run build:host` (2026-09-24; ARCHITECTURE §2). The mod is not
+public, so it may rely on our unmerged Esobold PRs. The repo's Esolite 1.35.0 copy was
+removed (git history; 1.32.0 is archived in `BackupData/`). Esobold has mod hooks
+contributed by RPmod — Quick Start (esolithe/esobold#65, merged), settings tabs (#66) and a
+top-bar Guide with mod tabs (#67, both open); RPmod uses them and keeps fallbacks for hosts
+without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-24).
 
 ### What works (verified headless 2026-09-24 — `npm test`, 176 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
@@ -181,7 +182,8 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
       section via `QuickStartExtension` (esolithe/esobold#65, merged), RPmod settings tab via
       `SettingsExtension` (#66), RPmod Guide as a tab of Esolite's new top-bar Guide via
       `GuideExtension` (#67). Each falls back to RPmod's own adapter/tab/window on older
-      hosts. `ESOLITE_DIR=<folder> npm run build:index` builds against another Esolite.
+      hosts. Host now = the local Esobold clone: `npm run build:host` / `build:index` /
+      `serve`; the 1.35.0 copy is removed from the repo.
       Two timing-sensitive tests (Combat window, reputation Quest log) now wait for their
       window instead of a fixed delay.
 - [x] Test runner guard: `npm test` fails if fewer tests ran than `tests/.test-count`
