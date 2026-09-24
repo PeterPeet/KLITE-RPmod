@@ -328,6 +328,8 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-map-go .rpm-grow { text-align: left; }
 .rpm-map-refused { color: var(--rpm-danger); font-size: var(--rpm-fs-sm); }
 .rpm-map-result { color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); }
+.rpm-map-gen-places { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 2px 8px; margin: 4px 0 6px; }
+.rpm-map-warn { color: var(--rpm-danger); font-size: var(--rpm-fs-sm); margin-top: 8px; }
 .rpm-map-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .rpm-map-exitrow { display: flex; gap: 4px; }
 .rpm-map-exitrow .rpm-map-go { flex: 1 1 auto; min-width: 0; }

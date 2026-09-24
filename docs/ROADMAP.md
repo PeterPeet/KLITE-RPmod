@@ -6,13 +6,13 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-24 (R7 step 3)
+> Last updated: 2026-09-24 (R7 step 4)
 
 ## Current state
 
-**Now: R7 step 4** (generator for dungeons and towns — see [design/R7-world-map.md](design/R7-world-map.md)).
+**Now: R7 step 5** (combat distance bands, cover, hiding — see [design/R7-world-map.md](design/R7-world-map.md)).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
-issue 12) and 3 (AI map tags, fog, doors, Search checks) are done.
+issue 12), 3 (AI map tags, fog, doors, Search checks) and 4 (dungeon/town generator) are done.
 Done since R1: R2 characters (🟨: spells open), R5 combat (🟨), R4 quests & world (✅). R3
 (compendium, spells) and R6 (chat power features) are still to do.
 
@@ -25,7 +25,7 @@ contributed by RPmod — Quick Start (esolithe/esobold#65, merged), settings tab
 top-bar Guide with mod tabs (#67, both open); RPmod uses them and keeps fallbacks for hosts
 without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-24).
 
-### What works (verified headless 2026-09-24 — `npm test`, 186 tests)
+### What works (verified headless 2026-09-24 — `npm test`, 195 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -70,7 +70,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 | | Rewards XP/gold/choose-one | ✅ paid to the persona's sheet |
 | | Zones/subzones, hubs, phasing | ✅ |
 | | Factions & reputation | ✅ tiers; effects narrated (no vendors yet) |
-| Map | Places room by room, board, fog, distance bands (no VTT) | 🟡 R7 steps 1–3: dungeon/town editor, mini-map with fog, moving with door rules, AI map tags, doors/Search checks; generator, bands to come |
+| Map | Places room by room, board, fog, distance bands (no VTT) | 🟡 R7 steps 1–4: dungeon/town editor, mini-map with fog, moving with door rules, AI map tags, doors/Search checks, seeded generator; distance bands to come |
 
 ### Known issues / tech debt
 1. ~~"Monster / NPC combatant" flag does nothing~~ — decides the combat side since R5 (a monster is
@@ -484,18 +484,35 @@ the board is derived (the LLM never writes coordinates); dungeons from editor, g
       New runtime fields `found.searched`, `roomLight` (additive, migration tested). Tests
       `tests/explore.test.js`. Live-checked in Esolite (clicks + replies through the real
       `handle_incoming_text`, editor badge).
+- [x] **Step 4 — generator** (2026-09-24): `src/game/map-gen.js` (pure, seeded — the same seed gives
+      the same map). Dungeons: size small/medium/large (5/8/12 rooms + a secret room), themes crypt/
+      cave/ruin/sewer (doors or passages, light, furniture, containers, traps, hazards), all rooms
+      reachable with a few loops, one secret room behind a secret door, one locked door with its key
+      in a chest on the near side, optional encounters (none/few/some) from the theme's SRD 5.2.1
+      monsters within the party's XP budget (deepest room moderate). Towns: the ticked places (16 to
+      choose from) around a Town Square, open streets. Engine `generateMap` (world edit; replace only
+      on request and never with the player inside; way out to the map's world neighbour, a level gets
+      stairs up); dungeon/town editor **Generate** panel with seed and dice. Placeholder rooms
+      ("Room 4") are named by the AI once with `<room>Name, here: …</room>`; saved encounters of a
+      place reach the AI as **Waiting here** until started (runtime `startedEncounters`, additive).
+      Tests `tests/generator.test.js`. Live-checked in Esolite (generate in the editor, play in,
+      naming by a reply through the real `handle_incoming_text`).
+- **Open (step 4):** generated rooms have no descriptions (the AI describes and names them in play);
+  no multi-level dungeons from one click (generate a level inside a room instead); a generated key
+  sits in a container but taking it is narrated (`<give>`), containers have no loot system; town
+  places get no people (link persons in the inspector).
 - **Open (step 3):** traps are only *found* — triggering, disarming and damage are not modelled;
   no forcing doors (Athletics); a door locked by the AI has no key unless the tag names one, so
   without thieves' tools it stays shut (by design: RPmod decides); `<room>` adds only beside the
   current room (no up/down stairs by tag); searching is unlimited (no time cost yet).
 - **Open (step 1):** moving a room does not re-aim its exits' stored direction (set it in the
   inspector); a saved encounter keeps its room id when the room is deleted (it just no longer
-  matches a place); **Generate** comes with step 4; the player-facing fog/mini-map with step 2.
+  matches a place; regenerating a map does remove the encounters at its rooms).
 Steps:
 1. ~~Location kinds + dungeon/town editor~~ (done, see above).
 2. ~~Mini-map + room-by-room movement~~ (done, see above).
 3. ~~AI tags + exploration~~ (done, see above).
-4. Generator (dungeons and towns).
+4. ~~Generator~~ (done, see above).
 5. Distance bands in combat (close/near/far/out, move actions, cover, hiding).
 Acceptance: build a small dungeon and a town in the editor, generate a second dungeon, let the AI
 add a room with a locked door, explore room by room with fog on the mini-map, find a secret door

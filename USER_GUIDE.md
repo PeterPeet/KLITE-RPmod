@@ -167,6 +167,28 @@ Deleting a dungeon or town asks first and removes its rooms with it. Rooms the *
 during play** (`<room>` tag, below) are world edits like yours: they carry a small **AI** badge
 on the board and a note in the inspector — keep, edit or delete them, then Save.
 
+**Generate** (toolbar, or "Generate a dungeon…" in the inspector) fills a dungeon or town for you:
+
+- **Dungeon:** size (small 5, medium 8, large 12 rooms, plus one secret room), theme (**crypt**,
+  **cave**, **ruin**, **sewer**), encounters (none / a few / some — SRD monsters of the theme,
+  sized for the party level and size you enter) and a **seed**. The rooms are all reachable, with a
+  few loops, one **secret room behind a secret door**, doors or passages by theme (caves have no
+  doors), one **locked door whose key lies in a chest** on the near side, traps, lights and
+  furniture. Rooms get placeholder names ("Room 4"); the AI names each one the first time the
+  player is there (see `<room>…, here</room>` below) — or rename them yourself.
+- **Town:** tick the places it has (market, temple, temple garden, adventurers' guild, inn,
+  bathhouse, smithy, general store, …); they are laid out around the **Town Square**, joined by
+  streets.
+- **The same seed gives the same map**; the dice button picks a new one. Generating again replaces
+  the rooms (you are asked first; never while the player is inside).
+- The entrance (dungeon) or square (town) gets a **way out** to the place the dungeon/town is
+  connected to in the world editor — connect it there first. A dungeon level inside a dungeon
+  gets **stairs up** instead. Without a connection the inspector warns that there is no way out.
+- It is a world edit like any other: Save (or autosave) keeps it; Revert throws it away.
+
+Encounters placed in a room (generated or added in the inspector) are listed to the AI as
+**waiting here** while the player is in that room, until the fight has been started.
+
 For searching: a secret door or room uses its **Secret DC**, a trap feature its **trap DC**, a
 locked door its **lock DC** (each 15 when empty). A door's **key** item unlocks it without a roll.
 
@@ -275,6 +297,7 @@ works in one go. RPmod applies the rules; refusals and rolls go to the game log.
 | `<unlock>…</unlock>` | `<unlock>south</unlock>` | Key if carried, else a thieves' tools roll; barred refuses |
 | `<search></search>` | `<search/>` | Search the current room (Perception/Investigation roll) |
 | `<room>Name, dir: text</room>` | `<room>Bone Pit, west: a pit of old bones</room>` | The AI adds a room next to the current one. RPmod places it, names it exactly and joins it by an open door (town: an open way). Refused if that side already has a way; a room with that name is not added twice |
+| `<room>Name, here: text</room>` | `<room>Skull Gallery, here: skulls in niches</room>` | Names (and describes) the room the player is in — only while it has a placeholder name like "Room 4"; a named room only takes a description if it has none |
 | `<door>dir = …</door>` | `<door>west = locked, iron, DC 15, key: Iron Key</door>` | Gives a way a door or makes it harder (open → closed → locked → barred). It never opens a door — that is `<open>`/`<unlock>`. Material, DC and key only fill in what the creator left empty |
 | `<light>…</light>` | `<light>dark</light>` | Light in the current room (bright, dim, dark) for the rest of the story |
 

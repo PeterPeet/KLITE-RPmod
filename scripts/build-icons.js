@@ -53,6 +53,8 @@ const NAMES = {
     'link-2': 'map editor: connect tool',
     'map': 'mini-map / Map window',
     'search': 'Search the room (map)',
+    'wand-sparkles': 'Generate a dungeon or town',
+    'dices': 'new random seed (generator)',
 };
 
 const pkg = JSON.parse(fs.readFileSync(path.join(PKG, 'package.json'), 'utf8'));

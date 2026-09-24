@@ -19,6 +19,7 @@
 | `game/combat-rules.js`, `game/combatView.js` | (import) | Combat rules (pure) and the Combat window (§3.7) |
 | `characters/builder-rules.js`, `builder.js` | `window.KLITE_RPMod_Builder` | Character builder (levels 1–20) + level up (§5b) |
 | `game/map-rules.js` | (import) | R7 map rules (pure): location kinds, exits read from both sides, doors, grid layout, exploration (§3.9) |
+| `game/map-gen.js` | (import) | R7 generator (pure, seeded): dungeon/town plans — rooms, exits, features, encounters (§3.9) |
 | `game/map-tags.js` | (import) | R7 map tags (pure): ordered scan of go/open/close/unlock/search/room/door/light, room/door/light specs (§3.9) |
 | `map/mapEditor.js` | (import) | R7 dungeon/town editor window `mapeditor` (§3.9) |
 | `map/minimap.js`, `map/board.js` | (import) | R7 mini-map (left dock) + Map window; shared board drawing (§3.9) |
@@ -309,7 +310,7 @@ ambush, hidden omen). Sets the authored start as the base slot and enables the w
 
 ### 3.9 Dungeons & towns, room by room (R7) — rules in `src/game/map-rules.js` (pure)
 Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (data model + editor)
-2 (moving, mini-map, AI context) and 3 (AI tags, fog, searching) done.
+2 (moving, mini-map, AI context), 3 (AI tags, fog, searching) and 4 (generator) done.
 - **Kinds:** `location.kind` `'dungeon'|'town'` (else location, `kindOf`). A room/place is a location
   whose `parentId` chain reaches a dungeon/town (`mapOf` = nearest, `graphAnchor` = outermost); a
   room may itself be a dungeon/town (a level with its own map). Rooms keep working as locations
@@ -392,6 +393,31 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   - `<door>` → `aiDoor`: state only harder (`MT.harderOrSame`, runtime `doorState`); a doorless way
     becomes a door (world edit); material/lockDC/keyItem only where empty.
   - `<light>` → runtime `roomLight`; the context shows it (also outside rooms when overridden).
+- **Generator (step 4):** `src/game/map-gen.js` is pure and seeded (xmur3 → mulberry32 from
+  `seed|kind|options`; never `Math.random`). `generateDungeon({ size, theme, seed, encounters, level,
+  partySize })` / `generateTown({ places, seed })` return a plan `{ rooms: [{ key, name, rect, light,
+  hazards, secret, entrance, features[], encounter? }], exits: [{ from, to, dir, type, door,
+  secretDC }], wayOut: { room, dir } }`. Rooms sit on a lattice (6×4 cells; widths 3/5 centred so
+  links are straight): tree growth from the entrance (west slot reserved for the way out), ~n/4
+  loops, one secret room behind a `secret` exit (DC 13–16), theme doors/passages, one locked door
+  (not at the entrance, shutting rooms off) with `keyItem` in a container on the near side
+  (`reachable` without that edge), traps (~n/5, DC 11–15), theme light/features/hazards;
+  encounters from `THEMES[t].monsters` (SRD names → `findMonster`) within `CR.budget` — the deepest
+  room moderate, the rest low. Towns: `TOWN_PLACES` nearest-first around the square (gate slot
+  south), open streets, ~n/3 loops.
+  Engine `generateMap(mapId, opts)` (authoring list → `markDirty`): refuses a map with rooms unless
+  `replace` (never with the player inside; removes rooms + features + encounters at them); creates
+  locations (`generated: true`), features (`addFeatureTo`), exits (`addExit`), encounters
+  (`generated: true`, name `Map: 2 Skeleton (Room 4)`, `locationId`), the way out from the plan's
+  entrance to the map node's first outside neighbour (nested level → `stairs`/`up`), `mapStyle`,
+  `mapGen` (seed + options). → `{ rooms, exits, encounters, wayOut, seed }`.
+  **Placeholders:** `isPlaceholderName` (`Room N` / `Place N`); `<room>Name, here: …</room>` →
+  `aiNameRoom` (only a placeholder is renamed, unique in the map; generated encounters' names
+  follow; empty description filled); the Exploring hint asks for it. **Waiting here** (64): the
+  place's saved encounters not in runtime `startedEncounters` (set by `startSavedEncounter`).
+  Editor: toolbar **Generate** → inspector panel `data-panel="generate"` (`data-gen` size/theme/
+  encounters/seed/reseed/go, town `data-place` checkboxes); map info warns `data-noway` without a
+  way out.
 
 ## 4a. App shell (`src/shell/`)
 - **Layout:** `#rpm-shell` is one fixed layer at **z-index 2** (below Esolite popups, z 3)

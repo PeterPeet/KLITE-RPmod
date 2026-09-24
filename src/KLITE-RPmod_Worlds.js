@@ -23,6 +23,7 @@ import * as CR from './game/combat-rules.js';
 import * as QR from './game/quest-rules.js';
 import * as MR from './game/map-rules.js';
 import * as MT from './game/map-tags.js';
+import * as MG from './game/map-gen.js';
 import { derive as deriveSheet } from './characters/sheet.js';
 
 export default function initWorlds() {
@@ -80,6 +81,7 @@ export default function initWorlds() {
             combat: null,            // active encounter state (see startEncounter)
             npcStateOverrides: {},   // { [npcId]: { locationId, mood, ... } }
             completedEventIds: [],   // non-repeatable events already fired
+            startedEncounters: [],   // saved encounters already started (R7: "waiting here" hint)
             lastParsedIndex: 0,      // gametext_arr index up to which tags were applied
             // R7 exploration of dungeons/towns (map-rules.js): { [roomId]: 'known'|'discovered'|'visited' },
             // found secrets (exit/room ids) and traps, rooms searched, door states and room light
@@ -659,7 +661,9 @@ export default function initWorlds() {
     // places it, names it exactly and connects it (dungeon: an open door, town: an open way).
     // Stored in the world (origin 'ai'), so the creator sees it in the dungeon/town editor.
     function aiAddRoom(arg) {
-        const spec = MT.parseRoomSpec(arg); const curId = rt().playerLocationId; const map = curId && mapOf(curId);
+        const spec = MT.parseRoomSpec(arg);
+        if (spec.dir === 'here') return aiNameRoom(spec);
+        const curId = rt().playerLocationId; const map = curId && mapOf(curId);
         const refuse = (why) => { const msg = `Room ${spec.name || norm(arg) || '(no name)'} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
         if (!spec.name) return refuse('it needs a name');
         if (!map) return refuse('new rooms can only be added inside a dungeon or town');
@@ -722,6 +726,90 @@ export default function initWorlds() {
         MR.normalizeExploration(rt());
         rt().roomLight[id] = lvl;
         return { ok: true, light: lvl };
+    }
+    // ---- R7 step 4: generator (plans from src/game/map-gen.js) ----
+    // A room still carrying its placeholder name ("Room 4", "Place 2") — the AI may name it once.
+    const isPlaceholderName = (name) => /^(room|place) \d+$/i.test(norm(name));
+    // A feature (world object with a kind) in a room.
+    function addFeatureTo(roomId, fields = {}) {
+        const o = addEntity('object', { name: fields.name || 'Feature' });
+        o.locationId = roomId; o.kind = MR.FEATURE_KINDS.includes(fields.kind) ? fields.kind : 'furniture';
+        for (const k of ['desc', 'contains', 'trapDC', 'lit', 'hidden']) if (fields[k] != null) o[k] = fields[k];
+        return o;
+    }
+    // Encounters saved at a place (generated ones name the dungeon and room).
+    function encountersAt(locId) { return asArray(activeWorld() && activeWorld().encounters).filter(e => e.locationId === locId); }
+    function encounterSummary(monsters) { return asArray(monsters).map(m => `${m.count > 1 ? m.count + ' ' : ''}${(CR.MONSTERS[m.key] || {}).name || m.key}`).join(', '); }
+    // Fill an empty dungeon/town from the generator. opts: dungeon { size, theme, seed,
+    // encounters, level, partySize }, town { places, seed }; replace: true to swap existing rooms
+    // (never while the player is inside). The entrance gets a way out to the place the map is
+    // connected to in the world (a level inside a dungeon: stairs up to its neighbour room).
+    // → { rooms, exits, encounters, wayOut: name|null, seed }
+    function generateMap(mapId, opts = {}) {
+        const w = activeWorld(); const map = locOf(mapId);
+        if (!w || !map || !MR.isContainer(map)) throw new Error('not a dungeon or town');
+        const old = roomsOf(mapId);
+        if (old.length) {
+            if (!opts.replace) throw new Error('this map already has rooms');
+            const here = rt() && rt().playerLocationId;
+            if (here && isInsideLocation(here, mapId)) throw new Error('the player is inside this map — move them out first');
+            const inner = new Set(asArray(w.locations).filter(l => isInsideLocation(l.id, mapId)).map(l => l.id));
+            w.encounters = asArray(w.encounters).filter(e => !inner.has(e.locationId));
+            for (const r of old) deleteEntity(r.id, { withRooms: true });
+        }
+        const town = MR.kindOf(map) === 'town';
+        const party = partyInfo();
+        const seed = norm(opts.seed) || MG.randomSeed();
+        const plan = town ? MG.generateTown({ places: opts.places, seed })
+            : MG.generateDungeon({ size: opts.size, theme: opts.theme, seed, encounters: opts.encounters, level: Number(opts.level) || party.level, partySize: Number(opts.partySize) || party.size });
+        const ids = {};
+        for (const r of plan.rooms) {
+            const room = { id: uid('location'), name: r.name, parentId: mapId, map: { ...r.rect }, generated: true };
+            if (r.light) room.light = r.light;
+            if (r.hazards) room.hazards = r.hazards.slice();
+            if (r.secret) room.secret = true;
+            w.locations.push(room); ids[r.key] = room.id;
+            for (const f of r.features) addFeatureTo(room.id, f);
+        }
+        for (const e of plan.exits) addExit(ids[e.from], ids[e.to], { dir: e.dir, type: e.type, door: e.door, secretDC: e.secretDC });
+        let encounters = 0;
+        for (const r of plan.rooms) if (r.encounter) {
+            w.encounters = asArray(w.encounters);
+            w.encounters.push({ id: uid('enc'), name: `${norm(map.name)}: ${encounterSummary(r.encounter.monsters)} (${r.name})`, monsters: r.encounter.monsters,
+                personIds: [], locationId: ids[r.key], difficulty: r.encounter.difficulty, generated: true });
+            encounters++;
+        }
+        // the way out: to where the map node leads in the world (or, for a level, its neighbour room)
+        const outside = exitsOfLoc(mapId).find(e => !isInsideLocation(e.to, mapId) && e.to !== mapId);
+        let wayOut = null;
+        if (outside) {
+            const nested = !!mapOf(mapId);
+            addExit(ids[plan.wayOut.room], outside.to, nested ? { type: 'stairs', dir: 'up' } : { type: 'open', dir: plan.wayOut.dir });
+            wayOut = placeName(outside.to);
+        }
+        map.mapStyle = map.mapStyle || plan.style;
+        map.mapGen = town ? { seed, places: plan.places } : { seed, size: plan.size, theme: plan.theme, encounters: opts.encounters || 'none' };
+        return { rooms: plan.rooms.length, exits: plan.exits.length, encounters, wayOut, seed };
+    }
+    // <room>Name, here: description</room> — the AI names (and describes) the room the player is
+    // in, once: only while it has a placeholder name; a named room only takes an empty description.
+    function aiNameRoom(spec) {
+        const curId = rt().playerLocationId; const cur = locOf(curId);
+        const refuse = (why) => { const msg = `Room ${spec.name || '(no name)'} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
+        if (!cur || !mapOf(curId)) return refuse('only a room inside a dungeon or town can be named');
+        if (!spec.name) return refuse('it needs a name');
+        let changed = false;
+        if (MT.looseKey(cur.name) !== MT.looseKey(spec.name)) {
+            if (!isPlaceholderName(cur.name)) return refuse(`this room is already called ${norm(cur.name)}`);
+            if (roomsOf(mapOf(curId).id).some(l => l.id !== curId && MT.looseKey(l.name) === MT.looseKey(spec.name))) return refuse(`another room is already called ${spec.name}`);
+            const was = norm(cur.name); cur.name = spec.name; changed = true;
+            // generated encounters carry the room's name: "Tomb: 2 Skeleton (Room 6)"
+            for (const e of encountersAt(curId)) if (e.generated) e.name = norm(e.name).replace(`(${was})`, `(${spec.name})`);
+            gameLog(`${was} is now called ${spec.name}.`, 'map');
+        }
+        if (spec.description && !norm(cur.description)) { cur.description = spec.description; changed = true; }
+        if (changed) markDirty();
+        return { ok: true, room: curId, renamed: changed };
     }
     // One map tag from the AI's reply (map-tags.js), applied through the rules above.
     function applyMapTag(t) {
@@ -1720,7 +1808,11 @@ export default function initWorlds() {
     function startSavedEncounter(idOrName) {
         const w = activeWorld(); const q = norm(idOrName).toLowerCase();
         const enc = asArray(w && w.encounters).find(e => e.id === idOrName || norm(e.name).toLowerCase() === q);
-        if (enc) return startEncounter(asArray(enc.personIds), { monsters: enc.monsters, encounterId: enc.id, difficulty: enc.difficulty });
+        if (enc) {
+            const c = startEncounter(asArray(enc.personIds), { monsters: enc.monsters, encounterId: enc.id, difficulty: enc.difficulty });
+            if (c && rt()) { rt().startedEncounters = asArray(rt().startedEncounters); if (!rt().startedEncounters.includes(enc.id)) rt().startedEncounters.push(enc.id); }
+            return c;
+        }
         const monsters = parseMonsterList(idOrName);
         return monsters.length ? startEncounter([], { monsters }) : null;
     }
@@ -1922,11 +2014,18 @@ export default function initWorlds() {
         const objsHere = asArray(world.objects).filter(o => (o.locationId === loc.id || asArray(loc.objectIds).includes(o.id)) && featureVisible(o));
         const objLines = objsHere.map(o => '- ' + norm(o.name) + (MR.FEATURE_KINDS.includes(o.kind) && o.kind !== 'furniture' ? ` (${o.kind === 'light' ? (o.lit ? 'lit' : 'unlit') : o.kind})` : '') + (norm(o.desc) ? `: ${norm(o.desc)}` : ''));
         push('Nearby Objects', 50, objLines.join('\n'));
+        // 5-. Prepared encounters at this place not yet fought (R7 step 4: generated ones too)
+        if (!(getCombat() && getCombat().active)) {
+            const waiting = encountersAt(loc.id).filter(e => !asArray(rt().startedEncounters).includes(e.id));
+            if (waiting.length) push('Waiting here', 64, waiting.map(e => `- ${norm(e.name)}`).join('\n') +
+                '\nWhen they notice the player (or the player attacks), write <encounter>exact name</encounter>; RPmod then runs the fight.');
+        }
         // 5a. Moving room by room (R7): how the AI moves the player; optional text map
         if (inRoom) {
             push('Exploring', 24, 'The player explores room by room. Use a name or direction from the exits above: <go>name</go> moves (a closed door opens on the way), <open>north</open>, <close>north</close>, <unlock>north</unlock> (RPmod uses a key or rolls thieves\' tools), <search></search> when the player searches this room (RPmod rolls Perception/Investigation). ' +
                 'To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>; to change the light here: <light>dark</light>. ' +
-                'RPmod applies the rules: rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found.');
+                'RPmod applies the rules: rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found.' +
+                (isPlaceholderName(loc.name) ? ` This room has no proper name yet ("${norm(loc.name)}"): name and describe it once with <room>Name, here: short description</room>.` : ''));
             if (settingOn(ASCII_MAP_SETTING, false)) push('Map (explored)', 60, asciiMapText(loc.id));
         }
 
@@ -2591,12 +2690,11 @@ export default function initWorlds() {
         placeName: (id, fromId) => placeName(id, fromId),
         asciiMap: (locId) => asciiMapText(locId || (rt() && rt().playerLocationId)),
         featuresOf: (roomId) => asArray(activeWorld() && activeWorld().objects).filter(o => o.locationId === roomId),
-        addFeature(roomId, fields = {}) {
-            const o = addEntity('object', { name: fields.name || 'Feature' });
-            o.locationId = roomId; o.kind = MR.FEATURE_KINDS.includes(fields.kind) ? fields.kind : 'furniture';
-            for (const k of ['desc', 'contains', 'trapDC', 'lit', 'hidden']) if (fields[k] != null) o[k] = fields[k];
-            syncLive(); return o;
-        },
+        addFeature(roomId, fields = {}) { const o = addFeatureTo(roomId, fields); syncLive(); return o; },
+        // R7 step 4: generator (src/game/map-gen.js)
+        generateMap(mapId, opts) { const r = generateMap(mapId, opts || {}); syncLive(); return r; },
+        mapGen: MG,
+        randomSeed: () => MG.randomSeed(),
         // exploration (runtime, per story; both state slots)
         exploration() { const r = ensureRuntime(); MR.normalizeExploration(r); return deepClone({ explored: r.explored, found: r.found, doorState: r.doorState, roomLight: r.roomLight }); },
         // R7 step 3: player actions (UI or API) through the rules; results/refusals are logged
@@ -2766,7 +2864,7 @@ export default function initWorlds() {
     for (const name of ['addEntity', 'updateEntity', 'deleteEntity', 'connect', 'disconnect', 'setNodePos', 'changeEntityType',
         'linkCharacter', 'unlinkCharacter', 'addPersonFromCharacter', 'setStats', 'clearStats', 'addPersonFromTemplate',
         'setPlayerCombat', 'setAiMode', 'saveEncounter', 'deleteEncounter',
-        'setLocationParent', 'setLocationKind', 'addRoom', 'addExit', 'updateExit', 'removeExit', 'setRoomRect', 'addFeature']) {
+        'setLocationParent', 'setLocationKind', 'addRoom', 'addExit', 'updateExit', 'removeExit', 'setRoomRect', 'addFeature', 'generateMap']) {
         const fn = API[name];
         if (typeof fn !== 'function') { err('authoring API missing: ' + name); continue; }
         API[name] = function () {

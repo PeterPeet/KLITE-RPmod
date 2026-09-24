@@ -22,7 +22,7 @@ const SVGNS = 'http://www.w3.org/2000/svg';
 const VIEW_ID = 'mapeditor';
 
 const M = {
-    mapId: null, selected: null, selectedExit: null, tool: 'select', linkFrom: null,
+    mapId: null, selected: null, selectedExit: null, tool: 'select', linkFrom: null, panel: null, lastGen: null,
     scale: 1, tx: 40, ty: 40, drag: null, pan: null, board: null,
     root: null, svg: null, vp: null, gRooms: null, gExits: null, insp: null, saveBtn: null, crumbs: null,
     toast: (m) => { try { console.log(m); } catch (_) {} }, onClose: null,
@@ -59,7 +59,8 @@ const cap = (s) => String(s || '').charAt(0).toUpperCase() + String(s || '').sli
 // ---- open / close ------------------------------------------------------------------------
 export function openMapEditor(mapId) {
     const A = API(); if (!A || !A.entityById(mapId)) return false;
-    M.mapId = mapId; M.selected = null; M.selectedExit = null; M.linkFrom = null;
+    if (M.mapId !== mapId) { M.lastGen = null; GEN.seed = ''; GEN.places = null; }
+    M.mapId = mapId; M.selected = null; M.selectedExit = null; M.linkFrom = null; M.panel = null;
     const sh = Shell(); if (!sh) return false;
     if (M.root) { rebuild(); fitSoon(); sh.open(VIEW_ID); }
     else sh.open(VIEW_ID);
@@ -102,7 +103,9 @@ function build() {
     M.zoomLbl = el('span', { class: 'rpm-map-zoom', text: '100%' });
     M.saveBtn = btn('Save', async () => { await API().saveActiveWorld(); M.toast('World saved'); updateSaveState(); }, { variant: 'success', data: { save: 'map' } });
     const toolbar = el('div', { class: 'wm-ed-toolbar' }, [
-        M.crumbs, el('div', { style: 'flex:1' }), M.addBtn, ...M.toolBtns,
+        M.crumbs, el('div', { style: 'flex:1' }),
+        btn('Generate', () => openGenerate(), { icon: 'wand-sparkles', title: 'Generate rooms (seeded)', data: { map: 'generate' } }),
+        M.addBtn, ...M.toolBtns,
         btn('−', () => zoom(1 / 1.15), { title: 'Zoom out' }), M.zoomLbl, btn('+', () => zoom(1.15), { title: 'Zoom in' }), btn('Fit', () => fit()),
         M.saveBtn,
     ]);
@@ -229,6 +232,7 @@ function toCell(ev) {
 }
 function onRoomDown(ev, id) {
     ev.stopPropagation();
+    M.panel = null;
     if (M.tool === 'connect') {
         if (!M.linkFrom) { M.linkFrom = id; draw(); return; }
         if (M.linkFrom !== id) {
@@ -283,10 +287,73 @@ function freeDir(id) {
     return 'e';
 }
 
+// ---- generator (R7 step 4) ------------------------------------------------------------------
+// Options stay while the editor is open, so "Generate again" with a new seed is one click.
+const GEN = { size: 'medium', theme: 'crypt', encounters: 'few', seed: '', places: null, level: null, partySize: null };
+function openGenerate() { M.selected = null; M.selectedExit = null; M.panel = 'generate'; draw(); renderInspector(); }
+function renderGenerate(box) {
+    const A = API(); const G = A.mapGen; const town = M.board.kind === 'town';
+    const map = A.entityById(M.mapId) || {};
+    const last = map.mapGen || {};
+    if (!GEN.seed) GEN.seed = A.randomSeed();
+    box.appendChild(heading(town ? 'Generate a town' : 'Generate a dungeon'));
+    box.setAttribute('data-panel', 'generate');
+    if (town) {
+        if (!GEN.places) GEN.places = (last.places && last.places.length ? last.places : G.DEFAULT_TOWN).slice();
+        box.appendChild(el('p', { class: 'rpm-muted', text: 'Tick the places this town has. They are laid out around the town square and joined by streets.' }));
+        const grid = el('div', { class: 'rpm-map-gen-places' });
+        for (const p of G.TOWN_PLACES) {
+            const w = el('label', { class: 'rpm-map-check' }); const c = el('input', { type: 'checkbox', 'data-place': p.key, 'aria-label': p.name });
+            c.checked = GEN.places.includes(p.key);
+            c.addEventListener('change', () => { GEN.places = c.checked ? GEN.places.concat([p.key]) : GEN.places.filter(k => k !== p.key); });
+            w.appendChild(c); w.appendChild(document.createTextNode(' ' + p.name)); grid.appendChild(w);
+        }
+        box.appendChild(grid);
+    } else {
+        const party = A.partyInfo();
+        if (GEN.level == null) GEN.level = party.level;
+        if (GEN.partySize == null) GEN.partySize = party.size;
+        box.appendChild(lbl('Size'));
+        box.appendChild(select(Object.entries(G.SIZES).map(([k, n]) => [k, `${cap(k)} (${n} rooms + a secret one)`]), GEN.size, v => { GEN.size = v; }, { 'aria-label': 'Size', 'data-gen': 'size' }));
+        box.appendChild(lbl('Theme'));
+        box.appendChild(select(Object.entries(G.THEMES).map(([k, t]) => [k, t.label]), GEN.theme, v => { GEN.theme = v; }, { 'aria-label': 'Theme', 'data-gen': 'theme' }));
+        box.appendChild(lbl('Encounters (SRD monsters of the theme)'));
+        box.appendChild(select([['none', 'None'], ['few', 'A few'], ['some', 'Some']], GEN.encounters, v => { GEN.encounters = v; renderInspector(); }, { 'aria-label': 'Encounters', 'data-gen': 'encounters' }));
+        if (GEN.encounters !== 'none') box.appendChild(el('div', { class: 'rpm-row' }, [
+            el('span', { class: 'rpm-muted', text: 'for party level' }),
+            input(GEN.level, v => { GEN.level = Math.max(1, Math.min(20, Number(v) || 1)); }, { type: 'number', attrs: { min: '1', max: '20', style: 'width:4.5em', 'aria-label': 'Party level' } }),
+            el('span', { class: 'rpm-muted', text: 'size' }),
+            input(GEN.partySize, v => { GEN.partySize = Math.max(1, Math.min(8, Number(v) || 1)); }, { type: 'number', attrs: { min: '1', max: '8', style: 'width:4em', 'aria-label': 'Party size' } }),
+        ]));
+    }
+    box.appendChild(lbl('Seed (the same seed gives the same map)'));
+    const seedIn = input(GEN.seed, v => { GEN.seed = v.trim(); }, { attrs: { 'aria-label': 'Seed', 'data-gen': 'seed', class: 'form-control rpm-input rpm-grow' } });
+    box.appendChild(el('div', { class: 'rpm-row' }, [seedIn, btn('', () => { GEN.seed = A.randomSeed(); seedIn.value = GEN.seed; }, { icon: 'dices', title: 'New random seed', data: { gen: 'reseed' } })]));
+    const n = M.board.rooms.length;
+    if (n) box.appendChild(el('p', { class: 'rpm-muted', text: `This replaces the ${n} ${town ? 'places' : 'rooms'} here (and their features and encounters).` }));
+    box.appendChild(btn(n ? 'Replace with a new map' : 'Generate', () => doGenerate(n), { icon: 'wand-sparkles', block: true, data: { gen: 'go' } }));
+    box.appendChild(btn('Cancel', () => { M.panel = null; renderInspector(); }, { block: true, data: { gen: 'cancel' } }));
+    if (last.seed) box.appendChild(el('p', { class: 'rpm-muted', style: 'margin-top:8px', text: `Last generated with seed ${last.seed}${last.theme ? ` (${last.theme}, ${last.size})` : ''}.` }));
+}
+function doGenerate(existing) {
+    const A = API(); const town = M.board.kind === 'town';
+    if (existing && !confirm(`Replace the ${existing} ${town ? 'places' : 'rooms'} of "${M.board.name}" with a generated map? Their features and encounters go too.`)) return;
+    let r;
+    try {
+        r = A.generateMap(M.mapId, town ? { places: GEN.places, seed: GEN.seed, replace: !!existing }
+            : { size: GEN.size, theme: GEN.theme, encounters: GEN.encounters, level: GEN.level, partySize: GEN.partySize, seed: GEN.seed, replace: !!existing });
+    } catch (e) { M.toast(e.message, true); return; }
+    M.panel = null; M.lastGen = r;
+    GEN.seed = A.randomSeed();                        // the next click makes a different one
+    rebuild(); fitSoon();
+    M.toast(`Generated ${r.rooms} ${town ? 'places' : 'rooms'} (seed ${r.seed})${r.encounters ? `, ${r.encounters} encounters` : ''}.`);
+}
+
 // ---- inspector ----------------------------------------------------------------------------
 function renderInspector() {
     const box = M.insp; if (!box) return; clear(box);
     if (M.selectedExit) return renderExitOnly(box);
+    if (!M.selected && M.panel === 'generate') return renderGenerate(box);
     if (!M.selected) return renderMapInfo(box);
     return renderRoom(box, M.selected);
 }
@@ -304,6 +371,9 @@ function renderMapInfo(box) {
     box.appendChild(el('p', { class: 'rpm-muted', style: 'margin-top:10px', text: `${M.board.rooms.length} ${town ? 'places' : 'rooms'}. ` +
         (town ? 'Add places (market, temple garden, guild, bathhouse …), then connect them with the Connect tool.' : 'Add rooms, then connect them with the Connect tool: click one room, then another. The direction follows where they sit; doors start closed.') +
         ' Drag a room to move it, drag its corner to resize. Double-click a dungeon level to open it.' }));
+    box.appendChild(btn(M.board.rooms.length ? 'Generate a new map…' : (town ? 'Generate a town…' : 'Generate a dungeon…'), () => openGenerate(), { icon: 'wand-sparkles', block: true, data: { gen: 'open' } }));
+    if (M.board.rooms.length && !M.board.outside.length && !A.mapOf(M.mapId)) box.appendChild(el('p', { class: 'rpm-map-warn', 'data-noway': '1',
+        text: `No way out yet: the player could enter but not leave. Connect "${M.board.name}" to a place in the world editor and generate again, or add a way out in a room's inspector.` }));
     if (M.board.outside.length) {
         box.appendChild(heading('Ways out'));
         for (const o of M.board.outside) box.appendChild(el('div', { class: 'rpm-muted', text: `${(roomById(o.room) || {}).name} → ${o.name}` }));

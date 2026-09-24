@@ -118,7 +118,12 @@ works and the AI only narrates.
    rooms the AI adds are stored in the world (`origin: 'ai'`, shown in the editor); a room behind
    a closed door keeps its name hidden until seen ("unexplored room", "?" on the map); `<door>` may
    only make a door harder; unlocking needs the key or thieves' tools (no forcing yet).
-4. **Generator** for dungeons and towns.
+4. ✅ **Generator** for dungeons and towns (2026-09-24): `src/game/map-gen.js` (seeded plans) +
+   engine `generateMap` + Generate panel in the dungeon/town editor. Themes crypt/cave/ruin/sewer,
+   sizes 5/8/12 rooms + a secret room, a locked door with its key on the near side, traps, theme
+   encounters within the party's XP budget; towns from ticked places around a square. A way out
+   to the map's world neighbour (a level: stairs up). Placeholder rooms are named by the AI with
+   `<room>Name, here: …</room>`; prepared encounters reach the AI as "Waiting here".
 5. **Distance bands** in combat (+ cover, hiding).
 
 Acceptance: build a small dungeon and a town in the editor, generate a second dungeon, let the AI

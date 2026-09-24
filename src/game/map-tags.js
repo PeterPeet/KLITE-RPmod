@@ -5,7 +5,7 @@
 //   <go>Ossuary</go> / <go>north</go>   (<move> is the same)
 //   <open>north</open>  <close>the east door</close>  <unlock>door</unlock>
 //   <search></search> or <search/>      (the current room)
-//   <room>Ossuary, east: bones stacked to the ceiling</room>
+//   <room>Ossuary, east: bones stacked to the ceiling</room>   (<room>Name, here: …</room> names this room)
 //   <door>east = locked, iron, DC 15, key: Iron Key</door>
 //   <light>dark</light>
 // Forgiving: any case, spaces, articles, self-closing or empty tags. Tags are returned in the
@@ -34,17 +34,18 @@ export function scanMapTags(text) {
 export function looseKey(text) { return nameKey(text).replace(/(\w{3})s$/, '$1'); }
 
 // "Ossuary, east: bones stacked" · "Ossuary (east): …" · "east: Ossuary" · "Ossuary: …" · "Ossuary to the east"
-// → { name, dir|null, description }
+// "Ossuary, here: …" names the current room (dir 'here'). → { name, dir|null|'here', description }
 export function parseRoomSpec(arg) {
     let s = String(arg || '').trim(); let description = '';
     const colon = s.indexOf(':');
     if (colon >= 0) { description = s.slice(colon + 1).trim(); s = s.slice(0, colon).trim(); }
     let name = s, dir = null;
+    const HERE = /^(here|this room|this place)$/i;
     const paren = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(s);
-    if (paren && parseDir(paren[2])) { name = paren[1]; dir = parseDir(paren[2]); }
+    if (paren && (parseDir(paren[2]) || HERE.test(paren[2].trim()))) { name = paren[1]; dir = HERE.test(paren[2].trim()) ? 'here' : parseDir(paren[2]); }
     else if (s.includes(',')) {
         const i = s.lastIndexOf(','); const a = s.slice(0, i).trim(), b = s.slice(i + 1).trim();
-        if (parseDir(b)) { name = a; dir = parseDir(b); } else if (parseDir(a)) { name = b; dir = parseDir(a); }
+        if (HERE.test(b)) { name = a; dir = 'here'; } else if (parseDir(b)) { name = a; dir = parseDir(b); } else if (parseDir(a)) { name = b; dir = parseDir(a); }
     } else {
         const to = /^(.*?)\s+(?:to the|to|on the|toward|towards)\s+(\w+)$/i.exec(s);
         if (to && parseDir(to[2])) { name = to[1]; dir = parseDir(to[2]); }

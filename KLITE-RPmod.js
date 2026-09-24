@@ -327,6 +327,8 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-map-go .rpm-grow { text-align: left; }
 .rpm-map-refused { color: var(--rpm-danger); font-size: var(--rpm-fs-sm); }
 .rpm-map-result { color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); }
+.rpm-map-gen-places { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 2px 8px; margin: 4px 0 6px; }
+.rpm-map-warn { color: var(--rpm-danger); font-size: var(--rpm-fs-sm); margin-top: 8px; }
 .rpm-map-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .rpm-map-exitrow { display: flex; gap: 4px; }
 .rpm-map-exitrow .rpm-map-go { flex: 1 1 auto; min-width: 0; }
@@ -633,7 +635,11 @@ body.rpm-docked #maincontainer {
     // mini-map / Map window
     "map": [["path", { "d": "M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" }], ["path", { "d": "M15 5.764v15" }], ["path", { "d": "M9 3.236v15" }]],
     // Search the room (map)
-    "search": [["path", { "d": "m21 21-4.34-4.34" }], ["circle", { "cx": "11", "cy": "11", "r": "8" }]]
+    "search": [["path", { "d": "m21 21-4.34-4.34" }], ["circle", { "cx": "11", "cy": "11", "r": "8" }]],
+    // Generate a dungeon or town
+    "wand-sparkles": [["path", { "d": "m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" }], ["path", { "d": "m14 7 3 3" }], ["path", { "d": "M5 6v4" }], ["path", { "d": "M19 14v4" }], ["path", { "d": "M10 2v2" }], ["path", { "d": "M7 8H3" }], ["path", { "d": "M21 16h-4" }], ["path", { "d": "M11 3H9" }]],
+    // new random seed (generator)
+    "dices": [["rect", { "width": "12", "height": "12", "x": "2", "y": "10", "rx": "2", "ry": "2" }], ["path", { "d": "m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6" }], ["path", { "d": "M6 18h.01" }], ["path", { "d": "M10 14h.01" }], ["path", { "d": "M15 6h.01" }], ["path", { "d": "M18 9h.01" }]]
   };
 
   // src/shell/dom.js
@@ -12264,13 +12270,13 @@ ${wi.content}
         return matchCount;
       },
       hashString(str2) {
-        let hash = 0;
+        let hash2 = 0;
         for (let i = 0; i < str2.length; i++) {
           const char = str2.charCodeAt(i);
-          hash = (hash << 5) - hash + char;
-          hash = hash & hash;
+          hash2 = (hash2 << 5) - hash2 + char;
+          hash2 = hash2 & hash2;
         }
-        return hash;
+        return hash2;
       }
     };
     KLITE_RPMod.panels.SCENARIO = {
@@ -25574,16 +25580,16 @@ ${char.mes_example}
     const out = {};
     const inRooms = new Set(rooms.map((r) => r.id));
     while (todo.length) {
-      let pick = -1, anchor = null;
-      for (let i = 0; i < todo.length && pick < 0; i++) {
+      let pick2 = -1, anchor = null;
+      for (let i = 0; i < todo.length && pick2 < 0; i++) {
         const ex = exitsOf(todo[i], allLocations || rooms).find((e) => inRooms.has(e.to) && placed.has(e.to));
         if (ex) {
-          pick = i;
+          pick2 = i;
           anchor = ex;
         }
       }
-      if (pick < 0) pick = 0;
-      const room = todo.splice(pick, 1)[0];
+      if (pick2 < 0) pick2 = 0;
+      const room = todo.splice(pick2, 1)[0];
       const size = rectOf(room);
       let want;
       if (anchor) want = besideRect(placed.get(anchor.to), mirrorDir(anchor.dir) || "e", size.w, size.h);
@@ -25718,14 +25724,18 @@ ${char.mes_example}
       s = s.slice(0, colon).trim();
     }
     let name = s, dir = null;
+    const HERE = /^(here|this room|this place)$/i;
     const paren = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(s);
-    if (paren && parseDir(paren[2])) {
+    if (paren && (parseDir(paren[2]) || HERE.test(paren[2].trim()))) {
       name = paren[1];
-      dir = parseDir(paren[2]);
+      dir = HERE.test(paren[2].trim()) ? "here" : parseDir(paren[2]);
     } else if (s.includes(",")) {
       const i = s.lastIndexOf(",");
       const a = s.slice(0, i).trim(), b = s.slice(i + 1).trim();
-      if (parseDir(b)) {
+      if (HERE.test(b)) {
+        name = a;
+        dir = "here";
+      } else if (parseDir(b)) {
         name = a;
         dir = parseDir(b);
       } else if (parseDir(a)) {
@@ -25790,6 +25800,337 @@ ${char.mes_example}
     if (/\bdim|gloom|shadow|twilight/.test(t)) return "dim";
     if (/\bbright|lit\b|light|daylight/.test(t)) return "bright";
     return LIGHT.includes(t.trim()) ? t.trim() : null;
+  }
+
+  // src/game/map-gen.js
+  var map_gen_exports = {};
+  __export(map_gen_exports, {
+    DEFAULT_TOWN: () => DEFAULT_TOWN,
+    ENCOUNTER_LEVELS: () => ENCOUNTER_LEVELS,
+    SIZES: () => SIZES,
+    THEMES: () => THEMES,
+    TOWN_PLACES: () => TOWN_PLACES,
+    buildEncounter: () => buildEncounter,
+    generateDungeon: () => generateDungeon,
+    generateTown: () => generateTown,
+    randomSeed: () => randomSeed,
+    reachable: () => reachable,
+    rng: () => rng,
+    themeMonsters: () => themeMonsters
+  });
+  var SIZES = { small: 5, medium: 8, large: 12 };
+  var ENCOUNTER_LEVELS = ["none", "few", "some"];
+  var STEP = { x: 6, y: 4 };
+  var DELTA = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
+  var OPP = { n: "s", s: "n", e: "w", w: "e" };
+  var CARD = ["n", "e", "s", "w"];
+  function hash(str2) {
+    let h = 1779033703 ^ str2.length;
+    for (let i = 0; i < str2.length; i++) {
+      h = Math.imul(h ^ str2.charCodeAt(i), 3432918353);
+      h = h << 13 | h >>> 19;
+    }
+    h = Math.imul(h ^ h >>> 16, 2246822507);
+    h = Math.imul(h ^ h >>> 13, 3266489909);
+    return (h ^= h >>> 16) >>> 0;
+  }
+  function rng(seed) {
+    let a = hash(String(seed == null ? "" : seed));
+    return function() {
+      a = a + 1831565813 >>> 0;
+      let t = a;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  var SEED_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  function randomSeed(rand) {
+    let s = "";
+    for (let i = 0; i < 6; i++) s += SEED_CHARS[Math.floor((rand || Math.random)() * SEED_CHARS.length)];
+    return s;
+  }
+  var pick = (R, arr) => arr[Math.floor(R() * arr.length)];
+  var chance = (R, p) => R() < p;
+  var between = (R, lo, hi) => lo + Math.floor(R() * (hi - lo + 1));
+  function shuffle(R, arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(R() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  var THEMES = {
+    crypt: {
+      label: "Crypt",
+      style: "stone",
+      key: "Rusty Key",
+      lockable: true,
+      connect: (R) => {
+        const x = R();
+        return x < 0.65 ? { type: "door", door: { state: "closed", material: pick(R, ["stone", "iron", "oak"]) } } : x < 0.8 ? { type: "door", door: { state: "open", material: "oak" } } : { type: "corridor" };
+      },
+      light: (R) => chance(R, 0.7) ? "dark" : "dim",
+      furniture: ["Sarcophagus", "Bone niches", "Cracked altar", "Stone bench", "Toppled statue", "Row of burial slabs"],
+      containers: ["Burial urn", "Iron-bound chest", "Reliquary", "Offering bowl"],
+      traps: ["Pressure plate", "Poison needle in a lid", "Scything blade", "Collapsing floor"],
+      lights: ["Brazier", "Guttering candles"],
+      monsters: ["Skeleton", "Zombie", "Ghoul", "Shadow", "Specter", "Ghast", "Wight", "Mummy", "Giant Rat", "Swarm of Crawling Claws"]
+    },
+    cave: {
+      label: "Cave",
+      style: "stone",
+      key: null,
+      lockable: false,
+      connect: (R) => chance(R, 0.7) ? { type: "open" } : { type: "corridor" },
+      light: (R) => chance(R, 0.85) ? "dark" : "dim",
+      furniture: ["Stalagmites", "Underground pool", "Pile of bones", "Fallen boulder", "Dripping stalactites"],
+      containers: ["Explorer's pack", "Mouldy sack", "Nest of rags"],
+      traps: ["Loose rocks overhead", "Hidden pit", "Slippery ledge"],
+      lights: ["Glowing fungus"],
+      monsters: ["Wolf", "Giant Spider", "Giant Bat", "Giant Centipede", "Stirge", "Goblin Warrior", "Ogre", "Brown Bear", "Owlbear", "Giant Lizard", "Gray Ooze", "Ochre Jelly"],
+      hazard: ["water", 0.15]
+    },
+    ruin: {
+      label: "Ruin",
+      style: "parchment",
+      key: "Iron Key",
+      lockable: true,
+      connect: (R) => {
+        const x = R();
+        return x < 0.3 ? { type: "door", door: { state: "closed", material: "wood" } } : x < 0.45 ? { type: "door", door: { state: "open", material: "rotten wood" } } : x < 0.75 ? { type: "corridor" } : { type: "open" };
+      },
+      light: (R) => chance(R, 0.2) ? "bright" : chance(R, 0.6) ? "dim" : "dark",
+      furniture: ["Collapsed pillar", "Rotted table", "Weathered statue", "Overgrown fountain", "Broken throne"],
+      containers: ["Old crate", "Strongbox", "Rotting wardrobe"],
+      traps: ["Tripwire", "Falling masonry", "Rigged floorboards"],
+      lights: ["Torch sconce", "Shaft of daylight"],
+      monsters: ["Bandit", "Cultist", "Tough", "Scout", "Goblin Warrior", "Bandit Captain", "Cultist Fanatic", "Animated Armor", "Giant Rat", "Harpy"]
+    },
+    sewer: {
+      label: "Sewer",
+      style: "stone",
+      key: "Grate Key",
+      lockable: true,
+      connect: (R) => {
+        const x = R();
+        return x < 0.5 ? { type: "corridor" } : x < 0.8 ? { type: "door", door: { state: "closed", material: "iron grate" } } : { type: "open" };
+      },
+      light: (R) => chance(R, 0.75) ? "dark" : "dim",
+      furniture: ["Sluice gate", "Narrow walkway", "Overflowing drain", "Rusted pipes"],
+      containers: ["Heap of flotsam", "Lost satchel", "Smugglers' barrel"],
+      traps: ["Slick ledge", "Rusted grate that gives way", "Pocket of foul gas"],
+      lights: ["Hanging lantern", "Light from a grate above"],
+      monsters: ["Giant Rat", "Swarm of Rats", "Gray Ooze", "Wererat", "Giant Centipede", "Ochre Jelly", "Crocodile", "Bandit", "Otyugh"],
+      hazard: ["water", 0.5]
+    }
+  };
+  var TOWN_PLACES = [
+    { key: "market", name: "Market", features: [["Market stalls", "furniture"], ["Fruit cart", "furniture"]] },
+    { key: "temple", name: "Temple", features: [["Altar", "furniture"], ["Rows of candles", "light"]] },
+    { key: "garden", name: "Temple Garden", features: [["Fountain", "furniture"], ["Herb beds", "furniture"]] },
+    { key: "guild", name: "Adventurers' Guild", features: [["Notice board", "furniture"], ["Trophy wall", "furniture"]] },
+    { key: "inn", name: "Inn", features: [["Hearth", "light"], ["Bar counter", "furniture"]] },
+    { key: "bathhouse", name: "Bathhouse", features: [["Warm pool", "furniture"]] },
+    { key: "smithy", name: "Smithy", features: [["Forge", "light"], ["Anvil", "furniture"]] },
+    { key: "shop", name: "General Store", features: [["Crowded shelves", "furniture"], ["Counter", "furniture"]] },
+    { key: "alchemist", name: "Alchemist's Shop", features: [["Shelves of vials", "furniture"]] },
+    { key: "stables", name: "Stables", features: [["Horse stalls", "furniture"]] },
+    { key: "townhall", name: "Town Hall", features: [["Council table", "furniture"]] },
+    { key: "library", name: "Library", features: [["Bookshelves", "furniture"], ["Reading lamp", "light"]] },
+    { key: "barracks", name: "Guard Barracks", features: [["Weapon racks", "furniture"]] },
+    { key: "docks", name: "Docks", features: [["Moored boats", "furniture"]] },
+    { key: "graveyard", name: "Graveyard", features: [["Weathered gravestones", "furniture"]] },
+    { key: "tannery", name: "Tannery", features: [["Drying racks", "furniture"]] }
+  ];
+  var DEFAULT_TOWN = ["market", "temple", "guild", "inn", "smithy"];
+  function themeMonsters(theme) {
+    const t = THEMES[theme] || THEMES.crypt;
+    const out = [];
+    for (const n of t.monsters) {
+      const key = findMonster(n);
+      if (key && MONSTERS[key] && !out.some((m) => m.key === key)) out.push({ key, name: MONSTERS[key].name, xp: MONSTERS[key].xp || 0 });
+    }
+    return out;
+  }
+  function buildEncounter(R, pool, target) {
+    let fit2 = pool.filter((m) => m.xp > 0 && m.xp <= target && m.xp >= target / 8);
+    if (!fit2.length) fit2 = pool.filter((m) => m.xp > 0 && m.xp <= target);
+    if (!fit2.length) {
+      const low2 = pool.filter((m) => m.xp > 0).sort((a, b) => a.xp - b.xp)[0];
+      return low2 ? [{ key: low2.key, count: 1 }] : [];
+    }
+    const first = pick(R, fit2);
+    const count = Math.max(1, Math.min(6, Math.floor(target / first.xp) - (chance(R, 0.4) ? 1 : 0)));
+    const out = [{ key: first.key, count }];
+    const rest = target - count * first.xp;
+    const second = pool.filter((m) => m.key !== first.key && m.xp > 0 && m.xp <= rest);
+    if (second.length && chance(R, 0.4)) out.push({ key: pick(R, second).key, count: 1 });
+    return out;
+  }
+  var slotKey = (i, j) => i + "," + j;
+  function rectAt(i, j, w, h) {
+    return { x: i * STEP.x + (5 - w) / 2, y: j * STEP.y, w, h };
+  }
+  function neighbours(i, j) {
+    return CARD.map((d) => ({ d, i: i + DELTA[d][0], j: j + DELTA[d][1] }));
+  }
+  function reachable(start, edges, skip) {
+    const seen = /* @__PURE__ */ new Set([start]);
+    const todo = [start];
+    while (todo.length) {
+      const cur = todo.pop();
+      edges.forEach((e, k2) => {
+        if (k2 === skip) return;
+        const nxt = e.from === cur ? e.to : e.to === cur ? e.from : null;
+        if (nxt && !seen.has(nxt)) {
+          seen.add(nxt);
+          todo.push(nxt);
+        }
+      });
+    }
+    return seen;
+  }
+  function depths(start, edges) {
+    const d = { [start]: 0 };
+    const q = [start];
+    while (q.length) {
+      const cur = q.shift();
+      for (const e of edges) {
+        const n = e.from === cur ? e.to : e.to === cur ? e.from : null;
+        if (n && d[n] == null) {
+          d[n] = d[cur] + 1;
+          q.push(n);
+        }
+      }
+    }
+    return d;
+  }
+  function generateDungeon(opts = {}) {
+    const size = SIZES[opts.size] ? opts.size : "medium";
+    const theme = THEMES[opts.theme] ? opts.theme : "crypt";
+    const seed = String(opts.seed || "seed");
+    const T = THEMES[theme];
+    const R = rng(`${seed}|dungeon|${theme}|${size}`);
+    const n = SIZES[size];
+    const rooms = [], edges = [], slots = /* @__PURE__ */ new Map();
+    const reserved = /* @__PURE__ */ new Set([slotKey(-1, 0)]);
+    const addRoomAt = (i, j, extra) => {
+      const key = "r" + rooms.length;
+      const room = Object.assign({ key, slot: [i, j], name: `Room ${rooms.length + 1}`, rect: rectAt(i, j, chance(R, 0.3) ? 3 : 5, 3), features: [] }, extra || {});
+      rooms.push(room);
+      slots.set(slotKey(i, j), key);
+      return room;
+    };
+    const free = (i, j) => !slots.has(slotKey(i, j)) && !reserved.has(slotKey(i, j));
+    const entrance = addRoomAt(0, 0, { name: "Entrance", entrance: true });
+    let guard = 0;
+    while (rooms.length < n && guard++ < 500) {
+      const from = chance(R, 0.6) ? rooms[Math.max(0, rooms.length - 1 - Math.floor(R() * 3))] : pick(R, rooms);
+      const opts2 = neighbours(...from.slot).filter((x) => free(x.i, x.j));
+      if (!opts2.length) continue;
+      const nb = pick(R, opts2);
+      const room = addRoomAt(nb.i, nb.j);
+      edges.push(Object.assign({ from: from.key, to: room.key, dir: nb.d }, T.connect(R)));
+    }
+    const linked = (a, b) => edges.some((e) => e.from === a && e.to === b || e.from === b && e.to === a);
+    const loopCands = [];
+    for (const r of rooms) for (const nb of neighbours(...r.slot)) {
+      const other = slots.get(slotKey(nb.i, nb.j));
+      if (other && (nb.d === "e" || nb.d === "s") && !linked(r.key, other) && !r.secret) loopCands.push({ from: r.key, to: other, dir: nb.d });
+    }
+    for (const c of shuffle(R, loopCands).slice(0, Math.floor(n / 4))) edges.push(Object.assign(c, T.connect(R)));
+    const hosts = shuffle(R, rooms.filter((r) => !r.entrance)).filter((r) => neighbours(...r.slot).some((x) => free(x.i, x.j)));
+    if (hosts.length) {
+      const host = hosts[0];
+      const nb = pick(R, neighbours(...host.slot).filter((x) => free(x.i, x.j)));
+      const secret = addRoomAt(nb.i, nb.j, { secret: true });
+      edges.push({ from: host.key, to: secret.key, dir: nb.d, type: "secret", door: { state: "closed", material: "stone" }, secretDC: between(R, 13, 16) });
+      secret.features.push({ name: pick(R, T.containers), kind: "container", desc: "Hidden away and untouched." });
+    }
+    if (T.lockable) {
+      const cands = edges.map((e, k2) => ({ e, k: k2 })).filter((x) => x.e.type !== "secret" && x.e.from !== entrance.key && x.e.to !== entrance.key);
+      for (const { e, k: k2 } of shuffle(R, cands)) {
+        const near = reachable(entrance.key, edges.filter((x) => x.type !== "secret"), edges.filter((x) => x.type !== "secret").indexOf(e));
+        const far = rooms.filter((r) => !near.has(r.key) && !r.secret);
+        if (!far.length) continue;
+        const keyRooms = rooms.filter((r) => near.has(r.key) && !r.entrance && !r.secret);
+        if (!keyRooms.length) continue;
+        e.type = "door";
+        e.door = { state: "locked", material: e.door && e.door.material || "iron", lockDC: between(R, 12, 15), keyItem: T.key };
+        const kr = pick(R, keyRooms);
+        kr.features.push({ name: pick(R, T.containers), kind: "container", desc: `Inside: ${T.key.toLowerCase()}.`, contains: [T.key] });
+        edges[k2] = e;
+        break;
+      }
+    }
+    for (const r of rooms) {
+      r.light = T.light(R);
+      if (T.hazard && chance(R, T.hazard[1])) r.hazards = [T.hazard[0]];
+      if (chance(R, 0.7)) r.features.push({ name: pick(R, T.furniture), kind: "furniture" });
+      if (chance(R, 0.25)) r.features.push({ name: pick(R, T.containers), kind: "container" });
+      if (r.light !== "dark" && chance(R, 0.6)) r.features.push({ name: pick(R, T.lights), kind: "light", lit: true });
+    }
+    const trapRooms = shuffle(R, rooms.filter((r) => !r.entrance)).slice(0, Math.max(1, Math.floor(rooms.length / 5)));
+    for (const r of trapRooms) r.features.push({ name: pick(R, T.traps), kind: "trap", trapDC: between(R, 11, 15) });
+    const encLevel = ENCOUNTER_LEVELS.includes(opts.encounters) ? opts.encounters : "none";
+    if (encLevel !== "none") {
+      const pool = themeMonsters(theme);
+      const b = budget(opts.level || 1, opts.partySize || 1);
+      const dep = depths(entrance.key, edges);
+      const cands = rooms.filter((r) => !r.entrance && !r.secret).sort((a, c) => (dep[c.key] || 0) - (dep[a.key] || 0));
+      const count = Math.min(cands.length, encLevel === "few" ? Math.max(1, Math.round(n / 4)) : Math.max(2, Math.round(n / 2)));
+      const chosen = [cands[0]].concat(shuffle(R, cands.slice(1)).slice(0, count - 1)).filter(Boolean);
+      chosen.forEach((r, i) => {
+        const difficulty2 = i === 0 ? "moderate" : "low";
+        const monsters = buildEncounter(R, pool, b[difficulty2]);
+        if (monsters.length) r.encounter = { monsters, difficulty: difficulty2 };
+      });
+    }
+    return { kind: "dungeon", seed, theme, size, style: T.style, rooms: rooms.map(stripSlot), exits: edges, wayOut: { room: entrance.key, dir: "w" } };
+  }
+  function stripSlot(r) {
+    const { slot, ...rest } = r;
+    return rest;
+  }
+  function generateTown(opts = {}) {
+    const seed = String(opts.seed || "seed");
+    const keys = (Array.isArray(opts.places) && opts.places.length ? opts.places : DEFAULT_TOWN).filter((k2) => TOWN_PLACES.some((p) => p.key === k2));
+    const R = rng(`${seed}|town|${keys.join(",")}`);
+    const rooms = [], edges = [], slots = /* @__PURE__ */ new Map();
+    const reserved = /* @__PURE__ */ new Set([slotKey(0, 1)]);
+    const add = (i, j, fields) => {
+      const key = "r" + rooms.length;
+      const r = Object.assign({ key, slot: [i, j], rect: rectAt(i, j, 5, 3), light: "bright", features: [] }, fields);
+      rooms.push(r);
+      slots.set(slotKey(i, j), key);
+      return r;
+    };
+    const square = add(0, 0, { name: "Town Square", entrance: true, features: [{ name: "Well", kind: "furniture" }] });
+    for (const k2 of shuffle(R, keys)) {
+      const place = TOWN_PLACES.find((p) => p.key === k2);
+      const cands = [];
+      for (const r of rooms) for (const nb of neighbours(...r.slot)) {
+        const sk = slotKey(nb.i, nb.j);
+        if (slots.has(sk) || reserved.has(sk)) continue;
+        cands.push({ i: nb.i, j: nb.j, dist: Math.abs(nb.i) + Math.abs(nb.j) });
+      }
+      const best = Math.min(...cands.map((c) => c.dist));
+      const spot2 = pick(R, cands.filter((c) => c.dist === best));
+      const room = add(spot2.i, spot2.j, { name: place.name, place: k2, features: place.features.map(([name, kind]) => kind === "light" ? { name, kind, lit: true } : { name, kind }) });
+      const nbs = neighbours(spot2.i, spot2.j).map((x) => ({ d: x.d, key: slots.get(slotKey(x.i, x.j)), dist: Math.abs(x.i) + Math.abs(x.j) })).filter((x) => x.key && x.key !== room.key).sort((a, b) => a.dist - b.dist);
+      const to = nbs[0];
+      edges.push({ from: to.key, to: room.key, dir: OPP[to.d], type: "open" });
+    }
+    const linked = (a, b) => edges.some((e) => e.from === a && e.to === b || e.from === b && e.to === a);
+    const loopCands = [];
+    for (const r of rooms) for (const nb of neighbours(...r.slot)) {
+      const other = slots.get(slotKey(nb.i, nb.j));
+      if (other && (nb.d === "e" || nb.d === "s") && !linked(r.key, other)) loopCands.push({ from: r.key, to: other, dir: nb.d, type: "open" });
+    }
+    for (const c of shuffle(R, loopCands).slice(0, Math.floor(rooms.length / 3))) edges.push(c);
+    return { kind: "town", seed, places: keys, style: "streets", rooms: rooms.map(stripSlot), exits: edges, wayOut: { room: square.key, dir: "s" } };
   }
 
   // src/characters/sheet.js
@@ -26051,6 +26392,8 @@ ${char.mes_example}
         // { [npcId]: { locationId, mood, ... } }
         completedEventIds: [],
         // non-repeatable events already fired
+        startedEncounters: [],
+        // saved encounters already started (R7: "waiting here" hint)
         lastParsedIndex: 0,
         // gametext_arr index up to which tags were applied
         // R7 exploration of dungeons/towns (map-rules.js): { [roomId]: 'known'|'discovered'|'visited' },
@@ -26819,6 +27162,7 @@ ${char.mes_example}
     }
     function aiAddRoom(arg) {
       const spec = parseRoomSpec(arg);
+      if (spec.dir === "here") return aiNameRoom(spec);
       const curId = rt().playerLocationId;
       const map = curId && mapOf(curId);
       const refuse = (why) => {
@@ -26904,6 +27248,100 @@ ${char.mes_example}
       normalizeExploration(rt());
       rt().roomLight[id] = lvl;
       return { ok: true, light: lvl };
+    }
+    const isPlaceholderName = (name) => /^(room|place) \d+$/i.test(norm3(name));
+    function addFeatureTo(roomId, fields = {}) {
+      const o = addEntity("object", { name: fields.name || "Feature" });
+      o.locationId = roomId;
+      o.kind = FEATURE_KINDS.includes(fields.kind) ? fields.kind : "furniture";
+      for (const k2 of ["desc", "contains", "trapDC", "lit", "hidden"]) if (fields[k2] != null) o[k2] = fields[k2];
+      return o;
+    }
+    function encountersAt(locId) {
+      return asArray2(activeWorld() && activeWorld().encounters).filter((e) => e.locationId === locId);
+    }
+    function encounterSummary(monsters) {
+      return asArray2(monsters).map((m) => `${m.count > 1 ? m.count + " " : ""}${(MONSTERS[m.key] || {}).name || m.key}`).join(", ");
+    }
+    function generateMap(mapId, opts = {}) {
+      const w = activeWorld();
+      const map = locOf(mapId);
+      if (!w || !map || !isContainer(map)) throw new Error("not a dungeon or town");
+      const old = roomsOf(mapId);
+      if (old.length) {
+        if (!opts.replace) throw new Error("this map already has rooms");
+        const here2 = rt() && rt().playerLocationId;
+        if (here2 && isInsideLocation(here2, mapId)) throw new Error("the player is inside this map — move them out first");
+        const inner = new Set(asArray2(w.locations).filter((l) => isInsideLocation(l.id, mapId)).map((l) => l.id));
+        w.encounters = asArray2(w.encounters).filter((e) => !inner.has(e.locationId));
+        for (const r of old) deleteEntity(r.id, { withRooms: true });
+      }
+      const town = kindOf(map) === "town";
+      const party = partyInfo();
+      const seed = norm3(opts.seed) || randomSeed();
+      const plan = town ? generateTown({ places: opts.places, seed }) : generateDungeon({ size: opts.size, theme: opts.theme, seed, encounters: opts.encounters, level: Number(opts.level) || party.level, partySize: Number(opts.partySize) || party.size });
+      const ids = {};
+      for (const r of plan.rooms) {
+        const room = { id: uid("location"), name: r.name, parentId: mapId, map: { ...r.rect }, generated: true };
+        if (r.light) room.light = r.light;
+        if (r.hazards) room.hazards = r.hazards.slice();
+        if (r.secret) room.secret = true;
+        w.locations.push(room);
+        ids[r.key] = room.id;
+        for (const f of r.features) addFeatureTo(room.id, f);
+      }
+      for (const e of plan.exits) addExit(ids[e.from], ids[e.to], { dir: e.dir, type: e.type, door: e.door, secretDC: e.secretDC });
+      let encounters = 0;
+      for (const r of plan.rooms) if (r.encounter) {
+        w.encounters = asArray2(w.encounters);
+        w.encounters.push({
+          id: uid("enc"),
+          name: `${norm3(map.name)}: ${encounterSummary(r.encounter.monsters)} (${r.name})`,
+          monsters: r.encounter.monsters,
+          personIds: [],
+          locationId: ids[r.key],
+          difficulty: r.encounter.difficulty,
+          generated: true
+        });
+        encounters++;
+      }
+      const outside = exitsOfLoc(mapId).find((e) => !isInsideLocation(e.to, mapId) && e.to !== mapId);
+      let wayOut = null;
+      if (outside) {
+        const nested = !!mapOf(mapId);
+        addExit(ids[plan.wayOut.room], outside.to, nested ? { type: "stairs", dir: "up" } : { type: "open", dir: plan.wayOut.dir });
+        wayOut = placeName(outside.to);
+      }
+      map.mapStyle = map.mapStyle || plan.style;
+      map.mapGen = town ? { seed, places: plan.places } : { seed, size: plan.size, theme: plan.theme, encounters: opts.encounters || "none" };
+      return { rooms: plan.rooms.length, exits: plan.exits.length, encounters, wayOut, seed };
+    }
+    function aiNameRoom(spec) {
+      const curId = rt().playerLocationId;
+      const cur = locOf(curId);
+      const refuse = (why) => {
+        const msg = `Room ${spec.name || "(no name)"} refused: ${why}.`;
+        gameLog(msg, "map");
+        return { ok: false, reason: msg };
+      };
+      if (!cur || !mapOf(curId)) return refuse("only a room inside a dungeon or town can be named");
+      if (!spec.name) return refuse("it needs a name");
+      let changed = false;
+      if (looseKey(cur.name) !== looseKey(spec.name)) {
+        if (!isPlaceholderName(cur.name)) return refuse(`this room is already called ${norm3(cur.name)}`);
+        if (roomsOf(mapOf(curId).id).some((l) => l.id !== curId && looseKey(l.name) === looseKey(spec.name))) return refuse(`another room is already called ${spec.name}`);
+        const was = norm3(cur.name);
+        cur.name = spec.name;
+        changed = true;
+        for (const e of encountersAt(curId)) if (e.generated) e.name = norm3(e.name).replace(`(${was})`, `(${spec.name})`);
+        gameLog(`${was} is now called ${spec.name}.`, "map");
+      }
+      if (spec.description && !norm3(cur.description)) {
+        cur.description = spec.description;
+        changed = true;
+      }
+      if (changed) markDirty();
+      return { ok: true, room: curId, renamed: changed };
     }
     function applyMapTag(t) {
       switch (t.tag) {
@@ -28377,7 +28815,14 @@ ${char.mes_example}
       const w = activeWorld();
       const q = norm3(idOrName).toLowerCase();
       const enc = asArray2(w && w.encounters).find((e) => e.id === idOrName || norm3(e.name).toLowerCase() === q);
-      if (enc) return startEncounter(asArray2(enc.personIds), { monsters: enc.monsters, encounterId: enc.id, difficulty: enc.difficulty });
+      if (enc) {
+        const c = startEncounter(asArray2(enc.personIds), { monsters: enc.monsters, encounterId: enc.id, difficulty: enc.difficulty });
+        if (c && rt()) {
+          rt().startedEncounters = asArray2(rt().startedEncounters);
+          if (!rt().startedEncounters.includes(enc.id)) rt().startedEncounters.push(enc.id);
+        }
+        return c;
+      }
       const monsters = parseMonsterList(idOrName);
       return monsters.length ? startEncounter([], { monsters }) : null;
     }
@@ -28568,8 +29013,12 @@ ${xl.join("\n")}`;
       const objsHere = asArray2(world.objects).filter((o) => (o.locationId === loc.id || asArray2(loc.objectIds).includes(o.id)) && featureVisible(o));
       const objLines = objsHere.map((o) => "- " + norm3(o.name) + (FEATURE_KINDS.includes(o.kind) && o.kind !== "furniture" ? ` (${o.kind === "light" ? o.lit ? "lit" : "unlit" : o.kind})` : "") + (norm3(o.desc) ? `: ${norm3(o.desc)}` : ""));
       push("Nearby Objects", 50, objLines.join("\n"));
+      if (!(getCombat() && getCombat().active)) {
+        const waiting = encountersAt(loc.id).filter((e) => !asArray2(rt().startedEncounters).includes(e.id));
+        if (waiting.length) push("Waiting here", 64, waiting.map((e) => `- ${norm3(e.name)}`).join("\n") + "\nWhen they notice the player (or the player attacks), write <encounter>exact name</encounter>; RPmod then runs the fight.");
+      }
       if (inRoom) {
-        push("Exploring", 24, "The player explores room by room. Use a name or direction from the exits above: <go>name</go> moves (a closed door opens on the way), <open>north</open>, <close>north</close>, <unlock>north</unlock> (RPmod uses a key or rolls thieves' tools), <search></search> when the player searches this room (RPmod rolls Perception/Investigation). To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>; to change the light here: <light>dark</light>. RPmod applies the rules: rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found.");
+        push("Exploring", 24, "The player explores room by room. Use a name or direction from the exits above: <go>name</go> moves (a closed door opens on the way), <open>north</open>, <close>north</close>, <unlock>north</unlock> (RPmod uses a key or rolls thieves' tools), <search></search> when the player searches this room (RPmod rolls Perception/Investigation). To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>; to change the light here: <light>dark</light>. RPmod applies the rules: rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found." + (isPlaceholderName(loc.name) ? ` This room has no proper name yet ("${norm3(loc.name)}"): name and describe it once with <room>Name, here: short description</room>.` : ""));
         if (settingOn(ASCII_MAP_SETTING, false)) push("Map (explored)", 60, asciiMapText(loc.id));
       }
       const questLines = [];
@@ -29467,13 +29916,18 @@ ${xl.join("\n")}`;
       asciiMap: (locId) => asciiMapText(locId || rt() && rt().playerLocationId),
       featuresOf: (roomId) => asArray2(activeWorld() && activeWorld().objects).filter((o) => o.locationId === roomId),
       addFeature(roomId, fields = {}) {
-        const o = addEntity("object", { name: fields.name || "Feature" });
-        o.locationId = roomId;
-        o.kind = FEATURE_KINDS.includes(fields.kind) ? fields.kind : "furniture";
-        for (const k2 of ["desc", "contains", "trapDC", "lit", "hidden"]) if (fields[k2] != null) o[k2] = fields[k2];
+        const o = addFeatureTo(roomId, fields);
         syncLive();
         return o;
       },
+      // R7 step 4: generator (src/game/map-gen.js)
+      generateMap(mapId, opts) {
+        const r = generateMap(mapId, opts || {});
+        syncLive();
+        return r;
+      },
+      mapGen: map_gen_exports,
+      randomSeed: () => randomSeed(),
       // exploration (runtime, per story; both state slots)
       exploration() {
         const r = ensureRuntime();
@@ -29983,7 +30437,8 @@ ${xl.join("\n")}`;
       "updateExit",
       "removeExit",
       "setRoomRect",
-      "addFeature"
+      "addFeature",
+      "generateMap"
     ]) {
       const fn2 = API3[name];
       if (typeof fn2 !== "function") {
@@ -30417,7 +30872,7 @@ ${xl.join("\n")}`;
 
   // src/map/board.js
   var SVGNS = "http://www.w3.org/2000/svg";
-  var CARD = ["n", "e", "s", "w"];
+  var CARD2 = ["n", "e", "s", "w"];
   function svg(tag, attrs) {
     const e = document.createElementNS(SVGNS, tag);
     if (attrs) {
@@ -30437,7 +30892,7 @@ ${xl.join("\n")}`;
     return c;
   }
   function exitPoints(a, b, dir, cell, R) {
-    const d = CARD.includes(dir) ? dir : R.dirBetween(a, b);
+    const d = CARD2.includes(dir) ? dir : R.dirBetween(a, b);
     return { p: wallPoint(a, d, cell), q: wallPoint(b, R.mirrorDir(d), cell) };
   }
   function exitMarks(g, e, mx, my) {
@@ -30522,6 +30977,8 @@ ${xl.join("\n")}`;
     selectedExit: null,
     tool: "select",
     linkFrom: null,
+    panel: null,
+    lastGen: null,
     scale: 1,
     tx: 40,
     ty: 40,
@@ -30596,10 +31053,16 @@ ${xl.join("\n")}`;
   function openMapEditor(mapId) {
     const A = API();
     if (!A || !A.entityById(mapId)) return false;
+    if (M.mapId !== mapId) {
+      M.lastGen = null;
+      GEN.seed = "";
+      GEN.places = null;
+    }
     M.mapId = mapId;
     M.selected = null;
     M.selectedExit = null;
     M.linkFrom = null;
+    M.panel = null;
     const sh = Shell();
     if (!sh) return false;
     if (M.root) {
@@ -30663,6 +31126,7 @@ ${xl.join("\n")}`;
     const toolbar = el("div", { class: "wm-ed-toolbar" }, [
       M.crumbs,
       el("div", { style: "flex:1" }),
+      btn2("Generate", () => openGenerate(), { icon: "wand-sparkles", title: "Generate rooms (seeded)", data: { map: "generate" } }),
       M.addBtn,
       ...M.toolBtns,
       btn2("−", () => zoom(1 / 1.15), { title: "Zoom out" }),
@@ -30846,6 +31310,7 @@ ${xl.join("\n")}`;
   }
   function onRoomDown(ev, id) {
     ev.stopPropagation();
+    M.panel = null;
     if (M.tool === "connect") {
       if (!M.linkFrom) {
         M.linkFrom = id;
@@ -30936,11 +31401,108 @@ ${xl.join("\n")}`;
     }
     return "e";
   }
+  var GEN = { size: "medium", theme: "crypt", encounters: "few", seed: "", places: null, level: null, partySize: null };
+  function openGenerate() {
+    M.selected = null;
+    M.selectedExit = null;
+    M.panel = "generate";
+    draw();
+    renderInspector();
+  }
+  function renderGenerate(box) {
+    const A = API();
+    const G = A.mapGen;
+    const town = M.board.kind === "town";
+    const map = A.entityById(M.mapId) || {};
+    const last = map.mapGen || {};
+    if (!GEN.seed) GEN.seed = A.randomSeed();
+    box.appendChild(heading(town ? "Generate a town" : "Generate a dungeon"));
+    box.setAttribute("data-panel", "generate");
+    if (town) {
+      if (!GEN.places) GEN.places = (last.places && last.places.length ? last.places : G.DEFAULT_TOWN).slice();
+      box.appendChild(el("p", { class: "rpm-muted", text: "Tick the places this town has. They are laid out around the town square and joined by streets." }));
+      const grid = el("div", { class: "rpm-map-gen-places" });
+      for (const p of G.TOWN_PLACES) {
+        const w = el("label", { class: "rpm-map-check" });
+        const c = el("input", { type: "checkbox", "data-place": p.key, "aria-label": p.name });
+        c.checked = GEN.places.includes(p.key);
+        c.addEventListener("change", () => {
+          GEN.places = c.checked ? GEN.places.concat([p.key]) : GEN.places.filter((k2) => k2 !== p.key);
+        });
+        w.appendChild(c);
+        w.appendChild(document.createTextNode(" " + p.name));
+        grid.appendChild(w);
+      }
+      box.appendChild(grid);
+    } else {
+      const party = A.partyInfo();
+      if (GEN.level == null) GEN.level = party.level;
+      if (GEN.partySize == null) GEN.partySize = party.size;
+      box.appendChild(lbl("Size"));
+      box.appendChild(select(Object.entries(G.SIZES).map(([k2, n2]) => [k2, `${cap(k2)} (${n2} rooms + a secret one)`]), GEN.size, (v) => {
+        GEN.size = v;
+      }, { "aria-label": "Size", "data-gen": "size" }));
+      box.appendChild(lbl("Theme"));
+      box.appendChild(select(Object.entries(G.THEMES).map(([k2, t]) => [k2, t.label]), GEN.theme, (v) => {
+        GEN.theme = v;
+      }, { "aria-label": "Theme", "data-gen": "theme" }));
+      box.appendChild(lbl("Encounters (SRD monsters of the theme)"));
+      box.appendChild(select([["none", "None"], ["few", "A few"], ["some", "Some"]], GEN.encounters, (v) => {
+        GEN.encounters = v;
+        renderInspector();
+      }, { "aria-label": "Encounters", "data-gen": "encounters" }));
+      if (GEN.encounters !== "none") box.appendChild(el("div", { class: "rpm-row" }, [
+        el("span", { class: "rpm-muted", text: "for party level" }),
+        input(GEN.level, (v) => {
+          GEN.level = Math.max(1, Math.min(20, Number(v) || 1));
+        }, { type: "number", attrs: { min: "1", max: "20", style: "width:4.5em", "aria-label": "Party level" } }),
+        el("span", { class: "rpm-muted", text: "size" }),
+        input(GEN.partySize, (v) => {
+          GEN.partySize = Math.max(1, Math.min(8, Number(v) || 1));
+        }, { type: "number", attrs: { min: "1", max: "8", style: "width:4em", "aria-label": "Party size" } })
+      ]));
+    }
+    box.appendChild(lbl("Seed (the same seed gives the same map)"));
+    const seedIn = input(GEN.seed, (v) => {
+      GEN.seed = v.trim();
+    }, { attrs: { "aria-label": "Seed", "data-gen": "seed", class: "form-control rpm-input rpm-grow" } });
+    box.appendChild(el("div", { class: "rpm-row" }, [seedIn, btn2("", () => {
+      GEN.seed = A.randomSeed();
+      seedIn.value = GEN.seed;
+    }, { icon: "dices", title: "New random seed", data: { gen: "reseed" } })]));
+    const n = M.board.rooms.length;
+    if (n) box.appendChild(el("p", { class: "rpm-muted", text: `This replaces the ${n} ${town ? "places" : "rooms"} here (and their features and encounters).` }));
+    box.appendChild(btn2(n ? "Replace with a new map" : "Generate", () => doGenerate(n), { icon: "wand-sparkles", block: true, data: { gen: "go" } }));
+    box.appendChild(btn2("Cancel", () => {
+      M.panel = null;
+      renderInspector();
+    }, { block: true, data: { gen: "cancel" } }));
+    if (last.seed) box.appendChild(el("p", { class: "rpm-muted", style: "margin-top:8px", text: `Last generated with seed ${last.seed}${last.theme ? ` (${last.theme}, ${last.size})` : ""}.` }));
+  }
+  function doGenerate(existing) {
+    const A = API();
+    const town = M.board.kind === "town";
+    if (existing && !confirm(`Replace the ${existing} ${town ? "places" : "rooms"} of "${M.board.name}" with a generated map? Their features and encounters go too.`)) return;
+    let r;
+    try {
+      r = A.generateMap(M.mapId, town ? { places: GEN.places, seed: GEN.seed, replace: !!existing } : { size: GEN.size, theme: GEN.theme, encounters: GEN.encounters, level: GEN.level, partySize: GEN.partySize, seed: GEN.seed, replace: !!existing });
+    } catch (e) {
+      M.toast(e.message, true);
+      return;
+    }
+    M.panel = null;
+    M.lastGen = r;
+    GEN.seed = A.randomSeed();
+    rebuild();
+    fitSoon();
+    M.toast(`Generated ${r.rooms} ${town ? "places" : "rooms"} (seed ${r.seed})${r.encounters ? `, ${r.encounters} encounters` : ""}.`);
+  }
   function renderInspector() {
     const box = M.insp;
     if (!box) return;
     clear(box);
     if (M.selectedExit) return renderExitOnly(box);
+    if (!M.selected && M.panel === "generate") return renderGenerate(box);
     if (!M.selected) return renderMapInfo(box);
     return renderRoom(box, M.selected);
   }
@@ -30965,6 +31527,12 @@ ${xl.join("\n")}`;
       rebuild();
     }, { "aria-label": "Map style" }));
     box.appendChild(el("p", { class: "rpm-muted", style: "margin-top:10px", text: `${M.board.rooms.length} ${town ? "places" : "rooms"}. ` + (town ? "Add places (market, temple garden, guild, bathhouse …), then connect them with the Connect tool." : "Add rooms, then connect them with the Connect tool: click one room, then another. The direction follows where they sit; doors start closed.") + " Drag a room to move it, drag its corner to resize. Double-click a dungeon level to open it." }));
+    box.appendChild(btn2(M.board.rooms.length ? "Generate a new map…" : town ? "Generate a town…" : "Generate a dungeon…", () => openGenerate(), { icon: "wand-sparkles", block: true, data: { gen: "open" } }));
+    if (M.board.rooms.length && !M.board.outside.length && !A.mapOf(M.mapId)) box.appendChild(el("p", {
+      class: "rpm-map-warn",
+      "data-noway": "1",
+      text: `No way out yet: the player could enter but not leave. Connect "${M.board.name}" to a place in the world editor and generate again, or add a way out in a room's inspector.`
+    }));
     if (M.board.outside.length) {
       box.appendChild(heading("Ways out"));
       for (const o of M.board.outside) box.appendChild(el("div", { class: "rpm-muted", text: `${(roomById(o.room) || {}).name} → ${o.name}` }));
@@ -31232,8 +31800,8 @@ ${xl.join("\n")}`;
       const board = A.mapBoard(mapId, { player: true });
       root.setAttribute("data-kind", board.kind);
       root.setAttribute("data-style", board.style);
-      const reachable = new Set(exits.filter((e) => board.rooms.some((r) => r.id === e.to)).map((e) => e.to));
-      const sv = renderPlayerBoard(board, { R, cell: large ? 28 : 16, reachable, onRoom: doGo });
+      const reachable2 = new Set(exits.filter((e) => board.rooms.some((r) => r.id === e.to)).map((e) => e.to));
+      const sv = renderPlayerBoard(board, { R, cell: large ? 28 : 16, reachable: reachable2, onRoom: doGo });
       const wrap = el("div", { class: "rpm-map-boardwrap", title: large ? null : "Click a neighbouring room to go there; click elsewhere to open the map" });
       wrap.appendChild(sv);
       if (!large) wrap.addEventListener("click", () => window.KLITE_RPMod_Shell?.open("map"));
@@ -32817,18 +33385,18 @@ ${xl.join("\n")}`;
                 continue;
               }
               if (r.options && st === "complete" && !A.rewardsPaid(q.id)) {
-                const pick = uiSelect({ "aria-label": "Choose your reward", "data-choice": q.id, style: "width:auto;display:inline-block" });
-                pick.appendChild(el2("option", { value: "", text: "— choose one —" }));
+                const pick2 = uiSelect({ "aria-label": "Choose your reward", "data-choice": q.id, style: "width:auto;display:inline-block" });
+                pick2.appendChild(el2("option", { value: "", text: "— choose one —" }));
                 r.options.forEach((o, i) => {
                   const op = el2("option", { value: String(i), text: A.rewardText({ type: "item", ...o }) });
                   if (choices[q.id] === i) op.selected = true;
-                  pick.appendChild(op);
+                  pick2.appendChild(op);
                 });
-                pick.addEventListener("change", () => {
-                  choices[q.id] = pick.value === "" ? void 0 : Number(pick.value);
+                pick2.addEventListener("change", () => {
+                  choices[q.id] = pick2.value === "" ? void 0 : Number(pick2.value);
                   refreshPanel();
                 });
-                rw.appendChild(pick);
+                rw.appendChild(pick2);
               } else rw.appendChild(el2("span", { class: "rpm-chip rpm-chip-quest", text: A.rewardText(r) }));
             }
             card.appendChild(rw);
@@ -33247,7 +33815,8 @@ ${xl.join("\n")}`;
           "Select a node to edit it in the inspector on the right.",
           "Events have triggers (entering a place, a time, a quest state…) and effects (flags, items, quests, moving people), and can chain.",
           "A person can reuse a character card from your library.",
-          'A dungeon or town is one node; double-click it (or "Open dungeon editor") to build its rooms and places on a grid, connect them with doors, and add features, inhabitants and encounters. Secret doors stay hidden from the AI until found.'
+          'A dungeon or town is one node; double-click it (or "Open dungeon editor") to build its rooms and places on a grid, connect them with doors, and add features, inhabitants and encounters. Secret doors stay hidden from the AI until found.',
+          "Or press Generate: a seeded dungeon (size, theme, encounters) or a town from the places you tick. Connect the dungeon to a place in the world first, so it gets a way out."
         ] }
       ],
       show: [
@@ -34902,7 +35471,7 @@ OK = save and close · Cancel = close and discard them`);
   // src/characters/gallery.js
   var PREFS_KEY = "KLITE.gallery";
   var INDEX_KEY = "KLITE.gallery.index";
-  var SIZES = { large: "Large", medium: "Medium", small: "Small", list: "List" };
+  var SIZES2 = { large: "Large", medium: "Medium", small: "Small", list: "List" };
   var SORTS = { favorites: "Favorites", name: "Name", rating: "Rating", sheet: "Has sheet", tokens: "Size" };
   var TEXT_FIELDS = ["description", "personality", "scenario", "first_mes", "mes_example", "system_prompt"];
   var safeImg = (u) => typeof u === "string" && /^(data:image\/|blob:|https?:\/\/)/i.test(u) ? u : null;
@@ -35060,7 +35629,7 @@ OK = save and close · Cancel = close and discard them`);
       const sizeSel = el(
         "div",
         { class: "rpm-gal-sizes", role: "radiogroup", "aria-label": "Card size" },
-        Object.entries(SIZES).map(([k2, t]) => chip(t, prefs.size === k2, () => {
+        Object.entries(SIZES2).map(([k2, t]) => chip(t, prefs.size === k2, () => {
           prefs.size = k2;
           savePrefs();
           render();
@@ -35482,10 +36051,10 @@ OK = save and close · Cancel = close and discard them`);
     const bg = SRD.backgrounds[choices.background];
     const inc = backgroundBonus(bg, choices.bgBonus);
     const out = Object.fromEntries(ABILITIES.map((a) => [a, Math.min(20, (Number(choices.scores && choices.scores[a]) || 10) + inc[a])]));
-    for (const { level, pick } of chosenFeats(choices)) {
+    for (const { level, pick: pick2 } of chosenFeats(choices)) {
       if (upTo != null && level >= upTo) break;
-      const need = featNeeds(pick.feat);
-      for (const a of (pick.abilities || []).slice(0, need.picks)) {
+      const need = featNeeds(pick2.feat);
+      for (const a of (pick2.abilities || []).slice(0, need.picks)) {
         if (!ABILITIES.includes(a) || !need.choose.includes(a)) continue;
         const next = out[a] + need.by;
         if (next > need.max && over) over.push({ level, ability: a });
@@ -35535,7 +36104,7 @@ OK = save and close · Cancel = close and discard them`);
     const out = [];
     if (fightingStyleAt(choices) && choices.fightingStyle) out.push(choices.fightingStyle);
     if (secondFightingStyleAt(choices) && choices.fightingStyle2) out.push(choices.fightingStyle2);
-    for (const { pick } of chosenFeats(choices)) if (FIGHTING_STYLES.includes(pick.feat)) out.push(pick.feat);
+    for (const { pick: pick2 } of chosenFeats(choices)) if (FIGHTING_STYLES.includes(pick2.feat)) out.push(pick2.feat);
     return out;
   }
   var FIGHTING_STYLES = ["Archery", "Defense", "Great Weapon Fighting", "Two-Weapon Fighting"];
@@ -35570,22 +36139,22 @@ OK = save and close · Cancel = close and discard them`);
     if (secondFightingStyleAt(choices) && (!FIGHTING_STYLES.includes(choices.fightingStyle2) || choices.fightingStyle2 === choices.fightingStyle)) errs.push("Choose a second, different Fighting Style (Additional Fighting Style).");
     const styles = fightingStyles(choices);
     if (new Set(styles).size !== styles.length) errs.push("A Fighting Style feat can be taken only once.");
-    for (const { level, kind, pick } of chosenFeats(choices)) {
+    for (const { level, kind, pick: pick2 } of chosenFeats(choices)) {
       const what = `Level ${level} (${kind === "boon" ? "Epic Boon" : "Ability Score Improvement"})`;
-      if (!featOptions(choices, level).includes(pick.feat)) {
+      if (!featOptions(choices, level).includes(pick2.feat)) {
         errs.push(`${what}: choose a feat.`);
         continue;
       }
-      const need = featNeeds(pick.feat);
-      const ab = (pick.abilities || []).filter((a) => need.choose.includes(a));
+      const need = featNeeds(pick2.feat);
+      const ab = (pick2.abilities || []).filter((a) => need.choose.includes(a));
       if (ab.length !== need.picks) errs.push(`${what}: choose ${need.picks === 2 ? "two ability increases (the same ability twice for +2)" : "the ability to increase"}.`);
-      if (need.skills && (pick.skills || []).filter((s) => SKILL_IDS2.includes(s)).length !== need.skills) errs.push(`${what}: choose ${need.skills} skills for Skilled.`);
+      if (need.skills && (pick2.skills || []).filter((s) => SKILL_IDS2.includes(s)).length !== need.skills) errs.push(`${what}: choose ${need.skills} skills for Skilled.`);
       const before = finalAbilities(choices, level);
-      if (pick.feat === "Grappler" && before.str < 13 && before.dex < 13) errs.push(`${what}: Grappler needs Strength or Dexterity 13+.`);
-      if (pick.feat === "Boon of Spell Recall" && !(SRD.classes[choices.class] || {}).spellcasting) errs.push(`${what}: Boon of Spell Recall needs the Spellcasting feature.`);
+      if (pick2.feat === "Grappler" && before.str < 13 && before.dex < 13) errs.push(`${what}: Grappler needs Strength or Dexterity 13+.`);
+      if (pick2.feat === "Boon of Spell Recall" && !(SRD.classes[choices.class] || {}).spellcasting) errs.push(`${what}: Boon of Spell Recall needs the Spellcasting feature.`);
       const originTaken = [bg && bg.feat.replace(/ \(.+\)$/, ""), choices.species === "human" ? choices.originFeat : null];
-      const repeatable = ["Magic Initiate", "Skilled", "Ability Score Improvement"].includes(pick.feat);
-      if (!repeatable && (originTaken.includes(pick.feat) || chosenFeats(choices).some((x) => x.level < level && x.pick.feat === pick.feat))) errs.push(`${what}: you already have ${pick.feat}.`);
+      const repeatable = ["Magic Initiate", "Skilled", "Ability Score Improvement"].includes(pick2.feat);
+      if (!repeatable && (originTaken.includes(pick2.feat) || chosenFeats(choices).some((x) => x.level < level && x.pick.feat === pick2.feat))) errs.push(`${what}: you already have ${pick2.feat}.`);
     }
     const over = [];
     finalAbilities(choices, void 0, over);
@@ -35609,9 +36178,9 @@ OK = save and close · Cancel = close and discard them`);
   }
   function startingItems(choices) {
     const cls = SRD.classes[choices.class], bg = SRD.backgrounds[choices.background];
-    const pick = (list2, id) => (list2 || []).find((o) => o.id === id) || (list2 || [])[0];
-    const ce = cls ? pick(cls.equipment, choices.classEquipment) : null;
-    const be = bg ? pick(bg.equipment, choices.backgroundEquipment) : null;
+    const pick2 = (list2, id) => (list2 || []).find((o) => o.id === id) || (list2 || [])[0];
+    const ce = cls ? pick2(cls.equipment, choices.classEquipment) : null;
+    const be = bg ? pick2(bg.equipment, choices.backgroundEquipment) : null;
     const items = [...ce ? ce.items : [], ...be ? be.items : []].map(parseItem2);
     const merged = [];
     for (const it of items) {
@@ -35689,10 +36258,10 @@ OK = save and close · Cancel = close and discard them`);
     if (cls) {
       for (const f of cls.features) if (f.level <= level && !/ Subclass$/.test(f.name) && f.name !== "Ability Score Improvement" && f.name !== "Epic Boon") out.push({ name: f.name, source: `${cls.name} ${f.level}`, text: f.text });
       for (const f of cls.subclassFeatures) if (f.level <= level) out.push({ name: f.name, source: `${cls.subclass} ${f.level}`, text: f.text });
-      for (const { level: l, pick } of chosenFeats(choices)) {
-        if (!SRD.feats[pick.feat]) continue;
-        const detail = [(pick.abilities || []).length ? pick.abilities.map((a) => a.toUpperCase()).join(", ") : "", (pick.skills || []).join(", ")].filter(Boolean).join("; ");
-        out.push({ name: pick.feat + (detail ? ` (${detail})` : ""), source: `${cls.name} ${l} feat`, text: SRD.feats[pick.feat].text });
+      for (const { level: l, pick: pick2 } of chosenFeats(choices)) {
+        if (!SRD.feats[pick2.feat]) continue;
+        const detail = [(pick2.abilities || []).length ? pick2.abilities.map((a) => a.toUpperCase()).join(", ") : "", (pick2.skills || []).join(", ")].filter(Boolean).join("; ");
+        out.push({ name: pick2.feat + (detail ? ` (${detail})` : ""), source: `${cls.name} ${l} feat`, text: SRD.feats[pick2.feat].text });
       }
     }
     if (sp) for (const t of sp.traits) out.push({ name: t.name, source: sp.name, text: t.text });
@@ -36034,34 +36603,34 @@ OK = save and close · Cancel = close and discard them`);
       root.appendChild(el("div", { class: "rpm-muted", text: "Scores now: " + ABILITIES.map((a) => `${a.toUpperCase()} ${scores[a]}`).join(" · ") }));
       for (const { level, kind } of list2) {
         V.c.asi = V.c.asi || {};
-        const pick = V.c.asi[level] || {};
+        const pick2 = V.c.asi[level] || {};
         const upd = (patch) => {
-          V.c.asi = Object.assign({}, V.c.asi, { [level]: Object.assign({}, pick, patch) });
+          V.c.asi = Object.assign({}, V.c.asi, { [level]: Object.assign({}, pick2, patch) });
           render();
         };
-        const featSel = select2(featOptions(V.c, level).map((f) => ({ value: f, text: `${f} — ${(SRD.feats[f] || {}).category || ""}`.replace(/ — $/, "") })), pick.feat, (v) => upd({ feat: v, abilities: [], skills: [] }), `Level ${level} feat`);
+        const featSel = select2(featOptions(V.c, level).map((f) => ({ value: f, text: `${f} — ${(SRD.feats[f] || {}).category || ""}`.replace(/ — $/, "") })), pick2.feat, (v) => upd({ feat: v, abilities: [], skills: [] }), `Level ${level} feat`);
         featSel.setAttribute("data-bld", "feat-" + level);
         const box = el("div", { class: "rpm-bld-detail", "data-feat-level": String(level) }, [
           el("h3", { text: `Level ${level}: ${kind === "boon" ? "Epic Boon" : "Ability Score Improvement"}` }),
           featSel
         ]);
-        const need = pick.feat ? featNeeds(pick.feat) : null;
+        const need = pick2.feat ? featNeeds(pick2.feat) : null;
         if (need && need.picks) {
           const opts = need.choose.map((a) => ({ value: a, text: ABILITY_NAMES[a] }));
           box.appendChild(el("div", { class: "rpm-sheet-grid4" }, Array.from({ length: need.picks }, (_, i) => el("label", { class: "rpm-sheet-field" }, [
             el("span", { class: "rpm-label", text: `+${need.by}${need.picks > 1 ? ` (${i + 1})` : ""}` }),
-            select2(opts, (pick.abilities || [])[i], (v) => {
-              const ab = (pick.abilities || []).slice();
+            select2(opts, (pick2.abilities || [])[i], (v) => {
+              const ab = (pick2.abilities || []).slice();
               ab[i] = v;
               upd({ abilities: ab });
             }, `Level ${level} increase ${i + 1}`)
           ]))));
         }
         if (need && need.skills) {
-          const taken = new Set(proficientSkills(Object.assign({}, V.c, { asi: Object.assign({}, V.c.asi, { [level]: Object.assign({}, pick, { skills: [] }) }) })));
-          box.appendChild(checkList(SKILLS.map((k2) => k2.id).filter((k2) => !taken.has(k2) || (pick.skills || []).includes(k2)), pick.skills, need.skills, (v) => upd({ skills: v }), `Level ${level} Skilled`));
+          const taken = new Set(proficientSkills(Object.assign({}, V.c, { asi: Object.assign({}, V.c.asi, { [level]: Object.assign({}, pick2, { skills: [] }) }) })));
+          box.appendChild(checkList(SKILLS.map((k2) => k2.id).filter((k2) => !taken.has(k2) || (pick2.skills || []).includes(k2)), pick2.skills, need.skills, (v) => upd({ skills: v }), `Level ${level} Skilled`));
         }
-        if (pick.feat && SRD.feats[pick.feat]) box.appendChild(details(pick.feat, texts(SRD.feats[pick.feat].text), false));
+        if (pick2.feat && SRD.feats[pick2.feat]) box.appendChild(details(pick2.feat, texts(SRD.feats[pick2.feat].text), false));
         root.appendChild(box);
       }
     }
