@@ -2,7 +2,7 @@
 // KLITE RPmod — Character builder window (SRD 5.2.1, levels 1–20)
 // -----------------------------------------------------------------------------
 // Step by step: Class → Background → Species → Ability scores → Feats (from level 4) →
-// Skills & choices → Equipment → Details & review. Every option shows its SRD text. "Create" makes a new
+// Skills & choices → Spells (casters, species spells, Magic Initiate) → Equipment → Details & review. Every option shows its SRD text. "Create" makes a new
 // character in Esolite's Library with the sheet on its card, or puts the sheet on an
 // existing character; "Level up" (from the sheet window) rebuilds the stored choices one
 // level higher, asking only what is new, and keeps inventory, coins and notes.
@@ -14,10 +14,12 @@ import { el, clear, iconText } from '../shell/dom.js';
 import { SRD } from '../data/srd52.js';
 import { ABILITIES, ABILITY_NAMES, SKILLS, abilityMod, fmt, derive } from './sheet.js';
 import * as R from './builder-rules.js';
+import * as SP from './spell-rules.js';
+import { spellPicker as sharedPicker, spellDetails } from './spellPicker.js';
 import { saveCharacter, characterNames } from '../library/esoliteLibrary.js';
 import { writeSheet } from './sheet.js';
 
-const STEPS = [['class', 'Class'], ['background', 'Background'], ['species', 'Species'], ['abilities', 'Abilities'], ['feats', 'Feats'], ['skills', 'Skills & choices'], ['equipment', 'Equipment'], ['review', 'Details & review']];
+const STEPS = [['class', 'Class'], ['background', 'Background'], ['species', 'Species'], ['abilities', 'Abilities'], ['feats', 'Feats'], ['skills', 'Skills & choices'], ['spells', 'Spells'], ['equipment', 'Equipment'], ['review', 'Details & review']];
 const SKILL_NAME = Object.fromEntries(SKILLS.map(s => [s.id, s.name]));
 const SPECIES_OPTIONS = {
     dragonborn: { label: 'Draconic ancestry', options: ['Black (Acid)', 'Blue (Lightning)', 'Brass (Fire)', 'Bronze (Lightning)', 'Copper (Acid)', 'Gold (Fire)', 'Green (Poison)', 'Red (Fire)', 'Silver (Cold)', 'White (Cold)'] },
@@ -196,6 +198,60 @@ export default function initBuilder() {
             root.appendChild(box);
         }
     }
+    // Spells: class cantrips, the wizard's spellbook, prepared spells (limits from the class
+    // table), Magic Initiate, species spell ability, Circle of the Land; spells that come without
+    // choosing are listed. Choosing is optional here (the sheet can do it later); too many is not.
+    function stepSpells(root) {
+        const ctx = R.spellContext(V.c), lim = SP.spellLimits(ctx), granted = SP.grantedSpells(ctx);
+        const ch = Object.assign({ cantrips: [], prepared: [], spellbook: [] }, V.c.spells || {});
+        const setSpells = (k, v) => { V.c.spells = Object.assign({}, ch, { [k]: v }); if (k === 'spellbook') V.c.spells.prepared = ch.prepared.filter(x => v.includes(x)); render(); };
+        const grantedKeys = new Set(granted.map(g => g.key));
+        if (lim.caster) {
+            const s = R.buildSheet(V.c, V.previous); const d = derive(s);
+            root.appendChild(para(`${ABILITY_NAMES[lim.ability]} is your spellcasting ability: save DC ${d.spell.saveDC}, spell attack ${fmt(d.spell.attack)}. ` +
+                (lim.maxLevel ? `You can cast spells up to level ${lim.maxLevel}.` : 'You get spell slots at a later level.') + ' You can also choose or change spells later on the character sheet.'));
+        }
+        if (granted.length) root.appendChild(el('div', { class: 'rpm-bld-detail', 'data-spells': 'granted' }, [el('h3', { text: 'Always prepared (they do not count against your choices)' }),
+            ...granted.map(g => spellRow(g.key, `${g.source}${g.ability ? ` · ${ABILITY_NAMES[g.ability]}` : ''}${g.free === 'long' ? ' · once per Long Rest without a slot' : g.free === 'pb' ? ' · Proficiency Bonus times per Long Rest without a slot' : ''}`))]));
+        // species spells: which ability casts them
+        if (['elf', 'gnome', 'tiefling'].includes(V.c.species)) root.appendChild(el('label', { class: 'rpm-sheet-field' }, [el('span', { class: 'rpm-label', text: 'Spellcasting ability for your species spells' }),
+            select(SP.MENTAL.map(a => ({ value: a, text: ABILITY_NAMES[a] })), V.c.speciesSpellAbility || SP.defaultMentalAbility(ctx), v => set('speciesSpellAbility', v), 'Species spell ability')]));
+        if (V.c.class === 'druid' && V.c.level >= 3) root.appendChild(el('label', { class: 'rpm-sheet-field' }, [el('span', { class: 'rpm-label', text: 'Circle of the Land: land type (you can change it after a Long Rest)' }),
+            select(SP.LAND_TYPES.map(t => ({ value: t, text: t.charAt(0).toUpperCase() + t.slice(1) })), V.c.landType, v => set('landType', v), 'Land type')]));
+        // Magic Initiate
+        for (const src of SP.magicInitiateSources(ctx)) {
+            const mi = Object.assign({ cantrips: [] }, (V.c.magicInitiate || {})[src.id] || {});
+            const list = src.list || mi.list;
+            const upd = (patch) => { V.c.magicInitiate = Object.assign({}, V.c.magicInitiate, { [src.id]: Object.assign({}, mi, patch) }); render(); };
+            const box = el('div', { class: 'rpm-bld-detail', 'data-mi': src.id }, [el('h3', { text: `Magic Initiate — ${src.label}${src.list ? ` (${src.list})` : ''}` })]);
+            if (!src.list) box.appendChild(select(SP.MAGIC_INITIATE_LISTS.map(l => ({ value: l, text: l.charAt(0).toUpperCase() + l.slice(1) })), mi.list, v => upd({ list: v, cantrips: [], spell: undefined }), 'Magic Initiate list'));
+            box.appendChild(select(SP.MENTAL.map(a => ({ value: a, text: ABILITY_NAMES[a] })), mi.ability || SP.defaultMentalAbility(ctx), v => upd({ ability: v }), 'Magic Initiate ability'));
+            if (list) {
+                box.appendChild(spellPicker(SP.classSpells(list, { maxLevel: 0 }), mi.cantrips, 2, v => upd({ cantrips: v }), `Magic Initiate ${src.id} cantrips`, 'Two cantrips'));
+                box.appendChild(spellPicker(SP.classSpells(list, { minLevel: 1, maxLevel: 1 }), mi.spell ? [mi.spell] : [], 1, v => upd({ spell: v[0] }), `Magic Initiate ${src.id} spell`, 'One level 1 spell'));
+            }
+            root.appendChild(box);
+        }
+        if (!lim.caster) { if (!granted.length && !SP.magicInitiateSources(ctx).length) root.appendChild(para('Your class does not cast spells.')); return; }
+        if (lim.cantrips) root.appendChild(el('div', { class: 'rpm-bld-detail', 'data-spells': 'cantrips' }, [
+            spellPicker(SP.classSpells(V.c.class, { maxLevel: 0 }).filter(s => !grantedKeys.has(s.key)), ch.cantrips, lim.cantrips, v => setSpells('cantrips', v), 'Cantrips', `Cantrips — choose ${lim.cantrips}`)]));
+        if (!lim.maxLevel) return;
+        const leveled = SP.classSpells(V.c.class, { minLevel: 1, maxLevel: lim.maxLevel }).filter(s => !grantedKeys.has(s.key));
+        if (lim.spellbook) root.appendChild(el('div', { class: 'rpm-bld-detail', 'data-spells': 'spellbook' }, [
+            spellPicker(leveled, ch.spellbook, lim.spellbook, v => setSpells('spellbook', v), 'Spellbook', `Spellbook — choose ${lim.spellbook} (you prepare from these)`)]));
+        const prepFrom = lim.spellbook ? leveled.filter(s => ch.spellbook.includes(s.key)) : leveled;
+        root.appendChild(el('div', { class: 'rpm-bld-detail', 'data-spells': 'prepared' }, [
+            lim.spellbook && !prepFrom.length ? para('Choose spellbook spells first.') : spellPicker(prepFrom, ch.prepared, lim.prepared, v => setSpells('prepared', v), 'Prepared spells', `Prepared spells — choose ${lim.prepared}`)]));
+    }
+    // One spell with its text on demand.
+    function spellRow(key, note) {
+        const s = SP.spell(key); if (!s) return null;
+        return details(`${s.name} — ${SP.levelSchool(s)}${note ? ' · ' + note : ''}`, spellDetails(s));
+    }
+    function spellPicker(list, chosen, limit, onChange, label, title) {
+        V.spellSearch = V.spellSearch || {};
+        return sharedPicker(list, chosen, limit, onChange, { label, title, search: V.spellSearch });
+    }
     function stepEquipment(root) {
         const cls = SRD.classes[V.c.class], bg = SRD.backgrounds[V.c.background];
         const opt = (list, key, title) => el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: title }), el('div', { class: 'rpm-bld-grid' }, list.map(o =>
@@ -222,7 +278,9 @@ export default function initBuilder() {
             para('Saving throws: ' + s.saves.map(a => `${ABILITY_NAMES[a]} ${fmt(d.saves[a])}`).join(', ')),
             para('Skills: ' + SKILLS.filter(k => s.skills[k.id]).map(k => `${k.name} ${fmt(d.skills[k.id])}${s.skills[k.id] === 2 ? ' (expertise)' : ''}`).join(', ')),
             d.attacks.length ? para('Attacks: ' + d.attacks.map(a => `${a.name} ${fmt(a.toHit)} (${a.damage})`).join(', ')) : null,
-            d.spell ? para(`Spellcasting: ${ABILITY_NAMES[d.spell.ability]}, save DC ${d.spell.saveDC}, attack ${fmt(d.spell.attack)}, ${d.spell.cantrips} cantrips, ${d.spell.prepared} prepared spells, slots ${d.spell.slots.map((n, i) => n ? `level ${i + 1}: ${n}` : '').filter(Boolean).join(', ')}. Choose your spells on the sheet.`) : null,
+            d.spell ? para(`Spellcasting: ${ABILITY_NAMES[d.spell.ability]}, save DC ${d.spell.saveDC}, attack ${fmt(d.spell.attack)}` + (d.spell.slots.length ? `, slots ${d.spell.slots.map((n, i) => n ? `level ${i + 1}: ${n}` : '').filter(Boolean).join(', ')}` : '') + '.') : null,
+            d.spell && (d.spell.cantripsKnown.length || d.spell.preparedSpells.length || d.spell.granted.length) ? para('Spells: ' + [...d.spell.cantripsKnown, ...d.spell.preparedSpells, ...d.spell.granted.map(g => g.key)].map(SP.spellName).join(', ')) : null,
+            (() => { const todo = SP.spellTodo(R.spellContext(V.c)); return todo.length ? el('p', { class: 'rpm-muted', 'data-spell-todo': '1', text: 'Still open (you can do this later on the sheet): ' + todo.join('; ') + '.' }) : null; })(),
             details('Features', el('div', { class: 'rpm-gal-text', text: s.features }))]));
         if (errs.length) root.appendChild(el('ul', { class: 'rpm-bld-errors', role: 'alert' }, errs.map(e => el('li', { text: e }))));
     }
@@ -266,14 +324,16 @@ export default function initBuilder() {
         box.appendChild(root);
         const fromLevel = V.levelUp && V.previous ? (Number(V.previous.level) || 0) + 1 : 1;
         const hasFeats = R.featLevels(V.c).some(x => x.level >= fromLevel);
-        const steps = (V.levelUp ? STEPS.filter(([id]) => id === 'class' || id === 'feats' || id === 'skills' || id === 'review') : STEPS).filter(([id]) => id !== 'feats' || hasFeats);
+        const ctx = R.spellContext(V.c);
+        const hasSpells = SP.spellLimits(ctx).caster || SP.grantedSpells(ctx).length > 0 || SP.magicInitiateSources(ctx).length > 0 || ['elf', 'gnome', 'tiefling'].includes(V.c.species);
+        const steps = (V.levelUp ? STEPS.filter(([id]) => ['class', 'feats', 'skills', 'spells', 'review'].includes(id)) : STEPS).filter(([id]) => (id !== 'feats' || hasFeats) && (id !== 'spells' || hasSpells));
         if (V.step >= steps.length) V.step = steps.length - 1;
         root.appendChild(el('ol', { class: 'rpm-bld-steps' }, steps.map(([id, t], i) => el('li', {}, [el('button', { type: 'button', class: 'rpm-gal-chip' + (i === V.step ? ' rpm-on' : ''), 'aria-current': i === V.step ? 'step' : null, 'data-step': id, text: `${i + 1}. ${t}`, onclick: () => { V.step = i; render(); } })]))));
-        if (V.levelUp) root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: `Level up: ${V.levelUp} → level ${V.c.level}` }), para('Your new features are open below. Make any new choices (feat, skills), then confirm on the last step.')]));
+        if (V.levelUp) root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: `Level up: ${V.levelUp} → level ${V.c.level}` }), para('Your new features are open below. Make any new choices (feat, skills, spells), then confirm on the last step.')]));
         const body = el('div', { class: 'rpm-bld-body' });
         root.appendChild(body);
         const id = steps[V.step][0];
-        ({ class: stepClass, background: stepBackground, species: stepSpecies, abilities: stepAbilities, feats: stepFeats, skills: stepSkills, equipment: stepEquipment, review: stepReview })[id](body);
+        ({ class: stepClass, background: stepBackground, species: stepSpecies, abilities: stepAbilities, feats: stepFeats, skills: stepSkills, spells: stepSpells, equipment: stepEquipment, review: stepReview })[id](body);
         const last = V.step === steps.length - 1;
         root.appendChild(el('div', { class: 'rpm-row rpm-bld-nav' }, [
             btn('Back', () => { V.step = Math.max(0, V.step - 1); render(); }, { icon: 'arrow-left', disabled: V.step === 0, id: 'back' }),

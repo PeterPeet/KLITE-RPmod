@@ -345,13 +345,33 @@ per-class suggestion, point buy with the 27-point budget, or 4d6), **Feats** (fr
 each *Ability Score Improvement* level pick the Ability Score Improvement feat — +2 to one score
 or +1 to two, maximum 20 — or another feat such as Grappler, an origin feat or a fighting style;
 at level 19 an *Epic Boon*, which can raise a score to 30), **Skills & choices**
-(class skills, species skill, expertise, fighting styles, languages), **Equipment** (the class
+(class skills, species skill, expertise, fighting styles, languages), **Spells** (see below), **Equipment** (the class
 and background packages or gold) and **Details & review**, which shows HP, AC, attacks,
 skills and spellcasting before anything is saved. It creates a new character in your
 Library with the sheet on its card, or puts the sheet on an existing character. **Level up**
 on a built sheet rebuilds it one level higher (up to 20), asks only what is new (the new
-level's feat, skills) and keeps inventory, coins, notes and the spells written on the sheet; AC
+level's feat, skills, spells) and keeps inventory, coins, notes and your spells; AC
 and attacks follow what the character carries now. Every option shows its rules text from the SRD.
+
+**Spells (SRD 5.2.1, 339 spells).** The builder's **Spells** step shows your class's spell list
+up to the highest spell level you can cast, with the counts from the class table: cantrips and
+prepared spells (a wizard also fills a **spellbook** — 6 spells at level 1, 2 more per level — and
+prepares from it). Search the list, tick spells, and open any spell's full text with ⓘ. Spells you
+get without choosing are listed as *always prepared* and don't count: species spells (elf
+lineages, gnomes, tieflings — choose which ability casts them), the SRD subclass spells (Life
+Domain, Oath of Devotion, Draconic Sorcery, Fiend Patron, Circle of the Land by the land type you
+choose) and **Magic Initiate** (Acolyte → Cleric list, Sage → Wizard list, or the human's origin
+feat / a feat at level 4+: two cantrips and a level 1 spell). Choosing spells is optional there —
+you can do it later on the sheet; too many or wrong spells block *Create*.
+
+On the **sheet**, the Spellcasting section lists your spells by level: open one for its text; roll
+**Hit** (spell attack), **Dmg** (cantrips grow at levels 5, 11 and 17) or **Heal**; the target's
+**save DC** is shown. **Cast** uses the lowest free spell slot of the spell's level or higher and
+writes it to the game log, so the AI narrates it; species and Magic Initiate spells also have a
+**Free** cast (once, or a gnome's Proficiency Bonus times, per Long Rest). **Restore slots (Long
+Rest)** clears used slots and free casts. **Change spells** (built characters) opens the same
+lists to swap cantrips, prepared spells, the spellbook or the land type; level up keeps them. The
+text box below is for other spells and notes (scrolls, items).
 
 **Character sheets.** Every character in your Library can have a d20 sheet (SRD 5.2.1 rules):
 species, class, level, background, the six abilities, saving throws, the 18 skills

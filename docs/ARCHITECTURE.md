@@ -18,6 +18,7 @@
 | `data/srd52-monsters.js` | (import) | 330 SRD 5.2.1 monster stat blocks (generated, ~470 KB) (§3.7) |
 | `game/combat-rules.js`, `game/combatView.js` | (import) | Combat rules (pure) and the Combat window (§3.7) |
 | `characters/builder-rules.js`, `builder.js` | `window.KLITE_RPMod_Builder` | Character builder (levels 1–20) + level up (§5b) |
+| `characters/spell-rules.js`, `spellPicker.js` | (import) | Spell rules (pure) and the shared spell picker (§5b) |
 | `game/map-rules.js` | (import) | R7 map rules (pure): location kinds, exits read from both sides, doors, grid layout, exploration (§3.9) |
 | `game/map-gen.js` | (import) | R7 generator (pure, seeded): dungeon/town plans — rooms, exits, features, encounters (§3.9) |
 | `game/map-tags.js` | (import) | R7 map tags (pure): ordered scan of go/open/close/unlock/search/room/door/light, room/door/light specs (§3.9) |
@@ -646,6 +647,21 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   Movement, Draconic Resilience HP, class resources line at the top of `features`.
   Sheet fields added (additive, normalized): `spellcasting {ability, cantrips, prepared,
   slots, slotLevel, pact, used, spells}`, `proficiencies`, `acNote`, attack `bonus`, `build`.
+- **Spells** (2026-09-25): data `src/data/srd52-spells.js` (`SPELLS` keyed by slug, `SPELL_GRANTS`
+  species by character level / subclass by class level, druid by land type), made by
+  `extract-srd.py` (`extract_spells`, `grants_to_keys`). Rules `spell-rules.js` (pure) take a context
+  from `builder-rules.spellContext(choices)` (no import cycle): `spellLimits` (cantrips/prepared from
+  the class table, `maxSpellLevel` incl. pact `slotLevel`, wizard spellbook 6 + 2×(level−1)),
+  `grantedSpells` → `[{key, source, ability?, free?: 'long'|'pb'}]`, `magicInitiateSources`
+  (background `Magic Initiate (X)`, human origin feat, ASI picks), `spellErrors` (blocking, added to
+  `validate`), `spellTodo` (reminders), `cantripDamage`, `slotFor`, `castingNumbers`. Choices:
+  `spells {cantrips, prepared, spellbook}`, `magicInitiate {[source]: {list, ability, cantrips, spell}}`,
+  `speciesSpellAbility`, `landType`. `buildSheet` → `spellcasting.cantripsKnown/preparedSpells/
+  spellbook/granted` (a non-caster with granted spells gets a block with their ability);
+  `normalizeSheet` keeps unknown spellcasting fields and sanitizes the new ones (+ `freeUsed`).
+  UI: builder step `spells`, sheet `spellsSection` (Cast → `used`, log kind `spell`; Free →
+  `freeUsed`; Restore; **Change spells** writes the sheet arrays and `build.spells`), picker
+  `spellPicker.js` (search, level headings, ⓘ details).
 - **Uses:** ALPHA's `characters` provider appends the sheet summary; Worlds'
   `combatantStats`/slice fall back to the linked card's sheet (`cardSheetStats`) and the
   persona sheet for the player (`personaSheetStats`); `personBlurb` falls back to the card's

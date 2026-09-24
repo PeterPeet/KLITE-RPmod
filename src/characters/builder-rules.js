@@ -8,6 +8,7 @@
 // =============================================================================
 import { SRD } from '../data/srd52.js';
 import { ABILITIES, SKILLS, abilityMod, proficiencyBonus, normalizeSheet } from './sheet.js';
+import { grantedSpells, spellErrors, defaultMentalAbility } from './spell-rules.js';
 
 export const MAX_LEVEL = 20;
 const SKILL_IDS = SKILLS.map(s => s.id);
@@ -47,6 +48,17 @@ export function featNeeds(featName) {
 }
 function chosenFeats(choices) {
     return featLevels(choices).map(({ level, kind }) => ({ level, kind, pick: (choices.asi && choices.asi[level]) || {} }));
+}
+// What the spell rules (spell-rules.js) need from the choices. choices.spells = { cantrips,
+// prepared, spellbook } (spell keys), choices.magicInitiate = { [source]: { list, ability,
+// cantrips, spell } }, choices.speciesSpellAbility, choices.landType (Circle of the Land).
+export function spellContext(choices) {
+    const bg = SRD.backgrounds[choices.background];
+    return { cls: choices.class, level: levelOf(choices), species: choices.species, speciesOption: choices.speciesOption,
+        backgroundFeat: bg ? bg.feat : '', originFeat: choices.originFeat,
+        asiFeats: chosenFeats(choices).filter(x => x.pick.feat).map(x => ({ level: x.level, feat: x.pick.feat })),
+        abilities: finalAbilities(choices), spells: choices.spells || {}, magicInitiate: choices.magicInitiate || {},
+        speciesSpellAbility: choices.speciesSpellAbility, landType: choices.landType };
 }
 
 // ---- ability scores -----------------------------------------------------------------------
@@ -184,6 +196,7 @@ export function validate(choices) {
         const repeatable = ['Magic Initiate', 'Skilled', 'Ability Score Improvement'].includes(pick.feat);
         if (!repeatable && (originTaken.includes(pick.feat) || chosenFeats(choices).some(x => x.level < level && x.pick.feat === pick.feat))) errs.push(`${what}: you already have ${pick.feat}.`);
     }
+    if (cls) errs.push(...spellErrors(spellContext(choices)));
     const over = []; finalAbilities(choices, undefined, over);
     for (const o of over) errs.push(`Level ${o.level}: ${o.ability.toUpperCase()} is already at its maximum — pick another ability.`);
     if (!String(choices.name || '').trim()) errs.push('Give your character a name.');
@@ -346,12 +359,26 @@ export function buildSheet(choices, previous) {
         acNote: ac.how,
         proficiencies: [cls && `Weapons: ${cls.weapons}`, cls && `Armor: ${cls.armor}`, [cls && cls.tools, bg && bg.tool].filter(Boolean).length ? `Tools: ${[cls && cls.tools, bg && bg.tool].filter(Boolean).join('; ')}` : '',
             `Languages: Common${(choices.languages || []).length ? ', ' + choices.languages.join(', ') : ''}${choices.class === 'rogue' ? ", Thieves' Cant" : ''}${choices.class === 'druid' ? ', Druidic' : ''}`].filter(Boolean).join('\n'),
-        // level up keeps the spells written on the sheet and the slots already used
-        spellcasting: spell ? Object.assign({ ability: spell.ability, pact: !!spell.pact }, spell.levels[level],
-            previous && previous.spellcasting ? { spells: previous.spellcasting.spells || '', used: (previous.spellcasting.used || []).map((u, i) => Math.min(u, (spell.levels[level].slots || [])[i] || 0)) } : {}) : null,
+        spellcasting: spellcastingFor(choices, spell, level, previous),
         build: Object.assign({}, choices, { level, source: SRD.source }),
     };
     return normalizeSheet(sheet);
+}
+
+// Spellcasting on the sheet: the class table's counts and slots, the chosen spells (choices.spells)
+// and the spells that come without choosing. Level up keeps the spell notes and the slots already
+// used. A character without the Spellcasting feature gets a block when a species trait or Magic
+// Initiate gives spells (ability = the one chosen for them).
+function spellcastingFor(choices, spell, level, previous) {
+    const ctx = spellContext(choices);
+    const granted = grantedSpells(ctx);
+    const ch = choices.spells || {};
+    const prev = previous && previous.spellcasting;
+    const chosen = { cantripsKnown: (ch.cantrips || []).slice(), preparedSpells: (ch.prepared || []).slice(), spellbook: (ch.spellbook || []).slice(), granted };
+    if (spell) return Object.assign({ ability: spell.ability, pact: !!spell.pact }, spell.levels[level], chosen,
+        prev ? { spells: prev.spells || '', used: (prev.used || []).map((u, i) => Math.min(u, (spell.levels[level].slots || [])[i] || 0)) } : {});
+    if (!granted.length) return null;
+    return Object.assign({ ability: granted[0].ability || defaultMentalAbility(ctx), pact: false, cantrips: 0, prepared: 0, slots: [] }, chosen, prev ? { spells: prev.spells || '' } : {});
 }
 
 // Level up = the same choices one level higher (plus the new level's choices).

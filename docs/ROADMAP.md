@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-24 (R7 step 4)
+> Last updated: 2026-09-25 (R2 spells)
 
 ## Current state
 
@@ -27,7 +27,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-24 — `npm test`, 198 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 211 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -53,9 +53,9 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 
 | From | Feature | Now |
 |---|---|---|
-| D&D Beyond | Step-by-step character builder | ✅ levels 1–20 (spell picking missing) |
+| D&D Beyond | Step-by-step character builder | ✅ levels 1–20 with spells (SRD 5.2.1) |
 | | Interactive sheet (modifiers, saves, skills, AC) | ✅ click-to-roll, stored in the card |
-| | Rules compendium | 🟡 data: 330 SRD 5.2.1 monsters, conditions; no compendium window yet (R3) |
+| | Rules compendium | 🟡 data: 330 SRD 5.2.1 monsters, 339 spells, conditions; no compendium window yet (R3) |
 | | Encounter builder with difficulty | ✅ SRD XP budget, 330 monsters, saved encounters |
 | | Combat tracker | ✅ sides, conditions, death saves, auto enemy turns (spell slots not used in combat) |
 | | Click-to-roll + game log | ✅ dice log the AI sees (combat log separate) |
@@ -334,10 +334,30 @@ play test with a real backend, owner's decision 2026-09-23).
       (and two existing "Upload all" data-loss bugs found while testing it: a name race and old
       archives' empty-description characters): **esolithe/esobold#68** (open). Fixtures `tests/fixtures/sillytavern/`, test
       `tests/roundtrip.test.js`. **R2 acceptance met** except spells.
-- **Next (R2):** spells from the SRD spell list (extract the SRD 5.2.1 spells — pulled forward
-  from R3 like the monsters — then choose cantrips/prepared spells in the builder and at level up).
-  Not modelled yet: Alert's initiative bonus, Jack of All Trades, Cleric/Druid order choices,
-  Magic Initiate spells.
+- [x] **Spells** (2026-09-25; SRD spell data pulled forward from R3 like the monsters):
+      `extract-srd.py` → `src/data/srd52-spells.js` — **339 spells** (level, school, classes,
+      casting time, range, components/material, duration, concentration, ritual, text, higher-level
+      and cantrip-upgrade notes, best-effort attack/save/damage/heal; the summoned creatures' stat
+      blocks attached to Animate Objects, Find Steed, Giant Insect, Summon Dragon). Checked against the
+      eight class spell lists; SRD inconsistencies are reported (Flaming Sphere's school, Mind Spike
+      and Phantasmal Force missing from lists — the spell's own header wins). `SPELL_GRANTS`: species
+      spells (elf lineages, gnome lineages, tiefling legacies + Thaumaturgy) and the SRD subclass
+      spells (Life Domain, Circle of the Land by land type, Oath of Devotion, Draconic, Fiend),
+      transcribed and checked against the text. Rules `src/characters/spell-rules.js` (limits from the
+      class table incl. pact magic and the wizard's spellbook 6 + 2/level, always-prepared spells,
+      **Magic Initiate** from Acolyte/Sage/human origin feat/ASI feats with a different list each
+      time, blocking errors for too many/invalid spells, non-blocking reminders, cantrip scaling,
+      slot choice). Builder: **Spells** step (also at level up; optional, "choose later on the
+      sheet"), species spell ability, land type. Sheet: spells by level with text, Hit/Dmg/Heal,
+      save DC, **Cast** (lowest free slot, logged for the AI), free casts (once or PB per Long Rest),
+      restore slots, **Change spells** (kept in `build.spells` for level up); the AI summary lists the
+      spells. Sheet fields additive (`cantripsKnown, preparedSpells, spellbook, granted, freeUsed`;
+      unknown spellcasting fields are now kept). Shared picker `spellPicker.js`. Tests
+      `tests/spells.test.js`. Live-checked in Esolite (Life Domain cleric 3 with Magic Initiate).
+- **Open (R2):** Alert's initiative bonus, Jack of All Trades, Cleric Divine Order / Druid Primal
+  Order choices; casting at a higher level (upcasting) is not offered (Cast uses the lowest free
+  slot); ritual casting without a slot and copying spells into a wizard's spellbook from scrolls
+  are narrated; spells in combat (Combat window) come with R5.
 - One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,
   background, abilities, proficiencies, skills, saves, AC, HP, speed, equipment,
   inventory, spells, features). Migration from existing `characterRef` + `stats`.
@@ -348,7 +368,7 @@ Acceptance: build a level-1 character end to end, roll from the sheet, level up,
 and re-import as a card without data loss.
 
 ### R3 — Compendium (SRD 5.2) ⬜
-- Bundled SRD 5.2 data: monsters, spells, magic items, equipment, conditions, rules
+- Bundled SRD 5.2 data (monsters and spells already done in R5/R2): magic items, equipment, rules
   glossary; attribution page. Replace SRD 5.1 presets.
 - Searchable compendium window; cross-links from sheets, encounters and chat.
 Acceptance: search any SRD monster/spell, open it, add a monster to an encounter.

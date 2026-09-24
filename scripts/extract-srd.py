@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # =============================================================================
-# SRD 5.2.1 → src/data/srd52.js (character creation data for levels 1–20)
+# SRD 5.2.1 → src/data/srd52.js (character creation data for levels 1–20), srd52-monsters.js,
+# srd52-spells.js
 # -----------------------------------------------------------------------------
 # Source: System Reference Document 5.2.1 by Wizards of the Coast LLC, CC-BY-4.0,
 # downloaded from https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.pdf
@@ -18,6 +19,7 @@ ROOT = os.path.join(os.path.dirname(__file__), '..')
 PDF = os.path.join(ROOT, 'docs', 'reference', 'SRD_CC_v5.2.1.pdf')
 OUT = os.path.join(ROOT, 'src', 'data', 'srd52.js')
 MONSTERS_OUT = os.path.join(ROOT, 'src', 'data', 'srd52-monsters.js')
+SPELLS_OUT = os.path.join(ROOT, 'src', 'data', 'srd52-spells.js')
 
 ATTRIBUTION = ('This work includes material from the System Reference Document 5.2.1 ("SRD 5.2.1") by Wizards of '
                'the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the '
@@ -463,6 +465,165 @@ XP_BUDGET = {1: (50, 75, 100), 2: (100, 150, 200), 3: (150, 225, 400), 4: (250, 
              12: (2200, 3700, 4700), 13: (2600, 4200, 5400), 14: (2900, 4900, 6200), 15: (3300, 5400, 7800), 16: (3800, 6100, 9800),
              17: (4500, 7200, 11700), 18: (5000, 8700, 14200), 19: (5500, 10700, 17200), 20: (6400, 13200, 22000)}
 
+# ---- spells (R2: choose cantrips/prepared spells; R3 compendium) ---------------------------
+SCHOOLS = ['Abjuration', 'Conjuration', 'Divination', 'Enchantment', 'Evocation', 'Illusion', 'Necromancy', 'Transmutation']
+SPELL_CLASSES = ['Bard', 'Cleric', 'Druid', 'Paladin', 'Ranger', 'Sorcerer', 'Warlock', 'Wizard']
+SPELL_ABILITY = dict(Strength='str', Dexterity='dex', Constitution='con', Intelligence='int', Wisdom='wis', Charisma='cha')
+DAMAGE_TYPES = 'Acid|Bludgeoning|Cold|Fire|Force|Lightning|Necrotic|Piercing|Poison|Psychic|Radiant|Slashing|Thunder'
+_SCH = '|'.join(SCHOOLS)
+SPELL_HEAD = re.compile(r'^(?:Level ([1-9]) (' + _SCH + r')|(' + _SCH + r') Cantrip)\s*(\(.*)?$')
+STAT_SIZE = re.compile(r'^(Tiny|Small|Medium|Large|Huge|Gargantuan)\b.*(Aberration|Beast|Celestial|Construct|Dragon|Elemental|Fey|Fiend|Giant|Humanoid|Monstrosity|Ooze|Plant|Undead)')
+LIST_ROW = re.compile(r'^(.+?) (' + _SCH + r') ([—–-]|[CRM](?:, [CRM])*)\s*$')
+
+# "<Class> Spell List" tables: { class: { spell name: dict(level, school, special) } }
+def extract_class_spell_lists(txt):
+    out = {}
+    for cls in SPELL_CLASSES:
+        lists = {}
+        for m in re.finditer(r'\n(?:Cantrips \(Level 0 ' + cls + r' Spells\)|Level ([1-9]) ' + cls + r' Spells)\n', txt):
+            level = int(m.group(1) or 0)
+            for ln in txt[m.end():].split('\n'):
+                ln = ln.strip()
+                if not ln or ln == 'Spell School Special': continue
+                row = LIST_ROW.match(ln)
+                if not row: break
+                lists[row.group(1).replace('’', "'")] = dict(level=level, school=row.group(2), special=[] if row.group(3) in ('—', '–', '-') else row.group(3).split(', '))
+        assert lists, cls
+        out[cls.lower()] = lists
+    return out
+
+def _field(block, label, nxt):
+    m = re.search(label + r':\s*(.*?)\s*\n' + (nxt + ':' if nxt else ''), block, re.S) if nxt else re.search(label + r':\s*(.*)', block)
+    return re.sub(r'\s+', ' ', m.group(1)).strip().replace('’', "'") if m else ''
+
+def extract_spells(txt):
+    lists = extract_class_spell_lists(txt)
+    proper = {n.lower(): n for l in lists.values() for n in l}
+    a = txt.index('\nSpell Descriptions\n', txt.index('Spell Descriptions') + 20)
+    b = txt.index('\nRules Glossary\n', a)
+    lines = txt[a:b].split('\n')
+    heads = []   # (name line index, header line index)
+    for i, ln in enumerate(lines):
+        if SPELL_HEAD.match(ln.strip()) and i > 0:
+            j = i - 1
+            while j > 0 and not lines[j].strip(): j -= 1
+            heads.append((j, i))
+    spells, stat_blocks = {}, []
+    for k, (ni, hi) in enumerate(heads):
+        end = heads[k + 1][0] if k + 1 < len(heads) else len(lines)
+        # a summoned creature's stat block printed inside the text flow (it runs to the next spell)
+        for si in range(hi + 1, end - 1):
+            if STAT_SIZE.match(lines[si].strip()) and lines[si + 1].startswith('AC '):
+                stat_blocks.append(dict(name=lines[si - 1].strip(), lines=[re.sub(r'\s+', ' ', x).strip().replace('’', "'") for x in lines[si:end] if x.strip()]))
+                end = si - 1
+                break
+        raw_name = re.sub(r'\s+', ' ', lines[ni]).strip()
+        name = proper.get(raw_name.lower().replace('’', "'"), raw_name)
+        h = SPELL_HEAD.match(lines[hi].strip())
+        level = int(h.group(1) or 0); school = h.group(2) or h.group(3)
+        head = (h.group(4) or '')
+        i = hi + 1
+        while head and ')' not in head and i < end:          # class list wraps
+            head += ' ' + lines[i].strip(); i += 1
+        classes = [c.strip().lower() for c in head.strip('() ').split(',') if c.strip()]
+        block = '\n'.join(lines[i:end])
+        cast = _field(block, 'Casting Time', 'Range'); rng = _field(block, 'Range', 'Components?')
+        comp = _field(block, 'Components?', 'Duration'); dur_m = re.search(r'Duration:\s*(.*)', block)
+        dur = dur_m.group(1).strip().replace('’', "'")
+        body = block[dur_m.end():]
+        paras = clean(body)
+        higher = upgrade = ''
+        text = []
+        for p in paras:
+            if p.startswith('Using a Higher-Level Spell Slot.'): higher = p[len('Using a Higher-Level Spell Slot.'):].strip()
+            elif p.startswith('Cantrip Upgrade.'): upgrade = p[len('Cantrip Upgrade.'):].strip()
+            else: text.append(p)
+        full = ' '.join(text)
+        mat = re.search(r'M \((.*)\)', comp)
+        sp = dict(name=name, level=level, school=school, classes=classes, castingTime=cast, range=rng,
+                  components=[c for c in ('V', 'S', 'M') if re.search(r'(^|, )' + c + r'(\b|$)', comp)], material=mat.group(1) if mat else '',
+                  duration=dur, concentration=dur.startswith('Concentration'), ritual='Ritual' in cast, text=text)
+        if higher: sp['higher'] = higher
+        if upgrade: sp['upgrade'] = upgrade
+        if 'ranged spell attack' in full: sp['attack'] = 'ranged'
+        elif 'melee spell attack' in full: sp['attack'] = 'melee'
+        sv = re.search(r'(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) saving throw', full)
+        if sv: sp['save'] = SPELL_ABILITY[sv.group(1)]
+        dm = re.search(r'(\d+d\d+(?: ?\+ ?\d+)?) (' + DAMAGE_TYPES + r') damage', full)
+        if dm: sp['damage'] = dm.group(1).replace(' ', ''); sp['damageType'] = dm.group(2)
+        hm = re.search(r'regains? (?:a number of )?Hit Points equal to (\d+d\d+)( plus your spellcasting ability modifier)?', full)
+        if hm: sp['heal'] = hm.group(1) + ('+mod' if hm.group(2) else '')
+        else:
+            hm = re.search(r'regains? (\d+d\d+(?: \+ \d+)?) Hit Points', full)      # "regain 2d8 Hit Points", "regains 4d8 + 15 Hit Points"
+            if hm: sp['heal'] = hm.group(1).replace(' ', '')
+        key = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+        assert key not in spells, name
+        spells[key] = sp
+    # attach each stat block to the spell that names its creature (e.g. Find Steed → Otherworldly Steed)
+    for sb in stat_blocks:
+        owner = next((sp for sp in spells.values() if sb['name'] in ' '.join(sp['text'])), None)
+        assert owner, sb['name']
+        owner['statBlock'] = sb
+    # checks: every class list entry matches a description (same level and class; school, C/R and
+    # classes missing from a list are reported — the description is authoritative)
+    issues = []
+    for cls, l in lists.items():
+        for n, row in l.items():
+            key = re.sub(r'[^a-z0-9]+', '-', n.lower()).strip('-')
+            assert key in spells, (cls, n)
+            s = spells[key]
+            assert s['level'] == row['level'] and cls in s['classes'], (cls, n, row, s['level'], s['classes'])
+            if s['school'] != row['school']: issues.append(f"{cls} list: {n} is {row['school']}, description says {s['school']}")
+            if ('C' in row['special']) != s['concentration'] or ('R' in row['special']) != s['ritual']:
+                issues.append(f"{cls} list: {n} special {row['special']}, description: {s['duration']} / {s['castingTime']}")
+    for key, s in spells.items():
+        for cls in s['classes']:
+            if s['name'] not in lists[cls]: issues.append(f"{s['name']}: description names {cls}, the {cls} list does not (kept: the description is authoritative)")
+        assert s['castingTime'] and s['range'] and s['duration'] and s['text'], (s['name'], s)
+        assert not re.search(r'MOD SAVE', ' '.join(s['text']) + s.get('higher', '')), ('stat block left in', s['name'])
+    for i in issues: print('  SRD inconsistency:', i)
+    return spells
+
+# Spells granted without choosing them (hand-transcribed from the flattened SRD tables, checked
+# below: every name is a spell and appears in the SRD text): species by character level,
+# SRD subclasses by class level (always prepared; they do not count against prepared spells).
+SPELL_GRANTS = dict(
+    species=dict(
+        elf={'Drow': {1: ['Dancing Lights'], 3: ['Faerie Fire'], 5: ['Darkness']},
+             'High Elf': {1: ['Prestidigitation'], 3: ['Detect Magic'], 5: ['Misty Step']},
+             'Wood Elf': {1: ['Druidcraft'], 3: ['Longstrider'], 5: ['Pass without Trace']}},
+        gnome={'Forest Gnome': {1: ['Minor Illusion', 'Speak with Animals']},
+               'Rock Gnome': {1: ['Mending', 'Prestidigitation']}},
+        tiefling={'*': {1: ['Thaumaturgy']},
+                  'Abyssal': {1: ['Poison Spray'], 3: ['Ray of Sickness'], 5: ['Hold Person']},
+                  'Chthonic': {1: ['Chill Touch'], 3: ['False Life'], 5: ['Ray of Enfeeblement']},
+                  'Infernal': {1: ['Fire Bolt'], 3: ['Hellish Rebuke'], 5: ['Darkness']}},
+    ),
+    subclass=dict(
+        cleric={3: ['Aid', 'Bless', 'Cure Wounds', 'Lesser Restoration'], 5: ['Mass Healing Word', 'Revivify'], 7: ['Aura of Life', 'Death Ward'], 9: ['Greater Restoration', 'Mass Cure Wounds']},
+        paladin={3: ['Protection from Evil and Good', 'Shield of Faith'], 5: ['Aid', 'Zone of Truth'], 9: ['Beacon of Hope', 'Dispel Magic'], 13: ['Freedom of Movement', 'Guardian of Faith'], 17: ['Commune', 'Flame Strike']},
+        sorcerer={3: ['Alter Self', 'Chromatic Orb', 'Command', "Dragon's Breath"], 5: ['Fear', 'Fly'], 7: ['Arcane Eye', 'Charm Monster'], 9: ['Legend Lore', 'Summon Dragon']},
+        warlock={3: ['Burning Hands', 'Command', 'Scorching Ray', 'Suggestion'], 5: ['Fireball', 'Stinking Cloud'], 7: ['Fire Shield', 'Wall of Fire'], 9: ['Geas', 'Insect Plague']},
+        druid={'arid': {3: ['Blur', 'Burning Hands', 'Fire Bolt'], 5: ['Fireball'], 7: ['Blight'], 9: ['Wall of Stone']},
+               'polar': {3: ['Fog Cloud', 'Hold Person', 'Ray of Frost'], 5: ['Sleet Storm'], 7: ['Ice Storm'], 9: ['Cone of Cold']},
+               'temperate': {3: ['Misty Step', 'Shocking Grasp', 'Sleep'], 5: ['Lightning Bolt'], 7: ['Freedom of Movement'], 9: ['Tree Stride']},
+               'tropical': {3: ['Acid Splash', 'Ray of Sickness', 'Web'], 5: ['Stinking Cloud'], 7: ['Polymorph'], 9: ['Insect Plague']}},
+    ),
+)
+def spell_key(name): return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+# names → spell keys, after checking each name against the spells and the SRD text
+def grants_to_keys(grants, spells, txt):
+    flat = re.sub(r'\s+', ' ', txt.replace('’', "'"))
+    def conv(v):
+        if isinstance(v, dict): return {k: conv(x) for k, x in v.items()}
+        out = []
+        for n in v:
+            assert spell_key(n) in spells, ('granted spell not found', n)
+            assert n in flat, ('granted spell not in the SRD text', n)
+            out.append(spell_key(n))
+        return out
+    return conv(grants)
+
 def main():
     # page breaks → plain line breaks (headers "System Reference Document 5.2.1" + page number)
     txt = re.sub(r'\n=====PAGE \d+=====\nSystem Reference Document 5\.2\.1\s*\n\d+\n', '\n', pdf_text())
@@ -480,6 +641,7 @@ def main():
         conditions=extract_conditions(txt),
     )
     monsters = extract_monsters(txt)
+    spells = extract_spells(txt)
     texts = extract_classes(txt)
     for cid, c in CLASSES.items():
         c = dict(c); c['skills'] = dict(choose=c['skills']['choose'], options=c['skills']['from_'])
@@ -515,6 +677,15 @@ def main():
            '// Monster stat blocks (Monsters A–Z and Animals). Attack/save actions are parsed into `attacks`.\n'
            'export const MONSTERS = ' + json.dumps(monsters, ensure_ascii=False, separators=(',', ':')) + ';\n')
     open(MONSTERS_OUT, 'w').write(mjs)
+    sjs = ('// GENERATED by scripts/extract-srd.py from the SRD 5.2.1 PDF — do not edit; re-run the script.\n'
+           '// ' + ATTRIBUTION + '\n'
+           '// Spells (Spell Descriptions + the class spell lists): level (0 = cantrip), school, classes, casting\n'
+           '// time, range, components, duration, text; best-effort attack/save/damage for combat.\n'
+           'export const SPELLS = ' + json.dumps(spells, ensure_ascii=False, separators=(',', ':')) + ';\n'
+           '// Spells granted by species (character level) and SRD subclasses (class level; druid: by land type).\n'
+           'export const SPELL_GRANTS = ' + json.dumps(grants_to_keys(SPELL_GRANTS, spells, txt), ensure_ascii=False, separators=(',', ':')) + ';\n')
+    open(SPELLS_OUT, 'w').write(sjs)
+    print('= wrote', os.path.relpath(SPELLS_OUT, ROOT), f'({len(sjs) // 1024} KB, {len(spells)} spells:', ', '.join(f"L{l} {sum(1 for x in spells.values() if x['level'] == l)}" for l in range(10)) + ')')
     print('= wrote', os.path.relpath(MONSTERS_OUT, ROOT), f'({len(mjs) // 1024} KB, {len(monsters)} monsters)')
     no_atk = [m['name'] for m in monsters.values() if not m['attacks']]
     print('  monsters without a parsed attack:', len(no_atk), ', '.join(no_atk[:40]))

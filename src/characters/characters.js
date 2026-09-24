@@ -2,7 +2,8 @@
 // KLITE RPmod — Characters: the character sheet window
 // -----------------------------------------------------------------------------
 // A shell window ("Character sheet") for any character in Esolite's Library: identity,
-// abilities, saving throws, skills, combat values, attacks, inventory, coins, notes.
+// abilities, saving throws, skills, combat values, attacks, spells (cast, slots, change),
+// inventory, coins, notes.
 // Every bonus is a button that rolls (normal / advantage / disadvantage) into the game log
 // (src/game/log.js), which the AI sees on its next turn.
 // The sheet is stored in the card (src/characters/sheet.js, store.js). Edits are a draft
@@ -14,6 +15,9 @@ import { el, clear, icon, iconText } from '../shell/dom.js';
 import { ABILITIES, ABILITY_NAMES, SKILLS, defaultSheet, normalizeSheet, derive, fmt, fromCombatStats } from './sheet.js';
 import { loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor, updateSheet, flushSheet } from './store.js';
 import { characterNames } from '../library/esoliteLibrary.js';
+import * as SP from './spell-rules.js';
+import * as BR from './builder-rules.js';
+import { spellPicker, spellDetails, spellTags } from './spellPicker.js';
 
 const LAST_KEY = 'KLITE.sheet.last';
 const AUTOSAVE_SETTING = 'sheets_autosave';
@@ -23,7 +27,7 @@ export default function initCharacters() {
     'use strict';
     if (window.KLITE_RPMod_Characters) return;
 
-    const V = { name: null, saved: null, draft: null, loading: false, error: '', mode: null, box: null, timer: null };
+    const V = { name: null, saved: null, draft: null, loading: false, error: '', mode: null, box: null, timer: null, manage: false, spellSearch: {} };
     const Shell = () => window.KLITE_RPMod_Shell;
     const Log = () => window.KLITE_RPMod_Log;
     const autosave = () => { try { return !!window.KLITE_RPMod_Settings?.get(AUTOSAVE_SETTING); } catch (_) { return false; } };
@@ -40,6 +44,7 @@ export default function initCharacters() {
     async function select(name) {
         if (V.draft && dirty() && name !== V.name && !confirm(`Discard unsaved changes to ${V.name}'s sheet?`)) { render(); return; }
         V.name = name || null; V.saved = null; V.draft = null; V.error = '';
+        V.manage = false;
         try { localStorage.setItem(LAST_KEY, V.name || ''); } catch (_) {}
         if (!V.name) { render(); return; }
         V.loading = true; render();
@@ -112,6 +117,101 @@ export default function initCharacters() {
         if (!toastEl || !toastEl.isConnected) { toastEl = el('div', { class: 'rpm-themed rpm-toast', role: 'status' }); document.body.appendChild(toastEl); }
         toastEl.textContent = msg; toastEl.classList.toggle('rpm-toast-err', !!isErr);
         clearTimeout(toastTimer); toastTimer = setTimeout(() => { toastEl && toastEl.remove(); toastEl = null; }, 2600);
+    }
+
+    // ---- spells on the sheet ------------------------------------------------------------------
+    // The chosen and always-prepared spells by level: text on demand, spell attack / damage rolls,
+    // save DC, Cast (uses the lowest free slot of the spell's level or higher; cantrips need none),
+    // free casts of species/Magic Initiate spells, restoring slots, and — for builder sheets —
+    // changing the spells (kept in sheet.build.spells too, so level up keeps them).
+    function logSpell(what) {
+        const L = Log(); if (!L) return;
+        const e = L.add({ who: V.name, what, kind: 'spell' }); toast(L.describe(e));
+    }
+    function castSpell(sv, entry, D) {
+        const sc = V.draft.spellcasting;
+        if (!sv.level) { logSpell(`casts ${sv.name}.`); return; }
+        const lvl = SP.slotFor(sv.level, sc.slots, sc.used);
+        if (!lvl) { toast(`No spell slot of level ${sv.level} or higher left${entry.free ? ' — use the free cast' : ''}.`, true); return; }
+        const u = sc.used = (sc.used || []).slice(); while (u.length < lvl) u.push(0); u[lvl - 1] = (u[lvl - 1] || 0) + 1;
+        edited(); logSpell(`casts ${sv.name} (level ${lvl} spell slot).`);
+    }
+    function freeCast(sv, entry, D) {
+        const sc = V.draft.spellcasting; const f = sc.freeUsed = Object.assign({}, sc.freeUsed);
+        f[entry.key] = (f[entry.key] || 0) + 1; edited();
+        logSpell(`casts ${sv.name} without a spell slot (${entry.source}).`);
+    }
+    function spellsSection(D, s) {
+        const sp = D.spell, box = el('div', { class: 'rpm-sheet-spells', 'data-spells': 'sheet' });
+        const entries = [
+            ...sp.cantripsKnown.map(k => ({ key: k, ability: sp.ability })),
+            ...sp.preparedSpells.map(k => ({ key: k, ability: sp.ability })),
+            ...sp.granted.map(g => ({ key: g.key, ability: g.ability || sp.ability, source: g.source, free: g.free })),
+        ].filter(e => SP.spell(e.key)).sort((a, b) => SP.spell(a.key).level - SP.spell(b.key).level || SP.spell(a.key).name.localeCompare(SP.spell(b.key).name));
+        const freeUsed = (s.spellcasting && s.spellcasting.freeUsed) || {};
+        let last = -1;
+        for (const e of entries) {
+            const sv = SP.spell(e.key), nums = SP.castingNumbers(s.abilities, e.ability, D.pb);
+            if (sv.level !== last) { last = sv.level; box.appendChild(el('div', { class: 'rpm-spell-lvl', text: sv.level ? `Level ${sv.level}` : 'Cantrips' })); }
+            const freeMax = e.free === 'pb' ? D.pb : e.free === 'long' ? 1 : 0, freeLeft = freeMax - (Number(freeUsed[e.key]) || 0);
+            const dmg = sv.damage ? SP.cantripDamage(sv, s.level) : '';
+            box.appendChild(el('div', { class: 'rpm-sheet-spell', 'data-spell': e.key }, [
+                el('details', { class: 'rpm-gal-sec rpm-grow' }, [el('summary', {}, [el('strong', { text: sv.name }), el('span', { class: 'rpm-muted', text: ` ${spellTags(sv)}${e.source ? ' · ' + e.source : ''}` })]), spellDetails(sv)]),
+                el('div', { class: 'rpm-row rpm-sheet-spell-btns' }, [
+                    sv.attack ? btn('Hit ' + fmt(nums.attack), () => rollD20(`${sv.name} (spell attack)`, nums.attack, 'attack'), { roll: 'spell-hit-' + e.key, title: 'Roll the spell attack' }) : null,
+                    sv.save ? el('span', { class: 'rpm-chip', title: 'The target makes this saving throw', text: `DC ${nums.dc} ${sv.save.toUpperCase()}` }) : null,
+                    dmg ? btn('Dmg', () => rollExpr(`${sv.name} damage (${sv.damageType})`, dmg, 'damage'), { roll: 'spell-dmg-' + e.key, title: `Roll damage (${dmg} ${sv.damageType})` }) : null,
+                    sv.heal ? btn('Heal', () => { const m = D.mods[e.ability] || 0; rollExpr(`${sv.name} healing`, sv.heal.replace('+mod', m ? (m > 0 ? '+' + m : String(m)) : ''), 'heal'); }, { roll: 'spell-heal-' + e.key, title: `Roll healing (${sv.heal.replace('+mod', ' + ' + (e.ability || '').toUpperCase())})` }) : null,
+                    btn('Cast', () => castSpell(sv, e, D), { roll: 'cast-' + e.key, title: sv.level ? 'Cast it: uses a spell slot and tells the AI' : 'Cast it (tells the AI)' }),
+                    freeMax ? btn(`Free ${Math.max(0, freeLeft)}/${freeMax}`, () => freeCast(sv, e, D), { roll: 'free-' + e.key, title: 'Cast without a spell slot (back after a Long Rest)', cls: freeLeft > 0 ? '' : 'rpm-off' }) : null,
+                ]),
+            ]));
+            const fb = box.querySelector(`[data-roll="free-${e.key}"]`); if (fb && freeLeft <= 0) fb.disabled = true;
+        }
+        if (!entries.length) box.appendChild(el('p', { class: 'rpm-muted', text: 'No spells chosen yet.' + (s.build ? ' Use "Change spells".' : ' Write them in the notes below.') }));
+        const hasUsed = (s.spellcasting.used || []).some(Boolean) || Object.values(freeUsed).some(Boolean);
+        box.appendChild(el('div', { class: 'rpm-row', style: 'flex-wrap:wrap;margin-top:4px' }, [
+            s.build ? btn(V.manage ? 'Done' : 'Change spells', () => { V.manage = !V.manage; render(); }, { icon: V.manage ? null : 'sparkles', title: 'Choose cantrips and prepared spells (SRD 5.2.1 lists)', roll: 'manage-spells' }) : null,
+            hasUsed ? btn('Restore slots (Long Rest)', () => { V.draft.spellcasting.used = []; V.draft.spellcasting.freeUsed = {}; edited(); logSpell('finishes a Long Rest: spell slots restored.'); }, { roll: 'restore-slots' }) : null,
+        ]));
+        if (V.manage && s.build) box.appendChild(spellManager(s));
+        return box;
+    }
+    // Change spells on a builder sheet (the same rules and limits as the builder).
+    function spellManager(s) {
+        const b = V.draft.build;
+        b.spells = Object.assign({ cantrips: [], prepared: [], spellbook: [] }, b.spells || {}, {
+            cantrips: s.spellcasting.cantripsKnown, prepared: s.spellcasting.preparedSpells, spellbook: s.spellcasting.spellbook });
+        const ctx = BR.spellContext(b), lim = SP.spellLimits(ctx), granted = new Set(SP.grantedSpells(ctx).map(g => g.key));
+        const apply = (patch) => {
+            Object.assign(b.spells, patch);
+            if (patch.spellbook) b.spells.prepared = b.spells.prepared.filter(k => patch.spellbook.includes(k));
+            const sc = V.draft.spellcasting;
+            sc.cantripsKnown = b.spells.cantrips.slice(); sc.preparedSpells = b.spells.prepared.slice(); sc.spellbook = b.spells.spellbook.slice();
+            sc.granted = SP.grantedSpells(BR.spellContext(b));
+            edited();
+        };
+        V.spellSearch = V.spellSearch || {};
+        const box = el('div', { class: 'rpm-bld-detail', 'data-spells': 'manage' });
+        if (b.class === 'druid' && s.level >= 3) {
+            const sel = el('select', { class: 'form-control rpm-input', 'aria-label': 'Land type' });
+            sel.appendChild(el('option', { value: '', text: '— land type —' }));
+            for (const t of SP.LAND_TYPES) { const o = el('option', { value: t, text: t.charAt(0).toUpperCase() + t.slice(1) }); if (t === b.landType) o.selected = true; sel.appendChild(o); }
+            sel.addEventListener('change', () => { b.landType = sel.value || undefined; apply({}); });
+            box.appendChild(field('Circle of the Land (after a Long Rest)', sel));
+        }
+        if (!lim.caster) { box.appendChild(el('p', { class: 'rpm-muted', text: 'Your class has no spell list; species and feat spells come from the builder.' })); return box; }
+        const opt = (label, title) => ({ label, title, search: V.spellSearch });
+        if (lim.cantrips) box.appendChild(spellPicker(SP.classSpells(b.class, { maxLevel: 0 }).filter(x => !granted.has(x.key)), b.spells.cantrips, lim.cantrips, v => apply({ cantrips: v }), opt('Sheet cantrips', `Cantrips — ${lim.cantrips}`)));
+        if (lim.maxLevel) {
+            const leveled = SP.classSpells(b.class, { minLevel: 1, maxLevel: lim.maxLevel }).filter(x => !granted.has(x.key));
+            if (lim.spellbook) box.appendChild(spellPicker(leveled, b.spells.spellbook, lim.spellbook, v => apply({ spellbook: v }), opt('Sheet spellbook', `Spellbook — ${lim.spellbook}`)));
+            const from = lim.spellbook ? leveled.filter(x => b.spells.spellbook.includes(x.key)) : leveled;
+            box.appendChild(spellPicker(from, b.spells.prepared, lim.prepared, v => apply({ prepared: v }), opt('Sheet prepared', `Prepared spells — ${lim.prepared}`)));
+        }
+        const errs = SP.spellErrors(BR.spellContext(b));
+        if (errs.length) box.appendChild(el('ul', { class: 'rpm-bld-errors', role: 'alert' }, errs.map(x => el('li', { text: x }))));
+        return box;
     }
 
     // ---- render -------------------------------------------------------------------------------
@@ -261,7 +361,7 @@ export default function initCharacters() {
                 field('Ability', el('div', { class: 'rpm-sheet-static', text: ABILITY_NAMES[sp.ability] })),
                 field('Save DC', el('div', { class: 'rpm-sheet-static', text: String(sp.saveDC) })),
                 field('Spell attack', btn(fmt(sp.attack), () => rollD20('Spell attack', sp.attack, 'attack'), { roll: 'spell-attack', title: 'Roll a spell attack' })),
-                field('Cantrips / prepared', el('div', { class: 'rpm-sheet-static', text: `${sp.cantrips} / ${sp.prepared}` })),
+                field('Cantrips / prepared', el('div', { class: 'rpm-sheet-static', text: `${sp.cantripsKnown.length}/${sp.cantrips} · ${sp.preparedSpells.length}/${sp.prepared}` })),
             ]));
             const slotRow = el('div', { class: 'rpm-row', style: 'flex-wrap:wrap;margin-top:4px' });
             sp.slots.forEach((n, i) => {
@@ -277,7 +377,8 @@ export default function initCharacters() {
                 }
             });
             if (slotRow.children.length) root.appendChild(slotRow);
-            const spells = el('textarea', { class: 'form-control rpm-input', rows: 2, 'aria-label': 'Cantrips and prepared spells', placeholder: 'Cantrips and prepared spells, e.g. Fire Bolt, Magic Missile' });
+            root.appendChild(spellsSection(D, s));
+            const spells = el('textarea', { class: 'form-control rpm-input', rows: 2, 'aria-label': 'Other spells and notes', placeholder: 'Other spells and notes (e.g. from items or a scroll)' });
             spells.value = sp.spells || '';
             spells.addEventListener('change', () => { V.draft.spellcasting.spells = spells.value; edited(); });
             root.appendChild(spells);

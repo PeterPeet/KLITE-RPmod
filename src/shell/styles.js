@@ -479,6 +479,21 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-bld-text { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; line-height: 1.5; }
 .rpm-bld-checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 2px 12px; }
 .rpm-bld-check { display: flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; }
+.rpm-spell-picker { display: flex; flex-direction: column; gap: 6px; }
+.rpm-spell-picker h3 { margin: 0; }
+.rpm-spell-rows { display: flex; flex-direction: column; gap: 2px; max-height: 360px; overflow-y: auto; }
+.rpm-spell-row { display: grid; grid-template-columns: minmax(150px, 1fr) auto auto; align-items: center; gap: 0 8px; padding: 1px 4px; border-radius: var(--rpm-radius); }
+.rpm-spell-row.rpm-on { background: var(--rpm-bg-hi, rgba(127,127,127,.12)); }
+.rpm-spell-info { grid-column: 1 / -1; padding: 2px 0 6px 24px; }
+.rpm-spell-info[hidden] { display: none; }
+.rpm-spell-more { font-size: 14px; line-height: 1; }
+.rpm-spell-tags { font-size: var(--rpm-fs-sm); white-space: nowrap; }
+.rpm-spell-lvl { font-weight: 600; font-size: var(--rpm-fs-sm); margin-top: 4px; color: var(--rpm-fg-muted); }
+.rpm-sheet-spells { display: flex; flex-direction: column; gap: 2px; margin: 4px 0; }
+.rpm-sheet-spell { display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; }
+.rpm-sheet-spell > details { min-width: 180px; }
+.rpm-sheet-spell-btns { gap: 4px; flex-wrap: wrap; }
+.rpm-sheet-spell-btns .rpm-btn { padding: 2px 8px; }
 .rpm-bld-primary { border-color: var(--rpm-border-hi); }
 .rpm-bld-errors { margin: 0; padding: 8px 8px 8px 28px; border: 1px solid var(--rpm-danger); border-radius: var(--rpm-radius); color: var(--rpm-fg); }
 .rpm-bld-nav { position: sticky; bottom: 0; padding: 8px 0; background: var(--rpm-bg); border-top: 1px solid var(--rpm-border); }

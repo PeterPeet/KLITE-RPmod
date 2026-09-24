@@ -13,6 +13,8 @@
 // DEX modifier; passive Perception = 10 + Perception bonus.
 // =============================================================================
 
+import { spellName } from './spell-rules.js';
+
 export const EXT_KEY = 'klite_rpmod';
 export const SHEET_VERSION = 1;
 
@@ -50,7 +52,9 @@ export function defaultSheet() {
         ac: 10, speed: 30,
         hp: { max: 10, current: 10, temp: 0 },
         attacks: [],               // [{ name, ability: 'str'|'dex'|…, proficient, bonus (extra to hit), damage: '1d8+3', notes }]
-        spellcasting: null,        // { ability, cantrips, prepared, slots: [per spell level], pact } (from the builder)
+        spellcasting: null,        // { ability, cantrips, prepared, slots: [per spell level], pact, used, spells (notes),
+                                   //   cantripsKnown: [spell keys], preparedSpells: [keys], spellbook: [keys] (wizard),
+                                   //   granted: [{ key, source, ability?, free? }] (always prepared), freeUsed: { key: n } } — keys: srd52-spells.js
         proficiencies: '',         // weapons / armor / tools / languages (text)
         acNote: '',                // how AC is made up, e.g. "Chain Mail + Shield"
         build: null,               // builder choices (builder-rules.js) — used for level up
@@ -90,9 +94,15 @@ export function normalizeSheet(raw) {
     s.coins = coins;
     if (s.spellcasting && typeof s.spellcasting === 'object' && ABILITIES.includes(s.spellcasting.ability)) {
         const sc = s.spellcasting;
-        s.spellcasting = { ability: sc.ability, pact: !!sc.pact, cantrips: Math.max(0, int(sc.cantrips, 0)), prepared: Math.max(0, int(sc.prepared, 0)),
+        const keys = (v) => [...new Set((Array.isArray(v) ? v : []).map(str).filter(Boolean))];
+        // unknown fields are kept (a newer RPmod may add some); the known ones are made valid
+        s.spellcasting = Object.assign({}, sc, { ability: sc.ability, pact: !!sc.pact, cantrips: Math.max(0, int(sc.cantrips, 0)), prepared: Math.max(0, int(sc.prepared, 0)),
             slots: (Array.isArray(sc.slots) ? sc.slots : []).map(n => Math.max(0, int(n, 0))).slice(0, 9), slotLevel: int(sc.slotLevel, 0) || undefined,
-            used: (Array.isArray(sc.used) ? sc.used : []).map(n => Math.max(0, int(n, 0))).slice(0, 9), spells: str(sc.spells) };
+            used: (Array.isArray(sc.used) ? sc.used : []).map(n => Math.max(0, int(n, 0))).slice(0, 9), spells: str(sc.spells),
+            cantripsKnown: keys(sc.cantripsKnown), preparedSpells: keys(sc.preparedSpells), spellbook: keys(sc.spellbook),
+            granted: (Array.isArray(sc.granted) ? sc.granted : []).filter(g => g && str(g.key)).map(g => Object.assign({ key: str(g.key), source: str(g.source) },
+                ABILITIES.includes(g.ability) ? { ability: g.ability } : {}, g.free === 'long' || g.free === 'pb' ? { free: g.free } : {})),
+            freeUsed: Object.fromEntries(Object.entries(sc.freeUsed && typeof sc.freeUsed === 'object' ? sc.freeUsed : {}).map(([k, v]) => [k, Math.max(0, int(v, 0))]).filter(([, v]) => v > 0)) });
     } else s.spellcasting = null;
     if (!s.build || typeof s.build !== 'object') s.build = null;
     return s;
@@ -157,7 +167,13 @@ export function sheetSummary(sheet) {
     ];
     const prof = SKILLS.filter(k => s.skills[k.id]).map(k => `${k.name} ${fmt(d.skills[k.id])}`);
     if (prof.length) lines.push('Skills: ' + prof.join(', '));
-    if (d.spell) lines.push(`Spellcasting (${d.spell.ability.toUpperCase()}): save DC ${d.spell.saveDC}, spell attack ${fmt(d.spell.attack)}` + (d.spell.slots.length ? `, slots ${d.spell.slots.map((n, i) => n ? `L${i + 1}×${n}` : '').filter(Boolean).join(' ')}` : '') + (d.spell.spells ? `; spells: ${d.spell.spells}` : ''));
+    if (d.spell) {
+        const sp = d.spell, names = (keys) => keys.map(spellName).join(', ');
+        const chosen = [sp.cantripsKnown.length ? `cantrips ${names(sp.cantripsKnown)}` : '', sp.preparedSpells.length ? `prepared ${names(sp.preparedSpells)}` : '',
+            sp.granted.length ? `always prepared ${names(sp.granted.map(g => g.key))}` : ''].filter(Boolean).join('; ');
+        lines.push(`Spellcasting (${sp.ability.toUpperCase()}): save DC ${sp.saveDC}, spell attack ${fmt(sp.attack)}` + (sp.slots.length ? `, slots ${sp.slots.map((n, i) => n ? `L${i + 1}×${n}` : '').filter(Boolean).join(' ')}` : '') +
+            (chosen ? `\nSpells: ${chosen}` : '') + (sp.spells ? `${chosen ? '; ' : '\nSpells: '}${sp.spells}` : ''));
+    }
     if (s.inventory.length) lines.push('Inventory: ' + s.inventory.map(i => i.name + (i.qty > 1 ? ` x${i.qty}` : '')).join(', '));
     const coins = Object.entries(s.coins).filter(([, v]) => v > 0).map(([k, v]) => `${v} ${k}`);
     if (coins.length) lines.push('Coins: ' + coins.join(', '));
