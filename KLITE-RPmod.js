@@ -36333,6 +36333,8 @@ Purse: ${iv.purseText}`);
     const known = (name) => byName.has(String(name || "").toLowerCase());
     function summary() {
       if (typeof window.autogenerate_summary_memory !== "function") return fail("This Esolite has no AutoGenerate Memory.");
+      const story = Array.isArray(window.gametext_arr) ? window.gametext_arr : [];
+      if (!story.some((t) => String(t || "").trim())) return fail("The story is empty — nothing to summarise yet.");
       try {
         window.btn_memory?.();
       } catch (_) {

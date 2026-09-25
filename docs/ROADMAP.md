@@ -6,20 +6,22 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-25 (R3 done: Compendium)
+> Last updated: 2026-09-25 (R6 done: chat power features)
 
 ## Current state
 
 **Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
 is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). R5 is done
 (✅ 2026-09-25: spells in the Combat window, companions' HP, Long rest, the Encounter node), and
-R3 too (✅ 2026-09-25: the SRD 5.2.1 Compendium). The R4 extras are done too (2026-09-25: `<take>` semantics, faction phases, kill reputation, repeatable/daily quests, quest-giver dialogue, vendors/shops). Next: R6. The real-backend play
+R3 too (✅ 2026-09-25: the SRD 5.2.1 Compendium). The R4 extras are done too (2026-09-25: `<take>` semantics, faction phases, kill reputation, repeatable/daily quests, quest-giver dialogue, vendors/shops). R6 is done too (2026-09-25). The real-backend play
 test (known issue 5) is postponed (owner, 2026-09-25). R7 is done (✅ 2026-09-25, acceptance passed).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
 issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
 combat: zones of the room, moving/fleeing, cover, hiding, Guide tab) are done.
 Done since R1: R2 characters (✅ 2026-09-25), R5 combat (✅ 2026-09-25), R4 quests & world (✅), R7 world map (✅ 2026-09-25), R3 compendium
-(✅ 2026-09-25). R6 (chat power features) is still to do.
+(✅ 2026-09-25), R6 chat power features (✅ 2026-09-25: slash commands, quick replies, hidden tags, lorebook
+round trip; design `docs/design/R6-chat-power.md`). All phases R1–R7 are done; next: the real-backend play test
+(known issue 5) and the open items below.
 
 Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
 Supported host: **current Esobold** (esolithe/esobold `remoteManagement`), run from the local
@@ -32,7 +34,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 290 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 331 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -53,6 +55,9 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
   World editor (node graph) windows; Creator/Player lens.
 - **Delivery:** usermod bundle, or `index.rpmod.html` that autoloads the mod after
   Esolite's `load` event.
+- **Chat power (R6):** slash commands through the engine (`/go`, `/buy`, `/accept`, `/check` …, `/help`), quick
+  replies with a world-aware Here row, optional hiding of control tags, lorebook round trip (SillyTavern / V3 /
+  Esolite WI / Esolite's Library), `/summary` = Esolite's AutoGenerate Memory.
 - RP panels (formerly "ALPHA"; split and restyled onto the shell in the R1 cleanup 2026-09-25): CHARS/ROLES/TOOLS/CONTEXT/IMAGES panels, card import
   (V2, partial V3), personas, group chat speaker modes, quick actions, chapters, image gen.
 
@@ -73,7 +78,7 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 | | World Info / lorebooks | ✅ Esolite + Worlds graph; round trip SillyTavern / V3 / Esolite (R6 step 4) |
 | | Quick replies | ✅ R6 step 2: left dock, editor, world-aware "Here" row |
 | | Slash commands | ✅ R6 step 1: `/go`, `/buy`, `/accept`, `/check` … through the engine |
-| | RAG, TTS, image gen, summaries | ✅ mostly Esolite/ALPHA |
+| | RAG, TTS, image gen, summaries | ✅ Esolite's (`/summary`, running memory, TextDB) / RP panels |
 | WoW | Marker set incl. grey `!`/`?` | ✅ |
 | | Quest log: counters, track, abandon | ✅ |
 | | Chains & prerequisites | ✅ level/quest/flag/reputation, item-started |
@@ -615,7 +620,7 @@ the AI narrates; HP and XP are written back to the persona sheet; all SRD monste
 - Shared game log (dice + combat), visible to the AI.
 Acceptance: build a "medium" encounter, fight it through victory and through defeat.
 
-### R6 — Chat power features (SillyTavern) 🟨
+### R6 — Chat power features (SillyTavern) ✅ (2026-09-25)
 **Design: [docs/design/R6-chat-power.md](design/R6-chat-power.md)** (2026-09-25: how Esolite's slash
 commands / custom tools, display pipeline, summaries and lorebook import work; decisions; commands → engine).
 - [x] **Step 1 — slash commands** (2026-09-25): `/go`, `/look`, `/search`, doors, `/talk`, `/give`/`/take`/`/inv`,
@@ -638,6 +643,14 @@ commands / custom tools, display pipeline, summaries and lorebook import work; d
       Library; each entry has a `[Location: …]` header and `extensions.rpmod`, the book carries the world. Import
       restores that world as a copy with edits made elsewhere, or types entries by their header; other entries become
       Lore (disabled ones stay off). The World tab's Import also reads World JSON. Tests `tests/lorebook.test.js`.
+- [x] **Step 5 — summaries / memory** (2026-09-25): Esolite's own tools, no RPmod summariser: `/summary` opens the
+      Context dialog and runs Esolite's AutoGenerate Memory; the User Guide explains running memory and TextDB.
+- **R6 done** — acceptance met (2026-09-25): `tests/acceptance-r6.test.js` plays the example world's first quest from
+  offer to reward, shopping and a fight with slash commands and quick replies only (only the text parts reach the
+  AI), then exports the world as a lorebook and re-imports it identical. Live in Esolite: commands through the real
+  Send button and input box, `/look` in Esolite's msgbox, quick replies and the Here row in the left dock, tags hidden
+  in the real display pipeline (instruct mode) and shown with Allow Editing, Esolite's own `load_tavern_wi` reading
+  the exported book and RPmod restoring it. The AI's narration with a real backend stays with known issue 5.
 - Quick replies panel; slash commands (`/roll`, `/move`, `/give`, …) mapped to the engine.
 - Optional stripping of control tags from displayed chat (known issue 2).
 - Lorebook round-trip (Worlds ↔ WI V2/V3); summaries / memory.

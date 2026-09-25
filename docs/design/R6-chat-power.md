@@ -1,6 +1,6 @@
 # R6 — Chat power features (design)
 
-> Written 2026-09-25 at the start of R6. Status and steps: [ROADMAP.md](../ROADMAP.md) (R6).
+> Written 2026-09-25 at the start of R6; implemented the same day (all five steps, see ROADMAP). Status and steps: [ROADMAP.md](../ROADMAP.md) (R6).
 > Product decisions: [USERSTORY.md](../USERSTORY.md). Host facts: [ARCHITECTURE.md](../ARCHITECTURE.md)
 > §2; chat tags §3.4.
 
@@ -170,7 +170,7 @@ what the player did.
 - **Guide:** the "Changing the world from chat" chapter gains the commands and quick replies.
 
 ## Steps
-1. Slash commands (`src/chat/slash-rules.js` pure parsing + `src/chat/slash.js` commands and the
+1. Slash commands (`src/chat/chat-rules.js` pure parsing + `src/chat/slash.js` commands and the
    wrapper), tests, Guide, docs.
 2. Quick replies section (+ migration of the Quick Actions, Here row), tests, docs.
 3. Hide control tags (display wrapper + setting), tests, docs.
