@@ -214,7 +214,7 @@ side-effect free.
 
 ### 3.4 Chat tags (`parseMutations`)
 `<move>`, `<npcmove>N=L`, `<mood>N=M`, `<flag>k=v`, `<unflag>`, `<give>Item xN`,
-`<take>Item xN` (*without a count removes the whole stack*), `<quest>id=state`, `<time>`,
+`<take>Item xN` (default one, like `<give>`; `x all` removes the stack), `<quest>id=state`, `<time>`,
 `<weather>`, `<advance>`, `<action>` (fires `action:` signal), `<roll>expr`,
 `<attack>A->B`, `<hp>N=±n`, `<check>N=abi DC`. Parsed from new `gametext_arr` messages
 (`lastParsedIndex`) **when the AI's reply arrives** (R7: wrapper around Esolite's

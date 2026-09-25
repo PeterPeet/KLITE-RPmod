@@ -13,7 +13,7 @@
 **Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
 is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). R5 is done
 (✅ 2026-09-25: spells in the Combat window, companions' HP, Long rest, the Encounter node), and
-R3 too (✅ 2026-09-25: the SRD 5.2.1 Compendium). Next: the R4 extras, then R6. The real-backend play
+R3 too (✅ 2026-09-25: the SRD 5.2.1 Compendium). Next: the R4 extras (started 2026-09-25: known issue 9, `<take>` semantics, is fixed), then R6. The real-backend play
 test (known issue 5) is postponed (owner, 2026-09-25). R7 is done (✅ 2026-09-25, acceptance passed).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
 issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
@@ -101,8 +101,9 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
    roles, chars) and `src/characters/cardEditor.js`, moving code without rewriting it; the
    "ALPHA" name is gone from the code. Still large: `rpmod/core.js` (one object literal, ~4k
    lines) and `panels/chars.js` (~2.5k).
-9. `<take>Item</take>` **without a count removes the whole stack**, while `<give>Item</give>`
-   adds one — asymmetric; decide the intended semantics (R4 or R6). Covered by a test.
+9. ~~`<take>Item</take>` without a count removed the whole stack~~ — decided 2026-09-25 (R4):
+   `<take>` without a count removes one, like `<give>` adds one; `<take>Item x all</take>` removes
+   the stack. Covered by a test.
 10. ~~Six duplicate object keys in ALPHA~~ — removed 2026-09-25 (R1 cleanup, step 1): the dead
     earlier copies of `updateSubmitBtn`, `setMode`, `loadSettings`, `saveSettings`,
     `extractTalkativeness`, `importWorldInfoEntry`; esbuild builds without warnings. Behaviour is

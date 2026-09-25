@@ -1324,9 +1324,11 @@ export default function initWorlds() {
             if (ex) ex.qty = (Number(ex.qty) || 1) + qty; else inv.push({ id: uid('item'), name: n, qty });
         });
     }
+    // qty: a number (default 1, like <give>) or 'all' (the whole stack). Known issue 9, decided 2026-09-25.
     function inventoryRemove(name, qty) {
         const n = norm(name); if (!n) return;
-        const cut = (inv) => { const i = inv.findIndex(x => sameItem(x.name, n)); if (i < 0) return; if (qty && (Number(inv[i].qty) || 1) > Number(qty)) inv[i].qty -= Number(qty); else inv.splice(i, 1); };
+        const all = String(qty).toLowerCase() === 'all', q = Math.max(1, Number(qty) || 1);
+        const cut = (inv) => { const i = inv.findIndex(x => sameItem(x.name, n)); if (i < 0) return; if (!all && (Number(inv[i].qty) || 1) > q) inv[i].qty -= q; else inv.splice(i, 1); };
         withSheet(s => cut(s.inventory), () => cut(rt().inventory));
     }
     // Items the player holds (sheet + story inventory).
@@ -1357,7 +1359,7 @@ export default function initWorlds() {
 
     // Parse explicit control tags out of one message. Returns true if state changed.
     // Supported: <move>/<go> and the other map tags (applyMapTag), <npcmove>NPC=Loc, <mood>NPC=Mood, <flag>k=v, <unflag>k,
-    //            <give>Item [xN], <take>Item [xN], <quest>id=state,
+    //            <give>Item [xN], <take>Item [xN|x all], <quest>id=state,
     //            <time>slot, <weather>desc, <advance> (advance clock one slot)
     function parseMutations(text) {
         const world = activeWorld(); if (!world || !rt()) return false;
@@ -1379,7 +1381,7 @@ export default function initWorlds() {
         scan(/<flag>\s*([^=<>]+?)\s*(?:=\s*([^<>]*?))?\s*<\/flag>/gi, m => { rt().flags[norm(m[1])] = parseFlagValue(m[2]); return true; });
         scan(/<unflag>\s*([^<>]+?)\s*<\/unflag>/gi, m => { delete rt().flags[norm(m[1])]; return true; });
         scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || []; inventoryAdd(nm, q); return true; });
-        scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || []; inventoryRemove(nm, q); return true; });
+        scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+|all))?$/i.exec(norm(m[1])) || []; inventoryRemove(nm, q); return true; });
         // <rep>Royal Guard=+50</rep>: the player's standing with a faction changes
         scan(/<rep>\s*([^=<>]+?)\s*=\s*([+-]?\d+)\s*<\/rep>/gi, m => { const fid = factionIdOf(m[1]); if (!fid) return false; changeReputation(fid, Number(m[2]), 'tag'); return true; });
         // <talk>Captain Rowan</talk>: the player spoke with this person (quest "talk" objectives)

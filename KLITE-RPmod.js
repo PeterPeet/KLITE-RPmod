@@ -23543,10 +23543,11 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
     function inventoryRemove(name, qty) {
       const n = norm4(name);
       if (!n) return;
+      const all = String(qty).toLowerCase() === "all", q = Math.max(1, Number(qty) || 1);
       const cut = (inv) => {
         const i = inv.findIndex((x) => sameItem(x.name, n));
         if (i < 0) return;
-        if (qty && (Number(inv[i].qty) || 1) > Number(qty)) inv[i].qty -= Number(qty);
+        if (!all && (Number(inv[i].qty) || 1) > q) inv[i].qty -= q;
         else inv.splice(i, 1);
       };
       withSheet((s) => cut(s.inventory), () => cut(rt().inventory));
@@ -23648,7 +23649,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         return true;
       });
       scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, (m) => {
-        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm4(m[1])) || [];
+        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+|all))?$/i.exec(norm4(m[1])) || [];
         inventoryRemove(nm, q);
         return true;
       });

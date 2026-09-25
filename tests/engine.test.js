@@ -38,8 +38,11 @@ test('chat tags mutate state; clock derives season', async (t) => {
     assert.ok(W.runtime.inventory.some(i => i.name === 'Torch' && i.qty === 2));
     W.applyTags('<take>Torch x1</take>');
     assert.ok(W.runtime.inventory.some(i => i.name === 'Torch' && i.qty === 1), '<take> with count decrements');
-    // Current behavior: <take> WITHOUT a count removes the whole stack (see ROADMAP known issues).
-    W.applyTags('<take>Torch</take><unflag>metBram</unflag><time>evening</time><weather>rain</weather>');
+    // Known issue 9 (decided 2026-09-25): <take> without a count removes one, like <give> adds one;
+    // "x all" removes the stack.
+    W.applyTags('<give>Torch x3</give><take>Torch</take>');
+    assert.equal(W.runtime.inventory.find(i => i.name === 'Torch').qty, 3, '1 + 3 − 1');
+    W.applyTags('<take>Torch x all</take><unflag>metBram</unflag><time>evening</time><weather>rain</weather>');
     assert.ok(!W.runtime.inventory.some(i => i.name === 'Torch'));
     assert.ok(!('metBram' in W.runtime.flags));
     assert.equal(W.runtime.clock.time, 'evening');

@@ -282,7 +282,7 @@ are applied when you send. Either way the next slice reflects them.
 | `<flag>key=value</flag>` | `<flag>metRowan=true</flag>` | Set a story flag (`<flag>key</flag>` = true) |
 | `<unflag>key</unflag>` | `<unflag>metRowan</unflag>` | Clear a flag |
 | `<give>Item</give>` | `<give>Torch x2</give>` | Add to inventory (`x2` optional) |
-| `<take>Item</take>` | `<take>Torch</take>` | Remove from inventory |
+| `<take>Item</take>` | `<take>Torch</take>`, `<take>Torch x2</take>`, `<take>Torch x all</take>` | Remove one (or the count, or the whole stack) |
 | `<quest>id=state</quest>` | `<quest>find_sword=active</quest>` | Set a quest's state (`done` hides it) |
 | `<time>slot</time>` | `<time>evening</time>` | Set time of day |
 | `<weather>…</weather>` | `<weather>rain</weather>` | Set the weather |
