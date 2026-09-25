@@ -6,16 +6,16 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-25 (R7 step 5: zone combat)
+> Last updated: 2026-09-25 (R7 done: acceptance passed)
 
 ## Current state
 
-**Now: R7 acceptance check** (see R7 below), then spells in the Combat window (R5) and the
-real-backend play test (known issue 5).
+**Now: spells in the Combat window (R5)**, then the real-backend play test (known issue 5).
+R7 is done (✅ 2026-09-25, acceptance passed).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
 issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
 combat: zones of the room, moving/fleeing, cover, hiding, Guide tab) are done.
-Done since R1: R2 characters (✅ 2026-09-25), R5 combat (🟨), R4 quests & world (✅). R3
+Done since R1: R2 characters (✅ 2026-09-25), R5 combat (🟨), R4 quests & world (✅), R7 world map (✅ 2026-09-25). R3
 (compendium window; monster and spell data already bundled) and R6 (chat power features) are still to do.
 
 Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
@@ -29,7 +29,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 229 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 232 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -76,7 +76,7 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 | | Rewards XP/gold/choose-one | ✅ paid to the persona's sheet |
 | | Zones/subzones, hubs, phasing | ✅ |
 | | Factions & reputation | ✅ tiers; effects narrated (no vendors yet) |
-| Map | Places room by room, board, fog, zone combat (no VTT) | ✅ R7 steps 1–5: dungeon/town editor, mini-map with fog, moving with door rules, AI map tags, doors/Search checks, seeded generator, zone combat with cover and hiding (acceptance check open) |
+| Map | Places room by room, board, fog, zone combat (no VTT) | ✅ R7: dungeon/town editor, mini-map with fog, moving with door rules, AI map tags, doors/Search checks, seeded generator, zone combat with cover and hiding |
 
 ### Known issues / tech debt
 1. ~~"Monster / NPC combatant" flag does nothing~~ — decides the combat side since R5 (a monster is
@@ -134,6 +134,13 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
     kept while developing; investigate if it shows up again. **Seen again 2026-09-24** (one full run
    during R7 step 3; passed in 6 isolated runs and the next full run; the failure text was again not
    captured — keep the full `npm test` output next time it fails).
+19. ~~Worlds created right after page load could overwrite the stored worlds~~ — fixed 2026-09-25
+    (found during the R7 acceptance check): the Worlds API exists before the library has loaded
+    from IndexedDB, so an early "New world" / "Load example" saved a library without the stored
+    worlds. Saves now wait for the load, the load keeps worlds created meanwhile, and a library
+    that cannot be read is copied to `KLITE_WORLDS_LIBRARY_corrupt_<time>` before anything is saved
+    over it. Tests in `tests/engine.test.js` ("library: …"). Whether this caused the example world
+    to disappear from the test browser is unknown (another chat also used that browser).
 
 ## Phases
 
@@ -491,7 +498,7 @@ Acceptance: build a "medium" encounter, fight it through victory and through def
 Acceptance: run a session using only slash commands and quick replies; export a world
 as a lorebook and re-import it.
 
-### R7 — World map: dungeons & towns, room by room 🟨 (revised 2026-09-23)
+### R7 — World map: dungeons & towns, room by room ✅ (2026-09-25; revised 2026-09-23)
 **Design: [docs/design/R7-world-map.md](design/R7-world-map.md)** (decisions, data model, AI
 interface, UI, generator, zone combat, AI-capability analysis). Owner's decisions: no VTT;
 room-by-room movement, towns as places; location kinds `location` / `dungeon` / `town`; a
@@ -596,7 +603,12 @@ Steps:
 5. ~~Zone combat (zones of the room, moving/fleeing, cover, hiding, Guide tab)~~ (done, see above).
 Acceptance: build a small dungeon and a town in the editor, generate a second dungeon, let the AI
 add a room with a locked door, explore room by room with fog on the mini-map, find a secret door
-by searching, and fight an encounter using zones and cover.
+by searching, and fight an encounter using zones and cover. **✅ Passed 2026-09-25:** end-to-end test `tests/acceptance-r7.test.js` (whole bundle + UI, AI
+replies through `handle_incoming_text`) and live in Esolite (hand-built mine + town, generated
+tomb, mini-map clicks with fog, the AI's `<room>`/`<door>` reply through Esolite's real reply
+handler, Search button finding the secret door, `<encounter>` reply → zone fight in the large
+hall: move, take cover, enemies close in, victory). A real AI backend is the separate play test
+(known issue 5).
 
 ## Working agreement
 1. Plan the phase (or item) briefly; confirm scope with the owner when unclear.

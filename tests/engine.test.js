@@ -161,3 +161,36 @@ test('persons: library character link, stats in slice, export snapshot', async (
     const exp = W.exportWorld();
     assert.equal(exp.npcs.find(x => x.id === p.id).characterSnapshot.name, 'Captain Rowan');
 });
+
+// Never lose stored worlds: the API exists before the library has loaded from IndexedDB, and
+// a corrupt stored library is kept aside instead of being overwritten.
+test('library: a world created before the stored library has loaded does not overwrite it', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary();
+    h.eval(`__idb.set('KLITE_WORLDS_LIBRARY', JSON.stringify({ world_keep: { id: 'world_keep', name: 'Kept', locations: [] } }));
+        const __slowLoad = indexeddb_load; indexeddb_load = function (k, d) { return new Promise(r => setTimeout(() => r(__slowLoad(k, d)), 150)); };`);
+    h.load('worlds');
+    h.window.dispatchEvent(new h.window.Event('load'));
+    const W = h.window.KLITE_RPMod_Worlds;
+    await new Promise(r => setTimeout(r, 30));   // init has started, the library is still loading
+    const id = await W.newWorld('Early');
+    await h.ready();
+    const stored = JSON.parse(h.eval(`__idb.get('KLITE_WORLDS_LIBRARY')`));
+    assert.deepEqual(Object.keys(stored).sort(), ['world_keep', id].sort(), 'both worlds stored');
+    assert.deepEqual(Array.from(W.listWorlds(), x => x.name).sort(), ['Early', 'Kept']);
+    assert.equal(W.activeWorld().id, id);
+});
+
+test('library: a corrupt stored library is kept aside, not overwritten', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary();
+    h.eval(`__idb.set('KLITE_WORLDS_LIBRARY', '{"world_a": {"id": "world_a", broken');`);
+    h.load('worlds'); await h.ready();
+    const W = h.api();
+    await W.newWorld('Fresh');
+    const keys = JSON.parse(h.eval(`JSON.stringify([...__idb.keys()])`));
+    const backup = keys.find(k => /^KLITE_WORLDS_LIBRARY_corrupt_/.test(k));
+    assert.ok(backup, 'the unreadable library is saved under a backup key');
+    assert.equal(h.eval(`__idb.get(${JSON.stringify(backup)})`), '{"world_a": {"id": "world_a", broken');
+    assert.deepEqual(Object.values(JSON.parse(h.eval(`__idb.get('KLITE_WORLDS_LIBRARY')`))).map(x => x.name), ['Fresh']);
+});

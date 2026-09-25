@@ -79,7 +79,8 @@ export function renderZoneBoard(view, opts = {}) {
     else {
         lab('c', { x: C, y: C - (kind === 'corridor' ? HW : R_MID) + 14 }, kind === 'corridor' ? 'middle' : 'centre');
         // side labels above the tokens, clear of the doors on the rim
-        for (const z of Object.keys(shapes)) if (ANG[z] != null) { const p = shapes[z].at; lab(z, { x: p.x, y: p.y - 28 }, { n: 'north', e: 'east', s: 'south', w: 'west' }[z]); }
+        // (north a little lower, so a door on the north rim does not cover its label)
+        for (const z of Object.keys(shapes)) if (ANG[z] != null) { const p = shapes[z].at; lab(z, { x: p.x, y: p.y - (z === 'n' ? 18 : 28) }, { n: 'north', e: 'east', s: 'south', w: 'west' }[z]); }
         lab('outer', { x: C, y: C - R_OUT + 13 }, 'just outside');
     }
     // doors on the rim

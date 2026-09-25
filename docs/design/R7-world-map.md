@@ -162,4 +162,9 @@ works and the AI only narrates.
 
 Acceptance: build a small dungeon and a town in the editor, generate a second dungeon, let the AI
 add a room with a locked door, explore room by room with fog on the mini-map, find a secret door
-by searching, and fight an encounter using zones and cover.
+by searching, and fight an encounter using zones and cover. **✅ Passed 2026-09-25:** end-to-end test `tests/acceptance-r7.test.js` (whole bundle + UI, AI
+replies through `handle_incoming_text`) and live in Esolite (hand-built mine + town, generated
+tomb, mini-map clicks with fog, the AI's `<room>`/`<door>` reply through Esolite's real reply
+handler, Search button finding the secret door, `<encounter>` reply → zone fight in the large
+hall: move, take cover, enemies close in, victory). A real AI backend is the separate play test
+(known issue 5).

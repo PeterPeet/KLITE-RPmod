@@ -26989,25 +26989,41 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         return null;
       }
     }
+    let libraryLoad = null;
+    function libraryReady() {
+      if (!libraryLoad) libraryLoad = loadLibrary();
+      return libraryLoad;
+    }
     async function loadLibrary() {
+      let raw = null;
       try {
-        const raw = await idbLoad(IDB_LIBRARY_KEY);
+        raw = await idbLoad(IDB_LIBRARY_KEY);
         if (raw) {
-          W.library = JSON.parse(raw) || {};
-          for (const w of Object.values(W.library)) {
+          const stored = JSON.parse(raw) || {};
+          for (const w of Object.values(stored)) {
             try {
               normalizeWorld(w);
             } catch (_) {
             }
           }
+          const early = W.library || {};
+          W.library = Object.assign(stored, Object.fromEntries(Object.entries(early).filter(([id]) => !stored[id])));
           dbg("library loaded", Object.keys(W.library).length, "worlds");
         }
       } catch (e) {
-        err("loadLibrary failed", e);
-        W.library = {};
+        err("loadLibrary failed — the stored library is kept under a backup key", e);
+        if (raw) {
+          try {
+            await idbSave(`${IDB_LIBRARY_KEY}_corrupt_${Date.now()}`, raw);
+          } catch (e2) {
+            err("backup of the unreadable library failed", e2);
+          }
+        }
+        W.library = W.library || {};
       }
     }
     async function saveLibrary() {
+      await libraryReady();
       const rev = edits.rev;
       try {
         await idbSave(IDB_LIBRARY_KEY, JSON.stringify(W.library));
@@ -31365,7 +31381,7 @@ ${xl.join("\n")}`;
     }
     async function init() {
       if (W.ready) return;
-      await loadLibrary();
+      await libraryReady();
       installSaveWrappers();
       installReplyHook();
       registerProvider();
@@ -31497,7 +31513,7 @@ ${xl.join("\n")}`;
       lab("c", { x: C, y: C - (kind === "corridor" ? HW : R_MID) + 14 }, kind === "corridor" ? "middle" : "centre");
       for (const z of Object.keys(shapes)) if (ANG[z] != null) {
         const p = shapes[z].at;
-        lab(z, { x: p.x, y: p.y - 28 }, { n: "north", e: "east", s: "south", w: "west" }[z]);
+        lab(z, { x: p.x, y: p.y - (z === "n" ? 18 : 28) }, { n: "north", e: "east", s: "south", w: "west" }[z]);
       }
       lab("outer", { x: C, y: C - R_OUT + 13 }, "just outside");
     }

@@ -173,17 +173,31 @@ export default function initWorlds() {
         try { return localStorage.getItem(key); } catch (_) { return null; }
     }
 
+    // The API exists before the stored library has loaded (init waits for the host). Every save
+    // waits for the load (`libraryReady`), and the load keeps worlds created in the meantime, so
+    // an early "New world" / "Load example" can never overwrite the stored worlds. A library
+    // that cannot be read is copied to a backup key before anything is saved over it.
+    let libraryLoad = null;
+    function libraryReady() { if (!libraryLoad) libraryLoad = loadLibrary(); return libraryLoad; }
     async function loadLibrary() {
+        let raw = null;
         try {
-            const raw = await idbLoad(IDB_LIBRARY_KEY);
+            raw = await idbLoad(IDB_LIBRARY_KEY);
             if (raw) {
-                W.library = JSON.parse(raw) || {};
-                for (const w of Object.values(W.library)) { try { normalizeWorld(w); } catch (_) {} }
+                const stored = JSON.parse(raw) || {};
+                for (const w of Object.values(stored)) { try { normalizeWorld(w); } catch (_) {} }
+                const early = W.library || {};
+                W.library = Object.assign(stored, Object.fromEntries(Object.entries(early).filter(([id]) => !stored[id])));
                 dbg('library loaded', Object.keys(W.library).length, 'worlds');
             }
-        } catch (e) { err('loadLibrary failed', e); W.library = {}; }
+        } catch (e) {
+            err('loadLibrary failed — the stored library is kept under a backup key', e);
+            if (raw) { try { await idbSave(`${IDB_LIBRARY_KEY}_corrupt_${Date.now()}`, raw); } catch (e2) { err('backup of the unreadable library failed', e2); } }
+            W.library = W.library || {};
+        }
     }
     async function saveLibrary() {
+        await libraryReady();
         const rev = edits.rev;
         try {
             await idbSave(IDB_LIBRARY_KEY, JSON.stringify(W.library)); dbg('library saved');
@@ -3198,7 +3212,7 @@ export default function initWorlds() {
 
     async function init() {
         if (W.ready) return;
-        await loadLibrary();
+        await libraryReady();
         installSaveWrappers();
         installReplyHook();
         registerProvider();

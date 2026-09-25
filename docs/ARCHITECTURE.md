@@ -146,7 +146,10 @@ locations[], npcs[], factions[], objects[], events[], quests[], encounters[], gl
   'location', … }`, translated by `expandCondition`. Tier requirements: above Neutral "or better",
   below Neutral "or worse" (`quest-rules.tierAtLeastOrWorse`).
 - lore: `content, keys[], label, always`
-Library of worlds persists in IndexedDB key **`KLITE_WORLDS_LIBRARY`**.
+Library of worlds persists in IndexedDB key **`KLITE_WORLDS_LIBRARY`**. The API is exposed before
+`init` has loaded it, so `saveLibrary` awaits `libraryReady()` (one shared load) and `loadLibrary`
+keeps worlds created meanwhile (stored ones win on the same id); an unreadable stored library is
+first copied to `KLITE_WORLDS_LIBRARY_corrupt_<time>` (known issue 19).
 
 ### 3.2 Runtime state (per story, two slots)
 `W.runtime = { active:'working'|'base', base:Snapshot, working:Snapshot }`; every engine
@@ -745,7 +748,8 @@ globals in §2, a recording `submit_generation`, `seedRandom` for dice) and load
 via `vm` like a usermod (single `src/` modules are bundled on the fly with esbuild; the
 viewport is 1400×900, `host.resize()` changes it). Suites: `syntax`, `engine`, `quests`,
 `triggers`, `combat`, `context`, `library`, `settings`, `characters`, `shell`, `ui`, `onboarding`, `bundle` (built file end-to-end);
-R7: `map`, `mapEditor`, `move`, `explore`, `generator`, `zones`.
+R7: `map`, `mapEditor`, `move`, `explore`, `generator`, `zones`, `acceptance-r7` (the phase's
+acceptance scenario end to end).
 `host.installTavernTool()` loads Esolite's real `tavernTool.js`; `host.installFakeSettingsDialog()`
 mimics the Settings dialog; `host.installFakeEsoHooks({ quickStart, settings, guide })` mimics
 Esolite's mod hooks (registry, extension classes, `eso.guide`) for the `'eso'` modes.
