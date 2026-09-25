@@ -786,13 +786,13 @@ handler, Search button finding the secret door, `<encounter>` reply → zone fig
 hall: move, take cover, enemies close in, victory). A real AI backend is the separate play test
 (known issue 5).
 
-### R8 — Starter adventure "The Drowned Lantern" ⬜ (planned 2026-09-25)
-Design (draft, owner's review pending): [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
+### R8 — Starter adventure "The Drowned Lantern" 🟨 (approved 2026-09-25)
+Design (approved): [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
 An original adventure for levels 1–5 built into RPmod (two settlements, two routes, a hidden lake
 side, two questlines that meet at a finale), four pregenerated characters added to Esolite's Library
 on load, starting in the Player view. Only SRD 5.2.1 content; the reference material in
 `docs/reference/` is used for size and structure only.
-- [ ] Owner review of the design (open questions at its end: XP split, names, tone, fair length, portraits)
+- [x] Owner review of the design (2026-09-25: XP divided among the party, fights for two; names kept; tone; fair 3 days; initials)
 - [ ] Step 1: adventure package + loader, `world.start` (known issue 22), per-world view, pregen picker, validator, forbidden-names test
 - [ ] Step 2: companions and XP (owner's decision)
 - [ ] Steps 3–7: content layer by layer (Brindlewick → routes/Outpost → Lanternport fair → lake/sea cave → Lost Chapel)

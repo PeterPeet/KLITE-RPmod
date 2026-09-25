@@ -1,7 +1,6 @@
 # R8 — Starter adventure "The Drowned Lantern" (design)
 
-> Status: **draft for the owner's review** (2026-09-25). Nothing is built yet. Working title and
-> all names are placeholders until the owner approves them.
+> Status: **approved by the owner** (2026-09-25; decisions at the end). Step 1 in progress.
 > Related: [USERSTORY.md](../USERSTORY.md) (copyright guardrails), [ROADMAP.md](../ROADMAP.md)
 > (known issue 22), [R7-world-map.md](R7-world-map.md) (dungeons, towns, zone combat).
 
@@ -273,13 +272,12 @@ people can share adventures later.
 8. **Play test** with a real backend; fixes; then the World Building guide (A2) uses this adventure
    as its worked example.
 
-## Open questions for the owner
+## Owner's decisions (2026-09-25)
 
-1. **XP split and party size** (see "XP and fights"): divide combat XP among the party and author for
-   two — agreed?
-2. **Title and names** — "The Drowned Lantern", Brindlewick, Lanternport, Stillwater Mere, the pregens
-   and persons: keep, or rename any?
-3. **Tone:** classic heroic fantasy with light humour (the fair, Tove, Kasimir) and a spooky finale —
-   right?
-4. **The fair's length:** three in-game days — or shorter for pacing?
-5. **Portraits:** initials avatars at first, images later (owner-made or generated) — fine?
+1. **XP:** combat XP is divided among the party (persona + companions on the party side), as in the
+   SRD; fights are authored for a party of two (your pregen + one companion).
+2. **Names:** kept — "The Drowned Lantern", Brindlewick, Lanternport, Stillwater Mere, the pregens and
+   persons as above.
+3. **Tone:** classic heroic fantasy with light humour and a spooky finale.
+4. **The Lantern Fair:** three in-game days.
+5. **Portraits:** initials avatars for now.
