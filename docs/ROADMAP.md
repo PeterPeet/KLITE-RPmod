@@ -10,8 +10,9 @@
 
 ## Current state
 
-**Now: spells in the Combat window (R5)**, then the real-backend play test (known issue 5).
-R7 is done (✅ 2026-09-25, acceptance passed).
+**Now: R1 cleanup of the old panel code** ("ALPHA", known issues 6, 8, 13 — see R1 below; step 1
+done), then the open R2 items (known issues 4, 15), spells in the Combat window (R5) and the
+real-backend play test (known issue 5). R7 is done (✅ 2026-09-25, acceptance passed).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
 issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
 combat: zones of the room, moving/fleeing, cover, hiding, Guide tab) are done.
@@ -96,10 +97,15 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 8. ALPHA is a 17.7k-line monolith (its panels now live in the shell, its code does not yet).
 9. `<take>Item</take>` **without a count removes the whole stack**, while `<give>Item</give>`
    adds one — asymmetric; decide the intended semantics (R4 or R6). Covered by a test.
-10. **Six duplicate object keys in ALPHA** (esbuild warns on every build):
-    `updateSubmitBtn`, `setMode`, `loadSettings`, `saveSettings`, `extractTalkativeness`,
-    `importWorldInfoEntry`. The last definition wins (always has); the earlier ones are dead
-    code. Remove them when those ALPHA panels migrate into the shell (R1).
+10. ~~Six duplicate object keys in ALPHA~~ — removed 2026-09-25 (R1 cleanup, step 1): the dead
+    earlier copies of `updateSubmitBtn`, `setMode`, `loadSettings`, `saveSettings`,
+    `extractTalkativeness`, `importWorldInfoEntry`; esbuild builds without warnings. Behaviour is
+    unchanged (the last copy always won). Two dead copies did more than the live ones: the old
+    `setMode` also switched RP formatting on/off and set `inject_chatnames_instruct` for chat/RP
+    modes, and the old `extractTalkativeness` also scored lorebook entries and example-dialogue
+    length — if either is wanted, it is a new feature (git history has the code). With them went
+    69 methods nothing referenced (old overlay UI, an unused "unified save", PNG export helpers,
+    character modal extras) — ALPHA 17,494 → 15,018 lines.
 11. **Host bug (Esolite 1.35.0, not ours):** the plain `index.html` logs
     `SyntaxError: Identifier 'lastPendingResponse' has already been declared`
     (`static/js/postSubmitHandler.js`). Seen with and without the mod; no visible effect so
@@ -120,20 +126,25 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
     `KLITE_RPMod.characters` is a gallery view rebuilt from it (plus RPmod-only rating/
     talkativeness/tag cache in `characters_v3`). Remaining (R2): gallery ids are list
     positions — key RPmod extras and links by the Library `id`; ALPHA still polls every
-    5 s (`rebuildFromEsolite`) instead of only reacting to Esolite's events. ALPHA's gallery
-    grid/filter/sort code in `panels.CHARS` is now unused (fallback only) — remove it with the
-    ALPHA cleanup (known issues 8, 10).
+    5 s (`rebuildFromEsolite`) instead of only reacting to Esolite's events. (ALPHA's own gallery
+    grid, the fallback without the gallery, was removed in the R1 cleanup.)
 16. **Esolite 1.35 Library internals used by RPmod** (`resolveCharacterNameAndId`,
     `upsertCharacterMetadata`, `updateCharacterListFromAll`, `findCharacterMetaByName`,
     `getNextAutoincrementName`, `STORAGE_PREFIX`, `allCharacterNames`): recheck on every host
     upgrade; a small official save/delete API would be a good next proposal to Jaxxks.
 17. ~~Combat HP and sheet HP are separate~~ — the fight starts at the persona sheet's current HP
     and writes HP/XP back (R5, owner's decision). Companions (world persons) still start at full HP.
-18. **Flaky test seen once (2026-09-23):** "Combat window: build an encounter…" failed in one full
+18. ~~Flaky test seen once (2026-09-23)~~: "Combat window: build an encounter…" failed in one full
     run and passed in ~10 runs since; the failure text was not captured. Full-run output is now
     kept while developing; investigate if it shows up again. **Seen again 2026-09-24** (one full run
    during R7 step 3; passed in 6 isolated runs and the next full run; the failure text was again not
    captured — keep the full `npm test` output next time it fails).
+   **Fixed 2026-09-25 (root cause found):** the failure was "Cannot read properties of null" —
+   the Combat window had vanished. A second `load` event started WorldsUI again; registering its
+   views a second time force-closed the open window (`registerView` of an existing id unregisters
+   it). Reproduced under parallel load with a removal trace. Every module's load-time start now
+   runs once (`{ once: true }`, plus run-once guards in the Worlds engine and WorldsUI); test
+   "startup runs once" in `tests/rpmodPanels.test.js` fails without the fix.
 19. ~~Worlds created right after page load could overwrite the stored worlds~~ — fixed 2026-09-25
     (found during the R7 acceptance check): the Worlds API exists before the library has loaded
     from IndexedDB, so an early "New world" / "Load example" saved a library without the stored
@@ -250,6 +261,19 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
 - **R1 acceptance met** (no overlapping panels, everything reachable from the shell, tests
   green, live-checked). Carried into later phases: ALPHA's code still lives in the
   monolith (known issues 8, 10, 13) — its panels migrate as R2 rebuilds characters.
+- **Cleanup of the old panel code (reopened 2026-09-25, owner).** The name "ALPHA" is a legacy
+  version label and goes; the code ships in the one usermod file as before (Esobold runs a mod
+  as one classic script via `new Function`; esbuild bundles `src/`).
+  - [x] Step 1 (2026-09-25): duplicate keys and 69 unreferenced methods removed (issue 10), the
+        fallback gallery grid removed; regression tests `tests/rpmodPanels.test.js` (`rpmod` save
+        round trip, all panels render); found and fixed on the way: known issue 18 (double
+        start-up closed open windows).
+  - [ ] Step 2: split into `src/rpmod/` (core, host helpers, styles, formatting, boot),
+        `src/panels/` (tools, context, scenario, roles, chars, image) and `src/characters/`
+        (picker, card editor), moving code without rewriting it; drop the ALPHA naming (issue 8).
+  - [ ] Step 3: inline styles onto the shell's classes and spacing, panel by panel, and the old
+        overlay CSS (issue 13).
+  - [ ] Step 4: top-bar icons, usermod install vs `index.rpmod.html` (issue 6).
 - App shell: docked sidebars + a window manager for sheet, quest log, compendium, combat,
   editor, map; one entry point in the Esolite top bar.
 - Design system: tokens (color, type, spacing) bound to Esolite's theme variables,

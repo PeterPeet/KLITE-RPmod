@@ -1336,7 +1336,11 @@ export default function initWorldsUI() {
         window.addEventListener('klite:worlds-dirty', () => { try { updateSaveState(); refreshPanel({ soft: true }); } catch (_) {} });
     }
 
+    // Runs once: a second start would register the views again, and re-registering a view
+    // force-closes its open window (the "Combat window vanishes" flake, known issue 18).
+    let started = false;
     function whenReady() {
+        if (started) return; started = true;
         let tries = 0;
         const timer = setInterval(() => {
             tries++;
@@ -1348,5 +1352,5 @@ export default function initWorldsUI() {
 
     window.KLITE_RPMod_WorldsUI = { openEditor, closeEditor, refreshPanel, openMapEditor, closeMapEditor };
     if (document.readyState === 'complete') whenReady();
-    else window.addEventListener('load', whenReady);
+    else window.addEventListener('load', whenReady, { once: true });   // once: a second load event must not start it again
 }

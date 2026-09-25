@@ -266,5 +266,5 @@ export default function initLibrary() {
         } catch (e) { console.error('[RPmod library] recovery failed', e); }
     };
     const start = () => setTimeout(attempt, 1500);
-    if (document.readyState === 'complete') start(); else window.addEventListener('load', start);
+    if (document.readyState === 'complete') start(); else window.addEventListener('load', start, { once: true });   // once: a second load event must not start it again
 }

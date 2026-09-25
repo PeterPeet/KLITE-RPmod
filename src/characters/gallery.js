@@ -416,5 +416,5 @@ export default function initGallery() {
 
     let tries = 0;
     const attempt = () => { if (!register() && ++tries < 120) setTimeout(attempt, 250); };
-    if (document.readyState === 'complete') attempt(); else window.addEventListener('load', attempt);
+    if (document.readyState === 'complete') attempt(); else window.addEventListener('load', attempt, { once: true });   // once: a second load event must not start it again
 }

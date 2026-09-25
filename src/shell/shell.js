@@ -454,5 +454,5 @@ export default function initShell() {
     window.KLITE_RPMod_Shell = api;
 
     if (document.readyState === 'complete') mount();
-    else window.addEventListener('load', mount);
+    else window.addEventListener('load', mount, { once: true });   // once: a second load event must not start it again
 }

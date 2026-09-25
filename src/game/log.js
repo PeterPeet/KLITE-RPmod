@@ -136,5 +136,5 @@ export default function initGameLog() {
         if (sh && !sh.views().includes('gamelog')) sh.registerView({ id: 'gamelog', title: 'Dice log', place: 'left', order: 30, mount: renderLog, update: renderLog });
         if ((!saves || !sh) && ++tries < 120) setTimeout(attempt, 250);
     };
-    if (document.readyState === 'complete') attempt(); else window.addEventListener('load', attempt);
+    if (document.readyState === 'complete') attempt(); else window.addEventListener('load', attempt, { once: true });   // once: a second load event must not start it again
 }

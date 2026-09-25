@@ -3225,7 +3225,9 @@ export default function initWorlds() {
         dbg('KLITE Worlds ready. prepare-wrap=', okPrepare, '— use KLITE_RPMod_Worlds API to import/enable a world.');
     }
 
+    let started = false;   // runs once (two load events must not start two inits)
     function whenReady() {
+        if (started) return; started = true;
         // Need host globals: prepare_submit_generation + generate_savefile (all
         // `function` declarations / window props, unlike const submit_generation).
         let tries = 0;
@@ -3240,6 +3242,6 @@ export default function initWorlds() {
 
     window.KLITE_RPMod_Worlds = API;
     if (document.readyState === 'complete') whenReady();
-    else window.addEventListener('load', whenReady);
+    else window.addEventListener('load', whenReady, { once: true });   // once: a second load event must not start it again
 
 }

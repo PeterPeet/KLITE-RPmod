@@ -1399,7 +1399,7 @@ body.rpm-docked #maincontainer {
     };
     window.KLITE_RPMod_Shell = api;
     if (document.readyState === "complete") mount2();
-    else window.addEventListener("load", mount2);
+    else window.addEventListener("load", mount2, { once: true });
   }
 
   // src/context/context.js
@@ -1938,7 +1938,7 @@ ${s.text}` : s.text : `[${s.title}]`;
     };
     const start = () => setTimeout(attempt, 1500);
     if (document.readyState === "complete") start();
-    else window.addEventListener("load", start);
+    else window.addEventListener("load", start, { once: true });
   }
 
   // src/KLITE-RPmod_ALPHA.js
@@ -5002,17 +5002,6 @@ ${s.text}` : s.text : `[${s.title}]`;
           console.warn("[KLITE RPMod] Generation function unavailable");
           return false;
         }
-      },
-      updateSettings(newSettings) {
-        if (this.settings && typeof newSettings === "object") {
-          Object.assign(window.localsettings, newSettings);
-          return true;
-        }
-        console.warn("[KLITE RPMod] Cannot update settings - localsettings unavailable");
-        return false;
-      },
-      isAvailable() {
-        return !!(window.localsettings && window.indexeddb_save && window.indexeddb_load);
       }
     };
     const STYLES_PANELS_ONLY = `
@@ -5129,38 +5118,11 @@ ${s.text}` : s.text : `[${s.title}]`;
         if (!LiteAPI.storage.load) throw new Error("Host storage.load unavailable");
         return LiteAPI.storage.load(key, null);
       },
-      updateSettings(patch) {
-        if (!window.localsettings) return false;
-        Object.assign(window.localsettings, patch || {});
-        return true;
-      },
-      setTheme(patch) {
-        if (!window.aestheticInstructUISettings) return false;
-        Object.assign(window.aestheticInstructUISettings, patch || {});
-        return true;
-      },
       setMode(opmode, subMode) {
         if (!window.localsettings) return false;
         window.localsettings.opmode = opmode;
         if (typeof subMode === "number") window.localsettings.adventure_switch_mode = subMode;
         return true;
-      },
-      // Characters unified store (no RPmod prefixes)
-      async loadCharactersV3() {
-        const raw = await this.load("characters_v3");
-        if (!raw || raw === "offload_to_indexeddb") return [];
-        try {
-          const data = JSON.parse(raw);
-          if (Array.isArray(data)) return data;
-          if (data && Array.isArray(data.characters)) return data.characters;
-          return [];
-        } catch (_) {
-          return [];
-        }
-      },
-      async saveCharactersV3(list2) {
-        const payload = JSON.stringify({ version: "3", saved: (/* @__PURE__ */ new Date()).toISOString(), characters: Array.isArray(list2) ? list2 : [] });
-        await this.save("characters_v3", payload);
       },
       applyCharacter(char, opts = {}) {
         if (!char || !window.localsettings) return false;
@@ -5172,16 +5134,6 @@ ${s.text}` : s.text : `[${s.title}]`;
         } catch (_) {
         }
         return true;
-      },
-      applyGroup(participantChars = []) {
-        try {
-          if (!window.localsettings) return false;
-          const names = participantChars.map((c) => c && c.name ? String(c.name).trim() : "").filter(Boolean);
-          window.localsettings.chatopponent = names.join("\n");
-          return true;
-        } catch (_) {
-          return false;
-        }
       }
     };
     const DOMUtil = {
@@ -5191,108 +5143,11 @@ ${s.text}` : s.text : `[${s.title}]`;
           console.warn(`[KLITE RPMod] Element not found: ${selector}`);
         }
         return element;
-      },
-      safeQuery(selector, context = document) {
-        try {
-          const element = context.querySelector(selector);
-          if (!element) {
-            console.warn(`[KLITE RPMod] Element not found: ${selector}`);
-          }
-          return element;
-        } catch (error) {
-          console.warn(`[KLITE RPMod] Invalid selector: ${selector}`, error.message);
-          return null;
-        }
-      },
-      safeQueryAll(selector, context = document) {
-        try {
-          const elements = context.querySelectorAll(selector);
-          if (elements.length === 0) {
-            console.warn(`[KLITE RPMod] No elements found: ${selector}`);
-          }
-          return Array.from(elements);
-        } catch (error) {
-          console.warn(`[KLITE RPMod] Invalid selector: ${selector}`, error.message);
-          return [];
-        }
-      },
-      safeSet(elementOrId, property, value, context = document) {
-        const element = typeof elementOrId === "string" ? this.safeGet(elementOrId, context) : elementOrId;
-        if (element && property in element) {
-          element[property] = value;
-          return true;
-        }
-        return false;
-      },
-      safeCall(elementOrId, method, ...args) {
-        const element = typeof elementOrId === "string" ? this.safeGet(elementOrId) : elementOrId;
-        if (element && typeof element[method] === "function") {
-          return element[method](...args);
-        }
-        console.warn(`[KLITE RPMod] Cannot call ${method} on element:`, elementOrId);
-        return null;
       }
     };
     window.LiteAPI = LiteAPI;
     window.DOMUtil = DOMUtil;
     window.KLITE_RPMod = {
-      // Append a simple character block into Esolite memory variable only
-      async appendCharacterToMemorySimple(charObj) {
-        try {
-          if (!charObj) return;
-          const safeGet = (...paths) => {
-            for (const p of paths) {
-              try {
-                const v = p();
-                if (v !== void 0 && v !== null && String(v).trim() !== "") return String(v);
-              } catch (_) {
-              }
-            }
-            return "";
-          };
-          let name = safeGet(
-            () => charObj.name,
-            () => charObj.rawData?.data?.name,
-            () => charObj.data?.name
-          ).trim();
-          let description = safeGet(
-            () => charObj.description,
-            () => charObj.content,
-            () => charObj.rawData?.data?.description,
-            () => charObj.data?.description
-          ).trim();
-          let personality = safeGet(
-            () => charObj.personality,
-            () => charObj.rawData?.data?.personality,
-            () => charObj.data?.personality
-          ).trim();
-          if ((!description || !personality) && typeof window.getCharacterData === "function") {
-            const targetName = name || charObj?.name || "";
-            try {
-              const data = await window.getCharacterData(targetName);
-              const d = data?.data || {};
-              if (!description) description = String(d.description || "").trim();
-              if (!personality) personality = String(d.personality || "").trim();
-              if (!name) name = String(d.name || "").trim();
-            } catch (_) {
-            }
-          }
-          const parts = [];
-          if (description) parts.push(`[Description:
-${description}]`);
-          if (personality) parts.push(`[Personality:
-${personality}]`);
-          if (parts.length === 0) return;
-          const block = `(((Character description of ${name}:
-${parts.join("\n")})))`;
-          if (typeof window.current_memory === "string" && window.current_memory.length) {
-            window.current_memory += "\n\n" + block;
-          } else {
-            window.current_memory = block;
-          }
-        } catch (_) {
-        }
-      },
       // Populate Create Scenario panel fields (if present) from a character
       async populateScenarioFromCharacter(charObj) {
         try {
@@ -6073,126 +5928,6 @@ ${parts.join("\n")})))`;
         }
       },
       // =============== Unified Save helpers (available after init) ===============
-      buildUnifiedSave() {
-        try {
-          const core = generate_savefile(true, true, true);
-          core.rpmod = this.collectRpmodState();
-          core.rpmod_version = "1";
-          return core;
-        } catch (e) {
-          this.error("Failed to build unified save:", e);
-          return generate_savefile(true, true, true);
-        }
-      },
-      buildUnifiedCompressed() {
-        const unified = this.buildUnifiedSave();
-        const storyjson = JSON.stringify(unified);
-        return buf_to_b64(lz_c.compress(storyjson, 1));
-      },
-      collectRpmodState() {
-        const scene = null;
-        const playrp = this.panels.TOOLS ? {
-          rules: this.panels.TOOLS.rules || "",
-          selectedCharacter: this.panels.TOOLS.selectedCharacter || null,
-          characterEnabled: !!this.panels.TOOLS.characterEnabled,
-          selectedPersona: this.panels.TOOLS.selectedPersona || null,
-          personaEnabled: !!this.panels.TOOLS.personaEnabled,
-          autoSender: this.panels.TOOLS.autoSender ? { ...this.panels.TOOLS.autoSender } : null
-        } : null;
-        const group = this.panels.ROLES ? {
-          participants: Array.isArray(this.panels.ROLES.activeChars) ? this.panels.ROLES.activeChars.map((c) => ({
-            id: c.id,
-            name: c.name,
-            description: c.description || c.content || "",
-            personality: c.personality || "",
-            scenario: c.scenario || "",
-            creator_notes: c.creator_notes || c.post_history_instructions || "",
-            image: c.image,
-            avatar: c.avatar,
-            isCustom: !!c.isCustom,
-            talkativeness: c.talkativeness,
-            keywords: Array.isArray(c.keywords) ? [...c.keywords] : void 0
-          })) : [],
-          currentSpeaker: typeof this.panels.ROLES.currentSpeaker === "number" ? this.panels.ROLES.currentSpeaker : 0,
-          lastSpeaker: typeof this.panels.ROLES.lastSpeaker === "number" ? this.panels.ROLES.lastSpeaker : -1,
-          speakerMode: this.panels.ROLES.speakerMode || "manual",
-          speakerHistory: Array.isArray(this.panels.ROLES.speakerHistory) ? this.panels.ROLES.speakerHistory.slice(-20) : []
-        } : null;
-        const chat = this.panels.PLAY_CHAT ? {
-          chatStyle: this.panels.PLAY_CHAT.chatStyle || "mobile"
-        } : null;
-        const avatars = {
-          userCurrent: this.userAvatarCurrent || null,
-          aiCurrent: this.aiAvatarCurrent || null
-        };
-        const ui = {
-          tabs: { ...this.state.tabs },
-          collapsed: { ...this.state.collapsed },
-          adventureMode: this.state.adventureMode || 0,
-          fullscreen: !!this.state.fullscreen,
-          tabletSidepanel: !!this.state.tabletSidepanel,
-          avatarPolicy: this.state.avatarPolicy ? { ...this.state.avatarPolicy } : { esoliteAdapter: false, liteExperimental: false }
-        };
-        return { scene, playRP: playrp, group, chat, avatars, ui };
-      },
-      importRpmodBlock(block) {
-        try {
-          if (!block || typeof block !== "object") return;
-          if (block.playRP && this.panels.TOOLS) {
-            const p = block.playRP;
-            this.panels.TOOLS.rules = p.rules || "";
-            this.panels.TOOLS.selectedCharacter = p.selectedCharacter || null;
-            this.panels.TOOLS.characterEnabled = !!p.characterEnabled;
-            this.panels.TOOLS.selectedPersona = p.selectedPersona || null;
-            this.panels.TOOLS.personaEnabled = !!p.personaEnabled;
-            if (p.autoSender) this.panels.TOOLS.autoSender = { ...p.autoSender };
-          }
-          if (block.group && this.panels.ROLES) {
-            const g = block.group;
-            this.panels.ROLES.activeChars = Array.isArray(g.participants) ? g.participants.map((c) => ({ ...c })) : [];
-            this.panels.ROLES.currentSpeaker = typeof g.currentSpeaker === "number" ? g.currentSpeaker : 0;
-            if (typeof g.lastSpeaker === "number") this.panels.ROLES.lastSpeaker = g.lastSpeaker;
-            this.panels.ROLES.speakerMode = g.speakerMode || "manual";
-            if (Array.isArray(g.speakerHistory)) this.panels.ROLES.speakerHistory = g.speakerHistory.slice(-20);
-          }
-          if (block.chat && this.panels.PLAY_CHAT) {
-            this.panels.PLAY_CHAT.chatStyle = block.chat.chatStyle || this.panels.PLAY_CHAT.chatStyle;
-          }
-          if (block.ui) {
-            this.state.tabs = { ...this.state.tabs, ...block.ui.tabs };
-            this.state.collapsed = { ...this.state.collapsed, ...block.ui.collapsed };
-            this.state.adventureMode = block.ui.adventureMode || 0;
-            this.state.fullscreen = !!block.ui.fullscreen;
-            this.state.tabletSidepanel = !!block.ui.tabletSidepanel;
-            if (block.ui.avatarPolicy) this.state.avatarPolicy = { ...block.ui.avatarPolicy };
-            try {
-              this.installAvatarAdapter();
-            } catch (_) {
-            }
-          }
-          if (block.avatars) {
-            if (block.avatars.userCurrent) this.userAvatarCurrent = block.avatars.userCurrent;
-            if (block.avatars.aiCurrent) this.aiAvatarCurrent = block.avatars.aiCurrent;
-          }
-          this.updateModeButtons?.();
-          try {
-            if (loadSlots && typeof loadSlots.then === "function") {
-              loadSlots.then(() => {
-                if (this.state?.tabs?.left === "TOOLS") this.loadPanel("left", "TOOLS");
-              }).catch(() => {
-                if (this.state?.tabs?.left === "TOOLS") this.loadPanel("left", "TOOLS");
-              });
-            } else {
-              if (this.state?.tabs?.left === "TOOLS") this.loadPanel("left", "TOOLS");
-            }
-          } catch (_) {
-          }
-          this.panels.ROLES?.refresh?.();
-          this.panels.PLAY_CHAT?.formatChatContent?.();
-        } catch (e) {
-          this.error("Failed to import rpmod block:", e);
-        }
-      },
       setupStartupConfiguration() {
         this.log("init", "Setting up startup configuration...");
         const currentMode = window.localsettings?.opmode || 1;
@@ -6616,22 +6351,6 @@ ${parts.join("\n")})))`;
       // UI toggle is unused in v2 (Esobold panels-only). Keep a tiny no-op.
       toggleUI() {
         this.log("hotkeys", "toggleUI is disabled in v2 (panels-only)");
-      },
-      // Input synchronization between UIs
-      syncInputValues(direction) {
-        const rpmodInput = document.getElementById("input");
-        const liteInput = document.getElementById("input_text") || document.getElementById("cht_inp") || document.getElementById("corpo_cht_inp");
-        if (!rpmodInput || !liteInput) {
-          this.log("hotkeys", "Input sync failed - missing input elements");
-          return;
-        }
-        if (direction === "to-lite") {
-          liteInput.value = rpmodInput.value;
-          this.log("hotkeys", "Input synced to Lite UI");
-        } else if (direction === "to-rpmod") {
-          rpmodInput.value = liteInput.value;
-          this.log("hotkeys", "Input synced to RPMod UI");
-        }
       },
       handleAction(action, event, target = event.target) {
         this.log("state", `Handling action: ${action}`);
@@ -7145,16 +6864,6 @@ ${parts.join("\n")})))`;
           return true;
         }
       },
-      setOverlaySidepanelEnabled(val) {
-        try {
-          if (window.localsettings) window.localsettings.rpmod_overlay_sidepanel = !!val;
-        } catch (_) {
-        }
-        try {
-          this.updatePanelsOnlyOverlayPadding();
-        } catch (_) {
-        }
-      },
       // Hide/show Corpo theme left panel (id="corpo_leftpanel")
       getHideCorpoLeftpanelEnabled() {
         try {
@@ -7455,8 +7164,8 @@ ${parts.join("\n")})))`;
                   KLITE_RPMod.panels.IMAGE.generateImage(prompt2);
                 },
                 "gen-combat": () => {
-                  const location2 = document.getElementById("scene-location")?.value || "battlefield";
-                  const prompt2 = `Intense combat scene in ${location2}, action scene, dynamic angles, dramatic lighting`;
+                  const location = document.getElementById("scene-location")?.value || "battlefield";
+                  const prompt2 = `Intense combat scene in ${location}, action scene, dynamic angles, dramatic lighting`;
                   KLITE_RPMod.panels.IMAGE.generateImage(prompt2);
                 },
                 "gen-dialogue": () => {
@@ -7466,9 +7175,9 @@ ${parts.join("\n")})))`;
                   KLITE_RPMod.panels.IMAGE.generateImage(prompt2);
                 },
                 "gen-dramatic": () => {
-                  const location2 = document.getElementById("scene-location")?.value || "scene";
+                  const location = document.getElementById("scene-location")?.value || "scene";
                   const mood = document.getElementById("scene-mood")?.value || "dramatic";
-                  const prompt2 = `Dramatic ${mood} moment in ${location2}, cinematic composition, emotional intensity`;
+                  const prompt2 = `Dramatic ${mood} moment in ${location}, cinematic composition, emotional intensity`;
                   KLITE_RPMod.panels.IMAGE.generateImage(prompt2);
                 },
                 "gen-atmosphere": () => {
@@ -7994,15 +7703,6 @@ ${parts.join("\n")})))`;
           }, 1e4);
         })(this);
       },
-      // Submit button visual sync helper (host-aware)
-      updateSubmitBtn() {
-        try {
-          if (typeof window.update_submit_button === "function") {
-            window.update_submit_button(false);
-          }
-        } catch (_) {
-        }
-      },
       // Minimal resize handling to keep panels-only layout sane
       handleResize() {
         try {
@@ -8017,10 +7717,6 @@ ${parts.join("\n")})))`;
         } catch (_) {
           return true;
         }
-      },
-      // Actions
-      submitWithRole(role = "user") {
-        return this.submit();
       },
       submit() {
         this.updateStatus();
@@ -8169,43 +7865,6 @@ ${parts.join("\n")})))`;
         }
         this.syncChat();
       },
-      setMode(mode2) {
-        if (window.localsettings) window.localsettings.opmode = mode2;
-        window.toggle_opmode?.(mode2);
-        this.log("state", `Setting mode to ${mode2} (${this.getMode()})`);
-        if (mode2 === 3) {
-          if (window.localsettings) {
-            window.localsettings.inject_chatnames_instruct = false;
-            if (typeof window.localsettings.gui_type_chat === "number") {
-            }
-          }
-          this.log("state", `Configured Chat mode settings`);
-        } else if (mode2 === 4) {
-          if (window.localsettings) {
-            window.localsettings.inject_chatnames_instruct = true;
-          }
-          this.log("state", `Enabled inject_chatnames_instruct for RP mode`);
-        }
-        this.updateModeButtons();
-        this.updateMobileModeClass(mode2);
-        this.onModeChange(mode2);
-        if (mode2 === 3) {
-          setTimeout(() => {
-            if (KLITE_RPMod.panels.PLAY_CHAT?.onModeEnter) {
-              KLITE_RPMod.panels.PLAY_CHAT.onModeEnter();
-            }
-          }, 200);
-        } else if (mode2 === 4) {
-          setTimeout(() => {
-            KLITE_RPMod.onRPModeEnter();
-          }, 200);
-        } else {
-          if (KLITE_RPMod.panels.PLAY_CHAT?.onModeExit) {
-            KLITE_RPMod.panels.PLAY_CHAT.onModeExit();
-          }
-          KLITE_RPMod.onRPModeExit();
-        }
-      },
       switchToClassicUI() {
         if (document.body.classList.contains("klite-active")) {
           document.body.classList.remove("klite-active");
@@ -8347,28 +8006,6 @@ ${parts.join("\n")})))`;
         } catch (_) {
         }
       },
-      // Normalize avatar source strings (handles CSS url(), quotes, HTML entities, whitespace)
-      normalizeAvatarSrc(src) {
-        try {
-          if (!src || typeof src !== "string") return src;
-          let s = src.trim();
-          const m = s.match(/^url\((['"]?)(.*)\1\)$/i);
-          if (m) s = m[2];
-          s = s.replace(/&quot;/g, '"');
-          s = s.replace(/^['"]|['"]$/g, "").trim();
-          if (/^data:image\//i.test(s)) {
-            const idx = s.indexOf(";base64,");
-            if (idx !== -1) {
-              const head = s.slice(0, idx + 8);
-              const b64 = s.slice(idx + 8).replace(/\s+/g, "");
-              s = head + b64;
-            }
-          }
-          return s;
-        } catch (_) {
-          return src;
-        }
-      },
       // Resolve best avatar URL using Character Manager (IndexedDB cache)
       getBestCharacterAvatar(char) {
         try {
@@ -8377,30 +8014,6 @@ ${parts.join("\n")})))`;
           return cached || char.avatar || char.images?.avatar || char.image || null;
         } catch (_) {
           return null;
-        }
-      },
-      // Current persona (user) avatar
-      resolveUserAvatar() {
-        this.ensureDefaultAvatars();
-        const persona = this.panels.TOOLS?.selectedPersona || null;
-        const best = this.getBestCharacterAvatar(persona);
-        return best || this.userAvatarCurrent || this.userAvatarDefault || null;
-      },
-      // Current selected character (AI) avatar
-      resolveAIAvatar() {
-        this.ensureDefaultAvatars();
-        const character = this.panels.TOOLS?.selectedCharacter || null;
-        const best = this.getBestCharacterAvatar(character);
-        return best || this.aiAvatarCurrent || this.aiAvatarDefault || null;
-      },
-      // Group character avatar by name, fallback to AI
-      resolveGroupAvatarByName(name) {
-        try {
-          if (!name || !this.panels.ROLES?.activeChars) return this.resolveAIAvatar();
-          const char = this.panels.ROLES.activeChars.find((c) => c.name === name);
-          return this.getBestCharacterAvatar(char) || this.resolveAIAvatar();
-        } catch (_) {
-          return this.resolveAIAvatar();
         }
       },
       // Diagnostics helper to inspect avatar selection state
@@ -9294,13 +8907,6 @@ ${parts.join("\n")})))`;
       findCharacterById(id) {
         return this.characters.find((char) => char.id == id);
       },
-      // Find characters by name (case-insensitive)
-      findCharactersByName(name) {
-        const searchName = name.toLowerCase();
-        return this.characters.filter(
-          (char) => char.name.toLowerCase().includes(searchName)
-        );
-      },
       // Update character data
       updateCharacter(id, updates) {
         const index = this.characters.findIndex((char) => char.id == id);
@@ -9314,34 +8920,6 @@ ${parts.join("\n")})))`;
         }
         return null;
       },
-      // Get character usage statistics
-      getCharacterStats() {
-        const stats = {
-          total: this.characters.length,
-          byCategory: {},
-          byRating: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
-          mostUsed: null,
-          recentlyAdded: [],
-          favorites: []
-        };
-        this.characters.forEach((char) => {
-          const category = char.category || "General";
-          stats.byCategory[category] = (stats.byCategory[category] || 0) + 1;
-          const rating = Math.round(char.rating?.userRating || 0);
-          if (rating >= 1 && rating <= 5) {
-            stats.byRating[rating]++;
-          }
-          if (!stats.mostUsed || char.stats?.timesUsed > stats.mostUsed.stats?.timesUsed) {
-            stats.mostUsed = char;
-          }
-          if (char.isFavorite) {
-            stats.favorites.push(char);
-          }
-        });
-        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1e3;
-        stats.recentlyAdded = this.characters.filter((char) => char.created > weekAgo).sort((a, b) => b.created - a.created);
-        return stats;
-      },
       // Mark character as used (for statistics)
       markCharacterAsUsed(id) {
         const char = this.findCharacterById(id);
@@ -9351,136 +8929,6 @@ ${parts.join("\n")})))`;
           char.stats.timesUsed = (char.stats.timesUsed || 0) + 1;
           this.saveCharacters();
           this.log("state", `Character marked as used: ${char.name} (${char.stats.timesUsed} times)`);
-        }
-      },
-      // Import characters from file data
-      async importCharactersFromData(data) {
-        let imported = 0;
-        try {
-          let charactersToImport = [];
-          if (Array.isArray(data)) {
-            charactersToImport = data;
-          } else if (data.characters && Array.isArray(data.characters)) {
-            charactersToImport = data.characters;
-          } else if (data.name) {
-            charactersToImport = [data];
-          }
-          const isBatchImport = charactersToImport.length > 1;
-          if (isBatchImport) {
-            this.batchImportMode = true;
-            this.log("state", `🔄 Starting batch import of ${charactersToImport.length} characters`);
-          }
-          for (const charData of charactersToImport) {
-            const existing = this.characters.find(
-              (char) => char.name === charData.name && char.creator === charData.creator
-            );
-            if (!existing) {
-              if (KLITE_RPMod.panels?.CHARS?.addCharacter) {
-                await KLITE_RPMod.panels.CHARS.addCharacter(charData);
-                imported++;
-              } else {
-                throw new Error("CHARS panel not available. Character import requires proper panel initialization.");
-              }
-            }
-          }
-          if (imported > 0) {
-            if (isBatchImport) {
-              this.batchImportMode = false;
-              this.log("state", `💾 Completing batch import with single save operation`);
-            }
-            this.saveCharacters();
-          }
-          if (imported > 0) {
-            this.essential(`📥 Import complete: ${imported} characters imported`);
-          }
-          return imported;
-        } catch (error) {
-          this.batchImportMode = false;
-          this.error("Failed to import characters:", error);
-          return 0;
-        }
-      },
-      // Export all characters as separate files (PNG preferred, otherwise JSON)
-      async exportCharactersToFile() {
-        try {
-          const list2 = this.getEsoliteCharacterList();
-          const names = list2.map((m) => typeof m === "string" ? m : m && m.name ? m.name : null).filter(Boolean);
-          if (names.length === 0) {
-            try {
-              alert("No characters found to export.");
-            } catch (_) {
-            }
-            return;
-          }
-          const isFileProtocol = typeof location !== "undefined" && location.protocol === "file:";
-          const isSafari = typeof navigator !== "undefined" && /safari/i.test(navigator.userAgent) && !/chrome|chromium|crios/i.test(navigator.userAgent);
-          const constrained = isFileProtocol || isSafari;
-          if (constrained && names.length > 0) {
-            try {
-              await this.exportCharactersAsZip(names);
-              return;
-            } catch (zipErr) {
-              try {
-                alert("ZIP export failed, falling back to single JSON bundle.");
-              } catch (_) {
-              }
-              try {
-                await this.exportAllFromEsolite();
-              } catch (_) {
-              }
-              return;
-            }
-          }
-          const toBlobFromDataURL = (dataURL) => {
-            try {
-              const parts = dataURL.split(",");
-              const header = parts[0];
-              const b64 = parts[1];
-              const mime = header.substring(header.indexOf(":") + 1, header.indexOf(";")) || "application/octet-stream";
-              const bin = atob(b64);
-              const bytes = new Uint8Array(bin.length);
-              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-              return new Blob([bytes], { type: mime });
-            } catch (_) {
-              return null;
-            }
-          };
-          let delay = 0;
-          for (const name of names) {
-            try {
-              const d = await window.getCharacterData?.(name);
-              if (!d) continue;
-              const safe2 = String(name).replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "_");
-              let blob, filename;
-              if (d.image && /^data:image\//.test(String(d.image))) {
-                blob = toBlobFromDataURL(String(d.image));
-                filename = `${safe2}.png`;
-              } else {
-                const json = JSON.stringify(d.data || {}, null, 2);
-                blob = new Blob([json], { type: "application/json" });
-                filename = `${safe2}.json`;
-              }
-              if (!blob) continue;
-              const url = URL.createObjectURL(blob);
-              setTimeout(() => {
-                try {
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = filename;
-                  a.style.display = "none";
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                } finally {
-                  setTimeout(() => URL.revokeObjectURL(url), 5e3);
-                }
-              }, delay);
-              delay += 150;
-            } catch (_) {
-            }
-          }
-        } catch (error) {
-          this.error("Failed to export all characters (separate):", error);
         }
       }
     };
@@ -10051,8 +9499,8 @@ ${parts.join("\n")})))`;
                   KLITE_RPMod.panels.IMAGE.generateImage(prompt2);
                 },
                 "gen-combat": () => {
-                  const location2 = document.getElementById("scene-location")?.value || "battlefield";
-                  const prompt2 = `Intense combat scene in ${location2}, action scene, dynamic angles, dramatic lighting`;
+                  const location = document.getElementById("scene-location")?.value || "battlefield";
+                  const prompt2 = `Intense combat scene in ${location}, action scene, dynamic angles, dramatic lighting`;
                   KLITE_RPMod.panels.IMAGE.generateImage(prompt2);
                 },
                 "gen-dialogue": () => {
@@ -10062,9 +9510,9 @@ ${parts.join("\n")})))`;
                   KLITE_RPMod.panels.IMAGE.generateImage(prompt2);
                 },
                 "gen-dramatic": () => {
-                  const location2 = document.getElementById("scene-location")?.value || "scene";
+                  const location = document.getElementById("scene-location")?.value || "scene";
                   const mood = document.getElementById("scene-mood")?.value || "dramatic";
-                  const prompt2 = `Dramatic ${mood} moment in ${location2}, cinematic composition, emotional intensity`;
+                  const prompt2 = `Dramatic ${mood} moment in ${location}, cinematic composition, emotional intensity`;
                   KLITE_RPMod.panels.IMAGE.generateImage(prompt2);
                 },
                 "gen-atmosphere": () => {
@@ -10311,63 +9759,6 @@ ${parts.join("\n")})))`;
           this.ensureImagePanel();
           KLITE_RPMod.panels.IMAGE?.init?.();
         } catch (_) {
-        }
-      },
-      async loadSettings() {
-        try {
-          const raw = await KLITE_RPMod.loadFromLiteStorage("rpmod_tools_settings");
-          if (!raw || raw === "offload_to_indexeddb") return;
-          const s = JSON.parse(raw);
-          if (s) {
-            this.personaEnabled = !!s.personaEnabled;
-            this.characterEnabled = !!s.characterEnabled;
-            this.selectedPersona = s.selectedPersona || null;
-            this.selectedCharacter = s.selectedCharacter || null;
-            if (s.chatname && window.localsettings) {
-              window.localsettings.chatname = s.chatname;
-            }
-            if (s.chatopponent && window.localsettings) {
-              window.localsettings.chatopponent = s.chatopponent;
-            }
-            try {
-              if (this.selectedPersona && this.personaEnabled) {
-                const up = this.selectedPersona.avatar || this.selectedPersona.image || null;
-                KLITE_RPMod.updateUserAvatar(up);
-              }
-              if (this.selectedCharacter && this.characterEnabled) {
-                const ap = this.selectedCharacter.avatar || this.selectedCharacter.image || null;
-                KLITE_RPMod.updateAIAvatar(ap);
-              }
-            } catch (_) {
-            }
-          }
-        } catch (e) {
-          KLITE_RPMod.log("panels", "TOOLS.loadSettings failed:", e?.message || e);
-        }
-      },
-      saveSettings() {
-        try {
-          const payload = {
-            personaEnabled: !!this.personaEnabled,
-            characterEnabled: !!this.characterEnabled,
-            selectedPersona: this.selectedPersona ? {
-              id: this.selectedPersona.id,
-              name: this.selectedPersona.name,
-              image: this.selectedPersona.image || this.selectedPersona.avatar || null,
-              type: this.selectedPersona.type
-            } : null,
-            selectedCharacter: this.selectedCharacter ? {
-              id: this.selectedCharacter.id,
-              name: this.selectedCharacter.name,
-              image: this.selectedCharacter.image || this.selectedCharacter.avatar || null,
-              type: this.selectedCharacter.type
-            } : null,
-            chatname: window.localsettings?.chatname || null,
-            chatopponent: window.localsettings?.chatopponent || null
-          };
-          KLITE_RPMod.saveToLiteStorage("rpmod_tools_settings", JSON.stringify(payload));
-        } catch (e) {
-          KLITE_RPMod.log("panels", "TOOLS.saveSettings failed:", e?.message || e);
         }
       },
       actions: {
@@ -11518,42 +10909,6 @@ ${parts.join("\n")})))`;
       redo() {
         if (window.redo_generation_button) {
           redo_generation_button();
-        }
-      },
-      startAutoSender() {
-        if (this.autoSender.timer) {
-          clearInterval(this.autoSender.timer);
-        }
-        this.autoSender.timer = setInterval(() => {
-          if (!KLITE_RPMod.state.generating && this.autoSender.enabled) {
-            const input2 = document.getElementById("input_text") || document.getElementById("input");
-            if (input2 && !input2.value.trim()) {
-              input2.value = this.autoSender.message;
-              KLITE_RPMod.submit();
-              this.autoSender.currentCount++;
-              this.updateAutoSenderStatus();
-            }
-          }
-        }, this.autoSender.interval * 1e3);
-        this.updateAutoSenderStatus();
-      },
-      stopAutoSender() {
-        if (this.autoSender.timer) {
-          clearInterval(this.autoSender.timer);
-          this.autoSender.timer = null;
-        }
-        this.updateAutoSenderStatus();
-      },
-      updateAutoSenderStatus() {
-        const status = document.getElementById("auto-sender-status");
-        if (status) {
-          if (this.autoSender.enabled) {
-            status.textContent = `Active (${this.autoSender.currentCount} sent)`;
-            status.style.color = "var(--success)";
-          } else {
-            status.textContent = "Disabled";
-            status.style.color = "var(--muted)";
-          }
         }
       }
     };
@@ -13247,159 +12602,6 @@ ${examples}`;
         } catch (_) {
         }
       },
-      showCharacterSelectorModal() {
-        const modal = document.createElement("div");
-        modal.className = "klite-modal";
-        modal.style.cssText = "position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;";
-        modal.innerHTML = `
-                <div class="klite-modal-content" style="background: var(--bg2); border-radius: 8px; padding: 20px; border: 1px solid var(--border);">
-                    <div class="klite-modal-header">
-                        <h3>Select Characters for Group</h3>
-                    </div>
-                    <div class="klite-modal-body">
-                        <p style="color: var(--muted); font-size: 12px; margin-bottom: 15px;">
-                            Choose characters from the library to add to your group chat.
-                        </p>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <input type="text" id="group-char-search" placeholder="Search characters..." 
-                            style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; margin-bottom: 10px;">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                            <select id="group-char-tag-filter" style="padding: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
-                                <option value="">All Tags</option>
-                            </select>
-                            <select id="group-char-talkativeness-filter" style="padding: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
-                                <option value="">All Talkativeness</option>
-                                <option value="high">Very Talkative (80+)</option>
-                                <option value="medium">Moderate (40-79)</option>
-                                <option value="low">Quiet (10-39)</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div id="group-character-selection-list" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 10px; background: var(--bg); margin-bottom: 15px;">
-                        <div style="text-align: center; color: var(--muted); padding: 20px;">Loading characters...</div>
-                    </div>
-                    
-                        <div class="klite-modal-footer">
-                            <button class="klite-btn klite-btn-primary" data-action="confirm-group-char-selection">
-                                Add Selected Characters
-                            </button>
-                            <button class="klite-btn" data-action="close-group-char-modal">
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        document.body.appendChild(modal);
-        this.currentModal = modal;
-        modal.addEventListener("click", (e) => {
-          if (e.target === modal) {
-            this.closeCharacterModal();
-          }
-        });
-        const handleEscape = (e) => {
-          if (e.key === "Escape") {
-            this.closeCharacterModal();
-            document.removeEventListener("keydown", handleEscape);
-          }
-        };
-        document.addEventListener("keydown", handleEscape);
-        setTimeout(async () => {
-          try {
-            await KLITE_RPMod.ensureCharactersLoaded();
-          } catch (_) {
-          }
-          this.loadAvailableCharacters();
-          this.setupCharacterModalFilters();
-        }, 100);
-      },
-      setupCharacterModalFilters() {
-        const searchInput = document.getElementById("group-char-search");
-        const tagFilter = document.getElementById("group-char-tag-filter");
-        const talkFilter = document.getElementById("group-char-talkativeness-filter");
-        if (searchInput) {
-          searchInput.addEventListener("input", () => this.filterAvailableCharacters());
-        }
-        if (tagFilter) {
-          tagFilter.addEventListener("change", () => this.filterAvailableCharacters());
-        }
-        if (talkFilter) {
-          talkFilter.addEventListener("change", () => this.filterAvailableCharacters());
-        }
-      },
-      filterAvailableCharacters() {
-        const searchTerm = document.getElementById("group-char-search")?.value.toLowerCase() || "";
-        const tagFilter = document.getElementById("group-char-tag-filter")?.value || "";
-        const talkFilter = document.getElementById("group-char-talkativeness-filter")?.value || "";
-        let available = KLITE_RPMod.characters.filter(
-          (c) => !this.activeChars.find((ac) => ac.id === c.id)
-        );
-        if (searchTerm) {
-          available = available.filter(
-            (char) => char.name.toLowerCase().includes(searchTerm) || (char.description || "").toLowerCase().includes(searchTerm) || (char.creator || "").toLowerCase().includes(searchTerm)
-          );
-        }
-        if (tagFilter) {
-          available = available.filter(
-            (char) => char.tags && char.tags.includes(tagFilter)
-          );
-        }
-        if (talkFilter) {
-          available = available.filter((char) => {
-            const talk = char.talkativeness || 50;
-            switch (talkFilter) {
-              case "high":
-                return talk >= 80;
-              case "medium":
-                return talk >= 40 && talk < 80;
-              case "low":
-                return talk >= 10 && talk < 40;
-              default:
-                return true;
-            }
-          });
-        }
-        const list2 = document.getElementById("group-character-selection-list");
-        if (!list2) return;
-        if (available.length === 0) {
-          list2.innerHTML = `
-                    <div style="text-align: center; color: var(--muted); padding: 20px;">
-                        No characters match the current filters.
-                    </div>
-                `;
-          return;
-        }
-        list2.innerHTML = available.map((char) => {
-          const avatar = char.image || "";
-          const descriptionRaw = char.description || char.first_mes || "No description available";
-          const description = KLITE_RPMod.escapeHtml(descriptionRaw.length > 100 ? descriptionRaw.substring(0, 100) + "..." : descriptionRaw);
-          const tags = char.tags || [];
-          const talkativeness = char.talkativeness || 50;
-          return `
-                    <div style="display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; background: var(--bg2);">
-                        <input type="checkbox" id="char-${char.id}" value="${char.id}" style="margin: 0;">
-                        ${avatar ? `
-                            <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                                ${KLITE_RPMod.safeImageHTML(avatar, char.name || "", "width:100%;height:100%;object-fit:cover;display:block;")}
-                            </div>
-                        ` : `
-                            <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <span style="font-size: 18px;">${char.name.charAt(0)}</span>
-                            </div>
-                        `}
-                        <div style="flex: 1;">
-                            <div style="font-weight: bold; color: var(--text);">${KLITE_RPMod.escapeHtml(char.name || "")}</div>
-                            <div style="font-size: 11px; color: var(--muted); margin: 2px 0; max-height: 32px; overflow: hidden;">${description}</div>
-                            <div style="font-size: 10px; color: var(--muted);">
-                                Talkativeness: ${talkativeness} | Tags: ${tags.length > 0 ? tags.map(KLITE_RPMod.escapeHtml).join(", ") : "None"}
-                            </div>
-                        </div>
-                    </div>
-                `;
-        }).join("");
-      },
       showCustomCharacterModal(editChar = null) {
         const modal = document.createElement("div");
         modal.className = "klite-modal";
@@ -13449,65 +12651,6 @@ ${examples}`;
             this.closeCharacterModal();
           }
         });
-      },
-      loadAvailableCharacters() {
-        const available = KLITE_RPMod.characters.filter(
-          (c) => !this.activeChars.find((ac) => ac.id === c.id)
-        );
-        const tagFilter = document.getElementById("group-char-tag-filter");
-        if (tagFilter) {
-          const allTags = /* @__PURE__ */ new Set();
-          available.forEach((char) => {
-            if (char.tags && Array.isArray(char.tags)) {
-              char.tags.forEach((tag) => allTags.add(tag));
-            }
-          });
-          const currentOptions = Array.from(tagFilter.options).slice(1);
-          currentOptions.forEach((option) => option.remove());
-          Array.from(allTags).sort().forEach((tag) => {
-            const option = document.createElement("option");
-            option.value = tag;
-            option.textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
-            tagFilter.appendChild(option);
-          });
-        }
-        const list2 = document.getElementById("group-character-selection-list");
-        if (!list2) return;
-        if (available.length === 0) {
-          list2.innerHTML = `
-                    <div style="text-align: center; color: var(--muted); padding: 20px;">
-                        No characters available. Import some characters from the CHARS panel first.
-                    </div>
-                `;
-          return;
-        }
-        list2.innerHTML = available.map((char) => {
-          const avatar = char.image || "";
-          const description = char.description || char.first_mes || "No description available";
-          const tags = char.tags || [];
-          const talkativeness = char.talkativeness || 50;
-          return `
-                    <div style="display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; background: var(--bg2);">
-                        <input type="checkbox" id="char-${char.id}" value="${char.id}" style="margin: 0;" onclick="event.stopPropagation();">
-                        ${avatar ? `
-                            <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                                ${KLITE_RPMod.safeImageHTML(avatar, char.name || "", "width: 100%; height: 100%; object-fit: cover;")}
-                            </div>
-                        ` : `
-                            <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <span style="font-size: 18px;">${char.name.charAt(0)}</span>
-                            </div>
-                        `}
-                        <div style="flex: 1;">
-                            <div style="font-weight: bold; color: var(--text);">${KLITE_RPMod.escapeHtml(char.name)}</div>
-                            <div style="font-size: 11px; color: var(--muted); margin: 2px 0; max-height: 32px; overflow: hidden;">${description.length > 100 ? description.substring(0, 100) + "..." : description}</div>
-                            <div style="font-size: 10px; color: var(--muted);">
-                                Talkativeness: ${talkativeness} | Tags: ${tags.length > 0 ? tags.join(", ") : "None"}
-                            </div>
-                        </div>
-                    </div>
-                `;
-        }).join("");
       },
       confirmCharacterSelection() {
         const checkboxes = document.querySelectorAll('#group-character-selection-list input[type="checkbox"]:checked');
@@ -13805,8 +12948,6 @@ ${examples}`;
         return out;
       },
       render() {
-        const charCount = KLITE_RPMod.characters.length;
-        const filteredChars = this.getFilteredCharacters();
         return `
                 ${t.section(
           "Import Characters",
@@ -13819,7 +12960,7 @@ ${examples}`;
                         ${t.button("Backup the Characters", "secondary", "export-chars")}
                     </div>`
         )}
-                ${window.KLITE_RPMod_Gallery ? this.renderGalleryLauncher() : this.renderInlineGallery(filteredChars, charCount)}
+                ${this.renderGalleryLauncher()}
             `;
       },
       // The full-screen gallery (src/characters/gallery.js) is the place to browse: the tab
@@ -13845,76 +12986,6 @@ ${examples}`;
                     ${rows || '<div class="klite-muted">No characters yet — import a card above.</div>'}
                     ${more}`
         );
-      },
-      // ALPHA's own gallery grid (used when the RPmod gallery is not available).
-      renderInlineGallery(filteredChars, charCount) {
-        return `
-                ${t.section(
-          "Character Management",
-          `<div class="klite-char-controls">
-                        <input type="text" id="char-search" placeholder="Search characters..." 
-                               value="${this.currentFilter}" class="klite-input" style="width: 100%; margin-bottom: 10px;">
-                        
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 8px;">
-                            <div>
-                                <label style="font-size: 12px; color: var(--muted); margin-bottom: 4px; display: block;">Filter by:</label>
-                                <select id="char-tag-filter" class="klite-select" style="width: 100%;">
-                                    <option value="">All Tags</option>
-                                    ${this.getUniqueTags().map(
-            (tag) => `<option value="${tag}" ${this.tagFilter === tag ? "selected" : ""}>${tag}</option>`
-          ).join("")}
-                                </select>
-                            </div>
-                            <div>
-                                <label style="font-size: 12px; color: var(--muted); margin-bottom: 4px; display: block;">&nbsp;</label>
-                                <select id="char-star-filter" class="klite-select" style="width: 100%;">
-                                    <option value="">Any Rating</option>
-                                    <option value="unrated">Unrated</option>
-                                    <option value="0">0 Stars</option>
-                                    <option value="1">1 Star</option>
-                                    <option value="2">2 Stars</option>
-                                    <option value="3">3 Stars</option>
-                                    <option value="4">4 Stars</option>
-                                    <option value="5">5 Stars</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 8px;">
-                            <div>
-                                <label style="font-size: 12px; color: var(--muted); margin-bottom: 4px; display: block;">Sort by:</label>
-                                <select id="char-sort" class="klite-select" style="width: 100%;">
-                                    <option value="name-asc" ${this.currentSort === "name-asc" ? "selected" : ""}>Name (A-Z)</option>
-                                    <option value="name-desc" ${this.currentSort === "name-desc" ? "selected" : ""}>Name (Z-A)</option>
-                                    <option value="created" ${this.currentSort === "created" ? "selected" : ""}>Import Date</option>
-                                    <option value="talkativeness" ${this.currentSort === "talkativeness" ? "selected" : ""}>Talkativeness</option>
-                                    <option value="rating" ${this.currentSort === "rating" ? "selected" : ""}>Rating</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label style="font-size: 12px; color: var(--muted); margin-bottom: 4px; display: block;">&nbsp;</label>
-                                <select id="char-view" class="klite-select" style="width: 100%;">
-                                    <option value="overview" ${this.currentView === "overview" ? "selected" : ""}>Grid Overview (3 per row)</option>
-                                    <option value="grid" ${this.currentView === "grid" ? "selected" : ""}>Grid View (2 per row)</option>
-                                    <option value="detail" ${this.currentView === "detail" ? "selected" : ""}>Detail View (1 per row)</option>
-                                    <option value="list" ${this.currentView === "list" ? "selected" : ""}>List View (compact)</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div id="char-count" class="klite-muted" style="font-size: 11px;">
-                            ${filteredChars.length} of ${charCount} characters shown
-                        </div>
-                    </div>`
-        )}
-                
-                ${t.section(
-          "Character Gallery",
-          `<div class="klite-character-${this.currentView}" id="char-gallery">
-                        ${this.renderCharacters()}
-                    </div>`
-        )}
-            `;
       },
       init() {
         try {
@@ -14488,28 +13559,6 @@ ${examples}`;
                 </div>
             `;
       },
-      renderCharacterCard(char) {
-        const rating = char.rating || 0;
-        return `
-                <div class="klite-char-card" data-char-id="${char.id}" data-action="view-char" style="cursor: pointer;">
-                    <div class="klite-char-image">
-                        ${char.thumbnail || char.image ? `${KLITE_RPMod.safeImageHTML(char.thumbnail || char.image, char.name || "", "")}` : '<div class="klite-char-placeholder">👤</div>'}
-                    </div>
-                    <div class="klite-char-name">${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || "")}</div>
-                    <div class="klite-char-creator">by ${KLITE_RPMod.panels.CHARS.escapeHTML(char.creator || "Unknown")}</div>
-                    <div class="klite-char-stats" style="text-align: center; margin-top: 8px;">
-                        <select class="klite-select" style="font-size: 10px; padding: 2px 4px;" onchange="KLITE_RPMod.panels.CHARS.updateCharacterRating(${char.id}, this.value)" onclick="event.stopPropagation();">
-                            <option value="0" ${rating === 0 ? "selected" : ""}>☆ Unrated</option>
-                            <option value="1" ${rating === 1 ? "selected" : ""}>★☆☆☆☆</option>
-                            <option value="2" ${rating === 2 ? "selected" : ""}>★★☆☆☆</option>
-                            <option value="3" ${rating === 3 ? "selected" : ""}>★★★☆☆</option>
-                            <option value="4" ${rating === 4 ? "selected" : ""}>★★★★☆</option>
-                            <option value="5" ${rating === 5 ? "selected" : ""}>★★★★★</option>
-                        </select>
-                    </div>
-                </div>
-            `;
-      },
       renderCharacterListItem(char) {
         const rating = char.rating || 0;
         return `
@@ -14539,40 +13588,6 @@ ${examples}`;
                         </div>
                     </div>
                 </div>
-            `;
-      },
-      renderCharacterDetailItem(char) {
-        const rating = char.rating || 0;
-        const tagsText = Array.isArray(char.tags) && char.tags.length > 0 ? char.tags.map((t2) => KLITE_RPMod.panels.CHARS.escapeHTML(String(t2))).join(", ") : "No tags";
-        const talkLevel = char.talkativeness >= 80 ? "Very Talkative" : char.talkativeness >= 40 ? "Moderate" : "Quiet";
-        const imgSrc = (this.getOptimizedAvatar ? this.getOptimizedAvatar(char.id, "detail") : null) || char.image || char.thumbnail || (this.getOptimizedAvatar ? this.getOptimizedAvatar(char.id, "avatar") : null);
-        return `
-                <div style="margin-bottom: 20px; border: 1px solid var(--border); border-radius: 8px; padding: 15px; background: var(--bg2);" data-char-id="${char.id}" data-action="view-char">
-                    <div style="width: 100%; margin-bottom: 15px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border);">
-                        ${imgSrc ? KLITE_RPMod.safeImageHTML(imgSrc, char.name || "", "width: 100%; height: auto; display: block;") : '<div style="width: 100%; height: 200px; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 48px;">👤</div>'}
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 18px; font-weight: bold; color: var(--text); margin-bottom: 8px;">${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || "")}</div>
-                        <div style="margin-bottom: 12px;">
-                            <select class="klite-select" style="margin: 0 auto;" onchange="KLITE_RPMod.panels.CHARS.updateCharacterRating(${char.id}, this.value)">
-                                <option value="0" ${rating === 0 ? "selected" : ""}>☆ Unrated</option>
-                                <option value="1" ${rating === 1 ? "selected" : ""}>★☆☆☆☆</option>
-                                <option value="2" ${rating === 2 ? "selected" : ""}>★★☆☆☆</option>
-                                <option value="3" ${rating === 3 ? "selected" : ""}>★★★☆☆</option>
-                                <option value="4" ${rating === 4 ? "selected" : ""}>★★★★☆</option>
-                                <option value="5" ${rating === 5 ? "selected" : ""}>★★★★★</option>
-                            </select>
-                        </div>
-                        <div class="klite-char-creator" style="color: var(--muted); margin-bottom: 12px;">by ${KLITE_RPMod.panels.CHARS.escapeHTML(char.creator || "Unknown")}</div>
-                        <div class="klite-char-desc" style="text-align: left; margin-bottom: 12px; color: var(--text); line-height: 1.4;">${KLITE_RPMod.panels.CHARS.escapeHTML((char.description || "No description available").substring(0, 300) + ((char.description || "").length > 300 ? "..." : ""))}</div>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 12px; color: var(--muted);">
-                            <span class="klite-char-talk">Talk: ${talkLevel} (${char.talkativeness || 0})</span>
-                            <span class="klite-char-keywords">Keywords: ${char.keywords ? char.keywords.length : 0}</span>
-                        </div>
-                        <div class="klite-char-tags" style="margin-bottom: 15px;">${tagsText}</div>
-                    </div>
-                </div>
-                <hr style="border: none; border-top: 1px solid var(--border); margin: 20px 0;">
             `;
       },
       refreshGallery() {
@@ -14647,333 +13662,6 @@ ${examples}`;
         } catch (_) {
         }
       },
-      _ensureDetailThumbnails() {
-        return;
-        const list2 = this.getFilteredCharacters();
-        if (!Array.isArray(list2) || list2.length === 0) return;
-        let thumbByName = /* @__PURE__ */ new Map();
-        try {
-          const metas = this.getEsoliteCharacterList();
-          if (Array.isArray(metas)) {
-            metas.forEach((m) => {
-              const n = m && m.name ? String(m.name) : "";
-              if (n && m && m.thumbnail) thumbByName.set(n, m.thumbnail);
-            });
-          }
-        } catch (_) {
-        }
-        const attachImg = (el2, src, altText, isThumb = false) => {
-          if (!el2 || !src) return false;
-          const html = KLITE_RPMod.safeImageHTML(src, altText || "", "width: 100%; height: auto; display: block;");
-          if (!html) return false;
-          el2.innerHTML = html;
-          if (isThumb) try {
-            el2.querySelector("img")?.setAttribute("data-thumb", "1");
-          } catch (_) {
-          }
-          return true;
-        };
-        const scaleDataURLToWidth = async (dataURL, maxWidth = 640) => {
-          try {
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            const loaded = new Promise((resolve, reject) => {
-              img.onload = resolve;
-              img.onerror = reject;
-            });
-            img.src = dataURL;
-            await loaded;
-            const ratio = img.naturalWidth > 0 ? Math.min(1, maxWidth / img.naturalWidth) : 1;
-            const w = Math.max(1, Math.round(img.naturalWidth * ratio));
-            const h = Math.max(1, Math.round(img.naturalHeight * ratio));
-            const canvas = document.createElement("canvas");
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img, 0, 0, w, h);
-            return canvas.toDataURL("image/png");
-          } catch (_) {
-            return dataURL;
-          }
-        };
-        for (const char of list2) {
-          if (!char) continue;
-          const cardEl = document.querySelector(`[data-char-id="${char.id}"]`);
-          const container = cardEl ? cardEl.querySelector(":scope > div:first-child") : null;
-          if (!container) continue;
-          const hasImg = !!container.querySelector("img");
-          if (hasImg) continue;
-          const metaThumb = thumbByName.get(char.name);
-          const cached = typeof this.getOptimizedAvatar === "function" ? this.getOptimizedAvatar(char.id, "avatar") : null;
-          const cachedDetail = typeof this.getOptimizedAvatar === "function" ? this.getOptimizedAvatar(char.id, "detail") : null;
-          const usingThumb = !char.image && !cachedDetail && (char.thumbnail || metaThumb || cached);
-          const src = char.image || cachedDetail || char.thumbnail || metaThumb || cached || null;
-          if (src) {
-            if (attachImg(container, src, char.name || "", usingThumb)) {
-              if (!char.image && !char.thumbnail && (metaThumb || cached)) {
-                if (metaThumb) char.thumbnail = metaThumb;
-                else if (cached) char.thumbnail = cached;
-              }
-              continue;
-            }
-          }
-        }
-        if (this.detailObserverEnabled && typeof window.IntersectionObserver === "function") {
-          try {
-            this._detailIO?.disconnect?.();
-          } catch (_) {
-          }
-          this._detailIO = null;
-          this._detailObserved = /* @__PURE__ */ new Set();
-          this._detailIO = new IntersectionObserver((entries) => {
-            entries.forEach(async (entry) => {
-              if (!entry.isIntersecting) return;
-              const el2 = entry.target;
-              const charId = el2?.dataset?.charId;
-              const char = list2.find((c) => String(c.id) === String(charId));
-              if (!char) return;
-              const hasDetail = typeof this.getOptimizedAvatar === "function" && !!this.getOptimizedAvatar(char.id, "detail");
-              if (typeof window.getCharacterData !== "function") return;
-              try {
-                const data = await window.getCharacterData(char.name);
-                const full = data?.data || {};
-                const src = data?.image || null;
-                try {
-                  char.creator = full?.creator || char.creator || "Unknown";
-                  char.description = full?.description || char.description || "";
-                  if (Array.isArray(full?.tags)) char.tags = full.tags.slice();
-                  char.talkativeness = this.extractTalkativeness?.(full) || char.talkativeness || 0;
-                  char.keywords = this.extractCharacterKeywords?.(full) || char.keywords || [];
-                  const cEl = el2.querySelector(".klite-char-creator");
-                  if (cEl) cEl.textContent = `by ${char.creator || "Unknown"}`;
-                  const dEl = el2.querySelector(".klite-char-desc");
-                  if (dEl) {
-                    const text = String(char.description || "No description available");
-                    const excerpt = text.substring(0, 300) + (text.length > 300 ? "..." : "");
-                    dEl.textContent = excerpt;
-                  }
-                  const tEl = el2.querySelector(".klite-char-talk");
-                  if (tEl) {
-                    const lvl = char.talkativeness >= 80 ? "Very Talkative" : char.talkativeness >= 40 ? "Moderate" : "Quiet";
-                    tEl.textContent = `Talk: ${lvl} (${char.talkativeness || 0})`;
-                  }
-                  const kEl = el2.querySelector(".klite-char-keywords");
-                  if (kEl) kEl.textContent = `Keywords: ${Array.isArray(char.keywords) ? char.keywords.length : 0}`;
-                  const tagsEl = el2.querySelector(".klite-char-tags");
-                  if (tagsEl) {
-                    if (Array.isArray(char.tags) && char.tags.length > 0) {
-                      tagsEl.textContent = char.tags.map((t2) => KLITE_RPMod.panels.CHARS.escapeHTML(String(t2))).join(", ");
-                    } else {
-                      tagsEl.textContent = "No tags";
-                    }
-                  }
-                } catch (_) {
-                }
-                if (!char.image && !hasDetail && src) {
-                  const container = el2.querySelector(":scope > div:first-child");
-                  let targetWidth = 640;
-                  try {
-                    const rect2 = container?.getBoundingClientRect?.();
-                    if (rect2 && rect2.width) targetWidth = Math.max(320, Math.min(1024, Math.round(rect2.width)));
-                  } catch (_) {
-                  }
-                  const scaled = await scaleDataURLToWidth(src, targetWidth);
-                  try {
-                    this.setOptimizedAvatar?.(char.id, "detail", scaled);
-                  } catch (_) {
-                  }
-                  if (container) attachImg(container, scaled, char.name || "");
-                }
-              } catch (_) {
-              }
-            });
-          }, { root: document.getElementById("content-right") || null, rootMargin: "50px", threshold: 0.1 });
-        }
-        try {
-          const cards = document.querySelectorAll("#char-gallery [data-char-id]");
-          cards.forEach((card) => {
-            const id = card.getAttribute("data-char-id");
-            const ch = list2.find((c) => String(c.id) === String(id));
-            if (!ch) return;
-            if (ch.image) return;
-            if (this._detailObserved && this._detailObserved.has(id)) return;
-            this._detailObserved?.add?.(id);
-            this._detailIO?.observe?.(card);
-          });
-        } catch (_) {
-        }
-        try {
-          const viewportH = window.innerHeight || 800;
-          const visible = Array.from(document.querySelectorAll("#char-gallery [data-char-id]")).filter((card) => {
-            const r = card.getBoundingClientRect();
-            return r.bottom > 0 && r.top < viewportH;
-          });
-          const runImmediate = async () => {
-            for (const el2 of visible) {
-              const id = el2.getAttribute("data-char-id");
-              const char = list2.find((c) => String(c.id) === String(id));
-              if (!char || typeof window.getCharacterData !== "function") continue;
-              try {
-                const data = await window.getCharacterData(char.name);
-                const full = data?.data || {};
-                const src = data?.image || null;
-                try {
-                  char.creator = full?.creator || char.creator || "Unknown";
-                  char.description = full?.description || char.description || "";
-                  if (Array.isArray(full?.tags)) char.tags = full.tags.slice();
-                  char.talkativeness = this.extractTalkativeness?.(full) || char.talkativeness || 0;
-                  char.keywords = this.extractCharacterKeywords?.(full) || char.keywords || [];
-                  const cEl = el2.querySelector(".klite-char-creator");
-                  if (cEl) cEl.textContent = `by ${char.creator || "Unknown"}`;
-                  const dEl = el2.querySelector(".klite-char-desc");
-                  if (dEl) {
-                    const text = String(char.description || "No description available");
-                    const excerpt = text.substring(0, 300) + (text.length > 300 ? "..." : "");
-                    dEl.textContent = excerpt;
-                  }
-                  const tEl = el2.querySelector(".klite-char-talk");
-                  if (tEl) {
-                    const lvl = char.talkativeness >= 80 ? "Very Talkative" : char.talkativeness >= 40 ? "Moderate" : "Quiet";
-                    tEl.textContent = `Talk: ${lvl} (${char.talkativeness || 0})`;
-                  }
-                  const kEl = el2.querySelector(".klite-char-keywords");
-                  if (kEl) kEl.textContent = `Keywords: ${Array.isArray(char.keywords) ? char.keywords.length : 0}`;
-                  const tagsEl = el2.querySelector(".klite-char-tags");
-                  if (tagsEl) {
-                    if (Array.isArray(char.tags) && char.tags.length > 0) {
-                      tagsEl.innerHTML = char.tags.map((tag) => `<span class="klite-tag">${KLITE_RPMod.panels.CHARS.escapeHTML(tag)}</span>`).join("");
-                    } else {
-                      tagsEl.innerHTML = '<span class="klite-tag-empty">No tags</span>';
-                    }
-                  }
-                  if (this._detailSaveTimer) clearTimeout(this._detailSaveTimer);
-                  this._detailSaveTimer = setTimeout(() => {
-                    try {
-                      KLITE_RPMod.saveCharacters?.();
-                    } catch (_) {
-                    }
-                  }, 750);
-                } catch (_) {
-                }
-                if (!char.image && src) {
-                  const container = el2.querySelector(":scope > div:first-child");
-                  let targetWidth = 640;
-                  try {
-                    const rect2 = container?.getBoundingClientRect?.();
-                    if (rect2 && rect2.width) targetWidth = Math.max(320, Math.min(1024, Math.round(rect2.width)));
-                  } catch (_) {
-                  }
-                  const scaled = await scaleDataURLToWidth(src, targetWidth);
-                  try {
-                    this.setOptimizedAvatar?.(char.id, "detail", scaled);
-                  } catch (_) {
-                  }
-                  if (container) attachImg(container, scaled, char.name || "");
-                }
-              } catch (_) {
-              }
-            }
-          };
-          window.requestIdleCallback ? requestIdleCallback(runImmediate, { timeout: 500 }) : setTimeout(runImmediate, 50);
-        } catch (_) {
-        }
-        try {
-          if (!("IntersectionObserver" in window)) {
-            const upgraded = this._detailMetaUpgraded || (this._detailMetaUpgraded = /* @__PURE__ */ new Set());
-            const processVisible = async () => {
-              const cards = Array.from(document.querySelectorAll("#char-gallery [data-char-id]"));
-              const viewportH = window.innerHeight || 800;
-              let count = 0;
-              for (const el2 of cards) {
-                const id = el2.getAttribute("data-char-id");
-                if (upgraded.has(id)) continue;
-                const r = el2.getBoundingClientRect();
-                if (!(r.bottom > 0 && r.top < viewportH)) continue;
-                const char = list2.find((c) => String(c.id) === String(id));
-                if (!char || typeof window.getCharacterData !== "function") continue;
-                try {
-                  upgraded.add(id);
-                  const data = await window.getCharacterData(char.name);
-                  const full = data?.data || {};
-                  const src = data?.image || null;
-                  char.creator = full?.creator || char.creator || "Unknown";
-                  char.description = full?.description || char.description || "";
-                  if (Array.isArray(full?.tags)) char.tags = full.tags.slice();
-                  char.talkativeness = this.extractTalkativeness?.(full) || char.talkativeness || 0;
-                  char.keywords = this.extractCharacterKeywords?.(full) || char.keywords || [];
-                  const cEl = el2.querySelector(".klite-char-creator");
-                  if (cEl) cEl.textContent = `by ${char.creator || "Unknown"}`;
-                  const dEl = el2.querySelector(".klite-char-desc");
-                  if (dEl) {
-                    const t2 = String(char.description || "No description available");
-                    dEl.textContent = t2.substring(0, 300) + (t2.length > 300 ? "..." : "");
-                  }
-                  const tEl = el2.querySelector(".klite-char-talk");
-                  if (tEl) {
-                    const lvl = char.talkativeness >= 80 ? "Very Talkative" : char.talkativeness >= 40 ? "Moderate" : "Quiet";
-                    tEl.textContent = `Talk: ${lvl} (${char.talkativeness || 0})`;
-                  }
-                  const kEl = el2.querySelector(".klite-char-keywords");
-                  if (kEl) kEl.textContent = `Keywords: ${Array.isArray(char.keywords) ? char.keywords.length : 0}`;
-                  const tagsEl = el2.querySelector(".klite-char-tags");
-                  if (tagsEl) {
-                    if (Array.isArray(char.tags) && char.tags.length > 0) {
-                      tagsEl.textContent = char.tags.map((t2) => KLITE_RPMod.panels.CHARS.escapeHTML(String(t2))).join(", ");
-                    } else {
-                      tagsEl.textContent = "No tags";
-                    }
-                  }
-                  if (!char.image && src) {
-                    const container = el2.querySelector(":scope > div:first-child");
-                    let targetWidth = 640;
-                    try {
-                      const rect2 = container?.getBoundingClientRect?.();
-                      if (rect2 && rect2.width) targetWidth = Math.max(320, Math.min(1024, Math.round(rect2.width)));
-                    } catch (_) {
-                    }
-                    const scaled = await (async () => {
-                      try {
-                        return await scaleDataURLToWidth(src, targetWidth);
-                      } catch (_) {
-                        return src;
-                      }
-                    })();
-                    try {
-                      this.setOptimizedAvatar?.(char.id, "detail", scaled);
-                    } catch (_) {
-                    }
-                    if (container) attachImg(container, scaled, char.name || "");
-                  }
-                  if (this._detailSaveTimer) clearTimeout(this._detailSaveTimer);
-                  this._detailSaveTimer = setTimeout(() => {
-                    try {
-                      KLITE_RPMod.saveCharacters?.();
-                    } catch (_) {
-                    }
-                  }, 750);
-                  count++;
-                  if (count >= 10) break;
-                } catch (_) {
-                }
-              }
-            };
-            let ticking = false;
-            const onScroll = () => {
-              if (!ticking) {
-                ticking = true;
-                setTimeout(async () => {
-                  await processVisible();
-                  ticking = false;
-                }, 150);
-              }
-            };
-            (document.getElementById("content-right") || window).addEventListener("scroll", onScroll, { passive: true });
-            window.addEventListener("scroll", onScroll, { passive: true });
-            setTimeout(processVisible, 50);
-          }
-        } catch (_) {
-        }
-      },
       refreshTagDropdown() {
         const tagFilter = document.getElementById("char-tag-filter");
         if (tagFilter) {
@@ -14988,16 +13676,6 @@ ${examples}`;
           }).join("")}
                 `;
         }
-      },
-      renderCharacterDataSection(title, content) {
-        if (!content || content.trim() === "") return "";
-        const safe2 = KLITE_RPMod.escapeHtml(content);
-        return `
-                <div class="klite-char-modal-section">
-                    <h3>${title}</h3>
-                    <div class="klite-char-modal-text" style="white-space: pre-wrap;">${safe2}</div>
-                </div>
-            `;
       },
       updateCharacterRating(charId, rating) {
         const char = KLITE_RPMod.characters.find((c) => c.id == charId);
@@ -15045,11 +13723,6 @@ ${examples}`;
           }
         }
       },
-      renderRatingStars(rating) {
-        return Array(5).fill(0).map(
-          (_, i) => `<span class="klite-star ${i < rating ? "active" : ""}">★</span>`
-        ).join("");
-      },
       deleteCharacter(charId) {
         const index = KLITE_RPMod.characters.findIndex((c) => c.id == charId);
         if (index !== -1) {
@@ -15061,32 +13734,6 @@ ${examples}`;
           } catch (_) {
           }
         }
-      },
-      exportCharacters() {
-        KLITE_RPMod.exportCharactersAsZip?.();
-      },
-      importWorldInfo(charId) {
-        const char = KLITE_RPMod.characters.find((c) => c.id == charId);
-        if (!char) return;
-        const worldInfo = char.rawData?.data?.character_book?.entries || char.rawData?.character_book?.entries || [];
-        if (worldInfo.length === 0) {
-          return;
-        }
-        worldInfo.forEach((entry) => {
-          if (window.wi_entries) {
-            window.wi_entries.push({
-              key: entry.keys?.join(", ") || char.name,
-              keysecondary: entry.secondary_keys?.join(", ") || "",
-              content: entry.content,
-              comment: `Imported from ${char.name}`,
-              folder: "Characters",
-              selective: entry.selective || false,
-              constant: entry.constant || false
-            });
-          }
-        });
-        const modal = document.getElementById("char-modal-" + charId);
-        if (modal) modal.remove();
       },
       async handleFiles(files) {
         KLITE_RPMod.log("panels", `Processing ${files.length} character files`);
@@ -15276,62 +13923,6 @@ ${examples}`;
         KLITE_RPMod.log("panels", `Enhanced character analysis - Talkativeness: ${normalized.talkativeness}, Keywords: ${normalized.keywords.length}, Style: ${JSON.stringify(normalized.responseStyle)}`);
         return normalized;
       },
-      // Enhanced talkativeness extraction from old source (lines 488-539)
-      extractTalkativeness(cardData) {
-        let score = 50;
-        if (cardData.character_book?.entries) {
-          const entries = Array.isArray(cardData.character_book.entries) ? cardData.character_book.entries : Object.values(cardData.character_book.entries);
-          const constantEntries = entries.filter((entry) => entry.constant).length;
-          score += constantEntries * 15;
-        }
-        const personalityText = (cardData.personality || "").toLowerCase();
-        const descriptionText = (cardData.description || "").toLowerCase();
-        const combinedText = personalityText + " " + descriptionText;
-        const talkativeWords = [
-          "talkative",
-          "chatty",
-          "outgoing",
-          "social",
-          "extroverted",
-          "friendly",
-          "enthusiastic",
-          "expressive",
-          "vocal",
-          "outspoken",
-          "gregarious",
-          "sociable",
-          "animated",
-          "lively"
-        ];
-        const quietWords = [
-          "quiet",
-          "shy",
-          "introverted",
-          "reserved",
-          "silent",
-          "mysterious",
-          "stoic",
-          "withdrawn",
-          "antisocial",
-          "timid",
-          "reclusive",
-          "taciturn",
-          "laconic"
-        ];
-        talkativeWords.forEach((word) => {
-          if (combinedText.includes(word)) score += 20;
-        });
-        quietWords.forEach((word) => {
-          if (combinedText.includes(word)) score -= 20;
-        });
-        const exampleLength = (cardData.mes_example || "").length;
-        if (exampleLength > 800) score += 15;
-        else if (exampleLength < 200) score -= 10;
-        const firstMessageLength = (cardData.first_mes || "").length;
-        if (firstMessageLength > 400) score += 10;
-        else if (firstMessageLength < 100) score -= 5;
-        return Math.max(10, Math.min(100, score));
-      },
       // Enhanced keyword extraction from old source (lines 541-581)
       extractCharacterKeywords(cardData) {
         const keywords = /* @__PURE__ */ new Set();
@@ -15496,99 +14087,6 @@ ${examples}`;
         });
         return Math.max(10, Math.min(100, score));
       },
-      extractKeywords(data) {
-        const keywords = [data.name?.toLowerCase()].filter(Boolean);
-        if (data.tags && Array.isArray(data.tags)) {
-          keywords.push(...data.tags.map((t2) => t2.toLowerCase()));
-        }
-        const text = ((data.description || "") + " " + (data.personality || "")).toLowerCase();
-        const commonWords = ["the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by", "is", "are", "was", "were", "be", "been", "have", "has", "had", "do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "can", "this", "that", "these", "those", "i", "you", "he", "she", "it", "we", "they", "me", "him", "her", "us", "them", "my", "your", "his", "her", "its", "our", "their"];
-        const words = text.match(/\b\w{3,}\b/g) || [];
-        const significantWords = words.filter(
-          (word) => !commonWords.includes(word) && word.length >= 3 && !keywords.includes(word)
-        );
-        const wordFreq = {};
-        significantWords.forEach((word) => {
-          wordFreq[word] = (wordFreq[word] || 0) + 1;
-        });
-        const topWords = Object.entries(wordFreq).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([word]) => word);
-        keywords.push(...topWords);
-        return [...new Set(keywords)];
-      },
-      extractTraits(data) {
-        const text = ((data.personality || "") + " " + (data.description || "")).toLowerCase();
-        const traits = [];
-        const traitKeywords = {
-          "confident": ["confident", "bold", "assertive", "self-assured"],
-          "shy": ["shy", "timid", "bashful", "reserved", "introverted"],
-          "friendly": ["friendly", "warm", "kind", "welcoming", "approachable"],
-          "serious": ["serious", "stern", "formal", "businesslike"],
-          "playful": ["playful", "mischievous", "teasing", "fun-loving"],
-          "intelligent": ["intelligent", "smart", "clever", "brilliant", "wise"],
-          "caring": ["caring", "compassionate", "nurturing", "empathetic"],
-          "mysterious": ["mysterious", "enigmatic", "secretive", "cryptic"],
-          "energetic": ["energetic", "enthusiastic", "vibrant", "lively"],
-          "calm": ["calm", "peaceful", "serene", "tranquil", "composed"]
-        };
-        Object.entries(traitKeywords).forEach(([trait, keywords]) => {
-          if (keywords.some((keyword) => text.includes(keyword))) {
-            traits.push(trait);
-          }
-        });
-        return traits;
-      },
-      extractGenres(data) {
-        const text = ((data.description || "") + " " + (data.scenario || "") + " " + (data.personality || "")).toLowerCase();
-        const genres = [];
-        const genreKeywords = {
-          "fantasy": ["magic", "fantasy", "wizard", "dragon", "medieval", "kingdom", "spell", "enchant"],
-          "sci-fi": ["space", "robot", "alien", "future", "technology", "cyberpunk", "android", "laser"],
-          "romance": ["love", "romance", "romantic", "heart", "kiss", "date", "relationship"],
-          "adventure": ["adventure", "quest", "journey", "explore", "treasure", "danger"],
-          "horror": ["horror", "scary", "dark", "fear", "nightmare", "ghost", "demon"],
-          "comedy": ["funny", "humor", "joke", "laugh", "comedy", "amusing", "silly"],
-          "slice-of-life": ["daily", "normal", "everyday", "routine", "ordinary", "casual"],
-          "drama": ["drama", "emotional", "tragic", "conflict", "tension"]
-        };
-        Object.entries(genreKeywords).forEach(([genre, keywords]) => {
-          if (keywords.some((keyword) => text.includes(keyword))) {
-            genres.push(genre);
-          }
-        });
-        return genres.length > 0 ? genres : ["general"];
-      },
-      extractThemes(data) {
-        const text = ((data.description || "") + " " + (data.scenario || "") + " " + (data.personality || "")).toLowerCase();
-        const themes = [];
-        const themeKeywords = {
-          "friendship": ["friend", "friendship", "companion", "buddy", "pal"],
-          "family": ["family", "parent", "sibling", "mother", "father", "sister", "brother"],
-          "school": ["school", "student", "teacher", "class", "university", "college"],
-          "work": ["work", "job", "office", "business", "career", "professional"],
-          "supernatural": ["supernatural", "paranormal", "spirit", "ghost", "magic", "mystical"],
-          "historical": ["historical", "history", "past", "ancient", "period", "era"],
-          "modern": ["modern", "contemporary", "current", "present", "today"],
-          "military": ["military", "soldier", "army", "war", "battle", "combat"]
-        };
-        Object.entries(themeKeywords).forEach(([theme, keywords]) => {
-          if (keywords.some((keyword) => text.includes(keyword))) {
-            themes.push(theme);
-          }
-        });
-        return themes;
-      },
-      extractContentRating(data) {
-        const text = ((data.description || "") + " " + (data.scenario || "") + " " + (data.personality || "")).toLowerCase();
-        const matureKeywords = ["nsfw", "adult", "mature", "explicit", "sexual", "erotic"];
-        const violenceKeywords = ["violence", "blood", "kill", "murder", "death", "gore"];
-        if (matureKeywords.some((keyword) => text.includes(keyword))) {
-          return "mature";
-        }
-        if (violenceKeywords.some((keyword) => text.includes(keyword))) {
-          return "teen";
-        }
-        return "general";
-      },
       loadCharacter(char) {
         const mode2 = document.getElementById("char-import-mode")?.value || "scenario";
         KLITE_RPMod.log("panels", `Loading character "${char.name}" as ${mode2}`);
@@ -15645,158 +14143,6 @@ ${examples}`;
             break;
         }
         KLITE_RPMod.markCharacterAsUsed(char.id);
-      },
-      addToWorldInfo(char) {
-        if (!window.current_wi) {
-          window.current_wi = [];
-        }
-        KLITE_RPMod.log("panels", `Creating multiple WI entries for ${char.name}`);
-        const wiGroup = `Character: ${char.name}`;
-        const entries = [];
-        const characterData = char.rawData?.data || char.rawData || {};
-        if (characterData.description) {
-          entries.push({
-            key: char.name,
-            keysecondary: `${char.name} description, appearance`,
-            content: characterData.description,
-            comment: `${char.name}_imported_memory`,
-            // Required format!
-            selective: false,
-            constant: false,
-            probability: 100,
-            wigroup: wiGroup,
-            widisabled: false
-          });
-        }
-        if (characterData.personality) {
-          entries.push({
-            key: char.name,
-            keysecondary: `${char.name} personality, traits`,
-            content: characterData.personality,
-            comment: `${char.name}_imported_memory`,
-            // Required format!
-            selective: false,
-            constant: false,
-            probability: 100,
-            wigroup: wiGroup,
-            widisabled: false
-          });
-        }
-        if (characterData.scenario) {
-          entries.push({
-            key: char.name,
-            keysecondary: `${char.name} scenario, background`,
-            content: characterData.scenario,
-            comment: `${char.name}_imported_scenario`,
-            selective: false,
-            constant: false,
-            probability: 100,
-            wigroup: wiGroup,
-            widisabled: false
-          });
-        }
-        if (characterData.first_mes) {
-          entries.push({
-            key: char.name,
-            keysecondary: `${char.name} greeting, first message`,
-            content: characterData.first_mes,
-            comment: `${char.name}_imported_greeting`,
-            selective: false,
-            constant: false,
-            probability: 100,
-            wigroup: wiGroup,
-            widisabled: false
-          });
-        }
-        if (characterData.alternate_greetings) {
-          characterData.alternate_greetings.forEach((greeting, index) => {
-            entries.push({
-              key: char.name,
-              keysecondary: `${char.name} greeting ${index + 2}`,
-              content: greeting,
-              comment: `${char.name}_imported_greeting_${index + 2}`,
-              selective: false,
-              constant: false,
-              probability: 100,
-              wigroup: wiGroup,
-              widisabled: false
-            });
-          });
-        }
-        if (characterData.mes_example) {
-          entries.push({
-            key: char.name,
-            keysecondary: `${char.name} examples, dialogue`,
-            content: characterData.mes_example,
-            comment: `${char.name}_imported_examples`,
-            selective: false,
-            constant: false,
-            probability: 100,
-            wigroup: wiGroup,
-            widisabled: false
-          });
-        }
-        if (characterData.post_history_instructions) {
-          entries.push({
-            key: char.name,
-            keysecondary: `${char.name} instructions`,
-            content: characterData.post_history_instructions,
-            comment: `${char.name}_imported_instructions`,
-            selective: false,
-            constant: false,
-            probability: 100,
-            wigroup: wiGroup,
-            widisabled: false
-          });
-        }
-        if (characterData.system_prompt) {
-          entries.push({
-            key: char.name,
-            keysecondary: `${char.name} system`,
-            content: characterData.system_prompt,
-            comment: `${char.name}_imported_system`,
-            selective: false,
-            constant: false,
-            probability: 100,
-            wigroup: wiGroup,
-            widisabled: false
-          });
-        }
-        if (characterData.creator_notes) {
-          entries.push({
-            key: char.name,
-            keysecondary: `${char.name} notes`,
-            content: characterData.creator_notes,
-            comment: `${char.name}_imported_notes`,
-            selective: false,
-            constant: false,
-            probability: 100,
-            wigroup: wiGroup,
-            widisabled: false
-          });
-        }
-        if (char.image) {
-          entries.push({
-            key: char.name,
-            keysecondary: `${char.name} image, avatar`,
-            content: char.image,
-            // Store base64 image data
-            comment: `${char.name}_imported_image`,
-            // Special pattern for image extraction
-            selective: false,
-            constant: false,
-            probability: 100,
-            wigroup: wiGroup,
-            widisabled: false
-          });
-        }
-        entries.forEach((entry) => window.current_wi.push(entry));
-        KLITE_RPMod.log("panels", `Created ${entries.length} WI entries for ${char.name} (including image)`, entries);
-        if (window.autosave) {
-          window.autosave();
-        } else if (window.save_settings) {
-          window.save_settings();
-        }
       },
       // Complete Scenario Loading Implementation
       async loadAsScenario(character) {
@@ -15964,56 +14310,6 @@ ${characterData.system_prompt}`);
           }
         }
       },
-      // Show greeting selection modal
-      async showGreetingSelector(greetings) {
-        return new Promise((resolve) => {
-          const modalId = "greeting-selector-modal";
-          const modal = document.createElement("div");
-          modal.id = modalId;
-          modal.className = "klite-modal";
-          modal.innerHTML = `
-                    <div class="klite-modal-content" style="max-width: 600px;">
-                        <div class="klite-modal-header">
-                            <h2>Select Greeting</h2>
-                            <button class="klite-modal-close">×</button>
-                        </div>
-                        <div class="klite-modal-body">
-                            <p>This character has multiple greetings. Please select one:</p>
-                            <div id="greeting-options"></div>
-                        </div>
-                    </div>
-                `;
-          document.body.appendChild(modal);
-          const closeBtn = modal.querySelector(".klite-modal-close");
-          closeBtn.addEventListener("click", () => {
-            modal.remove();
-            resolve(greetings[0].content);
-          });
-          const optionsContainer = modal.querySelector("#greeting-options");
-          greetings.forEach((greeting, index) => {
-            const option = document.createElement("div");
-            option.className = "klite-greeting-option";
-            option.style.cssText = "margin-bottom: 15px; padding: 10px; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;";
-            const label2 = KLITE_RPMod.escapeHtml(greeting.label || "");
-            const preview = KLITE_RPMod.escapeHtml((greeting.content || "").substring(0, 100) + ((greeting.content || "").length > 100 ? "..." : ""));
-            option.innerHTML = `
-                        <strong>${label2}</strong>
-                        <div style="margin-top: 5px; color: var(--muted); font-size: 12px;">${preview}</div>
-                    `;
-            option.addEventListener("click", () => {
-              modal.remove();
-              resolve(greeting.content);
-            });
-            optionsContainer.appendChild(option);
-          });
-          modal.addEventListener("click", (e) => {
-            if (e.target === modal) {
-              modal.remove();
-              resolve(greetings[0].content);
-            }
-          });
-        });
-      },
       // Apply V3-specific extensions
       applyV3Extensions(extensions2) {
         KLITE_RPMod.log("panels", "Applying V3 extensions:", extensions2);
@@ -16023,208 +14319,6 @@ ${characterData.system_prompt}`);
         }
         if (extensions2.world_info_override) {
         }
-      },
-      // Export character functionality
-      exportCharacterJSON(character) {
-        if (!character.rawData) {
-          alert("Cannot export: No original character data available");
-          return;
-        }
-        try {
-          const cardFormat = character.rawData?.spec === "chara_card_v3" ? "V3" : character.rawData?.spec === "chara_card_v2" ? "V2" : "V1";
-          let exportData;
-          if (cardFormat === "V3" || cardFormat === "V2") {
-            exportData = {
-              spec: character.rawData.spec,
-              data: character.rawData.data
-            };
-          } else {
-            exportData = character.rawData;
-          }
-          const jsonString = JSON.stringify(exportData, null, 2);
-          const blob = new Blob([jsonString], { type: "application/json" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `${character.name.replace(/[^\w\s]/gi, "")}_${cardFormat}.json`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          alert(`Exported ${character.name} as ${cardFormat} JSON`);
-        } catch (error) {
-          KLITE_RPMod.error("Failed to export character JSON:", error);
-          alert("Failed to export character JSON");
-        }
-      },
-      exportCharacterPNG(character) {
-        if (!character.rawData) {
-          alert("Cannot export: No original character data available");
-          return;
-        }
-        try {
-          const exportData = {
-            spec: "chara_card_v2",
-            spec_version: "2.0",
-            data: character.rawData.data || character.rawData
-          };
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          canvas.width = 512;
-          canvas.height = 512;
-          ctx.fillStyle = "#1a1a1a";
-          ctx.fillRect(0, 0, 512, 512);
-          if (character.image && character.image.startsWith("data:image/")) {
-            const img = new Image();
-            img.onload = () => {
-              ctx.drawImage(img, 0, 0, 512, 512);
-              ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-              ctx.fillRect(0, 450, 512, 62);
-              ctx.fillStyle = "#ffffff";
-              ctx.font = "bold 24px Arial";
-              ctx.textAlign = "center";
-              ctx.fillText(character.name, 256, 485);
-              this.finalizePNGExport(canvas, exportData, character.name);
-            };
-            img.onerror = () => {
-              this.createFallbackPNG(ctx, character, exportData);
-            };
-            img.src = character.image;
-          } else {
-            this.createFallbackPNG(ctx, character, exportData);
-          }
-        } catch (error) {
-          KLITE_RPMod.error("Failed to export character PNG:", error);
-          alert("Failed to export character PNG");
-        }
-      },
-      createFallbackPNG(ctx, character, exportData) {
-        ctx.fillStyle = "#2d2d2d";
-        ctx.fillRect(50, 50, 412, 412);
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 28px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText(character.name, 256, 150);
-        ctx.font = "16px Arial";
-        ctx.fillStyle = "#cccccc";
-        if (character.description) {
-          const desc = character.description.substring(0, 100) + "...";
-          this.wrapText(ctx, desc, 256, 200, 300, 20);
-        }
-        this.finalizePNGExport(ctx.canvas, exportData, character.name);
-      },
-      wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-        const words = text.split(" ");
-        let line = "";
-        for (let n = 0; n < words.length; n++) {
-          const testLine = line + words[n] + " ";
-          const metrics = ctx.measureText(testLine);
-          const testWidth = metrics.width;
-          if (testWidth > maxWidth && n > 0) {
-            ctx.fillText(line, x, y);
-            line = words[n] + " ";
-            y += lineHeight;
-          } else {
-            line = testLine;
-          }
-        }
-        ctx.fillText(line, x, y);
-      },
-      finalizePNGExport(canvas, exportData, characterName) {
-        try {
-          const jsonString = JSON.stringify(exportData);
-          const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
-          canvas.toBlob(async (blob) => {
-            if (!blob) {
-              alert("Failed to create PNG blob");
-              return;
-            }
-            try {
-              const arrayBuffer = await blob.arrayBuffer();
-              const uint8Array = new Uint8Array(arrayBuffer);
-              const pngWithMetadata = this.embedPNGMetadata(uint8Array, "chara", base64Data);
-              const finalBlob = new Blob([pngWithMetadata], { type: "image/png" });
-              const url = URL.createObjectURL(finalBlob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `${characterName.replace(/[^\w\s]/gi, "")}_V2.png`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(url);
-              alert(`Exported ${characterName} as V2 PNG with embedded character data`);
-            } catch (error) {
-              KLITE_RPMod.error("Failed to embed PNG metadata:", error);
-              alert("Failed to embed character data in PNG");
-            }
-          }, "image/png");
-        } catch (error) {
-          KLITE_RPMod.error("Failed to finalize PNG export:", error);
-          alert("Failed to finalize PNG export");
-        }
-      },
-      embedPNGMetadata(pngData, keyword, text) {
-        const keywordBytes = new TextEncoder().encode(keyword);
-        const textBytes = new TextEncoder().encode(text);
-        const nullSeparator = new Uint8Array([0]);
-        const chunkData = new Uint8Array(keywordBytes.length + 1 + textBytes.length);
-        chunkData.set(keywordBytes, 0);
-        chunkData.set(nullSeparator, keywordBytes.length);
-        chunkData.set(textBytes, keywordBytes.length + 1);
-        const chunkType = new TextEncoder().encode("tEXt");
-        const crcData = new Uint8Array(chunkType.length + chunkData.length);
-        crcData.set(chunkType, 0);
-        crcData.set(chunkData, chunkType.length);
-        const crc32 = this.calculateCRC32(crcData);
-        const chunkLength = chunkData.length;
-        const chunk = new Uint8Array(4 + 4 + chunkData.length + 4);
-        chunk[0] = chunkLength >> 24 & 255;
-        chunk[1] = chunkLength >> 16 & 255;
-        chunk[2] = chunkLength >> 8 & 255;
-        chunk[3] = chunkLength & 255;
-        chunk.set(chunkType, 4);
-        chunk.set(chunkData, 8);
-        chunk[8 + chunkData.length] = crc32 >> 24 & 255;
-        chunk[8 + chunkData.length + 1] = crc32 >> 16 & 255;
-        chunk[8 + chunkData.length + 2] = crc32 >> 8 & 255;
-        chunk[8 + chunkData.length + 3] = crc32 & 255;
-        let iendPos = -1;
-        for (let i = pngData.length - 12; i >= 8; i--) {
-          if (pngData[i + 4] === 73 && pngData[i + 5] === 69 && // 'IE'
-          pngData[i + 6] === 78 && pngData[i + 7] === 68) {
-            iendPos = i;
-            break;
-          }
-        }
-        if (iendPos === -1) {
-          throw new Error("Invalid PNG: IEND chunk not found");
-        }
-        const newPNG = new Uint8Array(pngData.length + chunk.length);
-        newPNG.set(pngData.slice(0, iendPos), 0);
-        newPNG.set(chunk, iendPos);
-        newPNG.set(pngData.slice(iendPos), iendPos + chunk.length);
-        return newPNG;
-      },
-      calculateCRC32(data) {
-        const crcTable = this.getCRC32Table();
-        let crc = 4294967295;
-        for (let i = 0; i < data.length; i++) {
-          crc = crcTable[(crc ^ data[i]) & 255] ^ crc >>> 8;
-        }
-        return (crc ^ 4294967295) >>> 0;
-      },
-      getCRC32Table() {
-        if (!this._crc32Table) {
-          this._crc32Table = new Array(256);
-          for (let n = 0; n < 256; n++) {
-            let c = n;
-            for (let k2 = 0; k2 < 8; k2++) {
-              c = c & 1 ? 3988292384 ^ c >>> 1 : c >>> 1;
-            }
-            this._crc32Table[n] = c;
-          }
-        }
-        return this._crc32Table;
       },
       addCharacterToMemory(char) {
         const content = this.buildCharacterContent(char);
@@ -16254,142 +14348,6 @@ ${char.mes_example}
 `;
         return content;
       },
-      // Import all WorldInfo entries from a character
-      importAllWorldInfo(charId) {
-        const char = KLITE_RPMod.characters.find((c) => c.id == charId);
-        if (!char) return;
-        const characterData = char.rawData?.data || char.rawData || {};
-        const worldInfo = [];
-        if (characterData.character_book?.entries) {
-          const entries = Array.isArray(characterData.character_book.entries) ? characterData.character_book.entries : Object.values(characterData.character_book.entries);
-          worldInfo.push(...entries);
-        }
-        if (worldInfo.length === 0) {
-          return;
-        }
-        if (!window.current_wi) window.current_wi = [];
-        worldInfo.forEach((entry) => {
-          const keys = entry.keys || entry.key || [];
-          const keyList = Array.isArray(keys) ? keys : typeof keys === "string" ? keys.split(",").map((k2) => k2.trim()) : [];
-          const secondary = entry.secondary_keys || entry.keysecondary || [];
-          const secondaryList = Array.isArray(secondary) ? secondary : typeof secondary === "string" ? secondary.split(",").map((k2) => k2.trim()) : [];
-          window.current_wi.push({
-            key: keyList.join(", "),
-            keysecondary: secondaryList.join(", "),
-            keyanti: entry.keyanti || "",
-            content: entry.content || "",
-            comment: entry.comment || entry.title || `Imported from ${char.name}`,
-            selective: entry.selective || false,
-            constant: entry.constant || false,
-            probability: entry.probability || 100,
-            wigroup: `Character: ${char.name}`,
-            widisabled: false
-          });
-        });
-        window.autosave?.();
-        document.getElementById("char-modal-" + charId)?.remove();
-        KLITE_RPMod.switchTab("right", "WI");
-      },
-      // Import a single WorldInfo entry
-      importWorldInfoEntry(charId, entryIndex) {
-        const char = KLITE_RPMod.characters.find((c) => c.id == charId);
-        if (!char) return;
-        const characterData = char.rawData?.data || char.rawData || {};
-        const worldInfo = [];
-        if (characterData.character_book?.entries) {
-          const entries = Array.isArray(characterData.character_book.entries) ? characterData.character_book.entries : Object.values(characterData.character_book.entries);
-          worldInfo.push(...entries);
-        }
-        const entry = worldInfo[entryIndex];
-        if (!entry) return;
-        if (!window.current_wi) window.current_wi = [];
-        const keys = entry.keys || entry.key || [];
-        const keyList = Array.isArray(keys) ? keys : typeof keys === "string" ? keys.split(",").map((k2) => k2.trim()) : [];
-        const secondary = entry.secondary_keys || entry.keysecondary || [];
-        const secondaryList = Array.isArray(secondary) ? secondary : typeof secondary === "string" ? secondary.split(",").map((k2) => k2.trim()) : [];
-        window.current_wi.push({
-          key: keyList.join(", "),
-          keysecondary: secondaryList.join(", "),
-          keyanti: entry.keyanti || "",
-          content: entry.content || "",
-          comment: entry.comment || entry.title || `Imported from ${char.name}`,
-          selective: entry.selective || false,
-          constant: entry.constant || false,
-          probability: entry.probability || 100,
-          wigroup: `Character: ${char.name}`,
-          widisabled: false
-        });
-        window.autosave?.();
-      },
-      // View WorldInfo as JSON
-      viewWorldInfoJSON(charId) {
-        const char = KLITE_RPMod.characters.find((c) => c.id == charId);
-        if (!char) return;
-        const characterData = char.rawData?.data || char.rawData || {};
-        const worldInfo = characterData.character_book || { entries: [] };
-        const modalHTML = `
-                <div id="wi-json-modal" class="klite-modal">
-                    <div class="klite-modal-content" style="max-width: 800px;">
-                        <div class="klite-modal-header">
-                            <h3>World Info JSON - ${KLITE_RPMod.escapeHtml(char.name || "")}</h3>
-                            <button class="klite-modal-close" onclick="document.getElementById('wi-json-modal').remove()"> -->
-                        </div>
-                        <div class="klite-modal-body">
-                            <textarea readonly style="width: 100%; height: 400px; font-family: monospace; font-size: 12px;">${JSON.stringify(worldInfo, null, 2)}</textarea>
-                        </div>
-                        <div class="klite-modal-footer">
-                            <button class="klite-btn" onclick="navigator.clipboard.writeText(this.previousElementSibling.querySelector('textarea').value)">Copy to Clipboard</button>
-                            <button class="klite-btn secondary" onclick="document.getElementById('wi-json-modal').remove()">Close</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        document.body.insertAdjacentHTML("beforeend", modalHTML);
-      },
-      // Use a specific greeting
-      useGreeting(charId, greetingIndex) {
-        const char = KLITE_RPMod.characters.find((c) => c.id == charId);
-        if (!char) return;
-        const characterData = char.rawData?.data || char.rawData || {};
-        const greetings = [];
-        if (characterData.first_mes) {
-          greetings.push(characterData.first_mes);
-        }
-        if (characterData.alternate_greetings && Array.isArray(characterData.alternate_greetings)) {
-          greetings.push(...characterData.alternate_greetings);
-        }
-        const selectedGreeting = greetings[greetingIndex];
-        if (!selectedGreeting) return;
-        if (!navigator.clipboard) {
-          throw new Error("Clipboard API not available. Use a modern browser with HTTPS.");
-        }
-        navigator.clipboard.writeText(selectedGreeting).then(() => {
-        });
-      },
-      toggleCharacterModalFullscreen(button) {
-        const modalContent = button.closest(".klite-modal-content");
-        if (!modalContent) return;
-        const isFullscreen = modalContent.classList.contains("fullscreen");
-        modalContent.classList.toggle("fullscreen");
-        button.textContent = isFullscreen ? "⛶" : "+";
-        button.title = isFullscreen ? "Enter Fullscreen" : "Exit Fullscreen";
-        KLITE_RPMod.log("chars", `Toggled fullscreen: ${!isFullscreen}`);
-      },
-      removeTag(charId, tag) {
-        const character = KLITE_RPMod.characters.find((c) => c.id === charId);
-        if (!character || !character.tags) return;
-        const tagIndex = character.tags.indexOf(tag);
-        if (tagIndex > -1) {
-          character.tags.splice(tagIndex, 1);
-          KLITE_RPMod.saveCharacters();
-          const rightPanel = document.querySelector("div#content-right.klite-content");
-          const backButton = rightPanel?.querySelector('button[onclick*="hideCharacterFullscreen"]');
-          if (backButton) {
-            this.showCharacterFullscreen(character);
-          }
-          KLITE_RPMod.log("chars", `Removed tag "${tag}" from character ${character.name}`);
-        }
-      },
       setActiveGreeting(charId, greetingIndex) {
         const character = KLITE_RPMod.characters.find((c) => c.id === charId);
         if (!character) return;
@@ -16402,14 +14360,6 @@ ${char.mes_example}
         }
         const greetingName = greetingIndex === -1 ? "default" : `alternate ${greetingIndex + 1}`;
         KLITE_RPMod.log("chars", `Set active greeting to ${greetingName} for character ${character.name}`);
-      },
-      copyGreeting(content) {
-        if (!navigator.clipboard) {
-          throw new Error("Clipboard API not available. Use a modern browser with HTTPS.");
-        }
-        navigator.clipboard.writeText(content).then(() => {
-          KLITE_RPMod.log("chars", "Greeting copied to clipboard");
-        });
       },
       showCharacterFullscreen(char) {
         const rightPanel = document.querySelector("div#content-right.klite-content");
@@ -16710,130 +14660,6 @@ ${char.mes_example}
       // =============================================
       // MULTI-TIER IMAGE STORAGE OPTIMIZATION
       // =============================================
-      async createOptimizedImages(originalImage, filename = "character") {
-        if (typeof document === "undefined" || !document.createElement) {
-          KLITE_RPMod.log("chars", `Canvas API not available, using original image for ${filename}`);
-          return {
-            original: originalImage,
-            preview: originalImage,
-            avatar: originalImage,
-            thumbnail: originalImage
-          };
-        }
-        return new Promise((resolve) => {
-          try {
-            const img = new Image();
-            img.onload = () => {
-              try {
-                const images = {
-                  original: originalImage,
-                  // Full resolution for export
-                  preview: this.createPreviewImage(img),
-                  // 256x256 for gallery
-                  avatar: this.createAvatarImage(img),
-                  // 64x64 for chat
-                  thumbnail: this.createThumbnailImage(img)
-                  // 32x32 for mobile/list view
-                };
-                KLITE_RPMod.log("chars", `🖼️ Created optimized images for ${filename}: original (${originalImage.length}B), preview (${images.preview.length}B), avatar (${images.avatar.length}B), thumbnail (${images.thumbnail.length}B)`);
-                resolve(images);
-              } catch (error) {
-                KLITE_RPMod.log("chars", `Image optimization failed for ${filename}, using original:`, error.message);
-                resolve({
-                  original: originalImage,
-                  preview: originalImage,
-                  avatar: originalImage,
-                  thumbnail: originalImage
-                });
-              }
-            };
-            img.onerror = () => {
-              KLITE_RPMod.log("chars", `Failed to load image for optimization: ${filename}, using original`);
-              resolve({
-                original: originalImage,
-                preview: originalImage,
-                avatar: originalImage,
-                thumbnail: originalImage
-              });
-            };
-            img.src = originalImage;
-          } catch (error) {
-            KLITE_RPMod.log("chars", `Image optimization setup failed for ${filename}, using original:`, error.message);
-            resolve({
-              original: originalImage,
-              preview: originalImage,
-              avatar: originalImage,
-              thumbnail: originalImage
-            });
-          }
-        });
-      },
-      createPreviewImage(img) {
-        try {
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          if (!ctx) throw new Error("Canvas 2D context not available");
-          const size = 256;
-          canvas.width = size;
-          canvas.height = size;
-          const scale = Math.min(size / img.width, size / img.height);
-          const width = img.width * scale;
-          const height = img.height * scale;
-          const x = (size - width) / 2;
-          const y = (size - height) / 2;
-          ctx.fillStyle = "#1a1a1a";
-          ctx.fillRect(0, 0, size, size);
-          ctx.drawImage(img, x, y, width, height);
-          return canvas.toDataURL("image/jpeg", 0.8);
-        } catch (error) {
-          KLITE_RPMod.log("chars", "Preview image creation failed, using original");
-          return img.src;
-        }
-      },
-      createAvatarImage(img) {
-        try {
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          if (!ctx) throw new Error("Canvas 2D context not available");
-          const size = 64;
-          canvas.width = size;
-          canvas.height = size;
-          const scale = Math.min(size / img.width, size / img.height);
-          const width = img.width * scale;
-          const height = img.height * scale;
-          const x = (size - width) / 2;
-          const y = (size - height) / 2;
-          ctx.fillStyle = "#1a1a1a";
-          ctx.fillRect(0, 0, size, size);
-          ctx.drawImage(img, x, y, width, height);
-          return canvas.toDataURL("image/jpeg", 0.7);
-        } catch (error) {
-          KLITE_RPMod.log("chars", "Avatar image creation failed, using original");
-          return img.src;
-        }
-      },
-      createThumbnailImage(img) {
-        try {
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          if (!ctx) throw new Error("Canvas 2D context not available");
-          const size = 32;
-          canvas.width = size;
-          canvas.height = size;
-          const scale = Math.min(size / img.width, size / img.height);
-          const width = img.width * scale;
-          const height = img.height * scale;
-          const x = (size - width) / 2;
-          const y = (size - height) / 2;
-          ctx.fillStyle = "#1a1a1a";
-          ctx.fillRect(0, 0, size, size);
-          ctx.drawImage(img, x, y, width, height);
-          return canvas.toDataURL("image/jpeg", 0.6);
-        } catch (error) {
-          KLITE_RPMod.log("chars", "Thumbnail image creation failed, using original");
-          return img.src;
-        }
-      },
       // =============================================
       // AVATAR CACHING SYSTEM
       // =============================================
@@ -16863,21 +14689,6 @@ ${char.mes_example}
         this.initAvatarCache();
         const cacheKey = `${characterId}_${type}`;
         return this.avatarCache.get(cacheKey);
-      },
-      setOptimizedAvatar(characterId, type, imageData) {
-        this.initAvatarCache();
-        const cacheKey = `${characterId}_${type}`;
-        this.avatarCache.set(cacheKey, imageData);
-        if (this.avatarCache.size > 200) {
-          const firstKey = this.avatarCache.keys().next().value;
-          this.avatarCache.delete(firstKey);
-          KLITE_RPMod.log("chars", "🗑️ Avatar cache size limit reached, removed oldest entry");
-        }
-      },
-      clearAvatarCache() {
-        this.initAvatarCache();
-        this.avatarCache.clear();
-        KLITE_RPMod.log("chars", "🗑️ Avatar cache cleared");
       },
       refresh() {
         const rightPanel = document.querySelector("div#content-right.klite-content");
@@ -17000,23 +14811,6 @@ ${char.mes_example}
         }
         return [];
       },
-      setEsoliteCharacterList(updater) {
-        try {
-          if (typeof allCharacterNames !== "undefined" && Array.isArray(allCharacterNames)) {
-            allCharacterNames = updater(allCharacterNames);
-            return true;
-          }
-        } catch (_) {
-        }
-        try {
-          if (Array.isArray(window.allCharacterNames)) {
-            window.allCharacterNames = updater(window.allCharacterNames);
-            return true;
-          }
-        } catch (_) {
-        }
-        return false;
-      },
       async rebuildFromEsolite() {
         if (this._rebuilding) return;
         this._rebuilding = true;
@@ -17134,26 +14928,6 @@ ${char.mes_example}
         } catch (e) {
         } finally {
           this._rebuilding = false;
-        }
-      },
-      async exportAllFromEsolite() {
-        try {
-          const list2 = this.getEsoliteCharacterList();
-          const bundle = [];
-          for (const meta of list2) {
-            try {
-              const d = await window.getCharacterData?.(meta.name);
-              if (d) bundle.push(d);
-            } catch (_) {
-            }
-          }
-          const blob = new Blob([JSON.stringify({ characters: bundle }, null, 2)], { type: "application/json" });
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = "esolite_characters.json";
-          a.click();
-          setTimeout(() => URL.revokeObjectURL(a.href), 500);
-        } catch (e) {
         }
       },
       // Convert base64 data URL to Uint8Array
@@ -17378,13 +15152,6 @@ ${char.mes_example}
             await this.rebuildFromEsolite?.();
           } catch (_) {
           }
-        } catch (_) {
-        }
-      },
-      async loadCharacterByName(name) {
-        try {
-          const d = await window.getCharacterData?.(name);
-          if (d?.data) window.load_tavern_obj?.(d.data);
         } catch (_) {
         }
       },
@@ -31403,7 +29170,10 @@ ${xl.join("\n")}`;
       }
       dbg("KLITE Worlds ready. prepare-wrap=", okPrepare, "— use KLITE_RPMod_Worlds API to import/enable a world.");
     }
+    let started = false;
     function whenReady() {
+      if (started) return;
+      started = true;
       let tries = 0;
       const timer = setInterval(() => {
         tries++;
@@ -31419,7 +29189,7 @@ ${xl.join("\n")}`;
     }
     window.KLITE_RPMod_Worlds = API3;
     if (document.readyState === "complete") whenReady();
-    else window.addEventListener("load", whenReady);
+    else window.addEventListener("load", whenReady, { once: true });
   }
 
   // src/game/zoneBoard.js
@@ -34882,7 +32652,10 @@ ${xl.join("\n")}`;
         }
       });
     }
+    let started = false;
     function whenReady() {
+      if (started) return;
+      started = true;
       let tries = 0;
       const timer = setInterval(() => {
         tries++;
@@ -34899,7 +32672,7 @@ ${xl.join("\n")}`;
     }
     window.KLITE_RPMod_WorldsUI = { openEditor, closeEditor, refreshPanel, openMapEditor, closeMapEditor };
     if (document.readyState === "complete") whenReady();
-    else window.addEventListener("load", whenReady);
+    else window.addEventListener("load", whenReady, { once: true });
   }
 
   // src/onboarding/chapters.js
@@ -36107,7 +33880,7 @@ ${xl.join("\n")}`;
       if (!install() && ++tries < 120) setTimeout(attempt, 500);
     };
     if (document.readyState === "complete") attempt();
-    else window.addEventListener("load", attempt);
+    else window.addEventListener("load", attempt, { once: true });
   }
 
   // src/game/log.js
@@ -36253,7 +34026,7 @@ ${xl.join("\n")}`;
       if ((!saves || !sh) && ++tries < 120) setTimeout(attempt, 250);
     };
     if (document.readyState === "complete") attempt();
-    else window.addEventListener("load", attempt);
+    else window.addEventListener("load", attempt, { once: true });
   }
 
   // src/characters/store.js
@@ -37549,7 +35322,7 @@ OK = save and close · Cancel = close and discard them`);
       if (!register() && ++tries < 120) setTimeout(attempt, 250);
     };
     if (document.readyState === "complete") attempt();
-    else window.addEventListener("load", attempt);
+    else window.addEventListener("load", attempt, { once: true });
   }
 
   // src/characters/gallery.js
@@ -38082,7 +35855,7 @@ OK = save and close · Cancel = close and discard them`);
       if (!register() && ++tries < 120) setTimeout(attempt, 250);
     };
     if (document.readyState === "complete") attempt();
-    else window.addEventListener("load", attempt);
+    else window.addEventListener("load", attempt, { once: true });
   }
 
   // src/characters/builder.js
@@ -38636,7 +36409,7 @@ OK = save and close · Cancel = close and discard them`);
       if (!register() && ++tries < 120) setTimeout(attempt, 250);
     };
     if (document.readyState === "complete") attempt();
-    else window.addEventListener("load", attempt);
+    else window.addEventListener("load", attempt, { once: true });
   }
 
   // src/main.js

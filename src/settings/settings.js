@@ -193,5 +193,5 @@ export default function initSettings() {
 
     let tries = 0;
     const attempt = () => { if (!install() && ++tries < 120) setTimeout(attempt, 500); };
-    if (document.readyState === 'complete') attempt(); else window.addEventListener('load', attempt);
+    if (document.readyState === 'complete') attempt(); else window.addEventListener('load', attempt, { once: true });   // once: a second load event must not start it again
 }

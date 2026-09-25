@@ -681,7 +681,7 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
 - **ALPHA's Chars tab** points to the gallery: with `KLITE_RPMod_Gallery` present it renders
   import/backup, **New Character** (ALPHA's card editor) and `renderGalleryLauncher()` (count +
   up to 12 Library names, favorites first, from `KLITE_RPMod_Library.characterList()`; action
-  `open-gallery`); ALPHA's own grid (`renderInlineGallery`) remains only as the fallback. The tab
+  `open-gallery`) — always (the gallery module starts first; ALPHA's own grid was removed). The tab
   re-renders on `klite:library-change`.
 - **SRD data** (`src/data/srd52.js`, generated, ~250 KB): `SRD.{attribution, classes, backgrounds,
   species, feats, weapons, armor, xp, standardArray, pointBuy, languages, alignments}`.
@@ -749,7 +749,8 @@ via `vm` like a usermod (single `src/` modules are bundled on the fly with esbui
 viewport is 1400×900, `host.resize()` changes it). Suites: `syntax`, `engine`, `quests`,
 `triggers`, `combat`, `context`, `library`, `settings`, `characters`, `shell`, `ui`, `onboarding`, `bundle` (built file end-to-end);
 R7: `map`, `mapEditor`, `move`, `explore`, `generator`, `zones`, `acceptance-r7` (the phase's
-acceptance scenario end to end).
+acceptance scenario end to end); `rpmodPanels` (the old panel code: `rpmod` save round trip,
+every panel renders, start-up runs once).
 `host.installTavernTool()` loads Esolite's real `tavernTool.js`; `host.installFakeSettingsDialog()`
 mimics the Settings dialog; `host.installFakeEsoHooks({ quickStart, settings, guide })` mimics
 Esolite's mod hooks (registry, extension classes, `eso.guide`) for the `'eso'` modes.
