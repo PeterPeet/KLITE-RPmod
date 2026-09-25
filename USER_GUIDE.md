@@ -584,7 +584,9 @@ for whether the **AI** (as GM) sees hidden content.
 
 **Reputation** has its own window (World tab → **Reputation**): in the Player view it lists only
 the factions you have **met** — your standing with them changed, you met one of their people,
-visited their headquarters or fought one of their encounters. The Creator view shows all.
+visited their headquarters or fought one of their encounters. The Creator view shows all. The left
+panel's **Reputation** section (between Quests and the Dice log) shows the same factions at a glance,
+with an **Open reputation** button.
 
 - **Objectives** count by themselves: *Defeat* (a monster name or a person — every defeat in a
   fight counts, e.g. "Defeat 3 Wolf (1/3)"), *Collect* (items in your inventory; handed over on

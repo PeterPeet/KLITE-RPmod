@@ -80,3 +80,16 @@ test('Here quick replies: "Ask to join" for people who can join', async (t) => {
     W.joinParty('Bram');
     assert.equal(CH.hereReplies(plain(W.here())).find(x => x.kind === 'join'), undefined, 'not once they travel with you');
 });
+
+test('Adventure panel: a Reputation section (between Quests and Dice log) with the factions met', async (t) => {
+    const h = await uiWorld(t); const w = h.window; const doc = w.document; const W = h.api();
+    const sec = () => doc.querySelector('[data-section="rep-tracker"]');
+    assert.ok(sec(), 'the section exists');
+    const ids = [...doc.querySelectorAll('#rpm-dock-left [data-section]')].map(e => e.getAttribute('data-section'));
+    assert.ok(ids.indexOf('quest-tracker') < ids.indexOf('rep-tracker'), JSON.stringify(ids));
+    assert.match(sec().textContent, /No faction met yet/);
+    W.changeReputation('fac_guard', 150); w.KLITE_RPMod_Shell.refresh(); await sleep(30);
+    assert.equal(sec().querySelector('[data-rep-track="fac_guard"] [data-tier]').textContent, 'Friendly');
+    click(sec().querySelector('[data-ui="open-rep"]'), w); await sleep(30);
+    assert.ok(doc.querySelector('[data-window="reputation"]'), 'the button opens the Reputation window');
+});

@@ -31202,7 +31202,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     }
     let panelEl = null;
     const TIME_SLOTS_UI = ["morning", "noon", "afternoon", "evening", "night"];
-    const VIEW_IDS = ["world", "party", "quest-tracker", "questlog", "reputation", "questeditor", "combat", "shop", ...MINIMAP_VIEWS];
+    const VIEW_IDS = ["world", "party", "quest-tracker", "rep-tracker", "questlog", "reputation", "questeditor", "combat", "shop", ...MINIMAP_VIEWS];
     function uiBtn(text, onclick, opts) {
       opts = opts || {};
       const cls = "btn btn-primary rpm-btn" + (opts.block ? " rpm-block" : "") + (opts.grow ? " rpm-grow" : "") + (opts.variant ? " rpm-" + opts.variant : "") + (opts.lg ? " rpm-lg" : "") + (opts.icon ? " rpm-btn-icon" : "");
@@ -31452,6 +31452,25 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         const hp = cb.hp.__player__, max = cb.maxHp.__player__;
         box.appendChild(uiBtn(`⚔ Round ${cb.round} · ${cur ? cur.name : ""}${hp != null ? ` · HP ${hp}/${max}` : ""}`, () => openView("combat"), { block: true, variant: "danger", style: "margin-top:8px" }));
       }
+    }
+    function renderRepTracker(box) {
+      const A = API3();
+      if (!A.activeWorld()) {
+        box.appendChild(muted2("No factions yet."));
+        return;
+      }
+      const list3 = A.reputation({ encountered: true });
+      if (!list3.length) box.appendChild(muted2("No faction met yet."));
+      for (const r of list3) {
+        const pct = r.span ? Math.max(0, Math.min(100, Math.round(r.into / r.span * 100))) : 100;
+        const bar = el2("div", { class: "rpm-bar", title: r.next ? `${r.into}/${r.span} to ${r.next}` : "highest tier" });
+        bar.appendChild(el2("span", { style: `width:${pct}%;background:${r.hostile ? "var(--rpm-danger)" : "var(--rpm-info)"}` }));
+        box.appendChild(el2("div", { class: "rpm-card", "data-rep-track": r.id }, [
+          row2([el2("span", { class: "rpm-grow", style: "font-weight:bold", text: r.name }), el2("span", { class: "rpm-chip " + (r.hostile ? "rpm-chip-danger" : "rpm-chip-info"), "data-tier": r.tier, text: r.tier })]),
+          bar
+        ]));
+      }
+      box.appendChild(uiBtn("Open reputation", () => openView("reputation"), { icon: "shield", block: true, style: "margin-top:8px", id: "open-rep" }));
     }
     function renderQuestTracker(box) {
       const A = API3();
@@ -31882,6 +31901,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       sh.registerView({ id: "world", title: "World", place: "right", order: 10, mount: mountPanel, update: () => renderPanel() });
       sh.registerView(Object.assign({ id: "party", title: "Party", place: "left", order: 10 }, view(renderParty)));
       sh.registerView(Object.assign({ id: "quest-tracker", title: "Quests", place: "left", order: 20 }, view(renderQuestTracker)));
+      sh.registerView(Object.assign({ id: "rep-tracker", title: "Reputation", place: "left", order: 25 }, view(renderRepTracker)));
       sh.registerView(Object.assign({ id: "questlog", title: "Quest log", place: "window", window: { width: 380, height: 520 } }, view((c) => {
         if (API3().activeWorld()) renderQuestsTab(c);
         else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
