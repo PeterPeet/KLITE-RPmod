@@ -306,7 +306,7 @@ export default function initWorldsUI() {
         if (type === 'location') { renderLocationExtras(box, ent); renderPhases(box, ent, 'location'); }
         if (type === 'quest') { renderQuestExtras(box, ent); renderQuestPrereqs(box, ent); }
         if (type === 'event') renderEventExtras(box, ent);
-        if (type === 'faction') renderFactionExtras(box, ent);
+        if (type === 'faction') { renderFactionExtras(box, ent); renderPhases(box, ent, 'faction'); }
         if (type === 'encounter') renderEncounterExtras(box, ent);
         // connections
         const conns = S.G.edges.filter(e => (e.from === S.selectedId || e.to === S.selectedId) && e.kind !== 'contains');
@@ -416,6 +416,23 @@ export default function initWorldsUI() {
         };
         personSel('giverPersonId', 'Quest giver', '!');
         personSel('turninPersonId', 'Turn-in to', '?');
+
+        // repeatable / daily (R4 extra)
+        box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:8px 0 3px', text: 'Repeat' }));
+        const rs = el('select', { style: inputCss(false) + ';cursor:pointer', 'data-quest-field': 'repeat' });
+        for (const [v, t] of [['', 'Once'], ['repeatable', 'Repeatable (again right after turn-in)'], ['daily', 'Daily (again the next in-game day)']]) { const o = el('option', { value: v, text: t }); if ((ent.repeat || '') === v) o.selected = true; rs.appendChild(o); }
+        rs.addEventListener('change', () => { A.updateEntity(S.selectedId, { repeat: rs.value || undefined }); });
+        box.appendChild(rs);
+        // the giver's words (R4 extra): the AI speaks them; the Quest log shows them
+        for (const [field, label, ph] of [['offerText', "Giver's words when offering", 'e.g. "Wolves took three sheep this week. Bring me their pelts?"'],
+            ['progressText', 'While in progress', 'e.g. "Back already? The wolves are still out there."'],
+            ['completionText', 'On turn-in', 'e.g. "Fine pelts! Here, you earned this."']]) {
+            box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:8px 0 3px', text: label }));
+            const ta = el('textarea', { rows: 2, style: inputCss(true), placeholder: ph, 'data-quest-field': field });
+            ta.value = ent[field] || '';
+            ta.addEventListener('input', () => { A.updateEntity(S.selectedId, { [field]: ta.value.trim() || undefined }); });
+            box.appendChild(ta);
+        }
 
         // rewards (simple text lines: "name xN" or "N xp")
         box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:10px 0 3px', text: 'Rewards' }));
@@ -571,6 +588,15 @@ export default function initWorldsUI() {
         for (const l of A.getGraph().nodes.filter(n => n.type === 'location')) { const o = el('option', { value: l.id, text: locLabel(l) }); if (ent.locationId === l.id) o.selected = true; loc.appendChild(o); }
         loc.addEventListener('change', () => save({ locationId: loc.value || null }));
         box.appendChild(loc);
+        const facs = A.getGraph().nodes.filter(n => n.type === 'faction');
+        if (facs.length || ent.factionId) {
+            box.appendChild(el('label', { class: 'rpm-label', text: 'The monsters belong to (defeating them costs reputation)' }));
+            const fs = el('select', { class: 'form-control rpm-input', 'data-enc': 'faction' });
+            fs.appendChild(el('option', { value: '', text: '— no faction —' }));
+            for (const f of facs) { const o = el('option', { value: f.id, text: f.name }); if (ent.factionId === f.id) o.selected = true; fs.appendChild(o); }
+            fs.addEventListener('change', () => save({ factionId: fs.value || null }));
+            box.appendChild(fs);
+        }
         box.appendChild(el('label', { class: 'rpm-label', text: 'Enemies start (zone combat)' }));
         const st = el('select', { class: 'form-control rpm-input', 'data-enc': 'start' });
         for (const [v, t] of ENC_STARTS) { const o = el('option', { value: v, text: t }); if ((ent.start || 'auto') === v) o.selected = true; st.appendChild(o); }
@@ -596,6 +622,11 @@ export default function initWorldsUI() {
         const rep = el('input', { type: 'number', step: '50', value: Number(ent.startReputation) || 0, style: inputCss(false) + ';width:8em', 'aria-label': 'Starting reputation' });
         rep.addEventListener('change', () => { A.updateEntity(S.selectedId, { startReputation: Number(rep.value) || 0 }); });
         box.appendChild(rep);
+        // defeating one of its members (a person of the faction, or a monster of an encounter linked to it)
+        box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px', text: 'Reputation per member defeated (default −25; 0 = none)' }));
+        const kill = el('input', { type: 'number', step: '5', value: ent.killReputation == null || ent.killReputation === '' ? '' : Number(ent.killReputation), placeholder: '-25', style: inputCss(false) + ';width:8em', 'aria-label': 'Reputation per member defeated', 'data-faction': 'kill' });
+        kill.addEventListener('change', () => { A.updateEntity(S.selectedId, { killReputation: kill.value.trim() === '' ? null : Number(kill.value) || 0 }); });
+        box.appendChild(kill);
     }
 
     // ---- Event trigger/effect editor (Phase E) ----
@@ -734,7 +765,8 @@ export default function initWorldsUI() {
             label.addEventListener('change', () => { ph.label = label.value.trim(); save(); });
             card.appendChild(el('div', { style: 'display:flex;gap:5px' }, [label, el('button', { type: 'button', class: 'rpm-iconbtn', title: 'Remove phase', 'aria-label': 'Remove phase', style: 'color:var(--rpm-danger)', text: '×', onclick: () => { phases.splice(i, 1); save(); } })]));
             structuredList(card, 'When (all hold)', asArrayU(ph.conditions), CONDITION_SPEC, its => { ph.conditions = its; save(); });
-            const fields = type === 'location' ? [['name', 'Name'], ['description', 'Description'], ['atmosphere', 'Atmosphere']] : [['description', 'Description'], ['mood', 'Mood']];
+            const fields = type === 'location' ? [['name', 'Name'], ['description', 'Description'], ['atmosphere', 'Atmosphere']]
+                : type === 'faction' ? [['name', 'Name'], ['description', 'Description']] : [['description', 'Description'], ['mood', 'Mood']];
             for (const [key, t] of fields) {
                 const inp = el(key === 'description' ? 'textarea' : 'input', { type: 'text', rows: 2, placeholder: `${t} in this phase (empty = unchanged)`, style: inputCss(key === 'description'), 'aria-label': `Phase ${t}` });
                 inp.value = ph[key] || '';
@@ -751,6 +783,18 @@ export default function initWorldsUI() {
                 g.addEventListener('change', () => { ph.gone = g.checked || undefined; A.updateEntity(S.selectedId, { phases }); });
                 gw.appendChild(g); gw.appendChild(document.createTextNode('Gone (left, died …)'));
                 card.appendChild(ls); card.appendChild(gw);
+            }
+            if (type === 'faction') {
+                const hs = el('select', { style: inputCss(false), 'aria-label': 'Phase headquarters' });
+                hs.appendChild(el('option', { value: '', text: '— headquarters unchanged —' }));
+                hs.appendChild(el('option', { value: 'none', text: 'No headquarters any more', selected: ph.hqLocationId === 'none' ? '' : null }));
+                for (const l of A.getGraph().nodes.filter(n => n.type === 'location')) { const o = el('option', { value: l.id, text: 'Headquarters: ' + locLabel(l) }); if (ph.hqLocationId === l.id) o.selected = true; hs.appendChild(o); }
+                hs.addEventListener('change', () => { ph.hqLocationId = hs.value || undefined; A.updateEntity(S.selectedId, { phases }); });
+                const gw = el('label', { style: 'display:flex;align-items:center;gap:6px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)' });
+                const g = el('input', { type: 'checkbox', 'aria-label': 'Disbanded in this phase' }); g.checked = !!ph.gone;
+                g.addEventListener('change', () => { ph.gone = g.checked || undefined; A.updateEntity(S.selectedId, { phases }); });
+                gw.appendChild(g); gw.appendChild(document.createTextNode('Disbanded (the AI no longer hears of it)'));
+                card.appendChild(hs); card.appendChild(gw);
             }
             box.appendChild(card);
         });
@@ -1227,6 +1271,9 @@ export default function initWorldsUI() {
                     q.active ? el('span', { class: 'rpm-chip rpm-chip-info', text: '● tracked' }) : null
                 ]));
                 if (q.description) card.appendChild(el('div', { style: 'margin-top:3px', text: q.description }));
+                const words = st === 'available' ? q.offerText : st === 'active' ? q.progressText : st === 'turnedin' ? q.completionText : '';
+                if (words) card.appendChild(el('div', { class: 'rpm-quest-words', 'data-words': q.id, style: 'margin-top:3px;font-style:italic', text: `${(st === 'available' ? q.giver : q.turnin) || ''}${(st === 'available' ? q.giver : q.turnin) ? ': ' : ''}“${words}”` }));
+                if (q.repeat) card.appendChild(el('span', { class: 'rpm-chip rpm-chip-info', 'data-repeat': q.id, style: 'margin-top:3px', text: (q.repeat === 'daily' ? 'Daily' : 'Repeatable') + (q.timesDone ? ` · done ${q.timesDone}×` : '') + (st === 'turnedin' && q.repeat === 'daily' ? ' · again tomorrow' : '') }));
                 if (q.giver || q.turnin) card.appendChild(muted((q.giver ? `From: ${q.giver}` : '') + (q.turnin ? `  Turn-in: ${q.turnin}` : ''), { style: 'margin-top:2px' }));
                 // objectives: counters; manual ones can be ticked while the quest is accepted
                 if (q.objectives && q.objectives.length) {
@@ -1290,7 +1337,7 @@ export default function initWorldsUI() {
         for (const r of list) {
             const pct = r.span ? Math.max(0, Math.min(100, Math.round(r.into / r.span * 100))) : 100;
             const card = el('div', { class: 'rpm-card', 'data-rep': r.id }, [
-                row([el('span', { class: 'rpm-grow', style: 'font-weight:bold', text: r.name }), el('span', { class: 'rpm-chip ' + (r.hostile ? 'rpm-chip-danger' : r.tier === 'Neutral' ? '' : 'rpm-chip-info'), 'data-tier': r.tier, text: r.tier })]),
+                row([el('span', { class: 'rpm-grow', style: 'font-weight:bold', text: r.name }), r.gone ? el('span', { class: 'rpm-chip', 'data-gone': r.id, text: 'disbanded' }) : null, el('span', { class: 'rpm-chip ' + (r.hostile ? 'rpm-chip-danger' : r.tier === 'Neutral' ? '' : 'rpm-chip-info'), 'data-tier': r.tier, text: r.tier })]),
             ]);
             const bar = el('div', { class: 'rpm-bar', title: r.next ? `${r.into}/${r.span} to ${r.next}` : 'highest tier' });
             bar.appendChild(el('span', { style: `width:${pct}%;background:${r.hostile ? 'var(--rpm-danger)' : 'var(--rpm-info)'}` }));

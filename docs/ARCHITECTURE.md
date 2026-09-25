@@ -157,7 +157,7 @@ first copied to `KLITE_WORLDS_LIBRARY_corrupt_<time>` (known issue 19).
 `W.runtime = { active:'working'|'base', base:Snapshot, working:Snapshot }`; every engine
 read/write goes through **`rt()`** (active snapshot). Snapshot:
 `playerLocationId, party[], knownNpcIds[], visitedLocationIds[], flags{}, inventory[], coins{gp},
-xp, questState{}, questObjectives{ qid: { oid: true | count } }, rewardsPaid{}, reputation{},
+xp, questState{}, questObjectives{ qid: { oid: true | count } }, rewardsPaid{}, questRepeats{ qid: { count, day } }, reputation{},
 activeQuestId, discovered{quests,events,descriptions},
 combat, npcStateOverrides{}, completedEventIds[], lastParsedIndex, clock{day,month,year,time,season,weather},
 explored{}, found{secrets[],traps[],searched{}}, doorState{}, roomLight{}` (R7, §3.9; older saves get them via
@@ -215,7 +215,7 @@ side-effect free.
 ### 3.4 Chat tags (`parseMutations`)
 `<move>`, `<npcmove>N=L`, `<mood>N=M`, `<flag>k=v`, `<unflag>`, `<give>Item xN`,
 `<take>Item xN` (default one, like `<give>`; `x all` removes the stack), `<quest>id=state`, `<time>`,
-`<weather>`, `<advance>`, `<action>` (fires `action:` signal), `<roll>expr`,
+`<weather>`, `<advance>`, `<action>` (fires `action:` signal), `<accept>quest`, `<turnin>quest` (R4 extras), `<roll>expr`,
 `<attack>A->B`, `<hp>N=±n`, `<check>N=abi DC`. Parsed from new `gametext_arr` messages
 (`lastParsedIndex`) **when the AI's reply arrives** (R7: wrapper around Esolite's
 `handle_incoming_text`, which pushes the reply synchronously — Esolite wraps it the same way in
@@ -254,6 +254,16 @@ the game log (`kind: 'quest'`), so the AI narrates them.
   a lost collect item → back to `active`.
 - **Rewards:** `turnInQuest(id, choice)` pays once (`rewardsPaid`); a `choice` reward needs the
   index (turn-in returns null without it).
+- **Repeatable/daily (R4 extra):** `q.repeat` `'' | 'repeatable' | 'daily'`; turn-in records
+  `questRepeats[qid] = { count, day: QR.absoluteDay(clock) }`; `refreshRepeatables()` (start of
+  `updateQuestProgress`) puts a turned-in quest back to available (objectives and `rewardsPaid`
+  cleared) at once / on a later day. Prerequisites and `quest == turnedin` conditions count
+  `count > 0` as turned in.
+- **Giver's words (R4 extra):** `offerText / progressText / completionText`; slice section
+  "Quest givers here" (`questGiverLines`: offers of unlocked available quests, waiting for
+  active, ready to take back) with the `<accept>`/`<turnin>` tags (`tagAccept/tagTurnIn` go
+  through `acceptQuest`/`turnInQuest`; a choose-one reward stays with the Quest log);
+  `completionText` is added to the turn-in log line.
 - **Prerequisites/chains:** `questLocks(q)`; accept refuses when locked. Player lens: level-only
   locks are shown greyed, others hidden. Editor quest→quest link = `prerequisites.quests`
   (graph edge `unlocks`). `startItem`: hidden from the player until the item is held.
@@ -265,9 +275,15 @@ the game log (`kind: 'quest'`), so the AI narrates them.
   Honored < 1200 ≤ Revered < 2500 ≤ Exalted). Changed by rewards, effect `reputation`, tag
   `<rep>Faction=±N</rep>`, API `changeReputation`; signal `reputation:<fid>` for the trigger
   `onReputation`. Slice: section "Reputation" (non-Neutral tiers + meaning) and each faction
-  member's attitude.
+  member's attitude. **Kill reputation (R4 extra):** a defeated enemy that belongs to a faction
+  (person `factionId`, or a monster of the saved encounter `encounter.factionId`; graph edge
+  encounter→faction `faction`) changes the standing by `faction.killReputation` (default −25,
+  0 = off) — `killReputation` in `setHp`.
 - **Zones/hubs/phases:** `parentId` builds zones (slice: "Part of: A › B", "Places within",
   the zone among the exits; graph edge `zone`); `hub` adds a line; phases as in §3.1.
+  Factions have phases too (R4 extra): `name`, `description`, `hqLocationId` (`'none'` = no
+  headquarters), `gone` (disbanded: not in the AI's Reputation section; standing kept) —
+  `factionHq(f)`, `factionName` and `reputationList` use the phased faction.
 - Visibility: `gm`/`creator` see all; `player` sees non-hidden or discovered.
 
 ### 3.7 Persons & combat (R5)

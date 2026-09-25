@@ -78,6 +78,22 @@ export function objectiveLabel(o, st) {
     return objectiveKind(o) === 'kill' || objectiveKind(o) === 'collect' ? `${t} (${st.current}/${st.needed})` : t;
 }
 
+// ---- repeatable / daily quests (R4 extra) ------------------------------------------------------
+// q.repeat: '' (once) | 'repeatable' (available again right after turn-in) | 'daily' (again when
+// a new in-game day begins). Each turn-in pays the rewards again.
+export const REPEAT_KINDS = ['', 'repeatable', 'daily'];
+export const repeatKind = (q) => (q && REPEAT_KINDS.includes(q.repeat) ? q.repeat : '');
+// The in-game date as one day number (30-day months, 12 months — the Worlds clock).
+export function absoluteDay(clock) {
+    const c = clock || {};
+    return ((Number(c.year) || 1) - 1) * 360 + ((Number(c.month) || 1) - 1) * 30 + (Number(c.day) || 1);
+}
+// Available again? rec = { count, day } of the last turn-in.
+export function repeatReady(q, rec, today) {
+    const k = repeatKind(q); if (!k || !rec) return false;
+    return k === 'repeatable' || Number(today) > Number(rec.day);
+}
+
 // ---- prerequisites ------------------------------------------------------------------------
 // q.prerequisites = { level, quests: [ids turned in], flags: [keys set], reputation: { factionId, tier } }
 // facts: { level, questState(id), flag(key), tierOf(factionId), questTitle(id), factionName(id) }
@@ -140,12 +156,14 @@ export function activePhase(entity, evalCondition) {
     }
     return hit;
 }
-// The entity as the player sees it now (phase fields override; `gone` hides a person).
+// The entity as the player sees it now (phase fields override; `gone` hides a person or
+// disbands a faction; a faction phase's hqLocationId 'none' = no headquarters).
 export function phased(entity, evalCondition) {
     const ph = activePhase(entity, evalCondition);
     if (!ph) return entity;
     const out = Object.assign({}, entity);
-    for (const k of ['name', 'description', 'atmosphere', 'mood', 'personality', 'homeLocationId', 'gone']) if (ph[k] != null && ph[k] !== '') out[k] = ph[k];
+    for (const k of ['name', 'description', 'atmosphere', 'mood', 'personality', 'homeLocationId', 'hqLocationId', 'gone']) if (ph[k] != null && ph[k] !== '') out[k] = ph[k];
+    if (out.hqLocationId === 'none') out.hqLocationId = null;   // a faction phase: "no headquarters any more"
     out.phase = ph.label || ph.id || 'phase';
     return out;
 }

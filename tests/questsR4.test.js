@@ -204,6 +204,7 @@ test('Quest log and tracker show objectives with counters; manual ones can be ti
 
 test('prerequisites and chains, item-started quests, the full marker set', async (t) => {
     const { W, w, C } = await personaWorld(t, { level: 1 });
+    W.deleteEntity('q_patrol');   // Rowan's daily patrol (R4 extras) would add a yellow ! of its own
     // chain: the bounty needs the merchant quest turned in (editor link quest → quest)
     W.connect('q_merchant', 'q_bounty');
     assert.deepEqual(plain(W.questLocks('q_bounty')), ['Requires the quest "The Missing Merchant"']);

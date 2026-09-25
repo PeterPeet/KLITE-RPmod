@@ -13,7 +13,7 @@
 **Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
 is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). R5 is done
 (✅ 2026-09-25: spells in the Combat window, companions' HP, Long rest, the Encounter node), and
-R3 too (✅ 2026-09-25: the SRD 5.2.1 Compendium). Next: the R4 extras (started 2026-09-25: known issue 9, `<take>` semantics, is fixed), then R6. The real-backend play
+R3 too (✅ 2026-09-25: the SRD 5.2.1 Compendium). Next: the R4 extras (started 2026-09-25; done: `<take>` semantics, faction phases, kill reputation, repeatable/daily quests, quest-giver dialogue; open: vendors/shops), then R6. The real-backend play
 test (known issue 5) is postponed (owner, 2026-09-25). R7 is done (✅ 2026-09-25, acceptance passed).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
 issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
@@ -524,9 +524,25 @@ world's state slots does not take them back).
       combat's HP/XP write-back raced with quest rewards (now one queue); "Load example world"
       no longer overwrites a saved (maybe edited) example — it adds "Eldoria (Example 2)"; the
       example tavern was renamed "The Crooked Kettle" (it carried another work's inn name).
-- **Open (R4):** vendors/shops (reputation only narrated), factions have no phases (an
-  abandoned HQ is still listed as "Headquarters of …"), reputation from killing faction members,
-  repeatable/daily quests, quest-giver dialogue.
+- **R4 extras** (started 2026-09-25, worked through autonomously while the owner was away;
+  decisions below are the recommended defaults and can be revisited):
+  - [x] **`<take>` semantics** (known issue 9): without a count it removes one; `x all` the stack.
+  - [x] **Faction phases**: name, description, headquarters (moved / none) and *disbanded*
+        (not in the AI's Reputation section; the standing is kept). Example: after the bounty the
+        Red Hand is *Scattered* and has no headquarters.
+  - [x] **Reputation from defeating faction members**: a person of the faction, or a monster of
+        a saved encounter linked to the faction (new link encounter → faction), changes the
+        standing by the faction's *killReputation* (default −25, 0 = off). Decision: no automatic
+        gain with rival factions (events with *onReputation* can do that).
+  - [x] **Repeatable/daily quests**: `repeat` = repeatable (again right after turn-in) or daily
+        (again on a later in-game day); rewards pay each time; chains and "turned in" conditions
+        count the first turn-in. Example: Captain Rowan's daily *Road Patrol*.
+  - [x] **Quest-giver dialogue**: the giver's words on offering / in progress / on turn-in;
+        Quest log shows them, the AI gets a *Quest givers here* section and the new tags
+        `<accept>quest</accept>` / `<turnin>quest</turnin>` (through the rules; a choose-one
+        reward stays with the Quest log).
+  - [ ] **Vendors/shops**.
+  Tests `tests/r4extras.test.js`.
 - Full marker set (yellow/grey `!`, yellow/grey `?`).
 - Prerequisites (level, previous quest, flag, reputation); chains; item-started quests.
 - Objective types with counters (kill/collect/talk/visit), auto-progress from tags/events.

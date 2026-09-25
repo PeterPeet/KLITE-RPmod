@@ -984,7 +984,7 @@ export default function initWorlds() {
     function questFacts() {
         return {
             level: partyInfo().level,
-            questState: (id) => { const q = questById(id); return q ? questStateOf(q) : ''; },
+            questState: (id) => { const q = questById(id); return q ? (timesDone(id) > 0 ? 'turnedin' : questStateOf(q)) : ''; },
             flag: (k) => { const v = rt() && rt().flags ? rt().flags[k] : undefined; return v != null && v !== false && v !== 'false' && v !== 0; },
             tierOf: (fid) => QR.tierOf(repValue(fid)),
             questTitle: (id) => questTitle(questById(id)),
@@ -1018,7 +1018,9 @@ export default function initWorlds() {
         return null;
     }
     function questTitle(q) { return norm(q && (q.title || q.name)) || 'Quest'; }
-    function factionName(id) { const f = findById(activeWorld() && activeWorld().factions, id); return f ? norm(f.name) : id; }
+    function factionName(id) { const f = findById(activeWorld() && activeWorld().factions, id); return f ? norm(phasedEntity(f).name) : id; }
+    // A faction as phased now (R4 extra): renamed, moved/lost its headquarters, or gone (disbanded).
+    function factionHq(f) { const p = phasedEntity(f); return p && !p.gone ? (p.hqLocationId || null) : null; }
     // Pay a quest's rewards once (turn-in). choice = index into the "choose one" options
     // (per choice reward, in order: a number or an array of numbers).
     function payRewards(q, choice) {
@@ -1056,7 +1058,8 @@ export default function initWorlds() {
     function reputationList() {
         return asArray(activeWorld() && activeWorld().factions).map(f => {
             const value = repValue(f.id); const pr = QR.tierProgress(value); const tier = pr.tier;
-            return { id: f.id, name: norm(f.name), value, tier, next: pr.next, into: pr.into, span: pr.span, effect: QR.tierEffect(tier), hostile: QR.isHostileTier(tier) };
+            const ph = phasedEntity(f);
+            return { id: f.id, name: norm(ph.name), value, tier, next: pr.next, into: pr.into, span: pr.span, effect: QR.tierEffect(tier), hostile: QR.isHostileTier(tier), gone: !!ph.gone, phase: ph.phase || null };
         });
     }
     function personAttitude(npc) { if (!npc || !npc.factionId) return null; const r = reputationList().find(x => x.id === npc.factionId); return r && r.tier !== 'Neutral' ? r : null; }
@@ -1093,8 +1096,25 @@ export default function initWorlds() {
         const got = payRewards(q, choice);
         const s = setQuestState(id, 'turnedin');
         if (rt().activeQuestId === id) rt().activeQuestId = null;
-        gameLog(`Quest turned in: ${questTitle(q)}.${got.length ? ' Rewards: ' + got.join(', ') + '.' : ''}`);
+        rt().questRepeats = rt().questRepeats || {};
+        rt().questRepeats[id] = { count: timesDone(id) + 1, day: QR.absoluteDay(rt().clock) };
+        const who = findById(activeWorld().npcs, q.turninPersonId);
+        gameLog(`Quest turned in: ${questTitle(q)}.${got.length ? ' Rewards: ' + got.join(', ') + '.' : ''}${norm(q.completionText) ? ` ${who ? personName(who) : 'They'}: "${norm(q.completionText)}"` : ''}`);
         return s;
+    }
+    // ---- repeatable / daily quests (R4 extra): turned in → available again (rewards pay again) ----
+    // rt().questRepeats = { [questId]: { count, day } } — how often and on which day it was turned in.
+    function timesDone(id) { const r = rt() && rt().questRepeats && rt().questRepeats[id]; return r ? Number(r.count) || 0 : 0; }
+    function refreshRepeatables() {
+        const w = activeWorld(); if (!w || !rt()) return;
+        const today = QR.absoluteDay(rt().clock);
+        for (const q of asArray(w.quests)) {
+            if (questStateOf(q) !== 'turnedin' || !QR.repeatReady(q, rt().questRepeats && rt().questRepeats[q.id], today)) continue;
+            if (rt().questObjectives) delete rt().questObjectives[q.id];
+            if (rt().rewardsPaid) delete rt().rewardsPaid[q.id];
+            rt().questState[q.id] = 'available';
+            gameLog(`Quest available again: ${questTitle(q)}${QR.repeatKind(q) === 'daily' ? ' (daily)' : ''}.`);
+        }
     }
     // ---- objectives with counters (kill / collect / talk / visit / manual) ----
     function objProgress(qid, oid) { return rt() && rt().questObjectives && rt().questObjectives[qid] ? rt().questObjectives[qid][oid] : undefined; }
@@ -1141,6 +1161,7 @@ export default function initWorlds() {
         const w = activeWorld(); if (!w || !rt() || progressing) return;
         progressing = true;
         try {
+            refreshRepeatables();
             const here = rt().playerLocationId;
             // an item that starts a quest: the quest appears (and is announced) once held
             for (const q of asArray(w.quests)) {
@@ -1157,6 +1178,36 @@ export default function initWorlds() {
                 else if (st === 'complete' && !all && !(rt().rewardsPaid && rt().rewardsPaid[q.id]) && objs.some(o => QR.objectiveKind(o) === 'collect' && !objectiveStatusOf(q, o).done)) setQuestState(q.id, 'active');
             }
         } finally { progressing = false; }
+    }
+    // What the persons here offer (!), wait for (in progress) or take back (?), for the AI.
+    function questGiverLines(personIds, mode) {
+        const w = activeWorld(); const out = [];
+        const say = (t) => (norm(t) ? ` — "${norm(t)}"` : '');
+        for (const q of asArray(w && w.quests)) {
+            if (!questVisible(q, mode)) continue;
+            const st = questStateOf(q), title = questTitle(q);
+            const rep = QR.repeatKind(q) ? ` (${QR.repeatKind(q)})` : '';
+            const giver = findById(w.npcs, q.giverPersonId), taker = findById(w.npcs, q.turninPersonId);
+            if (st === 'available' && giver && personIds.includes(giver.id) && !questLocks(q).length)
+                out.push(`- ${personName(giver)} offers "${title}"${rep}${say(q.offerText || questDescription(q, mode))}`);
+            else if (st === 'active' && taker && personIds.includes(taker.id))
+                out.push(`- ${personName(taker)} is waiting for "${title}" (in progress)${say(q.progressText)}`);
+            else if (st === 'complete' && taker && personIds.includes(taker.id))
+                out.push(`- ${personName(taker)} will take "${title}" (ready to turn in)${norm(q.completionText) ? `; on turn-in they say: "${norm(q.completionText)}"` : ''}`);
+        }
+        return out;
+    }
+    // <accept>/<turnin> by title (or id): the AI's way to act on the player's word; the rules decide.
+    function questByTitle(t) { const n = norm(t).toLowerCase(); const qs = asArray(activeWorld() && activeWorld().quests); return qs.find(q => q.id === norm(t)) || qs.find(q => questTitle(q).toLowerCase() === n) || qs.find(q => n.length > 3 && questTitle(q).toLowerCase().includes(n)) || null; }
+    function tagAccept(t) {
+        const q = questByTitle(t); if (!q || questStateOf(q) !== 'available' || !questVisible(q, aiMode())) return false;
+        return !!acceptQuest(q.id);
+    }
+    function tagTurnIn(t) {
+        const q = questByTitle(t); if (!q) return false;
+        if (questStateOf(q) !== 'complete') { gameLog(`"${questTitle(q)}" cannot be turned in yet: its objectives are not done.`); return false; }
+        if (needsChoice(q) && !(rt().rewardsPaid && rt().rewardsPaid[q.id])) { gameLog(`"${questTitle(q)}": the player chooses a reward in the Quest log to turn it in.`); return false; }
+        return !!turnInQuest(q.id);
     }
     // Talking: a person with an open "talk" objective who is here and named in the new messages.
     function detectTalk(text) {
@@ -1198,7 +1249,10 @@ export default function initWorlds() {
                 objectives: asArray(q.objectives).filter(o => mode !== 'player' || !o.hidden).map(o => { const os = objectiveStatusOf(q, o); return { ...o, kind: QR.objectiveKind(o), ...os, label: QR.objectiveLabel(o, os) }; }),
                 marker: personQuestMarker(q.giverPersonId, mode) || personQuestMarker(q.turninPersonId, mode),
                 locks: questLocks(q), startItem: norm(q.startItem) || '', prerequisites: q.prerequisites || null,
-                paid: (rt() && rt().rewardsPaid && rt().rewardsPaid[q.id]) || null
+                paid: (rt() && rt().rewardsPaid && rt().rewardsPaid[q.id]) || null,
+                repeat: QR.repeatKind(q), timesDone: timesDone(q.id),
+                // the giver's words (R4 extra): offering · while in progress · on turn-in
+                offerText: norm(q.offerText), progressText: norm(q.progressText), completionText: norm(q.completionText)
             };
         });
     }
@@ -1238,6 +1292,8 @@ export default function initWorlds() {
         if (!cond || typeof cond !== 'object') return true;
         if (cond.type && !cond.field) cond = expandCondition(cond);
         if (cond.op === 'is') return factValue(cond.field) === cond.value;
+        // a repeatable quest counts as turned in once it was (its state cycles back to available)
+        if (/^quest\./.test(norm(cond.field)) && norm(cond.value).toLowerCase() === 'turnedin' && (norm(cond.op) || '==') === '==' && timesDone(norm(cond.field).slice(6)) > 0) return true;
         if (cond.op === 'tier>=') { const have = factValue(cond.field); return QR.tierAtLeastOrWorse(have, cond.value); }
         const lhs = factValue(cond.field);
         const rhs = (typeof cond.value === 'string') ? cond.value.toLowerCase() : cond.value;
@@ -1360,7 +1416,8 @@ export default function initWorlds() {
     // Parse explicit control tags out of one message. Returns true if state changed.
     // Supported: <move>/<go> and the other map tags (applyMapTag), <npcmove>NPC=Loc, <mood>NPC=Mood, <flag>k=v, <unflag>k,
     //            <give>Item [xN], <take>Item [xN|x all], <quest>id=state,
-    //            <time>slot, <weather>desc, <advance> (advance clock one slot)
+    //            <time>slot, <weather>desc, <advance> (advance clock one slot),
+    //            <accept>quest</accept>, <turnin>quest</turnin> (R4 extras; the rules decide)
     function parseMutations(text) {
         const world = activeWorld(); if (!world || !rt()) return false;
         let changed = false;
@@ -1384,6 +1441,9 @@ export default function initWorlds() {
         scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+|all))?$/i.exec(norm(m[1])) || []; inventoryRemove(nm, q); return true; });
         // <rep>Royal Guard=+50</rep>: the player's standing with a faction changes
         scan(/<rep>\s*([^=<>]+?)\s*=\s*([+-]?\d+)\s*<\/rep>/gi, m => { const fid = factionIdOf(m[1]); if (!fid) return false; changeReputation(fid, Number(m[2]), 'tag'); return true; });
+        // <accept>Bandit Bounty</accept> / <turnin>Bandit Bounty</turnin>: the player takes / hands in a quest
+        scan(/<accept>\s*([^<>]+?)\s*<\/accept>/gi, m => tagAccept(m[1]));
+        scan(/<turnin>\s*([^<>]+?)\s*<\/turnin>/gi, m => tagTurnIn(m[1]));
         // <talk>Captain Rowan</talk>: the player spoke with this person (quest "talk" objectives)
         scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, m => { const npc = findNpcByName(world, m[1]); if (!npc) return false; questEvent('talk', { personId: npc.id }); return true; });
         // <encounter>Wolf Pack</encounter> (a saved encounter) or <encounter>2 Wolf, Goblin Warrior</encounter>
@@ -1666,10 +1726,25 @@ export default function initWorlds() {
         const o = cb.order.find(x => x.id === id); const party = o && o.side === 'party';
         if (before > 0 && cb.hp[id] <= 0) {
             if (party) { addCond(id, 'Unconscious'); cb.death[id] = { s: 0, f: 0, stable: false, dead: false }; combatLog(`${combatantName(id)} falls unconscious${o.isPlayer ? ' and is dying (death saving throws)' : ''}.`); }
-            else { combatLog(`${combatantName(id)} is defeated.`); questEvent('kill', { key: o && o.key, name: o && o.key ? CR.MONSTERS[o.key].name : combatantName(id), personId: o && o.kind === 'person' ? id : null }); }
+            else { combatLog(`${combatantName(id)} is defeated.`); questEvent('kill', { key: o && o.key, name: o && o.key ? CR.MONSTERS[o.key].name : combatantName(id), personId: o && o.kind === 'person' ? id : null }); killReputation(cb, o); }
         }
         if (before <= 0 && cb.hp[id] > 0) { removeCond(id, 'Unconscious'); if (cb.death[id]) delete cb.death[id]; combatLog(`${combatantName(id)} is back on their feet.`); }
         return cb.hp[id];
+    }
+    // R4 extra: defeating a member of a faction costs standing with it — a person of the faction,
+    // or a monster of a saved encounter that belongs to one (encounter.factionId).
+    // faction.killReputation: the change per member (default −25; 0 = none).
+    const KILL_REPUTATION = -25;
+    function combatantFaction(cb, o) {
+        const w = activeWorld(); if (!o || !w) return null;
+        if (o.kind === 'person') { const p = findById(w.npcs, o.id); return (p && p.factionId) || null; }
+        if (o.kind === 'monster' && cb && cb.encounter) { const e = findById(w.encounters, cb.encounter); return (e && e.factionId) || null; }
+        return null;
+    }
+    function killReputation(cb, o) {
+        const fid = combatantFaction(cb, o); const f = fid && findById(activeWorld().factions, fid); if (!f) return;
+        const n = f.killReputation == null || f.killReputation === '' ? KILL_REPUTATION : Number(f.killReputation) || 0;
+        if (n) changeReputation(fid, n, 'kill');
     }
     function hitWhileDown(id, crit) {
         const cb = getCombat(); const d = deathOf(cb, id); if (!d || d.dead) return;
@@ -2425,7 +2500,7 @@ export default function initWorlds() {
         // in a room: every exit with direction and door state (exact names for <move>)
         if (inRoom) { const xl = exitLines(loc.id); if (xl.length) locText += `${locText ? '\n' : ''}Exits:\n${xl.join('\n')}`; }
         else if (exitsUniq.length) locText += `${locText ? '\n' : ''}Exits: ${exitsUniq.join(', ')}`;
-        const hqFactions = asArray(world.factions).filter(f => f.hqLocationId === loc.id).map(f => norm(f.name)).filter(Boolean);
+        const hqFactions = asArray(world.factions).filter(f => factionHq(f) === loc.id).map(f => norm(phasedEntity(f).name)).filter(Boolean);
         if (hqFactions.length) locText += `${locText ? '\n' : ''}Headquarters of: ${hqFactions.join(', ')}`;
         // Always emit the location header (even with an empty body) — location
         // awareness is the core purpose, the AI must always know where it is.
@@ -2441,7 +2516,7 @@ export default function initWorlds() {
             if (npcSeen.has(rawNpc.id)) continue; npcSeen.add(rawNpc.id);
             const npc = phasedEntity(rawNpc);
             if (npc.gone) continue;   // phased out (left, died, …)
-            const faction = findById(world.factions, npc.factionId);
+            const faction = findById(world.factions, npc.factionId) && phasedEntity(findById(world.factions, npc.factionId));
             const marker = personQuestMarker(npc.id, mode);   // ! offers a quest, ? turn-in ready
             const att = personAttitude(npc);
             const bits = [(marker ? marker + ' ' : '') + personName(npc) + (att ? ` (${att.name}: ${att.tier}${att.hostile ? ' — hostile to the player' : ''})` : '')];
@@ -2457,6 +2532,10 @@ export default function initWorlds() {
             if (mutate && rt() && !asArray(rt().knownNpcIds).includes(npc.id)) rt().knownNpcIds.push(npc.id);
         }
         push('Nearby NPCs', 70, npcLines.join('\n'));
+        // 4b. Quest givers here (R4 extra): what they offer, wait for or take back — in their words
+        const giverLines = questGiverLines(npcsHere.filter(n => !phasedEntity(n).gone).map(n => n.id), mode);
+        if (giverLines.length) push('Quest givers here', 66, giverLines.join('\n') +
+            '\nSpeak the offers in the giver\'s voice. When the player agrees to a quest, write <accept>quest title</accept>; when they hand in a finished one, <turnin>quest title</turnin>. RPmod checks the requirements and pays the rewards.');
 
         // 5. Nearby objects
         const objsHere = asArray(world.objects).filter(o => (o.locationId === loc.id || asArray(loc.objectIds).includes(o.id)) && featureVisible(o));
@@ -2492,7 +2571,7 @@ export default function initWorlds() {
         }
         push('Active Quests', 45, questLines.join('\n'));
         // 5c. Standing with factions (only what differs from Neutral)
-        const reps = reputationList().filter(r => r.tier !== 'Neutral');
+        const reps = reputationList().filter(r => r.tier !== 'Neutral' && !r.gone);
         push('Reputation', 42, reps.map(r => `- ${r.name}: ${r.tier}${r.effect ? ` — ${r.effect}` : ''}`).join('\n'));
 
         // 6. Active events — fired this turn (via the trigger bus) + ambient
@@ -2747,6 +2826,7 @@ export default function initWorlds() {
         for (const en of asArray(world.encounters)) {
             if (en.locationId && findById(world.locations, en.locationId)) edges.push({ from: en.id, to: en.locationId, kind: 'at' });
             for (const pid of asArray(en.personIds)) if (findById(world.npcs, pid)) edges.push({ from: en.id, to: pid, kind: 'fights' });
+            if (en.factionId && findById(world.factions, en.factionId)) edges.push({ from: en.id, to: en.factionId, kind: 'faction' });
         }
         // Derived chain edges (visualise trigger/effect wiring)
         for (const ev of asArray(world.events)) {
@@ -2816,7 +2896,7 @@ export default function initWorlds() {
         for (const o of asArray(world.objects)) { if (o.locationId === id) o.locationId = null; if (o.ownerNpcId === id) o.ownerNpcId = null; }
         for (const ev of asArray(world.events)) ev.locationIds = asArray(ev.locationIds).filter(x => x !== id);
         for (const q of asArray(world.quests)) { if (q.giverPersonId === id) q.giverPersonId = null; if (q.turninPersonId === id) q.turninPersonId = null; }
-        for (const en of asArray(world.encounters)) { if (en.locationId === id) en.locationId = null; en.personIds = asArray(en.personIds).filter(x => x !== id); }
+        for (const en of asArray(world.encounters)) { if (en.locationId === id) en.locationId = null; if (en.factionId === id) en.factionId = null; en.personIds = asArray(en.personIds).filter(x => x !== id); }
         if (type === 'encounter') for (const ev of asArray(world.events)) ev.effects = asArray(ev.effects).filter(f => !(norm(f.type) === 'encounter' && f.value === id));
         if (rt() && rt().playerLocationId === id) rt().playerLocationId = null;
         dbg('deleteEntity', id);
@@ -2853,6 +2933,7 @@ export default function initWorlds() {
             return { kind: 'unlocks' };
         }
         if (is('encounter', 'location')) { const en = ta === 'encounter' ? a : b; en.locationId = locOf().id; return { kind: 'at' }; }
+        if (is('encounter', 'faction')) { const en = ta === 'encounter' ? a : b; en.factionId = (ta === 'faction' ? a : b).id; return { kind: 'faction' }; }
         if (is('encounter', 'npc')) { const en = ta === 'encounter' ? a : b, npc = ta === 'npc' ? a : b; en.personIds = asArray(en.personIds); if (!en.personIds.includes(npc.id)) en.personIds.push(npc.id); return { kind: 'fights' }; }
         if (is('event', 'encounter')) {
             const ev = ta === 'event' ? a : b, en = ta === 'encounter' ? a : b;
@@ -3025,7 +3106,8 @@ export default function initWorlds() {
         factions: [
             { id: 'fac_town', name: 'Millbrook Townsfolk', description: 'Ordinary villagers who keep to themselves.', ui: { x: 60, y: 80 } },
             { id: 'fac_guard', name: 'Royal Guard', description: 'Protect the kingdom and keep its roads safe.', hqLocationId: 'loc_watchtower', ui: { x: 1080, y: 60 } },
-            { id: 'fac_bandit', name: 'The Red Hand', description: 'Bandits preying on the frontier trade road.', hqLocationId: 'loc_camp', startReputation: -400, ui: { x: 1080, y: 600 } }
+            { id: 'fac_bandit', name: 'The Red Hand', description: 'Bandits preying on the frontier trade road.', hqLocationId: 'loc_camp', startReputation: -400, ui: { x: 1080, y: 600 },
+              phases: [{ id: 'ph_scattered', label: 'Scattered', conditions: [{ type: 'quest', questId: 'q_bounty', state: 'turnedin' }], description: 'The last of the Red Hand fled into the hills after Kell fell.', hqLocationId: 'none' }] }
         ],
         objects: [
             { id: 'obj_well', name: 'Stone Well', desc: 'The village water source; children dare each other to peer in.', locationId: 'loc_village', ui: { x: 380, y: 470 } },
@@ -3033,16 +3115,25 @@ export default function initWorlds() {
         ],
         quests: [
             { id: 'q_merchant', title: 'The Missing Merchant', description: 'A merchant vanished on the Forest Road. Bram asks you to find out what happened.', giverPersonId: 'npc_bram', turninPersonId: 'npc_rowan',
+              offerText: 'Old Tobin left for the frontier three days ago and never came back. Would you look along the Forest Road? The Guard at the watchtower should hear of it too.',
+              progressText: 'Any sign of the merchant on the road?', completionText: 'A burned cart and red handprints… the Red Hand, then. You did well to come to me.',
               rewards: [{ type: 'item', item: 'Silver Ring', qty: 1 }, { type: 'xp', xp: 100 }, { type: 'gold', gold: 20 }, { type: 'reputation', factionId: 'fac_guard', amount: 100 }],
               objectives: [{ id: 'o1', kind: 'visit', target: 'loc_forest', text: 'Search the Forest Road' }, { id: 'o2', kind: 'talk', target: 'npc_rowan', text: 'Report to Captain Rowan' }], ui: { x: 200, y: 230 } },
             { id: 'q_bounty', title: 'Bandit Bounty', description: 'Captain Rowan will pay a bounty for the head of the bandit leader.', giverPersonId: 'npc_rowan', turninPersonId: 'npc_rowan',
+              offerText: 'Kell leads the Red Hand from a camp off the road. Bring him down and the Crown pays well.', progressText: 'Kell still breathes. The road is not safe.',
+              completionText: 'Kell is finished? Then the road is ours again. Take your pay, and my thanks.',
               prerequisites: { quests: ['q_merchant'] },
               rewards: [{ type: 'xp', xp: 200 }, { type: 'gold', gold: 50 }, { type: 'choice', options: [{ item: 'Longsword', qty: 1 }, { item: 'Shield', qty: 1 }, { item: 'Potion of Healing', qty: 2 }] }, { type: 'reputation', factionId: 'fac_guard', amount: 150 }, { type: 'reputation', factionId: 'fac_bandit', amount: -300 }],
               objectives: [{ id: 'b1', kind: 'kill', target: 'npc_kell', count: 1, text: 'Defeat Bandit Leader Kell' }], ui: { x: 1240, y: 300 } },
+            { id: 'q_patrol', title: 'Road Patrol', description: 'Walk the Forest Road and report back to Captain Rowan. The Guard pays for every patrol.', giverPersonId: 'npc_rowan', turninPersonId: 'npc_rowan', repeat: 'daily',
+              prerequisites: { quests: ['q_merchant'] }, offerText: 'I am short of men. Walk the Forest Road today and tell me what you see — the Guard pays for it.',
+              progressText: 'Walked the road yet?', completionText: 'Quiet, you say? Good. Same again tomorrow, if you like.',
+              rewards: [{ type: 'gold', gold: 5 }, { type: 'xp', xp: 25 }, { type: 'reputation', factionId: 'fac_guard', amount: 25 }],
+              objectives: [{ id: 'p1', kind: 'visit', target: 'loc_forest', text: 'Walk the Forest Road' }], ui: { x: 1240, y: 120 } },
             { id: 'q_delivery', title: 'Urgent Delivery', description: 'Carry a sealed letter from Finn to the Watchtower.', giverPersonId: 'npc_courier', turninPersonId: 'npc_rowan', hidden: true, hiddenDescription: '??? — a courier may yet find you', ui: { x: 60, y: 320 } }
         ],
         encounters: [
-            { id: 'enc_redhand', name: 'Red Hand ambush', monsters: [{ key: 'bandit', count: 2 }], personIds: ['npc_kell'], locationId: 'loc_camp' }
+            { id: 'enc_redhand', name: 'Red Hand ambush', monsters: [{ key: 'bandit', count: 2 }], personIds: ['npc_kell'], locationId: 'loc_camp', factionId: 'fac_bandit' }
         ],
         events: [
             { id: 'ev_courier', name: 'A Courier Arrives', description: 'Finn the courier rushes in, clutching a sealed letter and begging for help.', triggers: [{ type: 'onQuestState', questId: 'q_merchant', state: 'active' }], effects: [{ type: 'npcmove', npcId: 'npc_courier', locationId: 'loc_tavern' }, { type: 'quest', questId: 'q_delivery', state: 'available' }, { type: 'discover', quest: 'q_delivery' }], repeatable: false, ui: { x: 200, y: 400 } },
@@ -3262,7 +3353,8 @@ export default function initWorlds() {
             const old = asArray(w.encounters).find(x => x.id === enc.id) || {};
             const e = { id: enc.id || uid('enc'), name: norm(enc.name) || 'Encounter', monsters: asArray(enc.monsters).map(m => ({ key: CR.findMonster(m.key || m.name), count: Math.max(1, Number(m.count) || 1) })).filter(m => m.key),
                 personIds: asArray(enc.personIds), locationId: enc.locationId || null, difficulty: enc.difficulty || null };
-            for (const k of ['ui', 'notes', 'generated']) if (enc[k] != null || old[k] != null) e[k] = enc[k] != null ? enc[k] : old[k];   // the graph node's position, notes
+            for (const k of ['ui', 'notes', 'generated']) if (enc[k] != null || old[k] != null) e[k] = enc[k] != null ? enc[k] : old[k];
+            const fac = 'factionId' in enc ? enc.factionId : old.factionId; if (fac) e.factionId = fac;   // the monsters' faction (null clears it)   // the graph node's position, notes
             if (ZR.ENEMY_STARTS.includes(enc.start) && enc.start !== 'auto') e.start = enc.start;
             const i = w.encounters.findIndex(x => x.id === e.id);
             if (i >= 0) w.encounters[i] = e; else w.encounters.push(e);

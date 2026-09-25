@@ -130,6 +130,7 @@ writes it into the data:
 | Event → Location | event **can occur** there |
 | Encounter → Location | the fight **waits** there |
 | Encounter → NPC | that person **fights** you in it |
+| Encounter → Faction | its monsters **belong to** that faction (defeating them costs reputation) |
 | Event → Encounter | the event **starts** the fight (it gets a *manual* trigger if it has none) |
 
 So the graph you draw *is* what the AI traverses. Invalid pairs (e.g. NPC → NPC) are
@@ -294,6 +295,8 @@ are applied when you send. Either way the next slice reflects them.
 | `<check>Name=abi DC</check>` | `<check>You=dex 12</check>` | Ability check vs a DC |
 | `<talk>Name</talk>` | `<talk>Captain Rowan</talk>` | The player spoke with this person (quest objectives) |
 | `<rep>Faction=±N</rep>` | `<rep>Royal Guard=+50</rep>` | Change the player's reputation with a faction |
+| `<accept>quest</accept>` | `<accept>Bandit Bounty</accept>` | The player takes a quest (if its requirements are met) |
+| `<turnin>quest</turnin>` | `<turnin>Bandit Bounty</turnin>` | Hand in a finished quest; rewards are paid |
 | `<encounter>…</encounter>` | `<encounter>2 Wolf, Goblin Warrior</encounter>` | Start a fight: SRD monster names with counts, or a saved encounter's name |
 
 ### Exploring dungeons and towns (map tags)
@@ -457,6 +460,15 @@ controls whether the **AI** (as GM) sees hidden content or not.
   the editor), flags or a reputation tier. Locked quests cannot be accepted; the player only sees
   the ones that wait for a level (greyed). A quest can also **start from an item** — it appears
   when you pick the item up.
+- **Repeat:** a quest can be *repeatable* (available again right after you turn it in) or
+  *daily* (available again when a new in-game day begins). Each turn-in pays the rewards again;
+  the Quest log shows how often you have done it. For chains and phases it counts as turned in
+  from the first time on.
+- **The giver's words:** give a quest what the giver says when **offering** it, **while it is
+  in progress** and **on turn-in**. The Quest log shows them; the AI hears them under *Quest
+  givers here* and speaks the offer in the giver's voice. When you agree in the chat, the AI
+  writes `<accept>quest</accept>`, and `<turnin>quest</turnin>` when you hand one in — RPmod still
+  checks the requirements and pays the rewards (a *choose one* reward is picked in the Quest log).
 
 **Your inventory is your persona's sheet.** Items, gold and XP from quests, fights and the
 `<give>`/`<take>` tags go onto the character card, so they stay with the character in every
@@ -467,12 +479,17 @@ arrives, the reward is merged into your unsaved edits.
 Neutral, Friendly, Honored, Revered to **Exalted** (Quest log, bottom). Quests, events and the
 `<rep>Faction=+50</rep>` tag change it; the AI is told what it means (members of a Hostile faction
 are hostile to you, friends give favours) and quests or events can require a tier.
+**Defeating a member** of a faction lowers your standing with it: a person of the faction, or a
+monster of an encounter linked to it (−25 each unless the faction's inspector says otherwise;
+0 turns it off).
 
 **Zones, hubs and phasing.** In the editor a place can be **part of** another (a tavern in a
 village, a village in a valley); the AI hears "Part of: Brookvale › Millbrook Village" and which
-places lie within. Mark busy places as a **hub**. **Phases** change a place or person once
+places lie within. Mark busy places as a **hub**. **Phases** change a place, person or faction once
 conditions hold — e.g. after the bounty is turned in the bandit camp becomes the *Abandoned
-Camp*, the village celebrates and the bandit leader is gone. The last matching phase wins.
+Camp*, the village celebrates, the bandit leader is gone and the Red Hand, scattered, has no
+headquarters any more. A faction's phase can rename it, move or remove its headquarters, or
+**disband** it (the AI no longer hears of it; your standing is kept). The last matching phase wins.
 
 **Triggers & chains.** Events have **triggers** (on enter / time / flag / quest-state / action
 / another event) and **effects** (set flags, give items, offer quests, move NPCs, fire another
