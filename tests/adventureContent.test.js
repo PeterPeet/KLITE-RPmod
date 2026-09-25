@@ -25,7 +25,7 @@ test('package: valid; only the XP warning while later layers are missing', () =>
     // until R8 step 7 the adventure cannot reach level 5 yet; nothing else may warn
     assert.deepEqual(r.warnings.filter(w => !/^XP per character/.test(w)), []);
     assert.equal(r.stats.pregens, 4);
-    assert.ok(r.stats.xp.perCharacter >= 700, `layer 1 carries a character towards level 3 (${r.stats.xp.perCharacter} XP)`);
+    assert.ok(r.stats.xp.perCharacter >= 2700, `layers 1–2 carry a character to level 4 (${r.stats.xp.perCharacter} XP)`);
     assert.equal(pkg.credits[0], requireSrc('src/data/srd52.js').SRD.attribution, 'the exact SRD attribution');
 });
 
@@ -147,4 +147,92 @@ test('layer 1 plays through: start as Oona, a companion, the road, the Hollow Oa
     assert.equal(sheet.xp, 300 + 400, 'XP on the sheet');
     assert.ok(sheet.level === 1 && sheet.xp >= 300, 'enough for level 2 (Level up on the sheet)');
     assert.equal((await C.loadSheet('Tove Emberfall')).xp, 400, 'the companion earned the combat share only');
+});
+
+test('layer 2 plays through: the mountain road, the Watchtower, the Outpost and its false stablemaster, the owlbear', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'kasimir', confirm: false });
+    assert.equal(W.joinParty('Oona').ok, true);
+    const beat = () => { for (const o of W.getCombat().order.filter(o => o.kind === 'monster')) W.damage(o.id, 999); W.endEncounter(); };
+    // items go to the persona's sheet, which loads on first use: give it a moment
+    const say = async (text) => { w.gametext_arr.push(text); await w.prepare_submit_generation(); await sleep(60); };
+
+    // the mountain road: a night at the campfire brings wolves
+    W.moveTo('bw_green'); W.go('Forest Road');
+    W.setClock({ time: 'night' });
+    W.go('Gravel Road');
+    assert.ok(W.getCombat() && W.getCombat().active, 'wolves at the campfire at night');
+    assert.deepEqual(plain(W.getCombat().order.filter(o => o.kind === 'monster').map(o => o.name)).sort(), ['Dire Wolf', 'Wolf 1', 'Wolf 2']);
+    beat();
+    W.setClock({ time: 'morning' });
+    W.go('Windgap Pass');
+    assert.match(W.preview(), /Windgap Pass/);
+
+    // the Outpost by the shepherds' trail: its people and quests
+    W.go("Shepherds' Trail"); W.go("Traveler's Outpost");
+    assert.equal(W.runtime.playerLocationId, 'op_stables', 'the trail comes in at the stables');
+    assert.ok(W.acceptQuest('q_sick_mare'));
+    W.go('north'); W.go('north');
+    assert.equal(W.runtime.playerLocationId, 'op_common');
+    W.go('east'); assert.ok(W.acceptQuest('q_kitchen_stores'));
+    // gather on the Meadow Road, bring it back
+    W.moveTo('loc_meadow_road');
+    await say('You fill your arms. <give>Wild Garlic x3</give> <give>Feverfew x2</give>');
+    assert.equal(W.questState('q_kitchen_stores'), 'complete'); assert.equal(W.questState('q_sick_mare'), 'complete');
+    W.turnInQuest('q_kitchen_stores'); W.turnInQuest('q_sick_mare');
+
+    // the Night Raid: at night in the yard
+    assert.ok(W.acceptQuest('q_night_raid'));
+    W.moveTo('op_yard'); W.setClock({ time: 'night' });
+    assert.ok(W.getCombat() && W.getCombat().active, 'raiders come over the wall at night');
+    beat();
+    assert.equal(W.questState('q_night_raid'), 'complete');
+    W.turnInQuest('q_night_raid');
+    assert.ok(W.reputation().find(r => r.id === 'fac_reedcloaks').value < -100, 'killing Reedcloaks costs standing with them');
+    W.setClock({ time: 'morning' });
+
+    // the Old Watchtower: harpies, guards, the key, the prisoner
+    assert.ok(W.acceptQuest('q_watchtower'));
+    W.moveTo('loc_windgap'); W.go('Watchtower Ruin');
+    assert.equal(W.runtime.playerLocationId, 'wt_gate');
+    W.go('east'); W.go('south');
+    assert.equal(W.runtime.playerLocationId, 'wt_guard');
+    assert.ok(W.startSavedEncounter('enc_tower_guards')); beat();
+    W.go('east'); assert.equal(W.runtime.playerLocationId, 'wt_guard', 'the cellar is locked');
+    await say('Under the bedrolls: an iron key. <give>Iron Key</give>');
+    W.door('unlock', 'east'); W.go('east');
+    assert.equal(W.runtime.playerLocationId, 'wt_cellar');
+    await say('"I am Corwin Lark," the prisoner whispers. <talk>Chained prisoner</talk>');
+    assert.equal(W.questState('q_watchtower'), 'complete');
+    assert.equal(W.joinParty('prisoner').ok, true, 'the prisoner comes along');
+    W.turnInQuest('q_watchtower');
+
+    // the Stablemaster: entering the stables unmasks the Doppelganger
+    assert.ok(W.acceptQuest('q_stablemaster'));
+    W.moveTo('op_yard'); W.go('south');
+    assert.equal(W.runtime.flags.corwin_unmasked, true);
+    assert.deepEqual(plain(W.getCombat().order.filter(o => o.kind === 'monster').map(o => o.name)), ['Doppelganger']);
+    assert.doesNotMatch(W.preview(), /- Corwin Lark \|/, 'the false stablemaster is gone from the people here');
+    beat();
+    assert.equal(W.questState('q_stablemaster'), 'complete');
+    W.turnInQuest('q_stablemaster', 0);
+    W.leaveParty('prisoner');
+    assert.equal(W.phased('npc_prisoner').name, 'Corwin Lark', 'the real Corwin is home');
+
+    // Harrowfield's sheep: the owlbear and the lamb
+    W.moveTo('loc_meadow_road'); assert.ok(W.acceptQuest('q_lost_sheep'));
+    W.go('Owlbear Hollow'); W.go('east');
+    assert.ok(W.startSavedEncounter('enc_owlbear')); beat();
+    W.go('east'); await say('Behind the rock: the lamb. <give>Lost Lamb</give>');
+    assert.equal(W.questState('q_lost_sheep'), 'complete');
+    W.turnInQuest('q_lost_sheep', 0);
+
+    // Lanternport is reachable by both roads (its streets open with the next part)
+    W.moveTo('op_yard'); W.go('east');
+    assert.equal(W.runtime.playerLocationId, 'loc_lanternport');
 });

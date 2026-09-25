@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-26 (R8 step 3, game over, play-test fixes)
+> Last updated: 2026-09-26 (R8 step 4: layer 2 — the roads and the Outpost)
 
 ## Current state
 
@@ -34,7 +34,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 368 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 369 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -820,7 +820,12 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   7 encounters; the four pregens (builder-made sheets); the travelling party (join/leave) the companions need; a headless
   playthrough test. Found and fixed on the way: sheet writes lost XP/gold/items when rewards arrived during a save
   (known issue 23), companions were left out of event/saved-encounter fights, the builder's "Gaming Set (same as above)".
-- [ ] Steps 4–7: content layer by layer (routes/Outpost → Lanternport fair → lake/sea cave → Lost Chapel)
+- [x] Step 4 (2026-09-26): layer 2 — the mountain route (Gravel Road with a night ambush at the campfire, Windgap
+  Pass, the Watchtower Ruin: 6 rooms, harpies, Reedcloak guards, a locked cellar with the real stablemaster) and the
+  valley route (Meadow Road, Owlbear Hollow: 3 rooms), the shepherds' trail, the Traveler's Outpost (town, 6 places);
+  quests Kitchen Stores (daily), The Sick Mare, Night Raid, Harrowfield's Sheep, The Old Watchtower, The Stablemaster
+  (the Doppelganger); factions Outpost and Reedcloaks; Lanternport as a place. Content version 2. Playthrough test.
+- [ ] Steps 5–7: content layer by layer (Lanternport fair → lake/sea cave → Lost Chapel)
 - [ ] Step 8: real-backend play test (known issue 5), then the World Building guide
 
 Also planned (owner, 2026-09-25): **1:1 roleplay audit** — play a 1:1 scenario with a real backend,

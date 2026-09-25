@@ -71,8 +71,11 @@ chatting. Everything below explains how to build your own.
 - **The starter adventure "The Drowned Lantern"** — a ready-made adventure for one character
   and a companion (levels 1–5 when complete). Click **Play a starter adventure** on the *New
   here?* card or **Play an adventure** in the World tab, choose one of four characters and
-  start. It is being built in layers: the first part — the village of **Brindlewick**, the
-  Forest Road, the goblins of the **Hollow Oak** and the old coin — is playable now.
+  start. It is being built in layers; playable now: the village of **Brindlewick**, the Forest
+  Road, the goblins of the **Hollow Oak** and the old coin; then the two roads to Lanternport —
+  over **Windgap Pass** (a campfire, a ruined watchtower with a prisoner) or along the **Meadow
+  Road** (a shepherd's lost sheep) — and the **Traveler's Outpost**, where something is wrong with
+  the stablemaster. Lanternport itself opens with the next part.
   - **The four characters:** *Oona Greycairn* (she/her), an orc fighter and old caravan guard
     with a prosthetic leg; *Tove Emberfall* (they/them), a warm, loud dwarf cleric who is very
     short-sighted and refuses glasses; *Kasimir Adeyemi* (he/him), a young human wizard studying

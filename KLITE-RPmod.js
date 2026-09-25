@@ -37528,7 +37528,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
 
   // src/adventures/content/drowned-lantern.js
   var ID = "drowned-lantern";
-  var VERSION = 1;
+  var VERSION = 2;
   var place = (id, name, description, extra = {}) => Object.assign({ id, name, description }, extra);
   var room = (id, name, parentId, [x, y], description, extra = {}) => Object.assign({ id, name, parentId, map: { x, y, w: 4, h: 3 }, description }, extra);
   var exit = (id, to, dir, type = "open", extra = {}) => Object.assign({ id, to, dir, type }, extra);
@@ -37701,7 +37701,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
           "The old trade road east of Brindlewick, under oak and beech. Ferns crowd the verges; the ruts are deep from carts that no longer come. A side track runs north to a huge dead oak, and the sound of the river comes from the south.",
           {
             atmosphere: "tense",
-            connectedLocationIds: ["loc_brindlewick", "loc_hollow_oak", "loc_river_ford"],
+            connectedLocationIds: ["loc_brindlewick", "loc_hollow_oak", "loc_river_ford", "loc_gravel_road"],
             ui: { x: 600, y: 300 },
             localLore: [{ id: "ll_cart", content: "Liu Wen's cart lies overturned in the ferns a mile out of the village: the grain sacks are gone, the mule cut loose, and small bare footprints lead north towards the Hollow Oak.", keys: ["cart", "tracks", "footprints"] }]
           }
@@ -37716,7 +37716,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
           "loc_river_ford",
           "River Ford",
           "Where the Forest Road meets the Brindle river: a ford of flat stones for dry summers and Odo's rope ferry for the rest of the year. Reeds, herons, and now and then a green old coin washed out of the gravel.",
-          { atmosphere: "calm", connectedLocationIds: ["loc_forest_road"], ui: { x: 600, y: 490 } }
+          { atmosphere: "calm", connectedLocationIds: ["loc_forest_road", "loc_meadow_road"], ui: { x: 600, y: 490 } }
         ),
         // --- Brindlewick (town map) ---
         room(
@@ -37968,7 +37968,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         }
       ],
       encounters: [
-        { id: "enc_road_ambush", name: "Goblin ambush on the road", monsters: [{ key: "goblin-warrior", count: 2 }], personIds: [], locationId: "loc_forest_road", start: "near", ui: { x: 760, y: 300 } },
+        { id: "enc_road_ambush", name: "Goblin ambush on the road", monsters: [{ key: "goblin-warrior", count: 2 }], personIds: [], start: "near", ui: { x: 760, y: 300 } },
         { id: "enc_mill_rats", name: "Rats in the mill cellar", monsters: [{ key: "swarm-of-rats", count: 1 }], personIds: [], locationId: "bw_mill_cellar", start: "same" },
         { id: "enc_den_wolves", name: "Goblin wolves", monsters: [{ key: "wolf", count: 2 }], personIds: [], locationId: "ho_wolfpen", start: "auto" },
         { id: "enc_den_lookout", name: "Lookouts in the trunk", monsters: [{ key: "goblin-warrior", count: 2 }], personIds: [], locationId: "ho_trunk", start: "auto" },
@@ -37996,6 +37996,386 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       ]
     };
   }
+  function layer2(w) {
+    w.locations.push(
+      // --- the world graph ---
+      place(
+        "loc_gravel_road",
+        "Gravel Road",
+        "The mountain road climbs out of the forest in loose grey switchbacks. Halfway up there is an old campfire ring under a leaning pine — the only flat, sheltered spot before the pass, and everyone who uses this road has slept there. It is the quicker way to Lanternport, about a day, if the weather holds.",
+        { atmosphere: "lonely", connectedLocationIds: ["loc_forest_road", "loc_windgap"], ui: { x: 900, y: 180 } }
+      ),
+      place(
+        "loc_windgap",
+        "Windgap Pass",
+        "A notch between two bare peaks where the wind never stops. Far below, Stillwater Mere shines like a sheet of tin, and on the far shore the roofs of Lanternport. A broken watchtower stands on the crag above the road; a shepherds' trail drops steeply towards the meadows.",
+        { atmosphere: "windswept", connectedLocationIds: ["loc_gravel_road", "loc_watchtower", "loc_lanternport", "loc_shepherds_trail"], ui: { x: 1200, y: 180 } }
+      ),
+      place(
+        "loc_watchtower",
+        "Watchtower Ruin",
+        "A square tower from the days of the old dam, half its roof gone. Harpies nest at the top, and lately someone has been using the rooms below.",
+        { kind: "dungeon", mapStyle: "stone", atmosphere: "eerie", connectedLocationIds: ["loc_windgap", "loc_shepherds_trail"], ui: { x: 1200, y: 30 } }
+      ),
+      place(
+        "loc_shepherds_trail",
+        "Shepherds' Trail",
+        "A steep, narrow trail between the pass and the meadows, marked with cairns. Sheep use it; carts cannot.",
+        { atmosphere: "quiet", connectedLocationIds: ["loc_windgap", "loc_watchtower", "loc_outpost"], ui: { x: 1200, y: 370 } }
+      ),
+      place(
+        "loc_meadow_road",
+        "Meadow Road",
+        "The valley road: wide, flat and slow, through flowering meadows along the Brindle river — two easy days to Lanternport. Old Harrowfield's hut stands by a sheepfold; wild garlic and feverfew grow thick along the ditches. A trampled path leads into a thicket to the south.",
+        { atmosphere: "peaceful", connectedLocationIds: ["loc_river_ford", "loc_outpost", "loc_owlbear_hollow"], ui: { x: 900, y: 560 } }
+      ),
+      place(
+        "loc_owlbear_hollow",
+        "Owlbear Hollow",
+        "A hollow in a thorn thicket, littered with wool and feathers. Something big lives here.",
+        { kind: "dungeon", mapStyle: "stone", atmosphere: "menacing", connectedLocationIds: ["loc_meadow_road"], ui: { x: 900, y: 740 } }
+      ),
+      place(
+        "loc_outpost",
+        "Traveler's Outpost",
+        "A walled waystation where the Meadow Road meets the lake road: an inn, stables, a smithy corner and a lantern that burns all night over the gate. Carters, drovers and pilgrims to the Lantern Fair stop here.",
+        { kind: "town", mapStyle: "plots", atmosphere: "busy", hub: true, connectedLocationIds: ["loc_meadow_road", "loc_lanternport", "loc_shepherds_trail"], ui: { x: 1200, y: 560 } }
+      ),
+      place(
+        "loc_lanternport",
+        "Lanternport",
+        "The market town on the far shore of Stillwater Mere: stone quays, tall narrow houses and lanterns on every corner. In spring it prepares for its famous Lantern Fair. (Its streets open with the next part of the adventure.)",
+        { kind: "town", mapStyle: "streets", atmosphere: "lively", connectedLocationIds: ["loc_windgap", "loc_outpost"], ui: { x: 1500, y: 370 } }
+      ),
+      // --- the Traveler's Outpost (town map) ---
+      room(
+        "op_yard",
+        "Outpost Yard",
+        "loc_outpost",
+        [5, 4],
+        "A cobbled yard with a well, a mounting block and the all-night lantern over the gate. Carts come in from the Meadow Road and leave for Lanternport.",
+        { exits: [exit("ex_op_yard_common", "op_common", "n"), exit("ex_op_yard_stables", "op_stables", "s"), exit("ex_op_out_meadow", "loc_meadow_road", "w"), exit("ex_op_out_lanternport", "loc_lanternport", "e")] }
+      ),
+      room(
+        "op_common",
+        "Common Room",
+        "loc_outpost",
+        [5, 0],
+        "Long tables, a roaring hearth, travellers from everywhere and a board of rooms for rent. It smells of stew and wet wool.",
+        { light: "bright", exits: [exit("ex_op_common_kitchen", "op_kitchen", "e"), exit("ex_op_common_rooms", "op_rooms", "w")] }
+      ),
+      room(
+        "op_kitchen",
+        "Kitchen",
+        "loc_outpost",
+        [10, 0],
+        "Baba Okafor's kingdom: copper pots, strings of onions, and a cook who tastes everything twice.",
+        { light: "bright", exits: [exit("ex_op_kitchen_cellar", "op_cellar", "down", "stairs", { door: { state: "closed", material: "oak trapdoor" } })] }
+      ),
+      room("op_rooms", "Guest Rooms", "loc_outpost", [0, 0], "A narrow upstairs corridor of small clean rooms, each with a bed, a basin and a shutter over the meadows."),
+      room(
+        "op_stables",
+        "Stables",
+        "loc_outpost",
+        [5, 8],
+        "Two rows of stalls, hay to the rafters, and a tack room. The horses are restless lately, and the mare in the end stall is ill.",
+        { exits: [exit("ex_op_stables_trail", "loc_shepherds_trail", "s")] }
+      ),
+      room(
+        "op_cellar",
+        "Outpost Cellar",
+        "loc_outpost",
+        [10, 4],
+        "Barrels, sacks and a cold store. Baba's stores are running low: the carts from Brindlewick have stopped.",
+        { light: "dark" }
+      ),
+      // --- Watchtower Ruin (dungeon map) ---
+      room(
+        "wt_gate",
+        "Broken Gate",
+        "loc_watchtower",
+        [0, 4],
+        "The gate arch still stands; its door lies rotting in the grass. Fresh boot prints lead inside.",
+        { exits: [exit("ex_wt_out", "loc_windgap", "w"), exit("ex_wt_gate_hall", "wt_hall", "e")] }
+      ),
+      room(
+        "wt_hall",
+        "Fallen Hall",
+        "loc_watchtower",
+        [5, 4],
+        "The ground floor, open to the sky where the upper floors fell in. Rubble, nettles and a gap in the east wall towards the shepherds' trail.",
+        { light: "dim", hazards: ["rubble underfoot"], exits: [exit("ex_wt_hall_stairs", "wt_stairs", "n", "corridor"), exit("ex_wt_hall_guard", "wt_guard", "s", "door", { door: { state: "closed", material: "patched plank" } }), exit("ex_wt_out_trail", "loc_shepherds_trail", "e")] }
+      ),
+      room(
+        "wt_stairs",
+        "Spiral Stair",
+        "loc_watchtower",
+        [5, 0],
+        "A stone stair winding up inside the wall; some steps are missing, others only look safe. Bats hang in the dark above.",
+        { light: "dark", exits: [exit("ex_wt_stairs_top", "wt_top", "e", "stairs")] }
+      ),
+      room(
+        "wt_top",
+        "Harpies' Roost",
+        "loc_watchtower",
+        [10, 0],
+        "The open top of the tower, ringed by broken battlements. A nest of stolen cloth, bones and shiny things. The view reaches from the pass to the lake.",
+        { light: "bright" }
+      ),
+      room(
+        "wt_guard",
+        "Guardroom",
+        "loc_watchtower",
+        [5, 8],
+        "Someone lives here now: bedrolls, a cold brazier, dice, and cloaks the green of lake reeds hung on pegs.",
+        { light: "dim", exits: [exit("ex_wt_guard_cellar", "wt_cellar", "e", "door", { door: { state: "locked", material: "iron-bound trapdoor", lockDC: 14, keyItem: "Iron Key" } })] }
+      ),
+      room(
+        "wt_cellar",
+        "Cellar",
+        "loc_watchtower",
+        [10, 8],
+        "A damp cellar with one barred window slit. A man in torn stable clothes sits chained to the wall — and he has the face of the Outpost's stablemaster.",
+        { light: "dark" }
+      ),
+      // --- Owlbear Hollow (dungeon map) ---
+      room(
+        "oh_thicket",
+        "Thorn Thicket",
+        "loc_owlbear_hollow",
+        [0, 4],
+        "A tunnel through thorns, snagged with wool. Deep claw marks on the trees.",
+        { light: "dim", exits: [exit("ex_oh_out", "loc_meadow_road", "w"), exit("ex_oh_thicket_den", "oh_den", "e", "corridor")] }
+      ),
+      room(
+        "oh_den",
+        "The Den",
+        "loc_owlbear_hollow",
+        [5, 4],
+        "A hollow of flattened grass and bones under an overhanging rock. The air is thick with musk.",
+        { light: "dim", exits: [exit("ex_oh_den_back", "oh_back", "e", "corridor")] }
+      ),
+      room(
+        "oh_back",
+        "Back Cave",
+        "loc_owlbear_hollow",
+        [10, 4],
+        "A low cave behind the den. Something small bleats in the dark.",
+        { light: "dark" }
+      )
+    );
+    w.objects.push(
+      { id: "obj_campfire", name: "Old campfire ring", desc: "Blackened stones, a stack of dry wood someone left for the next traveller. A good place to rest — if you keep watch.", locationId: "loc_gravel_road", kind: "furniture" },
+      { id: "obj_herbs", name: "Wild garlic and feverfew", desc: "Thick along the ditches of the Meadow Road; easy to gather.", locationId: "loc_meadow_road", kind: "container", contains: ["Wild Garlic x3", "Feverfew x2"] },
+      { id: "obj_room_board", name: "Board of rooms", desc: 'Chalk: "Beds 5 sp · Meals 3 sp · Stable & feed 5 sp · NO fighting in the yard — H. Morrow."', locationId: "op_common", kind: "furniture" },
+      { id: "obj_loose_steps", name: "Loose steps", desc: "Three steps that tip under weight over a long drop.", locationId: "wt_stairs", kind: "trap", trapDC: 13 },
+      { id: "obj_nest", name: "Harpy nest", desc: "Cloth, bones and glittering things.", locationId: "wt_top", kind: "container", contains: ["Potion of Healing", "32 gp", "Silver Mirror"] },
+      { id: "obj_guard_chest", name: "Chest under the bedrolls", desc: "Unlocked; the guards trusted each other.", locationId: "wt_guard", kind: "container", contains: ["Iron Key", "Reed-green Cloak", "11 gp"] },
+      { id: "obj_brazier", name: "Cold brazier", desc: "Heavy iron; good cover.", locationId: "wt_guard", kind: "furniture", cover: "half" },
+      { id: "obj_lamb", name: "A lamb in the dark", desc: "A muddy, frightened lamb with a notched ear, wedged behind a rock — alive.", locationId: "oh_back", kind: "container", contains: ["Lost Lamb"] },
+      { id: "obj_bones", name: "Old bones", desc: "Sheep bones — and a shepherd's crook with a carved ram's head.", locationId: "oh_den", kind: "container", contains: ["Harrowfield's Crook", "8 sp"] }
+    );
+    w.factions.push(
+      {
+        id: "fac_outpost",
+        name: "Traveler's Outpost",
+        description: "Hedda Morrow's waystation and the people who work there.",
+        hqLocationId: "loc_outpost",
+        startReputation: 100,
+        ui: { x: 1380, y: 700 },
+        goals: "Keep the road open and the beds full for the Lantern Fair."
+      },
+      {
+        id: "fac_reedcloaks",
+        name: "The Reedcloaks",
+        description: "Smugglers in reed-green cloaks who move goods across Stillwater Mere at night.",
+        startReputation: -100,
+        killReputation: -25,
+        ui: { x: 1380, y: 40 },
+        goals: "Move the cargo, pay no tolls, and keep the lake road quiet."
+      }
+    );
+    w.npcs.push(
+      {
+        id: "npc_hedda",
+        name: "Hedda Morrow",
+        personality: "Keeper of the Outpost (she/her): tall, grey-haired, speaks like a quartermaster and misses nothing. Proud of her waystation and worried about the empty roads.",
+        factionId: "fac_outpost",
+        homeLocationId: "op_common",
+        mood: "watchful",
+        ui: { x: 1380, y: 520 },
+        shop: { items: [{ item: "Hot meal", price: "3 sp" }, { item: "Rations", price: "" }, { item: "Rope", price: "" }, { item: "Torch", price: "" }, { item: "Oil", price: "" }, { item: "Tinderbox", price: "" }, { item: "Healer's Kit", price: "" }, { item: "Potion of Healing", price: "", stock: 2 }], buys: true, note: "A bed is 5 sp a night; friends of the Outpost stay for free." }
+      },
+      { id: "npc_baba", name: 'Babajide "Baba" Okafor', personality: "The Outpost's cook (he/him): large, cheerful, sings to his stew, and takes food far more seriously than danger. Enters the Lantern Fair's cook-off every year.", factionId: "fac_outpost", homeLocationId: "op_kitchen", mood: "busy", ui: { x: 1480, y: 520 } },
+      {
+        id: "npc_pip",
+        name: "Pip",
+        personality: 'Stable hand, fourteen (she/her): fearless with horses, shy with people, notices everything. She is sure the stablemaster "came back wrong" from the pass.',
+        factionId: "fac_outpost",
+        homeLocationId: "op_stables",
+        mood: "uneasy",
+        ui: { x: 1380, y: 620 },
+        phases: [{ id: "ph_relieved", label: "Mr Lark is back", conditions: [questIs("q_stablemaster", "turnedin")], mood: "happy, talkative for once" }]
+      },
+      {
+        id: "npc_corwin",
+        name: "Corwin Lark",
+        personality: "The Outpost's stablemaster (he/him): friendly, helpful, a little too interested in which carts leave when — and oddly forgetful about horses he has known for years.",
+        factionId: "fac_outpost",
+        homeLocationId: "op_stables",
+        mood: "friendly",
+        ui: { x: 1480, y: 620 },
+        phases: [{ id: "ph_unmasked", label: "Unmasked", conditions: [flagIs("corwin_unmasked")], gone: true }]
+      },
+      {
+        id: "npc_prisoner",
+        name: "Chained prisoner",
+        personality: 'A man in torn stable clothes (he/him), thin and bruised, chained in the tower cellar for weeks. He says he is Corwin Lark, stablemaster of the Outpost, taken on the pass by men in green cloaks and "a thing that stole my face".',
+        homeLocationId: "wt_cellar",
+        mood: "weak, desperate",
+        canJoin: true,
+        ui: { x: 1480, y: 40 },
+        phases: [{ id: "ph_home", label: "Home again", conditions: [questIs("q_stablemaster", "turnedin")], name: "Corwin Lark", homeLocationId: "op_stables", mood: "grateful, recovering" }]
+      },
+      { id: "npc_harrowfield", name: "Old Harrowfield", personality: 'A shepherd (he/him), eighty if a day, who has lost six sheep and a lamb to "a bear with a beak" and will tell you all their names.', homeLocationId: "loc_meadow_road", mood: "grieving, stubborn", ui: { x: 1e3, y: 640 } }
+    );
+    w.quests.push(
+      {
+        id: "q_kitchen_stores",
+        title: "Kitchen Stores",
+        giverPersonId: "npc_baba",
+        turninPersonId: "npc_baba",
+        repeat: "daily",
+        ui: { x: 1560, y: 460 },
+        description: "The carts have stopped and Baba's stores are low. Wild garlic grows along the Meadow Road.",
+        offerText: "No carts, no stores, no stew! Bring me wild garlic from the meadow ditches — three good bunches — and you eat like lords tonight.",
+        progressText: "Garlic?",
+        completionText: "Now THIS is garlic. Sit, sit — the stew will be ready when you have washed.",
+        objectives: [{ id: "o1", kind: "collect", target: "Wild Garlic", count: 3, text: "Gather wild garlic on the Meadow Road" }],
+        rewards: [{ type: "xp", xp: 50 }, { type: "reputation", factionId: "fac_outpost", amount: 25 }, { type: "item", item: "Rations", qty: 2 }]
+      },
+      {
+        id: "q_sick_mare",
+        title: "The Sick Mare",
+        giverPersonId: "npc_pip",
+        turninPersonId: "npc_pip",
+        ui: { x: 1560, y: 620 },
+        description: "The mare in the end stall has a fever. Pip knows feverfew helps, but she cannot leave the horses.",
+        offerText: "She is burning up. Feverfew — the little white daisies by the road ditches. Two handfuls. Please? Mr Lark says leave her, but… Mr Lark would never say that.",
+        progressText: "Did you find the flowers?",
+        completionText: "She is drinking! Thank you. …Mr Lark did not even come to look at her.",
+        objectives: [{ id: "o1", kind: "collect", target: "Feverfew", count: 2, text: "Bring feverfew from the Meadow Road" }],
+        rewards: [{ type: "xp", xp: 75 }, { type: "reputation", factionId: "fac_outpost", amount: 50 }]
+      },
+      {
+        id: "q_night_raid",
+        title: "Night Raid",
+        giverPersonId: "npc_hedda",
+        turninPersonId: "npc_hedda",
+        prerequisites: { quests: ["q_kitchen_stores"] },
+        ui: { x: 1560, y: 540 },
+        description: "Someone has been creeping into the Outpost yard at night. Hedda wants them caught.",
+        offerText: "Twice now someone has been in my yard after dark, looking at the carts and the stable doors. Stay tonight and keep watch. Catch whoever leads them.",
+        progressText: "Anything in the yard last night?",
+        completionText: "Green cloaks. Reed green. Those are lake smugglers — this far up the road? Somebody is telling them which carts to watch.",
+        objectives: [{ id: "o1", kind: "kill", target: "Scout", count: 1, text: "Stop the night raiders' leader in the Outpost yard" }],
+        rewards: [{ type: "xp", xp: 100 }, { type: "gold", gold: 15 }, { type: "reputation", factionId: "fac_outpost", amount: 100 }]
+      },
+      {
+        id: "q_lost_sheep",
+        title: "Harrowfield's Sheep",
+        giverPersonId: "npc_harrowfield",
+        turninPersonId: "npc_harrowfield",
+        ui: { x: 1e3, y: 800 },
+        description: "Something is taking Old Harrowfield's sheep. The trail leads into the thorn thicket south of the Meadow Road.",
+        offerText: "Dilly, Brannoch, Old Margery, the twins, Soot — and now the lamb. A bear, it was, with an owl's beak, I swear it. In the thorns. Get my lamb back, if she lives.",
+        progressText: "My lamb?",
+        completionText: "Little Nettle! Oh, you brave, stupid lot. Here — it is not much, but it is yours.",
+        objectives: [{ id: "o1", kind: "kill", target: "Owlbear", count: 1, text: "Deal with the beast in the thorn thicket" }, { id: "o2", kind: "collect", target: "Lost Lamb", count: 1, consume: true, text: "Bring back the lamb" }],
+        rewards: [{ type: "xp", xp: 200 }, { type: "gold", gold: 30 }, { type: "choice", options: [{ item: "Potion of Healing", qty: 2 }, { item: "Shortbow", qty: 1 }, { item: "Chain Shirt", qty: 1 }] }]
+      },
+      {
+        id: "q_watchtower",
+        title: "The Old Watchtower",
+        giverPersonId: "npc_pip",
+        turninPersonId: "npc_pip",
+        prerequisites: { quests: ["q_sick_mare"] },
+        ui: { x: 1560, y: 700 },
+        description: 'Pip saw lights in the ruined watchtower on Windgap Pass — the week Mr Lark "came back wrong" from there.',
+        offerText: "Mr Lark went up to the pass in winter to buy a horse. He came back without one, and… wrong. He calls the horses by the wrong names. And there are lights in the old tower at night. Would you look? Please don't tell him I asked.",
+        progressText: "The tower?",
+        completionText: "He is ALIVE? Then the man in our stables… oh. Oh no. Hedda has to know — we have to do something.",
+        objectives: [{ id: "o1", kind: "visit", target: "wt_hall", text: "Search the Watchtower Ruin on Windgap Pass" }, { id: "o2", kind: "talk", target: "npc_prisoner", text: "Find out who is held in the cellar" }],
+        rewards: [{ type: "xp", xp: 150 }, { type: "reputation", factionId: "fac_outpost", amount: 50 }]
+      },
+      {
+        id: "q_stablemaster",
+        title: "The Stablemaster",
+        giverPersonId: "npc_hedda",
+        turninPersonId: "npc_hedda",
+        prerequisites: { quests: ["q_watchtower"] },
+        ui: { x: 1560, y: 780 },
+        description: "The real Corwin Lark was chained in the watchtower. Something wearing his face works in the Outpost stables.",
+        offerText: "Pip told me. If Corwin is in that tower, then what is in my stables? …I have a crossbow and a very bad temper. Go and face it with me.",
+        progressText: "It is still in the stables.",
+        completionText: "A shapechanger. In my stables, for a whole season, telling smugglers our carts. Corwin is home now — and you have a room here for as long as you live.",
+        objectives: [{ id: "o1", kind: "kill", target: "Doppelganger", count: 1, text: "Unmask the false stablemaster" }],
+        rewards: [
+          { type: "xp", xp: 300 },
+          { type: "gold", gold: 50 },
+          { type: "reputation", factionId: "fac_outpost", amount: 200 },
+          { type: "reputation", factionId: "fac_reedcloaks", amount: -100 },
+          { type: "choice", options: [{ item: "Cloak of Protection", qty: 1 }, { item: "Potion of Healing", qty: 3 }] }
+        ]
+      }
+    );
+    w.encounters.push(
+      { id: "enc_campfire_wolves", name: "Wolves at the campfire", monsters: [{ key: "dire-wolf", count: 1 }, { key: "wolf", count: 2 }], personIds: [], start: "near" },
+      { id: "enc_tower_bats", name: "Bats on the stair", monsters: [{ key: "swarm-of-bats", count: 1 }], personIds: [], locationId: "wt_stairs", start: "same" },
+      { id: "enc_tower_harpies", name: "Harpies on the roost", monsters: [{ key: "harpy", count: 2 }], personIds: [], locationId: "wt_top", start: "auto" },
+      { id: "enc_tower_guards", name: "Reedcloak guards", monsters: [{ key: "bandit", count: 3 }, { key: "scout", count: 1 }], personIds: [], locationId: "wt_guard", start: "auto", factionId: "fac_reedcloaks" },
+      { id: "enc_night_raid", name: "Night raiders in the yard", monsters: [{ key: "bandit", count: 3 }, { key: "scout", count: 1 }], personIds: [], start: "near", factionId: "fac_reedcloaks" },
+      { id: "enc_owlbear", name: "The owlbear", monsters: [{ key: "owlbear", count: 1 }], personIds: [], locationId: "oh_den", start: "auto" },
+      { id: "enc_doppelganger", name: "The false stablemaster", monsters: [{ key: "doppelganger", count: 1 }], personIds: [], start: "same", factionId: "fac_reedcloaks" }
+    );
+    w.events.push(
+      {
+        id: "ev_campfire_night",
+        name: "Eyes beyond the firelight",
+        description: "Eyes gleam beyond the firelight: a big grey wolf and two smaller ones, circling the camp.",
+        triggers: [{ type: "onEnterLocation", locationId: "loc_gravel_road" }],
+        conditions: [{ field: "time", op: "==", value: "night" }],
+        effects: [{ type: "encounter", value: "enc_campfire_wolves" }],
+        repeatable: false,
+        ui: { x: 900, y: 60 }
+      },
+      {
+        id: "ev_night_raid",
+        name: "Raiders in the yard",
+        description: "Shadows in reed-green cloaks slip over the Outpost wall and make for the carts.",
+        triggers: [{ type: "onEnterLocation", locationId: "op_yard" }, { type: "onTime" }],
+        conditions: [questIs("q_night_raid", "active"), { field: "time", op: "==", value: "night" }, { field: "location", op: "==", value: "op_yard" }],
+        effects: [{ type: "encounter", value: "enc_night_raid" }],
+        repeatable: false,
+        ui: { x: 1560, y: 380 }
+      },
+      {
+        id: "ev_unmask",
+        name: "The mask slips",
+        description: "Corwin Lark turns from the horses — and his face runs like wax into something grey and smooth.",
+        triggers: [{ type: "onEnterLocation", locationId: "op_stables" }],
+        conditions: [questIs("q_stablemaster", "active")],
+        effects: [{ type: "flag", key: "corwin_unmasked", value: true }, { type: "encounter", value: "enc_doppelganger" }],
+        repeatable: false,
+        ui: { x: 1560, y: 860 }
+      }
+    );
+    w.globalLore.push(
+      { id: "gl_reedcloaks", label: "The Reedcloaks", content: "On the lake they speak of smugglers who wear cloaks the green of lake reeds and row at night without lights.", keys: ["Reedcloak", "green cloak", "smuggler"] },
+      { id: "gl_watchtower", label: "The old watchtower", content: "The watchtower on Windgap Pass was built with the old dam, to watch the road and the water. It has stood empty for a century.", keys: ["watchtower", "tower", "Windgap"] }
+    );
+    return w;
+  }
   var OPENING = [
     "Mist lies over Stillwater Mere this spring morning, and it creeps up the lane into Brindlewick, beading on the thatch of the Tipsy Heron.",
     "Inside, the fire crackles, Ada Fenn is slicing bread faster than anyone can eat it, and the stuffed heron over the bar leans a little further to the left than yesterday.",
@@ -38011,7 +38391,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       summary: "Supply carts keep vanishing between the village of Brindlewick and the lakeside town of Lanternport. Follow the trail from goblin raiders to smugglers on Stillwater Mere, and to what lies under the lake. A starter adventure for one character and a companion.",
       levels: [1, 5],
       credits: [SRD.attribution],
-      world: world(),
+      world: layer2(world()),
       characters: PREGENS.map(pregenCard),
       start: { view: "player", pregens: PREGENS.map((p) => p.id), opening: OPENING }
     };
