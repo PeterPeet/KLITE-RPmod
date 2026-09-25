@@ -614,7 +614,9 @@ the AI narrates; HP and XP are written back to the persona sheet; all SRD monste
 - Shared game log (dice + combat), visible to the AI.
 Acceptance: build a "medium" encounter, fight it through victory and through defeat.
 
-### R6 — Chat power features (SillyTavern) ⬜
+### R6 — Chat power features (SillyTavern) 🟨
+**Design: [docs/design/R6-chat-power.md](design/R6-chat-power.md)** (2026-09-25: how Esolite's slash
+commands / custom tools, display pipeline, summaries and lorebook import work; decisions; commands → engine).
 - Quick replies panel; slash commands (`/roll`, `/move`, `/give`, …) mapped to the engine.
 - Optional stripping of control tags from displayed chat (known issue 2).
 - Lorebook round-trip (Worlds ↔ WI V2/V3); summaries / memory.
