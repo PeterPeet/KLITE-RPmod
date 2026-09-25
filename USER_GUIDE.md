@@ -306,6 +306,7 @@ are applied when you send. Either way the next slice reflects them.
 | `<hp>Name=±N</hp>` | `<hp>Goblin=-4</hp>` | Adjust a combatant's HP |
 | `<check>Name=abi DC</check>` | `<check>You=dex 12</check>` | Ability check vs a DC |
 | `<talk>Name</talk>` | `<talk>Captain Rowan</talk>` | The player spoke with this person (quest objectives) |
+| `<join>Name</join>` · `<leave>Name</leave>` | `<join>Oona</join>` | A person here (marked *can join*) travels with the player · parts ways |
 | `<rep>Faction=±N</rep>` | `<rep>Royal Guard=+50</rep>` | Change the player's reputation with a faction |
 | `<accept>quest</accept>` | `<accept>Bandit Bounty</accept>` | The player takes a quest (if its requirements are met) |
 | `<turnin>quest</turnin>` | `<turnin>Bandit Bounty</turnin>` | Hand in a finished quest; rewards are paid |
@@ -374,6 +375,7 @@ one.
 | `/look` | where you are: the place, ways out, people and things here (what the AI sees) |
 | `/search` · `/open`, `/close`, `/unlock <door>` | search the room; doors (RPmod rolls) |
 | `/talk <person>` | you speak with someone (counts for "talk to" objectives) |
+| `/join <person>` · `/leave <person>` | someone here travels with you (if they can join) · parts ways |
 | `/give <item> [xN]` · `/take <item> [xN \| x all]` · `/inv` | inventory |
 | `/buy [vendor:] <item> [xN]` · `/sell …` · `/shop` | trade with a vendor here; the Shop window |
 | `/accept`, `/turnin`, `/abandon`, `/track <quest>` · `/quests` | quests; the Quest log |
@@ -538,6 +540,13 @@ after **Back to start**; only new replies change the world.
 Library (its TavernCard text is reused: without a description of its own, the AI gets a short
 line from the card's personality or description) and given an optional **d20 stat block**
 (abilities, AC, HP, attacks). Stats feed combat and appear in the AI's context near that NPC.
+
+**Companions (the travelling party).** Tick **Can join the party** on a person in the editor.
+When you are at the same place, the **Party** section on the left offers **Ask … to join**
+(or type `/join Name`, or the AI writes `<join>Name</join>` when they agree). A companion
+travels with you, fights on your side (and gets a share of the XP), and appears in the Party
+section with their HP; the **✕** button (or `/leave Name`, `<leave>Name</leave>`) lets them go —
+they stay where you parted. Only people marked this way can join; monsters never do.
 
 **Quests.** Add **Quest** nodes with a **giver** and a **turn-in** person. Markers show on
 persons: yellow **!** = a quest you can accept, yellow **?** = a finished quest to hand in here,

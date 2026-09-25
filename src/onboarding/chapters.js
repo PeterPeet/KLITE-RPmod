@@ -171,6 +171,7 @@ export const CHAPTERS = [
                 ['Command', 'Does'],
                 ['/go Forest Road · /look · /search · /open north', 'move, look around, search, doors'],
                 ['/talk Bram · /accept Bandit Bounty · /turnin …', 'people and quests'],
+                ['/join Oona · /leave Oona', 'companions travel with you'],
                 ['/buy Torch x2 · /sell Rope · /inv · /shop', 'trade and inventory'],
                 ['/roll 1d20+3 · /check perception 12', 'dice; checks with your persona\'s sheet'],
                 ['/encounter 2 Wolf · /attack Wolf · /endturn · /rest', 'fights'],

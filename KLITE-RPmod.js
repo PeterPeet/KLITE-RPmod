@@ -23357,6 +23357,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       return false;
     }
     function resolveNpcLocationId(npc) {
+      if (rt() && rt().playerLocationId && asArray5(rt().party).includes(npc.id)) return rt().playerLocationId;
       const ov = rt()?.npcStateOverrides?.[npc.id];
       if (ov && ov.locationId) return ov.locationId;
       npc = phasedEntity(npc);
@@ -24327,6 +24328,8 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       scan(/<turnin>\s*([^<>]+?)\s*<\/turnin>/gi, (m) => tagTurnIn(m[1]));
       scan(/<buy>\s*([^<>]+?)\s*<\/buy>/gi, (m) => tradeTag("buy", m[1]));
       scan(/<sell>\s*([^<>]+?)\s*<\/sell>/gi, (m) => tradeTag("sell", m[1]));
+      scan(/<join>\s*([^<>]+?)\s*<\/join>/gi, (m) => joinParty(m[1], { source: "tag" }).ok);
+      scan(/<leave>\s*([^<>]+?)\s*<\/leave>/gi, (m) => leaveParty(m[1], { source: "tag" }).ok);
       scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, (m) => {
         const npc = findNpcByName(world, m[1]);
         if (!npc) return false;
@@ -25146,6 +25149,56 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
     function companionIds() {
       return [.../* @__PURE__ */ new Set([...asArray5(rt() && rt().party), ...asArray5(rt() && rt().companions)])];
     }
+    function personAt(p) {
+      const here2 = rt() && rt().playerLocationId;
+      const at = resolveNpcLocationId(p);
+      return !!(here2 && at && (at === here2 || isInsideLocation(here2, at)));
+    }
+    function personByLooseName(w, q, pool) {
+      const exact = findById(w.npcs, q) || findNpcByName(w, q);
+      if (exact) return exact;
+      const k2 = norm5(q).toLowerCase();
+      if (k2.length < 2) return null;
+      const hits = pool.filter((p) => norm5(personName(phasedEntity(p))).toLowerCase().split(/\s+/).includes(k2));
+      return hits.length === 1 ? hits[0] : null;
+    }
+    function joinParty(idOrName, { source = "api" } = {}) {
+      const w = activeWorld();
+      if (!w || !ensureRuntime()) return { ok: false, reason: "No world is active." };
+      const p = personByLooseName(w, idOrName, asArray5(w.npcs).filter((x) => personAt(x)));
+      const refuse = (reason) => {
+        if (source !== "api") gameLog(reason, "party");
+        return { ok: false, reason };
+      };
+      if (!p) return refuse(`No one called "${norm5(idOrName)}" is known.`);
+      const ph = phasedEntity(p), name = personName(ph);
+      if (asArray5(rt().party).includes(p.id)) return { ok: true, person: name, already: true };
+      if (ph.gone) return refuse(`${name} is not here.`);
+      if (p.isMonster || !ph.canJoin) return refuse(`${name} does not join the party.`);
+      if (!personAt(p)) return refuse(`${name} is not here.`);
+      rt().party = [...asArray5(rt().party), p.id];
+      if (rt().npcStateOverrides && rt().npcStateOverrides[p.id]) delete rt().npcStateOverrides[p.id].locationId;
+      gameLog(`${name} joins the party.`, "party");
+      return { ok: true, person: name };
+    }
+    function leaveParty(idOrName, { source = "api" } = {}) {
+      const w = activeWorld();
+      if (!w || !rt()) return { ok: false, reason: "No world is active." };
+      const p = personByLooseName(w, idOrName, asArray5(w.npcs).filter((x) => asArray5(rt().party).includes(x.id)));
+      const name = p ? personName(phasedEntity(p)) : norm5(idOrName);
+      if (!p || !asArray5(rt().party).includes(p.id)) {
+        const reason = `${name} is not in the party.`;
+        if (source !== "api") gameLog(reason, "party");
+        return { ok: false, reason };
+      }
+      rt().party = asArray5(rt().party).filter((id) => id !== p.id);
+      if (rt().playerLocationId) (rt().npcStateOverrides[p.id] = rt().npcStateOverrides[p.id] || {}).locationId = rt().playerLocationId;
+      gameLog(`${name} leaves the party.`, "party");
+      return { ok: true, person: name };
+    }
+    function partyMembers() {
+      return asArray5(rt() && rt().party).map((id) => entityById(activeWorld(), id)).filter(Boolean).map((p) => ({ id: p.id, name: personName(phasedEntity(p)) }));
+    }
     function partyStatus() {
       const C2 = window.KLITE_RPMod_Characters;
       const kept = rt() && rt().partyHp || {};
@@ -25803,6 +25856,9 @@ ${xl.join("\n")}`;
         if (faction) bits.push(`Faction: ${norm5(faction.name)}`);
         const npcStats = npc.stats || cardSheetStats(npc);
         if (npcStats) bits.push(statSummary(npcStats));
+        const inParty = asArray5(rt() && rt().party).includes(npc.id);
+        if (inParty) bits.push(`travels with the player (party); if they part ways, write <leave>${personName(npc)}</leave>`);
+        else if (npc.canJoin && !npc.isMonster) bits.push(`may join the player: when they agree to travel together, write <join>${personName(npc)}</join>`);
         npcLines.push("- " + bits.join(" | "));
         if (mutate && rt() && !asArray5(rt().knownNpcIds).includes(npc.id)) rt().knownNpcIds.push(npc.id);
       }
@@ -26988,6 +27044,21 @@ ${xl.join("\n")}`;
       },
       questNeedsChoice: (id) => needsChoice(questById(id)),
       rewardsPaid: (id) => !!(rt() && rt().rewardsPaid && rt().rewardsPaid[id]),
+      joinParty(idOrName, opts) {
+        const r = joinParty(idOrName, opts);
+        syncLive();
+        return r;
+      },
+      leaveParty(idOrName, opts) {
+        const r = leaveParty(idOrName, opts);
+        syncLive();
+        return r;
+      },
+      partyMembers,
+      isHere(id) {
+        const p = findById(activeWorld() && activeWorld().npcs, id);
+        return !!(p && rt() && personAt(p));
+      },
       setActiveQuest(id) {
         ensureRuntime();
         rt().activeQuestId = id;
@@ -29806,6 +29877,15 @@ ${xl.join("\n")}`;
       box.appendChild(csel);
       const resolved = A.resolvePersonCharacter(S2.selectedId);
       if (ent.characterRef) box.appendChild(el2("div", { style: `font-size:10px;margin-top:3px;color:${resolved ? "var(--rpm-success)" : "var(--rpm-quest)"}`, text: resolved ? `Linked: ${resolved.name}` : `Linked to "${ent.characterRef.name || ent.characterRef.id}" (not found in library)` }));
+      const joinWrap = el2("label", { style: "display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer" });
+      const join = el2("input", { type: "checkbox", style: "cursor:pointer", "data-person": "can-join" });
+      join.checked = !!ent.canJoin;
+      join.addEventListener("change", () => {
+        A.updateEntity(S2.selectedId, { canJoin: join.checked || void 0 });
+      });
+      joinWrap.appendChild(join);
+      joinWrap.appendChild(document.createTextNode("Can join the party (travels with the player)"));
+      box.appendChild(joinWrap);
       box.appendChild(el2("div", { style: "display:flex;align-items:center;gap:8px;margin:14px 0 4px" }, [
         el2("span", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;flex:1", text: "Stats (d20)" }),
         ent.stats ? el2("span", { style: "cursor:pointer;color:var(--rpm-danger);font-size:10px", text: "remove", onclick: () => {
@@ -31176,12 +31256,30 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       box.appendChild(muted2(`🕑 Day ${c.day || 1}, ${c.time || "—"}${c.weather ? " · " + c.weather : ""}`));
       const fighting = !!(cb && cb.active && !cb.outcome);
       const mates = A.partyStatus ? A.partyStatus() : [];
+      const travelling = new Set((A.partyMembers ? A.partyMembers() : []).map((m) => m.id));
       for (const m of mates) {
         const hp = fighting && cb.hp[m.id] != null ? cb.hp[m.id] : m.hp, max = fighting && cb.maxHp[m.id] ? cb.maxHp[m.id] : m.max;
         box.appendChild(el2("div", { class: "rpm-card", "data-party-member": m.id }, [
-          row2([el2("span", { class: "rpm-grow", style: "font-weight:bold", text: m.name }), el2("span", { class: "rpm-muted", text: `HP ${hp}/${max}${fighting ? " ⚔" : ""}` })]),
+          row2([
+            el2("span", { class: "rpm-grow", style: "font-weight:bold", text: m.name }),
+            el2("span", { class: "rpm-muted", text: `HP ${hp}/${max}${fighting ? " ⚔" : ""}` }),
+            travelling.has(m.id) && !fighting ? uiBtn("", () => {
+              A.leaveParty(m.id, { source: "ui" });
+            }, { icon: "x", title: `${m.name} leaves the party (stays here)`, id: "leave-party" }) : null
+          ]),
           hpBar2(hp, max)
         ]));
+      }
+      if (!fighting && loc) {
+        const g = A.getGraph();
+        for (const n of g.nodes.filter((n2) => n2.type === "npc")) {
+          const p = A.entityById(n.id);
+          const ph = A.phased(n.id) || p;
+          if (!p || !ph || ph.gone || !p.canJoin || p.isMonster || travelling.has(p.id) || !A.isHere(p.id)) continue;
+          box.appendChild(uiBtn(`Ask ${ph.name || p.name} to join`, () => {
+            A.joinParty(p.id, { source: "ui" });
+          }, { icon: "plus", block: true, style: "margin-top:6px", id: "join-party", title: "Travel together: they follow you and fight on your side" }));
+        }
       }
       if (!fighting) {
         box.appendChild(uiBtn("Long rest", () => {
@@ -31820,6 +31918,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           ["Command", "Does"],
           ["/go Forest Road · /look · /search · /open north", "move, look around, search, doors"],
           ["/talk Bram · /accept Bandit Bounty · /turnin …", "people and quests"],
+          ["/join Oona · /leave Oona", "companions travel with you"],
           ["/buy Torch x2 · /sell Rope · /inv · /shop", "trade and inventory"],
           ["/roll 1d20+3 · /check perception 12", "dice; checks with your persona's sheet"],
           ["/encounter 2 Wolf · /attack Wolf · /endturn · /rest", "fights"],
@@ -35941,7 +36040,9 @@ OK = save and close · Cancel = close and discard them`);
     "search",
     "room",
     "door",
-    "light"
+    "light",
+    "join",
+    "leave"
   ];
   var LT = "(?:<|&lt;)";
   var GT = "(?:>|&gt;)";
@@ -36328,6 +36429,30 @@ Purse: ${iv.purseText}`);
           if (r.ok) r.log = `Talks with ${cleanArg(a)}.`;
           else if (!r.error) r.error = `No one called "${cleanArg(a)}" is known in this world.`;
           return r;
+        }
+      },
+      {
+        name: "join",
+        group: "World",
+        world: true,
+        usage: "/join <person>",
+        help: "Ask someone here to travel with you (only people who can join).",
+        run: (a) => {
+          if (!cleanArg(a)) return fail("Usage: /join <person>");
+          const r = W().joinParty(cleanArg(a), { source: "ui" });
+          return r.ok ? { ok: true } : { ok: false, error: r.reason };
+        }
+      },
+      {
+        name: "leave",
+        group: "World",
+        world: true,
+        usage: "/leave <person>",
+        help: "Part ways with a companion; they stay here.",
+        run: (a) => {
+          if (!cleanArg(a)) return fail("Usage: /leave <person>");
+          const r = W().leaveParty(cleanArg(a), { source: "ui" });
+          return r.ok ? { ok: true } : { ok: false, error: r.reason };
         }
       },
       { name: "map", group: "World", usage: "/map", help: "Open the Map window.", run: () => opened("map") },
@@ -36917,11 +37042,11 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
     return hits;
   }
   function pregenOf(card) {
-    const r = card && card.data && card.data.extensions && card.data.extensions.rpmod;
+    const r = card && card.data && card.data.extensions && card.data.extensions.klite_rpmod;
     return r && r.pregen ? str3(r.pregen) : "";
   }
   function adventureOf(card) {
-    const r = card && card.data && card.data.extensions && card.data.extensions.rpmod;
+    const r = card && card.data && card.data.extensions && card.data.extensions.klite_rpmod;
     return r && r.adventure ? str3(r.adventure) : "";
   }
   function pregens(pkg) {
@@ -36932,7 +37057,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
     for (const id of order) {
       const card = cards.find((c) => pregenOf(c) === id);
       if (!card) continue;
-      const r = card.data.extensions.rpmod;
+      const r = card.data.extensions.klite_rpmod;
       out.push({ id, name: str3(card.data.name), line: str3(r.line), pronouns: str3(r.pronouns), card });
     }
     return out;
@@ -36996,7 +37121,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         E("a character without a name");
         continue;
       }
-      if (!id) E(`character "${c.data.name}" has no extensions.rpmod.pregen`);
+      if (!id) E(`character "${c.data.name}" has no extensions.klite_rpmod.pregen`);
       else if (seen.has(id)) E(`pregen id "${id}" used twice`);
       else seen.add(id);
       if (id && adventureOf(c) !== str3(pkg.id)) E(`character "${c.data.name}" belongs to adventure "${adventureOf(c)}", not "${pkg.id}"`);
@@ -37136,7 +37261,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       }
     }
     const isPregen = (rec, advId, pregenId) => {
-      const r = rec && rec.data && rec.data.extensions && rec.data.extensions.rpmod;
+      const r = rec && rec.data && rec.data.extensions && rec.data.extensions.klite_rpmod;
       return !!(r && r.adventure === advId && r.pregen === pregenId);
     };
     async function findPregen(advId, g) {

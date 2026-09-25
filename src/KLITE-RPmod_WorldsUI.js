@@ -355,6 +355,12 @@ export default function initWorldsUI() {
         box.appendChild(csel);
         const resolved = A.resolvePersonCharacter(S.selectedId);
         if (ent.characterRef) box.appendChild(el('div', { style: `font-size:10px;margin-top:3px;color:${resolved ? 'var(--rpm-success)' : 'var(--rpm-quest)'}`, text: resolved ? `Linked: ${resolved.name}` : `Linked to "${ent.characterRef.name || ent.characterRef.id}" (not found in library)` }));
+        // R8: may travel with the player (the Party section and the AI's <join> tag)
+        const joinWrap = el('label', { style: 'display:flex;align-items:center;gap:6px;margin-top:6px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer' });
+        const join = el('input', { type: 'checkbox', style: 'cursor:pointer', 'data-person': 'can-join' }); join.checked = !!ent.canJoin;
+        join.addEventListener('change', () => { A.updateEntity(S.selectedId, { canJoin: join.checked || undefined }); });
+        joinWrap.appendChild(join); joinWrap.appendChild(document.createTextNode('Can join the party (travels with the player)'));
+        box.appendChild(joinWrap);
 
         // ---- d20 stat block ----
         box.appendChild(el('div', { style: 'display:flex;align-items:center;gap:8px;margin:14px 0 4px' }, [
@@ -1314,12 +1320,23 @@ export default function initWorldsUI() {
         // companions: the HP they start the next fight with (kept between fights, R5)
         const fighting = !!(cb && cb.active && !cb.outcome);
         const mates = A.partyStatus ? A.partyStatus() : [];
+        const travelling = new Set((A.partyMembers ? A.partyMembers() : []).map(m => m.id));
         for (const m of mates) {
             const hp = fighting && cb.hp[m.id] != null ? cb.hp[m.id] : m.hp, max = fighting && cb.maxHp[m.id] ? cb.maxHp[m.id] : m.max;
             box.appendChild(el('div', { class: 'rpm-card', 'data-party-member': m.id }, [
-                row([el('span', { class: 'rpm-grow', style: 'font-weight:bold', text: m.name }), el('span', { class: 'rpm-muted', text: `HP ${hp}/${max}${fighting ? ' ⚔' : ''}` })]),
+                row([el('span', { class: 'rpm-grow', style: 'font-weight:bold', text: m.name }), el('span', { class: 'rpm-muted', text: `HP ${hp}/${max}${fighting ? ' ⚔' : ''}` }),
+                    travelling.has(m.id) && !fighting ? uiBtn('', () => { A.leaveParty(m.id, { source: 'ui' }); }, { icon: 'x', title: `${m.name} leaves the party (stays here)`, id: 'leave-party' }) : null]),
                 hpBar(hp, max),
             ]));
+        }
+        // people here who can join (R8)
+        if (!fighting && loc) {
+            const g = A.getGraph();
+            for (const n of g.nodes.filter(n => n.type === 'npc')) {
+                const p = A.entityById(n.id); const ph = A.phased(n.id) || p;
+                if (!p || !ph || ph.gone || !p.canJoin || p.isMonster || travelling.has(p.id) || !A.isHere(p.id)) continue;
+                box.appendChild(uiBtn(`Ask ${ph.name || p.name} to join`, () => { A.joinParty(p.id, { source: 'ui' }); }, { icon: 'plus', block: true, style: 'margin-top:6px', id: 'join-party', title: 'Travel together: they follow you and fight on your side' }));
+            }
         }
         if (!fighting) {
             box.appendChild(uiBtn('Long rest', () => {

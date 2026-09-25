@@ -210,7 +210,7 @@ An adventure is a file/object RPmod can bundle, import and export:
 { format: 'rpmod-adventure', version: 1,
   id: 'drowned-lantern', title, summary, levels: [1, 5], credits: [SRD attribution],
   world: <the world object, as exportWorld()>,
-  characters: [ <TavernCard V2 with data.extensions.rpmod = { pregen: 'oona', adventure: id, sheet }> ],
+  characters: [ <TavernCard V2 with data.extensions.klite_rpmod = { pregen: 'oona', adventure: id, sheet }> ],
   start: { locationId, clock, view: 'player', pregens: ['oona','tove','kasimir','pell'],
            companionsAt: locationId, opening: '<first message of the story>' } }
 ```
@@ -230,7 +230,7 @@ Entry points: the **New here?** card, the RPmod section of Esolite's Quick Start
 1. Choose a pregen (a small window with the four cards: name, build, one line, pronouns).
 2. Import the adventure world as a new library entry (never overwrite a saved copy — as
    `loadExample` does today).
-3. For each pregen: find it in Esolite's Library by `extensions.rpmod.pregen` + `adventure` (not by
+3. For each pregen: find it in Esolite's Library by `extensions.klite_rpmod.pregen` + `adventure` (not by
    name); if missing, save it through `esoliteLibrary.saveCharacter` (a clash of names gets Esolite's
    `Name_1`); never touch an existing card (the player's progress lives there).
 4. Set the chosen pregen as the persona; link the other three to their world persons.
@@ -240,7 +240,7 @@ Entry points: the **New here?** card, the RPmod section of Esolite's Quick Start
 
 ### Save format
 
-All additive: `world.start`, `world.adventure { id, version }`, card `extensions.rpmod.pregen`.
+All additive: `world.start`, `world.adventure { id, version }`, card `extensions.klite_rpmod.pregen`.
 Stories saved before R8 load unchanged. Tests for the migrations.
 
 ### Where the content lives

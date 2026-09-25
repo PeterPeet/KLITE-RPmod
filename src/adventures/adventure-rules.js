@@ -6,7 +6,7 @@
 //   { format: 'rpmod-adventure', version: 1, id, title, summary, levels: [from, to], credits[],
 //     world: <world object as exportWorld() writes it>,
 //     characters: [ TavernCard V2 { spec: 'chara_card_v2', data: { name, …,
-//                   extensions: { rpmod: { adventure: id, pregen: '<pregen id>', line, sheet? } } } } ],
+//                   extensions: { klite_rpmod: { adventure: id, pregen: '<pregen id>', line, sheet? } } } } ],
 //     start: { view: 'player'|'creator', pregens: [pregen ids offered], opening: '<first message>' } }
 // The world's own `start` (place, clock, view) says where the game begins. World persons link a
 // pregen with `characterRef: { pregen: '<pregen id>' }`; the loader turns that into a Library link.
@@ -69,9 +69,9 @@ export function forbiddenNamesIn(value, names = FORBIDDEN_NAMES) {
     return hits;
 }
 
-// The pregen id of a card (extensions.rpmod.pregen), '' when it is none.
-export function pregenOf(card) { const r = card && card.data && card.data.extensions && card.data.extensions.rpmod; return r && r.pregen ? str(r.pregen) : ''; }
-export function adventureOf(card) { const r = card && card.data && card.data.extensions && card.data.extensions.rpmod; return r && r.adventure ? str(r.adventure) : ''; }
+// The pregen id of a card (extensions.klite_rpmod.pregen), '' when it is none.
+export function pregenOf(card) { const r = card && card.data && card.data.extensions && card.data.extensions.klite_rpmod; return r && r.pregen ? str(r.pregen) : ''; }
+export function adventureOf(card) { const r = card && card.data && card.data.extensions && card.data.extensions.klite_rpmod; return r && r.adventure ? str(r.adventure) : ''; }
 
 // The offered pregens, in order: [{ id, name, line, card }].
 export function pregens(pkg) {
@@ -81,7 +81,7 @@ export function pregens(pkg) {
     const out = [];
     for (const id of order) {
         const card = cards.find(c => pregenOf(c) === id); if (!card) continue;
-        const r = card.data.extensions.rpmod;
+        const r = card.data.extensions.klite_rpmod;
         out.push({ id, name: str(card.data.name), line: str(r.line), pronouns: str(r.pronouns), card });
     }
     return out;
@@ -136,7 +136,7 @@ export function validateAdventure(pkg) {
     for (const c of cards) {
         const id = pregenOf(c);
         if (!c || !c.data || !str(c.data.name).trim()) { E('a character without a name'); continue; }
-        if (!id) E(`character "${c.data.name}" has no extensions.rpmod.pregen`);
+        if (!id) E(`character "${c.data.name}" has no extensions.klite_rpmod.pregen`);
         else if (seen.has(id)) E(`pregen id "${id}" used twice`);
         else seen.add(id);
         if (id && adventureOf(c) !== str(pkg.id)) E(`character "${c.data.name}" belongs to adventure "${adventureOf(c)}", not "${pkg.id}"`);

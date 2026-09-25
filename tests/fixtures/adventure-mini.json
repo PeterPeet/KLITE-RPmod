@@ -25,9 +25,9 @@
   },
   "characters": [
     { "spec": "chara_card_v2", "spec_version": "2.0", "data": { "name": "Ana Test", "description": "A test fighter.", "personality": "brave",
-      "extensions": { "rpmod": { "adventure": "mini", "pregen": "ana", "line": "Fighter, test background", "pronouns": "she/her" } } } },
+      "extensions": { "klite_rpmod": { "adventure": "mini", "pregen": "ana", "line": "Fighter, test background", "pronouns": "she/her" } } } },
     { "spec": "chara_card_v2", "spec_version": "2.0", "data": { "name": "Bo Test", "description": "A test cleric.", "personality": "kind",
-      "extensions": { "rpmod": { "adventure": "mini", "pregen": "bo", "line": "Cleric, test background", "pronouns": "they/them" } } } }
+      "extensions": { "klite_rpmod": { "adventure": "mini", "pregen": "bo", "line": "Cleric, test background", "pronouns": "they/them" } } } }
   ],
   "start": { "view": "player", "pregens": ["ana", "bo"], "opening": "The rain falls on Mini Green. The elder waves you over." }
 }

@@ -39,7 +39,7 @@ test('validator: broken ids, pregens, monsters, loops, start and XP are reported
     p.world.encounters[0].monsters.push({ key: 'Tarrasque Junior', count: 1 });
     p.world.quests.push({ id: 'q_a', title: 'A', prerequisites: { quests: ['q_b'] } }, { id: 'q_b', title: 'B', prerequisites: { quests: ['q_a'], level: 9 } });
     p.start.pregens.push('cy');
-    p.characters[1].data.extensions.rpmod.adventure = 'other';
+    p.characters[1].data.extensions.klite_rpmod.adventure = 'other';
     const r = AR.validateAdventure(p);
     const has = (re) => assert.ok(r.errors.some(e => re.test(e)), `${re} in ${JSON.stringify(r.errors)}`);
     has(/unknown location "loc_nowhere"/);
@@ -207,7 +207,7 @@ test('loader: a pregen renamed by a name clash is found again by its pregen id; 
     assert.equal(r2.pregens.ana.added, false);
 
     const bad = mini(); bad.id = 'bad'; bad.world.locations[0].description = 'Near Phandalin.';
-    for (const c of bad.characters) c.data.extensions.rpmod.adventure = 'bad';
+    for (const c of bad.characters) c.data.extensions.klite_rpmod.adventure = 'bad';
     const res = ADV.register(bad);
     assert.equal(res.ok, false);
     assert.ok(!ADV.list().some(a => a.id === 'bad'), 'not registered');

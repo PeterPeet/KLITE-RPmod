@@ -4,7 +4,7 @@
 // window.KLITE_RPMod_Adventures = { list, get, register, validate, pregens, installPregens,
 //                                   start, open }
 // "Play an adventure": choose a pregenerated character → RPmod adds the pregens that are not in
-// Esolite's Library yet (found again by extensions.rpmod.pregen, never overwritten), starts a new
+// Esolite's Library yet (found again by extensions.klite_rpmod.pregen, never overwritten), starts a new
 // session with the adventure's opening, begins its world at its start (Player view) and makes the
 // chosen pregen your persona. Format and checks: adventure-rules.js; design:
 // docs/design/R8-starter-adventure.md. Everything shown is built with textContent.
@@ -45,7 +45,7 @@ export default function initAdventures() {
     // ---- pregens in Esolite's Library --------------------------------------------------------
     function remembered() { try { return JSON.parse(localStorage.getItem(PREGEN_KEY) || '{}') || {}; } catch (_) { return {}; } }
     function remember(key, id) { try { const m = remembered(); m[key] = id; localStorage.setItem(PREGEN_KEY, JSON.stringify(m)); } catch (_) {} }
-    const isPregen = (rec, advId, pregenId) => { const r = rec && rec.data && rec.data.extensions && rec.data.extensions.rpmod; return !!(r && r.adventure === advId && r.pregen === pregenId); };
+    const isPregen = (rec, advId, pregenId) => { const r = rec && rec.data && rec.data.extensions && rec.data.extensions.klite_rpmod; return !!(r && r.adventure === advId && r.pregen === pregenId); };
 
     // The Library entry of a pregen, or null: the remembered id first, then entries named like it.
     async function findPregen(advId, g) {

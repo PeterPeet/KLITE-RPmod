@@ -349,6 +349,15 @@ outcome: null|'victory'|'defeat', xp, persona, synced, encounter, difficulty }`.
   the persona and each companion with a sheet get `xpEach`), defeat = no party member standing or dying. On the outcome (or
   `endEncounter` without one) `syncPersonaSheet` writes HP (+ XP on victory) to the persona's
   card once; a log line announces a reachable level.
+- **Travelling party (R8):** person field `canJoin` (editor checkbox "Can join the party"). `joinParty(p,
+  { source })` needs `canJoin`, no `isMonster`, not phased `gone`, and the person **here** (`personAt`: same
+  place, or a zone the player stands in); names match exactly or by a unique name part among the people
+  concerned (`personByLooseName`). Adds to runtime `party`; `resolveNpcLocationId` puts party members at
+  the player's place. `leaveParty` removes and pins them where the party parted (`npcStateOverrides`).
+  Refusals from tags/UI go to the game log (`kind: 'party'`). Tags `<join>`/`<leave>` (hidden in the chat,
+  `CONTROL_TAGS`), slash `/join` `/leave`, the AI's Nearby NPCs line says who "may join" (with the tag)
+  and who "travels with the player"; Party section: "Ask … to join" for people here, ✕ to leave. API
+  `joinParty/leaveParty/partyMembers/isHere`.
 - **Companions' HP (2026-09-25):** a party-side person whose stats come from its linked card
   (`personSheetName`: `characterRef` + cached sheet, no own `stats`) starts at the sheet's current
   HP (`order[].sheet` = its name); others start at runtime `partyHp[id]` when set. At the outcome
@@ -584,17 +593,17 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   `exportWorldAsWI()` (flat Esolite WI array), `exportWorldAsLorebook(id, 'tavern'|'v3')`.
   A lorebook has one entry per location, person, faction, object, event, quest and lore node:
   content `[Location: Name]\n<text>` (lore: its text), keys = the name (lore: its keys and
-  secondary keys, `always` → `constant`, `disabled` → `disable`), `extensions.rpmod = { kind, id,
+  secondary keys, `always` → `constant`, `disabled` → `disable`), `extensions.klite_rpmod = { kind, id,
   field }` (`field` = where the text lives, e.g. an NPC's `personality`); the book carries the
-  world in `extensions.rpmod.world`. The SillyTavern form keys entries by `uid` and writes both
+  world in `extensions.klite_rpmod.world`. The SillyTavern form keys entries by `uid` and writes both
   `key`/`keys` and `keysecondary`/`secondary_keys`, so Esolite's `load_tavern_wi` reads it (tested
   with Esolite's own function from the clone).
 - **Import:** `importLorebook(data, { merge, worldName })` → `readBook` accepts every shape. A
   book with an embedded world and no `merge` restores that world as a **new** library entry
   (new id if the id is taken, "(imported)" if the name is), then `applyEntryEdits` writes entry
-  texts that changed back to the entity field named by `extensions.rpmod` (never deletes); the
+  texts that changed back to the entity field named by `extensions.klite_rpmod` (never deletes); the
   remaining entries are added. Otherwise each entry is added as a node, typed by
-  `extensions.rpmod.kind` or its header, else a Lore node (`disabled: true` when it was off; the
+  `extensions.klite_rpmod.kind` or its header, else a Lore node (`disabled: true` when it was off; the
   slice skips disabled lore — additive field). The World tab's Import also takes World JSON
   (`importWorld`, a copy when the id is taken).
 - **Esolite's Library:** "Save to Esolite's Library" calls Esolite's `saveLorebookToIndexDB(name,
@@ -605,7 +614,7 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
 ### 3.11 Adventures (R8) — `src/adventures/` (rules `adventure-rules.js` pure, loader `adventures.js`)
 Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
 - **Package:** `{ format: 'rpmod-adventure', version, id, title, summary, levels[from,to], world,
-  characters[TavernCard V2 with data.extensions.rpmod = { adventure, pregen, line, pronouns }],
+  characters[TavernCard V2 with data.extensions.klite_rpmod = { adventure, pregen, line, pronouns }],
   start{ view, pregens[], opening } }`; the world's own `start` says where the game begins; world
   persons link a pregen with `characterRef: { pregen }`.
 - **Validator** `validateAdventure(pkg)` → `{ ok, errors, warnings, stats }`: ids resolve, pregens
@@ -618,7 +627,7 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
 - **Loader** `window.KLITE_RPMod_Adventures = { list, get, register, validate, pregens, installPregens,
   start, open }`; bundled packages in `BUNDLED` (none until R8 step 3); `register` refuses invalid ones
   and fires `klite:adventures-change`. `installPregens`: a pregen is found by
-  `extensions.rpmod.{adventure,pregen}` — the remembered Library id (`localStorage
+  `extensions.klite_rpmod.{adventure,pregen}` — the remembered Library id (`localStorage
   KLITE.adventures.pregens`), else entries named like it (`Name`, `Name_1`); missing ones are saved
   with `saveCharacter` (new entry); existing cards are never written. `start(id, { pregen, confirm })`:
   confirm when the story has text → pregens → the world (the Library copy with `adventure{id,version}`

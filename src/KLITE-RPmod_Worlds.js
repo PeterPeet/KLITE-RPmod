@@ -867,6 +867,8 @@ export default function initWorlds() {
         return false;
     }
     function resolveNpcLocationId(npc) {
+        // R8: a party member travels with the player
+        if (rt() && rt().playerLocationId && asArray(rt().party).includes(npc.id)) return rt().playerLocationId;
         const ov = rt()?.npcStateOverrides?.[npc.id];
         if (ov && ov.locationId) return ov.locationId;
         npc = phasedEntity(npc);
@@ -1559,6 +1561,9 @@ export default function initWorlds() {
         // <buy>Torch x2</buy> / <sell>Wolf Pelt</sell>: trading with a vendor here (R4 extra)
         scan(/<buy>\s*([^<>]+?)\s*<\/buy>/gi, m => tradeTag('buy', m[1]));
         scan(/<sell>\s*([^<>]+?)\s*<\/sell>/gi, m => tradeTag('sell', m[1]));
+        // <join>Oona</join> / <leave>Oona</leave>: a person here travels with the party / parts ways (R8)
+        scan(/<join>\s*([^<>]+?)\s*<\/join>/gi, m => joinParty(m[1], { source: 'tag' }).ok);
+        scan(/<leave>\s*([^<>]+?)\s*<\/leave>/gi, m => leaveParty(m[1], { source: 'tag' }).ok);
         // <talk>Captain Rowan</talk>: the player spoke with this person (quest "talk" objectives)
         scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, m => { const npc = findNpcByName(world, m[1]); if (!npc) return false; questEvent('talk', { personId: npc.id }); return true; });
         // <encounter>Wolf Pack</encounter> (a saved encounter) or <encounter>2 Wolf, Goblin Warrior</encounter>
@@ -2110,6 +2115,43 @@ export default function initWorlds() {
     // player's side (runtime `companions`, recorded after each fight).
     function companionIds() { return [...new Set([...asArray(rt() && rt().party), ...asArray(rt() && rt().companions)])]; }
     // The companions with the HP they will start the next fight with.
+    // ---- travelling party (R8): persons the author marked `canJoin` join the player when they are
+    // here; they then travel with the player (resolveNpcLocationId) and fight on the party side.
+    // Leaving: the person stays where the party parted. → { ok, reason?, person? } (refusals logged)
+    function personAt(p) { const here = rt() && rt().playerLocationId; const at = resolveNpcLocationId(p); return !!(here && at && (at === here || isInsideLocation(here, at))); }   // same place, or a zone the player stands in
+    // id or full name, else a unique name part ("Oona" for "Oona Greycairn") among `pool`
+    function personByLooseName(w, q, pool) {
+        const exact = findById(w.npcs, q) || findNpcByName(w, q); if (exact) return exact;
+        const k = norm(q).toLowerCase(); if (k.length < 2) return null;
+        const hits = pool.filter(p => norm(personName(phasedEntity(p))).toLowerCase().split(/\s+/).includes(k));
+        return hits.length === 1 ? hits[0] : null;
+    }
+    function joinParty(idOrName, { source = 'api' } = {}) {
+        const w = activeWorld(); if (!w || !ensureRuntime()) return { ok: false, reason: 'No world is active.' };
+        const p = personByLooseName(w, idOrName, asArray(w.npcs).filter(x => personAt(x)));
+        const refuse = (reason) => { if (source !== 'api') gameLog(reason, 'party'); return { ok: false, reason }; };
+        if (!p) return refuse(`No one called "${norm(idOrName)}" is known.`);
+        const ph = phasedEntity(p), name = personName(ph);
+        if (asArray(rt().party).includes(p.id)) return { ok: true, person: name, already: true };
+        if (ph.gone) return refuse(`${name} is not here.`);
+        if (p.isMonster || !ph.canJoin) return refuse(`${name} does not join the party.`);
+        if (!personAt(p)) return refuse(`${name} is not here.`);
+        rt().party = [...asArray(rt().party), p.id];
+        if (rt().npcStateOverrides && rt().npcStateOverrides[p.id]) delete rt().npcStateOverrides[p.id].locationId;
+        gameLog(`${name} joins the party.`, 'party');
+        return { ok: true, person: name };
+    }
+    function leaveParty(idOrName, { source = 'api' } = {}) {
+        const w = activeWorld(); if (!w || !rt()) return { ok: false, reason: 'No world is active.' };
+        const p = personByLooseName(w, idOrName, asArray(w.npcs).filter(x => asArray(rt().party).includes(x.id)));
+        const name = p ? personName(phasedEntity(p)) : norm(idOrName);
+        if (!p || !asArray(rt().party).includes(p.id)) { const reason = `${name} is not in the party.`; if (source !== 'api') gameLog(reason, 'party'); return { ok: false, reason }; }
+        rt().party = asArray(rt().party).filter(id => id !== p.id);
+        if (rt().playerLocationId) (rt().npcStateOverrides[p.id] = rt().npcStateOverrides[p.id] || {}).locationId = rt().playerLocationId;
+        gameLog(`${name} leaves the party.`, 'party');
+        return { ok: true, person: name };
+    }
+    function partyMembers() { return asArray(rt() && rt().party).map(id => entityById(activeWorld(), id)).filter(Boolean).map(p => ({ id: p.id, name: personName(phasedEntity(p)) })); }
     function partyStatus() {
         const C = window.KLITE_RPMod_Characters; const kept = (rt() && rt().partyHp) || {};
         return companionIds().map(id => {
@@ -2683,6 +2725,9 @@ export default function initWorlds() {
             if (faction) bits.push(`Faction: ${norm(faction.name)}`);
             const npcStats = npc.stats || cardSheetStats(npc);   // own block, else the card's sheet
             if (npcStats) bits.push(statSummary(npcStats));  // d20 block when present
+            const inParty = asArray(rt() && rt().party).includes(npc.id);
+            if (inParty) bits.push(`travels with the player (party); if they part ways, write <leave>${personName(npc)}</leave>`);
+            else if (npc.canJoin && !npc.isMonster) bits.push(`may join the player: when they agree to travel together, write <join>${personName(npc)}</join>`);
             npcLines.push('- ' + bits.join(' | '));
             if (mutate && rt() && !asArray(rt().knownNpcIds).includes(npc.id)) rt().knownNpcIds.push(npc.id);
         }
@@ -3508,6 +3553,10 @@ export default function initWorlds() {
         failQuest(id) { const s = setQuestState(id, 'failed'); const q = questById(id); if (s && q) gameLog(`Quest failed: ${questTitle(q)}.`); syncLive(); return s; },
         questNeedsChoice: (id) => needsChoice(questById(id)),
         rewardsPaid: (id) => !!(rt() && rt().rewardsPaid && rt().rewardsPaid[id]),
+        joinParty(idOrName, opts) { const r = joinParty(idOrName, opts); syncLive(); return r; },
+        leaveParty(idOrName, opts) { const r = leaveParty(idOrName, opts); syncLive(); return r; },
+        partyMembers,
+        isHere(id) { const p = findById(activeWorld() && activeWorld().npcs, id); return !!(p && rt() && personAt(p)); },
         setActiveQuest(id) { ensureRuntime(); rt().activeQuestId = id; syncLive(); return id; },
         discoverQuest(id) { discover('quests', id); discover('descriptions', id); syncLive(); return true; },
         completeObjective(qid, oid, done = true) { ensureRuntime(); setObjProgress(qid, oid, !!done); updateQuestProgress(); syncLive(); return rt().questObjectives[qid]; },

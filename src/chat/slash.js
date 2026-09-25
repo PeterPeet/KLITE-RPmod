@@ -124,6 +124,10 @@ export default function initChat() {
             run: (a) => { a = cleanArg(a); if (!a) return fail(`Usage: /${act} <door or direction>`); const r = W().door(act, a, { source: 'ui' }); return r && r.ok ? { ok: true } : { ok: false, error: r && r.reason }; } })),
         { name: 'talk', group: 'World', world: true, usage: '/talk <person>', help: 'Speak with someone here (counts for "talk to" objectives).',
             run: (a) => { const r = tag('talk', a, '/talk <person>'); if (r.ok) r.log = `Talks with ${cleanArg(a)}.`; else if (!r.error) r.error = `No one called "${cleanArg(a)}" is known in this world.`; return r; } },
+        { name: 'join', group: 'World', world: true, usage: '/join <person>', help: 'Ask someone here to travel with you (only people who can join).',
+            run: (a) => { if (!cleanArg(a)) return fail('Usage: /join <person>'); const r = W().joinParty(cleanArg(a), { source: 'ui' }); return r.ok ? { ok: true } : { ok: false, error: r.reason }; } },
+        { name: 'leave', group: 'World', world: true, usage: '/leave <person>', help: 'Part ways with a companion; they stay here.',
+            run: (a) => { if (!cleanArg(a)) return fail('Usage: /leave <person>'); const r = W().leaveParty(cleanArg(a), { source: 'ui' }); return r.ok ? { ok: true } : { ok: false, error: r.reason }; } },
         { name: 'map', group: 'World', usage: '/map', help: 'Open the Map window.', run: () => opened('map') },
 
         { name: 'give', group: 'Items & trade', world: true, usage: '/give <item> [xN]', help: 'You get an item (default one).',

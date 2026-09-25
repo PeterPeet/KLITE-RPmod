@@ -140,7 +140,7 @@ export function hereReplies(info) {
 // story text keeps the tags and the engine parses them as before.
 export const CONTROL_TAGS = ['move', 'go', 'npcmove', 'mood', 'flag', 'unflag', 'give', 'take', 'rep', 'accept', 'turnin',
     'buy', 'sell', 'talk', 'encounter', 'quest', 'time', 'weather', 'advance', 'action', 'roll', 'attack', 'hp', 'check',
-    'open', 'close', 'unlock', 'search', 'room', 'door', 'light'];
+    'open', 'close', 'unlock', 'search', 'room', 'door', 'light', 'join', 'leave'];
 const LT = '(?:<|&lt;)', GT = '(?:>|&gt;)', NAMES = CONTROL_TAGS.join('|');
 const PAIR_RE = new RegExp(`[ \\t]*${LT}(${NAMES})\\s*${GT}[\\s\\S]*?${LT}\\/\\1\\s*${GT}`, 'gi');
 const SINGLE_RE = new RegExp(`[ \\t]*${LT}(?:(?:${NAMES})\\s*\\/|advance\\s*\\/?|search\\s*)${GT}`, 'gi');
