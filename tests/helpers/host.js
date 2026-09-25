@@ -21,6 +21,7 @@ const FILES = {
     gamelog: 'src/game/log.js',
     characters: 'src/characters/characters.js',
     chat: 'src/chat/slash.js',
+    adventures: 'src/adventures/adventures.js',
     bundle: 'KLITE-RPmod.js',
 };
 

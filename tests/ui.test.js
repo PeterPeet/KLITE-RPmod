@@ -95,6 +95,35 @@ test('editor: World Rules + Description on the root node', async (t) => {
     assert.match(W.preview(), /Grimdark tone/);
 });
 
+test('editor: the world\'s start (place, time, view, from the live game); choosing a world applies its view', async (t) => {
+    const h = await uiHost(t); const w = h.window; const W = h.api();
+    await W.loadExample();
+    h.ui().openEditor();
+    selectNode(h, '__world__');
+    const card = () => w.document.querySelector('#wm-editor [data-ui="world-start"]');
+    assert.ok(card(), 'Start of a new game');
+    const place = card().querySelector('[data-start="place"]');
+    assert.equal(place.value, 'loc_village', 'shows the example\'s start');
+    place.value = 'loc_forest'; place.dispatchEvent(new w.Event('change'));
+    assert.equal(W.worldStart().locationId, 'loc_forest');
+    const time = card().querySelector('[data-start="time"]');
+    time.value = 'night'; time.dispatchEvent(new w.Event('change'));
+    assert.equal(W.worldStart().clock.time, 'night');
+    const view = card().querySelector('[data-start="view"]');
+    view.value = 'player'; view.dispatchEvent(new w.Event('change'));
+    assert.equal(W.worldStart().view, 'player');
+    W.moveTo('The Crooked Kettle');
+    click(card().querySelector('[data-ui="start-from-live"]'), w);
+    assert.equal(W.worldStart().locationId, W.runtime.playerLocationId);
+    assert.equal(W.worldStart().view, 'player', 'the view is kept');
+    h.ui().closeEditor();
+    // the World tab's selector applies the chosen world's view
+    await W.newWorld('Other'); h.ui().setUiMode('creator'); h.ui().refreshPanel();
+    const sel = w.document.querySelector('#wm-panel select[aria-label="Active world"]');
+    sel.value = W.listWorlds().find(x => /Eldoria/.test(x.name)).id; sel.dispatchEvent(new w.Event('change'));
+    assert.equal(h.ui().uiMode(), 'player');
+});
+
 test('editor: event triggers, person character link, themed preview', async (t) => {
     const h = await uiHost(t); const w = h.window; const W = h.api();
     await W.newWorld('E'); W.addEntity('location', { name: 'Tavern' });

@@ -248,6 +248,21 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .btn.rpm-btn.rpm-warning { border-color: var(--rpm-quest); box-shadow: inset 3px 0 0 var(--rpm-quest); }
 .btn.rpm-btn:disabled, .btn.rpm-btn.disabled { opacity: .5; cursor: not-allowed; }
 
+/* ---- Adventure picker (R8): choose a pregenerated character ---- */
+.rpm-adv { flex: 1 1 auto; min-height: 0; overflow: auto; padding: var(--rpm-s3); display: flex; flex-direction: column; gap: var(--rpm-s2); }
+.rpm-adv-title { margin: 0; font-size: 1.15em; color: var(--rpm-fg-hi); }
+.rpm-adv-summary { margin: 0; }
+.rpm-adv-pregens { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--rpm-s2); }
+.rpm-adv-pregen { display: flex; align-items: flex-start; gap: var(--rpm-s2); text-align: left; padding: var(--rpm-s2); cursor: pointer;
+    border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); background: var(--rpm-bg-alt); color: var(--rpm-fg); }
+.rpm-adv-pregen:hover, .rpm-adv-pregen.rpm-active { border-color: var(--rpm-border-hi); background: var(--rpm-accent-bg-hi); color: var(--rpm-accent-fg-hi); }
+.rpm-adv-pregen.rpm-active { box-shadow: inset 0 0 0 1px var(--rpm-fg-hi); }
+.rpm-adv-avatar { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    font-weight: bold; background: var(--rpm-accent-bg-hi); color: var(--rpm-fg-hi); border: 1px solid var(--rpm-border-hi); }
+.rpm-adv-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rpm-adv-line { font-size: var(--rpm-fs-sm); color: var(--rpm-fg-muted); }
+.rpm-adv-msg { margin: 0; color: var(--rpm-danger, var(--rpm-fg-hi)); }
+
 /* ---- Compendium window (R3): list | entry; one column in a narrow window ---- */
 .rpm-cmp-scroll { flex: 1 1 auto; min-height: 0; display: flex; container-type: inline-size; }
 .rpm-cmp { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(240px, 320px) 1fr; }

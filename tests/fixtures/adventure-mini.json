@@ -1,0 +1,33 @@
+{
+  "format": "rpmod-adventure", "version": 1, "id": "mini", "title": "The Mini Test", "summary": "A two-place test adventure.",
+  "levels": [1, 2],
+  "world": {
+    "id": "world_mini", "name": "Mini Vale", "description": "A tiny test world.",
+    "start": { "locationId": "loc_green", "clock": { "day": 3, "month": 5, "year": 1, "time": "evening", "weather": "rain" }, "view": "player" },
+    "locations": [
+      { "id": "loc_green", "name": "Mini Green", "description": "A village green.", "connectedLocationIds": ["loc_road"] },
+      { "id": "loc_road", "name": "Mini Road", "description": "A road.", "connectedLocationIds": ["loc_green", "loc_cave"] },
+      { "id": "loc_cave", "name": "Mini Cave", "kind": "dungeon", "description": "A cave." }
+    ],
+    "npcs": [
+      { "id": "npc_ana", "name": "Ana Test", "homeLocationId": "loc_green", "characterRef": { "pregen": "ana" },
+        "phases": [{ "id": "ph_me", "label": "is you", "conditions": [{ "type": "flag", "key": "pregen_ana" }], "gone": true }] },
+      { "id": "npc_bo", "name": "Bo Test", "homeLocationId": "loc_green", "characterRef": { "pregen": "bo" },
+        "phases": [{ "id": "ph_me", "label": "is you", "conditions": [{ "type": "flag", "key": "pregen_bo" }], "gone": true }] },
+      { "id": "npc_elder", "name": "Elder Test", "homeLocationId": "loc_green" }
+    ],
+    "quests": [
+      { "id": "q_cave", "title": "Clear the cave", "giverPersonId": "npc_elder", "turninPersonId": "npc_elder",
+        "objectives": [{ "id": "o1", "text": "Visit the cave", "kind": "visit", "target": "loc_cave" }],
+        "rewards": [{ "type": "xp", "xp": 300 }] }
+    ],
+    "encounters": [{ "id": "enc_cave", "name": "Cave goblins", "locationId": "loc_cave", "monsters": [{ "key": "Goblin Warrior", "count": 2 }] }]
+  },
+  "characters": [
+    { "spec": "chara_card_v2", "spec_version": "2.0", "data": { "name": "Ana Test", "description": "A test fighter.", "personality": "brave",
+      "extensions": { "rpmod": { "adventure": "mini", "pregen": "ana", "line": "Fighter, test background", "pronouns": "she/her" } } } },
+    { "spec": "chara_card_v2", "spec_version": "2.0", "data": { "name": "Bo Test", "description": "A test cleric.", "personality": "kind",
+      "extensions": { "rpmod": { "adventure": "mini", "pregen": "bo", "line": "Cleric, test background", "pronouns": "they/them" } } } }
+  ],
+  "start": { "view": "player", "pregens": ["ana", "bo"], "opening": "The rain falls on Mini Green. The elder waves you over." }
+}

@@ -62,7 +62,10 @@ export default function initWorlds() {
         // Two-slot runtime: { active:'working'|'base', base:Snapshot, working:Snapshot }.
         // `base` is the state we loaded/started with; `working` is the live, mutating one.
         // Reset/commit/swap between them; both persist in the savefile + export/import.
-        runtime: null
+        runtime: null,
+        // R8: runtimes of other worlds this story has used, { [worldId]: container } — switching
+        // worlds parks the current one here instead of carrying it into a world it does not fit
+        parked: {}
     };
 
     // One runtime "Snapshot" — the mutable per-story state that lives in each slot.
@@ -283,7 +286,8 @@ export default function initWorlds() {
             enabled: !!W.config.enabled,
             activeWorldId: W.activeWorldId,
             config: { ...W.config },
-            runtime: W.runtime ? JSON.parse(JSON.stringify(W.runtime)) : null
+            runtime: W.runtime ? JSON.parse(JSON.stringify(W.runtime)) : null,
+            parked: Object.keys(W.parked || {}).length ? JSON.parse(JSON.stringify(W.parked)) : undefined
         };
     }
     function restoreSaveState(state) {
@@ -293,6 +297,8 @@ export default function initWorlds() {
             if (state.config && typeof state.config === 'object') W.config = { ...W.config, ...state.config };
             W.config.enabled = !!state.enabled;
             W.runtime = state.runtime ? toRuntimeContainer(state.runtime) : (W.activeWorldId ? newRuntime() : null);
+            W.parked = {};
+            if (state.parked && typeof state.parked === 'object') for (const [id, c] of Object.entries(state.parked)) W.parked[id] = toRuntimeContainer(c);
             dbg('runtime state restored; world=', W.activeWorldId, 'enabled=', W.config.enabled);
         } catch (e) { err('restoreSaveState failed', e); }
     }
@@ -2856,7 +2862,7 @@ export default function initWorlds() {
                     }
                     else {
                         // story without worlds data: ensure no stale managed state leaks in
-                        W.config.enabled = false; W.activeWorldId = null; W.runtime = null;
+                        W.config.enabled = false; W.activeWorldId = null; W.runtime = null; W.parked = {};
                         removeWorldsEntries();
                     }
                 } catch (e) { err('restore failed', e); }
@@ -3136,8 +3142,7 @@ export default function initWorlds() {
         const w = normalizeWorld({ id: uid('world'), name: norm(name) || 'New World', description: '', ui: { x: 120, y: 260 } });
         W.library[w.id] = w;
         await saveLibrary();
-        W.activeWorldId = w.id;
-        ensureRuntime();
+        switchWorld(w.id);         // the previous world's game is parked, not carried over
         return w.id;
     }
 
@@ -3175,7 +3180,7 @@ export default function initWorlds() {
             let gy = 120; for (const e of extra) { addBookEntry(w, e, gy); gy += 60; }
             W.library[w.id] = w;
             await saveLibrary();
-            W.activeWorldId = w.id; ensureRuntime(); syncLive();
+            switchWorld(w.id); syncLive();
             dbg('lorebook: restored world', w.id, 'edited', edited, 'added', extra.length);
             return book.entries.length;
         }
@@ -3230,6 +3235,7 @@ export default function initWorlds() {
         rules: ['Medieval low-fantasy tone.', 'Keep replies vivid but concise.', 'When the scene changes location, emit <move>Location Name</move>.'],
         ruleset: { aiMode: 'gm', player: { name: 'You', stats: { abilities: { str: 14, dex: 14, con: 13, int: 10, wis: 12, cha: 11 }, ac: 16, hpMax: 12, proficiency: 2, attacks: [{ name: 'Longsword', toHit: 4, damage: '1d8+2' }, { name: 'Shortbow', toHit: 4, damage: '1d6+2' }] } } },
         ui: { x: 120, y: 320 },
+        start: { locationId: 'loc_village', clock: { day: 1, month: 4, year: 1, time: 'morning', season: 'spring', weather: 'clear' } },
         locations: [
             { id: 'loc_vale', name: 'Brookvale', description: 'A green valley on the frontier: farms, woods and one old trade road.', atmosphere: 'open', ui: { x: 520, y: 700 } },
             { id: 'loc_village', name: 'Millbrook Village', parentId: 'loc_vale', hub: true, description: 'A small farming village gathered around an old stone well.', atmosphere: 'peaceful', connectedLocationIds: ['loc_tavern', 'loc_forest'], ui: { x: 380, y: 320 },
@@ -3303,16 +3309,58 @@ export default function initWorlds() {
         normalizeWorld(w);
         W.library[w.id] = w;
         await saveLibrary();
-        W.activeWorldId = w.id;
-        W.runtime = newRuntime();
-        const start = rt();
-        start.playerLocationId = 'loc_village';
-        start.clock = { day: 1, month: 4, year: 1, time: 'morning', season: 'spring', weather: 'clear' };
-        commitToBase();            // authored start becomes the base checkpoint
+        switchWorld(w.id, { fresh: true });   // runtime at the world's start (world.start), which is the base
         W.config.enabled = true;
         syncLive();
         dbg('example world loaded');
         return w.id;
+    }
+
+    // ----- world start and switching worlds (R8, known issue 22) -----
+    // world.start = { locationId, clock{day,month,year,time,weather}, view: 'player'|'creator' } —
+    // where a new game in this world begins. A fresh runtime starts there, and that start is its base.
+    function startRuntime(world) {
+        const c = newRuntime();
+        const st = world && world.start && typeof world.start === 'object' ? world.start : null;
+        const snap = c.working;
+        if (st) {
+            if (st.locationId && findById(world.locations, st.locationId)) snap.playerLocationId = st.locationId;
+            if (st.clock && typeof st.clock === 'object') {
+                Object.assign(snap.clock, st.clock);
+                if (st.clock.month != null && st.clock.season == null) snap.clock.season = deriveSeason(snap.clock.month);
+            }
+            if (st.flags && typeof st.flags === 'object') Object.assign(snap.flags, st.flags);
+        }
+        c.base = deepClone(snap);
+        return c;
+    }
+    // Make `worldId` the story's world. The current world's runtime is parked (kept with the story),
+    // the target's parked runtime comes back — or, the first time (or with `fresh`), a new one at the
+    // world's start. The same world again keeps its runtime (unless `fresh`). A runtime without a
+    // world (older stories) is adopted by the first world chosen.
+    function switchWorld(worldId, { fresh = false } = {}) {
+        const target = W.library[worldId]; if (!target) throw new Error('unknown world ' + worldId);
+        const cur = W.activeWorldId;
+        if (cur === worldId && W.runtime && !fresh) return rt();
+        if (cur && cur !== worldId && W.runtime) W.parked[cur] = W.runtime;
+        if (!cur && W.runtime && !fresh) {                 // adopt a world-less runtime
+            W.activeWorldId = worldId; return rt();
+        }
+        const parked = W.parked[worldId];
+        delete W.parked[worldId];
+        W.activeWorldId = worldId;
+        W.runtime = (parked && !fresh) ? parked : startRuntime(target);
+        return rt();
+    }
+    // Set (patch) the active world's start; `null` fields are removed. An authoring change.
+    function setWorldStart(patch) {
+        const w = activeWorld(); if (!w) return null;
+        const st = Object.assign({}, w.start || {});
+        for (const [k, v] of Object.entries(patch || {})) { if (v == null || v === '') delete st[k]; else st[k] = deepClone(v); }
+        if (st.view && st.view !== 'player' && st.view !== 'creator') delete st.view;
+        if (st.locationId && !findById(w.locations, st.locationId)) delete st.locationId;
+        if (Object.keys(st).length) w.start = st; else delete w.start;
+        return w.start ? deepClone(w.start) : null;
     }
 
     // ----- two-slot state operations (base / working) -----
@@ -3554,15 +3602,20 @@ export default function initWorlds() {
             return world.id;
         },
         listWorlds() { return Object.values(W.library).map(w => ({ id: w.id, name: w.name, locations: asArray(w.locations).length })); },
-        useWorld(worldId) {
+        // opts.fresh: begin this world anew at its start (the story's old runtime for it is dropped)
+        useWorld(worldId, opts) {
             if (!W.library[worldId]) throw new Error('unknown world ' + worldId);
-            W.activeWorldId = worldId;
-            ensureRuntime();
+            switchWorld(worldId, opts || {});
             syncLive();
             dbg('active world =', worldId);
             return true;
         },
-        async deleteWorld(worldId) { delete W.library[worldId]; if (W.activeWorldId === worldId) { W.activeWorldId = null; W.config.enabled = false; syncLive(); } await saveLibrary(); },
+        worldStart(worldId) { const w = W.library[worldId || W.activeWorldId]; return w && w.start ? deepClone(w.start) : null; },
+        setWorldStart(patch) { const st = setWorldStart(patch); markDirty(); syncLive(); return st; },
+        // the start as the live game is now: place and clock (the view is kept)
+        setWorldStartFromLive() { const r = rt(); if (!r) return null; const c = r.clock || {}; return this.setWorldStart({ locationId: r.playerLocationId || null, clock: { day: c.day, month: c.month, year: c.year, time: c.time, weather: c.weather } }); },
+        parkedWorlds() { return Object.keys(W.parked || {}); },
+        async deleteWorld(worldId) { delete W.parked[worldId]; delete W.library[worldId]; if (W.activeWorldId === worldId) { W.activeWorldId = null; W.runtime = null; W.config.enabled = false; syncLive(); } await saveLibrary(); },
 
         // ----- enable / disable per story -----
         enable() { if (!W.activeWorldId) throw new Error('select a world first (useWorld)'); ensureRuntime(); W.config.enabled = true; syncLive(); dbg('ENABLED'); return true; },

@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-25 (game state fix; R8 starter adventure designed)
+> Last updated: 2026-09-26 (R8 step 1: adventure loader, world start)
 
 ## Current state
 
@@ -34,7 +34,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 335 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 348 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -191,10 +191,11 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
     The position now stays with the chat across Reset/Swap, and a new runtime starts at the current
     end of the chat (enabling a world mid-chat no longer applies that chat's older tags). Tests in
     `tests/engine.test.js` fail without the fix.
-22. **Start state of your own worlds** (found 2026-09-25): only the example world brings its
-    opening as the start state; any other world starts with an empty one until "Save as start".
-    Switching to another world (`useWorld`) keeps the current runtime, whose place ids belong to
-    the previous world. To solve with R8's per-world start settings (start place, clock, view).
+22. ~~Start state of your own worlds~~ — fixed 2026-09-26 (R8 step 1): a world has a start
+    (`world.start`: place, clock, view; editor: world node → "Start of a new game"), and each world
+    keeps its own game in the story — switching parks the current one (saved with the story) and
+    brings back the other's, or begins it at its start. New worlds and lorebook restores go the
+    same way, so no world inherits another's places any more.
 
 ## Phases
 
@@ -793,7 +794,7 @@ side, two questlines that meet at a finale), four pregenerated characters added 
 on load, starting in the Player view. Only SRD 5.2.1 content; the reference material in
 `docs/reference/` is used for size and structure only.
 - [x] Owner review of the design (2026-09-25: XP divided among the party, fights for two; names kept; tone; fair 3 days; initials)
-- [ ] Step 1: adventure package + loader, `world.start` (known issue 22), per-world view, pregen picker, validator, forbidden-names test
+- [x] Step 1 (2026-09-26): adventure package + loader (`src/adventures/`), `world.start` + worlds per story (known issue 22), per-world view, pregen picker, validator, forbidden-names guard — tested with a fixture adventure; nothing bundled yet
 - [ ] Step 2: companions and XP (owner's decision)
 - [ ] Steps 3–7: content layer by layer (Brindlewick → routes/Outpost → Lanternport fair → lake/sea cave → Lost Chapel)
 - [ ] Step 8: real-backend play test (known issue 5), then the World Building guide

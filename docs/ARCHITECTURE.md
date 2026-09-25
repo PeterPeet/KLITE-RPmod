@@ -178,7 +178,15 @@ activeQuestId, discovered{quests,events,descriptions},
 combat, npcStateOverrides{}, completedEventIds[], lastParsedIndex, clock{day,month,year,time,season,weather},
 explored{}, found{secrets[],traps[],searched{}}, doorState{}, roomLight{}` (R7, §3.9; older saves get them via
 `toRuntimeContainer` / `MR.normalizeExploration`).
-Ops: `resetToBase / commitToBase / swapActive / setActiveSlot` (deep clones).
+Ops: `resetToBase / commitToBase / swapActive / setActiveSlot` (deep clones; `lastParsedIndex` kept —
+it tracks the chat). **Worlds per story (R8, known issue 22):** `switchWorld(id, { fresh })` (API
+`useWorld`, also `createWorld`, `loadExample`, lorebook restore) parks the current world's runtime in
+`W.parked[worldId]` (saved as `rpmod_worlds.parked`, additive) and restores the target's — or starts
+it fresh with `startRuntime(world)` at **`world.start`** `{ locationId, clock, view, flags }` (that
+start is the base). A runtime without a world (older stories) is adopted by the first world chosen;
+deleting the active world drops its runtime. API `worldStart/setWorldStart/setWorldStartFromLive/
+parkedWorlds`; editor: world node → "Start of a new game"; WorldsUI `applyWorldView` sets the lens
+from `start.view` when a world is chosen (World tab, Quick Start).
 `toRuntimeContainer()` migrates old flat saves. Saved in the story file under key
 **`rpmod_worlds`** (wrapped `generate_savefile` / `kai_json_load`). `API.runtime` returns
 the active snapshot (back-compat); `API.runtimeSlots` the container.
@@ -455,7 +463,8 @@ outcome: null|'victory'|'defeat', xp, persona, synced, encounter, difficulty }`.
 `EXAMPLE_WORLD` ("Eldoria (Example)") + `loadExample()`: 6 locations, 5 persons (2 vendors:
 Bram, Quartermaster Wren), 3 factions (2 HQs; the Red Hand has a phase), 4 quests (one hidden,
 one daily), a saved encounter linked to the Red Hand, 3 events (courier chain on quest accept, night
-ambush, hidden omen). Sets the authored start as the base slot and enables the world.
+ambush, hidden omen). Its `world.start` (Millbrook Village, day 1 spring morning) becomes the base slot
+(`switchWorld(…, { fresh: true })`); the world is enabled.
 
 ### 3.9 Dungeons & towns, room by room (R7) — rules in `src/game/map-rules.js` (pure)
 Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (data model + editor)
@@ -591,6 +600,36 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   wiArray, original)` (record type "World Info"; entries grouped under the world's name; the
   original = the SillyTavern book).
 - Tests: `tests/lorebook.test.js`, `tests/engine.test.js`.
+
+### 3.11 Adventures (R8) — `src/adventures/` (rules `adventure-rules.js` pure, loader `adventures.js`)
+Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
+- **Package:** `{ format: 'rpmod-adventure', version, id, title, summary, levels[from,to], world,
+  characters[TavernCard V2 with data.extensions.rpmod = { adventure, pregen, line, pronouns }],
+  start{ view, pregens[], opening } }`; the world's own `start` says where the game begins; world
+  persons link a pregen with `characterRef: { pregen }`.
+- **Validator** `validateAdventure(pkg)` → `{ ok, errors, warnings, stats }`: ids resolve, pregens
+  (unique, same adventure, offered ones exist), SRD 5.2.1 monsters (`findMonster`), quest chains
+  without loops and within the level range, `world.start.locationId`, places reachable from the start
+  (warning), XP per character (`xpEstimate`: quest XP + combat XP / `AUTHORED_PARTY` = 2) enough for
+  the last level (warning), and the **copyright guard** `forbiddenNamesIn` (`FORBIDDEN_NAMES`: names
+  from published non-SRD adventures/settings incl. the German reference edition; whole words,
+  case-sensitive) — an error.
+- **Loader** `window.KLITE_RPMod_Adventures = { list, get, register, validate, pregens, installPregens,
+  start, open }`; bundled packages in `BUNDLED` (none until R8 step 3); `register` refuses invalid ones
+  and fires `klite:adventures-change`. `installPregens`: a pregen is found by
+  `extensions.rpmod.{adventure,pregen}` — the remembered Library id (`localStorage
+  KLITE.adventures.pregens`), else entries named like it (`Name`, `Name_1`); missing ones are saved
+  with `saveCharacter` (new entry); existing cards are never written. `start(id, { pregen, confirm })`:
+  confirm when the story has text → pregens → the world (the Library copy with `adventure{id,version}`
+  is reused, else imported; a taken id gets `_n`; pregen links become `{ source: 'library', id, name,
+  pregen }`) → `restart_new_game(false)` → `gametext_arr = [opening]` → `useWorld(id, { fresh })` (so
+  `lastParsedIndex` = 1: the opening is not parsed) → flag `pregen_<id>` (phases can hide your own
+  person) → `commitToBase` → `enable` → persona via `KLITE_RPMod.panels.TOOLS.usePersona` (like the
+  gallery's Play as) → view (`WorldsUI.setUiMode`).
+- **UI:** window view `adventure` (picker: adventure, pregen cards with initials avatars as radios,
+  Start); entry points World tab "Play an adventure" (`data-ui="play-adventure"`) and the New here?
+  card (`data-welcome="adventure"`), both only when an adventure is registered. Styles `.rpm-adv*`.
+- Tests: `tests/adventures.test.js` (fixture `tests/fixtures/adventure-mini.json`).
 
 ## 4a. App shell (`src/shell/`)
 - **Layout:** `#rpm-shell` is one fixed layer at **z-index 2** (below Esolite popups, z 3)

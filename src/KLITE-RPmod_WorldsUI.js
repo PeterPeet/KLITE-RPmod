@@ -581,6 +581,29 @@ export default function initWorldsUI() {
         ta.addEventListener('input', () => { A.updateEntity('__world__', { rules: ta.value.split('\n') }); });
         box.appendChild(ta);
         box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:10px;margin-top:3px', text: 'Shown to the AI as [World Rules]. The Description above is shown as the world premise.' }));
+
+        // R8: where a new game in this world begins (world.start) — also the start state of a new story
+        const st = A.worldStart() || {};
+        const card = el('div', { class: 'rpm-card', style: 'margin-top:12px', 'data-ui': 'world-start' });
+        card.appendChild(el('strong', { text: 'Start of a new game' }));
+        card.appendChild(muted('Where a new story in this world begins. Choosing the world for a new session starts here; "Back to start" returns here.', { style: 'margin:4px 0 6px' }));
+        const locs = A.getGraph().nodes.filter(n => n.type === 'location');
+        const lsel = uiSelect({ 'aria-label': 'Start place', 'data-start': 'place' });
+        lsel.appendChild(el('option', { value: '', text: '— no start place —' }));
+        for (const n of locs) { const o = el('option', { value: n.id, text: n.label || n.name }); if (st.locationId === n.id) o.selected = true; lsel.appendChild(o); }
+        lsel.addEventListener('change', () => { A.setWorldStart({ locationId: lsel.value || null }); });
+        card.appendChild(lbl('Place')); card.appendChild(lsel);
+        const tsel = uiSelect({ 'aria-label': 'Start time of day', 'data-start': 'time' });
+        tsel.appendChild(el('option', { value: '', text: '— morning (default) —' }));
+        for (const t of TIME_SLOTS_UI) { const o = el('option', { value: t, text: t }); if (st.clock && st.clock.time === t) o.selected = true; tsel.appendChild(o); }
+        tsel.addEventListener('change', () => { A.setWorldStart({ clock: Object.assign({}, (A.worldStart() || {}).clock, { time: tsel.value || 'morning' }) }); });
+        card.appendChild(lbl('Time of day')); card.appendChild(tsel);
+        const vsel = uiSelect({ 'aria-label': 'Start view', 'data-start': 'view' });
+        for (const [v, t] of [['', 'Keep the current view'], ['player', 'Player view'], ['creator', 'Creator view']]) { const o = el('option', { value: v, text: t }); if ((st.view || '') === v) o.selected = true; vsel.appendChild(o); }
+        vsel.addEventListener('change', () => { A.setWorldStart({ view: vsel.value || null }); });
+        card.appendChild(lbl('View')); card.appendChild(vsel);
+        card.appendChild(uiBtn('Use the live game\'s place and time', () => { A.setWorldStartFromLive(); renderInspector(); }, { icon: 'map-pin', block: true, id: 'start-from-live', style: 'margin-top:8px' }));
+        box.appendChild(card);
     }
 
     // Faction-only extras: headquarters location.
@@ -1153,6 +1176,10 @@ export default function initWorldsUI() {
 
     function uiMode() { if (!S.uiMode) { try { S.uiMode = localStorage.getItem('KLITE.worlds.uiMode') || 'creator'; } catch (_) { S.uiMode = 'creator'; } } return S.uiMode; }
     function setUiMode(m) { S.uiMode = m; try { localStorage.setItem('KLITE.worlds.uiMode', m); } catch (_) {} }
+    // R8: a world may set the view it starts in (world.start.view); applied when it is chosen
+    function applyWorldView(worldId) {
+        try { const st = API().worldStart(worldId); if (st && (st.view === 'player' || st.view === 'creator')) setUiMode(st.view); } catch (_) {}
+    }
 
     function Shell() { return window.KLITE_RPMod_Shell; }
     function openView(id) { const sh = Shell(); if (sh) sh.open(id); }
@@ -1188,7 +1215,7 @@ export default function initWorldsUI() {
         const sel = uiSelect({ 'aria-label': 'Active world' });
         sel.appendChild(el('option', { value: '', text: worlds.length ? '— select world —' : '(no worlds yet)' }));
         for (const w of worlds) { const o = el('option', { value: w.id, text: w.name || w.id }); if (A.activeWorld() && A.activeWorld().id === w.id) o.selected = true; sel.appendChild(o); }
-        sel.addEventListener('change', () => { if (sel.value) { A.useWorld(sel.value); refreshPanel(); } });
+        sel.addEventListener('change', () => { if (sel.value) { A.useWorld(sel.value); applyWorldView(sel.value); refreshPanel(); } });
         body.appendChild(sel);
         body.appendChild(row([
             uiBtn('New', () => { const n = prompt('New world name:', 'New World'); if (n != null) A.newWorld(n).then(refreshPanel); }, { icon: 'plus', grow: true }),
@@ -1197,6 +1224,8 @@ export default function initWorldsUI() {
             uiBtn('Export', () => exportFlow(), { icon: 'download', grow: true })
         ], 'margin:6px 0 8px'));
         if (exportOpen && A.activeWorld()) body.appendChild(exportCard(A));
+        const ADV = window.KLITE_RPMod_Adventures;
+        if (ADV && ADV.list().length) body.appendChild(uiBtn('Play an adventure', () => ADV.open(), { icon: 'play', block: true, id: 'play-adventure', style: 'margin:0 0 8px', title: 'Start a ready-made adventure with a pregenerated character' }));
 
         if (unsaved() && !autosave()) {
             body.appendChild(el('div', { class: 'rpm-card rpm-unsaved-card', 'data-unsaved': 'world', style: 'margin:0 0 8px' }, [
@@ -1566,6 +1595,7 @@ export default function initWorldsUI() {
         // the persona or its sheet changed -> the Party section shows its name, HP and AC
         const refreshParty = () => { try { sh.refresh(['party'], { soft: true }); } catch (_) {} };
         window.addEventListener('klite:persona-change', refreshParty);
+        window.addEventListener('klite:adventures-change', () => refreshPanel());
         window.addEventListener('klite:sheet-change', refreshParty);
         window.addEventListener('klite:worlds-dirty', () => { try { updateSaveState(); refreshPanel({ soft: true }); } catch (_) {} });
     }
@@ -1584,7 +1614,7 @@ export default function initWorldsUI() {
         }, 100);
     }
 
-    window.KLITE_RPMod_WorldsUI = { openEditor, closeEditor, refreshPanel, openMapEditor, closeMapEditor };
+    window.KLITE_RPMod_WorldsUI = { openEditor, closeEditor, refreshPanel, openMapEditor, closeMapEditor, uiMode: () => uiMode(), setUiMode: (m) => { if (m === 'player' || m === 'creator') { setUiMode(m); refreshPanel(); } }, applyWorldView };
     if (document.readyState === 'complete') whenReady();
     else window.addEventListener('load', whenReady, { once: true });   // once: a second load event must not start it again
 }

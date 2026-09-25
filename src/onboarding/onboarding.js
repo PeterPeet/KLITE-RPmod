@@ -108,6 +108,16 @@ function welcomeView(sh, api) {
                 el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-grow rpm-btn-icon', onclick: () => api.openGuide('welcome') }, [iconText('book-open', 'Open the Guide')]),
                 el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-grow rpm-btn-icon', onclick: () => api.openQuickStart() }, [iconText('play', 'Quick Start')]),
             ]));
+            // R8: a ready-made adventure, when one is installed (also when it registers later)
+            const advSlot = el('div', {});
+            box.appendChild(advSlot);
+            const showAdventure = () => {
+                const ADV = window.KLITE_RPMod_Adventures;
+                if (!ADV || !ADV.list().length || advSlot.firstChild) return;
+                advSlot.appendChild(el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-block rpm-btn-icon', style: 'margin-top:6px', 'data-welcome': 'adventure', onclick: () => ADV.open() }, [iconText('sparkles', 'Play a starter adventure')]));
+            };
+            showAdventure();
+            window.addEventListener('klite:adventures-change', showAdventure);
             box.appendChild(el('button', {
                 type: 'button', class: 'btn btn-primary rpm-btn rpm-block', style: 'margin-top:6px', text: 'Got it — hide this',
                 onclick: () => { try { localStorage.setItem(WELCOME_KEY, 'dismissed'); } catch (_) {} sh.unregisterView('welcome'); }
@@ -157,8 +167,10 @@ function rpmodWorldExtension() {
             const A = W();
             if (!A) throw new Error('Worlds engine not loaded');
             const sel = selection;
+            // Quick Start begins a new session: the world begins anew at its start (R8)
             if (sel.id === EXAMPLE_ID && !A.hasExample()) await A.loadExample();
-            else A.useWorld(sel.id);
+            else A.useWorld(sel.id, { fresh: true });
+            try { window.KLITE_RPMod_WorldsUI && window.KLITE_RPMod_WorldsUI.applyWorldView(A.activeWorld().id); } catch (_) {}
             A.enable();
             // a newcomer should start somewhere: no current place yet -> the first location
             if (!(A.runtime && A.runtime.playerLocationId)) {

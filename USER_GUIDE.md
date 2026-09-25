@@ -108,6 +108,10 @@ screens the palette becomes a strip on top and the inspector moves below the can
   review/remove its connections; change its **type**; or delete it.
 - **Save** writes the world to your library; **Preview** shows exactly *what the AI will
   see* for your current location.
+- **Start of a new game** (select the world node, the root) — the **place**, **time of day**
+  and **view** (Player or Creator) a new story in this world begins with. **Use the live
+  game's place and time** copies them from where you are now. Choosing the world for a new
+  session (Quick Start) starts there, and **Back to start** returns there.
 - **Unsaved changes:** until you save, the button reads **Save •** and the World tab shows
   *Unsaved world changes*. **Revert** undoes everything since the last save, including
   deletions. Closing the editor asks whether to save, keep the changes unsaved or revert,
@@ -212,7 +216,14 @@ locked door its **lock DC** (each 15 when empty). A door's **key** item unlocks 
 
 From the **World** tab in the right panel:
 
-- Pick a world from the dropdown (or **＋ New**).
+- Pick a world from the dropdown (or **＋ New**). Each world keeps its own game in the story:
+  switching to another world and back continues where you left off; a world you pick for
+  the first time begins at its start (and in its view, if it sets one).
+- **Play an adventure** (shown when a ready-made adventure is installed) — choose one of its
+  pregenerated characters and start: RPmod adds the characters that are not in your Library
+  yet (characters already there are never changed), begins a new session with the
+  adventure's opening, starts its world in the Player view and makes your choice your
+  persona; the others can join you as companions.
 - **Enable for this story** — turns the world on for the current chat. (Off = Esolite
   behaves normally; nothing is injected.)
 - **Current location** — set where the player is; the slice follows it.
