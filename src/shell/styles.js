@@ -425,6 +425,16 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-map-exitrow .rpm-map-go { flex: 1 1 auto; min-width: 0; }
 .rpm-map-door-btn.rpm-btn { flex: 0 0 auto; }
 .rpm-map-unseen .rpm-map-roomrect { opacity: .5; }
+.rpm-map-quick { display: inline-flex; align-items: center; gap: 5px; font-size: var(--rpm-fs-sm); color: var(--rpm-fg-muted); cursor: pointer; }
+.rpm-map-placelink { stroke: var(--rpm-border-hi); }
+.rpm-map-placelink.rpm-map-fog { stroke-dasharray: 6 5; opacity: .6; }
+.rpm-map-place .rpm-map-dot { fill: var(--rpm-accent-bg-hi); stroke: var(--rpm-border-hi); stroke-width: 2; }
+.rpm-map-place.rpm-map-fog .rpm-map-dot { fill: transparent; stroke-dasharray: 4 3; }
+.rpm-map-place.rpm-here .rpm-map-dot { fill: var(--rpm-quest); stroke: var(--rpm-fg-hi); }
+.rpm-map-place .rpm-map-name { fill: var(--rpm-fg); }
+.rpm-map-place.rpm-map-fog .rpm-map-name { fill: var(--rpm-fg-muted); }
+.rpm-map-place.rpm-map-reach { cursor: pointer; }
+.rpm-map-place.rpm-map-reach:hover .rpm-map-dot { stroke: var(--rpm-fg-hi); stroke-width: 3; }
 .rpm-map-dark .rpm-map-roomrect { fill: color-mix(in srgb, var(--map-ground) 60%, #000); }
 
 /* ---- character sheet (window "sheet") + dice log ---- */

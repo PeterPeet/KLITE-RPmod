@@ -58,7 +58,7 @@ export const CHAPTERS = [
             { list: [
                 'Pick or load a world in the World tab, then "Enable for this story".',
                 'Set your current location and the time of day; RPmod tracks both as you play.',
-                'The Map section on the left shows where you are. In a dungeon or town, click a neighbouring room to go there; locked doors refuse the move and the AI hears why.',
+                'The Map section on the left shows where you are: the places you know as points, or the rooms of a dungeon or town. Walk, search and open doors with the quick replies\' "Here" row, so the AI narrates it. Tick Quick travel to move by clicking the map instead.',
                 'Game state: RPmod keeps the live game and a start state you can go back to (next chapter).',
             ] },
         ],
@@ -94,9 +94,9 @@ export const CHAPTERS = [
         blocks: [
             { p: 'People in the world give quests, like in an MMO: a yellow ! marks someone with a quest for you, a yellow ? someone you can hand a finished quest to. Grey marks mean "later" (level too low) or "in progress".' },
             { list: [
-                'The Quest log lists available, active and finished quests: accept, track, turn in, abandon — with objectives like "Defeat 3 Wolf (1/3)" that count by themselves.',
+                'The Quest log (World tab) lists the quests you accepted — track, turn in, abandon — with objectives like "Defeat 3 Wolf (1/3)" that count by themselves. Quests offered by the people where you are show there too, to accept.',
                 'Rewards (XP, gold, items, reputation) go to your persona\'s character sheet when you turn a quest in; some let you choose one item.',
-                'Your standing with each faction (Hated … Exalted) is at the bottom of the Quest log.',
+                'Your standing with each faction you have met (Hated … Exalted) is in the Reputation window (World tab). Creators find every quest in the Quest editor.',
                 'The Quests section on the left shows what you are working on.',
                 'Hidden quests read "???" until you discover them.',
             ] },

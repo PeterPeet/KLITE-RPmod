@@ -310,6 +310,12 @@ the game log (`kind: 'quest'`), so the AI narrates them.
   headquarters), `gone` (disbanded: not in the AI's Reputation section; standing kept) —
   `factionHq(f)`, `factionName` and `reputationList` use the phased faction.
 - Visibility: `gm`/`creator` see all; `player` sees non-hidden or discovered.
+- **Quest log / Quest editor / Reputation (R8 play test):** window `questlog` = the accepted quests
+  (active, complete, turned in, failed) + *Offered here* (`here().quests` with `accept`); window
+  `questeditor` (World tab, Creator view only) = every quest with the AI-mode switch, a state select
+  (`setQuestState`), *Edit in the editor* (`openEditorAt`) and *New quest*; window `reputation` —
+  the Player view lists only factions met (`reputation({ encountered: true })`: standing changed, a
+  member in `knownNpcIds`, HQ visited, or one of its encounters started), the Creator view all.
 
 ### 3.6b Vendors / shops (R4 extra) — rules in `src/game/shop-rules.js` (pure), window `src/game/shopView.js`
 A person with `shop` is a vendor. Prices are copper internally (`parsePrice` "15 gp" / "2 gp 5 sp",
@@ -550,12 +556,19 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   optional **Map (explored)** (60, setting `map_ascii_ai`, default off) = `MR.asciiMap`.
 - **Mini-map / Map window** (`src/map/minimap.js`, drawing `src/map/board.js` shared with the
   editor): left-dock view `minimap` (order 15) and window `map`; player board (`mapBoard(…,
-  { player: true })`), fog (known = dashed outline), here = gold, reachable neighbours clickable →
-  `go(id, { source: 'ui' })`, exit buttons with door chips, last refusal shown. Refreshed with the
-  Worlds views on `klite:worlds-change`. Step 3: known-behind-a-closed-door rooms `rpm-map-unseen`
-  ("?"), dark rooms `rpm-map-dark`, per-door **Open/Close/Unlock** buttons (`data-door`,
-  `door(action, exitId, { source: 'ui' })`), **Search** (`data-map-search`, `search()`), light chip;
-  the last result/refusal is shown while the player stays in that room.
+  { player: true })`), fog (known = dashed outline), here = gold, light chip. Refreshed with the Worlds
+  views on `klite:worlds-change`. Known-behind-a-closed-door rooms `rpm-map-unseen` ("?"), dark rooms
+  `rpm-map-dark`. **R8 (play test):** the map is a view — the exit, door and Search buttons are gone
+  (the quick replies' Here row does that: `hereInfo` ways carry `door` state → *Unlock: dir* for a
+  locked door, people carry `canJoin/inParty` → *Ask to join*). **Quick travel** checkbox
+  (`data-map-quick`, `localStorage KLITE.map.quickTravel`, off by default): only then are neighbouring
+  rooms/places clickable → `go(id, { source: 'quicktravel' })`, logged as "Quick travel: the player
+  skipped the journey and is now at …" for the AI; refusals shown. Outside dungeons/towns
+  `renderPlaces`: world-level locations as points (`data-place`; editor positions, else rings around
+  the current place by link distance), links between them; shown = visited ∪ here ∪ the Here ways;
+  the zones around the player are left out (named in the header); scaled so dots/names keep their
+  screen size. `markVisitedRoom` now records every arrival in `visitedLocationIds` (before: only at a
+  generation), and a world's start counts as visited.
 - **Doors, searching, AI rooms (step 3, RPmod decides):**
   - `door(action, target)` — `exitForTarget` resolves id / direction / neighbour name (`MT.looseKey`)
     / door material / "door" when only one. open: closed → open, locked/barred refuse; close: open

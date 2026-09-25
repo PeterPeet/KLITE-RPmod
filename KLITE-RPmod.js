@@ -430,6 +430,16 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-map-exitrow .rpm-map-go { flex: 1 1 auto; min-width: 0; }
 .rpm-map-door-btn.rpm-btn { flex: 0 0 auto; }
 .rpm-map-unseen .rpm-map-roomrect { opacity: .5; }
+.rpm-map-quick { display: inline-flex; align-items: center; gap: 5px; font-size: var(--rpm-fs-sm); color: var(--rpm-fg-muted); cursor: pointer; }
+.rpm-map-placelink { stroke: var(--rpm-border-hi); }
+.rpm-map-placelink.rpm-map-fog { stroke-dasharray: 6 5; opacity: .6; }
+.rpm-map-place .rpm-map-dot { fill: var(--rpm-accent-bg-hi); stroke: var(--rpm-border-hi); stroke-width: 2; }
+.rpm-map-place.rpm-map-fog .rpm-map-dot { fill: transparent; stroke-dasharray: 4 3; }
+.rpm-map-place.rpm-here .rpm-map-dot { fill: var(--rpm-quest); stroke: var(--rpm-fg-hi); }
+.rpm-map-place .rpm-map-name { fill: var(--rpm-fg); }
+.rpm-map-place.rpm-map-fog .rpm-map-name { fill: var(--rpm-fg-muted); }
+.rpm-map-place.rpm-map-reach { cursor: pointer; }
+.rpm-map-place.rpm-map-reach:hover .rpm-map-dot { stroke: var(--rpm-fg-hi); stroke-width: 3; }
 .rpm-map-dark .rpm-map-roomrect { fill: color-mix(in srgb, var(--map-ground) 60%, #000); }
 
 /* ---- character sheet (window "sheet") + dice log ---- */
@@ -22711,7 +22721,9 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
     }
     function markVisitedRoom(locId) {
       const r = rt();
-      if (!r || !mapOf(locId)) return false;
+      if (!r) return false;
+      if (locId && !asArray5(r.visitedLocationIds).includes(locId)) r.visitedLocationIds = [...asArray5(r.visitedLocationIds), locId];
+      if (!mapOf(locId)) return false;
       normalizeExploration(r);
       let changed = raiseExplored(r.explored, locId, "visited");
       for (const e of playerExits(locId)) if (mapOf(e.to)) changed = raiseExplored(r.explored, e.to, seeThrough(e, doorState(e, r.doorState)) ? "discovered" : "known") || changed;
@@ -22948,6 +22960,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       passiveNotice(dest.id);
       const dir = ex && ex.dir ? dirName(ex.dir) : "";
       if (opts.source === "ui") gameLog(`${opened ? "Opens the door and goes" : "Goes"}${dir ? " " + dir : ""} to ${placeName(dest.id, curId)}.`, "map");
+      if (opts.source === "quicktravel") gameLog(`Quick travel: the player skipped the journey and is now at ${placeName(dest.id, curId)}${opened ? " (a door was opened on the way)" : ""}. Describe the arrival briefly.`, "map");
       try {
         fireTriggers("enter:" + dest.id);
       } catch (_) {
@@ -23628,6 +23641,15 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         const ph = phasedEntity(f);
         return { id: f.id, name: norm5(ph.name), value, tier, next: pr.next, into: pr.into, span: pr.span, effect: tierEffect(tier), hostile: isHostileTier(tier), gone: !!ph.gone, phase: ph.phase || null };
       });
+    }
+    function factionEncountered(f) {
+      const r = rt();
+      if (!r || !f) return false;
+      if (r.reputation && r.reputation[f.id] != null) return true;
+      const w = activeWorld();
+      if (asArray5(w.npcs).some((p) => p.factionId === f.id && asArray5(r.knownNpcIds).includes(p.id))) return true;
+      if (f.hqLocationId && asArray5(r.visitedLocationIds).some((id) => id === f.hqLocationId || isInsideLocation(id, f.hqLocationId))) return true;
+      return asArray5(w.encounters).some((e) => e.factionId === f.id && asArray5(r.startedEncounters).includes(e.id));
     }
     function personAttitude(npc) {
       if (!npc || !npc.factionId) return null;
@@ -25025,7 +25047,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         });
         if (cb.wipe) {
           const r = rt();
-          const names = party.map((o) => combatantName(o.id));
+          const names = [...party].sort((a, b) => (b.isPlayer ? 1 : 0) - (a.isPlayer ? 1 : 0)).map((o) => combatantName(o.id));
           if (r) r.gameOver = { day: r.clock && r.clock.day, time: r.clock && r.clock.time, locationId: r.playerLocationId, persona: cb.persona || "", fallen: names };
           combatLog(`Game over. ${names.length > 1 ? "Everyone in the party has died" : "You have died"}: ${names.join(", ")}.`);
           try {
@@ -25774,11 +25796,11 @@ ${recent}` : "");
       if (!loc) return { place: null, ways: [], people: [], quests: [], trade: false };
       const mode2 = aiMode();
       const ways = [];
-      const add = (id, name, dir) => {
+      const add = (id, name, dir, door) => {
         name = norm5(name);
-        if (id && name && id !== loc.id && !ways.some((x) => x.id === id)) ways.push({ id, name, dir: dir || null });
+        if (id && name && id !== loc.id && !ways.some((x) => x.id === id)) ways.push({ id, name, dir: dir || null, door: door || null });
       };
-      for (const e of playerExits(loc.id)) add(e.to, playerPlaceName(e.to, loc.id), e.dir);
+      for (const e of playerExits(loc.id)) add(e.to, playerPlaceName(e.to, loc.id), e.dir, e.type === "door" || e.type === "secret" ? doorState(e, rt().doorState) : null);
       if (!mapOf(loc.id)) {
         for (const l of connectedLocations(w, loc, 1)) add(l.id, placeName(l.id, loc.id));
         for (const l of innerPlaces(loc)) add(l.id, phasedEntity(l).name);
@@ -25790,7 +25812,8 @@ ${recent}` : "");
       }
       const seen = /* @__PURE__ */ new Set();
       const here2 = asArray5(w.npcs).filter((n) => (resolveNpcLocationId(n) === loc.id || asArray5(loc.npcIds).includes(n.id)) && !seen.has(n.id) && seen.add(n.id) && !phasedEntity(n).gone);
-      const people = here2.map((n) => ({ id: n.id, name: personName(n), marker: personQuestMarker(n.id, mode2) }));
+      const party = asArray5(rt().party);
+      const people = here2.map((n) => ({ id: n.id, name: personName(n), marker: personQuestMarker(n.id, mode2), inParty: party.includes(n.id), canJoin: !!n.canJoin && !n.isMonster && !party.includes(n.id) }));
       const ids = new Set(here2.map((n) => n.id));
       const quests = [];
       for (const q of asArray5(w.quests)) {
@@ -26681,7 +26704,10 @@ ${xl.join("\n")}`;
       const st = world2 && world2.start && typeof world2.start === "object" ? world2.start : null;
       const snap = c.working;
       if (st) {
-        if (st.locationId && findById(world2.locations, st.locationId)) snap.playerLocationId = st.locationId;
+        if (st.locationId && findById(world2.locations, st.locationId)) {
+          snap.playerLocationId = st.locationId;
+          snap.visitedLocationIds = [st.locationId];
+        }
         if (st.clock && typeof st.clock === "object") {
           Object.assign(snap.clock, st.clock);
           if (st.clock.month != null && st.clock.season == null) snap.clock.season = deriveSeason(snap.clock.month);
@@ -26899,7 +26925,13 @@ ${xl.join("\n")}`;
       },
       questLocks: (id) => questLocks(questById(id)),
       reputationTiers: () => TIERS.map((t) => t.name),
-      reputation: () => reputationList(),
+      // opts.encountered: only factions the player has met (the player's Reputation window)
+      reputation: (opts) => {
+        const list3 = reputationList();
+        if (!(opts && opts.encountered)) return list3;
+        const fs = asArray5(activeWorld() && activeWorld().factions);
+        return list3.filter((r) => factionEncountered(fs.find((f) => f.id === r.id)));
+      },
       setLocationParent(id, parentId) {
         const ok = setLocationParent(id, parentId);
         syncLive();
@@ -29374,7 +29406,8 @@ ${xl.join("\n")}`;
 
   // src/map/minimap.js
   var MINIMAP_VIEWS = ["minimap", "map"];
-  var U3 = { last: null, ok: false, at: null };
+  var U3 = { last: null, at: null };
+  var QT_KEY = "KLITE.map.quickTravel";
   function API2() {
     return window.KLITE_RPMod_Worlds;
   }
@@ -29389,27 +29422,106 @@ ${xl.join("\n")}`;
     } catch (_) {
     }
   }
+  function quickTravel() {
+    try {
+      return localStorage.getItem(QT_KEY) === "1";
+    } catch (_) {
+      return false;
+    }
+  }
+  function setQuickTravel(on) {
+    try {
+      localStorage.setItem(QT_KEY, on ? "1" : "0");
+    } catch (_) {
+    }
+    refresh();
+  }
   function doGo(targetId) {
-    const A = API2();
-    const r = A.go(targetId, { source: "ui" });
+    if (!quickTravel()) return null;
+    const r = API2().go(targetId, { source: "quicktravel" });
     U3.last = r.ok ? null : r.reason;
-    U3.ok = false;
     refresh();
     return r;
   }
-  function doDoor(action, exitId) {
-    const r = API2().door(action, exitId, { source: "ui" });
-    U3.last = r.ok ? r.text || null : r.reason;
-    U3.ok = !!r.ok;
-    refresh();
-    return r;
-  }
-  function doSearch() {
-    const r = API2().search({ source: "ui" });
-    U3.last = r.ok ? r.text : r.reason;
-    U3.ok = !!r.ok;
-    refresh();
-    return r;
+  function renderPlaces(A, hereId, large, quick) {
+    const g = A.getGraph();
+    const around = new Set((A.zonePath(hereId) || []).map((z) => z.id));
+    const places = g.nodes.filter((n) => n.type === "location" && !n.mapId && !around.has(n.id));
+    const byId = new Map(places.map((n) => [n.id, n]));
+    const rt = A.runtime || {};
+    const visited = new Set((rt.visitedLocationIds || []).filter((id) => byId.has(id)));
+    const anchorOf = (id) => {
+      const n = g.nodes.find((x) => x.id === id);
+      return n && n.graphId ? n.graphId : id;
+    };
+    const cur = anchorOf(hereId);
+    const near = new Set(((A.here() || {}).ways || []).map((w2) => anchorOf(w2.id)).filter((id) => byId.has(id) && id !== cur));
+    const shown = places.filter((n) => n.id === cur || visited.has(n.id) || near.has(n.id));
+    if (!shown.length) return null;
+    let pos = /* @__PURE__ */ new Map();
+    if (shown.every((n) => n.x != null && n.y != null)) for (const n of shown) pos.set(n.id, { x: n.x, y: n.y });
+    else {
+      const links = new Map(shown.map((n) => [n.id, /* @__PURE__ */ new Set()]));
+      for (const e of g.edges) if (e.kind === "exit" && links.has(e.from) && links.has(e.to)) {
+        links.get(e.from).add(e.to);
+        links.get(e.to).add(e.from);
+      }
+      const depth = /* @__PURE__ */ new Map([[cur, 0]]);
+      const todo = [cur];
+      while (todo.length) {
+        const id = todo.shift();
+        for (const n of links.get(id) || []) if (!depth.has(n)) {
+          depth.set(n, depth.get(id) + 1);
+          todo.push(n);
+        }
+      }
+      const rings = /* @__PURE__ */ new Map();
+      for (const n of shown) {
+        const d = depth.has(n.id) ? depth.get(n.id) : 3;
+        if (!rings.has(d)) rings.set(d, []);
+        rings.get(d).push(n.id);
+      }
+      for (const [d, ids] of rings) ids.forEach((id, i) => {
+        const a = i / ids.length * Math.PI * 2 + d;
+        pos.set(id, d === 0 ? { x: 0, y: 0 } : { x: Math.cos(a) * 160 * d, y: Math.sin(a) * 110 * d });
+      });
+    }
+    const xs = [...pos.values()].map((p) => p.x), ys = [...pos.values()].map((p) => p.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const pad = 70, w = Math.max(maxX - minX, 1) + pad * 2, h = Math.max(maxY - minY, 1) + pad * 2;
+    const s = svg2("svg", { class: "rpm-map-board rpm-map-places", role: "img", "aria-label": "Map of the places you know", viewBox: `${minX - pad} ${minY - pad} ${w} ${h}`, preserveAspectRatio: "xMidYMid meet" });
+    const scale = Math.max(w / (large ? 560 : 240), h / (large ? 420 : 200), 0.5);
+    const gl = svg2("g"), gn = svg2("g");
+    s.appendChild(gl);
+    s.appendChild(gn);
+    const drawn = /* @__PURE__ */ new Set();
+    for (const e of g.edges) {
+      if (e.kind !== "exit" || !pos.has(e.from) || !pos.has(e.to)) continue;
+      const key = [e.from, e.to].sort().join("|");
+      if (drawn.has(key)) continue;
+      drawn.add(key);
+      const a = pos.get(e.from), b = pos.get(e.to);
+      gl.appendChild(svg2("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: "rpm-map-placelink" + (visited.has(e.from) && visited.has(e.to) ? "" : " rpm-map-fog"), "stroke-width": 2 * scale }));
+    }
+    for (const n of shown) {
+      const p = pos.get(n.id);
+      const isHere = n.id === cur;
+      const reach = quick && near.has(n.id);
+      const kind = (A.entityById(n.id) || {}).kind || "location";
+      const cls = "rpm-map-place" + (isHere ? " rpm-here" : "") + (visited.has(n.id) || isHere ? "" : " rpm-map-fog") + (reach ? " rpm-map-reach" : "");
+      const gp = svg2("g", { class: cls, "data-place": n.id, "data-kind": kind });
+      const r = (isHere ? 12 : 9) * scale;
+      gp.appendChild(kind === "location" ? svg2("circle", { cx: p.x, cy: p.y, r, class: "rpm-map-dot" }) : svg2("rect", { x: p.x - r, y: p.y - r, width: r * 2, height: r * 2, rx: 3 * scale, class: "rpm-map-dot" }));
+      const t = svg2("text", { x: p.x, y: p.y + r + 17 * scale, "text-anchor": "middle", class: "rpm-map-name", "font-size": 16 * scale });
+      t.textContent = (A.phased(n.id) || {}).name || n.name;
+      gp.appendChild(t);
+      if (reach) gp.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        doGo(n.id);
+      });
+      gn.appendChild(gp);
+    }
+    return s;
   }
   function renderMap(box, large) {
     const A = API2();
@@ -29419,66 +29531,44 @@ ${xl.join("\n")}`;
       root.appendChild(el("div", { class: "rpm-muted", text: "No world loaded. Load one (or the example) in the World tab." }));
       return;
     }
-    const here2 = A.runtime && A.runtime.playerLocationId;
-    if (!here2 || !A.entityById(here2)) {
+    const hereId = A.runtime && A.runtime.playerLocationId;
+    if (!hereId || !A.entityById(hereId)) {
       root.appendChild(el("div", { class: "rpm-muted", text: "Nowhere yet — choose a starting place in the World tab." }));
       return;
     }
     const R = A.mapRules;
-    const mapId = A.mapOf(here2);
-    const exits = A.exitsOf(here2, { player: true });
-    const path = (A.zonePath(here2) || []).map((z) => z.name);
+    const mapId = A.mapOf(hereId);
+    const quick = quickTravel();
+    const path = (A.zonePath(hereId) || []).map((z) => z.name);
+    const qt = el("input", { type: "checkbox", "data-map-quick": "1" });
+    qt.checked = quick;
+    qt.addEventListener("change", () => setQuickTravel(qt.checked));
     root.appendChild(el("div", { class: "rpm-map-where" }, [
-      el("span", { class: "rpm-grow" }, [el("strong", { text: (A.phased(here2) || {}).name || A.entityById(here2).name }), path.length ? el("span", { class: "rpm-muted", text: " · " + path.join(" › ") }) : null]),
+      el("span", { class: "rpm-grow" }, [el("strong", { text: (A.phased(hereId) || {}).name || A.entityById(hereId).name }), path.length ? el("span", { class: "rpm-muted", text: " · " + path.join(" › ") }) : null]),
       large ? null : el("button", { type: "button", class: "rpm-iconbtn", title: "Open the map", "aria-label": "Open the map", "data-map-open": "1", onclick: () => window.KLITE_RPMod_Shell?.open("map") }, [iconText("map", "", 16)])
     ]));
+    let drawing = null;
     if (mapId) {
       const board = A.mapBoard(mapId, { player: true });
       root.setAttribute("data-kind", board.kind);
       root.setAttribute("data-style", board.style);
-      const reachable2 = new Set(exits.filter((e) => board.rooms.some((r) => r.id === e.to)).map((e) => e.to));
-      const sv = renderPlayerBoard(board, { R, cell: large ? 28 : 16, reachable: reachable2, onRoom: doGo });
-      const wrap = el("div", { class: "rpm-map-boardwrap", title: large ? null : "Click a neighbouring room to go there; click elsewhere to open the map" });
-      wrap.appendChild(sv);
+      const exits = A.exitsOf(hereId, { player: true });
+      const reachable2 = quick ? new Set(exits.filter((e) => board.rooms.some((r) => r.id === e.to)).map((e) => e.to)) : /* @__PURE__ */ new Set();
+      drawing = renderPlayerBoard(board, { R, cell: large ? 28 : 16, reachable: reachable2, onRoom: doGo });
+    } else drawing = renderPlaces(A, hereId, large, quick);
+    if (drawing) {
+      const wrap = el("div", { class: "rpm-map-boardwrap", title: large ? null : quick ? "Quick travel: click a neighbouring place to go there; click elsewhere to open the map" : "Click to open the map" });
+      wrap.appendChild(drawing);
       if (!large) wrap.addEventListener("click", () => window.KLITE_RPMod_Shell?.open("map"));
       root.appendChild(wrap);
     }
-    if (mapId || A.hiddenIn && exits.length) {
-      const light = A.roomLight ? A.roomLight(here2) : null;
-      root.appendChild(el("div", { class: "rpm-map-actions" }, [
-        el("button", { type: "button", class: "btn btn-primary rpm-btn", "data-map-search": "1", title: "Search this room (d20 + Perception or Investigation)", onclick: doSearch }, [iconText("search", "Search", 14)]),
-        light ? el("span", { class: "rpm-chip", "data-map-light": light, text: light === "bright" ? "bright light" : light === "dim" ? "dim light" : "darkness" }) : null
-      ]));
-    }
-    if (U3.last && U3.at === here2) root.appendChild(el("div", { class: U3.ok ? "rpm-map-result" : "rpm-map-refused", role: "status", text: U3.last }));
-    const list3 = el("div", { class: "rpm-map-exits" });
-    if (!exits.length) list3.appendChild(el("div", { class: "rpm-muted", text: "No known way on from here." }));
-    for (const e of exits) {
-      const st = e.type === "door" || e.type === "secret" ? A.doorState(e.id) : null;
-      const label2 = `${e.dir ? R.dirName(e.dir) + ": " : ""}${(A.playerPlaceName || A.placeName)(e.to, here2)}`;
-      const b = el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-map-go", "data-go": e.to, title: st ? `Door: ${st}` : "Go there", onclick: () => doGo(e.to) }, [
-        el("span", { class: "rpm-grow", text: label2 }),
-        st && st !== "open" ? el("span", { class: "rpm-chip" + (R.blocksMove(st) ? " rpm-chip-danger" : ""), text: st }) : null
-      ]);
-      if (!st) {
-        list3.appendChild(b);
-        continue;
-      }
-      const act = st === "open" ? ["close", "Close"] : st === "closed" ? ["open", "Open"] : st === "locked" ? ["unlock", "Unlock"] : null;
-      list3.appendChild(el("div", { class: "rpm-map-exitrow" }, [
-        b,
-        act ? el("button", {
-          type: "button",
-          class: "btn btn-primary rpm-btn rpm-map-door-btn",
-          "data-door": act[0],
-          "data-exit": e.id,
-          title: `${act[1]} the door`,
-          onclick: () => doDoor(act[0], e.id)
-        }, [el("span", { text: act[1] })]) : null
-      ]));
-    }
-    root.appendChild(list3);
-    if (large && mapId) root.appendChild(el("div", { class: "rpm-muted", style: "margin-top:6px", text: 'Dashed rooms are seen but not yet visited; "?" marks a room behind a closed door. Unknown rooms and undiscovered secrets are not shown.' }));
+    const light = mapId && A.roomLight ? A.roomLight(hereId) : null;
+    root.appendChild(el("div", { class: "rpm-map-actions" }, [
+      el("label", { class: "rpm-map-quick", title: "Click the map to move at once. The AI is told you skipped the journey. Off: walk, search and open doors with the quick replies or in the chat, and the AI narrates it." }, [qt, el("span", { text: "Quick travel" })]),
+      light ? el("span", { class: "rpm-chip", "data-map-light": light, text: light === "bright" ? "bright light" : light === "dim" ? "dim light" : "darkness" }) : null
+    ]));
+    if (U3.last && U3.at === hereId) root.appendChild(el("div", { class: "rpm-map-refused", role: "status", text: U3.last }));
+    if (large) root.appendChild(el("div", { class: "rpm-muted", style: "margin-top:6px", text: mapId ? 'Dashed rooms are seen but not yet visited; "?" marks a room behind a closed door. Unknown rooms and undiscovered secrets are not shown.' : 'Dashed places are known but not yet visited. Walk with the quick replies ("Here") or in the chat; tick Quick travel to move by clicking.' }));
   }
   function registerMinimap(sh) {
     sh.registerView({
@@ -30997,6 +31087,12 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       }
       if (sh) sh.open("editor");
     }
+    function openEditorAt(id) {
+      openEditor();
+      setTimeout(() => {
+        if (S2.root && API3().entityById(id)) select2(id);
+      }, 0);
+    }
     function closeEditor() {
       const sh = Shell2();
       if (sh) sh.close("editor");
@@ -31106,7 +31202,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     }
     let panelEl = null;
     const TIME_SLOTS_UI = ["morning", "noon", "afternoon", "evening", "night"];
-    const VIEW_IDS = ["world", "party", "quest-tracker", "questlog", "combat", "shop", ...MINIMAP_VIEWS];
+    const VIEW_IDS = ["world", "party", "quest-tracker", "questlog", "reputation", "questeditor", "combat", "shop", ...MINIMAP_VIEWS];
     function uiBtn(text, onclick, opts) {
       opts = opts || {};
       const cls = "btn btn-primary rpm-btn" + (opts.block ? " rpm-block" : "") + (opts.grow ? " rpm-grow" : "") + (opts.variant ? " rpm-" + opts.variant : "") + (opts.lg ? " rpm-lg" : "") + (opts.icon ? " rpm-btn-icon" : "");
@@ -31239,10 +31335,14 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         return;
       }
       body.appendChild(row2([
-        uiBtn("Quest log", () => openView("questlog"), { icon: "scroll-text", grow: true }),
+        uiBtn("Quest log", () => openView("questlog"), { icon: "scroll-text", grow: true, id: "open-questlog", title: "Your accepted quests" }),
+        uiBtn("Reputation", () => openView("reputation"), { icon: "shield", grow: true, id: "open-reputation", title: "Your standing with the factions you have met" })
+      ]));
+      body.appendChild(row2([
         uiBtn("Combat", () => openView("combat"), { icon: "swords", grow: true }),
         uiBtn("Editor", () => openEditor(), { icon: "workflow", grow: true, title: "Build your world as a node graph" })
-      ]));
+      ], "margin-top:4px"));
+      if (uiMode() === "creator") body.appendChild(uiBtn("Quest editor", () => openView("questeditor"), { icon: "pencil", block: true, id: "open-questeditor", style: "margin-top:4px", title: "Every quest of the world: states, details, edit (Creator view)" }));
       body.appendChild(el2("hr", { class: "rpm-divider" }));
       renderPlayTab(body);
     }
@@ -31371,25 +31471,35 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       }
       box.appendChild(uiBtn("Open quest log", () => openView("questlog"), { icon: "scroll-text", block: true, style: "margin-top:8px" }));
     }
-    function renderQuestsTab(box) {
+    const QSTATE_LABEL = { available: "Available", active: "Active", complete: "Ready to turn in", turnedin: "Completed", failed: "Failed" };
+    function renderQuestsTab(box, opts = {}) {
       const A = API3();
-      const mode2 = uiMode() === "player" ? "player" : "creator";
-      const aiSel = uiSelect({ "aria-label": "What the AI sees", style: "width:auto" });
-      for (const [v, t] of [["gm", "GM (all)"], ["player", "Player (visible only)"]]) {
-        const o = el2("option", { value: v, text: t });
-        if (A.getAiMode() === v) o.selected = true;
-        aiSel.appendChild(o);
+      const editor = !!opts.editor;
+      const mode2 = editor ? "creator" : uiMode() === "player" ? "player" : "creator";
+      if (editor) {
+        const aiSel = uiSelect({ "aria-label": "What the AI sees", style: "width:auto" });
+        for (const [v, t] of [["gm", "GM (all)"], ["player", "Player (visible only)"]]) {
+          const o = el2("option", { value: v, text: t });
+          if (A.getAiMode() === v) o.selected = true;
+          aiSel.appendChild(o);
+        }
+        aiSel.addEventListener("change", () => {
+          A.setAiMode(aiSel.value);
+        });
+        box.appendChild(row2([el2("span", { class: "rpm-muted rpm-grow", text: "AI sees hidden content:" }), aiSel], "margin-bottom:8px"));
+        box.appendChild(uiBtn("New quest", () => {
+          const q = A.addEntity("quest", { name: "New quest" });
+          if (q) openEditorAt(q.id);
+        }, { icon: "plus", block: true, id: "new-quest", style: "margin-bottom:8px", title: "Adds a quest and opens it in the editor" }));
       }
-      aiSel.addEventListener("change", () => {
-        A.setAiMode(aiSel.value);
-      });
-      box.appendChild(row2([el2("span", { class: "rpm-muted rpm-grow", text: "AI sees hidden content:" }), aiSel], "margin-bottom:8px"));
-      const quests = A.listQuests(mode2);
+      const all = A.listQuests(mode2);
+      const offered = new Set(editor ? [] : ((A.here() || {}).quests || []).filter((q) => q.action === "accept").map((q) => q.id));
+      const quests = editor ? all : all.filter((q) => q.state !== "available" || offered.has(q.id));
       if (!quests.length) {
-        box.appendChild(muted2("No quests visible. Add Quest nodes in the editor."));
+        box.appendChild(muted2(editor ? 'No quests yet. Add one with "New quest" or a Quest node in the editor.' : "No quests yet. People with a yellow ! offer you one — talk to them."));
         return;
       }
-      const groups = [["available", "Available"], ["active", "Active"], ["complete", "Ready to turn in"], ["turnedin", "Completed"], ["failed", "Failed"]];
+      const groups = editor ? [["available", "Available"], ["active", "Active"], ["complete", "Ready to turn in"], ["turnedin", "Completed"], ["failed", "Failed"]] : [["available", "Offered here"], ["active", "Active"], ["complete", "Ready to turn in"], ["turnedin", "Completed"], ["failed", "Failed"]];
       for (const [st, label2] of groups) {
         const inGroup = quests.filter((q) => q.state === st);
         if (!inGroup.length) continue;
@@ -31482,7 +31592,21 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
               if (confirm(`Abandon "${q.title}"?`)) A.abandonQuest(q.id);
             }));
           }
-          if (mode2 === "creator" && q.hidden) ctl.appendChild(act("Reveal to player", () => A.discoverQuest(q.id)));
+          if (editor && q.hidden) ctl.appendChild(act("Reveal to player", () => A.discoverQuest(q.id)));
+          if (editor) {
+            const ssel = uiSelect({ "aria-label": "Quest state", "data-qstate": q.id, style: "width:auto" });
+            for (const [v, t] of Object.entries(QSTATE_LABEL)) {
+              const o = el2("option", { value: v, text: t });
+              if (st === v) o.selected = true;
+              ssel.appendChild(o);
+            }
+            ssel.addEventListener("change", () => {
+              A.setQuestState(q.id, ssel.value);
+              refreshPanel();
+            });
+            ctl.appendChild(ssel);
+            ctl.appendChild(uiBtn("Edit in the editor", () => openEditorAt(q.id), { icon: "workflow", id: "edit-quest" }));
+          }
           if (ctl.childNodes.length) card.appendChild(ctl);
           box.appendChild(card);
         }
@@ -31490,9 +31614,13 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     }
     function renderReputation(box) {
       const A = API3();
-      const list3 = A.reputation();
-      if (!list3.length) return;
-      box.appendChild(lbl2("Reputation"));
+      const creator = uiMode() !== "player";
+      const list3 = A.reputation(creator ? void 0 : { encountered: true });
+      if (!list3.length) {
+        box.appendChild(muted2(creator ? "This world has no factions yet." : "You have not met any faction yet."));
+        return;
+      }
+      box.appendChild(muted2(creator ? "Creator view: every faction of the world. The Player view shows only those you have met." : "The factions you have met.", { style: "margin-bottom:6px" }));
       for (const r of list3) {
         const pct = r.span ? Math.max(0, Math.min(100, Math.round(r.into / r.span * 100))) : 100;
         const card = el2("div", { class: "rpm-card", "data-rep": r.id }, [
@@ -31755,10 +31883,16 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       sh.registerView(Object.assign({ id: "party", title: "Party", place: "left", order: 10 }, view(renderParty)));
       sh.registerView(Object.assign({ id: "quest-tracker", title: "Quests", place: "left", order: 20 }, view(renderQuestTracker)));
       sh.registerView(Object.assign({ id: "questlog", title: "Quest log", place: "window", window: { width: 380, height: 520 } }, view((c) => {
-        if (API3().activeWorld()) {
-          renderQuestsTab(c);
-          renderReputation(c);
-        } else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
+        if (API3().activeWorld()) renderQuestsTab(c);
+        else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
+      })));
+      sh.registerView(Object.assign({ id: "reputation", title: "Reputation", place: "window", window: { width: 360, height: 460 } }, view((c) => {
+        if (API3().activeWorld()) renderReputation(c);
+        else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
+      })));
+      sh.registerView(Object.assign({ id: "questeditor", title: "Quest editor", place: "window", window: { width: 420, height: 600 } }, view((c) => {
+        if (API3().activeWorld()) renderQuestsTab(c, { editor: true });
+        else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
       })));
       sh.registerView(Object.assign({ id: "shop", title: "Shop", place: "window", window: { width: 400, height: 520, minWidth: 300 } }, view((c) => {
         if (API3().activeWorld()) renderShop(c, () => refreshPanel());
@@ -31928,7 +32062,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         { list: [
           'Pick or load a world in the World tab, then "Enable for this story".',
           "Set your current location and the time of day; RPmod tracks both as you play.",
-          "The Map section on the left shows where you are. In a dungeon or town, click a neighbouring room to go there; locked doors refuse the move and the AI hears why.",
+          `The Map section on the left shows where you are: the places you know as points, or the rooms of a dungeon or town. Walk, search and open doors with the quick replies' "Here" row, so the AI narrates it. Tick Quick travel to move by clicking the map instead.`,
           "Game state: RPmod keeps the live game and a start state you can go back to (next chapter)."
         ] }
       ],
@@ -31972,9 +32106,9 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       blocks: [
         { p: 'People in the world give quests, like in an MMO: a yellow ! marks someone with a quest for you, a yellow ? someone you can hand a finished quest to. Grey marks mean "later" (level too low) or "in progress".' },
         { list: [
-          'The Quest log lists available, active and finished quests: accept, track, turn in, abandon — with objectives like "Defeat 3 Wolf (1/3)" that count by themselves.',
+          'The Quest log (World tab) lists the quests you accepted — track, turn in, abandon — with objectives like "Defeat 3 Wolf (1/3)" that count by themselves. Quests offered by the people where you are show there too, to accept.',
           "Rewards (XP, gold, items, reputation) go to your persona's character sheet when you turn a quest in; some let you choose one item.",
-          "Your standing with each faction (Hated … Exalted) is at the bottom of the Quest log.",
+          "Your standing with each faction you have met (Hated … Exalted) is in the Reputation window (World tab). Creators find every quest in the Quest editor.",
           "The Quests section on the left shows what you are working on.",
           'Hidden quests read "???" until you discover them.'
         ] }
@@ -36177,12 +36311,18 @@ OK = save and close · Cancel = close and discard them`);
       const n = safeName(w.name);
       if (!n) continue;
       const d = DIR_WORD[w.dir];
+      if (w.door === "locked") {
+        out.push({ label: `Unlock: ${d || n}`, text: `/unlock ${d || n} | I try to unlock the ${d ? d + " " : ""}door.`, send: true, kind: "door" });
+        continue;
+      }
+      if (w.door === "barred") continue;
       out.push({ label: d ? `${d}: ${n}` : "→ " + n, text: `/go ${d || n} | I go to ${n}.`, send: true, kind: "go" });
     }
     for (const p of info.people || []) {
       const n = safeName(p.name);
       if (!n) continue;
       out.push({ label: (p.marker ? p.marker + " " : "") + "Talk: " + n, text: `/talk ${n} | I talk to ${n}.`, send: true, kind: "talk" });
+      if (p.canJoin) out.push({ label: "Ask to join: " + n, text: `/join ${n} | I ask ${n} to travel with me.`, send: true, kind: "join" });
     }
     if (info.trade) out.push({ label: "Shop", text: "/shop", send: false, kind: "shop" });
     if (info.inMap) out.push({ label: "Search", text: "/search | I search the room.", send: true, kind: "search" });

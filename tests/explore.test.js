@@ -245,31 +245,29 @@ test('migration: a step-2 save gains the new exploration fields and keeps its st
     assert.deepEqual(plain(W.runtimeSlots.base.roomLight), {});
 });
 
-test('mini-map: door buttons, Search with its result, unexplored rooms as "?"', async (t) => {
+test('mini-map is a view ("?" rooms, light); doors, unlocking and searching come from the Here quick replies', async (t) => {
     const h = await host(t, { ui: true }); const w = h.window; const doc = w.document; const W = h.api();
+    const CH = requireSrc('src/chat/chat-rules.js');
     const d = buildCrypt(W);
     const sec = () => doc.querySelector('[data-section="minimap"]');
     W.moveTo('Entrance'); await sleep(40);
     const hall = () => sec().querySelector(`g[data-room="${d.hall.id}"]`);
     assert.ok(hall().classList.contains('rpm-map-unseen'), 'behind a closed door');
     assert.equal(hall().querySelector('text').textContent, '?');
-    assert.match(sec().querySelector(`[data-go="${d.hall.id}"]`).textContent, /east: unexplored room/);
-    click(sec().querySelector(`[data-door="open"][data-exit="${d.toHall.id}"]`), w);
-    await sleep(40);
-    assert.equal(W.doorState(d.toHall.id), 'open');
+    for (const sel of ['[data-go]', '[data-door]', '[data-map-search]']) assert.equal(sec().querySelector(sel), null, `no ${sel} on the map`);
+    // the Here row: go through the closed door (it opens), search the room
+    let here = CH.hereReplies(plain(W.here()));
+    assert.ok(here.some(r => r.kind === 'go' && /^east: unexplored room$/.test(r.label) && /^\/go east \| /.test(r.text)));
+    assert.ok(here.some(r => r.kind === 'search'));
+    W.door('open', d.toHall.id, { source: 'ui' }); await sleep(40);
     assert.equal(hall().querySelector('text').textContent, 'Hall');
-    assert.match(sec().querySelector('.rpm-map-result').textContent, /Opens the east door/);
-    assert.ok(sec().querySelector(`[data-door="close"][data-exit="${d.toHall.id}"]`), 'now it offers Close');
-    click(sec().querySelector(`[data-go="${d.hall.id}"]`), w); await sleep(40);
-    // locked door: Unlock button; refused without key/tools
-    click(sec().querySelector(`[data-door="unlock"][data-exit="${d.lock.id}"]`), w); await sleep(40);
-    assert.match(sec().querySelector('.rpm-map-refused').textContent, /no key or thieves' tools/);
-    // Search
-    h.seedRandom(HIGH);
-    click(sec().querySelector('[data-map-search]'), w); await sleep(40);
-    assert.match(sec().querySelector('.rpm-map-result').textContent, /found a secret door \(east\)/);
-    assert.ok(sec().querySelector(`[data-go="${d.vault.id}"]`), 'the found secret door is an exit now');
+    W.go('east', { source: 'ui' });
+    // a locked door: the Here row offers Unlock instead of a way
+    here = CH.hereReplies(plain(W.here()));
+    const lockDir = W.exitsOf(W.runtime.playerLocationId, { player: true }).find(e => e.id === d.lock.id).dir;
+    assert.ok(here.some(r => r.kind === 'door' && r.label === `Unlock: ${{ n: 'north', e: 'east', s: 'south', w: 'west' }[lockDir]}`), JSON.stringify(here.map(r => r.label)));
     // light chip
     W.setRoomLight('dark'); await sleep(40);
     assert.equal(sec().querySelector('[data-map-light]').getAttribute('data-map-light'), 'dark');
 });
+

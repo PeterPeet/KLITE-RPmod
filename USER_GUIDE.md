@@ -249,7 +249,10 @@ there, active events, and relevant lore — and nothing from the far side of the
 
 ### The map and moving room by room
 
-The left panel's **Map** section shows where you are. Inside a dungeon or town you see its
+The left panel's **Map** section shows where you are. **Outside dungeons and towns** it draws the
+places you know as points with the roads between them (positions from the world editor): where you
+are in gold, places you have visited solid, places you can go to from here but have not visited
+yet dashed; the region you are in is named in the header. Inside a dungeon or town you see its
 board with fog:
 
 - the room you are in (gold, with a dot) and rooms you have **visited** (solid);
@@ -260,17 +263,19 @@ board with fog:
 - unknown rooms and undiscovered secret doors are not shown. In a town every place is common
   knowledge, so its names always show.
 
-Below the board are the exits of your room (direction, name, door state) and a **Search**
-button; darkness or dim light shows as a chip.
+Darkness or dim light shows as a chip below the map.
 
-- **Click a neighbouring room** (or its exit button) to go there. RPmod applies the rules:
-  you can only use known exits, a closed door is opened on the way, a **locked or barred door
-  refuses the move**. The move or the refusal goes to the game log, and the AI narrates it in
-  its next reply.
+- **The map is a view.** You walk, open doors, unlock and search through the **quick replies'
+  "Here" row** (or the chat): *east: Pillar Hall*, *Unlock: south*, *Search*, *Ask to join: Tove* —
+  each sends a message, so the AI narrates it right away. RPmod applies the rules: you can only use
+  known exits, a closed door is opened on the way, a **locked or barred door refuses the move**.
+- **Quick travel** (the checkbox under the map; remembered in this browser): with it ticked, a
+  click on a neighbouring room or place moves you there at once — the rules still apply, and the
+  AI is told you skipped the journey and should describe your arrival. Refusals show under the map.
 - Going to a dungeon or town from outside puts you in its entrance room (the room with the way
   out to where you stand). From inside you leave only through a way out.
-- Click the small board (or the map icon) to open the large **Map** window; it works the same.
-- **Doors:** next to a door's exit button is **Open**, **Close** or **Unlock**. A locked door
+- Click the small map (or the map icon) to open the large **Map** window; it works the same.
+- **Doors:** `/open`, `/close`, `/unlock` (the Here row offers *Unlock* for a locked door). A locked door
   opens with its **key** if you carry it; otherwise, with **thieves' tools** in your inventory,
   RPmod rolls d20 + DEX (+ proficiency when your sheet lists thieves' tools) against the lock's DC.
   Without key or tools it refuses. A **barred** door cannot be opened from your side.
@@ -566,9 +571,17 @@ they stay where you parted. Only people marked this way can join; monsters never
 **Quests.** Add **Quest** nodes with a **giver** and a **turn-in** person. Markers show on
 persons: yellow **!** = a quest you can accept, yellow **?** = a finished quest to hand in here,
 grey **?** = a quest in progress that goes back to this person, grey **!** = a quest for later
-(your level is too low). The **Quest log** window is your log: accept, track, complete, turn in,
-**abandon**; hidden quests read `???` to the player until discovered. A per-world switch
-controls whether the **AI** (as GM) sees hidden content or not.
+(your level is too low). The **Quest log** (World tab) is your log: the quests you **accepted** —
+active, ready to turn in, completed, failed — with track, complete, turn in and **abandon**; under
+*Offered here* it also lists the quests the people at your place offer, to accept. Quests you have
+not been offered do not appear there; hidden quests read `???` until discovered. The **Quest
+editor** (World tab, Creator view only) lists **every** quest of the world: change its state, reveal
+a hidden one, **Edit in the editor**, or add a **New quest**; it also holds the per-world switch
+for whether the **AI** (as GM) sees hidden content.
+
+**Reputation** has its own window (World tab → **Reputation**): in the Player view it lists only
+the factions you have **met** — your standing with them changed, you met one of their people,
+visited their headquarters or fought one of their encounters. The Creator view shows all.
 
 - **Objectives** count by themselves: *Defeat* (a monster name or a person — every defeat in a
   fight counts, e.g. "Defeat 3 Wolf (1/3)"), *Collect* (items in your inventory; handed over on

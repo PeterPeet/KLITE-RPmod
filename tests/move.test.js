@@ -140,36 +140,50 @@ test('<move> goes through the rules; tags apply when the reply arrives (known is
     assert.equal(W.runtime.playerLocationId, 'loc_tavern');
 });
 
-test('mini-map: fog, you are here, click a neighbour, refusal shown, Map window', async (t) => {
+test('mini-map: places as points, fog, you are here; clicks move only with Quick travel; refusal shown; Map window', async (t) => {
     const h = await host(t, { ui: true }); const w = h.window; const doc = w.document; const W = h.api();
     const d = buildCrypt(W);
     const sec = () => doc.querySelector('[data-section="minimap"]');
     W.moveTo('Forest Road'); await sleep(40);
     assert.ok(sec(), 'Map section in the left dock');
-    assert.match(sec().textContent, /Forest Road/);
-    click(sec().querySelector(`[data-go="${d.ent.id}"]`), w);
-    assert.equal(W.runtime.playerLocationId, d.ent.id);
+    // outside dungeons and towns: the known places as points (R8), no exit buttons
+    const place = (id) => sec().querySelector(`g[data-place="${id}"]`);
+    assert.ok(place('loc_forest').classList.contains('rpm-here'), 'you are here');
+    assert.ok(place(d.crypt.id), 'the crypt you can go to is on the map');
+    assert.ok(place(d.crypt.id).classList.contains('rpm-map-fog'), 'known, not yet visited: dashed');
+    assert.ok(place('loc_watchtower'), 'a neighbour is known');
+    assert.equal(place('loc_tavern'), null, 'places you do not know yet are not drawn');
+    assert.equal(sec().querySelector('[data-go]'), null, 'no exit buttons any more');
+    assert.equal(sec().querySelector('[data-map-search]'), null, 'no Search button (quick replies)');
+    // without Quick travel the map is a view
+    place(d.crypt.id).dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    assert.equal(W.runtime.playerLocationId, 'loc_forest', 'no move without Quick travel');
+    const qt = sec().querySelector('[data-map-quick]');
+    qt.checked = true; qt.dispatchEvent(new w.Event('change')); await sleep(30);
+    place(d.crypt.id).dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    assert.equal(W.runtime.playerLocationId, d.ent.id, 'quick travel into the crypt');
+    assert.match(logText(w), /Quick travel: the player skipped the journey and is now at Old Crypt \(Entrance\)|Quick travel: the player skipped the journey and is now at Entrance/);
     await sleep(40);
     const room = (id) => sec().querySelector(`g[data-room="${id}"]`);
     assert.equal(room(d.ent.id).getAttribute('data-explored'), 'here');
     assert.equal(room(d.hall.id).getAttribute('data-explored'), 'known', 'neighbour in fog (outline)');
     assert.equal(room(d.oss.id), null, 'unknown rooms not drawn');
     assert.equal(room(d.vault.id), null);
-    // click the neighbouring room on the board
     room(d.hall.id).dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
     assert.equal(W.runtime.playerLocationId, d.hall.id);
     await sleep(40);
     assert.ok(room(d.oss.id), 'the room behind the locked door is known now');
     assert.equal(room(d.vault.id), null, 'secret room still hidden');
-    click(sec().querySelector(`[data-go="${d.oss.id}"]`), w);
+    room(d.oss.id).dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
     await sleep(40);
     assert.equal(W.runtime.playerLocationId, d.hall.id);
     assert.match(sec().querySelector('.rpm-map-refused').textContent, /door is locked/);
-    assert.match(sec().querySelector(`[data-go="${d.oss.id}"]`).textContent, /locked/);
     // Map window
     click(sec().querySelector('[data-map-open]'), w);
     const win = doc.querySelector('[data-window="map"]');
     assert.ok(win && win.querySelector(`g[data-room="${d.hall.id}"].rpm-here`), 'large map shows you are here');
     win.querySelector(`g[data-room="${d.ent.id}"]`).dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
     assert.equal(W.runtime.playerLocationId, d.ent.id, 'move from the Map window');
+    qt.checked = false; w.localStorage.removeItem('KLITE.map.quickTravel');
 });
+

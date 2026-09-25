@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-26 (R8 step 3 + game over)
+> Last updated: 2026-09-26 (R8 step 3, game over, play-test fixes)
 
 ## Current state
 
@@ -34,7 +34,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 364 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 368 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -208,6 +208,13 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
     create a new hero, choose another character; the AI ends the story); fallen-but-stable stays a
     defeat. Dying companions roll their own death saves (before, such a fight could never end).
     Tests: `tests/gameover.test.js`.
+25. ~~Play-test feedback (owner, 2026-09-26)~~ — done 2026-09-26: the AI did not notice moves/searches made
+    on the mini-map. The map is now a view (places as points outside dungeons/towns, the room board
+    inside); walking, doors, unlocking, searching and "Ask to join" come from the Here quick replies
+    (which send a message); a **Quick travel** checkbox allows clicking to move, and the AI is told the
+    journey was skipped. The Quest log shows accepted quests (+ those offered here); a **Quest editor**
+    (Creator view) lists every quest; **Reputation** is its own window and shows only factions met.
+    Arriving at a place now counts as visited. Tests: `tests/questlogR8.test.js`, reworked map tests.
 
 ## Phases
 

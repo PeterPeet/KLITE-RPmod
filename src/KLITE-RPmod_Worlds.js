@@ -347,7 +347,10 @@ export default function initWorlds() {
     // Entering a room: visited; the rooms behind its visible exits become known — or
     // discovered (seen, name known) when the way is open (fog, R7 step 3).
     function markVisitedRoom(locId) {
-        const r = rt(); if (!r || !mapOf(locId)) return false;
+        const r = rt(); if (!r) return false;
+        // R8: arriving anywhere counts as visited (the map's fog, factions met at their headquarters)
+        if (locId && !asArray(r.visitedLocationIds).includes(locId)) r.visitedLocationIds = [...asArray(r.visitedLocationIds), locId];
+        if (!mapOf(locId)) return false;
         MR.normalizeExploration(r);
         let changed = MR.raiseExplored(r.explored, locId, 'visited');
         for (const e of playerExits(locId)) if (mapOf(e.to)) changed = MR.raiseExplored(r.explored, e.to, MR.seeThrough(e, MR.doorState(e, r.doorState)) ? 'discovered' : 'known') || changed;
@@ -532,6 +535,8 @@ export default function initWorlds() {
         passiveNotice(dest.id);
         const dir = ex && ex.dir ? MR.dirName(ex.dir) : '';
         if (opts.source === 'ui') gameLog(`${opened ? 'Opens the door and goes' : 'Goes'}${dir ? ' ' + dir : ''} to ${placeName(dest.id, curId)}.`, 'map');
+        // R8: quick travel on the map — the journey itself is skipped; the AI describes the arrival
+        if (opts.source === 'quicktravel') gameLog(`Quick travel: the player skipped the journey and is now at ${placeName(dest.id, curId)}${opened ? ' (a door was opened on the way)' : ''}. Describe the arrival briefly.`, 'map');
         try { fireTriggers('enter:' + dest.id); } catch (_) {}
         return { ok: true, to: dest.id, dir: ex ? ex.dir : null, opened };
     }
@@ -1074,6 +1079,16 @@ export default function initWorlds() {
             const ph = phasedEntity(f);
             return { id: f.id, name: norm(ph.name), value, tier, next: pr.next, into: pr.into, span: pr.span, effect: QR.tierEffect(tier), hostile: QR.isHostileTier(tier), gone: !!ph.gone, phase: ph.phase || null };
         });
+    }
+    // A faction the player has met (R8): standing changed, one of its people met, its headquarters
+    // visited, or one of its encounters fought. The player's Reputation window shows only these.
+    function factionEncountered(f) {
+        const r = rt(); if (!r || !f) return false;
+        if (r.reputation && r.reputation[f.id] != null) return true;
+        const w = activeWorld();
+        if (asArray(w.npcs).some(p => p.factionId === f.id && asArray(r.knownNpcIds).includes(p.id))) return true;
+        if (f.hqLocationId && asArray(r.visitedLocationIds).some(id => id === f.hqLocationId || isInsideLocation(id, f.hqLocationId))) return true;
+        return asArray(w.encounters).some(e => e.factionId === f.id && asArray(r.startedEncounters).includes(e.id));
     }
     function personAttitude(npc) { if (!npc || !npc.factionId) return null; const r = reputationList().find(x => x.id === npc.factionId); return r && r.tier !== 'Neutral' ? r : null; }
     function repValue(factionId) {
@@ -1996,7 +2011,7 @@ export default function initWorlds() {
             // R8: everyone on the party side is dead (not just down and stable) — game over
             cb.wipe = party.every(o => { const d = deathOf(cb, o.id); return !!(d && d.dead) || (o.kind !== 'player' && !d && isDown(cb, o.id)); });
             if (cb.wipe) {
-                const r = rt(); const names = party.map(o => combatantName(o.id));
+                const r = rt(); const names = [...party].sort((a, b) => (b.isPlayer ? 1 : 0) - (a.isPlayer ? 1 : 0)).map(o => combatantName(o.id));   // you first, then the companions
                 if (r) r.gameOver = { day: r.clock && r.clock.day, time: r.clock && r.clock.time, locationId: r.playerLocationId, persona: cb.persona || '', fallen: names };
                 combatLog(`Game over. ${names.length > 1 ? 'Everyone in the party has died' : 'You have died'}: ${names.join(', ')}.`);
                 try { setTimeout(() => window.dispatchEvent(new CustomEvent('klite:game-over', { detail: { fallen: names } })), 0); } catch (_) {}
@@ -2630,8 +2645,8 @@ export default function initWorlds() {
         const w = activeWorld(); const loc = w && rt() && locOf(rt().playerLocationId);
         if (!loc) return { place: null, ways: [], people: [], quests: [], trade: false };
         const mode = aiMode(); const ways = [];
-        const add = (id, name, dir) => { name = norm(name); if (id && name && id !== loc.id && !ways.some(x => x.id === id)) ways.push({ id, name, dir: dir || null }); };
-        for (const e of playerExits(loc.id)) add(e.to, playerPlaceName(e.to, loc.id), e.dir);
+        const add = (id, name, dir, door) => { name = norm(name); if (id && name && id !== loc.id && !ways.some(x => x.id === id)) ways.push({ id, name, dir: dir || null, door: door || null }); };
+        for (const e of playerExits(loc.id)) add(e.to, playerPlaceName(e.to, loc.id), e.dir, (e.type === 'door' || e.type === 'secret') ? MR.doorState(e, rt().doorState) : null);
         if (!mapOf(loc.id)) {
             for (const l of connectedLocations(w, loc, 1)) add(l.id, placeName(l.id, loc.id));
             for (const l of innerPlaces(loc)) add(l.id, phasedEntity(l).name);
@@ -2639,7 +2654,8 @@ export default function initWorlds() {
         }
         const seen = new Set();
         const here = asArray(w.npcs).filter(n => (resolveNpcLocationId(n) === loc.id || asArray(loc.npcIds).includes(n.id)) && !seen.has(n.id) && seen.add(n.id) && !phasedEntity(n).gone);
-        const people = here.map(n => ({ id: n.id, name: personName(n), marker: personQuestMarker(n.id, mode) }));
+        const party = asArray(rt().party);
+        const people = here.map(n => ({ id: n.id, name: personName(n), marker: personQuestMarker(n.id, mode), inParty: party.includes(n.id), canJoin: !!n.canJoin && !n.isMonster && !party.includes(n.id) }));
         const ids = new Set(here.map(n => n.id)); const quests = [];
         for (const q of asArray(w.quests)) {
             if (!questVisible(q, mode)) continue; const st = questStateOf(q);
@@ -3394,7 +3410,7 @@ export default function initWorlds() {
         const st = world && world.start && typeof world.start === 'object' ? world.start : null;
         const snap = c.working;
         if (st) {
-            if (st.locationId && findById(world.locations, st.locationId)) snap.playerLocationId = st.locationId;
+            if (st.locationId && findById(world.locations, st.locationId)) { snap.playerLocationId = st.locationId; snap.visitedLocationIds = [st.locationId]; }   // where you begin counts as visited
             if (st.clock && typeof st.clock === 'object') {
                 Object.assign(snap.clock, st.clock);
                 if (st.clock.month != null && st.clock.season == null) snap.clock.season = deriveSeason(snap.clock.month);
@@ -3513,7 +3529,8 @@ export default function initWorlds() {
         acceptQuest(id, force) { const s = acceptQuest(id, force); syncLive(); return s; },
         questLocks: (id) => questLocks(questById(id)),
         reputationTiers: () => QR.TIERS.map(t => t.name),
-        reputation: () => reputationList(),
+        // opts.encountered: only factions the player has met (the player's Reputation window)
+        reputation: (opts) => { const list = reputationList(); if (!(opts && opts.encountered)) return list; const fs = asArray(activeWorld() && activeWorld().factions); return list.filter(r => factionEncountered(fs.find(f => f.id === r.id))); },
         setLocationParent(id, parentId) { const ok = setLocationParent(id, parentId); syncLive(); return ok; },
 
         // ----- R7 maps: dungeons & towns, room by room (src/game/map-rules.js) -----

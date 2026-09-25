@@ -122,11 +122,15 @@ export function hereReplies(info) {
     }
     for (const w of info.ways || []) {
         const n = safeName(w.name); if (!n) continue; const d = DIR_WORD[w.dir];
+        // a locked door: try to unlock it first (a key, or thieves' tools — RPmod rolls)
+        if (w.door === 'locked') { out.push({ label: `Unlock: ${d || n}`, text: `/unlock ${d || n} | I try to unlock the ${d ? d + ' ' : ''}door.`, send: true, kind: 'door' }); continue; }
+        if (w.door === 'barred') continue;
         out.push({ label: d ? `${d}: ${n}` : '→ ' + n, text: `/go ${d || n} | I go to ${n}.`, send: true, kind: 'go' });
     }
     for (const p of info.people || []) {
         const n = safeName(p.name); if (!n) continue;
         out.push({ label: (p.marker ? p.marker + ' ' : '') + 'Talk: ' + n, text: `/talk ${n} | I talk to ${n}.`, send: true, kind: 'talk' });
+        if (p.canJoin) out.push({ label: 'Ask to join: ' + n, text: `/join ${n} | I ask ${n} to travel with me.`, send: true, kind: 'join' });
     }
     if (info.trade) out.push({ label: 'Shop', text: '/shop', send: false, kind: 'shop' });
     if (info.inMap) out.push({ label: 'Search', text: '/search | I search the room.', send: true, kind: 'search' });

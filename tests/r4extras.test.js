@@ -165,12 +165,13 @@ test('editor and Quest log: repeat and the giver\'s words', async (t) => {
     const offer = doc.querySelector('[data-quest-field="offerText"]');
     offer.value = 'Please, take this letter!'; offer.dispatchEvent(new w.Event('input'));
     assert.equal(W.entityById('q_delivery').offerText, 'Please, take this letter!');
-    w.KLITE_RPMod_Shell.open('questlog'); await sleep(30);
-    const words = doc.querySelector('[data-window="questlog"] [data-words="q_merchant"]');
+    // every quest with its words: the Quest editor (R8; the Quest log shows accepted ones)
+    w.KLITE_RPMod_Shell.open('questeditor'); await sleep(30);
+    const words = doc.querySelector('[data-window="questeditor"] [data-words="q_merchant"]');
     assert.ok(words && /Innkeeper Bram: “Old Tobin/.test(words.textContent));
     W.setQuestState('q_merchant', 'turnedin');
     w.KLITE_RPMod_Shell.refresh(); await sleep(30);
-    assert.ok(doc.querySelector('[data-window="questlog"] [data-repeat="q_patrol"]'), 'the daily chip');
+    assert.ok(doc.querySelector('[data-window="questeditor"] [data-repeat="q_patrol"]'), 'the daily chip');
 });
 
 // ---- vendors / shops ----

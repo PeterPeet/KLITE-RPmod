@@ -1085,6 +1085,8 @@ export default function initWorldsUI() {
         if (S.root) { S.selectedId = null; S.linkSource = null; resetEditor(); }
         if (sh) sh.open('editor');
     }
+    // open the editor with one node selected (the quest editor's "Edit in the editor")
+    function openEditorAt(id) { openEditor(); setTimeout(() => { if (S.root && API().entityById(id)) select(id); }, 0); }
     function closeEditor() { const sh = Shell(); if (sh) sh.close('editor'); }
 
     function mountEditor(container) {
@@ -1163,7 +1165,7 @@ export default function initWorldsUI() {
     // =======================================================================
     let panelEl = null;
     const TIME_SLOTS_UI = ['morning', 'noon', 'afternoon', 'evening', 'night'];
-    const VIEW_IDS = ['world', 'party', 'quest-tracker', 'questlog', 'combat', 'shop', ...MINIMAP_VIEWS];
+    const VIEW_IDS = ['world', 'party', 'quest-tracker', 'questlog', 'reputation', 'questeditor', 'combat', 'shop', ...MINIMAP_VIEWS];
 
     // ---- themed control helpers ----
     // opts.icon: a Lucide name (src/shell/icons.js); icon-only buttons take opts.title as label
@@ -1249,10 +1251,14 @@ export default function initWorldsUI() {
 
         // ---- bigger views open as floating windows / the editor overlay ----
         body.appendChild(row([
-            uiBtn('Quest log', () => openView('questlog'), { icon: 'scroll-text', grow: true }),
-            uiBtn('Combat', () => openView('combat'), { icon: 'swords', grow: true }),
-            uiBtn('Editor', () => openEditor(), { icon: 'workflow', grow: true, title: 'Build your world as a node graph' })
+            uiBtn('Quest log', () => openView('questlog'), { icon: 'scroll-text', grow: true, id: 'open-questlog', title: 'Your accepted quests' }),
+            uiBtn('Reputation', () => openView('reputation'), { icon: 'shield', grow: true, id: 'open-reputation', title: 'Your standing with the factions you have met' }),
         ]));
+        body.appendChild(row([
+            uiBtn('Combat', () => openView('combat'), { icon: 'swords', grow: true }),
+            uiBtn('Editor', () => openEditor(), { icon: 'workflow', grow: true, title: 'Build your world as a node graph' }),
+        ], 'margin-top:4px'));
+        if (uiMode() === 'creator') body.appendChild(uiBtn('Quest editor', () => openView('questeditor'), { icon: 'pencil', block: true, id: 'open-questeditor', style: 'margin-top:4px', title: 'Every quest of the world: states, details, edit (Creator view)' }));
         body.appendChild(el('hr', { class: 'rpm-divider' }));
         renderPlayTab(body);
     }
@@ -1375,18 +1381,28 @@ export default function initWorldsUI() {
         box.appendChild(uiBtn('Open quest log', () => openView('questlog'), { icon: 'scroll-text', block: true, style: 'margin-top:8px' }));
     }
 
-    function renderQuestsTab(box) {
+    // The Quest log (opts.editor false): the quests the player accepted, plus the ones offered by
+    // people here (R8). The Quest editor (opts.editor, Creator view): every quest, with its state,
+    // "Edit in the editor" and a new quest.
+    const QSTATE_LABEL = { available: 'Available', active: 'Active', complete: 'Ready to turn in', turnedin: 'Completed', failed: 'Failed' };
+    function renderQuestsTab(box, opts = {}) {
         const A = API();
-        const mode = uiMode() === 'player' ? 'player' : 'creator';
-        // per-world AI mode selector (gm vs player-facing)
-        const aiSel = uiSelect({ 'aria-label': 'What the AI sees', style: 'width:auto' });
-        for (const [v, t] of [['gm', 'GM (all)'], ['player', 'Player (visible only)']]) { const o = el('option', { value: v, text: t }); if (A.getAiMode() === v) o.selected = true; aiSel.appendChild(o); }
-        aiSel.addEventListener('change', () => { A.setAiMode(aiSel.value); });
-        box.appendChild(row([el('span', { class: 'rpm-muted rpm-grow', text: 'AI sees hidden content:' }), aiSel], 'margin-bottom:8px'));
-
-        const quests = A.listQuests(mode);
-        if (!quests.length) { box.appendChild(muted('No quests visible. Add Quest nodes in the editor.')); return; }
-        const groups = [['available', 'Available'], ['active', 'Active'], ['complete', 'Ready to turn in'], ['turnedin', 'Completed'], ['failed', 'Failed']];
+        const editor = !!opts.editor;
+        const mode = editor ? 'creator' : (uiMode() === 'player' ? 'player' : 'creator');
+        if (editor) {
+            // per-world AI mode selector (gm vs player-facing)
+            const aiSel = uiSelect({ 'aria-label': 'What the AI sees', style: 'width:auto' });
+            for (const [v, t] of [['gm', 'GM (all)'], ['player', 'Player (visible only)']]) { const o = el('option', { value: v, text: t }); if (A.getAiMode() === v) o.selected = true; aiSel.appendChild(o); }
+            aiSel.addEventListener('change', () => { A.setAiMode(aiSel.value); });
+            box.appendChild(row([el('span', { class: 'rpm-muted rpm-grow', text: 'AI sees hidden content:' }), aiSel], 'margin-bottom:8px'));
+            box.appendChild(uiBtn('New quest', () => { const q = A.addEntity('quest', { name: 'New quest' }); if (q) openEditorAt(q.id); }, { icon: 'plus', block: true, id: 'new-quest', style: 'margin-bottom:8px', title: 'Adds a quest and opens it in the editor' }));
+        }
+        const all = A.listQuests(mode);
+        const offered = new Set(editor ? [] : ((A.here() || {}).quests || []).filter(q => q.action === 'accept').map(q => q.id));
+        const quests = editor ? all : all.filter(q => q.state !== 'available' || offered.has(q.id));
+        if (!quests.length) { box.appendChild(muted(editor ? 'No quests yet. Add one with "New quest" or a Quest node in the editor.' : 'No quests yet. People with a yellow ! offer you one — talk to them.')); return; }
+        const groups = editor ? [['available', 'Available'], ['active', 'Active'], ['complete', 'Ready to turn in'], ['turnedin', 'Completed'], ['failed', 'Failed']]
+            : [['available', 'Offered here'], ['active', 'Active'], ['complete', 'Ready to turn in'], ['turnedin', 'Completed'], ['failed', 'Failed']];
         for (const [st, label] of groups) {
             const inGroup = quests.filter(q => q.state === st);
             if (!inGroup.length) continue;
@@ -1453,7 +1469,14 @@ export default function initWorldsUI() {
                     ctl.appendChild(act('Turn in', () => A.turnInQuest(q.id, needs ? choices[q.id] : undefined), 'success', needs && choices[q.id] == null));
                     ctl.appendChild(act('Abandon', () => { if (confirm(`Abandon "${q.title}"?`)) A.abandonQuest(q.id); }));
                 }
-                if (mode === 'creator' && q.hidden) ctl.appendChild(act('Reveal to player', () => A.discoverQuest(q.id)));
+                if (editor && q.hidden) ctl.appendChild(act('Reveal to player', () => A.discoverQuest(q.id)));
+                if (editor) {
+                    const ssel = uiSelect({ 'aria-label': 'Quest state', 'data-qstate': q.id, style: 'width:auto' });
+                    for (const [v, t] of Object.entries(QSTATE_LABEL)) { const o = el('option', { value: v, text: t }); if (st === v) o.selected = true; ssel.appendChild(o); }
+                    ssel.addEventListener('change', () => { A.setQuestState(q.id, ssel.value); refreshPanel(); });
+                    ctl.appendChild(ssel);
+                    ctl.appendChild(uiBtn('Edit in the editor', () => openEditorAt(q.id), { icon: 'workflow', id: 'edit-quest' }));
+                }
                 if (ctl.childNodes.length) card.appendChild(ctl);
                 box.appendChild(card);
             }
@@ -1462,8 +1485,10 @@ export default function initWorldsUI() {
 
     // Standing with every faction of the world (bar within the tier; creator lens can adjust).
     function renderReputation(box) {
-        const A = API(); const list = A.reputation(); if (!list.length) return;
-        box.appendChild(lbl('Reputation'));
+        const A = API(); const creator = uiMode() !== 'player';
+        const list = A.reputation(creator ? undefined : { encountered: true });
+        if (!list.length) { box.appendChild(muted(creator ? 'This world has no factions yet.' : 'You have not met any faction yet.')); return; }
+        box.appendChild(muted(creator ? 'Creator view: every faction of the world. The Player view shows only those you have met.' : 'The factions you have met.', { style: 'margin-bottom:6px' }));
         for (const r of list) {
             const pct = r.span ? Math.max(0, Math.min(100, Math.round(r.into / r.span * 100))) : 100;
             const card = el('div', { class: 'rpm-card', 'data-rep': r.id }, [
@@ -1642,7 +1667,13 @@ export default function initWorldsUI() {
         sh.registerView(Object.assign({ id: 'party', title: 'Party', place: 'left', order: 10 }, view(renderParty)));
         sh.registerView(Object.assign({ id: 'quest-tracker', title: 'Quests', place: 'left', order: 20 }, view(renderQuestTracker)));
         sh.registerView(Object.assign({ id: 'questlog', title: 'Quest log', place: 'window', window: { width: 380, height: 520 } }, view((c) => {
-            if (API().activeWorld()) { renderQuestsTab(c); renderReputation(c); } else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
+            if (API().activeWorld()) renderQuestsTab(c); else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
+        })));
+        sh.registerView(Object.assign({ id: 'reputation', title: 'Reputation', place: 'window', window: { width: 360, height: 460 } }, view((c) => {
+            if (API().activeWorld()) renderReputation(c); else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
+        })));
+        sh.registerView(Object.assign({ id: 'questeditor', title: 'Quest editor', place: 'window', window: { width: 420, height: 600 } }, view((c) => {
+            if (API().activeWorld()) renderQuestsTab(c, { editor: true }); else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
         })));
         sh.registerView(Object.assign({ id: 'shop', title: 'Shop', place: 'window', window: { width: 400, height: 520, minWidth: 300 } }, view((c) => {
             if (API().activeWorld()) renderShop(c, () => refreshPanel());

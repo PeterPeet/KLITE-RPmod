@@ -54,6 +54,7 @@ test('quest log + combat windows, quest tracker and party sections stay in sync'
     const win = (id) => doc.querySelector(`[data-window="${id}"]`);
     const tracker = () => doc.querySelector('[data-section="quest-tracker"]');
 
+    W.moveTo('The Crooked Kettle'); h.ui().refreshPanel();   // R8: the log offers the quests of the people here
     click(findButton(panel(), /Quest log/), w);
     assert.ok(win('questlog'), 'quest log window');
     assert.ok(texts(win('questlog')).some(s => /The Missing Merchant/.test(s)));

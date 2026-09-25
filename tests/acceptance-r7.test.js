@@ -54,6 +54,7 @@ test('R7 acceptance: dungeon + town, generated dungeon, AI room with a locked do
 
     // 4. into the mine: fog on the mini-map, then room by room by clicking
     assert.ok(W.go('Old Mine').ok); assert.equal(W.runtime.playerLocationId, ent.id);
+    w.localStorage.setItem('KLITE.map.quickTravel', '1');   // R8: the map moves you only with Quick travel
     w.KLITE_RPMod_Shell.open('minimap');
     const map = () => doc.querySelector('[data-section="minimap"]');
     const room = (id) => map() && map().querySelector(`g[data-room="${id}"]`);
@@ -64,7 +65,7 @@ test('R7 acceptance: dungeon + town, generated dungeon, AI room with a locked do
     room(hall.id).dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
     await until(() => W.runtime.playerLocationId === hall.id);
     await until(() => room(hall.id) && room(hall.id).getAttribute('data-explored') === 'here');
-    assert.match(logText(w), /Opens the door and goes east to Pillar Hall\./);
+    assert.match(logText(w), /Quick travel: the player skipped the journey and is now at Pillar Hall \(a door was opened on the way\)/);
 
     // 5. the AI adds a room with a locked door (tags parsed when the reply arrives)
     w.handle_incoming_text('A draught comes from the south. <room>Ore Store, south: carts of rusty ore</room> <door>south = locked, iron</door>');

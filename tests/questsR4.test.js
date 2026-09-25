@@ -269,10 +269,10 @@ test('reputation: rewards, tags, effects, triggers and conditions; tiers reach t
     W.fireTriggers('manual:' + raid.id);
     const b = W.reputation().find(r => r.id === bandits.id);
     assert.equal(b.tier, 'Hated'); assert.equal(b.hostile, true);
-    // the Quest log window lists the standings
-    w.KLITE_RPMod_Shell.open('questlog');
-    for (let i = 0; i < 100 && !w.document.querySelector('[data-window="questlog"] [data-rep]'); i++) await sleep(20);   // under load it can take longer
-    const win = w.document.querySelector('[data-window="questlog"]');
+    // the Reputation window lists the standings (R8: its own window; Creator view: every faction)
+    w.KLITE_RPMod_Shell.open('reputation');
+    for (let i = 0; i < 100 && !w.document.querySelector('[data-window="reputation"] [data-rep]'); i++) await sleep(20);   // under load it can take longer
+    const win = w.document.querySelector('[data-window="reputation"]');
     assert.equal(win.querySelector(`[data-rep="${guard.id}"] [data-tier]`).textContent, 'Honored');
     assert.equal(win.querySelector(`[data-rep="${bandits.id}"] [data-tier]`).textContent, 'Hated');
     // starting reputation of a faction
