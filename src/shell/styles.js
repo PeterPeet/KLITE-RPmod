@@ -423,6 +423,15 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-sheet-modes .rpm-btn { flex: 1; }
 .rpm-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100002; background: var(--rpm-bg); color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi); box-shadow: inset 3px 0 0 var(--rpm-success), var(--rpm-shadow); border-radius: var(--rpm-radius-lg); padding: 8px 16px; font-family: var(--rpm-font); font-size: var(--rpm-fs); }
 .rpm-toast-err { box-shadow: inset 3px 0 0 var(--rpm-danger), var(--rpm-shadow); }
+/* R6 quick replies (left dock) */
+.rpm-qr-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
+.rpm-qr-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.rpm-qr-btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rpm-qr-here { background: transparent; color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi); }
+.rpm-qr-label { margin: 6px 0 2px; }
+.rpm-qr-edit { display: flex; flex-direction: column; gap: 8px; }
+.rpm-qr-item { display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); }
+.rpm-qr-item textarea { resize: vertical; font-family: var(--rpm-font-mono, monospace); background: var(--rpm-bg-input, var(--rpm-bg)); }
 .rpm-log-line { font-size: var(--rpm-fs-sm); padding: 2px 0; border-bottom: 1px solid var(--rpm-border); }
 .rpm-log-crit { color: var(--rpm-success); font-weight: bold; }
 .rpm-log-fumble { color: var(--rpm-danger); }

@@ -422,6 +422,15 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-sheet-modes .rpm-btn { flex: 1; }
 .rpm-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100002; background: var(--rpm-bg); color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi); box-shadow: inset 3px 0 0 var(--rpm-success), var(--rpm-shadow); border-radius: var(--rpm-radius-lg); padding: 8px 16px; font-family: var(--rpm-font); font-size: var(--rpm-fs); }
 .rpm-toast-err { box-shadow: inset 3px 0 0 var(--rpm-danger), var(--rpm-shadow); }
+/* R6 quick replies (left dock) */
+.rpm-qr-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
+.rpm-qr-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.rpm-qr-btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rpm-qr-here { background: transparent; color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi); }
+.rpm-qr-label { margin: 6px 0 2px; }
+.rpm-qr-edit { display: flex; flex-direction: column; gap: 8px; }
+.rpm-qr-item { display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); }
+.rpm-qr-item textarea { resize: vertical; font-family: var(--rpm-font-mono, monospace); background: var(--rpm-bg-input, var(--rpm-bg)); }
 .rpm-log-line { font-size: var(--rpm-fs-sm); padding: 2px 0; border-bottom: 1px solid var(--rpm-border); }
 .rpm-log-crit { color: var(--rpm-success); font-weight: bold; }
 .rpm-log-fumble { color: var(--rpm-danger); }
@@ -760,7 +769,13 @@ body.rpm-docked #maincontainer {
     // zone combat: hide
     "eye-off": [["path", { "d": "M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" }], ["path", { "d": "M14.084 14.158a3 3 0 0 1-4.242-4.242" }], ["path", { "d": "M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" }], ["path", { "d": "m2 2 20 20" }]],
     // Guide: zone combat diagrams
-    "circle-dot": [["circle", { "cx": "12", "cy": "12", "r": "1" }], ["circle", { "cx": "12", "cy": "12", "r": "10" }]]
+    "circle-dot": [["circle", { "cx": "12", "cy": "12", "r": "1" }], ["circle", { "cx": "12", "cy": "12", "r": "10" }]],
+    // quick replies: edit
+    "pencil": [["path", { "d": "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" }], ["path", { "d": "m15 5 4 4" }]],
+    // quick replies: move up
+    "arrow-up": [["path", { "d": "m5 12 7-7 7 7" }], ["path", { "d": "M12 19V5" }]],
+    // quick replies: a reply that sends
+    "message-square": [["path", { "d": "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" }]]
   };
 
   // src/shell/dom.js
@@ -6615,17 +6630,11 @@ ${s.text}` : s.text : `[${s.title}]`;
                 <!-- Bookmarks / Index (hidden) -->
                 
 
-                <!-- Quick Actions (from ADV) -->
+                <!-- Quick Actions: now the left dock's Quick replies (R6; migrated from rpmod_adv_actions) -->
                 ${t.section(
           "Quick Actions",
-          `<div class="klite-slots">
-                        ${this.quickActions.map((action, i) => `
-                            <div class="rpm-row">
-                                <input id="adv-quick-${i}" type="text" class="form-control rpm-input rpm-grow" value="${KLITE_RPMod.escapeHtml(action)}" placeholder="">
-                                <button class="btn btn-primary rpm-btn rpm-sm klite-slot-btn" data-action="quick-${i}">${i + 1}</button>
-                            </div>
-                        `).join("")}
-                    </div>`
+          `<div class="rpm-muted rpm-mb">Quick Actions are now <strong>Quick replies</strong> in the left panel: one click runs slash commands and sends a message. Your actions were copied there.</div>
+                    <button class="btn btn-primary rpm-btn rpm-block" data-action="open-quick-replies">Open Quick replies</button>`
         )}
 
 
@@ -6791,6 +6800,12 @@ ${s.text}` : s.text : `[${s.title}]`;
         "quick-send-5": () => KLITE_RPMod.panels.TOOLS.handleQuickSend(5),
         // Trigger narrator
         "narrator": () => KLITE_RPMod.panels.TOOLS.triggerNarrator(),
+        "open-quick-replies": () => {
+          try {
+            window.KLITE_RPMod_Shell?.open("quick-replies");
+          } catch (_) {
+          }
+        },
         // Quick Actions (from ADV)
         "quick-0": () => KLITE_RPMod.panels.TOOLS.sendQuickAction(0),
         "quick-1": () => KLITE_RPMod.panels.TOOLS.sendQuickAction(1),
@@ -25448,6 +25463,42 @@ ${recent}` : "");
       }
       return out;
     }
+    function innerPlaces(loc) {
+      return childLocations(loc.id).filter((l) => kindOf(loc) === "town" ? roomFound(l) : kindOf(loc) === "dungeon" ? roomFound(l) && roomNameKnown(l.id) : true);
+    }
+    function hereInfo() {
+      const w = activeWorld();
+      const loc = w && rt() && locOf(rt().playerLocationId);
+      if (!loc) return { place: null, ways: [], people: [], quests: [], trade: false };
+      const mode2 = aiMode();
+      const ways = [];
+      const add = (id, name, dir) => {
+        name = norm5(name);
+        if (id && name && id !== loc.id && !ways.some((x) => x.id === id)) ways.push({ id, name, dir: dir || null });
+      };
+      for (const e of playerExits(loc.id)) add(e.to, playerPlaceName(e.to, loc.id), e.dir);
+      if (!mapOf(loc.id)) {
+        for (const l of connectedLocations(w, loc, 1)) add(l.id, placeName(l.id, loc.id));
+        for (const l of innerPlaces(loc)) add(l.id, phasedEntity(l).name);
+        const zones = zonePath(loc.id);
+        if (zones.length) {
+          const z = zones[zones.length - 1];
+          add(z.id, phasedEntity(z).name);
+        }
+      }
+      const seen = /* @__PURE__ */ new Set();
+      const here2 = asArray4(w.npcs).filter((n) => (resolveNpcLocationId(n) === loc.id || asArray4(loc.npcIds).includes(n.id)) && !seen.has(n.id) && seen.add(n.id) && !phasedEntity(n).gone);
+      const people = here2.map((n) => ({ id: n.id, name: personName(n), marker: personQuestMarker(n.id, mode2) }));
+      const ids = new Set(here2.map((n) => n.id));
+      const quests = [];
+      for (const q of asArray4(w.quests)) {
+        if (!questVisible(q, mode2)) continue;
+        const st = questStateOf(q);
+        if (st === "available" && ids.has(q.giverPersonId) && !questLocks(q).length) quests.push({ id: q.id, title: questTitle(q), action: "accept" });
+        else if (st === "complete" && ids.has(q.turninPersonId)) quests.push({ id: q.id, title: questTitle(q), action: "turnin" });
+      }
+      return { place: norm5(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, trade: vendorsHere().length > 0 };
+    }
     function computeActiveSlice(opts) {
       const mutate = !!(opts && opts.mutate);
       const world = activeWorld();
@@ -25490,7 +25541,7 @@ ${recent}` : "");
       if (mutate) markVisitedRoom(loc.id);
       const pLoc = phasedEntity(loc);
       const zones = zonePath(loc.id), inRoom = !!mapOf(loc.id);
-      const inner = childLocations(loc.id).filter((l) => kindOf(loc) === "town" ? roomFound(l) : kindOf(loc) === "dungeon" ? roomFound(l) && roomNameKnown(l.id) : true);
+      const inner = innerPlaces(loc);
       const exits = playerExits(loc.id).filter((e) => !e.mirrored).map((e) => norm5(e.name)).filter(Boolean).concat(connectedLocations(world, loc, 1).map((l) => placeName(l.id, loc.id))).concat(zones.length && !inRoom ? [norm5(phasedEntity(zones[zones.length - 1]).name)] : []);
       const exitsUniq = [...new Set(exits.map(norm5).filter(Boolean))];
       let locText = norm5(pLoc.description);
@@ -27094,6 +27145,7 @@ ${xl.join("\n")}`;
       preview() {
         return previewSlice();
       },
+      here: () => hereInfo(),
       previewSlice: computeActiveSlice,
       // ----- persistence passthrough (used by save wrappers) -----
       collectSaveState,
@@ -31340,9 +31392,16 @@ ${xl.join("\n")}`;
           ["/lookup Fireball · /map · /quests · /summary", "windows; Esolite's AutoGenerate Memory"]
         ] },
         { p: "No quotes needed: the rest of the line is the argument. Several at once: /go Forest Road | I set off before dawn. — commands first, then the text is sent as your message." },
-        { tip: "Type /help for every command. If one of your own Esolite custom tools has the same name, yours wins." }
+        { tip: "Type /help for every command. If one of your own Esolite custom tools has the same name, yours wins." },
+        { p: "Quick replies (top of the left panel) are one-click commands and messages. The Here row below them follows the world: ways out, people to talk to, quests to accept or turn in, the shop. The pencil edits your own replies." }
       ],
-      show: [{ label: "Chat input", run: (c) => c.highlight("#input_text", "Type /help here") }]
+      show: [
+        { label: "Chat input", run: (c) => c.highlight("#input_text", "Type /help here") },
+        { label: "Quick replies", run: (c) => {
+          c.open("quick-replies");
+          c.highlight('[data-qr-row="mine"]', "One click: commands run, the message is sent");
+        } }
+      ]
     },
     {
       id: "ai-view",
@@ -35339,6 +35398,275 @@ OK = save and close · Cancel = close and discard them`);
   function nameKey2(s) {
     return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
   }
+  var QUICK_KEY = "rpmod_quick_replies";
+  var OLD_QUICK_KEY = "rpmod_adv_actions";
+  var OLD_QUICK_DEFAULTS = ["> Look Around", "> Search", "> Check Inventory", "> Rest", "> Continue"];
+  var MAX_REPLIES = 40;
+  function defaultReplies() {
+    return [
+      { label: "Look around", text: "/look", send: false },
+      { label: "Search", text: "/search | I search the area carefully.", send: true },
+      { label: "Inventory", text: "/inv", send: false },
+      { label: "Rest", text: "/rest | We make camp and rest.", send: true },
+      { label: "Continue", text: "", send: true }
+    ];
+  }
+  function normalizeReplies(list2) {
+    if (!Array.isArray(list2)) return null;
+    return list2.filter((r) => r && typeof r === "object").slice(0, MAX_REPLIES).map((r) => {
+      const text = String(r.text == null ? "" : r.text);
+      const label2 = String(r.label == null ? "" : r.label).trim() || text.split(/\r?\n/)[0].trim().slice(0, 24) || "Reply";
+      return { label: label2.slice(0, 60), text: text.slice(0, 2e3), send: r.send !== false };
+    });
+  }
+  function loadReplies(saved, old) {
+    const mine = saved && normalizeReplies(saved.replies);
+    if (mine) return mine;
+    const acts = Array.isArray(old) ? old.map((a) => String(a || "").trim()).filter(Boolean) : [];
+    const custom = acts.length && JSON.stringify(acts) !== JSON.stringify(OLD_QUICK_DEFAULTS);
+    if (custom) return acts.map((a) => ({ label: a.replace(/^>\s*/, "").slice(0, 60) || a, text: a, send: true }));
+    return defaultReplies();
+  }
+  function safeName(s) {
+    return String(s || "").replace(/\s+\|\s+/g, " ").replace(/[\r\n<>]+/g, " ").replace(/\s+/g, " ").trim();
+  }
+  var DIR_WORD = { n: "north", e: "east", s: "south", w: "west", up: "up", down: "down" };
+  function hereReplies(info) {
+    if (!info || !info.place) return [];
+    const out = [];
+    for (const q of info.quests || []) {
+      const t = safeName(q.title);
+      if (!t) continue;
+      out.push(q.action === "turnin" ? { label: "Turn in: " + t, text: `/turnin ${t} | I report back: ${t}.`, send: true, kind: "quest" } : { label: "Accept: " + t, text: `/accept ${t} | I take on the task: ${t}.`, send: true, kind: "quest" });
+    }
+    for (const w of info.ways || []) {
+      const n = safeName(w.name);
+      if (!n) continue;
+      const d = DIR_WORD[w.dir];
+      out.push({ label: d ? `${d}: ${n}` : "→ " + n, text: `/go ${d || n} | I go to ${n}.`, send: true, kind: "go" });
+    }
+    for (const p of info.people || []) {
+      const n = safeName(p.name);
+      if (!n) continue;
+      out.push({ label: (p.marker ? p.marker + " " : "") + "Talk: " + n, text: `/talk ${n} | I talk to ${n}.`, send: true, kind: "talk" });
+    }
+    if (info.trade) out.push({ label: "Shop", text: "/shop", send: false, kind: "shop" });
+    if (info.inMap) out.push({ label: "Search", text: "/search | I search the room.", send: true, kind: "search" });
+    return out;
+  }
+
+  // src/chat/quickReplies.js
+  var VIEW_ID2 = "quick-replies";
+  var HERE_SETTING = "quick_replies_here";
+  function installQuickReplies(chat) {
+    const Shell2 = () => window.KLITE_RPMod_Shell;
+    const W = () => window.KLITE_RPMod_Worlds;
+    const S2 = { replies: defaultReplies(), loaded: false, editing: false, saveTimer: null };
+    async function load(key) {
+      try {
+        const R = window.KLITE_RPMod;
+        if (R && typeof R.loadFromLiteStorage === "function") return await R.loadFromLiteStorage(key);
+      } catch (_) {
+      }
+      try {
+        if (typeof window.indexeddb_load === "function") return await window.indexeddb_load(key, null);
+      } catch (_) {
+      }
+      try {
+        return localStorage.getItem("KLITE." + key);
+      } catch (_) {
+        return null;
+      }
+    }
+    async function store(key, text) {
+      try {
+        const R = window.KLITE_RPMod;
+        if (R && typeof R.saveToLiteStorage === "function") {
+          await R.saveToLiteStorage(key, text);
+          return;
+        }
+      } catch (_) {
+      }
+      try {
+        if (typeof window.indexeddb_save === "function") {
+          await window.indexeddb_save(key, text);
+          return;
+        }
+      } catch (_) {
+      }
+      try {
+        localStorage.setItem("KLITE." + key, text);
+      } catch (_) {
+      }
+    }
+    const parse = (raw) => {
+      try {
+        return raw ? JSON.parse(raw) : null;
+      } catch (_) {
+        return null;
+      }
+    };
+    async function loadAll() {
+      const saved = parse(await load(QUICK_KEY));
+      const old = saved ? null : parse(await load(OLD_QUICK_KEY));
+      S2.replies = loadReplies(saved, old);
+      S2.loaded = true;
+      refresh2();
+    }
+    function save() {
+      clearTimeout(S2.saveTimer);
+      S2.saveTimer = setTimeout(() => {
+        store(QUICK_KEY, JSON.stringify({ version: 1, replies: S2.replies }));
+      }, 300);
+    }
+    function setReplies(list2) {
+      S2.replies = normalizeReplies(list2) || [];
+      save();
+      refresh2();
+    }
+    function runReply(r) {
+      return chat.run(r.text, { send: r.send, continueIfEmpty: r.send });
+    }
+    const hereOn = () => {
+      try {
+        const v = window.KLITE_RPMod_Settings?.get(HERE_SETTING);
+        return v !== false;
+      } catch (_) {
+        return true;
+      }
+    };
+    function hereList() {
+      try {
+        const A = W();
+        if (!A || !A.activeWorld() || !A.isEnabled()) return [];
+        return hereReplies(A.here());
+      } catch (_) {
+        return [];
+      }
+    }
+    function replyButton(r, extra) {
+      return el("button", {
+        type: "button",
+        class: "btn btn-primary rpm-btn rpm-sm rpm-qr-btn" + (extra ? " " + extra : ""),
+        "data-qr": r.kind || "mine",
+        title: (r.text || (r.send ? "(send: the AI continues)" : "")) + (r.send ? "" : "\n(fills the input box)"),
+        text: r.label,
+        onclick: () => runReply(r)
+      });
+    }
+    function render(box) {
+      clear(box);
+      const head = el("div", { class: "rpm-qr-head" }, [
+        el("span", { class: "rpm-muted rpm-small", text: S2.editing ? "Edit your replies" : "" }),
+        el("button", {
+          type: "button",
+          class: "btn btn-primary rpm-btn rpm-sm",
+          "data-qr-action": "edit",
+          "aria-label": S2.editing ? "Done" : "Edit quick replies",
+          title: S2.editing ? "Done" : "Edit quick replies",
+          onclick: () => {
+            S2.editing = !S2.editing;
+            refresh2();
+          }
+        }, [S2.editing ? "Done" : icon("pencil", 14)])
+      ]);
+      box.appendChild(head);
+      if (S2.editing) {
+        renderEditor(box);
+        return;
+      }
+      const mine = el("div", { class: "rpm-qr-row", "data-qr-row": "mine" }, S2.replies.map((r) => replyButton(r)));
+      if (!S2.replies.length) mine.appendChild(el("span", { class: "rpm-muted rpm-small", text: "No replies yet — press the pencil to add some." }));
+      box.appendChild(mine);
+      if (hereOn()) {
+        const here2 = hereList();
+        if (here2.length) {
+          box.appendChild(el("div", { class: "rpm-muted rpm-small rpm-qr-label", text: "Here" }));
+          box.appendChild(el("div", { class: "rpm-qr-row", "data-qr-row": "here" }, here2.map((r) => replyButton(r, "rpm-qr-here"))));
+        }
+      }
+    }
+    function renderEditor(box) {
+      const list2 = el("div", { class: "rpm-qr-edit" });
+      S2.replies.forEach((r, i) => {
+        const label2 = el("input", { type: "text", class: "form-control rpm-input", "aria-label": "Label", placeholder: "Label", value: r.label });
+        label2.addEventListener("input", () => {
+          S2.replies[i].label = label2.value;
+          save();
+        });
+        const text = el("textarea", { class: "form-control rpm-input", rows: "2", "aria-label": "Text", placeholder: "/command … | message" });
+        text.value = r.text;
+        text.addEventListener("input", () => {
+          S2.replies[i].text = text.value;
+          save();
+        });
+        const send = el("input", { type: "checkbox", "aria-label": "Send at once" });
+        send.checked = r.send;
+        send.addEventListener("change", () => {
+          S2.replies[i].send = send.checked;
+          save();
+        });
+        const move = (d) => {
+          const j = i + d;
+          if (j < 0 || j >= S2.replies.length) return;
+          const a = S2.replies.slice();
+          [a[i], a[j]] = [a[j], a[i]];
+          setReplies(a);
+        };
+        list2.appendChild(el("div", { class: "rpm-qr-item", "data-qr-item": String(i) }, [
+          label2,
+          text,
+          el("div", { class: "rpm-row" }, [
+            el("label", { class: "rpm-small rpm-grow" }, [send, " send at once"]),
+            el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-sm", title: "Move up", "aria-label": "Move up", onclick: () => move(-1) }, [icon("arrow-up", 14)]),
+            el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-sm", title: "Remove", "aria-label": "Remove", onclick: () => setReplies(S2.replies.filter((_, k2) => k2 !== i)) }, [icon("trash-2", 14)])
+          ])
+        ]));
+      });
+      box.appendChild(list2);
+      box.appendChild(el("div", { class: "rpm-row rpm-mt" }, [
+        el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-sm", "data-qr-action": "add", onclick: () => setReplies(S2.replies.concat([{ label: "New reply", text: "", send: true }])) }, [icon("plus", 14), " Add"]),
+        el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-sm", "data-qr-action": "reset", onclick: () => {
+          if (confirm("Replace your quick replies with the defaults?")) setReplies(defaultReplies());
+        } }, ["Defaults"])
+      ]));
+      box.appendChild(el("p", { class: "rpm-muted rpm-small", text: 'Text works like the chat box: /commands run first (/help lists them), " | " or new lines separate parts, other text is your message. "Send at once": the message goes to the AI (empty = the AI continues); otherwise it waits in the input box.' }));
+    }
+    function refresh2() {
+      try {
+        Shell2()?.refresh([VIEW_ID2], { soft: true });
+      } catch (_) {
+      }
+    }
+    function register() {
+      const sh = Shell2();
+      if (!sh) return false;
+      sh.registerView({ id: VIEW_ID2, title: "Quick replies", place: "left", order: 5, mount: render, update: render });
+      try {
+        window.KLITE_RPMod_Settings?.registerSetting({
+          id: HERE_SETTING,
+          section: "Display",
+          order: 20,
+          default: true,
+          label: 'Quick replies: show the "Here" row',
+          help: "Adds one-click replies for the current place: ways out, people to talk to, quests to accept or turn in, the shop."
+        });
+        window.KLITE_RPMod_Settings?.onChange(HERE_SETTING, refresh2);
+      } catch (_) {
+      }
+      window.addEventListener("klite:worlds-change", refresh2);
+      loadAll();
+      return true;
+    }
+    return {
+      register,
+      replies: () => S2.replies.map((r) => ({ ...r })),
+      setReplies,
+      here: hereList,
+      runReply,
+      ready: () => S2.loaded
+    };
+  }
 
   // src/chat/slash.js
   function initChat() {
@@ -35861,7 +36189,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       if (res.ok && res.message) {
         if (opts.send) sendMessage(res.message);
         else putInInput(res.message);
-      }
+      } else if (res.ok && opts.send && opts.continueIfEmpty) sendMessage("");
       return res;
     }
     function userToolTakes(name) {
@@ -35915,9 +36243,13 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       installed: () => hooked
     };
     window.KLITE_RPMod_Chat = api;
-    let tries = 0;
+    const quick = installQuickReplies(api);
+    api.quickReplies = quick;
+    let tries = 0, registered = false;
     const attempt = () => {
-      if (!install() && ++tries < 120) setTimeout(attempt, 500);
+      const hooked2 = install();
+      if (!registered && window.KLITE_RPMod_Shell) registered = quick.register();
+      if ((!hooked2 || !registered) && ++tries < 120) setTimeout(attempt, 500);
     };
     if (document.readyState === "complete") attempt();
     else window.addEventListener("load", attempt, { once: true });

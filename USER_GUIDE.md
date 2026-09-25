@@ -373,6 +373,22 @@ one.
 | `/summary` | Esolite's **AutoGenerate Memory**: a summary of the story goes into Memory (check it and press OK) |
 | `/help [command]` (`/commands`) | the list |
 
+### Quick replies
+
+The **Quick replies** section at the top of the left panel is a row of one-click replies.
+A reply is chat-box text: its commands run, and its message is **sent at once** (an empty one
+lets the AI continue) or, if you untick *send at once*, waits in the input box. The pencil opens
+the editor (label, text, send at once, move up, remove, Add, Defaults). The defaults are
+*Look around* (`/look`), *Search*, *Inventory*, *Rest* and *Continue*; if you had changed the
+Tools panel's old **Quick Actions**, those become your first replies (still sent as messages).
+Replies are kept in this browser.
+
+Below them, the **Here** row follows the world: the ways out of the current place
+(`north: Ossuary`, `→ Forest Road`), the people here (`! Talk: Innkeeper Bram` — with the quest
+marker), quests to accept or turn in here, *Shop* when someone trades, and *Search* inside a
+dungeon or town. Each one runs the command and sends a short line (`I go to Forest Road.`), so
+you can play a whole session by clicking. Switch the row off in Settings → RPmod → Display.
+
 ---
 
 ## 6b. Tabletop-RPG systems
@@ -706,6 +722,7 @@ RPmod's options are in Esolite's own **Settings** dialog, on the **RPmod** tab (
 **Cancel** discards your changes.
 
 - **Worlds → Autosave world edits**: see *Unsaved changes* in section 4.
+- **Display → Quick replies: show the "Here" row** (on by default): see *Quick replies* in section 6a.
 - **Combat → Run enemy turns automatically** and **Zone combat** (positions without a grid, on by
   default): see *Combat* in section 6b.
 - **Debug & compatibility**: hide the Corpo theme's left panel, and debug logging with

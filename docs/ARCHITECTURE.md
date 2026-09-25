@@ -18,7 +18,7 @@
 | `data/srd52-monsters.js` | (import) | 330 SRD 5.2.1 monster stat blocks (generated, ~470 KB) (§3.7) |
 | `data/srd52-compendium.js` | (import) | Rules Glossary, magic items, tools and adventuring gear (generated: `extract-srd.py compendium`, ~315 KB) (§5c) |
 | `compendium/rules.js`, `compendium.js` | `window.KLITE_RPMod_Compendium` | R3 Compendium: search index over all SRD data (pure) and the Compendium window (§5c) |
-| `chat/chat-rules.js`, `chat/slash.js` | `window.KLITE_RPMod_Chat` | R6 slash commands: input parsing (pure) and the commands, run through the Worlds engine; wraps `prepare_submit_generation` (§5d) |
+| `chat/chat-rules.js`, `chat/slash.js`, `chat/quickReplies.js` | `window.KLITE_RPMod_Chat` | R6 slash commands and quick replies: input parsing (pure) and the commands, run through the Worlds engine; wraps `prepare_submit_generation`; left-dock section "Quick replies" (§5d) |
 | `game/combat-rules.js`, `game/combatView.js` | (import) | Combat rules (pure) and the Combat window (§3.7) |
 | `game/zone-rules.js`, `game/zoneBoard.js` | (import) | R7 zone combat rules (pure) and the zone board drawing (§3.7) |
 | `characters/builder-rules.js`, `builder.js` | `window.KLITE_RPMod_Builder` | Character builder (levels 1–20) + level up (§5b) |
@@ -867,7 +867,18 @@ Design and the study of Esolite's custom tools: [design/R6-chat-power.md](design
 - **API** `KLITE_RPMod_Chat`: `commands()`, `isCommand(text)`, `runText(text)` (no UI),
   `run(text, { send })` (quick replies: report, then send the message or leave it in the box),
   `install()`, `installed()`.
-- Tests: `tests/slash.test.js`.
+- **Quick replies** (`quickReplies.js`, step 2): left-dock view `quick-replies` (order 5). A reply
+  `{ label, text, send }` runs through `run(text, { send, continueIfEmpty })`. Stored per browser
+  under `rpmod_quick_replies` (`{ version: 1, replies }`) with the RP core's IndexedDB adapter;
+  first load migrates the Tools panel's Quick Actions (`rpmod_adv_actions`, left in place; the
+  old five defaults are replaced by the new defaults, custom ones become replies that send their
+  text) — `loadReplies` in `chat-rules.js`. The **Here** row = `hereReplies(W.here())`, rebuilt
+  on `klite:worlds-change`; setting `quick_replies_here` (Display). `W.here()` (engine) returns
+  `{ place, inMap, ways[{ id, name, dir }], people[{ id, name, marker }], quests[{ id, title,
+  action: accept|turnin }], trade }` from the slice's sources (exits, connected places, places
+  within, the parent zone; persons present; visible quests without locks). World names pass
+  `safeName` (no ` | `, new lines or `<>`), labels are `textContent`.
+- Tests: `tests/slash.test.js`, `tests/quickReplies.test.js`.
 
 ## 5. RP core and panels (`src/rpmod/`, `src/panels/`) — overview
 Formerly one 17.5k-line file `KLITE-RPmod_ALPHA.js` ("ALPHA" was a version label). R1 cleanup

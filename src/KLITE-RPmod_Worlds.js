@@ -2542,6 +2542,37 @@ export default function initWorlds() {
     // Returns { sections: [{title, priority, text}], location }
     // opts.mutate=true (generation path) allows recording visited/known, persisting
     // resolved location, and firing event side-effects. Preview passes mutate=false.
+    // places within: a town's (non-secret) places are common knowledge; a dungeon only
+    // shows the rooms the player knows — never the whole dungeon or its secrets (R7)
+    function innerPlaces(loc) {
+        return childLocations(loc.id).filter(l => MR.kindOf(loc) === 'town' ? roomFound(l)
+            : MR.kindOf(loc) === 'dungeon' ? (roomFound(l) && roomNameKnown(l.id)) : true);
+    }
+    // What the player can do here (R6: the quick replies' "Here" row), from the same sources as
+    // the AI's slice: the ways out (its Exits line), the people present with their quest markers,
+    // the quests to accept or turn in here, and whether someone here trades.
+    function hereInfo() {
+        const w = activeWorld(); const loc = w && rt() && locOf(rt().playerLocationId);
+        if (!loc) return { place: null, ways: [], people: [], quests: [], trade: false };
+        const mode = aiMode(); const ways = [];
+        const add = (id, name, dir) => { name = norm(name); if (id && name && id !== loc.id && !ways.some(x => x.id === id)) ways.push({ id, name, dir: dir || null }); };
+        for (const e of playerExits(loc.id)) add(e.to, playerPlaceName(e.to, loc.id), e.dir);
+        if (!mapOf(loc.id)) {
+            for (const l of connectedLocations(w, loc, 1)) add(l.id, placeName(l.id, loc.id));
+            for (const l of innerPlaces(loc)) add(l.id, phasedEntity(l).name);
+            const zones = zonePath(loc.id); if (zones.length) { const z = zones[zones.length - 1]; add(z.id, phasedEntity(z).name); }
+        }
+        const seen = new Set();
+        const here = asArray(w.npcs).filter(n => (resolveNpcLocationId(n) === loc.id || asArray(loc.npcIds).includes(n.id)) && !seen.has(n.id) && seen.add(n.id) && !phasedEntity(n).gone);
+        const people = here.map(n => ({ id: n.id, name: personName(n), marker: personQuestMarker(n.id, mode) }));
+        const ids = new Set(here.map(n => n.id)); const quests = [];
+        for (const q of asArray(w.quests)) {
+            if (!questVisible(q, mode)) continue; const st = questStateOf(q);
+            if (st === 'available' && ids.has(q.giverPersonId) && !questLocks(q).length) quests.push({ id: q.id, title: questTitle(q), action: 'accept' });
+            else if (st === 'complete' && ids.has(q.turninPersonId)) quests.push({ id: q.id, title: questTitle(q), action: 'turnin' });
+        }
+        return { place: norm(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, trade: vendorsHere().length > 0 };
+    }
     function computeActiveSlice(opts) {
         const mutate = !!(opts && opts.mutate);
         const world = activeWorld();
@@ -2590,8 +2621,7 @@ export default function initWorlds() {
         const zones = zonePath(loc.id), inRoom = !!mapOf(loc.id);
         // places within: a town's (non-secret) places are common knowledge; a dungeon only
         // shows the rooms the player knows — never the whole dungeon or its secrets (R7)
-        const inner = childLocations(loc.id).filter(l => MR.kindOf(loc) === 'town' ? roomFound(l)
-            : MR.kindOf(loc) === 'dungeon' ? (roomFound(l) && roomNameKnown(l.id)) : true);
+        const inner = innerPlaces(loc);
         const exits = playerExits(loc.id).filter(e => !e.mirrored).map(e => norm(e.name)).filter(Boolean)
             .concat(connectedLocations(world, loc, 1).map(l => placeName(l.id, loc.id)))
             .concat(zones.length && !inRoom ? [norm(phasedEntity(zones[zones.length - 1]).name)] : []);
@@ -3558,6 +3588,7 @@ export default function initWorlds() {
 
         // ----- introspection -----
         preview() { return previewSlice(); },
+        here: () => hereInfo(),
         previewSlice: computeActiveSlice,
 
         // ----- persistence passthrough (used by save wrappers) -----

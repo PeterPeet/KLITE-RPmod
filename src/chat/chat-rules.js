@@ -72,3 +72,63 @@ export function parseAssign(arg) {
 
 // Case- and space-insensitive name match used for skills, weapons, quest titles.
 export function nameKey(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ''); }
+
+// ---- quick replies (R6 step 2) -------------------------------------------------------------
+// A reply: { label, text, send } — `text` uses the chat-box syntax above; send: the message part
+// goes to the AI at once (an empty message = the AI continues), else it is left in the input box.
+export const QUICK_KEY = 'rpmod_quick_replies';
+export const OLD_QUICK_KEY = 'rpmod_adv_actions';          // the Tools panel's five Quick Actions
+export const OLD_QUICK_DEFAULTS = ['> Look Around', '> Search', '> Check Inventory', '> Rest', '> Continue'];
+export const MAX_REPLIES = 40;
+export function defaultReplies() {
+    return [
+        { label: 'Look around', text: '/look', send: false },
+        { label: 'Search', text: '/search | I search the area carefully.', send: true },
+        { label: 'Inventory', text: '/inv', send: false },
+        { label: 'Rest', text: '/rest | We make camp and rest.', send: true },
+        { label: 'Continue', text: '', send: true },
+    ];
+}
+export function normalizeReplies(list) {
+    if (!Array.isArray(list)) return null;
+    return list.filter(r => r && typeof r === 'object').slice(0, MAX_REPLIES).map(r => {
+        const text = String(r.text == null ? '' : r.text);
+        const label = String(r.label == null ? '' : r.label).trim() || text.split(/\r?\n/)[0].trim().slice(0, 24) || 'Reply';
+        return { label: label.slice(0, 60), text: text.slice(0, 2000), send: r.send !== false };
+    });
+}
+// The stored replies, else the player's old Quick Actions (each sent as a message, as before),
+// else the defaults. `saved` = the stored object; `old` = the Quick Actions array (or null).
+export function loadReplies(saved, old) {
+    const mine = saved && normalizeReplies(saved.replies);
+    if (mine) return mine;
+    const acts = Array.isArray(old) ? old.map(a => String(a || '').trim()).filter(Boolean) : [];
+    const custom = acts.length && JSON.stringify(acts) !== JSON.stringify(OLD_QUICK_DEFAULTS);
+    if (custom) return acts.map(a => ({ label: a.replace(/^>\s*/, '').slice(0, 60) || a, text: a, send: true }));
+    return defaultReplies();
+}
+// World names inside reply text: no part separators, new lines or tag brackets.
+export function safeName(s) { return String(s || '').replace(/\s+\|\s+/g, ' ').replace(/[\r\n<>]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+const DIR_WORD = { n: 'north', e: 'east', s: 'south', w: 'west', up: 'up', down: 'down' };
+// The "Here" row from W.here(): quests to take or hand in, ways out, people, the shop, searching.
+export function hereReplies(info) {
+    if (!info || !info.place) return [];
+    const out = [];
+    for (const q of info.quests || []) {
+        const t = safeName(q.title); if (!t) continue;
+        out.push(q.action === 'turnin'
+            ? { label: 'Turn in: ' + t, text: `/turnin ${t} | I report back: ${t}.`, send: true, kind: 'quest' }
+            : { label: 'Accept: ' + t, text: `/accept ${t} | I take on the task: ${t}.`, send: true, kind: 'quest' });
+    }
+    for (const w of info.ways || []) {
+        const n = safeName(w.name); if (!n) continue; const d = DIR_WORD[w.dir];
+        out.push({ label: d ? `${d}: ${n}` : '→ ' + n, text: `/go ${d || n} | I go to ${n}.`, send: true, kind: 'go' });
+    }
+    for (const p of info.people || []) {
+        const n = safeName(p.name); if (!n) continue;
+        out.push({ label: (p.marker ? p.marker + ' ' : '') + 'Talk: ' + n, text: `/talk ${n} | I talk to ${n}.`, send: true, kind: 'talk' });
+    }
+    if (info.trade) out.push({ label: 'Shop', text: '/shop', send: false, kind: 'shop' });
+    if (info.inMap) out.push({ label: 'Search', text: '/search | I search the room.', send: true, kind: 'search' });
+    return out;
+}

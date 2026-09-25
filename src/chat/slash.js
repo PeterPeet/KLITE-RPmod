@@ -11,12 +11,14 @@
 // the rules decide exactly as for the AI's tags; results land in the game log, which the AI
 // reads on its next turn. A command generates nothing itself. Text parts after the commands
 // (" | " or new lines) are sent as the chat message.
-// Public API: window.KLITE_RPMod_Chat — commands(), isCommand(text), run(text, { send }), help().
+// Public API: window.KLITE_RPMod_Chat — commands(), isCommand(text), run(text, { send }), help(),
+// quickReplies (src/chat/quickReplies.js).
 // =============================================================================
 import { splitInput, startsWithCommand, messageOf, cleanArg, splitMode, parseCheck, parseAttack, parseAssign, nameKey } from './chat-rules.js';
 import { SKILLS, ABILITIES, ABILITY_NAMES, derive, fmt } from '../characters/sheet.js';
 import { autoTurnsOn } from '../game/combatView.js';
 import { el } from '../shell/dom.js';
+import { installQuickReplies } from './quickReplies.js';
 
 export default function initChat() {
     'use strict';
@@ -267,6 +269,7 @@ export default function initChat() {
         const res = runText(text);
         report(res);
         if (res.ok && res.message) { if (opts.send) sendMessage(res.message); else putInInput(res.message); }
+        else if (res.ok && opts.send && opts.continueIfEmpty) sendMessage('');   // an empty send: the AI continues
         return res;
     }
 
@@ -314,9 +317,15 @@ export default function initChat() {
         installed: () => hooked,
     };
     window.KLITE_RPMod_Chat = api;
+    const quick = installQuickReplies(api);   // R6 step 2: the left-dock section
+    api.quickReplies = quick;
 
-    let tries = 0;
-    const attempt = () => { if (!install() && ++tries < 120) setTimeout(attempt, 500); };
+    let tries = 0, registered = false;
+    const attempt = () => {
+        const hooked = install();
+        if (!registered && window.KLITE_RPMod_Shell) registered = quick.register();
+        if ((!hooked || !registered) && ++tries < 120) setTimeout(attempt, 500);
+    };
     if (document.readyState === 'complete') attempt();
     else window.addEventListener('load', attempt, { once: true });
 }

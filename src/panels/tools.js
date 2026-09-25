@@ -354,16 +354,10 @@ export function installToolsPanel(S) {
                 <!-- Bookmarks / Index (hidden) -->
                 
 
-                <!-- Quick Actions (from ADV) -->
+                <!-- Quick Actions: now the left dock's Quick replies (R6; migrated from rpmod_adv_actions) -->
                 ${t.section('Quick Actions',
-                `<div class="klite-slots">
-                        ${this.quickActions.map((action, i) => `
-                            <div class="rpm-row">
-                                <input id="adv-quick-${i}" type="text" class="form-control rpm-input rpm-grow" value="${KLITE_RPMod.escapeHtml(action)}" placeholder="">
-                                <button class="btn btn-primary rpm-btn rpm-sm klite-slot-btn" data-action="quick-${i}">${i + 1}</button>
-                            </div>
-                        `).join('')}
-                    </div>`
+                `<div class="rpm-muted rpm-mb">Quick Actions are now <strong>Quick replies</strong> in the left panel: one click runs slash commands and sends a message. Your actions were copied there.</div>
+                    <button class="btn btn-primary rpm-btn rpm-block" data-action="open-quick-replies">Open Quick replies</button>`
             )}
 
 
@@ -524,6 +518,7 @@ export function installToolsPanel(S) {
             // Trigger narrator
             'narrator': () => KLITE_RPMod.panels.TOOLS.triggerNarrator(),
 
+            'open-quick-replies': () => { try { window.KLITE_RPMod_Shell?.open('quick-replies'); } catch (_) {} },
             // Quick Actions (from ADV)
             'quick-0': () => KLITE_RPMod.panels.TOOLS.sendQuickAction(0),
             'quick-1': () => KLITE_RPMod.panels.TOOLS.sendQuickAction(1),

@@ -65,6 +65,9 @@ const NAMES = {
     'shield': 'zone combat: take cover',
     'eye-off': 'zone combat: hide',
     'circle-dot': 'Guide: zone combat diagrams',
+    'pencil': 'quick replies: edit',
+    'arrow-up': 'quick replies: move up',
+    'message-square': 'quick replies: a reply that sends',
 };
 
 const pkg = JSON.parse(fs.readFileSync(path.join(PKG, 'package.json'), 'utf8'));

@@ -71,7 +71,7 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 | SillyTavern | Character cards V1/V2/V3 | ✅ V2, 🟡 V3 (ALPHA) |
 | | Personas, group chat | ✅ ALPHA |
 | | World Info / lorebooks | ✅ Esolite + Worlds graph |
-| | Quick replies | 🟡 ALPHA quick actions |
+| | Quick replies | ✅ R6 step 2: left dock, editor, world-aware "Here" row |
 | | Slash commands | ✅ R6 step 1: `/go`, `/buy`, `/accept`, `/check` … through the engine |
 | | RAG, TTS, image gen, summaries | ✅ mostly Esolite/ALPHA |
 | WoW | Marker set incl. grey `!`/`?` | ✅ |
@@ -625,6 +625,10 @@ commands / custom tools, display pipeline, summaries and lorebook import work; d
       Found and fixed on the way: the Tools panel's sender (`sendTextToEsolite`) called an undefined `this.log` and
       sent nothing — Quick Actions, Auto Sender and Trigger Narrator did nothing (since the ALPHA code). Tests
       `tests/slash.test.js`.
+- [x] **Step 2 — quick replies** (2026-09-25): left-dock section "Quick replies" with an editor; the Tools panel's
+      Quick Actions are migrated once (custom ones kept, sent as messages). The **Here** row follows the world
+      (`W.here()`: ways out, people with quest markers, quests to accept/turn in, shop, search) — a session can be
+      played by clicking. Tests `tests/quickReplies.test.js`.
 - Quick replies panel; slash commands (`/roll`, `/move`, `/give`, …) mapped to the engine.
 - Optional stripping of control tags from displayed chat (known issue 2).
 - Lorebook round-trip (Worlds ↔ WI V2/V3); summaries / memory.

@@ -153,8 +153,12 @@ export const CHAPTERS = [
             ] },
             { p: 'No quotes needed: the rest of the line is the argument. Several at once: /go Forest Road | I set off before dawn. — commands first, then the text is sent as your message.' },
             { tip: 'Type /help for every command. If one of your own Esolite custom tools has the same name, yours wins.' },
+            { p: 'Quick replies (top of the left panel) are one-click commands and messages. The Here row below them follows the world: ways out, people to talk to, quests to accept or turn in, the shop. The pencil edits your own replies.' },
         ],
-        show: [{ label: 'Chat input', run: (c) => c.highlight('#input_text', 'Type /help here') }],
+        show: [
+            { label: 'Chat input', run: (c) => c.highlight('#input_text', 'Type /help here') },
+            { label: 'Quick replies', run: (c) => { c.open('quick-replies'); c.highlight('[data-qr-row="mine"]', 'One click: commands run, the message is sent'); } },
+        ],
     },
     {
         id: 'ai-view', title: 'What the AI sees',
