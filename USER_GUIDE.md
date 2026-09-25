@@ -128,9 +128,18 @@ writes it into the data:
 | Object → Location | object **is located** there |
 | Object → NPC | object is **owned by** that NPC |
 | Event → Location | event **can occur** there |
+| Encounter → Location | the fight **waits** there |
+| Encounter → NPC | that person **fights** you in it |
+| Event → Encounter | the event **starts** the fight (it gets a *manual* trigger if it has none) |
 
 So the graph you draw *is* what the AI traverses. Invalid pairs (e.g. NPC → NPC) are
 rejected.
+
+**Encounter nodes** (dark red, palette **+ Encounter**) are the saved fights of the world — the
+same ones the Combat window saves. The inspector adds SRD monsters by search (− / + for the
+count), sets the place and where the enemies start in zone combat, shows the **difficulty** for
+your party, and **Start this encounter now** begins the fight. Notes on an encounter are only for
+you.
 
 > Tip: after **importing** a lorebook (section 8) everything arrives as grey **Lore**
 > nodes. Select one and use the inspector's **type** dropdown to promote it to a Location

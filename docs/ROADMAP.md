@@ -6,19 +6,19 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-25 (R5: spells in combat, companions' HP, Long rest)
+> Last updated: 2026-09-25 (R5 done: Encounter node)
 
 ## Current state
 
 **Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
-is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). Spells in
-the Combat window and companions' HP (R5) are done too. Next: the Encounter node in the editor
-graph (R5), then R3 (compendium) or the R4 extras. The real-backend play
+is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). R5 is done
+(✅ 2026-09-25: spells in the Combat window, companions' HP, Long rest, the Encounter node). Next:
+R3 (compendium), then the R4 extras and R6. The real-backend play
 test (known issue 5) is postponed (owner, 2026-09-25). R7 is done (✅ 2026-09-25, acceptance passed).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
 issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
 combat: zones of the room, moving/fleeing, cover, hiding, Guide tab) are done.
-Done since R1: R2 characters (✅ 2026-09-25), R5 combat (🟨), R4 quests & world (✅), R7 world map (✅ 2026-09-25). R3
+Done since R1: R2 characters (✅ 2026-09-25), R5 combat (✅ 2026-09-25), R4 quests & world (✅), R7 world map (✅ 2026-09-25). R3
 (compendium window; monster and spell data already bundled) and R6 (chat power features) are still to do.
 
 Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
@@ -32,7 +32,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 278 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 280 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -525,7 +525,7 @@ world's state slots does not take them back).
 Acceptance: play the example world's quest chain start to finish with rewards, a phased
 location and a reputation change.
 
-### R5 — Encounters & combat (D&D Beyond) 🟨
+### R5 — Encounters & combat (D&D Beyond) ✅ (2026-09-25)
 Started before R3 (owner, 2026-09-23: "so I can already play"); R3's monster *data* was pulled
 forward, the compendium window stays in R3. Owner's decisions: the mod rolls monster turns and
 the AI narrates; HP and XP are written back to the persona sheet; all SRD monsters bundled.
@@ -559,14 +559,19 @@ the AI narrates; HP and XP are written back to the persona sheet; all SRD monste
       `companions`); the **Party** section lists them; **Long rest** there restores HP, slots and
       free casts. Tests `tests/spellsCombat.test.js`; live-checked in Esolite (cleric 3 + a fighter
       companion vs two wolves: Guiding Bolt, Healing Word, write-back, Long rest).
-- **Open (R5):** needs a play test with a real backend (does the AI stick to the logged results?);
-  an Encounter node in the editor graph; monster recharge and legendary actions are manual (Tools);
+- [x] **Encounter node** (2026-09-25): saved encounters are nodes of the world graph (palette
+      **+ Encounter**, dark red); edges Encounter → place (`at`), → person (`fights`), Event →
+      Encounter (`starts`, the event effect); inspector with monster search/counts, place, enemy
+      start, difficulty for the party, *Start this encounter now*; the event effect *encounter* is
+      a select. Tests `tests/encounterNode.test.js`; live-checked in the editor.
+- **R5 done** — acceptance met (tests + live checks). Carried over (not blocking): a play test with
+  a real backend (does the AI stick to the logged results? known issue 5); monster recharge and
+  legendary actions are manual (Tools);
   spells: concentration, monsters' spellcasting, companions casting on their automatic turns, and
   conditions from spells (added with the Tools). Range and movement exist since R7 (zone combat). Acceptance "build a Moderate encounter, fight it through victory and through defeat"
   is covered by tests (`tests/encounter.test.js`) and the live check.
 - Encounter builder with SRD 5.2 XP budget / difficulty; Encounter node linked to
-  locations/events. *(done: builder + saved encounters with location + event effect; an
-  Encounter node in the editor graph is still open)*
+  locations/events. *(done)*
 - Combat sides from `isMonster` (known issue 1) with victory/defeat detection.
 - Conditions, spell slots/resources, death saves; AI turn hints for monsters.
 - Shared game log (dice + combat), visible to the AI.

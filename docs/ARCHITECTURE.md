@@ -324,6 +324,17 @@ outcome: null|'victory'|'defeat', xp, persona, synced, encounter, difficulty }`.
   locationId, difficulty }]` (`saveEncounter/listEncounters/deleteEncounter/startSavedEncounter`);
   started by the Combat window, the trigger effect `{ type: 'encounter', value }` or the chat tag
   `<encounter>name | 2 Wolf, Goblin Warrior</encounter>` (ignored while a fight runs).
+  **Graph nodes (2026-09-25):** `TYPE_ARRAYS.encounter = 'encounters'`, so saved encounters are
+  entities of the editor graph (`entityType/entityById/setNodePos/deleteEntity` work; `addEntity`
+  gives `monsters/personIds/locationId/difficulty`; `changeEntityType` refuses them; entry field
+  `notes`, author-only). Edges: `at` (→ `locationId`), `fights` (→ `personIds`), `starts` (event
+  effect `encounter` naming it by id — or by name, as older effects and the AI do:
+  `encounterRef`). `connect` writes these (event: effect `{ type: 'encounter', value: id }` + a
+  manual trigger when it has none); `disconnect`/`deleteEntity` scrub them. `saveEncounter` keeps
+  `ui/notes/generated`; `deleteEncounter` = `deleteEntity`; `encounterInfo(id)` = XP, difficulty
+  and budget for the current party. Editor: palette **+ Encounter**, inspector
+  `renderEncounterExtras` (monster search, counts, place, enemy start, difficulty, start now);
+  the event effect *encounter* is a select of the saved encounters.
 - Presets: `addPersonFromTemplate(key)` makes a world person from any SRD 5.2.1 monster (old
   5.1 preset keys map to their 5.2.1 counterparts).
 - **Rules module** `src/game/combat-rules.js` (pure): `monsterStats/monsterList/findMonster`,

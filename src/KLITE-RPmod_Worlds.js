@@ -2652,9 +2652,10 @@ export default function initWorlds() {
     // =======================================================================
     //  GRAPH EDITING API (used by the node-graph editor UI - Phase 6)
     // =======================================================================
-    const TYPE_ARRAYS = { location: 'locations', npc: 'npcs', faction: 'factions', object: 'objects', event: 'events', quest: 'quests', lore: 'globalLore' };
+    // encounter (R5): the saved encounters (world.encounters) are nodes of the graph too
+    const TYPE_ARRAYS = { location: 'locations', npc: 'npcs', faction: 'factions', object: 'objects', event: 'events', quest: 'quests', lore: 'globalLore', encounter: 'encounters' };
     // Which primitive field holds a node's "entry" text, per type.
-    const ENTRY_FIELD = { location: 'description', npc: 'description', faction: 'description', object: 'desc', event: 'description', quest: 'description', lore: 'content' };
+    const ENTRY_FIELD = { location: 'description', npc: 'description', faction: 'description', object: 'desc', event: 'description', quest: 'description', lore: 'content', encounter: 'notes' };
 
     // Ensure every entity has an id and the arrays exist.
     function normalizeWorld(world) {
@@ -2691,6 +2692,11 @@ export default function initWorlds() {
     }
     function nodeEntry(type, e) { return norm(e[ENTRY_FIELD[type]] || ''); }
 
+    // The saved encounter an event effect names (id, or name as the AI and older effects do).
+    function encounterRef(world, value) {
+        const q = norm(value).toLowerCase(); if (!q) return null;
+        return asArray(world && world.encounters).find(e => e.id === value) || asArray(world && world.encounters).find(e => norm(e.name).toLowerCase() === q) || null;
+    }
     // Build render-ready {world, nodes[], edges[]} from the active world.
     function getGraph() {
         const world = activeWorld();
@@ -2736,6 +2742,10 @@ export default function initWorlds() {
         for (const l of asArray(world.locations)) {
             if (l.parentId && findById(world.locations, l.parentId)) edges.push({ from: l.parentId, to: l.id, kind: 'zone' });
         }
+        for (const en of asArray(world.encounters)) {
+            if (en.locationId && findById(world.locations, en.locationId)) edges.push({ from: en.id, to: en.locationId, kind: 'at' });
+            for (const pid of asArray(en.personIds)) if (findById(world.npcs, pid)) edges.push({ from: en.id, to: pid, kind: 'fights' });
+        }
         // Derived chain edges (visualise trigger/effect wiring)
         for (const ev of asArray(world.events)) {
             for (const t of asArray(ev.triggers)) {
@@ -2746,6 +2756,7 @@ export default function initWorlds() {
                 const qid = eff.questId || eff.quest;
                 if ((norm(eff.type) === 'quest' || norm(eff.type) === 'discover') && findById(world.quests, qid)) edges.push({ from: ev.id, to: qid, kind: 'affects' });
                 if (norm(eff.type) === 'fireEvent' && findById(world.events, eff.eventId)) edges.push({ from: ev.id, to: eff.eventId, kind: 'chains' });
+                if (norm(eff.type) === 'encounter') { const en = encounterRef(world, eff.value); if (en) edges.push({ from: ev.id, to: en.id, kind: 'starts' }); }
             }
         }
         return { world, nodes, edges };
@@ -2759,6 +2770,7 @@ export default function initWorlds() {
         if (type === 'lore') e.content = norm(fields.name) || '';
         else if (type === 'quest') e.title = norm(fields.title || fields.name) || 'New quest';
         else e.name = norm(fields.name) || ('New ' + type);
+        if (type === 'encounter') Object.assign(e, { monsters: [], personIds: [], locationId: null, difficulty: null });
         world[key].push(e);
         dbg('addEntity', type, e.id);
         return e;
@@ -2802,6 +2814,8 @@ export default function initWorlds() {
         for (const o of asArray(world.objects)) { if (o.locationId === id) o.locationId = null; if (o.ownerNpcId === id) o.ownerNpcId = null; }
         for (const ev of asArray(world.events)) ev.locationIds = asArray(ev.locationIds).filter(x => x !== id);
         for (const q of asArray(world.quests)) { if (q.giverPersonId === id) q.giverPersonId = null; if (q.turninPersonId === id) q.turninPersonId = null; }
+        for (const en of asArray(world.encounters)) { if (en.locationId === id) en.locationId = null; en.personIds = asArray(en.personIds).filter(x => x !== id); }
+        if (type === 'encounter') for (const ev of asArray(world.events)) ev.effects = asArray(ev.effects).filter(f => !(norm(f.type) === 'encounter' && f.value === id));
         if (rt() && rt().playerLocationId === id) rt().playerLocationId = null;
         dbg('deleteEntity', id);
         return true;
@@ -2836,6 +2850,15 @@ export default function initWorlds() {
             if (!b.prerequisites.quests.includes(a.id)) b.prerequisites.quests.push(a.id);
             return { kind: 'unlocks' };
         }
+        if (is('encounter', 'location')) { const en = ta === 'encounter' ? a : b; en.locationId = locOf().id; return { kind: 'at' }; }
+        if (is('encounter', 'npc')) { const en = ta === 'encounter' ? a : b, npc = ta === 'npc' ? a : b; en.personIds = asArray(en.personIds); if (!en.personIds.includes(npc.id)) en.personIds.push(npc.id); return { kind: 'fights' }; }
+        if (is('event', 'encounter')) {
+            const ev = ta === 'event' ? a : b, en = ta === 'encounter' ? a : b;
+            ev.effects = asArray(ev.effects);
+            if (!ev.effects.some(f => norm(f.type) === 'encounter' && encounterRef(world, f.value) === en)) ev.effects.push({ type: 'encounter', value: en.id });
+            if (!asArray(ev.triggers).length) ev.triggers = [{ type: 'manual' }];
+            return { kind: 'starts' };
+        }
         if (is('world', 'location')) return { kind: 'contains' }; // implicit; no-op
         throw new Error(`no relationship defined between ${ta} and ${tb}`);
     }
@@ -2860,6 +2883,8 @@ export default function initWorlds() {
             if (x.turninPersonId === yId) x.turninPersonId = null;
             if (x.prerequisites && Array.isArray(x.prerequisites.quests)) x.prerequisites.quests = x.prerequisites.quests.filter(v => v !== yId);
             if (x.parentId === yId) x.parentId = null;
+            if (Array.isArray(x.personIds)) x.personIds = x.personIds.filter(v => v !== yId);
+            if (Array.isArray(x.effects)) x.effects = x.effects.filter(f => !(f && norm(f.type) === 'encounter' && (f.value === yId || (encounterRef(world, f.value) || {}).id === yId)));
         }
         return true;
     }
@@ -2871,6 +2896,7 @@ export default function initWorlds() {
         const oldType = entityType(world, id);
         const e = entityById(world, id);
         if (!e || !oldType || oldType === 'world' || newType === 'world' || !TYPE_ARRAYS[newType] || oldType === newType) return false;
+        if (oldType === 'encounter' || newType === 'encounter') return false;   // an encounter is not a story entity
         const entry = nodeEntry(oldType, e), name = nodeName(oldType, e);
         world[TYPE_ARRAYS[oldType]] = asArray(world[TYPE_ARRAYS[oldType]]).filter(x => x.id !== id);
         const n = { id, ui: e.ui || {} };
@@ -3231,14 +3257,22 @@ export default function initWorlds() {
         saveEncounter(enc) {
             const w = activeWorld(); if (!w) return null;
             w.encounters = asArray(w.encounters);
+            const old = asArray(w.encounters).find(x => x.id === enc.id) || {};
             const e = { id: enc.id || uid('enc'), name: norm(enc.name) || 'Encounter', monsters: asArray(enc.monsters).map(m => ({ key: CR.findMonster(m.key || m.name), count: Math.max(1, Number(m.count) || 1) })).filter(m => m.key),
                 personIds: asArray(enc.personIds), locationId: enc.locationId || null, difficulty: enc.difficulty || null };
+            for (const k of ['ui', 'notes', 'generated']) if (enc[k] != null || old[k] != null) e[k] = enc[k] != null ? enc[k] : old[k];   // the graph node's position, notes
             if (ZR.ENEMY_STARTS.includes(enc.start) && enc.start !== 'auto') e.start = enc.start;
             const i = w.encounters.findIndex(x => x.id === e.id);
             if (i >= 0) w.encounters[i] = e; else w.encounters.push(e);
             return e;
         },
-        deleteEncounter(id) { const w = activeWorld(); if (!w) return false; w.encounters = asArray(w.encounters).filter(e => e.id !== id); return true; },
+        deleteEncounter(id) { const w = activeWorld(); if (!w || !asArray(w.encounters).some(e => e.id === id)) return false; return deleteEntity(id); },
+        // the difficulty of a saved encounter for the current party (editor: after changing monsters)
+        encounterInfo(id) {
+            const w = activeWorld(); const e = asArray(w && w.encounters).find(x => x.id === id); if (!e) return null;
+            const party = partyInfo(); const xp = CR.encounterXp(asArray(e.monsters));
+            return { xp, difficulty: CR.difficulty(xp, party.level, party.size), budget: CR.budget(party.level, party.size), party };
+        },
         startSavedEncounter(idOrName) { const c = startSavedEncounter(idOrName); syncLive(); return c; },
         setPlayerCombat(cfg) { const w = activeWorld(); if (w) { w.ruleset = w.ruleset || {}; w.ruleset.player = { ...(w.ruleset.player || {}), ...cfg }; if (cfg && cfg.stats) w.ruleset.player.stats = normalizeStats(cfg.stats); } return w && w.ruleset.player; },
         entityById(id) { return entityById(activeWorld(), id); },

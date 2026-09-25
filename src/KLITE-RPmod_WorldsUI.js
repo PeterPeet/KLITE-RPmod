@@ -27,7 +27,8 @@ export default function initWorldsUI() {
     const NODE_W = 148, NODE_H = 46;
     const TYPE_COLOR = {
         world: '#5F5E5A', location: '#1D9E75', npc: '#7F77DD',
-        faction: '#D4537E', object: '#BA7517', event: '#D85A30', quest: '#C9A227', lore: '#378ADD'
+        faction: '#D4537E', object: '#BA7517', event: '#D85A30', quest: '#C9A227', lore: '#378ADD',
+        encounter: '#A33A3A'   // saved encounters (R5): not a story entity, so not in TYPES' type switch
     };
     const TYPES = ['location', 'npc', 'faction', 'object', 'event', 'quest', 'lore'];
     // R7: dungeons and towns are location nodes with their own colour; their rooms/places
@@ -257,7 +258,8 @@ export default function initWorldsUI() {
         object: [['name', 'Name', 'input'], ['desc', 'Entry', 'area']],
         event: [['name', 'Name', 'input'], ['description', 'Entry', 'area']],
         quest: [['title', 'Title', 'input'], ['description', 'Description', 'area'], ['hiddenDescription', 'Hidden description (until discovered)', 'area']],
-        lore: [['content', 'Entry', 'area'], ['keys', 'Keywords (comma)', 'input']]
+        lore: [['content', 'Entry', 'area'], ['keys', 'Keywords (comma)', 'input']],
+        encounter: [['name', 'Name', 'input'], ['notes', 'Notes (only for you; the AI does not see them)', 'area']]
     };
 
     function renderInspector() {
@@ -271,7 +273,7 @@ export default function initWorldsUI() {
             el('span', { style: `background:${(type === 'location' && KIND_COLOR[ent.kind]) || TYPE_COLOR[type]};color:#fff;border-radius:6px;padding:2px 8px;font-size:var(--rpm-fs-sm);text-transform:capitalize`, text: type === 'location' && KIND_COLOR[ent.kind] ? ent.kind : type }),
             el('span', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)', text: '#' + String(S.selectedId).slice(-4) })
         ]));
-        if (type !== 'world') {
+        if (type !== 'world' && type !== 'encounter') {
             const tsel = el('select', { style: inputCss(false) + ';cursor:pointer' });
             for (const tt of TYPES) { const o = el('option', { value: tt, text: 'Type: ' + tt }); if (tt === type) o.selected = true; tsel.appendChild(o); }
             tsel.addEventListener('change', () => {
@@ -305,6 +307,7 @@ export default function initWorldsUI() {
         if (type === 'quest') { renderQuestExtras(box, ent); renderQuestPrereqs(box, ent); }
         if (type === 'event') renderEventExtras(box, ent);
         if (type === 'faction') renderFactionExtras(box, ent);
+        if (type === 'encounter') renderEncounterExtras(box, ent);
         // connections
         const conns = S.G.edges.filter(e => (e.from === S.selectedId || e.to === S.selectedId) && e.kind !== 'contains');
         box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:14px 0 4px', text: 'Connections' }));
@@ -520,6 +523,64 @@ export default function initWorldsUI() {
     }
 
     // Faction-only extras: headquarters location.
+    // ---- encounter node (R5): monsters, place, how the enemies start, difficulty, start ----
+    const ENC_STARTS = [['auto', 'Across the room'], ['same', 'Right beside the party'], ['near', 'In the next zone'], ['outside', 'Outside the room']];
+    function renderEncounterExtras(box, ent) {
+        const A = API(); const id = ent.id;
+        const save = (patch) => {
+            const cur = A.entityById(id); if (!cur) return;
+            const next = Object.assign({}, cur, patch);
+            const info0 = A.saveEncounter(next) && A.encounterInfo(id);
+            if (info0) A.updateEntity(id, { difficulty: info0.difficulty === 'none' ? null : info0.difficulty });
+            reloadGraph(); draw(); renderInspector();
+        };
+        const info = A.encounterInfo(id);
+        const DIFF = { none: 'no monsters yet', trivial: 'Trivial', low: 'Low', moderate: 'Moderate', high: 'High', beyond: 'Beyond High (deadly)' };
+        if (info) box.appendChild(el('div', { class: 'rpm-card', 'data-enc': 'difficulty' }, [
+            el('strong', { text: DIFF[info.difficulty] || info.difficulty }),
+            el('span', { class: 'rpm-muted', text: ` · ${info.xp} XP for a level-${info.party.level} party of ${info.party.size} (Moderate ≤ ${info.budget.moderate})` }),
+        ]));
+        box.appendChild(el('label', { class: 'rpm-label', text: 'Monsters' }));
+        const mons = Array.isArray(ent.monsters) ? ent.monsters : [];
+        const list = A.monsters();
+        const nameOf = (k) => (list.find(m => m.key === k) || { name: k }).name;
+        const setCount = (i, n) => save({ monsters: mons.map((m, j) => j === i ? { key: m.key, count: n } : m).filter(m => m.count > 0) });
+        if (!mons.length) box.appendChild(el('div', { class: 'rpm-muted', text: 'None yet — search below.' }));
+        mons.forEach((m, i) => box.appendChild(el('div', { class: 'rpm-row', 'data-enc-monster': m.key, style: 'margin-top:2px' }, [
+            el('span', { class: 'rpm-grow', text: `${m.count} × ${nameOf(m.key)}` }),
+            el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-sm', 'aria-label': 'One less', text: '−', onclick: () => setCount(i, m.count - 1) }),
+            el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-sm', 'aria-label': 'One more', text: '+', onclick: () => setCount(i, Math.min(20, m.count + 1)) }),
+        ])));
+        const q = el('input', { type: 'search', class: 'form-control rpm-input', placeholder: 'Add a monster: name, type or CR', 'aria-label': 'Search monsters', 'data-enc': 'search', style: 'margin-top:6px' });
+        const hits = el('div', { class: 'rpm-wrap', style: 'margin-top:4px' });
+        const showHits = () => {
+            clear(hits); const t = q.value.trim().toLowerCase(); if (!t) return;
+            for (const m of list.filter(x => x.name.toLowerCase().includes(t) || String(x.type || '').toLowerCase().includes(t) || String(x.cr) === t).slice(0, 8)) {
+                hits.appendChild(el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-sm', 'data-enc-add': m.key, text: `${m.name} (CR ${m.cr})`, onclick: () => {
+                    const i = mons.findIndex(x => x.key === m.key);
+                    save({ monsters: i >= 0 ? mons.map((x, j) => j === i ? { key: x.key, count: Math.min(20, x.count + 1) } : x) : mons.concat([{ key: m.key, count: 1 }]) });
+                } }));
+            }
+        };
+        q.addEventListener('input', showHits);
+        box.appendChild(q); box.appendChild(hits);
+        box.appendChild(el('label', { class: 'rpm-label', text: 'Where (place)' }));
+        const loc = el('select', { class: 'form-control rpm-input', 'data-enc': 'location' });
+        loc.appendChild(el('option', { value: '', text: '— anywhere —' }));
+        for (const l of A.getGraph().nodes.filter(n => n.type === 'location')) { const o = el('option', { value: l.id, text: locLabel(l) }); if (ent.locationId === l.id) o.selected = true; loc.appendChild(o); }
+        loc.addEventListener('change', () => save({ locationId: loc.value || null }));
+        box.appendChild(loc);
+        box.appendChild(el('label', { class: 'rpm-label', text: 'Enemies start (zone combat)' }));
+        const st = el('select', { class: 'form-control rpm-input', 'data-enc': 'start' });
+        for (const [v, t] of ENC_STARTS) { const o = el('option', { value: v, text: t }); if ((ent.start || 'auto') === v) o.selected = true; st.appendChild(o); }
+        st.addEventListener('change', () => save({ start: st.value }));
+        box.appendChild(st);
+        box.appendChild(el('div', { class: 'rpm-muted', style: 'margin-top:8px', text: 'Link it with the Link tool: Encounter → place (where it waits), Encounter → person (fights you), Event → Encounter (the event starts it). The AI can start it too: <encounter>' + (ent.name || 'name') + '</encounter>.' }));
+        const canStart = mons.length || (Array.isArray(ent.personIds) && ent.personIds.length);
+        box.appendChild(el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-block rpm-btn-icon', 'data-enc': 'start-now', style: 'margin-top:8px', disabled: canStart && !(A.getCombat() && A.getCombat().active && !A.getCombat().outcome) ? null : '',
+            onclick: () => { if (A.startSavedEncounter(id)) { try { window.KLITE_RPMod_Shell.open('combat'); } catch (_) {} } } }, [iconText('swords', 'Start this encounter now')]));
+    }
+
     function renderFactionExtras(box, ent) {
         const A = API();
         box.appendChild(el('label', { style: 'display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px;display:flex;align-items:center;gap:4px' }, [icon('castle', 13), 'Headquarters (location)']));
@@ -554,7 +615,7 @@ export default function initWorldsUI() {
         quest: [['questId', 'quest'], ['state', 'qstate']], discover: [['quest', 'quest']],
         move: [['locationId', 'location']], npcmove: [['npcId', 'npc'], ['locationId', 'location']],
         advance: [['slots', 'number']], fireEvent: [['eventId', 'event']],
-        encounter: [['value', 'text']],   // a saved encounter's name or "2 Wolf, Goblin Warrior"
+        encounter: [['value', 'encounter']],   // a saved encounter (id; older effects: its name or "2 Wolf, Goblin Warrior")
         reputation: [['factionId', 'faction'], ['amount', 'number']]
     };
     function paramInput(kind, value, onChange) {
@@ -572,6 +633,15 @@ export default function initWorldsUI() {
             s.appendChild(el('option', { value: '', text: kind }));
             for (const n of nodes) { const op = el('option', { value: n.id, text: locLabel(n) }); if (value === n.id) op.selected = true; s.appendChild(op); }
             s.addEventListener('change', () => onChange(s.value)); return s;
+        }
+        if (kind === 'encounter') {
+            const encs = A.listEncounters();
+            const s = el('select', { style: inputCss(false) + ';cursor:pointer;flex:1', 'aria-label': 'Encounter' });
+            s.appendChild(el('option', { value: '', text: 'encounter' }));
+            const known = encs.some(e => e.id === value || e.name === value);
+            for (const e of encs) { const op = el('option', { value: e.id, text: e.name }); if (value === e.id || value === e.name) op.selected = true; s.appendChild(op); }
+            if (value && !known) { const op = el('option', { value, text: value }); op.selected = true; s.appendChild(op); }   // typed monster list
+            s.addEventListener('change', () => { onChange(s.value); reloadGraph(); draw(); }); return s;
         }
         const inp = el('input', { type: kind === 'number' ? 'number' : 'text', placeholder: '', style: inputCss(false) + ';flex:1' });
         inp.value = value == null ? '' : value;
@@ -728,6 +798,10 @@ export default function initWorldsUI() {
             type: 'button', class: 'wm-ed-add', style: `background:${TYPE_COLOR[t]}`,
             onclick: () => addNodeCentered(t)
         }, [iconText('plus', t, 14)]));
+        palette.appendChild(el('button', {
+            type: 'button', class: 'wm-ed-add', style: `background:${TYPE_COLOR.encounter}`, 'data-add-type': 'encounter',
+            onclick: () => addNodeCentered('encounter')
+        }, [iconText('swords', 'encounter', 14)]));
         for (const k of ['dungeon', 'town']) palette.appendChild(el('button', {
             type: 'button', class: 'wm-ed-add', style: `background:${KIND_COLOR[k]}`, 'data-add-kind': k,
             onclick: () => addNodeCentered('location', k)

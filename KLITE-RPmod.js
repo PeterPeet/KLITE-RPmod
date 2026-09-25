@@ -25218,8 +25218,8 @@ ${xl.join("\n")}`;
         dbg("kai_json_load wrapped");
       }
     }
-    const TYPE_ARRAYS = { location: "locations", npc: "npcs", faction: "factions", object: "objects", event: "events", quest: "quests", lore: "globalLore" };
-    const ENTRY_FIELD = { location: "description", npc: "description", faction: "description", object: "desc", event: "description", quest: "description", lore: "content" };
+    const TYPE_ARRAYS = { location: "locations", npc: "npcs", faction: "factions", object: "objects", event: "events", quest: "quests", lore: "globalLore", encounter: "encounters" };
+    const ENTRY_FIELD = { location: "description", npc: "description", faction: "description", object: "desc", event: "description", quest: "description", lore: "content", encounter: "notes" };
     function normalizeWorld(world) {
       if (!world || typeof world !== "object") return world;
       for (const t of Object.keys(TYPE_ARRAYS)) {
@@ -25257,6 +25257,11 @@ ${xl.join("\n")}`;
     }
     function nodeEntry(type, e) {
       return norm3(e[ENTRY_FIELD[type]] || "");
+    }
+    function encounterRef(world, value) {
+      const q = norm3(value).toLowerCase();
+      if (!q) return null;
+      return asArray4(world && world.encounters).find((e) => e.id === value) || asArray4(world && world.encounters).find((e) => norm3(e.name).toLowerCase() === q) || null;
     }
     function getGraph() {
       const world = activeWorld();
@@ -25310,6 +25315,10 @@ ${xl.join("\n")}`;
       for (const l of asArray4(world.locations)) {
         if (l.parentId && findById(world.locations, l.parentId)) edges.push({ from: l.parentId, to: l.id, kind: "zone" });
       }
+      for (const en of asArray4(world.encounters)) {
+        if (en.locationId && findById(world.locations, en.locationId)) edges.push({ from: en.id, to: en.locationId, kind: "at" });
+        for (const pid of asArray4(en.personIds)) if (findById(world.npcs, pid)) edges.push({ from: en.id, to: pid, kind: "fights" });
+      }
       for (const ev of asArray4(world.events)) {
         for (const t of asArray4(ev.triggers)) {
           if (norm3(t.type) === "onQuestState" && findById(world.quests, t.questId)) edges.push({ from: t.questId, to: ev.id, kind: "onquest" });
@@ -25319,6 +25328,10 @@ ${xl.join("\n")}`;
           const qid = eff.questId || eff.quest;
           if ((norm3(eff.type) === "quest" || norm3(eff.type) === "discover") && findById(world.quests, qid)) edges.push({ from: ev.id, to: qid, kind: "affects" });
           if (norm3(eff.type) === "fireEvent" && findById(world.events, eff.eventId)) edges.push({ from: ev.id, to: eff.eventId, kind: "chains" });
+          if (norm3(eff.type) === "encounter") {
+            const en = encounterRef(world, eff.value);
+            if (en) edges.push({ from: ev.id, to: en.id, kind: "starts" });
+          }
         }
       }
       return { world, nodes, edges };
@@ -25333,6 +25346,7 @@ ${xl.join("\n")}`;
       if (type === "lore") e.content = norm3(fields.name) || "";
       else if (type === "quest") e.title = norm3(fields.title || fields.name) || "New quest";
       else e.name = norm3(fields.name) || "New " + type;
+      if (type === "encounter") Object.assign(e, { monsters: [], personIds: [], locationId: null, difficulty: null });
       world[key].push(e);
       dbg("addEntity", type, e.id);
       return e;
@@ -25387,6 +25401,11 @@ ${xl.join("\n")}`;
         if (q.giverPersonId === id) q.giverPersonId = null;
         if (q.turninPersonId === id) q.turninPersonId = null;
       }
+      for (const en of asArray4(world.encounters)) {
+        if (en.locationId === id) en.locationId = null;
+        en.personIds = asArray4(en.personIds).filter((x) => x !== id);
+      }
+      if (type === "encounter") for (const ev of asArray4(world.events)) ev.effects = asArray4(ev.effects).filter((f) => !(norm3(f.type) === "encounter" && f.value === id));
       if (rt() && rt().playerLocationId === id) rt().playerLocationId = null;
       dbg("deleteEntity", id);
       return true;
@@ -25463,6 +25482,24 @@ ${xl.join("\n")}`;
         if (!b.prerequisites.quests.includes(a.id)) b.prerequisites.quests.push(a.id);
         return { kind: "unlocks" };
       }
+      if (is("encounter", "location")) {
+        const en = ta === "encounter" ? a : b;
+        en.locationId = locOf2().id;
+        return { kind: "at" };
+      }
+      if (is("encounter", "npc")) {
+        const en = ta === "encounter" ? a : b, npc = ta === "npc" ? a : b;
+        en.personIds = asArray4(en.personIds);
+        if (!en.personIds.includes(npc.id)) en.personIds.push(npc.id);
+        return { kind: "fights" };
+      }
+      if (is("event", "encounter")) {
+        const ev = ta === "event" ? a : b, en = ta === "encounter" ? a : b;
+        ev.effects = asArray4(ev.effects);
+        if (!ev.effects.some((f) => norm3(f.type) === "encounter" && encounterRef(world, f.value) === en)) ev.effects.push({ type: "encounter", value: en.id });
+        if (!asArray4(ev.triggers).length) ev.triggers = [{ type: "manual" }];
+        return { kind: "starts" };
+      }
       if (is("world", "location")) return { kind: "contains" };
       throw new Error(`no relationship defined between ${ta} and ${tb}`);
     }
@@ -25486,6 +25523,8 @@ ${xl.join("\n")}`;
         if (x.turninPersonId === yId) x.turninPersonId = null;
         if (x.prerequisites && Array.isArray(x.prerequisites.quests)) x.prerequisites.quests = x.prerequisites.quests.filter((v) => v !== yId);
         if (x.parentId === yId) x.parentId = null;
+        if (Array.isArray(x.personIds)) x.personIds = x.personIds.filter((v) => v !== yId);
+        if (Array.isArray(x.effects)) x.effects = x.effects.filter((f) => !(f && norm3(f.type) === "encounter" && (f.value === yId || (encounterRef(world, f.value) || {}).id === yId)));
       }
       return true;
     }
@@ -25495,6 +25534,7 @@ ${xl.join("\n")}`;
       const oldType = entityType(world, id);
       const e = entityById(world, id);
       if (!e || !oldType || oldType === "world" || newType === "world" || !TYPE_ARRAYS[newType] || oldType === newType) return false;
+      if (oldType === "encounter" || newType === "encounter") return false;
       const entry = nodeEntry(oldType, e), name = nodeName(oldType, e);
       world[TYPE_ARRAYS[oldType]] = asArray4(world[TYPE_ARRAYS[oldType]]).filter((x) => x.id !== id);
       const n = { id, ui: e.ui || {} };
@@ -26255,6 +26295,7 @@ ${xl.join("\n")}`;
         const w = activeWorld();
         if (!w) return null;
         w.encounters = asArray4(w.encounters);
+        const old = asArray4(w.encounters).find((x) => x.id === enc.id) || {};
         const e = {
           id: enc.id || uid("enc"),
           name: norm3(enc.name) || "Encounter",
@@ -26263,6 +26304,7 @@ ${xl.join("\n")}`;
           locationId: enc.locationId || null,
           difficulty: enc.difficulty || null
         };
+        for (const k2 of ["ui", "notes", "generated"]) if (enc[k2] != null || old[k2] != null) e[k2] = enc[k2] != null ? enc[k2] : old[k2];
         if (ENEMY_STARTS.includes(enc.start) && enc.start !== "auto") e.start = enc.start;
         const i = w.encounters.findIndex((x) => x.id === e.id);
         if (i >= 0) w.encounters[i] = e;
@@ -26271,9 +26313,17 @@ ${xl.join("\n")}`;
       },
       deleteEncounter(id) {
         const w = activeWorld();
-        if (!w) return false;
-        w.encounters = asArray4(w.encounters).filter((e) => e.id !== id);
-        return true;
+        if (!w || !asArray4(w.encounters).some((e) => e.id === id)) return false;
+        return deleteEntity(id);
+      },
+      // the difficulty of a saved encounter for the current party (editor: after changing monsters)
+      encounterInfo(id) {
+        const w = activeWorld();
+        const e = asArray4(w && w.encounters).find((x) => x.id === id);
+        if (!e) return null;
+        const party = partyInfo();
+        const xp = encounterXp(asArray4(e.monsters));
+        return { xp, difficulty: difficulty(xp, party.level, party.size), budget: budget(party.level, party.size), party };
       },
       startSavedEncounter(idOrName) {
         const c = startSavedEncounter(idOrName);
@@ -28353,7 +28403,9 @@ ${xl.join("\n")}`;
       object: "#BA7517",
       event: "#D85A30",
       quest: "#C9A227",
-      lore: "#378ADD"
+      lore: "#378ADD",
+      encounter: "#A33A3A"
+      // saved encounters (R5): not a story entity, so not in TYPES' type switch
     };
     const TYPES = ["location", "npc", "faction", "object", "event", "quest", "lore"];
     const KIND_COLOR = { dungeon: "#6B5744", town: "#2F7A9E" };
@@ -28621,7 +28673,8 @@ ${xl.join("\n")}`;
       object: [["name", "Name", "input"], ["desc", "Entry", "area"]],
       event: [["name", "Name", "input"], ["description", "Entry", "area"]],
       quest: [["title", "Title", "input"], ["description", "Description", "area"], ["hiddenDescription", "Hidden description (until discovered)", "area"]],
-      lore: [["content", "Entry", "area"], ["keys", "Keywords (comma)", "input"]]
+      lore: [["content", "Entry", "area"], ["keys", "Keywords (comma)", "input"]],
+      encounter: [["name", "Name", "input"], ["notes", "Notes (only for you; the AI does not see them)", "area"]]
     };
     function renderInspector2() {
       const box = S2.inspector;
@@ -28638,7 +28691,7 @@ ${xl.join("\n")}`;
         el2("span", { style: `background:${type === "location" && KIND_COLOR[ent.kind] || TYPE_COLOR[type]};color:#fff;border-radius:6px;padding:2px 8px;font-size:var(--rpm-fs-sm);text-transform:capitalize`, text: type === "location" && KIND_COLOR[ent.kind] ? ent.kind : type }),
         el2("span", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)", text: "#" + String(S2.selectedId).slice(-4) })
       ]));
-      if (type !== "world") {
+      if (type !== "world" && type !== "encounter") {
         const tsel = el2("select", { style: inputCss(false) + ";cursor:pointer" });
         for (const tt of TYPES) {
           const o = el2("option", { value: tt, text: "Type: " + tt });
@@ -28692,6 +28745,7 @@ ${xl.join("\n")}`;
       }
       if (type === "event") renderEventExtras(box, ent);
       if (type === "faction") renderFactionExtras(box, ent);
+      if (type === "encounter") renderEncounterExtras(box, ent);
       const conns = S2.G.edges.filter((e) => (e.from === S2.selectedId || e.to === S2.selectedId) && e.kind !== "contains");
       box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:14px 0 4px", text: "Connections" }));
       if (!conns.length) box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm)", text: "None. Use the Link tool to connect nodes." }));
@@ -28982,6 +29036,90 @@ ${xl.join("\n")}`;
       box.appendChild(ta);
       box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:10px;margin-top:3px", text: "Shown to the AI as [World Rules]. The Description above is shown as the world premise." }));
     }
+    const ENC_STARTS = [["auto", "Across the room"], ["same", "Right beside the party"], ["near", "In the next zone"], ["outside", "Outside the room"]];
+    function renderEncounterExtras(box, ent) {
+      const A = API3();
+      const id = ent.id;
+      const save = (patch) => {
+        const cur = A.entityById(id);
+        if (!cur) return;
+        const next = Object.assign({}, cur, patch);
+        const info0 = A.saveEncounter(next) && A.encounterInfo(id);
+        if (info0) A.updateEntity(id, { difficulty: info0.difficulty === "none" ? null : info0.difficulty });
+        reloadGraph();
+        draw2();
+        renderInspector2();
+      };
+      const info = A.encounterInfo(id);
+      const DIFF = { none: "no monsters yet", trivial: "Trivial", low: "Low", moderate: "Moderate", high: "High", beyond: "Beyond High (deadly)" };
+      if (info) box.appendChild(el2("div", { class: "rpm-card", "data-enc": "difficulty" }, [
+        el2("strong", { text: DIFF[info.difficulty] || info.difficulty }),
+        el2("span", { class: "rpm-muted", text: ` · ${info.xp} XP for a level-${info.party.level} party of ${info.party.size} (Moderate ≤ ${info.budget.moderate})` })
+      ]));
+      box.appendChild(el2("label", { class: "rpm-label", text: "Monsters" }));
+      const mons = Array.isArray(ent.monsters) ? ent.monsters : [];
+      const list2 = A.monsters();
+      const nameOf = (k2) => (list2.find((m) => m.key === k2) || { name: k2 }).name;
+      const setCount = (i, n) => save({ monsters: mons.map((m, j) => j === i ? { key: m.key, count: n } : m).filter((m) => m.count > 0) });
+      if (!mons.length) box.appendChild(el2("div", { class: "rpm-muted", text: "None yet — search below." }));
+      mons.forEach((m, i) => box.appendChild(el2("div", { class: "rpm-row", "data-enc-monster": m.key, style: "margin-top:2px" }, [
+        el2("span", { class: "rpm-grow", text: `${m.count} × ${nameOf(m.key)}` }),
+        el2("button", { type: "button", class: "btn btn-primary rpm-btn rpm-sm", "aria-label": "One less", text: "−", onclick: () => setCount(i, m.count - 1) }),
+        el2("button", { type: "button", class: "btn btn-primary rpm-btn rpm-sm", "aria-label": "One more", text: "+", onclick: () => setCount(i, Math.min(20, m.count + 1)) })
+      ])));
+      const q = el2("input", { type: "search", class: "form-control rpm-input", placeholder: "Add a monster: name, type or CR", "aria-label": "Search monsters", "data-enc": "search", style: "margin-top:6px" });
+      const hits = el2("div", { class: "rpm-wrap", style: "margin-top:4px" });
+      const showHits = () => {
+        clear2(hits);
+        const t = q.value.trim().toLowerCase();
+        if (!t) return;
+        for (const m of list2.filter((x) => x.name.toLowerCase().includes(t) || String(x.type || "").toLowerCase().includes(t) || String(x.cr) === t).slice(0, 8)) {
+          hits.appendChild(el2("button", { type: "button", class: "btn btn-primary rpm-btn rpm-sm", "data-enc-add": m.key, text: `${m.name} (CR ${m.cr})`, onclick: () => {
+            const i = mons.findIndex((x) => x.key === m.key);
+            save({ monsters: i >= 0 ? mons.map((x, j) => j === i ? { key: x.key, count: Math.min(20, x.count + 1) } : x) : mons.concat([{ key: m.key, count: 1 }]) });
+          } }));
+        }
+      };
+      q.addEventListener("input", showHits);
+      box.appendChild(q);
+      box.appendChild(hits);
+      box.appendChild(el2("label", { class: "rpm-label", text: "Where (place)" }));
+      const loc = el2("select", { class: "form-control rpm-input", "data-enc": "location" });
+      loc.appendChild(el2("option", { value: "", text: "— anywhere —" }));
+      for (const l of A.getGraph().nodes.filter((n) => n.type === "location")) {
+        const o = el2("option", { value: l.id, text: locLabel(l) });
+        if (ent.locationId === l.id) o.selected = true;
+        loc.appendChild(o);
+      }
+      loc.addEventListener("change", () => save({ locationId: loc.value || null }));
+      box.appendChild(loc);
+      box.appendChild(el2("label", { class: "rpm-label", text: "Enemies start (zone combat)" }));
+      const st = el2("select", { class: "form-control rpm-input", "data-enc": "start" });
+      for (const [v, t] of ENC_STARTS) {
+        const o = el2("option", { value: v, text: t });
+        if ((ent.start || "auto") === v) o.selected = true;
+        st.appendChild(o);
+      }
+      st.addEventListener("change", () => save({ start: st.value }));
+      box.appendChild(st);
+      box.appendChild(el2("div", { class: "rpm-muted", style: "margin-top:8px", text: "Link it with the Link tool: Encounter → place (where it waits), Encounter → person (fights you), Event → Encounter (the event starts it). The AI can start it too: <encounter>" + (ent.name || "name") + "</encounter>." }));
+      const canStart = mons.length || Array.isArray(ent.personIds) && ent.personIds.length;
+      box.appendChild(el2("button", {
+        type: "button",
+        class: "btn btn-primary rpm-btn rpm-block rpm-btn-icon",
+        "data-enc": "start-now",
+        style: "margin-top:8px",
+        disabled: canStart && !(A.getCombat() && A.getCombat().active && !A.getCombat().outcome) ? null : "",
+        onclick: () => {
+          if (A.startSavedEncounter(id)) {
+            try {
+              window.KLITE_RPMod_Shell.open("combat");
+            } catch (_) {
+            }
+          }
+        }
+      }, [iconText("swords", "Start this encounter now")]));
+    }
     function renderFactionExtras(box, ent) {
       const A = API3();
       box.appendChild(el2("label", { style: "display:block;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);margin:12px 0 3px;display:flex;align-items:center;gap:4px" }, [icon("castle", 13), "Headquarters (location)"]));
@@ -29029,8 +29167,8 @@ ${xl.join("\n")}`;
       npcmove: [["npcId", "npc"], ["locationId", "location"]],
       advance: [["slots", "number"]],
       fireEvent: [["eventId", "event"]],
-      encounter: [["value", "text"]],
-      // a saved encounter's name or "2 Wolf, Goblin Warrior"
+      encounter: [["value", "encounter"]],
+      // a saved encounter (id; older effects: its name or "2 Wolf, Goblin Warrior")
       reputation: [["factionId", "faction"], ["amount", "number"]]
     };
     function paramInput(kind, value, onChange) {
@@ -29057,6 +29195,28 @@ ${xl.join("\n")}`;
           s.appendChild(op);
         }
         s.addEventListener("change", () => onChange(s.value));
+        return s;
+      }
+      if (kind === "encounter") {
+        const encs = A.listEncounters();
+        const s = el2("select", { style: inputCss(false) + ";cursor:pointer;flex:1", "aria-label": "Encounter" });
+        s.appendChild(el2("option", { value: "", text: "encounter" }));
+        const known = encs.some((e) => e.id === value || e.name === value);
+        for (const e of encs) {
+          const op = el2("option", { value: e.id, text: e.name });
+          if (value === e.id || value === e.name) op.selected = true;
+          s.appendChild(op);
+        }
+        if (value && !known) {
+          const op = el2("option", { value, text: value });
+          op.selected = true;
+          s.appendChild(op);
+        }
+        s.addEventListener("change", () => {
+          onChange(s.value);
+          reloadGraph();
+          draw2();
+        });
         return s;
       }
       const inp = el2("input", { type: kind === "number" ? "number" : "text", placeholder: "", style: inputCss(false) + ";flex:1" });
@@ -29312,6 +29472,13 @@ ${xl.join("\n")}`;
         style: `background:${TYPE_COLOR[t]}`,
         onclick: () => addNodeCentered(t)
       }, [iconText("plus", t, 14)]));
+      palette.appendChild(el2("button", {
+        type: "button",
+        class: "wm-ed-add",
+        style: `background:${TYPE_COLOR.encounter}`,
+        "data-add-type": "encounter",
+        onclick: () => addNodeCentered("encounter")
+      }, [iconText("swords", "encounter", 14)]));
       for (const k2 of ["dungeon", "town"]) palette.appendChild(el2("button", {
         type: "button",
         class: "wm-ed-add",
