@@ -116,6 +116,7 @@ export const CHAPTERS = [
                 'On your turn move, take cover or hide, pick weapon and target and press Attack, then End turn: the enemies act automatically until it is your turn again.',
                 'Then write in the chat what you do — the AI narrates the rolls from the combat log.',
                 'After a victory your HP and the XP earned are saved to your persona\'s sheet. The XP is divided evenly among everyone who fought on your side; companions with a character sheet get their share too.',
+                'If everyone in the party dies, it is game over: the story ends, and RPmod offers to restart from the start or to begin again with a new hero.',
                 'The AI can start a fight too: it writes <encounter>2 Wolf</encounter>.',
             ] },
         ],

@@ -248,6 +248,11 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .btn.rpm-btn.rpm-warning { border-color: var(--rpm-quest); box-shadow: inset 3px 0 0 var(--rpm-quest); }
 .btn.rpm-btn:disabled, .btn.rpm-btn.disabled { opacity: .5; cursor: not-allowed; }
 
+/* ---- Game over (R8) ---- */
+.rpm-gameover { padding: var(--rpm-s3); display: flex; flex-direction: column; gap: var(--rpm-s1); overflow: auto; }
+.rpm-gameover-title { margin: 0 0 var(--rpm-s1); font-size: 1.6em; letter-spacing: 0.04em; color: var(--rpm-danger, var(--rpm-fg-hi)); }
+.rpm-gameover-banner { border-color: var(--rpm-danger, var(--rpm-border-hi)); margin-top: var(--rpm-s1); }
+
 /* ---- Adventure picker (R8): choose a pregenerated character ---- */
 .rpm-adv { flex: 1 1 auto; min-height: 0; overflow: auto; padding: var(--rpm-s3); display: flex; flex-direction: column; gap: var(--rpm-s2); }
 .rpm-adv-title { margin: 0; font-size: 1.15em; color: var(--rpm-fg-hi); }

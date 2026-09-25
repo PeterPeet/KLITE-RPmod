@@ -253,6 +253,11 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .btn.rpm-btn.rpm-warning { border-color: var(--rpm-quest); box-shadow: inset 3px 0 0 var(--rpm-quest); }
 .btn.rpm-btn:disabled, .btn.rpm-btn.disabled { opacity: .5; cursor: not-allowed; }
 
+/* ---- Game over (R8) ---- */
+.rpm-gameover { padding: var(--rpm-s3); display: flex; flex-direction: column; gap: var(--rpm-s1); overflow: auto; }
+.rpm-gameover-title { margin: 0 0 var(--rpm-s1); font-size: 1.6em; letter-spacing: 0.04em; color: var(--rpm-danger, var(--rpm-fg-hi)); }
+.rpm-gameover-banner { border-color: var(--rpm-danger, var(--rpm-border-hi)); margin-top: var(--rpm-s1); }
+
 /* ---- Adventure picker (R8): choose a pregenerated character ---- */
 .rpm-adv { flex: 1 1 auto; min-height: 0; overflow: auto; padding: var(--rpm-s3); display: flex; flex-direction: column; gap: var(--rpm-s2); }
 .rpm-adv-title { margin: 0; font-size: 1.15em; color: var(--rpm-fg-hi); }
@@ -25014,7 +25019,20 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       } else if (party.length && party.every((o) => isDown(cb, o.id) && !(deathOf(cb, o.id) && !deathOf(cb, o.id).stable && !deathOf(cb, o.id).dead))) {
         cb.outcome = "defeat";
         const p = deathOf(cb, "__player__");
-        combatLog(`Defeat. ${p && p.dead ? "You have died." : "You are unconscious but stable, at the mercy of your foes."}`);
+        cb.wipe = party.every((o) => {
+          const d = deathOf(cb, o.id);
+          return !!(d && d.dead) || o.kind !== "player" && !d && isDown(cb, o.id);
+        });
+        if (cb.wipe) {
+          const r = rt();
+          const names = party.map((o) => combatantName(o.id));
+          if (r) r.gameOver = { day: r.clock && r.clock.day, time: r.clock && r.clock.time, locationId: r.playerLocationId, persona: cb.persona || "", fallen: names };
+          combatLog(`Game over. ${names.length > 1 ? "Everyone in the party has died" : "You have died"}: ${names.join(", ")}.`);
+          try {
+            setTimeout(() => window.dispatchEvent(new CustomEvent("klite:game-over", { detail: { fallen: names } })), 0);
+          } catch (_) {
+          }
+        } else combatLog(`Defeat. ${p && p.dead ? "You have died." : "You are unconscious but stable, at the mercy of your foes."}`);
       }
       if (cb.outcome) syncPersonaSheet(cb);
       return cb.outcome;
@@ -25240,7 +25258,11 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       if (!cb || cb.outcome) return null;
       const o = cb.order.find((x) => x.id === id);
       if (!o) return null;
-      if (isDown(cb, id)) return { skipped: "down" };
+      if (isDown(cb, id)) {
+        const d = deathOf(cb, id);
+        if (d && !d.stable && !d.dead && !o.isPlayer) return { deathSave: deathSaveRoll(id) };
+        return { skipped: "down" };
+      }
       if (cannotAct(conds(id))) {
         combatLog(`${o.name} cannot act (${conds(id).map((c) => c.name).join(", ")}).`);
         return { skipped: "incapacitated" };
@@ -25675,6 +25697,7 @@ ${recent}` : "");
       parts.push("Party:\n" + sideList(cb, "party").map(line).join("\n"));
       parts.push("Enemies:\n" + sideList(cb, "enemy").map(line).join("\n"));
       if (cb.outcome === "victory") parts.push(`OUTCOME: Victory — every enemy is defeated${cb.xp ? ` (${cb.xp} XP${cb.xpShares > 1 ? `, ${cb.xpEach} XP each` : ""})` : ""}. Narrate the end of the fight.`);
+      else if (cb.outcome === "defeat" && cb.wipe) parts.push("OUTCOME: Game over — every member of the party has died. Narrate their fall in a few calm, respectful sentences as the end of this story. Do not continue the story and do not revive anyone.");
       else if (cb.outcome === "defeat") parts.push("OUTCOME: Defeat — the party has fallen. Narrate what happens to the player character now; do not revive them by yourself.");
       else parts.push(`RPmod rolls every attack, saving throw and HP change; narrate only the results listed under "Rolls and combat" — do not invent hits, damage or deaths.${cur.isPlayer ? " It is the player's turn: set the scene and wait for their action." : ""}`);
       if (!window.KLITE_RPMod_Log) {
@@ -27048,6 +27071,29 @@ ${xl.join("\n")}`;
       },
       questNeedsChoice: (id) => needsChoice(questById(id)),
       rewardsPaid: (id) => !!(rt() && rt().rewardsPaid && rt().rewardsPaid[id]),
+      // R8: game over (everyone in the party died) and starting again
+      gameOver() {
+        const r = rt();
+        return r && r.gameOver ? deepClone(r.gameOver) : null;
+      },
+      // End the fight and bring the persona and the companions back to full HP (their sheets).
+      reviveParty() {
+        const cb = getCombat();
+        if (cb && cb.active !== false) endEncounter();
+        const r = longRest();
+        syncLive();
+        return r;
+      },
+      // Revive, then the world begins anew at its start (the story's game over is gone with it).
+      restartAtStart() {
+        const w = activeWorld();
+        if (!w) return null;
+        this.reviveParty();
+        switchWorld(w.id, { fresh: true });
+        W.config.enabled = true;
+        syncLive();
+        return rt();
+      },
       joinParty(idOrName, opts) {
         const r = joinParty(idOrName, opts);
         syncLive();
@@ -31252,6 +31298,12 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         return;
       }
       const rt = A.runtime || {};
+      const go = A.gameOver && A.gameOver();
+      if (go) box.appendChild(el2("div", { class: "rpm-card rpm-gameover-banner", "data-party": "gameover" }, [
+        el2("strong", { text: "Game over" }),
+        muted2("Everyone in the party has fallen."),
+        uiBtn("What now?", () => openView("gameover"), { block: true, variant: "danger", style: "margin-top:6px", id: "go-open" })
+      ]));
       const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
       const c = rt.clock || {};
       const locName = loc ? (A.phased(loc.id) || {}).name || loc.name || loc.id : "nowhere";
@@ -31609,6 +31661,91 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
       return v;
     }
+    const GO = { busy: false, msg: "", reset: false };
+    function newSessionOk() {
+      const story = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+      return !story || confirm("This begins a new session: the story that ended here is replaced. Save it first (Esolite's Save) if you want to keep it. Continue?");
+    }
+    async function gameOverAction(what, heroName) {
+      const A = API3();
+      const ADV = window.KLITE_RPMod_Adventures;
+      if (GO.busy) return;
+      const adv = ADV && A.activeWorld() && A.activeWorld().adventure ? ADV : null;
+      if (what !== "choose" && !newSessionOk()) return;
+      GO.busy = true;
+      GO.msg = "";
+      try {
+        Shell2()?.refresh(["gameover"]);
+      } catch (_) {
+      }
+      try {
+        if (what === "choose") {
+          Shell2()?.close("gameover");
+          adv.open();
+        } else if (adv) await adv.restart(Object.assign({ resetPregens: GO.reset }, heroName ? { hero: heroName } : {}));
+        else {
+          try {
+            if (typeof window.restart_new_game === "function") window.restart_new_game(false);
+          } catch (_) {
+          }
+          A.restartAtStart();
+          if (heroName) {
+            const T = window.KLITE_RPMod && window.KLITE_RPMod.panels && window.KLITE_RPMod.panels.TOOLS;
+            if (T && T.usePersona) T.usePersona({ name: heroName });
+          }
+        }
+        if (what !== "choose") {
+          Shell2()?.close("gameover");
+          openView("world");
+        }
+      } catch (e) {
+        GO.msg = "Could not start again: " + (e && e.message || e);
+      }
+      GO.busy = false;
+      refreshPanel();
+      try {
+        Shell2()?.refresh(["gameover", "party"]);
+      } catch (_) {
+      }
+    }
+    function renderGameOver(c) {
+      const A = API3();
+      const go = A.gameOver && A.gameOver();
+      const box = el2("div", { class: "rpm-gameover", "data-ui": "gameover" });
+      box.appendChild(el2("h2", { class: "rpm-gameover-title", text: "Game over" }));
+      if (!go) {
+        box.appendChild(muted2("Your party is alive. (This window shows when everyone in the party has died.)"));
+        c.appendChild(box);
+        return;
+      }
+      const fallen = (go.fallen || []).join(", ");
+      box.appendChild(el2("p", { text: (go.fallen || []).length > 1 ? `Everyone in your party has fallen: ${fallen}.` : `${fallen || "Your hero"} has fallen.` }));
+      box.appendChild(muted2("Send a message if you want the AI to tell how the story ends. Then start again:"));
+      const ADV = window.KLITE_RPMod_Adventures;
+      const adv = ADV && A.activeWorld() && A.activeWorld().adventure;
+      box.appendChild(uiBtn(adv ? "Restart the adventure from the start" : "Restart from the start", () => gameOverAction("restart"), { icon: "rotate-ccw", block: true, lg: true, id: "go-restart", title: "A new session: the world back at its start, you and your companions at full HP (level and gear are kept)" }));
+      if (adv) {
+        const lab = el2("label", { class: "rpm-muted", style: "display:flex;align-items:center;gap:6px;margin:4px 0 8px;cursor:pointer" });
+        const cb = el2("input", { type: "checkbox", "data-ui": "go-reset" });
+        cb.checked = GO.reset;
+        cb.addEventListener("change", () => {
+          GO.reset = cb.checked;
+        });
+        lab.appendChild(cb);
+        lab.appendChild(document.createTextNode("Also give the pregenerated characters their starting sheets back (level 1, starting gear)"));
+        box.appendChild(lab);
+      }
+      box.appendChild(uiBtn("Create a new hero", () => {
+        const B = window.KLITE_RPMod_Builder;
+        if (!B) return;
+        B.open({ onSaved: (name) => gameOverAction("restart", name) });
+      }, { icon: "wand-sparkles", block: true, id: "go-new-hero", style: "margin-top:6px", title: "Build a new character with the SRD rules, then start again with them" }));
+      if (adv) box.appendChild(uiBtn("Choose another character", () => gameOverAction("choose"), { icon: "id-card", block: true, id: "go-choose", style: "margin-top:6px" }));
+      if (GO.busy) box.appendChild(muted2("Starting…", { style: "margin-top:6px" }));
+      if (GO.msg) box.appendChild(el2("p", { class: "rpm-adv-msg", role: "status", text: GO.msg }));
+      box.appendChild(uiBtn("Close", () => Shell2()?.close("gameover"), { block: true, id: "go-close", style: "margin-top:12px", title: "Read the end of the story first; the Party section keeps these choices" }));
+      c.appendChild(box);
+    }
     function registerViews(sh) {
       const view = (render) => ({ mount: render, update: (c) => {
         clear2(c);
@@ -31627,6 +31764,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         if (API3().activeWorld()) renderShop(c, () => refreshPanel());
         else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
       })));
+      sh.registerView(Object.assign({ id: "gameover", title: "Game over", place: "window", window: { width: 420, height: 460, minWidth: 300, restore: false } }, view(renderGameOver)));
       sh.registerView(Object.assign({ id: "combat", title: "Combat", place: "window", window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
         if (API3().activeWorld()) renderCombatTab(c);
         else {
@@ -31685,6 +31823,14 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       };
       window.addEventListener("klite:persona-change", refreshParty);
       window.addEventListener("klite:adventures-change", () => refreshPanel());
+      window.addEventListener("klite:game-over", () => {
+        GO.msg = "";
+        try {
+          sh.refresh(["party"]);
+        } catch (_) {
+        }
+        openView("gameover");
+      });
       window.addEventListener("klite:sheet-change", refreshParty);
       window.addEventListener("klite:worlds-dirty", () => {
         try {
@@ -31855,6 +32001,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           "On your turn move, take cover or hide, pick weapon and target and press Attack, then End turn: the enemies act automatically until it is your turn again.",
           "Then write in the chat what you do — the AI narrates the rolls from the combat log.",
           "After a victory your HP and the XP earned are saved to your persona's sheet. The XP is divided evenly among everyone who fought on your side; companions with a character sheet get their share too.",
+          "If everyone in the party dies, it is game over: the story ends, and RPmod offers to restart from the start or to begin again with a new hero.",
           "The AI can start a fight too: it writes <encounter>2 Wolf</encounter>."
         ] }
       ],
@@ -35527,7 +35674,15 @@ OK = save and close · Cancel = close and discard them`);
         } catch (_) {
         }
         Shell2()?.close("builder", { force: true });
-        window.KLITE_RPMod_Characters?.open(name);
+        const done = V.onSaved;
+        V.onSaved = null;
+        if (typeof done === "function") {
+          try {
+            await done(name);
+          } catch (e) {
+            console.error("[RPmod builder] after saving", e);
+          }
+        } else window.KLITE_RPMod_Characters?.open(name);
       } catch (e) {
         V.busy = false;
         alert("Could not save the character: " + (e.message || e));
@@ -35599,6 +35754,7 @@ OK = save and close · Cancel = close and discard them`);
         V.levelUp = null;
         V.previous = null;
         V.c = fresh();
+        V.onSaved = typeof opts.onSaved === "function" ? opts.onSaved : null;
         if (opts.name) V.c.name = opts.name;
         Shell2()?.open("builder");
         return true;
@@ -37850,10 +38006,12 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       const check = validateAdventure(pkg);
       if (!check.ok) throw new Error("adventure is broken: " + check.errors[0]);
       const offered = pregens(pkg);
-      const g = offered.find((x) => x.id === opts.pregen) || offered[0];
-      if (!g) throw new Error("adventure has no pregenerated characters");
+      const hero = opts.hero ? String(opts.hero) : "";
+      const g = hero ? null : offered.find((x) => x.id === opts.pregen) || offered[0];
+      if (!g && !hero) throw new Error("adventure has no pregenerated characters");
+      const who = hero || g.name;
       const story = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
-      if (opts.confirm !== false && story > 0 && !window.confirm(`Start "${pkg.title}" as ${g.name}? This begins a new session: the current story is replaced (save it first to keep it).`)) return { cancelled: true };
+      if (opts.confirm !== false && story > 0 && !window.confirm(`Start "${pkg.title}" as ${who}? This begins a new session: the current story is replaced (save it first to keep it).`)) return { cancelled: true };
       const cards = await installPregens(pkg);
       const worldId = await installWorld(pkg, cards);
       try {
@@ -37871,14 +38029,14 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       } catch (_) {
       }
       A.useWorld(worldId, { fresh: true });
-      A.setFlag(`pregen_${g.id}`, true);
+      if (g) A.setFlag(`pregen_${g.id}`, true);
       A.commitToBase();
       A.enable();
-      const me = cards[g.id];
+      const me = g ? cards[g.id] : { name: hero };
       try {
         const T = window.KLITE_RPMod && window.KLITE_RPMod.panels && window.KLITE_RPMod.panels.TOOLS;
         const rec = await loadCharacter(me.name);
-        const d = rec && rec.data || deepClone(g.card.data);
+        const d = rec && rec.data || (g ? deepClone(g.card.data) : { name: hero });
         if (T && T.usePersona) T.usePersona(Object.assign({}, d, { name: d.name || me.name, image: rec && rec.image || null, avatar: rec && rec.image || null, rawData: { data: d } }));
       } catch (e) {
         try {
@@ -37897,6 +38055,39 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       } catch (_) {
       }
       return { worldId, persona: me.name, pregens: cards };
+    }
+    async function current() {
+      const A = Worlds();
+      const w = A && A.activeWorld && A.activeWorld();
+      const pkg = w && w.adventure ? registry.get(w.adventure.id) : null;
+      if (!pkg) return null;
+      const T = window.KLITE_RPMod && window.KLITE_RPMod.panels && window.KLITE_RPMod.panels.TOOLS;
+      const persona = T && T.personaEnabled && T.selectedPersona ? T.selectedPersona.name : "";
+      let pregen = null;
+      if (persona) {
+        const rec = await loadCharacter(persona);
+        const r = rec && rec.data && rec.data.extensions && rec.data.extensions.klite_rpmod;
+        if (r && r.adventure === pkg.id && r.pregen) pregen = r.pregen;
+      }
+      return { id: pkg.id, title: pkg.title, persona, pregen };
+    }
+    async function restart(opts = {}) {
+      const cur = await current();
+      if (!cur) throw new Error("the active world is not an adventure");
+      const A = Worlds();
+      try {
+        A.reviveParty();
+      } catch (_) {
+      }
+      if (opts.resetPregens) {
+        const pkg = registry.get(cur.id);
+        const C2 = window.KLITE_RPMod_Characters;
+        for (const g of pregens(pkg)) {
+          const found = await findPregen(pkg.id, g);
+          if (found && C2 && C2.saveSheet) await C2.saveSheet(found.name, deepClone(g.card.data.extensions.klite_rpmod.sheet));
+        }
+      }
+      return start(cur.id, opts.hero ? { hero: opts.hero, confirm: false } : cur.pregen ? { pregen: cur.pregen, confirm: false } : { hero: cur.persona, confirm: false });
     }
     const initials2 = (name) => String(name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
     function render() {
@@ -37998,6 +38189,8 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       pregens: (id) => pregens(get(id)).map((g) => ({ id: g.id, name: g.name, line: g.line, pronouns: g.pronouns })),
       installPregens,
       start,
+      restart,
+      current,
       open,
       forbiddenNamesIn
     };

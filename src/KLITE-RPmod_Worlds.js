@@ -1993,7 +1993,15 @@ export default function initWorlds() {
         } else if (party.length && party.every(o => isDown(cb, o.id) && !(deathOf(cb, o.id) && !deathOf(cb, o.id).stable && !deathOf(cb, o.id).dead))) {
             cb.outcome = 'defeat';
             const p = deathOf(cb, '__player__');
-            combatLog(`Defeat. ${p && p.dead ? 'You have died.' : 'You are unconscious but stable, at the mercy of your foes.'}`);
+            // R8: everyone on the party side is dead (not just down and stable) — game over
+            cb.wipe = party.every(o => { const d = deathOf(cb, o.id); return !!(d && d.dead) || (o.kind !== 'player' && !d && isDown(cb, o.id)); });
+            if (cb.wipe) {
+                const r = rt(); const names = party.map(o => combatantName(o.id));
+                if (r) r.gameOver = { day: r.clock && r.clock.day, time: r.clock && r.clock.time, locationId: r.playerLocationId, persona: cb.persona || '', fallen: names };
+                combatLog(`Game over. ${names.length > 1 ? 'Everyone in the party has died' : 'You have died'}: ${names.join(', ')}.`);
+                try { setTimeout(() => window.dispatchEvent(new CustomEvent('klite:game-over', { detail: { fallen: names } })), 0); } catch (_) {}
+            }
+            else combatLog(`Defeat. ${p && p.dead ? 'You have died.' : 'You are unconscious but stable, at the mercy of your foes.'}`);
         }
         if (cb.outcome) syncPersonaSheet(cb);
         return cb.outcome;
@@ -2189,7 +2197,8 @@ export default function initWorlds() {
     function autoTurn(id) {
         const cb = getCombat(); if (!cb || cb.outcome) return null;
         const o = cb.order.find(x => x.id === id); if (!o) return null;
-        if (isDown(cb, id)) return { skipped: 'down' };
+        // a dying companion rolls its death saving throw on its turn (SRD); the player rolls their own
+        if (isDown(cb, id)) { const d = deathOf(cb, id); if (d && !d.stable && !d.dead && !o.isPlayer) return { deathSave: deathSaveRoll(id) }; return { skipped: 'down' }; }
         if (CR.cannotAct(conds(id))) { combatLog(`${o.name} cannot act (${conds(id).map(c => c.name).join(', ')}).`); return { skipped: 'incapacitated' }; }
         if (zoneState(cb)) return zoneAutoTurn(id);
         const st = combatantStats(id);
@@ -2537,6 +2546,7 @@ export default function initWorlds() {
         parts.push('Party:\n' + sideList(cb, 'party').map(line).join('\n'));
         parts.push('Enemies:\n' + sideList(cb, 'enemy').map(line).join('\n'));
         if (cb.outcome === 'victory') parts.push(`OUTCOME: Victory — every enemy is defeated${cb.xp ? ` (${cb.xp} XP${cb.xpShares > 1 ? `, ${cb.xpEach} XP each` : ''})` : ''}. Narrate the end of the fight.`);
+        else if (cb.outcome === 'defeat' && cb.wipe) parts.push('OUTCOME: Game over — every member of the party has died. Narrate their fall in a few calm, respectful sentences as the end of this story. Do not continue the story and do not revive anyone.');
         else if (cb.outcome === 'defeat') parts.push('OUTCOME: Defeat — the party has fallen. Narrate what happens to the player character now; do not revive them by yourself.');
         else parts.push(`RPmod rolls every attack, saving throw and HP change; narrate only the results listed under "Rolls and combat" — do not invent hits, damage or deaths.${cur.isPlayer ? ' It is the player\'s turn: set the scene and wait for their action.' : ''}`);
         if (!window.KLITE_RPMod_Log) { const recent = cb.log.slice(-6).join('\n'); if (recent) parts.push('Recent:\n' + recent); }
@@ -3558,6 +3568,12 @@ export default function initWorlds() {
         failQuest(id) { const s = setQuestState(id, 'failed'); const q = questById(id); if (s && q) gameLog(`Quest failed: ${questTitle(q)}.`); syncLive(); return s; },
         questNeedsChoice: (id) => needsChoice(questById(id)),
         rewardsPaid: (id) => !!(rt() && rt().rewardsPaid && rt().rewardsPaid[id]),
+        // R8: game over (everyone in the party died) and starting again
+        gameOver() { const r = rt(); return r && r.gameOver ? deepClone(r.gameOver) : null; },
+        // End the fight and bring the persona and the companions back to full HP (their sheets).
+        reviveParty() { const cb = getCombat(); if (cb && cb.active !== false) endEncounter(); const r = longRest(); syncLive(); return r; },
+        // Revive, then the world begins anew at its start (the story's game over is gone with it).
+        restartAtStart() { const w = activeWorld(); if (!w) return null; this.reviveParty(); switchWorld(w.id, { fresh: true }); W.config.enabled = true; syncLive(); return rt(); },
         joinParty(idOrName, opts) { const r = joinParty(idOrName, opts); syncLive(); return r; },
         leaveParty(idOrName, opts) { const r = leaveParty(idOrName, opts); syncLive(); return r; },
         partyMembers,

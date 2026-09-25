@@ -680,6 +680,19 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
   standing. Your persona's remaining **HP and the XP are saved to its sheet** (the fight also
   starts from the sheet's current HP); when you reach the next level's XP, the log says so and
   **Level up** on the sheet takes you there.
+- **Dying:** at 0 HP you and your companions fall unconscious and make death saving throws
+  (companions roll their own on their turn). Fallen but **stable** is a defeat: the AI tells what
+  happens next (capture, rescue…).
+- **Game over:** when **everyone in the party has died**, the story ends. The AI is asked to tell
+  the fall briefly as the end of the story, and a **Game over** window opens (the Party section
+  keeps a banner with **What now?**):
+  - **Restart from the start** — a new session: the world back at its start, you and your
+    companions at full HP; level, XP and gear stay on your characters. In an adventure, tick
+    *Also give the pregenerated characters their starting sheets back* for a truly fresh start.
+  - **Create a new hero** — the character builder; when you save, you start again with the new
+    hero (in an adventure, the four pregens are all there to meet and can join you).
+  - **Choose another character** (adventures) — the adventure's character picker.
+  - Every choice begins a new session: save the old story first if you want to keep it.
 - **The AI sees** the fight state (party, enemies with HP/AC/conditions, whose turn, the outcome)
   and every roll since its last reply, with the instruction not to invent results. Outside a
   fight it is told how to start one: `<encounter>2 Wolf</encounter>`. The older tags `<attack>`,

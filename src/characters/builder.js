@@ -320,7 +320,9 @@ export default function initBuilder() {
             V.busy = false;
             try { window.KLITE_RPMod?.panels?.CHARS?.rebuildFromEsolite?.(); } catch (_) {}
             Shell()?.close('builder', { force: true });
-            window.KLITE_RPMod_Characters?.open(name);
+            const done = V.onSaved; V.onSaved = null;
+            if (typeof done === 'function') { try { await done(name); } catch (e) { console.error('[RPmod builder] after saving', e); } }
+            else window.KLITE_RPMod_Characters?.open(name);
         } catch (e) { V.busy = false; alert('Could not save the character: ' + (e.message || e)); render(); }
     }
 
@@ -368,6 +370,7 @@ export default function initBuilder() {
         open(opts) {
             opts = opts || {};
             V.step = 0; V.target = opts.target || ''; V.levelUp = null; V.previous = null; V.c = fresh();
+            V.onSaved = typeof opts.onSaved === 'function' ? opts.onSaved : null;   // called with the new character's name
             if (opts.name) V.c.name = opts.name;
             Shell()?.open('builder');
             return true;

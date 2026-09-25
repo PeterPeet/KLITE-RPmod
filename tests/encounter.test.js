@@ -115,7 +115,10 @@ test('defeat: the player falls, makes death saves, can be revived by a natural 2
     h.seedRandom([0.2, 0.5]); assert.equal(W.deathSave().result, 'dead');
     cb = W.getCombat();
     assert.equal(cb.outcome, 'defeat');
-    assert.match(W.preview(), /Kara HP 0\/5 \[Unconscious\] — dead[\s\S]*OUTCOME: Defeat/);
+    // alone and dead: everyone in the party has died — game over (R8)
+    assert.equal(cb.wipe, true);
+    assert.match(W.preview(), /Kara HP 0\/5 \[Unconscious\] — dead[\s\S]*OUTCOME: Game over — every member of the party has died/);
+    assert.deepEqual(plain(W.gameOver().fallen), ['Kara']);
     assert.equal(W.heal('__player__', 5), 0, 'the dead are not healed');
 });
 

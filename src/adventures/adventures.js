@@ -104,17 +104,20 @@ export default function initAdventures() {
     }
 
     // ---- start ---------------------------------------------------------------------------------
-    // opts: { pregen, confirm = true }. Starts a new session: the current story is replaced.
+    // opts: { pregen, hero, confirm = true }. `hero`: play with a character of your own from the
+    // Library (its name) instead of a pregen. Starts a new session: the current story is replaced.
     async function start(idOrPkg, opts = {}) {
         const pkg = get(idOrPkg); if (!pkg) throw new Error('unknown adventure');
         const A = Worlds(); if (!A) throw new Error('Worlds engine not loaded');
         const check = AR.validateAdventure(pkg);
         if (!check.ok) throw new Error('adventure is broken: ' + check.errors[0]);
         const offered = AR.pregens(pkg);
-        const g = offered.find(x => x.id === opts.pregen) || offered[0];
-        if (!g) throw new Error('adventure has no pregenerated characters');
+        const hero = opts.hero ? String(opts.hero) : '';
+        const g = hero ? null : (offered.find(x => x.id === opts.pregen) || offered[0]);
+        if (!g && !hero) throw new Error('adventure has no pregenerated characters');
+        const who = hero || g.name;
         const story = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
-        if (opts.confirm !== false && story > 0 && !window.confirm(`Start "${pkg.title}" as ${g.name}? This begins a new session: the current story is replaced (save it first to keep it).`)) return { cancelled: true };
+        if (opts.confirm !== false && story > 0 && !window.confirm(`Start "${pkg.title}" as ${who}? This begins a new session: the current story is replaced (save it first to keep it).`)) return { cancelled: true };
 
         const cards = await installPregens(pkg);
         const worldId = await installWorld(pkg, cards);
@@ -127,16 +130,16 @@ export default function initAdventures() {
         try { window.render_gametext?.(true); } catch (_) {}
 
         A.useWorld(worldId, { fresh: true });
-        A.setFlag(`pregen_${g.id}`, true);            // the world can hide or change the chosen pregen's person
+        if (g) A.setFlag(`pregen_${g.id}`, true);     // the world can hide or change the chosen pregen's person
         A.commitToBase();                              // … and that is part of the start state
         A.enable();
 
-        // the chosen pregen is your persona (as the gallery's "Play as")
-        const me = cards[g.id];
+        // the chosen pregen (or your own hero) is your persona (as the gallery's "Play as")
+        const me = g ? cards[g.id] : { name: hero };
         try {
             const T = window.KLITE_RPMod && window.KLITE_RPMod.panels && window.KLITE_RPMod.panels.TOOLS;
             const rec = await EL.loadCharacter(me.name);
-            const d = (rec && rec.data) || deepClone(g.card.data);
+            const d = (rec && rec.data) || (g ? deepClone(g.card.data) : { name: hero });
             if (T && T.usePersona) T.usePersona(Object.assign({}, d, { name: d.name || me.name, image: rec && rec.image || null, avatar: rec && rec.image || null, rawData: { data: d } }));
         } catch (e) { try { console.error('[RPmod adventures] persona', e); } catch (_) {} }
 
@@ -144,6 +147,32 @@ export default function initAdventures() {
         try { if (view) window.KLITE_RPMod_WorldsUI?.setUiMode(view); } catch (_) {}
         try { Shell()?.close('adventure'); Shell()?.open('world'); } catch (_) {}
         return { worldId, persona: me.name, pregens: cards };
+    }
+
+    // The adventure the active world belongs to, and the pregen the persona is (null: own hero).
+    async function current() {
+        const A = Worlds(); const w = A && A.activeWorld && A.activeWorld();
+        const pkg = w && w.adventure ? registry.get(w.adventure.id) : null; if (!pkg) return null;
+        const T = window.KLITE_RPMod && window.KLITE_RPMod.panels && window.KLITE_RPMod.panels.TOOLS;
+        const persona = T && T.personaEnabled && T.selectedPersona ? T.selectedPersona.name : '';
+        let pregen = null;
+        if (persona) { const rec = await EL.loadCharacter(persona); const r = rec && rec.data && rec.data.extensions && rec.data.extensions.klite_rpmod; if (r && r.adventure === pkg.id && r.pregen) pregen = r.pregen; }
+        return { id: pkg.id, title: pkg.title, persona, pregen };
+    }
+    // Start the current adventure again (after a game over): everyone back at full HP, a new
+    // session, the world at its start, the same character (or `hero`). opts.resetPregens: the
+    // adventure's pregens in the Library get their starting sheets back (level 1) — asked for.
+    async function restart(opts = {}) {
+        const cur = await current(); if (!cur) throw new Error('the active world is not an adventure');
+        const A = Worlds(); try { A.reviveParty(); } catch (_) {}
+        if (opts.resetPregens) {
+            const pkg = registry.get(cur.id); const C = window.KLITE_RPMod_Characters;
+            for (const g of AR.pregens(pkg)) {
+                const found = await findPregen(pkg.id, g);
+                if (found && C && C.saveSheet) await C.saveSheet(found.name, deepClone(g.card.data.extensions.klite_rpmod.sheet));
+            }
+        }
+        return start(cur.id, opts.hero ? { hero: opts.hero, confirm: false } : cur.pregen ? { pregen: cur.pregen, confirm: false } : { hero: cur.persona, confirm: false });
     }
 
     // ---- the picker window ------------------------------------------------------------------
@@ -201,7 +230,7 @@ export default function initAdventures() {
 
     const api = { list, get: (id) => { const p = get(id); return p ? deepClone(p) : null; }, register, validate: AR.validateAdventure,
         pregens: (id) => AR.pregens(get(id)).map(g => ({ id: g.id, name: g.name, line: g.line, pronouns: g.pronouns })),
-        installPregens, start, open, forbiddenNamesIn: AR.forbiddenNamesIn };
+        installPregens, start, restart, current, open, forbiddenNamesIn: AR.forbiddenNamesIn };
     window.KLITE_RPMod_Adventures = api;
 
     function registerView() {

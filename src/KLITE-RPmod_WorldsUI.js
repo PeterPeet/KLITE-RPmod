@@ -1311,6 +1311,11 @@ export default function initWorldsUI() {
             return;
         }
         const rt = A.runtime || {};
+        const go = A.gameOver && A.gameOver();
+        if (go) box.appendChild(el('div', { class: 'rpm-card rpm-gameover-banner', 'data-party': 'gameover' }, [
+            el('strong', { text: 'Game over' }), muted('Everyone in the party has fallen.'),
+            uiBtn('What now?', () => openView('gameover'), { block: true, variant: 'danger', style: 'margin-top:6px', id: 'go-open' }),
+        ]));
         const loc = rt.playerLocationId ? A.entityById(rt.playerLocationId) : null;
         const c = rt.clock || {};
         const locName = loc ? ((A.phased(loc.id) || {}).name || loc.name || loc.id) : 'nowhere';
@@ -1571,6 +1576,64 @@ export default function initWorldsUI() {
     function parseVal(raw) { const v = String(raw || '').trim(); if (v === '') return true; if (/^(true|false)$/i.test(v)) return /true/i.test(v); if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v); return v; }
 
     // =======================================================================
+    //  GAME OVER (R8): everyone in the party died — start again, or a new hero
+    // =======================================================================
+    const GO = { busy: false, msg: '', reset: false };
+    function newSessionOk() {
+        const story = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+        return !story || confirm('This begins a new session: the story that ended here is replaced. Save it first (Esolite\'s Save) if you want to keep it. Continue?');
+    }
+    async function gameOverAction(what, heroName) {
+        const A = API(); const ADV = window.KLITE_RPMod_Adventures;
+        if (GO.busy) return;
+        const adv = ADV && A.activeWorld() && A.activeWorld().adventure ? ADV : null;
+        if (what !== 'choose' && !newSessionOk()) return;
+        GO.busy = true; GO.msg = ''; try { Shell()?.refresh(['gameover']); } catch (_) {}
+        try {
+            if (what === 'choose') { Shell()?.close('gameover'); adv.open(); }
+            else if (adv) await adv.restart(Object.assign({ resetPregens: GO.reset }, heroName ? { hero: heroName } : {}));
+            else {
+                try { if (typeof window.restart_new_game === 'function') window.restart_new_game(false); } catch (_) {}
+                A.restartAtStart();
+                if (heroName) {
+                    const T = window.KLITE_RPMod && window.KLITE_RPMod.panels && window.KLITE_RPMod.panels.TOOLS;
+                    if (T && T.usePersona) T.usePersona({ name: heroName });
+                }
+            }
+            if (what !== 'choose') { Shell()?.close('gameover'); openView('world'); }
+        } catch (e) { GO.msg = 'Could not start again: ' + (e && e.message || e); }
+        GO.busy = false; refreshPanel(); try { Shell()?.refresh(['gameover', 'party']); } catch (_) {}
+    }
+    function renderGameOver(c) {
+        const A = API(); const go = A.gameOver && A.gameOver();
+        const box = el('div', { class: 'rpm-gameover', 'data-ui': 'gameover' });
+        box.appendChild(el('h2', { class: 'rpm-gameover-title', text: 'Game over' }));
+        if (!go) { box.appendChild(muted('Your party is alive. (This window shows when everyone in the party has died.)')); c.appendChild(box); return; }
+        const fallen = (go.fallen || []).join(', ');
+        box.appendChild(el('p', { text: (go.fallen || []).length > 1 ? `Everyone in your party has fallen: ${fallen}.` : `${fallen || 'Your hero'} has fallen.` }));
+        box.appendChild(muted('Send a message if you want the AI to tell how the story ends. Then start again:'));
+        const ADV = window.KLITE_RPMod_Adventures;
+        const adv = ADV && A.activeWorld() && A.activeWorld().adventure;
+        box.appendChild(uiBtn(adv ? 'Restart the adventure from the start' : 'Restart from the start', () => gameOverAction('restart'), { icon: 'rotate-ccw', block: true, lg: true, id: 'go-restart', title: 'A new session: the world back at its start, you and your companions at full HP (level and gear are kept)' }));
+        if (adv) {
+            const lab = el('label', { class: 'rpm-muted', style: 'display:flex;align-items:center;gap:6px;margin:4px 0 8px;cursor:pointer' });
+            const cb = el('input', { type: 'checkbox', 'data-ui': 'go-reset' }); cb.checked = GO.reset;
+            cb.addEventListener('change', () => { GO.reset = cb.checked; });
+            lab.appendChild(cb); lab.appendChild(document.createTextNode('Also give the pregenerated characters their starting sheets back (level 1, starting gear)'));
+            box.appendChild(lab);
+        }
+        box.appendChild(uiBtn('Create a new hero', () => {
+            const B = window.KLITE_RPMod_Builder; if (!B) return;
+            B.open({ onSaved: (name) => gameOverAction('restart', name) });
+        }, { icon: 'wand-sparkles', block: true, id: 'go-new-hero', style: 'margin-top:6px', title: 'Build a new character with the SRD rules, then start again with them' }));
+        if (adv) box.appendChild(uiBtn('Choose another character', () => gameOverAction('choose'), { icon: 'id-card', block: true, id: 'go-choose', style: 'margin-top:6px' }));
+        if (GO.busy) box.appendChild(muted('Starting…', { style: 'margin-top:6px' }));
+        if (GO.msg) box.appendChild(el('p', { class: 'rpm-adv-msg', role: 'status', text: GO.msg }));
+        box.appendChild(uiBtn('Close', () => Shell()?.close('gameover'), { block: true, id: 'go-close', style: 'margin-top:12px', title: 'Read the end of the story first; the Party section keeps these choices' }));
+        c.appendChild(box);
+    }
+
+    // =======================================================================
     //  INIT — register views with the app shell
     // =======================================================================
     function registerViews(sh) {
@@ -1585,6 +1648,7 @@ export default function initWorldsUI() {
             if (API().activeWorld()) renderShop(c, () => refreshPanel());
             else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
         })));
+        sh.registerView(Object.assign({ id: 'gameover', title: 'Game over', place: 'window', window: { width: 420, height: 460, minWidth: 300, restore: false } }, view(renderGameOver)));
         sh.registerView(Object.assign({ id: 'combat', title: 'Combat', place: 'window', window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
             if (API().activeWorld()) renderCombatTab(c);
             else { c.appendChild(el('div', { class: 'rpm-muted', text: 'Fights happen in a world. Load one (or the example) in the World tab.' })); c.appendChild(uiBtn('Open the World tab', () => openView('world'), { block: true, style: 'margin-top:8px' })); }
@@ -1613,6 +1677,7 @@ export default function initWorldsUI() {
         const refreshParty = () => { try { sh.refresh(['party'], { soft: true }); } catch (_) {} };
         window.addEventListener('klite:persona-change', refreshParty);
         window.addEventListener('klite:adventures-change', () => refreshPanel());
+        window.addEventListener('klite:game-over', () => { GO.msg = ''; try { sh.refresh(['party']); } catch (_) {} openView('gameover'); });
         window.addEventListener('klite:sheet-change', refreshParty);
         window.addEventListener('klite:worlds-dirty', () => { try { updateSaveState(); refreshPanel({ soft: true }); } catch (_) {} });
     }

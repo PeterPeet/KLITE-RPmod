@@ -349,6 +349,18 @@ outcome: null|'victory'|'defeat', xp, persona, synced, encounter, difficulty }`.
   the persona and each companion with a sheet get `xpEach`), defeat = no party member standing or dying. On the outcome (or
   `endEncounter` without one) `syncPersonaSheet` writes HP (+ XP on victory) to the persona's
   card once; a log line announces a reachable level.
+- **Game over (R8):** a defeat where every party-side combatant is **dead** sets `cb.wipe` and runtime
+  `gameOver = { day, time, locationId, persona, fallen[] }` (saved with the story; gone with a fresh
+  runtime or Back to start), logs "Game over…", fires `klite:game-over` (detail `{ fallen }`), and the
+  AI's combat text asks it to narrate the fall as the end of the story. Fallen-but-stable stays a
+  plain defeat. A dying companion rolls its death save on its own turn (`autoTurn`); before, it never
+  rolled and such a fight could not end. API `gameOver()`, `reviveParty()` (end the fight + Long
+  rest), `restartAtStart()` (revive + `switchWorld(…, { fresh })`). Adventures: `ADV.current()`
+  (adventure, persona, pregen id), `ADV.restart({ resetPregens, hero })` (revive, optionally the
+  pregens' starting sheets back, then `start` with the same pregen / the hero), `start(…, { hero })`
+  plays with an own Library character. UI (WorldsUI): window view `gameover` (opened on the event:
+  restart, create a new hero — `KLITE_RPMod_Builder.open({ onSaved })` — choose another character,
+  close), Party section banner `data-party="gameover"`.
 - **Travelling party (R8):** person field `canJoin` (editor checkbox "Can join the party"). `joinParty(p,
   { source })` needs `canJoin`, no `isMonster`, not phased `gone`, and the person **here** (`personAt`: same
   place, or a zone the player stands in); names match exactly or by a unique name part among the people
