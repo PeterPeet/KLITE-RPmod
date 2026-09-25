@@ -34,7 +34,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 333 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 335 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -42,7 +42,8 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
   events, quests, lore), compile-to-WI injection (transient/persistent, websearch- and
   agent-mode-safe), per-turn active slice, 16 chat tags, import/export, example world
   ("Eldoria").
-- **Two-slot runtime** (base/working) with reset/commit/swap; saved in the story file.
+- **Two-slot runtime** (base/working), shown as **Game state**: Live game / Start state with Back to start,
+  Save as start and (Creator view) Edit start state; saved in the story file; Guide chapter "Game state".
 - **Persons** linked to library characters (`KLITE_RPMod.characters`) + optional d20 stats.
 - **Quests:** giver/turn-in, yellow `!`/`?` markers, quest log, hidden/discovered,
   per-world `aiMode` (gm/player); repeatable/daily quests, the giver's words (R4 extras).
@@ -183,6 +184,17 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
     Speaker**, which sets Esolite's opponent. The per-turn context follows the Roles choice, so on
     a normal submit the sheet it adds can belong to a different character than the one speaking.
     Decide: let Roles set Esolite's speaker on every submit, or follow Esolite's choice.
+21. ~~Reset/Swap replayed chat tags~~ — fixed 2026-09-25: the chat position up to which tags were
+    applied (`lastParsedIndex`) was stored in each state slot, so "Reset" (now **Back to start**)
+    brought back an older position and the next turn applied every tag since then again (moves,
+    flags, even `<give>` items onto the persona sheet a second time); switching slots did the same.
+    The position now stays with the chat across Reset/Swap, and a new runtime starts at the current
+    end of the chat (enabling a world mid-chat no longer applies that chat's older tags). Tests in
+    `tests/engine.test.js` fail without the fix.
+22. **Start state of your own worlds** (found 2026-09-25): only the example world brings its
+    opening as the start state; any other world starts with an empty one until "Save as start".
+    Switching to another world (`useWorld`) keeps the current runtime, whose place ids belong to
+    the previous world. To solve with R8's per-world start settings (start place, clock, view).
 
 ## Phases
 

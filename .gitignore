@@ -6,8 +6,9 @@ node_modules/
 .npm-cache/
 .DS_Store
 
-# SRD 5.2.1 reference PDF (downloaded, CC-BY-4.0; data extracted into src/)
-docs/reference/*.pdf
+# Reference material (SRD 5.2.1 PDF, UDT, the Phandelver starter set …): read-only sources, some
+# copyrighted — never commit anything in here
+docs/reference/
 __pycache__/
 
 # SillyTavern round-trip test files (scripts/roundtrip-card.js)

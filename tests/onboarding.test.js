@@ -174,7 +174,7 @@ test('Guide: chapters, navigation, remembered chapter, Show me opens and highlig
     assert.equal(win().querySelector('article').dataset.chapter, 'quests');
     const toc = [...win().querySelectorAll('.rpm-guide-toc-item')];
     assert.ok(toc.length >= 10, 'table of contents');
-    assert.equal(toc.find(b => b.getAttribute('aria-current') === 'page').textContent, '5. Quests');
+    assert.equal(toc.find(b => b.getAttribute('aria-current') === 'page').textContent, '6. Quests');
     // all chapter text is rendered as text (no markup injection)
     click(toc.find(b => /Changing the world/.test(b.textContent)), w);
     assert.ok([...win().querySelectorAll('code')].some(c => c.textContent === '<move>Forest Road</move>'));

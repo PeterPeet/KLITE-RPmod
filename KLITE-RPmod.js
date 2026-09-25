@@ -22318,8 +22318,8 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         // non-repeatable events already fired
         startedEncounters: [],
         // saved encounters already started (R7: "waiting here" hint)
-        lastParsedIndex: 0,
-        // gametext_arr index up to which tags were applied
+        lastParsedIndex: chatLength(),
+        // gametext_arr index up to which tags were applied (a new state starts at the current chat: older tags are not replayed)
         // R7 exploration of dungeons/towns (map-rules.js): { [roomId]: 'known'|'discovered'|'visited' },
         // found secrets (exit/room ids) and traps, rooms searched, door states and room light
         // that override the authored ones
@@ -22331,6 +22331,13 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       };
     }
     const deepClone = (o) => JSON.parse(JSON.stringify(o));
+    function chatLength() {
+      try {
+        return Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+      } catch (_) {
+        return 0;
+      }
+    }
     function newRuntime() {
       return { active: "working", base: defaultRuntime(), working: defaultRuntime() };
     }
@@ -26560,9 +26567,17 @@ ${xl.join("\n")}`;
       dbg("example world loaded");
       return w.id;
     }
+    function keepChatPosition(change) {
+      const pos = rt() ? rt().lastParsedIndex : null;
+      const res = change();
+      if (pos != null && rt()) rt().lastParsedIndex = pos;
+      return res;
+    }
     function resetToBase() {
       if (!W.runtime) return false;
-      W.runtime.working = deepClone(W.runtime.base);
+      keepChatPosition(() => {
+        W.runtime.working = deepClone(W.runtime.base);
+      });
       dbg("reset working <- base");
       return true;
     }
@@ -26574,13 +26589,17 @@ ${xl.join("\n")}`;
     }
     function swapActive() {
       if (!W.runtime) return null;
-      W.runtime.active = W.runtime.active === "working" ? "base" : "working";
+      keepChatPosition(() => {
+        W.runtime.active = W.runtime.active === "working" ? "base" : "working";
+      });
       dbg("active slot =", W.runtime.active);
       return W.runtime.active;
     }
     function setActiveSlot(slot) {
       if (!W.runtime || slot !== "base" && slot !== "working") return null;
-      W.runtime.active = slot;
+      keepChatPosition(() => {
+        W.runtime.active = slot;
+      });
       return slot;
     }
     const API3 = {
@@ -31205,29 +31224,38 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         refreshPanel();
       }, { block: true, variant: enabled ? "on" : null, style: "margin-bottom:10px" }));
       const slot = A.activeSlot || "working";
-      const slotBox = el2("div", { class: "rpm-card", style: "margin-bottom:6px" });
+      const slotBox = el2("div", { class: "rpm-card", style: "margin-bottom:6px", "data-ui": "game-state" });
       slotBox.appendChild(row2([
-        el2("span", { class: "rpm-muted rpm-grow", text: "State slot" }),
-        el2("span", { class: "rpm-chip " + (slot === "working" ? "rpm-chip-info" : "rpm-chip-quest"), text: slot === "working" ? "WORKING (live)" : "BASE (start)" })
+        el2("span", { class: "rpm-muted rpm-grow", text: "Game state" }),
+        el2("span", { class: "rpm-chip " + (slot === "working" ? "rpm-chip-info" : "rpm-chip-quest"), text: slot === "working" ? "Live game" : "Editing start state" })
       ], "margin-bottom:6px"));
-      slotBox.appendChild(row2([
-        uiBtn("Reset", () => {
-          if (confirm("Reset the working state to the base (start) state? Live changes are lost.")) {
-            A.resetToBase();
-            refreshPanel();
-          }
-        }, { icon: "rotate-ccw", grow: true, title: "Discard live changes, back to the start state" }),
-        uiBtn("Commit", () => {
-          if (confirm("Set the current working state as the new base (start)?")) {
-            A.commitToBase();
-            refreshPanel();
-          }
-        }, { icon: "check", grow: true, title: "Make the current live state the new start state" }),
-        uiBtn("Swap", () => {
+      if (slot === "working") {
+        const btns = [
+          uiBtn("Back to start", () => {
+            if (confirm("Go back to the start state? The world (place, time, quests, flags, explored rooms) returns to the start. The chat is not rewound, and your character sheet keeps its HP, XP and items.")) {
+              A.resetToBase();
+              refreshPanel();
+            }
+          }, { icon: "rotate-ccw", grow: true, id: "slot-reset", title: "Return the world to the start state" }),
+          uiBtn("Save as start", () => {
+            if (confirm("Make the current state the new start state?")) {
+              A.commitToBase();
+              refreshPanel();
+            }
+          }, { icon: "check", grow: true, id: "slot-commit", title: "The world as it is now becomes the start state" })
+        ];
+        slotBox.appendChild(row2(btns));
+        if (uiMode() === "creator") slotBox.appendChild(uiBtn("Edit start state", () => {
           A.swapActive();
           refreshPanel();
-        }, { icon: "arrow-left-right", grow: true, title: "Switch which slot is active" })
-      ]));
+        }, { icon: "pencil", block: true, id: "slot-edit-start", style: "margin-top:6px", title: "Changes you make now go to the start state, not the live game" }));
+      } else {
+        slotBox.appendChild(muted2("Changes now go to the start state. The live game waits until you switch back.", { style: "margin-bottom:6px" }));
+        slotBox.appendChild(uiBtn("Back to the live game", () => {
+          A.swapActive();
+          refreshPanel();
+        }, { icon: "play", block: true, id: "slot-live", title: "Continue the live game" }));
+      }
       box.appendChild(slotBox);
       const g = A.getGraph();
       const locs = g.nodes.filter((n) => n.type === "location");
@@ -31499,13 +31527,40 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           'Pick or load a world in the World tab, then "Enable for this story".',
           "Set your current location and the time of day; RPmod tracks both as you play.",
           "The Map section on the left shows where you are. In a dungeon or town, click a neighbouring room to go there; locked doors refuse the move and the AI hears why.",
-          'State slots: "working" is the live game, "base" is the start. Reset returns to the start, Commit makes now the new start.'
+          "Game state: RPmod keeps the live game and a start state you can go back to (next chapter)."
         ] }
       ],
       show: [
         { label: "World tab", run: (c) => {
           c.open("world");
           c.highlight("#wm-panel", "Your world and its live state");
+        } }
+      ]
+    },
+    {
+      id: "game-state",
+      title: "Game state: start and live game",
+      blocks: [
+        { p: `For every story, RPmod keeps two copies of the world's state: the live game you are playing, and a start state you can return to. The example world brings its opening as the start state; in a world of your own, set up the opening (place, time) and press "Save as start".` },
+        { p: "The state is where you are, the time and weather, quests and their objectives, flags, reputation, rooms you explored, doors, companions and the story inventory. Both copies are saved with your story and its export." },
+        { table: [
+          ["Button", "What it does"],
+          ["Back to start", "The world returns to the start state, for example to replay an adventure or undo a wrong turn."],
+          ["Save as start", "The world as it is now becomes the new start state. A good checkpoint before a dangerous dungeon."],
+          ["Edit start state", 'Creator view only. Changes now go to the start state instead of the live game, for example to move where a new game begins. "Back to the live game" switches back.']
+        ] },
+        { p: "What the start state does not reset:" },
+        { list: [
+          'The chat. The AI still reads the story so far. After "Back to start", start a new session or tell the AI in a message that the story begins again.',
+          "Your character sheet. HP, XP, gold and items live on your character card and travel with it into other stories.",
+          "The world itself. Places, people and quests you changed in the editor stay changed; only the state of play goes back."
+        ] },
+        { tip: 'Tags in chat messages that RPmod already applied are not applied again after "Back to start". Only new replies change the world.' }
+      ],
+      show: [
+        { label: "Game state", run: (c) => {
+          c.open("world");
+          c.highlight('[data-ui="game-state"]', "Live game and start state");
         } }
       ]
     },

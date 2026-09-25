@@ -709,7 +709,9 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
 ## 4. Worlds UI (`src/KLITE-RPmod_WorldsUI.js`)
 - **Shell views:** right tab **World** (`#wm-panel`: world selector,
   New/Example/Import/Export, Creator⇄Player lens `localStorage['KLITE.worlds.uiMode']`,
-  window launchers, enable, state slots, location, time/weather, flags, inventory,
+  window launchers, enable, game state (the engine's working/base slots as Live game / Start state:
+  Back to start = `resetToBase`, Save as start = `commitToBase`, Edit start state = `swapActive`,
+  Creator view only; `lastParsedIndex` is kept across them — it tracks the chat, not the world), location, time/weather, flags, inventory,
   preview); left sections **Party** and **Quests** (tracker); windows **Quest log** (GM/player
   AI mode), **Combat** (builder with SRD quick-add, live tracker) and **World editor**. All re-render on the
   engine's `klite:worlds-change` window event (coalesced, fired from `syncLive()` and after

@@ -74,6 +74,45 @@ test('two-slot runtime: commit, reset, swap, deep clones', async (t) => {
     assert.equal(W.runtime.playerLocationId, 'loc_village');
 });
 
+test('two-slot runtime: Reset and Swap do not replay chat tags already applied', async (t) => {
+    const h = await exampleHost(); t.after(h.close);
+    const W = h.api(); const w = h.window;
+    // the chat so far: one reply moved the player and gave an item
+    w.gametext_arr.push('We head out. <move>Forest Road</move><flag>left=true</flag><give>Torch x2</give>');
+    await w.prepare_submit_generation();
+    assert.equal(W.runtime.playerLocationId, 'loc_forest');
+    assert.equal(W.runtime.inventory.find(i => i.name === 'Torch').qty, 2);
+
+    // back to the start: the chat is not rewound, so its tags must not come back
+    W.resetToBase();
+    await w.prepare_submit_generation();
+    assert.equal(W.runtime.playerLocationId, 'loc_village', 'Reset is not undone by the next turn');
+    assert.ok(!('left' in W.runtime.flags));
+    assert.ok(!W.runtime.inventory.some(i => i.name === 'Torch'), 'no item given a second time');
+
+    // switching to the start state does not replay them into it either
+    W.swapActive();
+    await w.prepare_submit_generation();
+    assert.equal(W.runtime.playerLocationId, 'loc_village');
+    W.swapActive();
+
+    // new replies still apply as usual
+    w.gametext_arr.push('On we go. <move>Forest Road</move>');
+    await w.prepare_submit_generation();
+    assert.equal(W.runtime.playerLocationId, 'loc_forest');
+});
+
+test('a world enabled in the middle of a chat does not apply that chat\'s older tags', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.load('worlds'); await h.ready();
+    const w = h.window; const W = h.api();
+    w.gametext_arr.push('An old story. <move>Forest Road</move><give>Old Coin</give>');
+    await W.loadExample();
+    await w.prepare_submit_generation();
+    assert.equal(W.runtime.playerLocationId, 'loc_village', 'the example starts in its village');
+    assert.ok(!W.runtime.inventory.some(i => i.name === 'Old Coin'));
+});
+
 test('persistence: save round-trip and legacy migration', async (t) => {
     const h = await exampleHost(); t.after(h.close);
     const W = h.api();

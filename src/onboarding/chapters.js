@@ -59,11 +59,34 @@ export const CHAPTERS = [
                 'Pick or load a world in the World tab, then "Enable for this story".',
                 'Set your current location and the time of day; RPmod tracks both as you play.',
                 'The Map section on the left shows where you are. In a dungeon or town, click a neighbouring room to go there; locked doors refuse the move and the AI hears why.',
-                'State slots: "working" is the live game, "base" is the start. Reset returns to the start, Commit makes now the new start.',
+                'Game state: RPmod keeps the live game and a start state you can go back to (next chapter).',
             ] },
         ],
         show: [
             { label: 'World tab', run: (c) => { c.open('world'); c.highlight('#wm-panel', 'Your world and its live state'); } },
+        ],
+    },
+    {
+        id: 'game-state', title: 'Game state: start and live game',
+        blocks: [
+            { p: 'For every story, RPmod keeps two copies of the world\'s state: the live game you are playing, and a start state you can return to. The example world brings its opening as the start state; in a world of your own, set up the opening (place, time) and press "Save as start".' },
+            { p: 'The state is where you are, the time and weather, quests and their objectives, flags, reputation, rooms you explored, doors, companions and the story inventory. Both copies are saved with your story and its export.' },
+            { table: [
+                ['Button', 'What it does'],
+                ['Back to start', 'The world returns to the start state, for example to replay an adventure or undo a wrong turn.'],
+                ['Save as start', 'The world as it is now becomes the new start state. A good checkpoint before a dangerous dungeon.'],
+                ['Edit start state', 'Creator view only. Changes now go to the start state instead of the live game, for example to move where a new game begins. "Back to the live game" switches back.'],
+            ] },
+            { p: 'What the start state does not reset:' },
+            { list: [
+                'The chat. The AI still reads the story so far. After "Back to start", start a new session or tell the AI in a message that the story begins again.',
+                'Your character sheet. HP, XP, gold and items live on your character card and travel with it into other stories.',
+                'The world itself. Places, people and quests you changed in the editor stay changed; only the state of play goes back.',
+            ] },
+            { tip: 'Tags in chat messages that RPmod already applied are not applied again after "Back to start". Only new replies change the world.' },
+        ],
+        show: [
+            { label: 'Game state', run: (c) => { c.open('world'); c.highlight('[data-ui="game-state"]', 'Live game and start state'); } },
         ],
     },
     {

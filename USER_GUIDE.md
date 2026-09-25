@@ -501,14 +501,27 @@ passive Perception are calculated for you.
   of the prompt. A world person linked to a card uses that card's sheet in combat if it has
   no stat block of its own.
 
-The **World** tab shows the live game state (enable, state slots, location, time, flags,
+The **World** tab shows the live game state (enable, game state, location, time, flags,
 inventory) and has buttons for the **Quest log** and **Combat** windows and the **Editor**,
 plus a **Creator ⇄ Player** lens in its header.
 
-**State slots (base / working).** The World tab keeps two saved states: **base** (your start
-point) and **working** (the live game). Use **Reset** to snap back to base, **Commit** to make
-the current state the new base, and **Swap** to switch which is active. Both travel with your
-save and export.
+**Game state: start and live game.** For every story RPmod keeps two copies of the world's
+state — where you are, time and weather, quests and objectives, flags, reputation, explored rooms,
+doors, companions and the story inventory: the **live game** and a **start state** to return to.
+Both are saved with the story and its export.
+
+| Button | What it does |
+|---|---|
+| **Back to start** | The world returns to the start state (replay, or undo a wrong turn). |
+| **Save as start** | The world as it is now becomes the new start state — a checkpoint. |
+| **Edit start state** | Creator view only: changes now go to the start state (e.g. where a new game begins); **Back to the live game** switches back. |
+
+The example world brings its opening as the start state; in your own world, set up the opening
+(place, time) and press **Save as start**. What the start state does **not** reset: the **chat**
+(the AI still reads the story so far — start a new session or tell the AI the story begins again),
+your **character sheet** (HP, XP, gold and items stay on your card) and the **world itself**
+(edits in the editor stay). Tags in messages that were already applied are not applied again
+after **Back to start**; only new replies change the world.
 
 **Persons = characters.** In the editor, an NPC can be **linked to a character** from your
 Library (its TavernCard text is reused: without a description of its own, the AI gets a short

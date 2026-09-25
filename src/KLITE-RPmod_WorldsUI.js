@@ -1438,18 +1438,25 @@ export default function initWorldsUI() {
         const enabled = A.isEnabled();
         box.appendChild(uiBtn(enabled ? '● Enabled for this story' : '○ Enable for this story', () => { enabled ? A.disable() : A.enable(); refreshPanel(); }, { block: true, variant: enabled ? 'on' : null, style: 'margin-bottom:10px' }));
 
-        // ---- state slots (base / working) ----
+        // ---- game state: the live game and its start state (engine: working / base slots) ----
         const slot = A.activeSlot || 'working';
-        const slotBox = el('div', { class: 'rpm-card', style: 'margin-bottom:6px' });
+        const slotBox = el('div', { class: 'rpm-card', style: 'margin-bottom:6px', 'data-ui': 'game-state' });
         slotBox.appendChild(row([
-            el('span', { class: 'rpm-muted rpm-grow', text: 'State slot' }),
-            el('span', { class: 'rpm-chip ' + (slot === 'working' ? 'rpm-chip-info' : 'rpm-chip-quest'), text: slot === 'working' ? 'WORKING (live)' : 'BASE (start)' })
+            el('span', { class: 'rpm-muted rpm-grow', text: 'Game state' }),
+            el('span', { class: 'rpm-chip ' + (slot === 'working' ? 'rpm-chip-info' : 'rpm-chip-quest'), text: slot === 'working' ? 'Live game' : 'Editing start state' })
         ], 'margin-bottom:6px'));
-        slotBox.appendChild(row([
-            uiBtn('Reset', () => { if (confirm('Reset the working state to the base (start) state? Live changes are lost.')) { A.resetToBase(); refreshPanel(); } }, { icon: 'rotate-ccw', grow: true, title: 'Discard live changes, back to the start state' }),
-            uiBtn('Commit', () => { if (confirm('Set the current working state as the new base (start)?')) { A.commitToBase(); refreshPanel(); } }, { icon: 'check', grow: true, title: 'Make the current live state the new start state' }),
-            uiBtn('Swap', () => { A.swapActive(); refreshPanel(); }, { icon: 'arrow-left-right', grow: true, title: 'Switch which slot is active' })
-        ]));
+        if (slot === 'working') {
+            const btns = [
+                uiBtn('Back to start', () => { if (confirm('Go back to the start state? The world (place, time, quests, flags, explored rooms) returns to the start. The chat is not rewound, and your character sheet keeps its HP, XP and items.')) { A.resetToBase(); refreshPanel(); } }, { icon: 'rotate-ccw', grow: true, id: 'slot-reset', title: 'Return the world to the start state' }),
+                uiBtn('Save as start', () => { if (confirm('Make the current state the new start state?')) { A.commitToBase(); refreshPanel(); } }, { icon: 'check', grow: true, id: 'slot-commit', title: 'The world as it is now becomes the start state' })
+            ];
+            slotBox.appendChild(row(btns));
+            // editing the start state is an authoring tool: Creator view only
+            if (uiMode() === 'creator') slotBox.appendChild(uiBtn('Edit start state', () => { A.swapActive(); refreshPanel(); }, { icon: 'pencil', block: true, id: 'slot-edit-start', style: 'margin-top:6px', title: 'Changes you make now go to the start state, not the live game' }));
+        } else {
+            slotBox.appendChild(muted('Changes now go to the start state. The live game waits until you switch back.', { style: 'margin-bottom:6px' }));
+            slotBox.appendChild(uiBtn('Back to the live game', () => { A.swapActive(); refreshPanel(); }, { icon: 'play', block: true, id: 'slot-live', title: 'Continue the live game' }));
+        }
         box.appendChild(slotBox);
 
         // ---- location ----

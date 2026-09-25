@@ -23,11 +23,28 @@ test('World tab: example button, window launchers, creator/player lens, state sl
     await sleep(80);
     assert.ok(W.activeWorld() && W.isEnabled(), 'example loaded + enabled');
     for (const b of [/Quest log/, /Combat/, /Editor/]) assert.ok(findButton(panel(), b), String(b));
-    assert.ok(findButton(panel(), /Reset/) && findButton(panel(), /Commit/) && findButton(panel(), /Swap/));
+    // game state (engine: working / base slots)
+    const gs = () => panel().querySelector('[data-ui="game-state"]');
+    assert.ok(texts(gs()).includes('Live game'));
+    assert.ok(findButton(gs(), /Back to start/) && findButton(gs(), /Save as start/) && findButton(gs(), /Edit start state/));
+    click(findButton(gs(), /Edit start state/), w);
+    assert.equal(W.activeSlot, 'base');
+    assert.ok(texts(gs()).includes('Editing start state'));
+    assert.ok(!findButton(gs(), /Back to start/) && !findButton(gs(), /Save as start/), 'no reset/commit while editing the start');
+    click(findButton(gs(), /Back to the live game/), w);
+    assert.equal(W.activeSlot, 'working');
+    W.moveTo('Forest Road');
+    const origConfirm = w.confirm; w.confirm = () => true;
+    click(findButton(gs(), /Back to start/), w);
+    w.confirm = origConfirm;
+    assert.equal(W.runtime.playerLocationId, 'loc_village', 'Back to start resets the live game');
+
     const chip = [...panel().querySelectorAll('span')].find(s => s.textContent === 'Creator');
     click(chip, w);
     assert.ok([...panel().querySelectorAll('span')].some(s => s.textContent === 'Player'));
     assert.equal(w.localStorage.getItem('KLITE.worlds.uiMode'), 'player');
+    assert.ok(!findButton(gs(), /Edit start state/), 'Player view: no start-state editing');
+    assert.ok(findButton(gs(), /Back to start/), 'Player view keeps Back to start');
 });
 
 test('quest log + combat windows, quest tracker and party sections stay in sync', async (t) => {

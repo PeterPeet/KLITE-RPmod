@@ -90,7 +90,7 @@ export default function initWorlds() {
             npcStateOverrides: {},   // { [npcId]: { locationId, mood, ... } }
             completedEventIds: [],   // non-repeatable events already fired
             startedEncounters: [],   // saved encounters already started (R7: "waiting here" hint)
-            lastParsedIndex: 0,      // gametext_arr index up to which tags were applied
+            lastParsedIndex: chatLength(), // gametext_arr index up to which tags were applied (a new state starts at the current chat: older tags are not replayed)
             // R7 exploration of dungeons/towns (map-rules.js): { [roomId]: 'known'|'discovered'|'visited' },
             // found secrets (exit/room ids) and traps, rooms searched, door states and room light
             // that override the authored ones
@@ -100,6 +100,7 @@ export default function initWorlds() {
     }
 
     const deepClone = o => JSON.parse(JSON.stringify(o));
+    function chatLength() { try { return Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0; } catch (_) { return 0; } }
     function newRuntime() { return { active: 'working', base: defaultRuntime(), working: defaultRuntime() }; }
     // rt() = the ACTIVE snapshot. All engine reads/writes of per-story state go through it.
     function rt() { return (W.runtime && W.runtime[W.runtime.active]) ? W.runtime[W.runtime.active] : null; }
@@ -3315,10 +3316,18 @@ export default function initWorlds() {
     }
 
     // ----- two-slot state operations (base / working) -----
-    function resetToBase() { if (!W.runtime) return false; W.runtime.working = deepClone(W.runtime.base); dbg('reset working <- base'); return true; }
+    // The chat position (lastParsedIndex) belongs to the chat, not to a slot: the chat is not
+    // rewound, so after a reset or a switch the tags already applied must not be applied again.
+    function keepChatPosition(change) {
+        const pos = rt() ? rt().lastParsedIndex : null;
+        const res = change();
+        if (pos != null && rt()) rt().lastParsedIndex = pos;
+        return res;
+    }
+    function resetToBase() { if (!W.runtime) return false; keepChatPosition(() => { W.runtime.working = deepClone(W.runtime.base); }); dbg('reset working <- base'); return true; }
     function commitToBase() { if (!W.runtime) return false; W.runtime.base = deepClone(W.runtime.working); dbg('commit base <- working'); return true; }
-    function swapActive() { if (!W.runtime) return null; W.runtime.active = (W.runtime.active === 'working' ? 'base' : 'working'); dbg('active slot =', W.runtime.active); return W.runtime.active; }
-    function setActiveSlot(slot) { if (!W.runtime || (slot !== 'base' && slot !== 'working')) return null; W.runtime.active = slot; return slot; }
+    function swapActive() { if (!W.runtime) return null; keepChatPosition(() => { W.runtime.active = (W.runtime.active === 'working' ? 'base' : 'working'); }); dbg('active slot =', W.runtime.active); return W.runtime.active; }
+    function setActiveSlot(slot) { if (!W.runtime || (slot !== 'base' && slot !== 'working')) return null; keepChatPosition(() => { W.runtime.active = slot; }); return slot; }
 
     const API = {
         _state: W,
