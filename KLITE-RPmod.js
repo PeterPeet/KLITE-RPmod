@@ -1757,7 +1757,9 @@ ${s.text}` : s.text : `[${s.title}]`;
       try {
         const input2 = document.getElementById("input_text");
         const text = input2 ? String(input2.value || "") : "";
-        if (!text.startsWith("/") || typeof window.customtools_sanitize_list !== "function") return false;
+        if (!text.startsWith("/")) return false;
+        if (window.KLITE_RPMod_Chat && window.KLITE_RPMod_Chat.isCommand(text)) return true;
+        if (typeof window.customtools_sanitize_list !== "function") return false;
         const name = (text.slice(1).match(/^\S*/) || [""])[0];
         const tools = window.customtools_sanitize_list(window.localsettings && window.localsettings.custom_tools);
         return Array.isArray(tools) && tools.some((t) => t && t.name === name && t.userCallable);
@@ -7408,7 +7410,7 @@ ${s.text}` : s.text : `[${s.title}]`;
         try {
           const mode2 = window.localsettings?.opmode || 3;
           const preview = (text || "").length > 800 ? text.slice(0, 800) + "…" : text || "";
-          this.log("chat", "sendTextToEsolite()", { mode: mode2, length: (text || "").length, preview });
+          KLITE_RPMod.log("chat", "sendTextToEsolite()", { mode: mode2, length: (text || "").length, preview });
           if (mode2 === 3) {
             const chatInputs = [
               document.getElementById("cht_inp"),
@@ -7417,11 +7419,11 @@ ${s.text}` : s.text : `[${s.title}]`;
             if (chatInputs.length) {
               chatInputs[0].value = text;
               if (typeof window.chat_submit_generation === "function") {
-                this.log("chat", "Calling chat_submit_generation()");
+                KLITE_RPMod.log("chat", "Calling chat_submit_generation()");
                 return window.chat_submit_generation();
               }
               if (typeof window.submit_generation_button === "function") {
-                this.log("chat", "Calling submit_generation_button(true)");
+                KLITE_RPMod.log("chat", "Calling submit_generation_button(true)");
                 return window.submit_generation_button(true);
               }
             }
@@ -7430,10 +7432,10 @@ ${s.text}` : s.text : `[${s.title}]`;
           if (liteInput) {
             liteInput.value = text;
             if (typeof window.prepare_submit_generation === "function") {
-              this.log("chat", "Calling prepare_submit_generation()");
+              KLITE_RPMod.log("chat", "Calling prepare_submit_generation()");
               return window.prepare_submit_generation();
             }
-            this.log("chat", "Calling LiteAPI.generate()");
+            KLITE_RPMod.log("chat", "Calling LiteAPI.generate()");
             return LiteAPI.generate();
           }
           KLITE_RPMod.log("panels", "sendTextToEsolite: No suitable input found");
@@ -31324,6 +31326,25 @@ ${xl.join("\n")}`;
       show: [{ label: "Chat input", run: (c) => c.highlight("#input_text", "Type tags here, like any message") }]
     },
     {
+      id: "commands",
+      title: "Slash commands",
+      blocks: [
+        { p: "The quick way to act yourself: type a command in the chat box, like Esolite's own custom tools. It changes the game at once and sends nothing; the result goes to the game log, which the AI reads next turn. Press Send with an empty box (or write what you do) and the AI narrates it." },
+        { table: [
+          ["Command", "Does"],
+          ["/go Forest Road · /look · /search · /open north", "move, look around, search, doors"],
+          ["/talk Bram · /accept Bandit Bounty · /turnin …", "people and quests"],
+          ["/buy Torch x2 · /sell Rope · /inv · /shop", "trade and inventory"],
+          ["/roll 1d20+3 · /check perception 12", "dice; checks with your persona's sheet"],
+          ["/encounter 2 Wolf · /attack Wolf · /endturn · /rest", "fights"],
+          ["/lookup Fireball · /map · /quests · /summary", "windows; Esolite's AutoGenerate Memory"]
+        ] },
+        { p: "No quotes needed: the rest of the line is the argument. Several at once: /go Forest Road | I set off before dawn. — commands first, then the text is sent as your message." },
+        { tip: "Type /help for every command. If one of your own Esolite custom tools has the same name, yours wins." }
+      ],
+      show: [{ label: "Chat input", run: (c) => c.highlight("#input_text", "Type /help here") }]
+    },
+    {
       id: "ai-view",
       title: "What the AI sees",
       blocks: [
@@ -35268,6 +35289,640 @@ OK = save and close · Cancel = close and discard them`);
     else window.addEventListener("load", attempt, { once: true });
   }
 
+  // src/chat/chat-rules.js
+  function parseCommand(part) {
+    const m = /^\s*\/([A-Za-z][\w-]*)(?:\s+([\s\S]*))?$/.exec(String(part || ""));
+    return m ? { name: m[1].toLowerCase(), arg: (m[2] || "").trim() } : null;
+  }
+  function splitInput(text) {
+    const parts = [];
+    for (const line of String(text || "").split(/\r?\n/)) {
+      for (const piece of line.split(/\s+\|\s+/)) {
+        const cmd = parseCommand(piece);
+        if (cmd) parts.push({ kind: "command", ...cmd });
+        else if (piece.trim()) parts.push({ kind: "text", text: piece.trim() });
+      }
+    }
+    return parts;
+  }
+  function startsWithCommand(text, known) {
+    const first = String(text || "").split(/\r?\n/)[0].split(/\s+\|\s+/)[0];
+    const cmd = parseCommand(first);
+    return !!(cmd && known(cmd.name));
+  }
+  function messageOf(parts) {
+    return parts.filter((p) => p.kind === "text").map((p) => p.text).join("\n");
+  }
+  function cleanArg(s) {
+    return String(s || "").replace(/[<>]/g, "").trim();
+  }
+  function splitMode(arg) {
+    const m = /^(.*?)\s*\b(adv|advantage|dis|disadvantage)\s*$/i.exec(String(arg || "").trim());
+    if (!m) return { rest: String(arg || "").trim(), mode: null };
+    return { rest: m[1].trim(), mode: /^adv/i.test(m[2]) ? "adv" : "dis" };
+  }
+  function parseCheck(arg) {
+    const { rest, mode: mode2 } = splitMode(arg);
+    const m = /^(.*?)\s*(?:\b(?:dc|vs\.?)\s*)?(\d+)$/i.exec(rest);
+    if (m && m[1].trim()) return { what: m[1].trim(), dc: Number(m[2]), mode: mode2 };
+    return { what: rest.replace(/\s*\b(?:dc|vs\.?)\s*$/i, "").trim(), dc: null, mode: mode2 };
+  }
+  function parseAttack(arg) {
+    const m = /^(.*?)\s+(?:with|using)\s+(.+)$/i.exec(String(arg || "").trim());
+    return m ? { target: m[1].trim(), weapon: m[2].trim() } : { target: String(arg || "").trim(), weapon: "" };
+  }
+  function parseAssign(arg) {
+    const s = String(arg || "").trim();
+    const i = s.indexOf("=");
+    return i < 0 ? { key: s, value: null } : { key: s.slice(0, i).trim(), value: s.slice(i + 1).trim() };
+  }
+  function nameKey2(s) {
+    return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  }
+
+  // src/chat/slash.js
+  function initChat() {
+    "use strict";
+    if (window.KLITE_RPMod_Chat) return;
+    const W = () => window.KLITE_RPMod_Worlds;
+    const Log = () => window.KLITE_RPMod_Log;
+    const Shell2 = () => window.KLITE_RPMod_Shell;
+    const persona = () => {
+      try {
+        return window.KLITE_RPMod_Characters?.personaName() || "";
+      } catch (_) {
+        return "";
+      }
+    };
+    const worldOn = () => {
+      try {
+        const A = W();
+        return !!(A && A.activeWorld() && A.isEnabled());
+      } catch (_) {
+        return false;
+      }
+    };
+    const ok = (text) => ({ ok: true, text });
+    const fail = (error) => ({ ok: false, error });
+    const info = (title, text) => ({ ok: true, info: { title, text } });
+    const opened = (view, text) => {
+      try {
+        Shell2()?.open(view);
+      } catch (_) {
+      }
+      return { ok: true, text };
+    };
+    function tag(name, arg, usage) {
+      const a = cleanArg(arg);
+      if (!a) return fail("Usage: " + usage);
+      return W().applyTags(`<${name}>${a}</${name}>`) ? { ok: true } : { ok: false };
+    }
+    function findQuest(arg) {
+      const k2 = nameKey2(arg);
+      if (!k2) return null;
+      const qs = W().listQuests() || [];
+      return qs.find((q) => q.id === arg.trim()) || qs.find((q) => nameKey2(q.title) === k2) || qs.find((q) => k2.length > 3 && nameKey2(q.title).includes(k2)) || null;
+    }
+    const STATE_WORDS = { available: "not accepted yet", active: "in progress", complete: "ready to turn in", turnedin: "already turned in", failed: "failed", locked: "locked" };
+    function checkTarget(what) {
+      const k2 = nameKey2(what);
+      const skill = SKILLS.find((s) => nameKey2(s.id) === k2 || nameKey2(s.name) === k2);
+      if (skill) return { kind: "skill", id: skill.id, name: skill.name, ability: skill.ability };
+      const ab = ABILITIES.find((a) => a === k2 || nameKey2(ABILITY_NAMES[a]) === k2);
+      if (ab) return { kind: "ability", id: ab, name: ABILITY_NAMES[ab], ability: ab };
+      const save = /^(.*?)(?:save|savingthrow)$/.exec(k2);
+      const sab = save && ABILITIES.find((a) => a === save[1] || nameKey2(ABILITY_NAMES[a]) === save[1]);
+      if (sab) return { kind: "save", id: sab, name: ABILITY_NAMES[sab] + " save", ability: sab };
+      return null;
+    }
+    function rollCheck(arg) {
+      const c = parseCheck(arg);
+      const t = checkTarget(c.what);
+      if (!t) return fail(`Unknown check "${c.what}". Use an ability (dex, Wisdom), a skill (Perception, Sleight of Hand) or a save (dex save).`);
+      const name = persona();
+      const sheet = name && window.KLITE_RPMod_Characters?.cachedSheet(name);
+      let bonus;
+      if (sheet) {
+        const d = derive(sheet);
+        bonus = t.kind === "skill" ? d.skills[t.id] : t.kind === "save" ? d.saves[t.id] : d.mods[t.id];
+      } else if (worldOn() && t.kind === "ability") {
+        const st = W().combatantStats("__player__");
+        bonus = W().abilityMod(st && st.abilities ? st.abilities[t.id] : 10);
+      } else return fail("Choose a persona with a character sheet (Tools panel) to roll checks.");
+      const L = Log();
+      const r = L.roll("1d20" + (bonus ? fmt(bonus) : ""), { mode: c.mode });
+      const verdict = c.dc != null ? ` (DC ${c.dc}): ${r.total >= c.dc ? "success" : "failure"}` : "";
+      L.add({ who: name || "You", what: `${t.name} check${verdict}`, roll: r, kind: "roll" });
+      return { ok: true };
+    }
+    function inFight() {
+      const cb = W().getCombat();
+      return !!(cb && cb.active && !cb.outcome);
+    }
+    function attackCmd(arg) {
+      if (!inFight()) return fail("No fight is on. Start one with /encounter (a saved encounter or monsters, e.g. /encounter 2 Wolf).");
+      const a = parseAttack(cleanArg(arg));
+      if (!a.target) return fail("Usage: /attack <target> [with <weapon>]");
+      const id = W().resolveCombatant(a.target);
+      if (!id || id === "__player__") return fail(`No one called "${a.target}" is in this fight.`);
+      const atks = (W().combatantStats("__player__") || {}).attacks || [];
+      let idx = 0;
+      if (a.weapon) {
+        idx = atks.findIndex((x) => nameKey2(x.name).includes(nameKey2(a.weapon)));
+        if (idx < 0) return fail(`You have no attack "${a.weapon}" (${atks.map((x) => x.name).join(", ") || "none"}).`);
+      }
+      const r = W().attack("__player__", id, idx);
+      if (!r) return fail("The attack is not possible now.");
+      if (r.refused) return { ok: false };
+      return { ok: true };
+    }
+    const LOOK = /^(Current Location|Nearby NPCs|Nearby Objects|Quest givers here|Trade|Exploring|Waiting here)/;
+    function look() {
+      const slice = W().previewSlice() || {};
+      const secs = (slice.sections || []).filter((s) => LOOK.test(s.title));
+      if (!secs.length) return fail("You are nowhere yet: /go to a place first.");
+      return info("Look around", secs.map((s) => `[${s.title}]
+${s.text}`).join("\n\n"));
+    }
+    function inventory() {
+      const iv = W().inventory();
+      const items = (iv.items || []).map((i) => `- ${i.name}${Number(i.qty) > 1 ? " ×" + i.qty : ""}`);
+      return info(iv.owner ? `${iv.owner}'s inventory` : "Inventory", `${items.length ? items.join("\n") : "Nothing."}
+
+Purse: ${iv.purseText}`);
+    }
+    function reputation(arg) {
+      const a = parseAssign(arg);
+      if (a.value != null) return tag("rep", `${a.key}=${a.value}`, "/rep <faction>=+10");
+      const list2 = W().reputation().filter((r) => !r.gone);
+      if (!list2.length) return info("Reputation", "This world has no factions.");
+      return info("Reputation", list2.map((r) => `- ${r.name}: ${r.tier} (${r.value})`).join("\n"));
+    }
+    const COMMANDS = [
+      {
+        name: "go",
+        aliases: ["move"],
+        group: "World",
+        world: true,
+        usage: "/go <place or direction>",
+        help: 'Go somewhere: a place, a room, "north". Doors and ways out are checked.',
+        run: (a) => {
+          a = cleanArg(a);
+          if (!a) return fail("Usage: /go <place or direction>");
+          const r = W().go(a, { source: "ui" });
+          if (!r.ok) return { ok: false, error: r.reason };
+          return r.same ? ok("You are already there.") : { ok: true };
+        }
+      },
+      { name: "look", group: "World", world: true, usage: "/look", help: "Where you are: the place, ways out, people and things here.", run: () => look() },
+      { name: "search", group: "World", world: true, usage: "/search", help: "Search this place (RPmod rolls Perception or Investigation).", run: () => {
+        const r = W().search({ source: "ui" });
+        return r.ok ? { ok: true } : { ok: false, error: r.reason };
+      } },
+      ...["open", "close", "unlock"].map((act) => ({
+        name: act,
+        group: "World",
+        world: true,
+        usage: `/${act} <door or direction>`,
+        help: `${act[0].toUpperCase() + act.slice(1)} a door (the rules decide; locks need a key or a check).`,
+        run: (a) => {
+          a = cleanArg(a);
+          if (!a) return fail(`Usage: /${act} <door or direction>`);
+          const r = W().door(act, a, { source: "ui" });
+          return r && r.ok ? { ok: true } : { ok: false, error: r && r.reason };
+        }
+      })),
+      {
+        name: "talk",
+        group: "World",
+        world: true,
+        usage: "/talk <person>",
+        help: 'Speak with someone here (counts for "talk to" objectives).',
+        run: (a) => {
+          const r = tag("talk", a, "/talk <person>");
+          if (r.ok) r.log = `Talks with ${cleanArg(a)}.`;
+          else if (!r.error) r.error = `No one called "${cleanArg(a)}" is known in this world.`;
+          return r;
+        }
+      },
+      { name: "map", group: "World", usage: "/map", help: "Open the Map window.", run: () => opened("map") },
+      {
+        name: "give",
+        group: "Items & trade",
+        world: true,
+        usage: "/give <item> [xN]",
+        help: "You get an item (default one).",
+        run: (a) => {
+          const r = tag("give", a, "/give <item> [xN]");
+          if (r.ok) r.log = `Gets ${cleanArg(a)}.`;
+          return r;
+        }
+      },
+      {
+        name: "take",
+        group: "Items & trade",
+        world: true,
+        usage: "/take <item> [xN | x all]",
+        help: 'An item leaves your inventory (default one; "x all" the stack).',
+        run: (a) => {
+          const r = tag("take", a, "/take <item> [xN | x all]");
+          if (r.ok) r.log = `Loses ${cleanArg(a)}.`;
+          return r;
+        }
+      },
+      { name: "inv", aliases: ["inventory"], group: "Items & trade", world: true, usage: "/inv", help: "Show your inventory and purse.", run: () => inventory() },
+      { name: "buy", group: "Items & trade", world: true, usage: "/buy [vendor:] <item> [xN]", help: "Buy from a vendor here (price, stock and purse are checked).", run: (a) => tag("buy", a, "/buy [vendor:] <item> [xN]") },
+      { name: "sell", group: "Items & trade", world: true, usage: "/sell [vendor:] <item> [xN]", help: "Sell to a vendor here.", run: (a) => tag("sell", a, "/sell [vendor:] <item> [xN]") },
+      { name: "shop", group: "Items & trade", world: true, usage: "/shop", help: "Open the Shop window of the vendors here.", run: () => W().vendorsHere().length ? opened("shop") : fail("No one here trades.") },
+      {
+        name: "accept",
+        group: "Quests",
+        world: true,
+        usage: "/accept <quest>",
+        help: "Accept a quest (level and prerequisites are checked).",
+        run: (a) => {
+          const q = findQuest(cleanArg(a));
+          if (!q) return fail(a ? `No quest "${cleanArg(a)}" is known.` : "Usage: /accept <quest>");
+          if (q.state !== "available") return fail(`"${q.title}" is ${STATE_WORDS[q.state] || q.state}.`);
+          return W().acceptQuest(q.id) ? { ok: true } : { ok: false };
+        }
+      },
+      {
+        name: "turnin",
+        group: "Quests",
+        world: true,
+        usage: "/turnin <quest>",
+        help: "Hand in a finished quest; RPmod pays the rewards.",
+        run: (a) => {
+          const q = findQuest(cleanArg(a));
+          if (!q) return fail(a ? `No quest "${cleanArg(a)}" is known.` : "Usage: /turnin <quest>");
+          const r = tag("turnin", q.title, "/turnin <quest>");
+          if (!r.ok && W().questNeedsChoice(q.id)) {
+            try {
+              Shell2()?.open("questlog");
+            } catch (_) {
+            }
+          }
+          return r;
+        }
+      },
+      {
+        name: "abandon",
+        group: "Quests",
+        world: true,
+        usage: "/abandon <quest>",
+        help: "Abandon an accepted quest (progress is reset).",
+        run: (a) => {
+          const q = findQuest(cleanArg(a));
+          if (!q) return fail(a ? `No quest "${cleanArg(a)}" is known.` : "Usage: /abandon <quest>");
+          return W().abandonQuest(q.id) ? { ok: true } : fail(`"${q.title}" is ${STATE_WORDS[q.state] || q.state}.`);
+        }
+      },
+      {
+        name: "track",
+        group: "Quests",
+        world: true,
+        usage: "/track <quest>",
+        help: "Show this quest in the Quests section.",
+        run: (a) => {
+          const q = findQuest(cleanArg(a));
+          if (!q) return fail(a ? `No quest "${cleanArg(a)}" is known.` : "Usage: /track <quest>");
+          W().setActiveQuest(q.id);
+          return ok("Tracking: " + q.title);
+        }
+      },
+      { name: "quests", group: "Quests", usage: "/quests", help: "Open the Quest log.", run: () => opened("questlog") },
+      {
+        name: "quest",
+        group: "Quests",
+        usage: "/quest [<id>=<state>]",
+        help: `Without "=": the Quest log. With it: set a quest's state (creator).`,
+        run: (a) => {
+          const p = parseAssign(cleanArg(a));
+          if (p.value == null) return opened("questlog");
+          if (!worldOn()) return fail(NO_WORLD);
+          const r = tag("quest", `${p.key}=${p.value}`, "/quest <id>=<state>");
+          if (r.ok) r.log = `Quest ${p.key} is now ${p.value}.`;
+          return r;
+        }
+      },
+      { name: "rep", aliases: ["reputation"], group: "Quests", world: true, usage: "/rep [<faction>=±n]", help: 'Your standing with the factions; with "=" change one.', run: (a) => reputation(cleanArg(a)) },
+      {
+        name: "roll",
+        aliases: ["r"],
+        group: "Dice & combat",
+        usage: "/roll <dice> [adv|dis]",
+        help: "Roll dice (1d20+3, 2d6, d100) into the game log.",
+        run: (a) => {
+          const { rest, mode: mode2 } = splitMode(cleanArg(a));
+          Log().rollAndLog({ who: persona() || "You", what: "Roll " + (rest || "1d20"), expr: rest || "1d20", mode: mode2, kind: "roll" });
+          return { ok: true };
+        }
+      },
+      { name: "check", group: "Dice & combat", usage: "/check <ability|skill|save> [DC] [adv|dis]", help: "Your persona rolls a check with its sheet bonus (e.g. /check perception 12).", run: (a) => rollCheck(cleanArg(a)) },
+      { name: "attack", group: "Dice & combat", world: true, usage: "/attack <target> [with <weapon>]", help: "Attack in a fight (reach, range and cover are checked).", run: (a) => attackCmd(a) },
+      {
+        name: "encounter",
+        group: "Dice & combat",
+        world: true,
+        usage: "/encounter <saved encounter | 2 Wolf, Goblin Warrior>",
+        help: "Start a fight.",
+        run: (a) => {
+          if (inFight()) return fail("A fight is already on.");
+          const r = tag("encounter", a, "/encounter <saved encounter | monsters>");
+          if (!r.ok && !r.error) r.error = `No saved encounter or SRD monster matches "${cleanArg(a)}".`;
+          if (r.ok) {
+            try {
+              Shell2()?.open("combat");
+            } catch (_) {
+            }
+            if (autoTurnsOn()) W().runAutoTurns();
+          }
+          return r;
+        }
+      },
+      {
+        name: "endturn",
+        group: "Dice & combat",
+        world: true,
+        usage: "/endturn",
+        help: "End your turn in a fight (enemy turns run if that setting is on).",
+        run: () => {
+          if (!inFight()) return fail("No fight is on.");
+          W().nextTurn();
+          if (autoTurnsOn()) W().runAutoTurns();
+          return { ok: true, log: "Ends the turn." };
+        }
+      },
+      { name: "rest", group: "Dice & combat", world: true, usage: "/rest", help: "Long rest: HP and spell slots back.", run: () => {
+        if (inFight()) return fail("Not during a fight.");
+        W().longRest();
+        return { ok: true, log: "Takes a long rest." };
+      } },
+      { name: "combat", group: "Dice & combat", usage: "/combat", help: "Open the Combat window.", run: () => opened("combat") },
+      {
+        name: "time",
+        group: "Time & story",
+        world: true,
+        usage: "/time <dawn|morning|noon|afternoon|evening|night>",
+        help: "Set the time of day.",
+        run: (a) => {
+          const r = tag("time", a, "/time <slot>");
+          if (r.ok) r.log = `It is now ${cleanArg(a)}.`;
+          else if (!r.error) r.error = `Unknown time "${cleanArg(a)}".`;
+          return r;
+        }
+      },
+      {
+        name: "advance",
+        aliases: ["wait"],
+        group: "Time & story",
+        world: true,
+        usage: "/advance [slots]",
+        help: "Let time pass (one part of the day per slot).",
+        run: (a) => {
+          const n = Math.max(1, Math.min(12, Number(cleanArg(a)) || 1));
+          W().advanceClock(n);
+          return { ok: true, log: `Time passes (${n} part${n > 1 ? "s" : ""} of the day).` };
+        }
+      },
+      {
+        name: "weather",
+        group: "Time & story",
+        world: true,
+        usage: "/weather <text>",
+        help: "Set the weather.",
+        run: (a) => {
+          const r = tag("weather", a, "/weather <text>");
+          if (r.ok) r.log = `Weather: ${cleanArg(a)}.`;
+          return r;
+        }
+      },
+      {
+        name: "flag",
+        group: "Time & story",
+        world: true,
+        usage: "/flag <key>[=value]",
+        help: "Set a story flag (creator; event triggers read them).",
+        run: (a) => {
+          const p = parseAssign(cleanArg(a));
+          if (!p.key) return fail("Usage: /flag <key>[=value]");
+          return tag("flag", p.value == null ? p.key : `${p.key}=${p.value}`, "/flag <key>[=value]");
+        }
+      },
+      { name: "unflag", group: "Time & story", world: true, usage: "/unflag <key>", help: "Remove a story flag.", run: (a) => tag("unflag", a, "/unflag <key>") },
+      { name: "action", group: "Time & story", world: true, usage: "/action <text>", help: `Fire the world's "action" triggers with this text.`, run: (a) => tag("action", a, "/action <text>") },
+      {
+        name: "sheet",
+        group: "Windows & tools",
+        usage: "/sheet [character]",
+        help: "Open a character sheet (default: your persona).",
+        run: (a) => {
+          const C2 = window.KLITE_RPMod_Characters;
+          const n = cleanArg(a) || persona();
+          if (!C2) return fail("Character sheets are not loaded.");
+          C2.open(n || void 0);
+          return { ok: true };
+        }
+      },
+      {
+        name: "lookup",
+        aliases: ["srd"],
+        group: "Windows & tools",
+        usage: "/lookup <monster, spell, item, rule>",
+        help: "Look something up in the SRD 5.2.1 Compendium.",
+        run: (a) => {
+          const C2 = window.KLITE_RPMod_Compendium;
+          if (!C2) return fail("The Compendium is not loaded.");
+          C2.open(cleanArg(a));
+          return { ok: true };
+        }
+      },
+      { name: "summary", group: "Windows & tools", usage: "/summary", help: "Esolite's AutoGenerate Memory: summarises the story into Memory (confirm with OK).", run: () => summary() },
+      { name: "help", aliases: ["commands"], group: "Windows & tools", usage: "/help [command]", help: "This list, or one command.", run: (a) => help(cleanArg(a)) }
+    ];
+    const NO_WORLD = "No world is active. Load one in the World tab (or the example world) and enable it.";
+    const byName = /* @__PURE__ */ new Map();
+    for (const c of COMMANDS) {
+      byName.set(c.name, c);
+      for (const al of c.aliases || []) byName.set(al, c);
+    }
+    const known = (name) => byName.has(String(name || "").toLowerCase());
+    function summary() {
+      if (typeof window.autogenerate_summary_memory !== "function") return fail("This Esolite has no AutoGenerate Memory.");
+      try {
+        window.btn_memory?.();
+      } catch (_) {
+      }
+      window.autogenerate_summary_memory();
+      return ok("Esolite is writing a summary into Memory — check it there and press OK.");
+    }
+    function help(name) {
+      if (name) {
+        const c = byName.get(name.replace(/^\//, "").toLowerCase());
+        if (!c) return fail(`Unknown command /${name}.`);
+        return info("/" + c.name, `${c.usage}
+
+${c.help}${c.aliases ? `
+
+Also: ${c.aliases.map((x) => "/" + x).join(", ")}` : ""}${c.world ? "\n\nNeeds an enabled world." : ""}`);
+      }
+      const groups = [];
+      for (const c of COMMANDS) {
+        let g = groups.find((x) => x.name === c.group);
+        if (!g) groups.push(g = { name: c.group, lines: [] });
+        g.lines.push(`${c.usage} — ${c.help}`);
+      }
+      return info("RPmod chat commands", groups.map((g) => `${g.name}
+${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in one go: /go Forest Road | I set off before dawn.\nA command changes the game at once; press Send (or write something) and the AI narrates it.");
+    }
+    function exec(cmd) {
+      const c = byName.get(cmd.name);
+      if (!c) return fail(`Unknown command /${cmd.name}. Type /help for the list.`);
+      if (c.world && !worldOn()) return fail(NO_WORLD);
+      const L = Log();
+      const before = L ? L.entries().length : 0;
+      let r;
+      try {
+        r = c.run(cmd.arg || "") || { ok: true };
+      } catch (e) {
+        r = fail(`/${c.name}: ${e && e.message || e}`);
+      }
+      const after = L ? L.entries() : [];
+      let logged = after.slice(before);
+      if (r.ok && !logged.length && r.log && L) {
+        L.add({ who: persona() || "You", what: r.log, kind: "action" });
+        logged = L.entries().slice(before);
+      }
+      const lines = L ? logged.map((e) => L.describe(e)) : [];
+      if (!r.ok && !r.error) r.error = lines.join("\n") || `/${c.name}: nothing happened.`;
+      return Object.assign(r, { command: c.name, logged: lines });
+    }
+    function runText(text) {
+      const parts = splitInput(text);
+      const results = [];
+      for (const p of parts) {
+        if (p.kind !== "command") continue;
+        const r = exec(p);
+        results.push(r);
+        if (!r.ok) return { ok: false, handled: true, results, message: "", error: r.error };
+      }
+      return { ok: true, handled: true, results, message: messageOf(parts) };
+    }
+    function report(res) {
+      if (!res.ok) {
+        showBox(res.error, "RPmod command");
+        return;
+      }
+      const infos = res.results.filter((r) => r.info);
+      if (infos.length) showBox(infos.map((r) => r.info.text).join("\n\n"), infos.map((r) => r.info.title).join(" · "));
+      const lines = res.results.flatMap((r) => r.logged.length ? r.logged : r.text ? [r.text] : []);
+      if (lines.length) toast(lines.join("\n"));
+    }
+    function showBox(text, title) {
+      if (typeof window.msgbox === "function") {
+        try {
+          window.msgbox(text, title);
+          return;
+        } catch (_) {
+        }
+      }
+      try {
+        window.alert(title + "\n\n" + text);
+      } catch (_) {
+      }
+    }
+    function toast(text) {
+      try {
+        const t = el("div", { class: "rpm-themed rpm-toast", role: "status", "data-rpm": "slash-toast", style: "white-space:pre-line;max-width:min(560px,90vw)", text });
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 1800 + 60 * Math.min(60, text.length / 4));
+      } catch (_) {
+      }
+    }
+    function sendMessage(text) {
+      const T = window.KLITE_RPMod?.panels?.TOOLS;
+      if (T && typeof T.sendTextToEsolite === "function") return T.sendTextToEsolite(text);
+      const input2 = document.getElementById("input_text");
+      if (!input2) return;
+      input2.value = text;
+      window.prepare_submit_generation?.();
+    }
+    function putInInput(text) {
+      const ids = ["input_text", "cht_inp", "corpo_cht_inp"];
+      for (const id of ids) {
+        const e = document.getElementById(id);
+        if (e) e.value = text;
+      }
+    }
+    function run(text, opts = {}) {
+      const res = runText(text);
+      report(res);
+      if (res.ok && res.message) {
+        if (opts.send) sendMessage(res.message);
+        else putInInput(res.message);
+      }
+      return res;
+    }
+    function userToolTakes(name) {
+      try {
+        if (typeof window.customtools_sanitize_list !== "function") return false;
+        const tools = window.customtools_sanitize_list(window.localsettings && window.localsettings.custom_tools);
+        return Array.isArray(tools) && tools.some((t) => t && t.userCallable && String(t.name).toLowerCase() === name);
+      } catch (_) {
+        return false;
+      }
+    }
+    function isCommand(text) {
+      return startsWithCommand(text, (name) => known(name) && !userToolTakes(name));
+    }
+    let hooked = false;
+    function install() {
+      if (hooked) return true;
+      if (typeof window.prepare_submit_generation !== "function") return false;
+      const orig = window.prepare_submit_generation;
+      const wrapped = function() {
+        const input2 = document.getElementById("input_text");
+        const text = input2 ? String(input2.value || "") : "";
+        if (!isCommand(text)) return orig.apply(this, arguments);
+        const source = ["cht_inp", "corpo_cht_inp"].map((id) => document.getElementById(id)).find((e) => e && e.value === text);
+        const res = runText(text);
+        report(res);
+        if (!res.ok) {
+          if (source) setTimeout(() => {
+            if (!source.value) source.value = text;
+          }, 0);
+          return;
+        }
+        input2.value = "";
+        if (res.message) {
+          input2.value = res.message;
+          return window.prepare_submit_generation.apply(this, arguments);
+        }
+      };
+      wrapped.__rpmod_slash = true;
+      window.prepare_submit_generation = wrapped;
+      hooked = true;
+      return true;
+    }
+    const api = {
+      commands: () => COMMANDS.map((c) => ({ name: c.name, aliases: (c.aliases || []).slice(), usage: c.usage, help: c.help, group: c.group, world: !!c.world })),
+      isCommand,
+      run,
+      runText,
+      install,
+      help: () => help("").info,
+      installed: () => hooked
+    };
+    window.KLITE_RPMod_Chat = api;
+    let tries = 0;
+    const attempt = () => {
+      if (!install() && ++tries < 120) setTimeout(attempt, 500);
+    };
+    if (document.readyState === "complete") attempt();
+    else window.addEventListener("load", attempt, { once: true });
+  }
+
   // src/main.js
   var MODULES = [
     ["shell/shell.js", initShell],
@@ -35281,7 +35936,8 @@ OK = save and close · Cancel = close and discard them`);
     ["rpmod/index.js", initRpmod],
     ["KLITE-RPmod_Worlds.js", initWorlds],
     ["KLITE-RPmod_WorldsUI.js", initWorldsUI],
-    ["onboarding/onboarding.js", initOnboarding]
+    ["onboarding/onboarding.js", initOnboarding],
+    ["chat/slash.js", initChat]
   ];
   for (const [file, init] of MODULES) {
     try {

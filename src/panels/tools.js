@@ -1190,7 +1190,7 @@ export function installToolsPanel(S) {
             try {
                 const mode = window.localsettings?.opmode || 3;
                 const preview = (text||'').length>800? (text.slice(0,800)+'…') : (text||'');
-                this.log('chat', 'sendTextToEsolite()', { mode, length: (text||'').length, preview });
+                KLITE_RPMod.log('chat', 'sendTextToEsolite()', { mode, length: (text||'').length, preview });
                 if (mode === 3) {
                     // Chat mode: prefer chat inputs
                     const chatInputs = [
@@ -1200,11 +1200,11 @@ export function installToolsPanel(S) {
                     if (chatInputs.length) {
                         chatInputs[0].value = text;
                         if (typeof window.chat_submit_generation === 'function') {
-                            this.log('chat', 'Calling chat_submit_generation()');
+                            KLITE_RPMod.log('chat', 'Calling chat_submit_generation()');
                             return window.chat_submit_generation();
                         }
                         if (typeof window.submit_generation_button === 'function') {
-                            this.log('chat', 'Calling submit_generation_button(true)');
+                            KLITE_RPMod.log('chat', 'Calling submit_generation_button(true)');
                             return window.submit_generation_button(true);
                         }
                     }
@@ -1214,10 +1214,10 @@ export function installToolsPanel(S) {
                 if (liteInput) {
                     liteInput.value = text;
                     if (typeof window.prepare_submit_generation === 'function') {
-                        this.log('chat', 'Calling prepare_submit_generation()');
+                        KLITE_RPMod.log('chat', 'Calling prepare_submit_generation()');
                         return window.prepare_submit_generation();
                     }
-                    this.log('chat', 'Calling LiteAPI.generate()');
+                    KLITE_RPMod.log('chat', 'Calling LiteAPI.generate()');
                     return LiteAPI.generate();
                 }
                 KLITE_RPMod.log('panels', 'sendTextToEsolite: No suitable input found');

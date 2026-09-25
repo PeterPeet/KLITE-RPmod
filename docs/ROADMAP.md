@@ -72,7 +72,7 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 | | Personas, group chat | ✅ ALPHA |
 | | World Info / lorebooks | ✅ Esolite + Worlds graph |
 | | Quick replies | 🟡 ALPHA quick actions |
-| | Slash commands | ❌ (chat tags instead) |
+| | Slash commands | ✅ R6 step 1: `/go`, `/buy`, `/accept`, `/check` … through the engine |
 | | RAG, TTS, image gen, summaries | ✅ mostly Esolite/ALPHA |
 | WoW | Marker set incl. grey `!`/`?` | ✅ |
 | | Quest log: counters, track, abandon | ✅ |
@@ -617,6 +617,14 @@ Acceptance: build a "medium" encounter, fight it through victory and through def
 ### R6 — Chat power features (SillyTavern) 🟨
 **Design: [docs/design/R6-chat-power.md](design/R6-chat-power.md)** (2026-09-25: how Esolite's slash
 commands / custom tools, display pipeline, summaries and lorebook import work; decisions; commands → engine).
+- [x] **Step 1 — slash commands** (2026-09-25): `/go`, `/look`, `/search`, doors, `/talk`, `/give`/`/take`/`/inv`,
+      `/buy`/`/sell`/`/shop`, `/accept`/`/turnin`/`/abandon`/`/track`/`/quests`, `/rep`, `/roll`, `/check` (persona sheet),
+      `/encounter`/`/attack`/`/endturn`/`/rest`, clock and flags, `/map`/`/sheet`/`/lookup`, `/summary` (Esolite's
+      AutoGenerate Memory), `/help`; ` | ` and new lines chain commands and a message. Not in the user's custom
+      tools: a wrapper on `prepare_submit_generation` handles only RPmod names (a user tool of the same name wins).
+      Found and fixed on the way: the Tools panel's sender (`sendTextToEsolite`) called an undefined `this.log` and
+      sent nothing — Quick Actions, Auto Sender and Trigger Narrator did nothing (since the ALPHA code). Tests
+      `tests/slash.test.js`.
 - Quick replies panel; slash commands (`/roll`, `/move`, `/give`, …) mapped to the engine.
 - Optional stripping of control tags from displayed chat (known issue 2).
 - Lorebook round-trip (Worlds ↔ WI V2/V3); summaries / memory.

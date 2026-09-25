@@ -20,6 +20,7 @@ const FILES = {
     settings: 'src/settings/settings.js',
     gamelog: 'src/game/log.js',
     characters: 'src/characters/characters.js',
+    chat: 'src/chat/slash.js',
     bundle: 'KLITE-RPmod.js',
 };
 

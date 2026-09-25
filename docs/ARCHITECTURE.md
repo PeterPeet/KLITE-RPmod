@@ -18,6 +18,7 @@
 | `data/srd52-monsters.js` | (import) | 330 SRD 5.2.1 monster stat blocks (generated, ~470 KB) (§3.7) |
 | `data/srd52-compendium.js` | (import) | Rules Glossary, magic items, tools and adventuring gear (generated: `extract-srd.py compendium`, ~315 KB) (§5c) |
 | `compendium/rules.js`, `compendium.js` | `window.KLITE_RPMod_Compendium` | R3 Compendium: search index over all SRD data (pure) and the Compendium window (§5c) |
+| `chat/chat-rules.js`, `chat/slash.js` | `window.KLITE_RPMod_Chat` | R6 slash commands: input parsing (pure) and the commands, run through the Worlds engine; wraps `prepare_submit_generation` (§5d) |
 | `game/combat-rules.js`, `game/combatView.js` | (import) | Combat rules (pure) and the Combat window (§3.7) |
 | `game/zone-rules.js`, `game/zoneBoard.js` | (import) | R7 zone combat rules (pure) and the zone board drawing (§3.7) |
 | `characters/builder-rules.js`, `builder.js` | `window.KLITE_RPMod_Builder` | Character builder (levels 1–20) + level up (§5b) |
@@ -84,8 +85,10 @@ Gotchas:
 - **Slash commands (1.35+):** `prepare_submit_generation` first checks whether the input is
   `/name …` for a user-callable custom tool (`localsettings.custom_tools`,
   `customtools_sanitize_list`); if so it runs the tool and returns **without generating**.
-  Our Worlds wrapper skips turn processing in that case (`isHostSlashCommand`). R6 should
-  register RPmod slash commands as such custom tools instead of parsing its own.
+  The context wrapper skips turn processing in that case (`isHostSlashCommand`). The tools
+  live only in the user's settings list (no registry for extra tools), so RPmod's own commands
+  (R6) do **not** go there: `src/chat/slash.js` wraps `prepare_submit_generation` and handles
+  only its own names (a user tool with the same name wins); §5d.
 - **Group chat (1.35+):** speaker choice goes through `groupchat_reply_order(names)` and
   names through `sanitize_groupchat_participant_name`; memory gains
   `get_groupchat_context_memory()`. Relevant when the RP core's speaker modes are migrated.
@@ -839,6 +842,32 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   `KLITE_RPMod_Compendium.open(name | { kind, key })`; cross-links: the spell text
   (`spellPicker.compendiumLink`, sheet and builder), the Combat window's monster list, the
   encounter inspector's monster rows.
+
+## 5d. Chat: slash commands (R6, `src/chat/`)
+Design and the study of Esolite's custom tools: [design/R6-chat-power.md](design/R6-chat-power.md).
+- **Parsing** (`chat-rules.js`, pure): a part starting with `/name` is a command, the rest of the
+  part its argument (no quoting); parts are split by ` | ` and new lines; other parts are the
+  chat message (`splitInput`, `messageOf`). Helpers for checks (`parseCheck`), attacks, `key=value`.
+- **Commands** (`slash.js`): a table `{ name, aliases, usage, help, group, world, run(arg) }`.
+  They call the Worlds API (`go`, `search`, `door`, `acceptQuest`, `abandonQuest`, `attack`,
+  `nextTurn`, `longRest` …) or `applyTags('<tag>…</tag>')` (give/take/buy/sell/talk/flag/time/
+  encounter …), so the rules are the tags' rules. `<` and `>` are removed from arguments.
+  `/check` rolls with the persona sheet's bonus (`derive`); `/roll` uses `KLITE_RPMod_Log`.
+- **Feedback:** `exec` notes the game-log length before a command and reports the new entries
+  (toast); a command whose engine call logs nothing (e.g. `<give>`) adds one line
+  (`result.log`), so the AI learns of it. Refusals: `ok:false` + error (or the logged reason) →
+  Esolite's `msgbox`. Info commands (`/look`, `/inv`, `/rep`, `/help`) → `msgbox`.
+- **Chat box:** the wrapper on `prepare_submit_generation` runs when the input starts with an
+  RPmod command (`isCommand`: known name and no user custom tool of that name). It runs all
+  commands (stops at the first failure, leaving the text in the box — the aesthetic/corpo box is
+  restored after Esolite clears it), then, if there is a message, puts it into `#input_text` and
+  calls `window.prepare_submit_generation` again — that submit is the turn (through the whole
+  wrapper chain, whatever order the wrappers were installed in). The context's
+  `isHostSlashCommand` also returns true for RPmod commands, so a command is never a turn.
+- **API** `KLITE_RPMod_Chat`: `commands()`, `isCommand(text)`, `runText(text)` (no UI),
+  `run(text, { send })` (quick replies: report, then send the message or leave it in the box),
+  `install()`, `installed()`.
+- Tests: `tests/slash.test.js`.
 
 ## 5. RP core and panels (`src/rpmod/`, `src/panels/`) — overview
 Formerly one 17.5k-line file `KLITE-RPmod_ALPHA.js` ("ALPHA" was a version label). R1 cleanup

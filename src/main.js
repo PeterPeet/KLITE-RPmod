@@ -19,6 +19,7 @@ import initCharacters from './characters/characters.js';
 import initGallery from './characters/gallery.js';
 import initBuilder from './characters/builder.js';
 import initCompendium from './compendium/compendium.js';
+import initChat from './chat/slash.js';
 
 const MODULES = [
     ['shell/shell.js', initShell],
@@ -33,6 +34,7 @@ const MODULES = [
     ['KLITE-RPmod_Worlds.js', initWorlds],
     ['KLITE-RPmod_WorldsUI.js', initWorldsUI],
     ['onboarding/onboarding.js', initOnboarding],
+    ['chat/slash.js', initChat],
 ];
 
 for (const [file, init] of MODULES) {

@@ -332,6 +332,49 @@ to the next day, and the **season** follows the month automatically.
 
 ---
 
+## 6a. Slash commands
+
+Instead of typing tags you can type **slash commands** in the chat box — the same way you
+call Esolite's own custom tools (`/toolname …`). `/help` lists them all, `/help buy` explains
+one.
+
+- A command **changes the game at once** and sends nothing to the AI. What happened goes to
+  the **game log** (and a short note pops up); the AI reads the log on its next turn. So type
+  `/go Forest Road`, then press **Send** with an empty box (the AI continues) or write what you
+  do — the AI narrates the real outcome.
+- The **rest of the line is the argument**, so names with spaces need no quotes:
+  `/buy Bram: Torch x2`, `/accept The Missing Merchant`.
+- **Several at once:** separate parts with ` | ` (spaces around the bar) or new lines. Commands
+  run first, in order; the other text is sent as your message afterwards:
+  `/go Forest Road | I set off before dawn.` If a command is refused, nothing else runs and
+  your text stays in the box.
+- The rules are the same as for the tags: a locked door, an empty purse or a missing quest
+  prerequisite refuses, and the reason is shown.
+- If one of **your own Esolite custom tools** has the same name, yours wins. Any other `/…`
+  text goes to Esolite unchanged.
+- World commands need a world that is loaded and enabled for the story.
+
+| Command | Does |
+|---|---|
+| `/go <place or direction>` (`/move`) | go somewhere; in dungeons and towns ways out and doors are checked |
+| `/look` | where you are: the place, ways out, people and things here (what the AI sees) |
+| `/search` · `/open`, `/close`, `/unlock <door>` | search the room; doors (RPmod rolls) |
+| `/talk <person>` | you speak with someone (counts for "talk to" objectives) |
+| `/give <item> [xN]` · `/take <item> [xN \| x all]` · `/inv` | inventory |
+| `/buy [vendor:] <item> [xN]` · `/sell …` · `/shop` | trade with a vendor here; the Shop window |
+| `/accept`, `/turnin`, `/abandon`, `/track <quest>` · `/quests` | quests; the Quest log |
+| `/quest <id>=<state>` · `/rep` · `/rep <faction>=±n` | set a quest state; your standings; change one |
+| `/roll <dice> [adv\|dis]` | roll into the game log (`/roll 1d20+3`, `/r d100`) |
+| `/check <ability\|skill\|save> [DC] [adv\|dis]` | your persona rolls with its sheet bonus: `/check perception 12`, `/check dex save 14` |
+| `/encounter <saved encounter \| 2 Wolf, Goblin>` · `/attack <target> [with <weapon>]` · `/endturn` · `/rest` · `/combat` | fights (reach, range and cover are checked) and the long rest |
+| `/time <slot>` · `/advance [n]` (`/wait`) · `/weather <text>` | the clock |
+| `/flag <key>[=value]` · `/unflag <key>` · `/action <text>` | story flags and action triggers (for world creators) |
+| `/map` · `/sheet [name]` · `/lookup <anything in the SRD>` (`/srd`) | open the Map, a character sheet, the Compendium |
+| `/summary` | Esolite's **AutoGenerate Memory**: a summary of the story goes into Memory (check it and press OK) |
+| `/help [command]` (`/commands`) | the list |
+
+---
+
 ## 6b. Tabletop-RPG systems
 
 **Compendium (SRD 5.2.1).** The book button in the right panel's header opens the

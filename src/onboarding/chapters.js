@@ -139,6 +139,24 @@ export const CHAPTERS = [
         show: [{ label: 'Chat input', run: (c) => c.highlight('#input_text', 'Type tags here, like any message') }],
     },
     {
+        id: 'commands', title: 'Slash commands',
+        blocks: [
+            { p: 'The quick way to act yourself: type a command in the chat box, like Esolite\'s own custom tools. It changes the game at once and sends nothing; the result goes to the game log, which the AI reads next turn. Press Send with an empty box (or write what you do) and the AI narrates it.' },
+            { table: [
+                ['Command', 'Does'],
+                ['/go Forest Road · /look · /search · /open north', 'move, look around, search, doors'],
+                ['/talk Bram · /accept Bandit Bounty · /turnin …', 'people and quests'],
+                ['/buy Torch x2 · /sell Rope · /inv · /shop', 'trade and inventory'],
+                ['/roll 1d20+3 · /check perception 12', 'dice; checks with your persona\'s sheet'],
+                ['/encounter 2 Wolf · /attack Wolf · /endturn · /rest', 'fights'],
+                ['/lookup Fireball · /map · /quests · /summary', 'windows; Esolite\'s AutoGenerate Memory'],
+            ] },
+            { p: 'No quotes needed: the rest of the line is the argument. Several at once: /go Forest Road | I set off before dawn. — commands first, then the text is sent as your message.' },
+            { tip: 'Type /help for every command. If one of your own Esolite custom tools has the same name, yours wins.' },
+        ],
+        show: [{ label: 'Chat input', run: (c) => c.highlight('#input_text', 'Type /help here') }],
+    },
+    {
         id: 'ai-view', title: 'What the AI sees',
         blocks: [
             { p: 'Curious what the game master knows right now? "Preview what the AI sees" in the World tab shows the exact text RPmod adds to this turn: your persona and the AI\'s character (when enabled in Tools), location, people present, active events, quests and combat.' },

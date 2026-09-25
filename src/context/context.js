@@ -146,12 +146,15 @@ function createContext() {
         try { const ls = window.localsettings; return !!(ls && ls.opmode == 4 && ls.agentBehaviour); } catch (_) { return false; }
     }
     // Esolite >= 1.35: `/name …` for a user-callable custom tool runs the tool and
-    // returns without generating — not a turn.
+    // returns without generating — not a turn. Neither is an RPmod command (R6, src/chat/slash.js):
+    // it sends its message part as a new submit, which is the turn.
     function isHostSlashCommand() {
         try {
             const input = document.getElementById('input_text');
             const text = input ? String(input.value || '') : '';
-            if (!text.startsWith('/') || typeof window.customtools_sanitize_list !== 'function') return false;
+            if (!text.startsWith('/')) return false;
+            if (window.KLITE_RPMod_Chat && window.KLITE_RPMod_Chat.isCommand(text)) return true;
+            if (typeof window.customtools_sanitize_list !== 'function') return false;
             const name = (text.slice(1).match(/^\S*/) || [''])[0];
             const tools = window.customtools_sanitize_list(window.localsettings && window.localsettings.custom_tools);
             return Array.isArray(tools) && tools.some(t => t && t.name === name && t.userCallable);
