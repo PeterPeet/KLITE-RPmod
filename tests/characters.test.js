@@ -120,6 +120,26 @@ test('sheet window: create, roll into the game log, edit, save into the card (po
     assert.deepEqual(plain(w.__lib().map(m => m.name)), ['Mira'], 'still listed in the Library');
 });
 
+test('updateSheet: changes that arrive while a save is running are never lost (R8 data-loss fix)', async (t) => {
+    const h = await charHost(t); const w = h.window; const C = w.KLITE_RPMod_Characters;
+    await C.saveSheet('Mira', { className: 'Ranger', level: 1, xp: 0, hp: { max: 10, current: 10 } });
+    // rewards arriving close together: each lands while the previous save is still running
+    for (let i = 0; i < 12; i++) {
+        C.updateSheet('Mira', s => { s.xp += 10; s.coins.gp = (s.coins.gp || 0) + 1; });
+        await new Promise(r => setTimeout(r, i % 3));
+    }
+    assert.equal(C.cachedSheet('Mira').xp, 120, 'the cache has every change');
+    await C.flushSheet('Mira'); await sleep(20);
+    assert.equal(C.cachedSheet('Mira').xp, 120, 'a finished save does not bring back an older sheet');
+    const stored = (await rec(w, 'character_Mira')).data.extensions.klite_rpmod.sheet;
+    assert.deepEqual([stored.xp, stored.coins.gp], [120, 12], 'the card has every change');
+    // a reload while changes are unsaved keeps them
+    C.updateSheet('Mira', s => { s.xp += 5; });
+    assert.equal((await C.loadSheet('Mira')).xp, 125);
+    await C.flushSheet('Mira'); await sleep(20);
+    assert.equal((await rec(w, 'character_Mira')).data.extensions.klite_rpmod.sheet.xp, 125);
+});
+
 test('AI context: persona sheet and rolls since the last reply reach the prompt; log saved per story', async (t) => {
     const h = await charHost(t); const w = h.window; const C = w.KLITE_RPMod_Characters;
     await C.saveSheet('Mira', { className: 'Ranger', level: 3, hp: { max: 24, current: 20 }, inventory: [{ name: 'Longbow', qty: 1 }] });

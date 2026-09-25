@@ -357,7 +357,8 @@ outcome: null|'victory'|'defeat', xp, persona, synced, encounter, difficulty }`.
   Refusals from tags/UI go to the game log (`kind: 'party'`). Tags `<join>`/`<leave>` (hidden in the chat,
   `CONTROL_TAGS`), slash `/join` `/leave`, the AI's Nearby NPCs line says who "may join" (with the tag)
   and who "travels with the player"; Party section: "Ask … to join" for people here, ✕ to leave. API
-  `joinParty/leaveParty/partyMembers/isHere`.
+  `joinParty/leaveParty/partyMembers/isHere`. Party members join every fight the player is in
+  (`startEncounter` adds runtime `party`, unless `withParty: false`): saved encounters, events, tags.
 - **Companions' HP (2026-09-25):** a party-side person whose stats come from its linked card
   (`personSheetName`: `characterRef` + cached sheet, no own `stats`) starts at the sheet's current
   HP (`order[].sheet` = its name); others start at runtime `partyHp[id]` when set. At the outcome
@@ -625,7 +626,9 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   from published non-SRD adventures/settings incl. the German reference edition; whole words,
   case-sensitive) — an error.
 - **Loader** `window.KLITE_RPMod_Adventures = { list, get, register, validate, pregens, installPregens,
-  start, open }`; bundled packages in `BUNDLED` (none until R8 step 3); `register` refuses invalid ones
+  start, open }`; bundled packages in `BUNDLED` (`content/drowned-lantern.js`: the starter adventure, built
+  from helper functions; its pregens' sheets come from `builder-rules.buildSheet` at load time; `VERSION`
+  is raised when the content changes); `register` refuses invalid ones
   and fires `klite:adventures-change`. `installPregens`: a pregen is found by
   `extensions.klite_rpmod.{adventure,pregen}` — the remembered Library id (`localStorage
   KLITE.adventures.pregens`), else entries named like it (`Name`, `Name_1`); missing ones are saved
@@ -814,7 +817,11 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   `cachedSheet/combatStatsFor/summaryFor/blurbFor` (loads on first use; also keeps the card's
   personality/description for `blurbFor`); `klite:sheet-change`. The Library adapter fires
   `klite:library-change` ({ name, oldName, deleted }) after every RPmod write/delete; the store
-  drops those names. Worlds warms the linked cards of the active world on every
+  drops those names — unless the cached sheet has unsaved game changes. **Game changes**
+  (`updateSheet`): applied to the cache at once, `rev` +1, saved in the background one write at a
+  time (`saveSheet(…, { rev })`); an entry with `rev > savedRev` is never replaced by what is read
+  from the card (a reload, an older save's result, a Library change) — fixed 2026-09-26 (R8): XP,
+  gold and items were lost when rewards arrived while a save was running. Worlds warms the linked cards of the active world on every
   `klite:worlds-change` so the next turn's slice has them.
 - **Persona:** the RP core's `panels.TOOLS.selectedPersona/personaEnabled` are accessors that fire
   `klite:persona-change` ({ name }) when the effective persona changes;

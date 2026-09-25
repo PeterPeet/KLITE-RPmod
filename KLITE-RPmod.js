@@ -1065,10 +1065,10 @@ body.rpm-docked #maincontainer {
     let wm = null;
     let shownTab = null;
     const PLACES = /* @__PURE__ */ new Set(["left", "right", "window"]);
-    function sortedViews(place) {
-      return [...views.values()].filter((v) => v.def.place === place).sort((a, b) => (a.def.order ?? 100) - (b.def.order ?? 100) || String(a.def.id).localeCompare(String(b.def.id)));
+    function sortedViews(place2) {
+      return [...views.values()].filter((v) => v.def.place === place2).sort((a, b) => (a.def.order ?? 100) - (b.def.order ?? 100) || String(a.def.id).localeCompare(String(b.def.id)));
     }
-    const hasViews = (place) => sortedViews(place).length > 0;
+    const hasViews = (place2) => sortedViews(place2).length > 0;
     function registerView(def) {
       if (!def || !def.id || !PLACES.has(def.place) || typeof def.mount !== "function") {
         throw new Error("KLITE_RPMod_Shell.registerView: need { id, place: left|right|window, mount }");
@@ -1373,7 +1373,7 @@ body.rpm-docked #maincontainer {
           v.mounted = false;
         }
       });
-      for (const place of ["left", "right"]) for (const v of sortedViews(place)) placeView(v);
+      for (const place2 of ["left", "right"]) for (const v of sortedViews(place2)) placeView(v);
       syncMode(true);
       for (const v of sortedViews("window")) if (shouldRestoreWindow(v.def.id)) openView(v.def.id);
       let resizeTimer = null;
@@ -20791,13 +20791,13 @@ ${char.mes_example}
   function visibleExit(ex, found) {
     return !isSecret(ex) || asArray(found && found.secrets).includes(ex.id);
   }
-  function rectOf(room) {
-    const m = room && room.map || {};
+  function rectOf(room2) {
+    const m = room2 && room2.map || {};
     const num2 = (v, d) => Number.isFinite(Number(v)) && v !== null && v !== "" ? Math.round(Number(v)) : d;
     return { x: num2(m.x, 0), y: num2(m.y, 0), w: Math.max(1, num2(m.w, ROOM.w)), h: Math.max(1, num2(m.h, ROOM.h)) };
   }
-  function hasRect(room) {
-    return !!(room && room.map && Number.isFinite(Number(room.map.x)) && Number.isFinite(Number(room.map.y)));
+  function hasRect(room2) {
+    return !!(room2 && room2.map && Number.isFinite(Number(room2.map.x)) && Number.isFinite(Number(room2.map.y)));
   }
   function overlaps(a, b, gap = 0) {
     return a.x < b.x + b.w + gap && b.x < a.x + a.w + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap;
@@ -20849,15 +20849,15 @@ ${char.mes_example}
         }
       }
       if (pick2 < 0) pick2 = 0;
-      const room = todo.splice(pick2, 1)[0];
-      const size = rectOf(room);
+      const room2 = todo.splice(pick2, 1)[0];
+      const size = rectOf(room2);
       let want;
       if (anchor) want = besideRect(placed.get(anchor.to), mirrorDir(anchor.dir) || "e", size.w, size.h);
       else if (!placed.size) want = { x: 0, y: 0, w: size.w, h: size.h };
       else want = { x: 0, y: Math.max(...[...placed.values()].map((p) => p.y + p.h)) + ROOM.gap, w: size.w, h: size.h };
       const r = freeSpot(want, [...placed.values()], ROOM.gap);
-      placed.set(room.id, r);
-      out[room.id] = r;
+      placed.set(room2.id, r);
+      out[room2.id] = r;
     }
     return out;
   }
@@ -21278,10 +21278,10 @@ ${char.mes_example}
     const reserved = /* @__PURE__ */ new Set([slotKey(-1, 0)]);
     const addRoomAt = (i, j, extra) => {
       const key = "r" + rooms.length;
-      const room = Object.assign({ key, slot: [i, j], name: `Room ${rooms.length + 1}`, rect: rectAt(i, j, chance(R, 0.3) ? 3 : 5, 3), features: [] }, extra || {});
-      rooms.push(room);
+      const room2 = Object.assign({ key, slot: [i, j], name: `Room ${rooms.length + 1}`, rect: rectAt(i, j, chance(R, 0.3) ? 3 : 5, 3), features: [] }, extra || {});
+      rooms.push(room2);
       slots.set(slotKey(i, j), key);
-      return room;
+      return room2;
     };
     const free = (i, j) => !slots.has(slotKey(i, j)) && !reserved.has(slotKey(i, j));
     const entrance = addRoomAt(0, 0, { name: "Entrance", entrance: true });
@@ -21291,8 +21291,8 @@ ${char.mes_example}
       const opts2 = neighbours(...from.slot).filter((x) => free(x.i, x.j));
       if (!opts2.length) continue;
       const nb = pick(R, opts2);
-      const room = addRoomAt(nb.i, nb.j);
-      edges.push(Object.assign({ from: from.key, to: room.key, dir: nb.d }, T.connect(R)));
+      const room2 = addRoomAt(nb.i, nb.j);
+      edges.push(Object.assign({ from: from.key, to: room2.key, dir: nb.d }, T.connect(R)));
     }
     const linked = (a, b) => edges.some((e) => e.from === a && e.to === b || e.from === b && e.to === a);
     const loopCands = [];
@@ -21369,7 +21369,7 @@ ${char.mes_example}
     };
     const square = add(0, 0, { name: "Town Square", entrance: true, features: [{ name: "Well", kind: "furniture" }] });
     for (const k2 of shuffle(R, keys)) {
-      const place = TOWN_PLACES.find((p) => p.key === k2);
+      const place2 = TOWN_PLACES.find((p) => p.key === k2);
       const cands = [];
       for (const r of rooms) for (const nb of neighbours(...r.slot)) {
         const sk = slotKey(nb.i, nb.j);
@@ -21378,10 +21378,10 @@ ${char.mes_example}
       }
       const best = Math.min(...cands.map((c) => c.dist));
       const spot2 = pick(R, cands.filter((c) => c.dist === best));
-      const room = add(spot2.i, spot2.j, { name: place.name, place: k2, features: place.features.map(([name, kind]) => kind === "light" ? { name, kind, lit: true } : { name, kind }) });
-      const nbs = neighbours(spot2.i, spot2.j).map((x) => ({ d: x.d, key: slots.get(slotKey(x.i, x.j)), dist: Math.abs(x.i) + Math.abs(x.j) })).filter((x) => x.key && x.key !== room.key).sort((a, b) => a.dist - b.dist);
+      const room2 = add(spot2.i, spot2.j, { name: place2.name, place: k2, features: place2.features.map(([name, kind]) => kind === "light" ? { name, kind, lit: true } : { name, kind }) });
+      const nbs = neighbours(spot2.i, spot2.j).map((x) => ({ d: x.d, key: slots.get(slotKey(x.i, x.j)), dist: Math.abs(x.i) + Math.abs(x.j) })).filter((x) => x.key && x.key !== room2.key).sort((a, b) => a.dist - b.dist);
       const to = nbs[0];
-      edges.push({ from: to.key, to: room.key, dir: OPP[to.d], type: "open" });
+      edges.push({ from: to.key, to: room2.key, dir: OPP[to.d], type: "open" });
     }
     const linked = (a, b) => edges.some((e) => e.from === a && e.to === b || e.from === b && e.to === a);
     const loopCands = [];
@@ -21437,10 +21437,10 @@ ${char.mes_example}
   var OPP2 = { n: "s", s: "n", e: "w", w: "e" };
   var NEXT = { n: ["e", "w"], e: ["n", "s"], s: ["e", "w"], w: ["n", "s"] };
   var asArray2 = (v) => Array.isArray(v) ? v : [];
-  function layoutFor(room, exitDirs) {
+  function layoutFor(room2, exitDirs) {
     const dirs = [...new Set(asArray2(exitDirs).filter((d) => RING.includes(d)))];
-    let kind = room && LAYOUTS.includes(room.combatSpace) ? room.combatSpace : null;
-    const m = room && room.map;
+    let kind = room2 && LAYOUTS.includes(room2.combatSpace) ? room2.combatSpace : null;
+    const m = room2 && room2.map;
     if (!kind) {
       if (!m || !(Number(m.w) > 0) || !(Number(m.h) > 0)) kind = "large";
       else if (Math.min(m.w, m.h) <= 1) kind = "corridor";
@@ -21641,10 +21641,10 @@ ${char.mes_example}
     if (kind === "faction" && !str(e.description) && str(e.goals)) return "goals";
     return TEXT_FIELD[kind];
   }
-  function entitiesOf(world) {
+  function entitiesOf(world2) {
     const out = [];
     for (const kind of Object.keys(KINDS2)) {
-      for (const e of arr(world && world[KINDS2[kind]])) {
+      for (const e of arr(world2 && world2[KINDS2[kind]])) {
         if (!e || typeof e !== "object") continue;
         const field = textFieldOf(kind, e);
         const text = str(e[field]);
@@ -21678,12 +21678,12 @@ ${char.mes_example}
     const kind = m && HEADER_KIND[m[1].toLowerCase()];
     return kind ? { kind, name: m[2], text: m[3].trim() } : null;
   }
-  function bookExt(world, embed) {
-    return { rpmod: embed === false ? { version: 1 } : { version: 1, world } };
+  function bookExt(world2, embed) {
+    return { rpmod: embed === false ? { version: 1 } : { version: 1, world: world2 } };
   }
-  function toTavern(world, { embed = true } = {}) {
+  function toTavern(world2, { embed = true } = {}) {
     const entries = {};
-    entitiesOf(world).forEach((x, i) => {
+    entitiesOf(world2).forEach((x, i) => {
       entries[String(i)] = {
         uid: i,
         key: x.keys,
@@ -21703,10 +21703,10 @@ ${char.mes_example}
         extensions: { rpmod: { kind: x.kind, id: x.id, field: x.field } }
       };
     });
-    return { name: str(world && world.name) || "World", description: str(world && world.description), extensions: bookExt(world, embed), entries };
+    return { name: str(world2 && world2.name) || "World", description: str(world2 && world2.description), extensions: bookExt(world2, embed), entries };
   }
-  function toV3(world, { embed = true } = {}) {
-    const entries = entitiesOf(world).map((x, i) => ({
+  function toV3(world2, { embed = true } = {}) {
+    const entries = entitiesOf(world2).map((x, i) => ({
       keys: x.keys,
       content: entryContent(x),
       extensions: { rpmod: { kind: x.kind, id: x.id, field: x.field } },
@@ -21721,7 +21721,7 @@ ${char.mes_example}
       id: i,
       position: "before_char"
     }));
-    return { spec: "lorebook_v3", data: { name: str(world && world.name) || "World", description: str(world && world.description), extensions: bookExt(world, embed), entries } };
+    return { spec: "lorebook_v3", data: { name: str(world2 && world2.name) || "World", description: str(world2 && world2.description), extensions: bookExt(world2, embed), entries } };
   }
   function normEntry(e) {
     if (!e || typeof e !== "object") return null;
@@ -21754,8 +21754,8 @@ ${char.mes_example}
     const raw = book && book.entries;
     const entries = (Array.isArray(raw) ? raw : raw && typeof raw === "object" ? Object.values(raw) : []).map(normEntry).filter(Boolean);
     const ext = book && book.extensions && book.extensions.rpmod;
-    const world = ext && ext.world && typeof ext.world === "object" && !Array.isArray(ext.world) ? ext.world : null;
-    return { name: str(book && book.name) || str(inner && inner.name) || str(data.name), world, entries };
+    const world2 = ext && ext.world && typeof ext.world === "object" && !Array.isArray(ext.world) ? ext.world : null;
+    return { name: str(book && book.name) || str(inner && inner.name) || str(data.name), world: world2, entries };
   }
   function typedEntry(e) {
     const h = parseHeader(e.content);
@@ -21763,12 +21763,12 @@ ${char.mes_example}
     if (kind === "lore") return { kind, name: e.comment || e.keys[0] || "Lore", text: e.content };
     return { kind, name: h ? h.name : e.comment || e.keys[0] || "", text: h ? h.text : e.content };
   }
-  function applyEntryEdits(world, entries) {
+  function applyEntryEdits(world2, entries) {
     const extra = [];
     let edited = 0;
     for (const e of entries) {
       const r = e.rpmod;
-      const ent = r && arr(world[KINDS2[r.kind]]).find((x) => x && x.id === r.id);
+      const ent = r && arr(world2[KINDS2[r.kind]]).find((x) => x && x.id === r.id);
       if (!ent) {
         extra.push(e);
         continue;
@@ -22411,10 +22411,10 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       for (const it of asArray5(list3)) if (it && it.id === id) return it;
       return null;
     }
-    function locationByName(world, name) {
+    function locationByName(world2, name) {
       const n = norm5(name).toLowerCase();
       if (!n) return null;
-      for (const l of asArray5(world.locations)) {
+      for (const l of asArray5(world2.locations)) {
         if (norm5(l.name).toLowerCase() === n) return l;
       }
       return null;
@@ -22743,11 +22743,11 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       else if (fields.near && locOf(fields.near)) want = besideRect(rectOf(locOf(fields.near)), fields.dir || "e", size.w, size.h);
       else want = placed.length ? { x: 0, y: Math.max(...placed.map((p) => p.y + p.h)) + ROOM.gap, ...size } : { x: 0, y: 0, ...size };
       const rect2 = fields.x != null && fields.y != null ? want : freeSpot(want, placed, ROOM.gap);
-      const room = { id: uid("location"), name: norm5(fields.name) || defaultRoomName(map), parentId: map.id, map: rect2 };
-      for (const k2 of ["description", "kind", "light", "secret", "hazards", "origin", "combatSpace"]) if (fields[k2] != null) room[k2] = fields[k2];
-      activeWorld().locations.push(room);
-      if (fields.near && locOf(fields.near) && fields.connect !== false) addExit(fields.near, room.id, { dir: fields.dir });
-      return room;
+      const room2 = { id: uid("location"), name: norm5(fields.name) || defaultRoomName(map), parentId: map.id, map: rect2 };
+      for (const k2 of ["description", "kind", "light", "secret", "hazards", "origin", "combatSpace"]) if (fields[k2] != null) room2[k2] = fields[k2];
+      activeWorld().locations.push(room2);
+      if (fields.near && locOf(fields.near) && fields.connect !== false) addExit(fields.near, room2.id, { dir: fields.dir });
+      return room2;
     }
     function addExit(fromId, toId, opts = {}) {
       const a = locOf(fromId), b = locOf(toId);
@@ -22831,15 +22831,15 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       const ids = new Set(rooms.map((x) => x.id));
       const seen = /* @__PURE__ */ new Set();
       const exits = [];
-      for (const room of rooms) for (const e of exitsOfLoc(room.id)) {
+      for (const room2 of rooms) for (const e of exitsOfLoc(room2.id)) {
         if (seen.has(e.id) || !ids.has(e.to)) continue;
         if (opts.player && !visibleExit(e, foundState())) continue;
         seen.add(e.id);
         exits.push({
           id: e.id,
           from: e.owner,
-          to: e.owner === room.id ? e.to : room.id,
-          dir: e.owner === room.id ? e.dir : mirrorDir(e.dir),
+          to: e.owner === room2.id ? e.to : room2.id,
+          dir: e.owner === room2.id ? e.dir : mirrorDir(e.dir),
           type: e.type || "open",
           state: doorState(e, r && r.doorState),
           secret: isSecret(e),
@@ -22850,7 +22850,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         });
       }
       const outside = [];
-      for (const room of rooms) for (const e of exitsOfLoc(room.id)) if (!ids.has(e.to) && !isInsideLocation(e.to, mapId) && e.to !== mapId) outside.push({ room: room.id, to: e.to, name: norm5((locOf(e.to) || {}).name), dir: e.dir });
+      for (const room2 of rooms) for (const e of exitsOfLoc(room2.id)) if (!ids.has(e.to) && !isInsideLocation(e.to, mapId) && e.to !== mapId) outside.push({ room: room2.id, to: e.to, name: norm5((locOf(e.to) || {}).name), dir: e.dir });
       return {
         id: map.id,
         name: norm5(phasedEntity(map).name),
@@ -23175,12 +23175,12 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       }
       if (!dir) dir = ["n", "e", "s", "w"].find((d) => !taken.has(d));
       if (!dir) return refuse(`${placeName(curId, curId)} has no free side`);
-      const room = addRoom2(map.id, { name: spec.name, near: curId, dir, description: spec.description || null, origin: "ai", connect: false });
-      const ex = addExit(curId, room.id, { dir, type: town ? "open" : "door", door: town ? void 0 : { state: "open" } });
-      raiseExplored(rt().explored, room.id, "discovered");
+      const room2 = addRoom2(map.id, { name: spec.name, near: curId, dir, description: spec.description || null, origin: "ai", connect: false });
+      const ex = addExit(curId, room2.id, { dir, type: town ? "open" : "door", door: town ? void 0 : { state: "open" } });
+      raiseExplored(rt().explored, room2.id, "discovered");
       markDirty();
-      gameLog(`New ${town ? "place" : "room"}: ${room.name}, ${dirName(dir)} of ${placeName(curId, curId)}.`, "map");
-      return { ok: true, room: room.id, exit: ex.id };
+      gameLog(`New ${town ? "place" : "room"}: ${room2.name}, ${dirName(dir)} of ${placeName(curId, curId)}.`, "map");
+      return { ok: true, room: room2.id, exit: ex.id };
     }
     function aiDoor(arg) {
       const spec = parseDoorSpec(arg);
@@ -23195,26 +23195,26 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       if (!ex) return refuse("there is no such way here");
       const f = findExit(ex.id);
       if (!f) return refuse("this way cannot have a door");
-      let world = false;
+      let world2 = false;
       if (!isDoorExit(f.exit)) {
         if (!spec.state && !spec.material) return { ok: true, same: true };
         updateExit(ex.id, { type: "door", door: { state: "open" } });
-        world = true;
+        world2 = true;
       }
       f.exit.door = f.exit.door || { state: "closed" };
       const st = doorState(f.exit, rt().doorState);
       if (spec.state && spec.state !== st) {
         if (!harderOrSame(st, spec.state)) {
-          if (world) markDirty();
+          if (world2) markDirty();
           return refuse(`the door is ${st} — only <open> or <unlock> opens it`);
         }
         rt().doorState[ex.id] = spec.state;
       }
       for (const k2 of ["material", "lockDC", "keyItem"]) if (spec[k2] != null && (f.exit.door[k2] == null || f.exit.door[k2] === "")) {
         f.exit.door[k2] = spec[k2];
-        world = true;
+        world2 = true;
       }
-      if (world) markDirty();
+      if (world2) markDirty();
       if (spec.state && spec.state !== st) gameLog(`${doorLabel(Object.assign({}, ex, { door: f.exit.door }), curId).replace(/^the/, "The")} is now ${spec.state}.`, "map");
       return { ok: true, state: doorState(f.exit, rt().doorState) };
     }
@@ -23263,13 +23263,13 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       const plan = town ? generateTown({ places: opts.places, seed }) : generateDungeon({ size: opts.size, theme: opts.theme, seed, encounters: opts.encounters, level: Number(opts.level) || party.level, partySize: Number(opts.partySize) || party.size });
       const ids = {};
       for (const r of plan.rooms) {
-        const room = { id: uid("location"), name: r.name, parentId: mapId, map: { ...r.rect }, generated: true };
-        if (r.light) room.light = r.light;
-        if (r.hazards) room.hazards = r.hazards.slice();
-        if (r.secret) room.secret = true;
-        w.locations.push(room);
-        ids[r.key] = room.id;
-        for (const f of r.features) addFeatureTo(room.id, f);
+        const room2 = { id: uid("location"), name: r.name, parentId: mapId, map: { ...r.rect }, generated: true };
+        if (r.light) room2.light = r.light;
+        if (r.hazards) room2.hazards = r.hazards.slice();
+        if (r.secret) room2.secret = true;
+        w.locations.push(room2);
+        ids[r.key] = room2.id;
+        for (const f of r.features) addFeatureTo(room2.id, f);
       }
       for (const e of plan.exits) addExit(ids[e.from], ids[e.to], { dir: e.dir, type: e.type, door: e.door, secretDC: e.secretDC });
       let encounters = 0;
@@ -23538,9 +23538,9 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       return m && !m.grey ? m.mark : "";
     }
     function questMarkerInfo(personId, mode2) {
-      const world = activeWorld();
-      if (!world || !personId) return null;
-      const quests = asArray5(world.quests).filter((q) => questVisible(q, mode2));
+      const world2 = activeWorld();
+      if (!world2 || !personId) return null;
+      const quests = asArray5(world2.quests).filter((q) => questVisible(q, mode2));
       if (quests.some((q) => q.turninPersonId === personId && questStateOf(q) === "complete")) return { mark: "?", grey: false };
       if (quests.some((q) => q.giverPersonId === personId && questStateOf(q) === "available" && !questLocks(q).length)) return { mark: "!", grey: false };
       if (quests.some((q) => q.turninPersonId === personId && questStateOf(q) === "active")) return { mark: "?", grey: true };
@@ -23856,11 +23856,11 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       return s;
     }
     function listQuests(mode2) {
-      const world = activeWorld();
-      if (!world) return [];
+      const world2 = activeWorld();
+      if (!world2) return [];
       mode2 = mode2 || "gm";
-      return asArray5(world.quests).filter((q) => questVisible(q, mode2) && !(mode2 === "player" && questStateOf(q) === "available" && questLocks(q).length && !onlyLevelLocked(q))).map((q) => {
-        const giver = findById(world.npcs, q.giverPersonId), turnin = findById(world.npcs, q.turninPersonId);
+      return asArray5(world2.quests).filter((q) => questVisible(q, mode2) && !(mode2 === "player" && questStateOf(q) === "available" && questLocks(q).length && !onlyLevelLocked(q))).map((q) => {
+        const giver = findById(world2.npcs, q.giverPersonId), turnin = findById(world2.npcs, q.turninPersonId);
         return {
           id: q.id,
           title: norm5(q.title) || norm5(q.name) || "Quest",
@@ -23967,7 +23967,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
           return false;
       }
     }
-    function eventActive(world, ev) {
+    function eventActive(world2, ev) {
       if (!ev) return false;
       if (!ev.repeatable && asArray5(rt()?.completedEventIds).includes(ev.id)) return false;
       if (asArray5(ev.locationIds).length && !ev.locationIds.includes(rt()?.playerLocationId)) return false;
@@ -24007,10 +24007,10 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       dbg("clock advanced ->", `d${c.day} m${c.month} ${c.time} ${c.season}`);
       return { ...c };
     }
-    function findNpcByName(world, name) {
+    function findNpcByName(world2, name) {
       const n = norm5(name).toLowerCase();
       if (!n) return null;
-      return asArray5(world.npcs).find((x) => norm5(x.name).toLowerCase() === n) || findById(world.npcs, name);
+      return asArray5(world2.npcs).find((x) => norm5(x.name).toLowerCase() === n) || findById(world2.npcs, name);
     }
     function parseFlagValue(raw) {
       const v = norm5(raw);
@@ -24262,8 +24262,8 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
 The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or sells, write <buy>item x2</buy> or <sell>item</sell>; RPmod checks the price, the stock and the purse and logs the result — narrate only what the log says.`;
     }
     function parseMutations(text) {
-      const world = activeWorld();
-      if (!world || !rt()) return false;
+      const world2 = activeWorld();
+      if (!world2 || !rt()) return false;
       let changed = false;
       const s = String(text || "");
       const scan = (re, fn2) => {
@@ -24284,8 +24284,8 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         }
       }
       scan(/<npcmove>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/npcmove>/gi, (m) => {
-        const npc = findNpcByName(world, m[1]);
-        const l = findById(world.locations, m[2]) || locationByName(world, m[2]);
+        const npc = findNpcByName(world2, m[1]);
+        const l = findById(world2.locations, m[2]) || locationByName(world2, m[2]);
         if (npc && l) {
           (rt().npcStateOverrides[npc.id] = rt().npcStateOverrides[npc.id] || {}).locationId = l.id;
           return true;
@@ -24293,7 +24293,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         return false;
       });
       scan(/<mood>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/mood>/gi, (m) => {
-        const npc = findNpcByName(world, m[1]);
+        const npc = findNpcByName(world2, m[1]);
         if (npc) {
           (rt().npcStateOverrides[npc.id] = rt().npcStateOverrides[npc.id] || {}).mood = norm5(m[2]);
           return true;
@@ -24331,7 +24331,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       scan(/<join>\s*([^<>]+?)\s*<\/join>/gi, (m) => joinParty(m[1], { source: "tag" }).ok);
       scan(/<leave>\s*([^<>]+?)\s*<\/leave>/gi, (m) => leaveParty(m[1], { source: "tag" }).ok);
       scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, (m) => {
-        const npc = findNpcByName(world, m[1]);
+        const npc = findNpcByName(world2, m[1]);
         if (!npc) return false;
         questEvent("talk", { personId: npc.id });
         return true;
@@ -24394,7 +24394,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
     }
     function applyEffect(effect) {
       if (!effect || typeof effect !== "object" || !rt()) return [];
-      const world = activeWorld();
+      const world2 = activeWorld();
       const sigs = [];
       switch (norm5(effect.type)) {
         case "flag":
@@ -24425,7 +24425,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
           break;
         }
         case "move": {
-          const l = findById(world && world.locations, effect.locationId) || locationByName(world, effect.location);
+          const l = findById(world2 && world2.locations, effect.locationId) || locationByName(world2, effect.location);
           if (l) {
             rt().playerLocationId = l.id;
             sigs.push("enter:" + l.id);
@@ -24433,8 +24433,8 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
           break;
         }
         case "npcmove": {
-          const npc = findById(world && world.npcs, effect.npcId) || findNpcByName(world, effect.npc);
-          const l = findById(world && world.locations, effect.locationId) || locationByName(world, effect.location);
+          const npc = findById(world2 && world2.npcs, effect.npcId) || findNpcByName(world2, effect.npc);
+          const l = findById(world2 && world2.locations, effect.locationId) || locationByName(world2, effect.location);
           if (npc && l) (rt().npcStateOverrides[npc.id] = rt().npcStateOverrides[npc.id] || {}).locationId = l.id;
           break;
         }
@@ -24501,8 +24501,8 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       }
     }
     function fireTriggers(signal) {
-      const world = activeWorld();
-      if (!world || !rt()) return [];
+      const world2 = activeWorld();
+      if (!world2 || !rt()) return [];
       if (firing) {
         pendingSignals.push(signal);
         return [];
@@ -24516,7 +24516,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         while (queue.length && steps < 400) {
           steps++;
           const sig = queue.shift();
-          for (const ev of asArray5(world.events)) {
+          for (const ev of asArray5(world2.events)) {
             if (firedNow.has(ev.id)) continue;
             if (!ev.repeatable && asArray5(rt().completedEventIds).includes(ev.id)) continue;
             if (!eventTriggers(ev).some((t) => triggerMatches(t, sig, ev))) continue;
@@ -24635,6 +24635,10 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       ensureRuntime();
       const entries = asArray5(ids).map((id) => ({ id, kind: id === "__player__" ? "player" : "person" }));
       if (opts.includePlayer !== false && !entries.some((e) => e.id === "__player__")) entries.unshift({ id: "__player__", kind: "player" });
+      if (opts.includePlayer !== false && opts.withParty !== false) for (const id of asArray5(rt().party)) {
+        const p = entityById(activeWorld(), id);
+        if (p && !p.isMonster && !phasedEntity(p).gone && !entries.some((e) => e.id === id)) entries.push({ id, kind: "person" });
+      }
       const stats = {}, names = /* @__PURE__ */ new Set();
       for (const m of asArray5(opts.monsters)) {
         const key = findMonster(m.key || m.name);
@@ -25326,9 +25330,9 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       return settingOn(ZONES_SETTING2, true);
     }
     function roomLayout(roomId) {
-      const room = locOf(roomId);
-      const dirs = room ? playerExits(roomId).map((e) => e.dir) : [];
-      return layoutFor(room && mapOf(roomId) ? room : null, dirs);
+      const room2 = locOf(roomId);
+      const dirs = room2 ? playerExits(roomId).map((e) => e.dir) : [];
+      return layoutFor(room2 && mapOf(roomId) ? room2 : null, dirs);
     }
     function roomFeatures(roomId) {
       return asArray5(activeWorld() && activeWorld().objects).filter((o) => o.locationId === roomId && featureVisible(o));
@@ -25698,12 +25702,12 @@ ${recent}` : "");
       if (changed || advanced) dbg("applied pending mutations; loc=", rt().playerLocationId);
       return changed || advanced;
     }
-    function resolveCurrentLocation(world, mutate) {
-      let loc = findById(world.locations, rt()?.playerLocationId);
+    function resolveCurrentLocation(world2, mutate) {
+      let loc = findById(world2.locations, rt()?.playerLocationId);
       if (loc) return loc;
       const ctx = recentContext().toLowerCase();
       if (ctx) {
-        const sorted = asArray5(world.locations).slice().sort((a, b) => norm5(b.name).length - norm5(a.name).length);
+        const sorted = asArray5(world2.locations).slice().sort((a, b) => norm5(b.name).length - norm5(a.name).length);
         for (const l of sorted) {
           const n = norm5(l.name).toLowerCase();
           if (n && ctx.includes(n)) {
@@ -25712,11 +25716,11 @@ ${recent}` : "");
           }
         }
       }
-      loc = asArray5(world.locations)[0] || null;
+      loc = asArray5(world2.locations)[0] || null;
       if (loc && mutate && rt() && !rt().playerLocationId) rt().playerLocationId = loc.id;
       return loc;
     }
-    function connectedLocations(world, loc, depth) {
+    function connectedLocations(world2, loc, depth) {
       const out = [];
       const seen = /* @__PURE__ */ new Set([loc.id]);
       let frontier = [loc];
@@ -25727,7 +25731,7 @@ ${recent}` : "");
           for (const id of ids) {
             if (seen.has(id)) continue;
             seen.add(id);
-            const l = findById(world.locations, id);
+            const l = findById(world2.locations, id);
             if (l) {
               out.push(l);
               next.push(l);
@@ -25776,16 +25780,16 @@ ${recent}` : "");
     }
     function computeActiveSlice(opts) {
       const mutate = !!(opts && opts.mutate);
-      const world = activeWorld();
-      if (!world || !rt()) return { sections: [], location: null };
-      const loc = resolveCurrentLocation(world, mutate);
+      const world2 = activeWorld();
+      if (!world2 || !rt()) return { sections: [], location: null };
+      const loc = resolveCurrentLocation(world2, mutate);
       const sections = [];
       const push = (title, priority, text) => {
         if (norm5(text)) sections.push({ title, priority, text: norm5(text) });
       };
-      push("World: " + nodeName("world", world), 100, norm5(world.description));
+      push("World: " + nodeName("world", world2), 100, norm5(world2.description));
       if (W.config.insertRules) {
-        const rules = asArray5(world.rules).map(norm5).filter(Boolean).join("\n");
+        const rules = asArray5(world2.rules).map(norm5).filter(Boolean).join("\n");
         push("World Rules", 100, rules);
       }
       const c = rt().clock || {};
@@ -25801,12 +25805,12 @@ ${recent}` : "");
         const cp = wealthCp(rt().coins), xp = Number(rt().xp) || 0;
         if (cp || xp) stateBits.push(`Gold: ${formatPrice(cp)}, XP: ${xp}`);
       }
-      const party = asArray5(rt().party).map((id) => (findById(world.npcs, id) || {}).name).filter(Boolean);
+      const party = asArray5(rt().party).map((id) => (findById(world2.npcs, id) || {}).name).filter(Boolean);
       if (party.length) stateBits.push("Party: " + party.map(norm5).join(", "));
       push("Player State", 85, stateBits.join("\n"));
       push("Combat", 96, combatText());
       if (!(getCombat() && getCombat().active)) {
-        const saved = asArray5(world.encounters).map((e) => e.name).filter(Boolean);
+        const saved = asArray5(world2.encounters).map((e) => e.name).filter(Boolean);
         push("Starting a fight", 20, "When a fight breaks out, write <encounter>2 Wolf, Goblin Warrior</encounter> (SRD monster names and counts)" + (saved.length ? ` or the name of a prepared encounter (${saved.slice(0, 8).join(", ")})` : "") + ". RPmod then rolls initiative and every attack; you narrate the results.");
       }
       if (!loc) {
@@ -25817,7 +25821,7 @@ ${recent}` : "");
       const pLoc = phasedEntity(loc);
       const zones = zonePath(loc.id), inRoom = !!mapOf(loc.id);
       const inner = innerPlaces(loc);
-      const exits = playerExits(loc.id).filter((e) => !e.mirrored).map((e) => norm5(e.name)).filter(Boolean).concat(connectedLocations(world, loc, 1).map((l) => placeName(l.id, loc.id))).concat(zones.length && !inRoom ? [norm5(phasedEntity(zones[zones.length - 1]).name)] : []);
+      const exits = playerExits(loc.id).filter((e) => !e.mirrored).map((e) => norm5(e.name)).filter(Boolean).concat(connectedLocations(world2, loc, 1).map((l) => placeName(l.id, loc.id))).concat(zones.length && !inRoom ? [norm5(phasedEntity(zones[zones.length - 1]).name)] : []);
       const exitsUniq = [...new Set(exits.map(norm5).filter(Boolean))];
       let locText = norm5(pLoc.description);
       const light = roomLightOf(loc);
@@ -25832,10 +25836,10 @@ ${recent}` : "");
         if (xl.length) locText += `${locText ? "\n" : ""}Exits:
 ${xl.join("\n")}`;
       } else if (exitsUniq.length) locText += `${locText ? "\n" : ""}Exits: ${exitsUniq.join(", ")}`;
-      const hqFactions = asArray5(world.factions).filter((f) => factionHq(f) === loc.id).map((f) => norm5(phasedEntity(f).name)).filter(Boolean);
+      const hqFactions = asArray5(world2.factions).filter((f) => factionHq(f) === loc.id).map((f) => norm5(phasedEntity(f).name)).filter(Boolean);
       if (hqFactions.length) locText += `${locText ? "\n" : ""}Headquarters of: ${hqFactions.join(", ")}`;
       sections.push({ title: `Current Location: ${norm5(pLoc.name)}`, priority: 80, text: locText });
-      const npcsHere = asArray5(world.npcs).filter((npc) => resolveNpcLocationId(npc) === loc.id || asArray5(loc.npcIds).includes(npc.id));
+      const npcsHere = asArray5(world2.npcs).filter((npc) => resolveNpcLocationId(npc) === loc.id || asArray5(loc.npcIds).includes(npc.id));
       const npcSeen = /* @__PURE__ */ new Set();
       const npcLines = [];
       const mode2 = aiMode();
@@ -25844,7 +25848,7 @@ ${xl.join("\n")}`;
         npcSeen.add(rawNpc.id);
         const npc = phasedEntity(rawNpc);
         if (npc.gone) continue;
-        const faction = findById(world.factions, npc.factionId) && phasedEntity(findById(world.factions, npc.factionId));
+        const faction = findById(world2.factions, npc.factionId) && phasedEntity(findById(world2.factions, npc.factionId));
         const marker = personQuestMarker(npc.id, mode2);
         const att = personAttitude(npc);
         const bits = [(marker ? marker + " " : "") + personName(npc) + (att ? ` (${att.name}: ${att.tier}${att.hostile ? " — hostile to the player" : ""})` : "")];
@@ -25866,7 +25870,7 @@ ${xl.join("\n")}`;
       const giverLines = questGiverLines(npcsHere.filter((n) => !phasedEntity(n).gone).map((n) => n.id), mode2);
       if (giverLines.length) push("Quest givers here", 66, giverLines.join("\n") + "\nSpeak the offers in the giver's voice. When the player agrees to a quest, write <accept>quest title</accept>; when they hand in a finished one, <turnin>quest title</turnin>. RPmod checks the requirements and pays the rewards.");
       push("Trade", 62, shopText());
-      const objsHere = asArray5(world.objects).filter((o) => (o.locationId === loc.id || asArray5(loc.objectIds).includes(o.id)) && featureVisible(o));
+      const objsHere = asArray5(world2.objects).filter((o) => (o.locationId === loc.id || asArray5(loc.objectIds).includes(o.id)) && featureVisible(o));
       const objLines = objsHere.map((o) => "- " + norm5(o.name) + (FEATURE_KINDS.includes(o.kind) && o.kind !== "furniture" ? ` (${o.kind === "light" ? o.lit ? "lit" : "unlit" : o.kind})` : "") + (norm5(o.desc) ? `: ${norm5(o.desc)}` : ""));
       push("Nearby Objects", 50, objLines.join("\n"));
       if (!(getCombat() && getCombat().active)) {
@@ -25878,7 +25882,7 @@ ${xl.join("\n")}`;
         if (settingOn(ASCII_MAP_SETTING, false)) push("Map (explored)", 60, asciiMapText(loc.id));
       }
       const questLines = [];
-      for (const q of asArray5(world.quests)) {
+      for (const q of asArray5(world2.quests)) {
         const st = questStateOf(q);
         if (st !== "active" && st !== "complete") continue;
         if (!questVisible(q, mode2)) continue;
@@ -25896,9 +25900,9 @@ ${xl.join("\n")}`;
       push("Reputation", 42, reps.map((r) => `- ${r.name}: ${r.tier}${r.effect ? ` — ${r.effect}` : ""}`).join("\n"));
       const evLines = [];
       const seenEv = /* @__PURE__ */ new Set();
-      for (const ev of asArray5(world.events)) {
+      for (const ev of asArray5(world2.events)) {
         const ambient = !asArray5(ev.triggers).length || asArray5(ev.triggers).some((t) => norm5(t.type) === "onTurn");
-        const show = firedEventsBuffer.includes(ev.id) || ambient && eventActive(world, ev);
+        const show = firedEventsBuffer.includes(ev.id) || ambient && eventActive(world2, ev);
         if (!show || seenEv.has(ev.id)) continue;
         if (ev.hidden && mode2 === "player" && !isDiscovered("events", ev.id)) continue;
         seenEv.add(ev.id);
@@ -25911,7 +25915,7 @@ ${xl.join("\n")}`;
         if (t) loreLines.push(t);
       }
       const ctx = recentContext().toLowerCase();
-      for (const gl of asArray5(world.globalLore)) {
+      for (const gl of asArray5(world2.globalLore)) {
         const content = norm5(typeof gl === "string" ? gl : gl.content);
         if (!content || gl && gl.disabled) continue;
         const always = gl && (gl.always || gl.constant);
@@ -26052,30 +26056,30 @@ ${xl.join("\n")}`;
     }
     const TYPE_ARRAYS = { location: "locations", npc: "npcs", faction: "factions", object: "objects", event: "events", quest: "quests", lore: "globalLore", encounter: "encounters" };
     const ENTRY_FIELD = { location: "description", npc: "description", faction: "description", object: "desc", event: "description", quest: "description", lore: "content", encounter: "notes" };
-    function normalizeWorld(world) {
-      if (!world || typeof world !== "object") return world;
+    function normalizeWorld(world2) {
+      if (!world2 || typeof world2 !== "object") return world2;
       for (const t of Object.keys(TYPE_ARRAYS)) {
         const key = TYPE_ARRAYS[t];
-        world[key] = asArray5(world[key]);
-        for (const e of world[key]) {
+        world2[key] = asArray5(world2[key]);
+        for (const e of world2[key]) {
           if (e && !e.id) e.id = uid(t);
         }
       }
-      for (const l of world.locations) if (l && Array.isArray(l.exits)) for (const ex of l.exits) normalizeExit(ex, () => uid("ex"));
-      world.rules = asArray5(world.rules);
-      if (!world.ruleset || typeof world.ruleset !== "object") world.ruleset = {};
-      if (world.ruleset.aiMode !== "player") world.ruleset.aiMode = "gm";
-      return world;
+      for (const l of world2.locations) if (l && Array.isArray(l.exits)) for (const ex of l.exits) normalizeExit(ex, () => uid("ex"));
+      world2.rules = asArray5(world2.rules);
+      if (!world2.ruleset || typeof world2.ruleset !== "object") world2.ruleset = {};
+      if (world2.ruleset.aiMode !== "player") world2.ruleset.aiMode = "gm";
+      return world2;
     }
-    function entityType(world, id) {
+    function entityType(world2, id) {
       if (id === "__world__") return "world";
-      for (const t of Object.keys(TYPE_ARRAYS)) if (findById(world[TYPE_ARRAYS[t]], id)) return t;
+      for (const t of Object.keys(TYPE_ARRAYS)) if (findById(world2[TYPE_ARRAYS[t]], id)) return t;
       return null;
     }
-    function entityById(world, id) {
-      if (id === "__world__") return world;
+    function entityById(world2, id) {
+      if (id === "__world__") return world2;
       for (const t of Object.keys(TYPE_ARRAYS)) {
-        const e = findById(world[TYPE_ARRAYS[t]], id);
+        const e = findById(world2[TYPE_ARRAYS[t]], id);
         if (e) return e;
       }
       return null;
@@ -26090,22 +26094,22 @@ ${xl.join("\n")}`;
     function nodeEntry(type, e) {
       return norm5(e[ENTRY_FIELD[type]] || "");
     }
-    function encounterRef(world, value) {
+    function encounterRef(world2, value) {
       const q = norm5(value).toLowerCase();
       if (!q) return null;
-      return asArray5(world && world.encounters).find((e) => e.id === value) || asArray5(world && world.encounters).find((e) => norm5(e.name).toLowerCase() === q) || null;
+      return asArray5(world2 && world2.encounters).find((e) => e.id === value) || asArray5(world2 && world2.encounters).find((e) => norm5(e.name).toLowerCase() === q) || null;
     }
     function getGraph() {
-      const world = activeWorld();
-      if (!world) return { world: null, nodes: [], edges: [] };
-      normalizeWorld(world);
-      const nodes = [{ id: "__world__", type: "world", name: nodeName("world", world), entry: norm5(world.description), x: world.ui?.x, y: world.ui?.y }];
+      const world2 = activeWorld();
+      if (!world2) return { world: null, nodes: [], edges: [] };
+      normalizeWorld(world2);
+      const nodes = [{ id: "__world__", type: "world", name: nodeName("world", world2), entry: norm5(world2.description), x: world2.ui?.x, y: world2.ui?.y }];
       const edges = [];
       for (const t of Object.keys(TYPE_ARRAYS)) {
-        for (const e of asArray5(world[TYPE_ARRAYS[t]])) {
+        for (const e of asArray5(world2[TYPE_ARRAYS[t]])) {
           const n = { id: e.id, type: t, name: nodeName(t, e), entry: nodeEntry(t, e), x: e.ui?.x, y: e.ui?.y };
           const inLoc = t === "location" ? e.id : t === "object" ? e.locationId : null;
-          if (inLoc && findById(world.locations, inLoc)) {
+          if (inLoc && findById(world2.locations, inLoc)) {
             const m = mapOf(inLoc);
             const anchor = graphAnchor(inLoc);
             if (t === "location") {
@@ -26121,73 +26125,73 @@ ${xl.join("\n")}`;
           nodes.push(n);
         }
       }
-      for (const l of asArray5(world.locations)) {
+      for (const l of asArray5(world2.locations)) {
         edges.push({ from: "__world__", to: l.id, kind: "contains" });
-        for (const cid of asArray5(l.connectedLocationIds)) if (findById(world.locations, cid)) edges.push({ from: l.id, to: cid, kind: "exit" });
+        for (const cid of asArray5(l.connectedLocationIds)) if (findById(world2.locations, cid)) edges.push({ from: l.id, to: cid, kind: "exit" });
         for (const ex of asArray5(l.exits)) {
           const to = ex && (ex.to || ex.locationId);
-          if (to && to !== l.id && findById(world.locations, to) && !asArray5(l.connectedLocationIds).includes(to)) edges.push({ from: l.id, to, kind: "exit", exitId: ex.id });
+          if (to && to !== l.id && findById(world2.locations, to) && !asArray5(l.connectedLocationIds).includes(to)) edges.push({ from: l.id, to, kind: "exit", exitId: ex.id });
         }
       }
-      for (const n of asArray5(world.npcs)) {
-        if (n.homeLocationId && findById(world.locations, n.homeLocationId)) edges.push({ from: n.id, to: n.homeLocationId, kind: "resident" });
-        if (n.factionId && findById(world.factions, n.factionId)) edges.push({ from: n.id, to: n.factionId, kind: "faction" });
+      for (const n of asArray5(world2.npcs)) {
+        if (n.homeLocationId && findById(world2.locations, n.homeLocationId)) edges.push({ from: n.id, to: n.homeLocationId, kind: "resident" });
+        if (n.factionId && findById(world2.factions, n.factionId)) edges.push({ from: n.id, to: n.factionId, kind: "faction" });
       }
-      for (const f of asArray5(world.factions)) if (f.hqLocationId && findById(world.locations, f.hqLocationId)) edges.push({ from: f.id, to: f.hqLocationId, kind: "hq" });
-      for (const o of asArray5(world.objects)) {
-        if (o.locationId && findById(world.locations, o.locationId)) edges.push({ from: o.id, to: o.locationId, kind: "in" });
-        if (o.ownerNpcId && findById(world.npcs, o.ownerNpcId)) edges.push({ from: o.id, to: o.ownerNpcId, kind: "owned" });
+      for (const f of asArray5(world2.factions)) if (f.hqLocationId && findById(world2.locations, f.hqLocationId)) edges.push({ from: f.id, to: f.hqLocationId, kind: "hq" });
+      for (const o of asArray5(world2.objects)) {
+        if (o.locationId && findById(world2.locations, o.locationId)) edges.push({ from: o.id, to: o.locationId, kind: "in" });
+        if (o.ownerNpcId && findById(world2.npcs, o.ownerNpcId)) edges.push({ from: o.id, to: o.ownerNpcId, kind: "owned" });
       }
-      for (const ev of asArray5(world.events)) for (const lid of asArray5(ev.locationIds)) if (findById(world.locations, lid)) edges.push({ from: ev.id, to: lid, kind: "occurs" });
-      for (const q of asArray5(world.quests)) {
-        if (q.giverPersonId && findById(world.npcs, q.giverPersonId)) edges.push({ from: q.id, to: q.giverPersonId, kind: "gives" });
-        if (q.turninPersonId && findById(world.npcs, q.turninPersonId)) edges.push({ from: q.id, to: q.turninPersonId, kind: "turnin" });
-        for (const pid of asArray5(q.prerequisites && q.prerequisites.quests)) if (findById(world.quests, pid)) edges.push({ from: pid, to: q.id, kind: "unlocks" });
+      for (const ev of asArray5(world2.events)) for (const lid of asArray5(ev.locationIds)) if (findById(world2.locations, lid)) edges.push({ from: ev.id, to: lid, kind: "occurs" });
+      for (const q of asArray5(world2.quests)) {
+        if (q.giverPersonId && findById(world2.npcs, q.giverPersonId)) edges.push({ from: q.id, to: q.giverPersonId, kind: "gives" });
+        if (q.turninPersonId && findById(world2.npcs, q.turninPersonId)) edges.push({ from: q.id, to: q.turninPersonId, kind: "turnin" });
+        for (const pid of asArray5(q.prerequisites && q.prerequisites.quests)) if (findById(world2.quests, pid)) edges.push({ from: pid, to: q.id, kind: "unlocks" });
       }
-      for (const l of asArray5(world.locations)) {
-        if (l.parentId && findById(world.locations, l.parentId)) edges.push({ from: l.parentId, to: l.id, kind: "zone" });
+      for (const l of asArray5(world2.locations)) {
+        if (l.parentId && findById(world2.locations, l.parentId)) edges.push({ from: l.parentId, to: l.id, kind: "zone" });
       }
-      for (const en of asArray5(world.encounters)) {
-        if (en.locationId && findById(world.locations, en.locationId)) edges.push({ from: en.id, to: en.locationId, kind: "at" });
-        for (const pid of asArray5(en.personIds)) if (findById(world.npcs, pid)) edges.push({ from: en.id, to: pid, kind: "fights" });
-        if (en.factionId && findById(world.factions, en.factionId)) edges.push({ from: en.id, to: en.factionId, kind: "faction" });
+      for (const en of asArray5(world2.encounters)) {
+        if (en.locationId && findById(world2.locations, en.locationId)) edges.push({ from: en.id, to: en.locationId, kind: "at" });
+        for (const pid of asArray5(en.personIds)) if (findById(world2.npcs, pid)) edges.push({ from: en.id, to: pid, kind: "fights" });
+        if (en.factionId && findById(world2.factions, en.factionId)) edges.push({ from: en.id, to: en.factionId, kind: "faction" });
       }
-      for (const ev of asArray5(world.events)) {
+      for (const ev of asArray5(world2.events)) {
         for (const t of asArray5(ev.triggers)) {
-          if (norm5(t.type) === "onQuestState" && findById(world.quests, t.questId)) edges.push({ from: t.questId, to: ev.id, kind: "onquest" });
-          if (norm5(t.type) === "onEnterLocation" && findById(world.locations, t.locationId)) edges.push({ from: t.locationId, to: ev.id, kind: "onenter" });
+          if (norm5(t.type) === "onQuestState" && findById(world2.quests, t.questId)) edges.push({ from: t.questId, to: ev.id, kind: "onquest" });
+          if (norm5(t.type) === "onEnterLocation" && findById(world2.locations, t.locationId)) edges.push({ from: t.locationId, to: ev.id, kind: "onenter" });
         }
         for (const eff of asArray5(ev.effects)) {
           const qid = eff.questId || eff.quest;
-          if ((norm5(eff.type) === "quest" || norm5(eff.type) === "discover") && findById(world.quests, qid)) edges.push({ from: ev.id, to: qid, kind: "affects" });
-          if (norm5(eff.type) === "fireEvent" && findById(world.events, eff.eventId)) edges.push({ from: ev.id, to: eff.eventId, kind: "chains" });
+          if ((norm5(eff.type) === "quest" || norm5(eff.type) === "discover") && findById(world2.quests, qid)) edges.push({ from: ev.id, to: qid, kind: "affects" });
+          if (norm5(eff.type) === "fireEvent" && findById(world2.events, eff.eventId)) edges.push({ from: ev.id, to: eff.eventId, kind: "chains" });
           if (norm5(eff.type) === "encounter") {
-            const en = encounterRef(world, eff.value);
+            const en = encounterRef(world2, eff.value);
             if (en) edges.push({ from: ev.id, to: en.id, kind: "starts" });
           }
         }
       }
-      return { world, nodes, edges };
+      return { world: world2, nodes, edges };
     }
     function addEntity(type, fields = {}) {
-      const world = activeWorld();
-      if (!world) throw new Error("no active world");
+      const world2 = activeWorld();
+      if (!world2) throw new Error("no active world");
       const key = TYPE_ARRAYS[type];
       if (!key) throw new Error("bad type " + type);
-      normalizeWorld(world);
+      normalizeWorld(world2);
       const e = { id: uid(type), ui: { x: Number(fields.x) || 300, y: Number(fields.y) || 200 } };
       if (type === "lore") e.content = norm5(fields.name) || "";
       else if (type === "quest") e.title = norm5(fields.title || fields.name) || "New quest";
       else e.name = norm5(fields.name) || "New " + type;
       if (type === "encounter") Object.assign(e, { monsters: [], personIds: [], locationId: null, difficulty: null });
-      world[key].push(e);
+      world2[key].push(e);
       dbg("addEntity", type, e.id);
       return e;
     }
     function updateEntity(id, patch) {
-      const world = activeWorld();
-      if (!world) return null;
-      const e = entityById(world, id);
+      const world2 = activeWorld();
+      if (!world2) return null;
+      const e = entityById(world2, id);
       if (!e) return null;
       for (const [k2, v] of Object.entries(patch || {})) {
         if (k2 !== "id") e[k2] = v;
@@ -26202,54 +26206,54 @@ ${xl.join("\n")}`;
       e.ui.y = Math.round(y);
     }
     function deleteEntity(id, opts) {
-      const world = activeWorld();
-      if (!world || id === "__world__") return false;
-      const type = entityType(world, id);
+      const world2 = activeWorld();
+      if (!world2 || id === "__world__") return false;
+      const type = entityType(world2, id);
       if (!type) return false;
       if (type === "location" && opts && opts.withRooms) {
-        const inner = asArray5(world.locations).filter((l) => l.id !== id && isInsideLocation(l.id, id)).map((l) => l.id);
-        for (const rid of inner.concat([id])) for (const o of asArray5(world.objects).filter((o2) => o2.locationId === rid && FEATURE_KINDS.includes(o2.kind))) deleteEntity(o.id);
+        const inner = asArray5(world2.locations).filter((l) => l.id !== id && isInsideLocation(l.id, id)).map((l) => l.id);
+        for (const rid of inner.concat([id])) for (const o of asArray5(world2.objects).filter((o2) => o2.locationId === rid && FEATURE_KINDS.includes(o2.kind))) deleteEntity(o.id);
         for (const rid of inner) deleteEntity(rid);
       }
-      world[TYPE_ARRAYS[type]] = asArray5(world[TYPE_ARRAYS[type]]).filter((e) => e.id !== id);
-      for (const l of asArray5(world.locations)) {
+      world2[TYPE_ARRAYS[type]] = asArray5(world2[TYPE_ARRAYS[type]]).filter((e) => e.id !== id);
+      for (const l of asArray5(world2.locations)) {
         if (Array.isArray(l.exits)) l.exits = l.exits.filter((ex) => !ex || (ex.to || ex.locationId) !== id);
         l.connectedLocationIds = asArray5(l.connectedLocationIds).filter((x) => x !== id);
         l.npcIds = asArray5(l.npcIds).filter((x) => x !== id);
         l.objectIds = asArray5(l.objectIds).filter((x) => x !== id);
       }
-      for (const n of asArray5(world.npcs)) {
+      for (const n of asArray5(world2.npcs)) {
         if (n.homeLocationId === id) n.homeLocationId = null;
         if (n.factionId === id) n.factionId = null;
       }
-      for (const f of asArray5(world.factions)) {
+      for (const f of asArray5(world2.factions)) {
         if (f.hqLocationId === id) f.hqLocationId = null;
       }
-      for (const o of asArray5(world.objects)) {
+      for (const o of asArray5(world2.objects)) {
         if (o.locationId === id) o.locationId = null;
         if (o.ownerNpcId === id) o.ownerNpcId = null;
       }
-      for (const ev of asArray5(world.events)) ev.locationIds = asArray5(ev.locationIds).filter((x) => x !== id);
-      for (const q of asArray5(world.quests)) {
+      for (const ev of asArray5(world2.events)) ev.locationIds = asArray5(ev.locationIds).filter((x) => x !== id);
+      for (const q of asArray5(world2.quests)) {
         if (q.giverPersonId === id) q.giverPersonId = null;
         if (q.turninPersonId === id) q.turninPersonId = null;
       }
-      for (const en of asArray5(world.encounters)) {
+      for (const en of asArray5(world2.encounters)) {
         if (en.locationId === id) en.locationId = null;
         if (en.factionId === id) en.factionId = null;
         en.personIds = asArray5(en.personIds).filter((x) => x !== id);
       }
-      if (type === "encounter") for (const ev of asArray5(world.events)) ev.effects = asArray5(ev.effects).filter((f) => !(norm5(f.type) === "encounter" && f.value === id));
+      if (type === "encounter") for (const ev of asArray5(world2.events)) ev.effects = asArray5(ev.effects).filter((f) => !(norm5(f.type) === "encounter" && f.value === id));
       if (rt() && rt().playerLocationId === id) rt().playerLocationId = null;
       dbg("deleteEntity", id);
       return true;
     }
     function connect(fromId, toId) {
-      const world = activeWorld();
-      if (!world) throw new Error("no active world");
+      const world2 = activeWorld();
+      if (!world2) throw new Error("no active world");
       if (fromId === toId) throw new Error("cannot connect a node to itself");
-      const ta = entityType(world, fromId), tb = entityType(world, toId);
-      const a = entityById(world, fromId), b = entityById(world, toId);
+      const ta = entityType(world2, fromId), tb = entityType(world2, toId);
+      const a = entityById(world2, fromId), b = entityById(world2, toId);
       if (!a || !b) throw new Error("unknown node");
       const pair = [ta, tb];
       const is = (x, y) => ta === x && tb === y || ta === y && tb === x;
@@ -26335,7 +26339,7 @@ ${xl.join("\n")}`;
       if (is("event", "encounter")) {
         const ev = ta === "event" ? a : b, en = ta === "encounter" ? a : b;
         ev.effects = asArray5(ev.effects);
-        if (!ev.effects.some((f) => norm5(f.type) === "encounter" && encounterRef(world, f.value) === en)) ev.effects.push({ type: "encounter", value: en.id });
+        if (!ev.effects.some((f) => norm5(f.type) === "encounter" && encounterRef(world2, f.value) === en)) ev.effects.push({ type: "encounter", value: en.id });
         if (!asArray5(ev.triggers).length) ev.triggers = [{ type: "manual" }];
         return { kind: "starts" };
       }
@@ -26343,9 +26347,9 @@ ${xl.join("\n")}`;
       throw new Error(`no relationship defined between ${ta} and ${tb}`);
     }
     function disconnect(fromId, toId) {
-      const world = activeWorld();
-      if (!world) return false;
-      const a = entityById(world, fromId), b = entityById(world, toId);
+      const world2 = activeWorld();
+      if (!world2) return false;
+      const a = entityById(world2, fromId), b = entityById(world2, toId);
       if (!a || !b) return false;
       for (const [x, yId] of [[a, toId], [b, fromId]]) {
         if (Array.isArray(x.connectedLocationIds)) x.connectedLocationIds = x.connectedLocationIds.filter((v) => v !== yId);
@@ -26363,19 +26367,19 @@ ${xl.join("\n")}`;
         if (x.prerequisites && Array.isArray(x.prerequisites.quests)) x.prerequisites.quests = x.prerequisites.quests.filter((v) => v !== yId);
         if (x.parentId === yId) x.parentId = null;
         if (Array.isArray(x.personIds)) x.personIds = x.personIds.filter((v) => v !== yId);
-        if (Array.isArray(x.effects)) x.effects = x.effects.filter((f) => !(f && norm5(f.type) === "encounter" && (f.value === yId || (encounterRef(world, f.value) || {}).id === yId)));
+        if (Array.isArray(x.effects)) x.effects = x.effects.filter((f) => !(f && norm5(f.type) === "encounter" && (f.value === yId || (encounterRef(world2, f.value) || {}).id === yId)));
       }
       return true;
     }
     function changeEntityType(id, newType) {
-      const world = activeWorld();
-      if (!world) return false;
-      const oldType = entityType(world, id);
-      const e = entityById(world, id);
+      const world2 = activeWorld();
+      if (!world2) return false;
+      const oldType = entityType(world2, id);
+      const e = entityById(world2, id);
       if (!e || !oldType || oldType === "world" || newType === "world" || !TYPE_ARRAYS[newType] || oldType === newType) return false;
       if (oldType === "encounter" || newType === "encounter") return false;
       const entry2 = nodeEntry(oldType, e), name = nodeName(oldType, e);
-      world[TYPE_ARRAYS[oldType]] = asArray5(world[TYPE_ARRAYS[oldType]]).filter((x) => x.id !== id);
+      world2[TYPE_ARRAYS[oldType]] = asArray5(world2[TYPE_ARRAYS[oldType]]).filter((x) => x.id !== id);
       const n = { id, ui: e.ui || {} };
       if (newType === "lore") {
         n.content = entry2 || name;
@@ -26384,7 +26388,7 @@ ${xl.join("\n")}`;
         n.name = name;
         n[ENTRY_FIELD[newType]] = entry2;
       }
-      world[TYPE_ARRAYS[newType]].push(n);
+      world2[TYPE_ARRAYS[newType]].push(n);
       dbg("changeEntityType", id, oldType, "->", newType);
       return true;
     }
@@ -26395,19 +26399,19 @@ ${xl.join("\n")}`;
       switchWorld(w.id);
       return w.id;
     }
-    function addBookEntry(world, e, y) {
+    function addBookEntry(world2, e, y) {
       const t = typedEntry(e);
       if (t.kind === "lore") {
         const gl = { id: uid("lore"), content: t.text, keys: e.keys, secondary: e.secondary, label: e.comment || e.keys[0] || "Lore", always: e.constant, wigroup: e.wigroup, ui: { x: 700, y } };
         if (!e.enabled) gl.disabled = true;
-        world.globalLore.push(gl);
+        world2.globalLore.push(gl);
         return;
       }
       const n = { id: uid(t.kind), ui: { x: 300, y } };
       if (t.kind === "quest") n.title = t.name || "Quest";
       else n.name = t.name || "New " + t.kind;
       n[TEXT_FIELD[t.kind]] = t.text;
-      world[KINDS2[t.kind]].push(n);
+      world2[KINDS2[t.kind]].push(n);
     }
     async function importLorebook(data, opts = {}) {
       const book = readBook(data);
@@ -26431,15 +26435,15 @@ ${xl.join("\n")}`;
         dbg("lorebook: restored world", w.id, "edited", edited, "added", extra.length);
         return book.entries.length;
       }
-      let world = opts.merge ? activeWorld() : null;
-      if (!world) {
+      let world2 = opts.merge ? activeWorld() : null;
+      if (!world2) {
         await createWorld(opts.worldName || book.name || "Imported World");
-        world = activeWorld();
+        world2 = activeWorld();
       }
-      normalizeWorld(world);
+      normalizeWorld(world2);
       let gy = 120;
       for (const e of book.entries) {
-        addBookEntry(world, e, gy);
+        addBookEntry(world2, e, gy);
         gy += 60;
       }
       await saveLibrary();
@@ -26649,12 +26653,12 @@ ${xl.join("\n")}`;
       dbg("example world loaded");
       return w.id;
     }
-    function startRuntime(world) {
+    function startRuntime(world2) {
       const c = newRuntime();
-      const st = world && world.start && typeof world.start === "object" ? world.start : null;
+      const st = world2 && world2.start && typeof world2.start === "object" ? world2.start : null;
       const snap = c.working;
       if (st) {
-        if (st.locationId && findById(world.locations, st.locationId)) snap.playerLocationId = st.locationId;
+        if (st.locationId && findById(world2.locations, st.locationId)) snap.playerLocationId = st.locationId;
         if (st.clock && typeof st.clock === "object") {
           Object.assign(snap.clock, st.clock);
           if (st.clock.month != null && st.clock.season == null) snap.clock.season = deriveSeason(snap.clock.month);
@@ -27337,15 +27341,15 @@ ${xl.join("\n")}`;
       exportWorldAsLorebook,
       readLorebook: (data) => readBook(data),
       // ----- world library -----
-      async importWorld(world, { activate = true } = {}) {
-        if (!world || typeof world !== "object") throw new Error("world object required");
-        if (!world.id) world.id = uid("world");
-        normalizeWorld(world);
-        W.library[world.id] = world;
+      async importWorld(world2, { activate = true } = {}) {
+        if (!world2 || typeof world2 !== "object") throw new Error("world object required");
+        if (!world2.id) world2.id = uid("world");
+        normalizeWorld(world2);
+        W.library[world2.id] = world2;
         await saveLibrary();
-        if (activate) this.useWorld(world.id);
-        dbg("world imported", world.id, world.name);
-        return world.id;
+        if (activate) this.useWorld(world2.id);
+        dbg("world imported", world2.id, world2.name);
+        return world2.id;
       },
       listWorlds() {
         return Object.values(W.library).map((w) => ({ id: w.id, name: w.name, locations: asArray5(w.locations).length }));
@@ -27409,9 +27413,9 @@ ${xl.join("\n")}`;
       },
       // ----- runtime controls -----
       moveTo(locationNameOrId) {
-        const world = activeWorld();
-        if (!world) throw new Error("no active world");
-        let loc = findById(world.locations, locationNameOrId) || locationByName(world, locationNameOrId);
+        const world2 = activeWorld();
+        if (!world2) throw new Error("no active world");
+        let loc = findById(world2.locations, locationNameOrId) || locationByName(world2, locationNameOrId);
         if (!loc) throw new Error("unknown location: " + locationNameOrId);
         ensureRuntime();
         rt().playerLocationId = loc.id;
@@ -27737,7 +27741,7 @@ ${xl.join("\n")}`;
       root.appendChild(g);
     }
     const used = {};
-    const place = (z) => {
+    const place2 = (z) => {
       const sh = shapes[z];
       if (!sh) return null;
       const i = used[z] = (used[z] || 0) + 1;
@@ -27762,7 +27766,7 @@ ${xl.join("\n")}`;
         outOfRange.push(t);
         continue;
       }
-      const p = place(z);
+      const p = place2(z);
       if (!p) continue;
       const g = svg("g", { class: `rpm-zone-token rpm-zone-${t.side === "party" ? "party" : "enemy"}` + (t.current ? " rpm-zone-current" : "") + (t.down ? " rpm-zone-down" : "") + (t.hidden ? " rpm-zone-hidden" : ""), "data-token": t.id });
       g.appendChild(svg("title", null, `${t.name}${t.cover ? " — in cover" : ""}${t.hidden ? " — hidden" : ""}${t.down ? " — down" : ""}`));
@@ -27850,7 +27854,7 @@ ${xl.join("\n")}`;
     return Object.entries(U.monsters).filter(([, n]) => n > 0).map(([key, count]) => ({ key, count }));
   }
   function renderBuilder(box, A, refresh2) {
-    const world = A.activeWorld();
+    const world2 = A.activeWorld();
     const party = A.partyInfo();
     const xp = A.encounterXp(chosenMonsters()) + Object.entries(U.persons).filter(([, s]) => s === "enemy").reduce((n, [id]) => n + (Number((A.getStats(id) || {}).xp) || 0), 0);
     const b = A.encounterBudget(party.level, party.size);
@@ -27917,7 +27921,7 @@ ${xl.join("\n")}`;
       if (!hits.length) list3.appendChild(muted("No monster matches."));
     }
     renderList();
-    const persons = world ? A.getGraph().nodes.filter((n) => n.type === "npc") : [];
+    const persons = world2 ? A.getGraph().nodes.filter((n) => n.type === "npc") : [];
     if (persons.length) {
       box.appendChild(label("Persons of this world"));
       for (const p of persons) {
@@ -27934,7 +27938,7 @@ ${xl.join("\n")}`;
         ], "margin-top:3px"));
       }
     }
-    const saved = world ? A.listEncounters() : [];
+    const saved = world2 ? A.listEncounters() : [];
     if (saved.length) {
       box.appendChild(label("Saved encounters"));
       for (const e of saved) {
@@ -27968,7 +27972,7 @@ ${xl.join("\n")}`;
     name.addEventListener("input", () => {
       U.name = name.value;
     });
-    if (world) box.appendChild(row([name, btn("Save to world", () => {
+    if (world2) box.appendChild(row([name, btn("Save to world", () => {
       A.saveEncounter({ name: U.name || "Encounter", monsters: chosen, personIds: Object.keys(U.persons).filter((id) => U.persons[id] === "enemy"), locationId: (A.runtime || {}).playerLocationId || null, difficulty: diff, start: U.start });
       refresh2();
     }, { disabled: !chosen.length, id: "save" })], "margin-top:12px"));
@@ -28761,9 +28765,9 @@ ${xl.join("\n")}`;
   function updateSaveState() {
     if (!M.saveBtn) return;
     const A = API();
-    const dirty = !!(A && A.hasUnsavedChanges && A.hasUnsavedChanges()), auto = !!(A && A.autosaveEnabled && A.autosaveEnabled());
-    M.saveBtn.textContent = dirty ? auto ? "Saving…" : "Save •" : "Saved";
-    M.saveBtn.classList.toggle("rpm-unsaved", dirty && !auto);
+    const dirty2 = !!(A && A.hasUnsavedChanges && A.hasUnsavedChanges()), auto = !!(A && A.autosaveEnabled && A.autosaveEnabled());
+    M.saveBtn.textContent = dirty2 ? auto ? "Saving…" : "Save •" : "Saved";
+    M.saveBtn.classList.toggle("rpm-unsaved", dirty2 && !auto);
   }
   var px = (c) => c * CELL;
   function roomById(id) {
@@ -28935,8 +28939,8 @@ ${xl.join("\n")}`;
   }
   function addRoom() {
     const near = M.selected || null;
-    const room = API().addRoom(M.mapId, near ? { near, dir: freeDir(near) } : {});
-    M.selected = room.id;
+    const room2 = API().addRoom(M.mapId, near ? { near, dir: freeDir(near) } : {});
+    M.selected = room2.id;
     M.selectedExit = null;
     rebuild();
   }
@@ -29090,13 +29094,13 @@ ${xl.join("\n")}`;
   function renderRoom(box, id) {
     const A = API();
     const R = MR();
-    const room = A.entityById(id);
-    if (!room) return;
+    const room2 = A.entityById(id);
+    if (!room2) return;
     const town = M.board.kind === "town";
     box.appendChild(heading(town ? "Place" : "Room"));
-    if (room.origin === "ai") box.appendChild(el("p", { class: "rpm-muted", "data-ai-room": "1", text: "Added by the AI during play. Keep it, edit it, or delete it." }));
+    if (room2.origin === "ai") box.appendChild(el("p", { class: "rpm-muted", "data-ai-room": "1", text: "Added by the AI during play. Keep it, edit it, or delete it." }));
     box.appendChild(lbl("Name"));
-    box.appendChild(input(room.name, (v) => {
+    box.appendChild(input(room2.name, (v) => {
       A.updateEntity(id, { name: v });
       const r = roomById(id);
       if (r) {
@@ -29105,27 +29109,27 @@ ${xl.join("\n")}`;
       }
     }, { live: true, attrs: { "aria-label": "Room name" } }));
     box.appendChild(lbl("Description"));
-    box.appendChild(input(room.description, (v) => A.updateEntity(id, { description: v }), { area: true, attrs: { "aria-label": "Room description" } }));
+    box.appendChild(input(room2.description, (v) => A.updateEntity(id, { description: v }), { area: true, attrs: { "aria-label": "Room description" } }));
     box.appendChild(lbl("Kind"));
     const kindOpts = [["location", town ? "Place" : "Room"], ["dungeon", "Dungeon level (own map)"], ["town", "Town district (own map)"]];
-    box.appendChild(select(kindOpts, R.kindOf(room), (v) => {
+    box.appendChild(select(kindOpts, R.kindOf(room2), (v) => {
       A.setLocationKind(id, v);
       refreshAll();
     }, { "aria-label": "Room kind" }));
-    if (R.isContainer(room)) box.appendChild(btn2(`Open ${R.kindOf(room) === "town" ? "district" : "level"} (${A.roomsOf(id).length})`, () => openMapEditor(id), { icon: "door-open", block: true, data: { open: id } }));
+    if (R.isContainer(room2)) box.appendChild(btn2(`Open ${R.kindOf(room2) === "town" ? "district" : "level"} (${A.roomsOf(id).length})`, () => openMapEditor(id), { icon: "door-open", block: true, data: { open: id } }));
     box.appendChild(lbl("Light"));
-    box.appendChild(select([["", "— not set —"], ...R.LIGHT.map((l) => [l, cap(l)])], room.light || "", (v) => {
+    box.appendChild(select([["", "— not set —"], ...R.LIGHT.map((l) => [l, cap(l)])], room2.light || "", (v) => {
       A.updateEntity(id, { light: v || void 0 });
       refreshAll();
     }, { "aria-label": "Light" }));
     box.appendChild(lbl("Hazards (comma separated, e.g. fire, water)"));
-    box.appendChild(input((room.hazards || []).join(", "), (v) => A.updateEntity(id, { hazards: v.split(",").map((s) => s.trim()).filter(Boolean) }), { attrs: { "aria-label": "Hazards" } }));
+    box.appendChild(input((room2.hazards || []).join(", "), (v) => A.updateEntity(id, { hazards: v.split(",").map((s) => s.trim()).filter(Boolean) }), { attrs: { "aria-label": "Hazards" } }));
     const Z2 = A.zoneRules;
-    const auto = Z2.layoutFor(Object.assign({}, room, { combatSpace: void 0 }), A.exitsOf(id).map((e) => e.dir));
+    const auto = Z2.layoutFor(Object.assign({}, room2, { combatSpace: void 0 }), A.exitsOf(id).map((e) => e.dir));
     box.appendChild(lbl("Fighting space (zone combat)"));
     box.appendChild(select(
       [["", `Automatic: ${Z2.layoutName(auto)}`], ["small", "Small room — one zone"], ["large", "Large space — centre + 4 sides"], ["corridor", "Corridor — centre + its passages"]],
-      room.combatSpace || "",
+      room2.combatSpace || "",
       (v) => {
         A.updateEntity(id, { combatSpace: v || void 0 });
         renderInspector();
@@ -29134,7 +29138,7 @@ ${xl.join("\n")}`;
     ));
     const sw = el("label", { class: "rpm-map-check" });
     const sc = el("input", { type: "checkbox", "aria-label": "Secret room" });
-    sc.checked = !!room.secret;
+    sc.checked = !!room2.secret;
     sc.addEventListener("change", () => {
       A.updateEntity(id, { secret: sc.checked || void 0 });
       refreshAll();
@@ -29201,12 +29205,12 @@ ${xl.join("\n")}`;
       }
       const cur = encs[0];
       const monsters = cur ? cur.monsters.concat([{ key, count: Number(cIn.value) || 1 }]) : [{ key, count: Number(cIn.value) || 1 }];
-      A.saveEncounter({ id: cur && cur.id, name: cur ? cur.name : (room.name || "Room") + " encounter", monsters, locationId: id, personIds: cur ? cur.personIds : [] });
+      A.saveEncounter({ id: cur && cur.id, name: cur ? cur.name : (room2.name || "Room") + " encounter", monsters, locationId: id, personIds: cur ? cur.personIds : [] });
       renderInspector();
     }, { icon: "plus", title: "Add monster to this room's encounter", data: { monster: "add" } })]));
     box.appendChild(btn2(town ? "Delete place" : "Delete room", () => {
       const inner = A.roomsOf(id).length;
-      if (!confirm(`Delete "${room.name}"${inner ? ` and the ${inner} rooms inside it` : ""}? Its exits and features go with it.`)) return;
+      if (!confirm(`Delete "${room2.name}"${inner ? ` and the ${inner} rooms inside it` : ""}? Its exits and features go with it.`)) return;
       A.deleteEntity(id, { withRooms: true });
       M.selected = null;
       refreshAll();
@@ -31019,11 +31023,11 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     }
     function updateSaveState2() {
       if (!S2.saveBtn) return;
-      const dirty = unsaved(), auto = autosave();
-      S2.saveBtn.textContent = dirty ? auto ? "Saving…" : "Save •" : "Saved";
-      S2.saveBtn.title = dirty ? auto ? "Autosave is on — saving shortly" : "Unsaved changes — click to save" : "All changes saved";
-      S2.saveBtn.classList.toggle("rpm-unsaved", dirty && !auto);
-      S2.revertBtn.hidden = !dirty || auto;
+      const dirty2 = unsaved(), auto = autosave();
+      S2.saveBtn.textContent = dirty2 ? auto ? "Saving…" : "Save •" : "Saved";
+      S2.saveBtn.title = dirty2 ? auto ? "Autosave is on — saving shortly" : "Unsaved changes — click to save" : "All changes saved";
+      S2.saveBtn.classList.toggle("rpm-unsaved", dirty2 && !auto);
+      S2.revertBtn.hidden = !dirty2 || auto;
     }
     function editorBeforeClose() {
       if (!unsaved() || autosave() || !S2.root) return true;
@@ -31238,11 +31242,11 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     }
     function renderParty(box) {
       const A = API3();
-      const world = A.activeWorld();
-      const player = world && world.ruleset && world.ruleset.player || {};
-      const cb = world ? A.getCombat() : null;
+      const world2 = A.activeWorld();
+      const player = world2 && world2.ruleset && world2.ruleset.player || {};
+      const cb = world2 ? A.getCombat() : null;
       renderPersona(box, player, cb);
-      if (!world) {
+      if (!world2) {
         box.appendChild(muted2("No world loaded.", { style: "margin-top:6px" }));
         box.appendChild(uiBtn("Choose a world", () => openView("world"), { block: true, style: "margin-top:8px" }));
         return;
@@ -33152,6 +33156,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
 
   // src/characters/store.js
   var cache = /* @__PURE__ */ new Map();
+  var dirty = (e) => !!e && (Number(e.rev) || 0) > (Number(e.savedRev) || 0);
   var pending = /* @__PURE__ */ new Map();
   var k = (name) => String(name || "").trim().toLowerCase();
   function emit(name) {
@@ -33163,8 +33168,13 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
   async function loadSheet(name) {
     const rec = await loadCharacter(name);
     if (!rec) throw new Error("Character not found in the Library: " + name);
+    const cur = cache.get(k(name));
+    if (dirty(cur)) {
+      cur.text = cardText(rec.data);
+      return cur.sheet;
+    }
     const sheet = readSheet(rec.data);
-    cache.set(k(name), { name: rec.name || name, sheet, text: cardText(rec.data) });
+    cache.set(k(name), { name: rec.name || name, sheet, text: cardText(rec.data), rev: cur ? cur.rev : 0, savedRev: cur ? cur.rev : 0 });
     emit(name);
     return sheet;
   }
@@ -33198,12 +33208,24 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     if (s.length > maxLen) s = s.slice(0, maxLen - 1) + "…";
     return s;
   }
-  async function saveSheet(name, sheet) {
+  async function saveSheet(name, sheet, opts) {
+    const rev = opts && opts.rev != null ? Number(opts.rev) : null;
     const rec = await loadCharacter(name);
     if (!rec) throw new Error("Character not found in the Library: " + name);
     const inner = writeSheet(rec.data, sheet ? normalizeSheet(sheet) : null);
+    const before = cache.get(k(name));
     const res = await saveCharacter({ inner, oldName: rec.name || name });
-    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner), text: cardText(inner) });
+    const cur = cache.get(k(res.name)) || cache.get(k(name)) || before;
+    if (rev != null && cur && (Number(cur.rev) || 0) > rev) {
+      cur.savedRev = Math.max(Number(cur.savedRev) || 0, rev);
+      cur.name = res.name;
+      cur.text = cardText(inner);
+      cache.set(k(res.name), cur);
+      emit(res.name);
+      return cur.sheet;
+    }
+    const n = cur ? Number(cur.rev) || 0 : 0;
+    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner), text: cardText(inner), rev: n, savedRev: n });
     emit(res.name);
     return readSheet(inner);
   }
@@ -33217,11 +33239,12 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       const next = normalizeSheet(entry2.sheet);
       mutate(next);
       entry2.sheet = normalizeSheet(next);
+      entry2.rev = (Number(entry2.rev) || 0) + 1;
       emit(entry2.name);
       const key = k(entry2.name);
       const chain = (writes.get(key) || Promise.resolve()).then(() => {
         const latest = cache.get(key);
-        return latest && latest.sheet ? saveSheet(latest.name, latest.sheet) : null;
+        return latest && latest.sheet && dirty(latest) ? saveSheet(latest.name, latest.sheet, { rev: latest.rev }) : null;
       }).catch(() => {
       });
       writes.set(key, chain);
@@ -33248,8 +33271,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
   if (typeof window !== "undefined") {
     window.addEventListener("klite:library-change", (e) => {
       const d = e && e.detail || {};
-      if (d.oldName) forget(d.oldName);
-      if (d.name) forget(d.name);
+      for (const n of [d.oldName, d.name]) if (n && !dirty(cache.get(k(n)))) forget(n);
     });
   }
   function combatStatsFor(name) {
@@ -33538,6 +33560,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       qty = Number(m[1]);
       name = m[2];
     }
+    name = name.replace(/\s*\(same as above\)$/i, "");
     if (qty > 1) {
       const candidates = [name.replace(/s$/, ""), name.replace(/es$/, ""), name.replace(/ies$/, "y")];
       const known = candidates.find((c) => SRD.weapons[c] || /^(Arrow|Bolt|Needle|Bullet|Pouch|Sheet)$/.test(c));
@@ -33847,7 +33870,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         return false;
       }
     };
-    const dirty = () => !!(V.draft && JSON.stringify(V.draft) !== JSON.stringify(V.saved));
+    const dirty2 = () => !!(V.draft && JSON.stringify(V.draft) !== JSON.stringify(V.saved));
     function personaName() {
       try {
         const T = window.KLITE_RPMod?.panels?.TOOLS;
@@ -33866,7 +33889,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       return [last, personaName()].find((n) => n && names.includes(n)) || names[0] || "";
     }
     async function select2(name) {
-      if (V.draft && dirty() && name !== V.name && !confirm(`Discard unsaved changes to ${V.name}'s sheet?`)) {
+      if (V.draft && dirty2() && name !== V.name && !confirm(`Discard unsaved changes to ${V.name}'s sheet?`)) {
         render();
         return;
       }
@@ -33910,7 +33933,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       render();
     }
     function revert() {
-      if (!dirty() || !confirm("Undo all unsaved changes to this sheet?")) return;
+      if (!dirty2() || !confirm("Undo all unsaved changes to this sheet?")) return;
       V.draft = V.saved ? normalizeSheet(V.saved) : null;
       render();
     }
@@ -33920,7 +33943,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       V.timer = null;
       if (autosave()) V.timer = setTimeout(() => {
         V.timer = null;
-        if (dirty()) save();
+        if (dirty2()) save();
       }, 1e3);
       setTimeout(render, 0);
     }
@@ -34150,7 +34173,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       sel2.addEventListener("change", () => select2(sel2.value));
       const head = el("div", { class: "rpm-row" }, [sel2]);
       if (V.draft) {
-        const d = dirty(), auto = autosave();
+        const d = dirty2(), auto = autosave();
         const saveBtn = btn3(d ? auto ? "Saving…" : "Save •" : "Saved", () => save(), { variant: "success", title: d ? "Save the sheet into the card" : "All changes saved", cls: d && !auto ? "rpm-unsaved" : "" });
         saveBtn.setAttribute("data-save", "sheet");
         const revertBtn = btn3("Revert", () => revert(), { title: "Undo unsaved changes" });
@@ -34210,7 +34233,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       root.appendChild(el("div", { class: "rpm-row", style: "margin:2px 0 6px;flex-wrap:wrap" }, [
         el("span", { class: "rpm-muted rpm-grow", text: `Proficiency bonus ${fmt(D.pb)} · XP ${s.xp}${s.alignment ? " · " + s.alignment : ""}` }),
         s.build && s.level < 20 && window.KLITE_RPMod_Builder ? btn3("Level up", () => {
-          if (dirty() && !confirm("Level up uses the saved sheet; discard unsaved changes?")) return;
+          if (dirty2() && !confirm("Level up uses the saved sheet; discard unsaved changes?")) return;
           window.KLITE_RPMod_Builder.levelUp(V.name);
         }, { icon: "sparkles", title: `Rebuild at level ${s.level + 1} with the builder (keeps inventory, coins and notes)` }) : null
       ]));
@@ -34418,7 +34441,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       }
     }
     function beforeClose() {
-      if (!dirty() || autosave()) return true;
+      if (!dirty2() || autosave()) return true;
       const choice = confirm(`Save the changes to ${V.name}'s sheet before closing?
 
 OK = save and close · Cancel = close and discard them`);
@@ -34464,7 +34487,7 @@ OK = save and close · Cancel = close and discard them`);
         if (!V.box || !e.detail || e.detail.name !== V.name) return;
         const s = cachedSheet(V.name);
         if (!s) return;
-        if (!dirty()) {
+        if (!dirty2()) {
           V.saved = normalizeSheet(s);
           V.draft = normalizeSheet(s);
           render();
@@ -34511,7 +34534,7 @@ OK = save and close · Cancel = close and discard them`);
           return "";
         }
       },
-      current: () => ({ name: V.name, sheet: V.draft ? normalizeSheet(V.draft) : null, dirty: dirty() })
+      current: () => ({ name: V.name, sheet: V.draft ? normalizeSheet(V.draft) : null, dirty: dirty2() })
     };
     window.KLITE_RPMod_Characters = api;
     let tries = 0;
@@ -37062,8 +37085,8 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
     }
     return out;
   }
-  function reachableLocations(world, fromId) {
-    const locs = asArray4(world && world.locations);
+  function reachableLocations(world2, fromId) {
+    const locs = asArray4(world2 && world2.locations);
     const byId = new Map(locs.map((l) => [l.id, l]));
     const adj = new Map(locs.map((l) => [l.id, /* @__PURE__ */ new Set()]));
     const link = (a, b) => {
@@ -37088,10 +37111,10 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
     }
     return seen;
   }
-  function xpEstimate(world, partySize = AUTHORED_PARTY) {
+  function xpEstimate(world2, partySize = AUTHORED_PARTY) {
     let quest = 0, combat = 0;
-    for (const q of asArray4(world && world.quests)) for (const r of asArray4(q.rewards)) if ((r.type === "xp" || !r.type) && Number(r.xp) > 0) quest += Number(r.xp);
-    for (const e of asArray4(world && world.encounters)) {
+    for (const q of asArray4(world2 && world2.quests)) for (const r of asArray4(q.rewards)) if ((r.type === "xp" || !r.type) && Number(r.xp) > 0) quest += Number(r.xp);
+    for (const e of asArray4(world2 && world2.encounters)) {
       for (const m of asArray4(e.monsters)) {
         const key = findMonster(m.key || m.name);
         const mon = key && MONSTERS[key];
@@ -37207,8 +37230,499 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
   }
   var SRD_MONSTER_COUNT = Object.keys(MONSTERS || {}).length;
 
+  // src/adventures/content/drowned-lantern.js
+  var ID = "drowned-lantern";
+  var VERSION = 1;
+  var place = (id, name, description, extra = {}) => Object.assign({ id, name, description }, extra);
+  var room = (id, name, parentId, [x, y], description, extra = {}) => Object.assign({ id, name, parentId, map: { x, y, w: 4, h: 3 }, description }, extra);
+  var exit = (id, to, dir, type = "open", extra = {}) => Object.assign({ id, to, dir, type }, extra);
+  var flagIs = (key) => ({ type: "flag", key });
+  var questIs = (questId, state) => ({ type: "quest", questId, state });
+  var PREGENS = [
+    {
+      id: "oona",
+      pronouns: "she/her",
+      line: "Orc Fighter, Soldier · steady veteran with a prosthetic leg",
+      choices: {
+        name: "Oona Greycairn",
+        class: "fighter",
+        level: 1,
+        background: "soldier",
+        species: "orc",
+        method: "standard",
+        scores: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 },
+        bgBonus: { plus2: "str", plus1: "con" },
+        classSkills: ["perception", "survival"],
+        fightingStyle: "Great Weapon Fighting",
+        classEquipment: "A",
+        backgroundEquipment: "A",
+        alignment: "Lawful Good"
+      },
+      description: "Oona Greycairn (she/her) is an orc woman in her mid-forties, broad and weathered, with grey braids and a greatsword she carries like a walking staff. Her left leg ends below the knee in a prosthetic of carved oak and iron that she built and keeps repaired herself; she walks, runs and fights on it as she always has, and it creaks on cold mornings. For twenty years she guarded caravans between Brindlewick and the lake. Six years ago her crew was ambushed on the Forest Road and she was the only one to come home. She has worked odd jobs in the village since, and the vanishing carts have woken something in her.",
+      personality: "Steady, protective, dry humour; slow to speak and quick to act. Treats younger companions like recruits she has decided to keep alive. Hates waste and bragging. Softens around children and animals.",
+      notes: "Prosthetic left leg (oak and iron): part of who Oona is, not a weakness — no rules penalty. Bond: her old caravan crew was lost on the Forest Road."
+    },
+    {
+      id: "tove",
+      pronouns: "they/them",
+      line: "Dwarf Cleric, Acolyte · warm, loud, very short-sighted",
+      choices: {
+        name: "Tove Emberfall",
+        class: "cleric",
+        level: 1,
+        background: "acolyte",
+        species: "dwarf",
+        method: "standard",
+        scores: { str: 13, dex: 10, con: 14, int: 8, wis: 15, cha: 12 },
+        bgBonus: { plus2: "wis", plus1: "cha" },
+        classSkills: ["medicine", "persuasion"],
+        divineOrder: "protector",
+        classEquipment: "A",
+        backgroundEquipment: "A",
+        alignment: "Neutral Good",
+        spells: { cantrips: ["guidance", "sacred-flame", "thaumaturgy"], prepared: ["bless", "cure-wounds", "healing-word", "shield-of-faith"] },
+        magicInitiate: { background: { cantrips: ["spare-the-dying", "light"], spell: "sanctuary" } }
+      },
+      description: 'Tove Emberfall (they/them) is a dwarf cleric of the Still Water, an old order that tends shrines along rivers and lakes. Tove is very short-sighted and refuses to wear glasses ("my eyes are fine — the world is blurry"). They see their surroundings as soft shapes and colours, cannot tell faces apart beyond a few steps and recognise people by their voices, their footsteps and their smell of bread or smoke. Up close they notice everything. Their order once kept a chapel in a village that drowned when the old dam was built; Tove carries a copy of its prayer book and has always wanted to know what became of it.',
+      personality: "Warm, loud, curious and stubborn; laughs easily, hugs without asking first, greets strangers by the wrong name and does not mind being corrected. Deeply kind to the hurt and the frightened. Never admits the glasses would help.",
+      notes: "Very short-sighted, refuses glasses: sees the world as a blur beyond a few steps, knows people by voice. Story flavour only — no rules penalty. Bond: their order kept the chapel of the drowned village."
+    },
+    {
+      id: "kasimir",
+      pronouns: "he/him",
+      line: "Human Wizard, Sage · curious scholar of the drowned village",
+      choices: {
+        name: "Kasimir Adeyemi",
+        class: "wizard",
+        level: 1,
+        background: "sage",
+        species: "human",
+        method: "standard",
+        scores: { str: 8, dex: 13, con: 14, int: 15, wis: 12, cha: 10 },
+        bgBonus: { plus2: "int", plus1: "con" },
+        classSkills: ["investigation", "nature"],
+        speciesSkills: ["perception"],
+        originFeat: "Alert",
+        classEquipment: "A",
+        backgroundEquipment: "A",
+        alignment: "Chaotic Good",
+        spells: { cantrips: ["fire-bolt", "mage-hand", "minor-illusion"], spellbook: ["magic-missile", "shield", "sleep", "burning-hands", "detect-magic", "mage-armor"], prepared: ["magic-missile", "shield", "sleep", "burning-hands"] },
+        magicInitiate: { background: { cantrips: ["light", "prestidigitation"], spell: "find-familiar" } }
+      },
+      description: "Kasimir Adeyemi (he/him) is a young human wizard, twenty-three, tall and ink-stained, who came to the lake country to write the history of the village that drowned under Stillwater Mere when the old dam was built. He has maps, rumours and three notebooks, and no idea yet how dangerous the questions are. He talks to his notebook when he thinks, and his familiar (a small grey owl called Footnote) comments with disapproving hoots.",
+      personality: "Curious, earnest, over-prepared; explains too much when nervous and apologises for it. Brave in a surprised way. Loves old things, maps and a good argument.",
+      notes: "Bond: studies the drowned village and the dam. Familiar: Footnote, an owl (Find Familiar)."
+    },
+    {
+      id: "pell",
+      pronouns: "she/her",
+      line: "Halfling Rogue, Criminal · quick hands, guilty conscience",
+      choices: {
+        name: "Pell Marrow",
+        class: "rogue",
+        level: 1,
+        background: "criminal",
+        species: "halfling",
+        method: "standard",
+        scores: { str: 8, dex: 15, con: 14, int: 13, wis: 12, cha: 10 },
+        bgBonus: { plus2: "dex", plus1: "con" },
+        classSkills: ["acrobatics", "deception", "perception", "investigation"],
+        expertise: ["stealth", "perception"],
+        classEquipment: "A",
+        backgroundEquipment: "A",
+        alignment: "Chaotic Good"
+      },
+      description: "Pell Marrow (she/her) is a halfling in her early thirties with a quick grin, quicker hands and a boatman's shoulders. For two summers she rowed night crossings on Stillwater Mere for a crew of smugglers who wore reed-green cloaks; she left when the cargo stopped being barrels and started being things they would not let her see. She knows the lake's moods, a hidden beach and a few people she would rather not meet again. She is back in the lake country to make up for something, though she will not say what.",
+      personality: "Quick, funny, restless; deflects with jokes, notices exits first. Loyal once trust is earned, and ashamed of her past in a way she hides badly. Hates bullies.",
+      notes: "Bond: once rowed for the smugglers (the Reedcloaks) and knows the hidden beach; wants to make amends."
+    }
+  ];
+  function pregenCard(p) {
+    const sheet = buildSheet(p.choices);
+    sheet.notes = p.notes;
+    const data = writeSheet({
+      name: p.choices.name,
+      description: p.description,
+      personality: p.personality,
+      scenario: "",
+      first_mes: "",
+      mes_example: "",
+      alternate_greetings: [],
+      creator_notes: 'Pregenerated character for the RPmod starter adventure "The Drowned Lantern". Rules: SRD 5.2.1.',
+      system_prompt: "",
+      post_history_instructions: "",
+      tags: ["RPmod pregen", "The Drowned Lantern"],
+      creator: "KLITE RPmod",
+      character_version: String(VERSION),
+      extensions: {}
+    }, sheet);
+    Object.assign(data.extensions.klite_rpmod, { adventure: ID, pregen: p.id, line: p.line, pronouns: p.pronouns });
+    return { spec: "chara_card_v2", spec_version: "2.0", data };
+  }
+  var PREGEN_CHOICES = Object.fromEntries(PREGENS.map((p) => [p.id, p.choices]));
+  var pregenPerson = (p, x, y) => ({
+    id: `npc_${p.id}`,
+    name: p.choices.name,
+    characterRef: { pregen: p.id },
+    homeLocationId: "bw_heron",
+    canJoin: true,
+    phases: [{ id: "ph_you", label: "is you", conditions: [flagIs(`pregen_${p.id}`)], gone: true }],
+    ui: { x, y }
+  });
+  function world() {
+    return {
+      id: "world_drowned_lantern",
+      name: "The Drowned Lantern",
+      description: "The lake country around Stillwater Mere: the village of Brindlewick, the lakeside town of Lanternport, the roads between them and the drowned village under the lake. Supply carts between Brindlewick and Lanternport keep vanishing, and each place blames the other.",
+      rules: [
+        "Classic heroic fantasy with light humour; the lake and everything drowned are eerie and quiet, never gory.",
+        "Keep replies vivid but concise, and end on a moment the player can act on.",
+        "RPmod rolls the dice and runs every fight: never invent rolls, hits, damage or deaths — narrate the results RPmod reports.",
+        "People are what their descriptions say: respect pronouns and portray every trait (a prosthetic leg, short sight) as part of the person, never as a joke or a problem to fix."
+      ],
+      ruleset: { aiMode: "gm" },
+      ui: { x: 80, y: 300 },
+      start: { locationId: "bw_heron", clock: { day: 1, month: 4, year: 1, time: "morning", season: "spring", weather: "mist over the lake" }, view: "player" },
+      locations: [
+        // --- the world graph ---
+        place(
+          "loc_brindlewick",
+          "Brindlewick",
+          "A mill village of thatched roofs and stone walls where the Brindle stream leaves the hills for Stillwater Mere. Everyone knows everyone, and everyone is talking about the missing carts.",
+          {
+            kind: "town",
+            mapStyle: "plots",
+            atmosphere: "worried",
+            hub: true,
+            connectedLocationIds: ["loc_forest_road"],
+            ui: { x: 300, y: 300 },
+            phases: [{ id: "ph_relieved", label: "Goblins driven off", conditions: [questIs("q_hollow_oak", "turnedin")], atmosphere: "relieved", description: "A mill village of thatched roofs and stone walls. The mill wheel turns again, and people talk about the heroes of the Hollow Oak — and, more quietly, about the strange coin they found there." }]
+          }
+        ),
+        place(
+          "loc_forest_road",
+          "Forest Road",
+          "The old trade road east of Brindlewick, under oak and beech. Ferns crowd the verges; the ruts are deep from carts that no longer come. A side track runs north to a huge dead oak, and the sound of the river comes from the south.",
+          {
+            atmosphere: "tense",
+            connectedLocationIds: ["loc_brindlewick", "loc_hollow_oak", "loc_river_ford"],
+            ui: { x: 600, y: 300 },
+            localLore: [{ id: "ll_cart", content: "Liu Wen's cart lies overturned in the ferns a mile out of the village: the grain sacks are gone, the mule cut loose, and small bare footprints lead north towards the Hollow Oak.", keys: ["cart", "tracks", "footprints"] }]
+          }
+        ),
+        place(
+          "loc_hollow_oak",
+          "The Hollow Oak",
+          "A dead oak so old and vast that a whole goblin band lives in its trunk and in the burrows between its roots. It smells of smoke, wet earth and stolen bread.",
+          { kind: "dungeon", mapStyle: "stone", atmosphere: "menacing", connectedLocationIds: ["loc_forest_road"], ui: { x: 600, y: 110 } }
+        ),
+        place(
+          "loc_river_ford",
+          "River Ford",
+          "Where the Forest Road meets the Brindle river: a ford of flat stones for dry summers and Odo's rope ferry for the rest of the year. Reeds, herons, and now and then a green old coin washed out of the gravel.",
+          { atmosphere: "calm", connectedLocationIds: ["loc_forest_road"], ui: { x: 600, y: 490 } }
+        ),
+        // --- Brindlewick (town map) ---
+        room(
+          "bw_green",
+          "Village Green",
+          "loc_brindlewick",
+          [5, 4],
+          'Grass, geese and an old stone trough in the middle of Brindlewick. The notice board is covered in "missing" notes about carts and goods.',
+          { exits: [exit("ex_bw_green_heron", "bw_heron", "n"), exit("ex_bw_green_mill", "bw_mill", "w"), exit("ex_bw_green_smithy", "bw_smithy", "s"), exit("ex_bw_green_road", "loc_forest_road", "e")] }
+        ),
+        room(
+          "bw_heron",
+          "The Tipsy Heron",
+          "loc_brindlewick",
+          [5, 0],
+          "The village inn: low beams, a fire that never quite goes out, and a stuffed heron over the bar that leans a little to the left. Travellers and villagers share the long tables.",
+          { light: "bright", exits: [exit("ex_bw_heron_shrine", "bw_shrine", "e"), exit("ex_bw_heron_farm", "bw_farm", "w")] }
+        ),
+        room(
+          "bw_mill",
+          "Quill's Mill",
+          "loc_brindlewick",
+          [0, 4],
+          "The water mill on the Brindle stream. Its wheel stands still: the grain carts are gone, and something squeaks in the cellar.",
+          { exits: [exit("ex_bw_mill_farm", "bw_farm", "n"), exit("ex_bw_mill_cellar", "bw_mill_cellar", "down", "stairs", { door: { state: "closed", material: "wooden trapdoor" } })] }
+        ),
+        room(
+          "bw_mill_cellar",
+          "Mill Cellar",
+          "loc_brindlewick",
+          [0, 8],
+          "A damp cellar of flour sacks and gnawed beams. The rats have become bold since the goblins took the grain.",
+          { light: "dark", hazards: ["slippery flour dust"] }
+        ),
+        room(
+          "bw_smithy",
+          "Brandt's Smithy",
+          "loc_brindlewick",
+          [5, 8],
+          "An open forge, a stone anvil and racks of tools and weapons. Oskar Brandt sings while he hammers.",
+          { exits: [exit("ex_bw_smithy_elder", "bw_elder", "e")] }
+        ),
+        room(
+          "bw_shrine",
+          "Shrine of the Still Water",
+          "loc_brindlewick",
+          [10, 0],
+          "A small round shrine of river stones with a basin of still water at its heart. Candles float on it in paper boats.",
+          { light: "dim" }
+        ),
+        room("bw_elder", "Elder Holt's House", "loc_brindlewick", [10, 8], "A tidy house with a herb garden and a long table covered in ledgers: who owes what, whose cart went missing when."),
+        room("bw_farm", "Wen's Farm", "loc_brindlewick", [0, 0], "Fields, a goose pond and an empty cart shed. Liu Wen's mule came home alone two days ago."),
+        // --- the Hollow Oak (dungeon map) ---
+        room(
+          "ho_roots",
+          "Root Tunnel",
+          "loc_hollow_oak",
+          [0, 4],
+          "A tunnel between the oak's great roots, just high enough to walk bent over. Bones and bread crusts in the dirt.",
+          { light: "dark", exits: [exit("ex_ho_out", "loc_forest_road", "w"), exit("ex_ho_roots_pen", "ho_wolfpen", "e", "corridor")] }
+        ),
+        room(
+          "ho_wolfpen",
+          "Wolf Den",
+          "loc_hollow_oak",
+          [5, 4],
+          "A low cave under the trunk that stinks of wet fur. Gnawed harness straps from the stolen mules lie in the straw.",
+          { light: "dark", exits: [exit("ex_ho_pen_trunk", "ho_trunk", "n", "corridor"), exit("ex_ho_pen_stores", "ho_stores", "e", "door", { door: { state: "closed", material: "plank" } }), exit("ex_ho_pen_burrow", "ho_burrow", "s", "corridor")] }
+        ),
+        room(
+          "ho_trunk",
+          "Hollow Trunk",
+          "loc_hollow_oak",
+          [5, 0],
+          "Inside the dead trunk: a tall dark shaft with rope ladders up to a lookout knot-hole over the road.",
+          { light: "dim" }
+        ),
+        room(
+          "ho_stores",
+          "Stolen Stores",
+          "loc_hollow_oak",
+          [10, 4],
+          "Grain sacks, barrels and crates from the missing carts, stacked in a dry burrow — some still marked with the Brindlewick mill's stamp.",
+          { light: "dark", exits: [exit("ex_ho_stores_chief", "ho_chief", "s", "secret", { secretDC: 13 })] }
+        ),
+        room(
+          "ho_burrow",
+          "Sleeping Burrow",
+          "loc_hollow_oak",
+          [5, 8],
+          "A burrow of moss beds and stolen blankets where the goblins sleep, gamble and quarrel.",
+          { light: "dim", exits: [exit("ex_ho_burrow_flooded", "ho_flooded", "w", "corridor"), exit("ex_ho_burrow_chief", "ho_chief", "e", "door", { door: { state: "locked", material: "bone-studded plank", lockDC: 13, keyItem: "Bone Key" } })] }
+        ),
+        room(
+          "ho_flooded",
+          "Flooded Burrow",
+          "loc_hollow_oak",
+          [0, 8],
+          "A burrow where groundwater has risen knee-deep. Rats swarm over a half-sunken sack.",
+          { light: "dark", hazards: ["knee-deep muddy water"] }
+        ),
+        room(
+          "ho_chief",
+          "Chief's Hollow",
+          "loc_hollow_oak",
+          [10, 8],
+          "The goblin chief's hall: a firepit, a throne of cart wheels and a chest the chief never lets out of sight.",
+          { light: "dim", secret: false }
+        )
+      ],
+      objects: [
+        { id: "obj_notice_board", name: "Notice board", desc: '"MISSING: one cart of seed grain (Wen)." "MISSING: two barrels of cider (the Heron)." "Anyone travelling to Lanternport, ask for news of the Quill cart."', locationId: "bw_green", kind: "furniture" },
+        { id: "obj_wrecked_cart", name: "Liu Wen's cart", desc: "Overturned in the ferns, one wheel broken. Small bare footprints lead north towards a huge dead oak.", locationId: "loc_forest_road" },
+        { id: "obj_basin", name: "Basin of still water", desc: "Offerings to the Still Water float here. An old carving on the rim shows a lantern over a church roof.", locationId: "bw_shrine", kind: "furniture" },
+        { id: "obj_snare", name: "Snare line", desc: "A cord hidden in the dirt that drops a net of thorn branches.", locationId: "ho_roots", kind: "trap", trapDC: 12 },
+        { id: "obj_grain", name: "Stolen grain sacks", desc: "Three sacks with the mill's stamp, still dry.", locationId: "ho_stores", kind: "container", contains: ["Grain Sack x3"] },
+        { id: "obj_sunken_sack", name: "Half-sunken sack", desc: "Soggy, heavy, gnawed open at one corner; something hard inside.", locationId: "ho_flooded", kind: "container", contains: ["Bone Key", "6 sp"] },
+        { id: "obj_chief_chest", name: "The chief's chest", desc: "A battered strongbox under the cart-wheel throne.", locationId: "ho_chief", kind: "container", contains: ["Lake-green Coin", "14 gp", "Potion of Healing"] },
+        { id: "obj_firepit", name: "Firepit", desc: "Smoky and low; a good place to duck behind.", locationId: "ho_chief", kind: "light", lit: true }
+      ],
+      factions: [
+        {
+          id: "fac_brindlewick",
+          name: "Brindlewick",
+          description: "The villagers of Brindlewick: millers, farmers and one inn.",
+          hqLocationId: "loc_brindlewick",
+          startReputation: 0,
+          ui: { x: 80, y: 120 },
+          goals: "Get the carts moving again; find out who is behind the thefts (they suspect Lanternport)."
+        }
+      ],
+      npcs: [
+        {
+          id: "npc_maren",
+          name: "Elder Maren Holt",
+          personality: 'The village elder, sixty, sharp-eyed and dry; keeps ledgers of everything and suspects Lanternport of "letting the road go wild".',
+          factionId: "fac_brindlewick",
+          homeLocationId: "bw_elder",
+          mood: "worried",
+          schedule: [{ time: "morning", locationId: "bw_heron" }, { time: "noon", locationId: "bw_green" }],
+          ui: { x: 140, y: 420 }
+        },
+        { id: "npc_tobias", name: "Tobias Quill", personality: "The miller, round and anxious; his wheel stands still without grain, and his cellar is full of rats.", factionId: "fac_brindlewick", homeLocationId: "bw_mill", mood: "fretful", ui: { x: 140, y: 500 } },
+        {
+          id: "npc_ada",
+          name: "Ada Fenn",
+          personality: "Keeper of the Tipsy Heron; brisk, warm, hears every rumour and repeats the good ones.",
+          factionId: "fac_brindlewick",
+          homeLocationId: "bw_heron",
+          mood: "busy",
+          ui: { x: 140, y: 580 },
+          shop: { items: [{ item: "Hot meal", price: "3 sp" }, { item: "Ale", price: "4 cp" }, { item: "Rations", price: "" }, { item: "Torch", price: "" }, { item: "Waterskin", price: "" }, { item: "Oil", price: "" }, { item: "Potion of Healing", price: "", stock: 1 }], buys: true, note: "A bed in the loft is 5 sp a night; friends of the village eat for less." }
+        },
+        {
+          id: "npc_oskar",
+          name: "Oskar Brandt",
+          personality: "The smith, huge and gentle, sings while he works and haggles badly.",
+          factionId: "fac_brindlewick",
+          homeLocationId: "bw_smithy",
+          mood: "cheerful",
+          ui: { x: 220, y: 420 },
+          shop: { items: [{ item: "Dagger", price: "" }, { item: "Handaxe", price: "" }, { item: "Spear", price: "" }, { item: "Shortsword", price: "" }, { item: "Mace", price: "" }, { item: "Shield", price: "" }, { item: "Leather Armor", price: "" }, { item: "Chain Shirt", price: "", stock: 1 }, { item: "Arrows (20)", price: "1 gp" }], buys: true, note: 'He buys old iron and anything goblin-made, "for scrap".' }
+        },
+        {
+          id: "npc_imani",
+          name: "Sister Imani",
+          personality: "Keeper of the Shrine of the Still Water; calm, tall, speaks slowly and remembers the old lake stories.",
+          factionId: "fac_brindlewick",
+          homeLocationId: "bw_shrine",
+          mood: "serene",
+          ui: { x: 220, y: 500 },
+          shop: { items: [{ item: "Healer's Kit", price: "" }, { item: "Holy Water", price: "" }, { item: "Potion of Healing", price: "", stock: 2 }], buys: false, note: "Healing at the shrine is free for anyone hurt defending the village." }
+        },
+        {
+          id: "npc_liu",
+          name: "Liu Wen",
+          personality: "A farmer in her thirties, blunt and angry; her seed grain was on the lost cart and her mule came home alone.",
+          factionId: "fac_brindlewick",
+          homeLocationId: "bw_farm",
+          mood: "angry",
+          ui: { x: 220, y: 580 },
+          phases: [{ id: "ph_grateful", label: "Grain back", conditions: [questIs("q_hollow_oak", "turnedin")], mood: "grateful, a little embarrassed about her temper" }]
+        },
+        { id: "npc_odo", name: "Odo the ferryman", personality: "An old man with a pipe and a rope ferry; has seen everything the river carried in fifty years and believes half of it.", homeLocationId: "loc_river_ford", mood: "unhurried", ui: { x: 760, y: 560 } },
+        pregenPerson(PREGENS[0], 40, 640),
+        pregenPerson(PREGENS[1], 110, 640),
+        pregenPerson(PREGENS[2], 180, 640),
+        pregenPerson(PREGENS[3], 250, 640)
+      ],
+      quests: [
+        {
+          id: "q_missing_carts",
+          title: "Missing Carts",
+          giverPersonId: "npc_maren",
+          turninPersonId: "npc_maren",
+          ui: { x: 420, y: 420 },
+          description: "Liu Wen's grain cart never reached the mill. Elder Holt wants to know what happened on the Forest Road.",
+          offerText: "Third cart this month. Liu Wen's, with the seed grain — the mule came home alone. Lanternport says the road is our business; I say it's theirs. Talk to Liu, then go and look. Please.",
+          progressText: "Anything on the road?",
+          completionText: "Goblins? That close to the village… and here I was blaming Lanternport. Well. We'll have to do something about that oak.",
+          objectives: [{ id: "o1", kind: "talk", target: "npc_liu", text: "Ask Liu Wen about the cart" }, { id: "o2", kind: "visit", target: "loc_forest_road", text: "Find the cart on the Forest Road" }],
+          rewards: [{ type: "xp", xp: 50 }, { type: "gold", gold: 5 }, { type: "reputation", factionId: "fac_brindlewick", amount: 50 }]
+        },
+        {
+          id: "q_hollow_oak",
+          title: "The Hollow Oak",
+          giverPersonId: "npc_maren",
+          turninPersonId: "npc_tobias",
+          prerequisites: { quests: ["q_missing_carts"] },
+          ui: { x: 420, y: 500 },
+          description: "Goblins in the Hollow Oak are stealing from the road. Drive them out and bring the miller back his grain.",
+          offerText: "The goblins sit in that dead oak off the road and eat our winter. Drive them out — and bring Tobias his grain, or the wheel won't turn this spring.",
+          progressText: "The oak still full of goblins?",
+          completionText: "My grain! Oh, my grain. The wheel turns tonight — and you eat at the Heron on me for a week, I'll tell Ada.",
+          objectives: [{ id: "o1", kind: "kill", target: "Goblin Boss", count: 1, text: "Defeat the goblin chief" }, { id: "o2", kind: "collect", target: "Grain Sack", count: 3, text: "Bring back the grain sacks" }],
+          rewards: [
+            { type: "xp", xp: 150 },
+            { type: "gold", gold: 25 },
+            { type: "reputation", factionId: "fac_brindlewick", amount: 100 },
+            { type: "choice", options: [{ item: "Potion of Healing", qty: 2 }, { item: "Shield", qty: 1 }, { item: "Light Crossbow", qty: 1 }] }
+          ]
+        },
+        {
+          id: "q_old_coin",
+          title: "An Old Coin",
+          giverPersonId: "npc_imani",
+          turninPersonId: "npc_imani",
+          startItem: "Lake-green Coin",
+          ui: { x: 420, y: 580 },
+          description: "The goblin chief was paid in a strange green coin. Someone in the village may know where it comes from.",
+          offerText: "May I? …Lake-green, and the stamp is a lantern over a church roof. This is from Old Brindle — the village under the lake. Ask Odo at the ford; the river gives these up now and then.",
+          progressText: "What did Odo say?",
+          completionText: "Coins that washed out at the ford — and more of them in goblin hands. Someone is bringing things up from the drowned village. Follow the river, and ask the temple in Lanternport what the lantern means.",
+          objectives: [{ id: "o1", kind: "talk", target: "npc_imani", text: "Show the coin to Sister Imani" }, { id: "o2", kind: "talk", target: "npc_odo", text: "Ask Odo the ferryman about green coins" }, { id: "o3", kind: "visit", target: "loc_river_ford", text: "Go to the River Ford" }],
+          rewards: [{ type: "xp", xp: 100 }, { type: "reputation", factionId: "fac_brindlewick", amount: 25 }]
+        },
+        {
+          id: "q_mill_rats",
+          title: "Rats in the Mill",
+          giverPersonId: "npc_tobias",
+          turninPersonId: "npc_tobias",
+          ui: { x: 500, y: 420 },
+          description: "The rats in the mill cellar have grown bold. Tobias would be grateful.",
+          offerText: "Without grain the rats go for the sacks, the beams — my boots! There's a whole swarm down there. Would you…?",
+          progressText: "Still squeaking down there?",
+          completionText: "Quiet! Blessed quiet. Here — it isn't much.",
+          objectives: [{ id: "o1", kind: "kill", target: "Swarm of Rats", count: 1, text: "Clear the rats from the mill cellar" }],
+          rewards: [{ type: "xp", xp: 25 }, { type: "gold", gold: 5 }, { type: "reputation", factionId: "fac_brindlewick", amount: 25 }]
+        }
+      ],
+      encounters: [
+        { id: "enc_road_ambush", name: "Goblin ambush on the road", monsters: [{ key: "goblin-warrior", count: 2 }], personIds: [], locationId: "loc_forest_road", start: "near", ui: { x: 760, y: 300 } },
+        { id: "enc_mill_rats", name: "Rats in the mill cellar", monsters: [{ key: "swarm-of-rats", count: 1 }], personIds: [], locationId: "bw_mill_cellar", start: "same" },
+        { id: "enc_den_wolves", name: "Goblin wolves", monsters: [{ key: "wolf", count: 2 }], personIds: [], locationId: "ho_wolfpen", start: "auto" },
+        { id: "enc_den_lookout", name: "Lookouts in the trunk", monsters: [{ key: "goblin-warrior", count: 2 }], personIds: [], locationId: "ho_trunk", start: "auto" },
+        { id: "enc_den_burrow", name: "Goblins in the sleeping burrow", monsters: [{ key: "goblin-warrior", count: 3 }], personIds: [], locationId: "ho_burrow", start: "auto" },
+        { id: "enc_den_rats", name: "Rats in the flooded burrow", monsters: [{ key: "swarm-of-rats", count: 2 }], personIds: [], locationId: "ho_flooded", start: "auto" },
+        { id: "enc_den_chief", name: "Chief Snagtooth and a guard", monsters: [{ key: "goblin-boss", count: 1 }, { key: "goblin-warrior", count: 1 }], personIds: [], locationId: "ho_chief", start: "auto" }
+      ],
+      events: [
+        {
+          id: "ev_road_ambush",
+          name: "Ambush at the cart",
+          description: "Two goblins burst out of the ferns beside the wrecked cart, rusty blades up.",
+          triggers: [{ type: "onEnterLocation", locationId: "loc_forest_road" }],
+          conditions: [questIs("q_missing_carts", "active")],
+          effects: [{ type: "encounter", value: "enc_road_ambush" }],
+          repeatable: false,
+          ui: { x: 760, y: 200 }
+        }
+      ],
+      globalLore: [
+        { id: "gl_mere", label: "Stillwater Mere", content: "Stillwater Mere is the long lake south of Brindlewick. Fishermen say it is never quite still at night, and that bells ring under it in storms.", keys: ["mere", "lake", "Stillwater"] },
+        { id: "gl_old_brindle", label: "Old Brindle", content: "Two hundred years ago the old dam at the lake's outflow raised the water, and the village of Old Brindle, with its chapel of the Still Water, drowned. Its people moved uphill and founded Brindlewick.", keys: ["Old Brindle", "drowned village", "dam", "chapel"] },
+        { id: "gl_lanternport", label: "Lanternport", content: "Lanternport is the market town on the far side of the lake, famous for its spring Lantern Fair. Brindlewick sells it grain and buys its fish, and the two have argued about the road between them for as long as anyone remembers.", keys: ["Lanternport", "fair", "town"] },
+        { id: "gl_still_water", label: "The Still Water", content: "The Still Water is an old, quiet order of shrine keepers along rivers and lakes; their sign is a lantern reflected in water.", keys: ["Still Water", "shrine", "order"] }
+      ]
+    };
+  }
+  var OPENING = [
+    "Mist lies over Stillwater Mere this spring morning, and it creeps up the lane into Brindlewick, beading on the thatch of the Tipsy Heron.",
+    "Inside, the fire crackles, Ada Fenn is slicing bread faster than anyone can eat it, and the stuffed heron over the bar leans a little further to the left than yesterday.",
+    "The door bangs open. Elder Maren Holt comes in out of the mist, ledger under one arm, and looks around the common room at the villagers and the handful of travellers at the long tables.",
+    `"Another cart," she says, to no one and everyone. "Liu Wen's, with the seed grain. The mule came home alone." Her eyes settle on you. "You look like someone who can walk a road without losing it. Can I buy you breakfast and a question?"`
+  ].join("\n\n");
+  function drownedLantern() {
+    return {
+      format: "rpmod-adventure",
+      version: VERSION,
+      id: ID,
+      title: "The Drowned Lantern",
+      summary: "Supply carts keep vanishing between the village of Brindlewick and the lakeside town of Lanternport. Follow the trail from goblin raiders to smugglers on Stillwater Mere, and to what lies under the lake. A starter adventure for one character and a companion.",
+      levels: [1, 5],
+      credits: [SRD.attribution],
+      world: world(),
+      characters: PREGENS.map(pregenCard),
+      start: { view: "player", pregens: PREGENS.map((p) => p.id), opening: OPENING }
+    };
+  }
+
   // src/adventures/adventures.js
-  var BUNDLED = [];
+  var BUNDLED = [drownedLantern()];
   var PREGEN_KEY = "KLITE.adventures.pregens";
   function initAdventures() {
     if (window.KLITE_RPMod_Adventures) return;

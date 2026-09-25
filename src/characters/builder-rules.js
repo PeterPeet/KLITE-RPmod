@@ -230,6 +230,8 @@ export function parseItem(text) {
     const m = /^(\d+)\s+(.+)$/.exec(String(text).trim());
     let qty = 1, name = String(text).trim();
     if (m) { qty = Number(m[1]); name = m[2]; }
+    // the SRD's "Gaming Set (same as above)" = the kind chosen for the tool proficiency
+    name = name.replace(/\s*\(same as above\)$/i, '');
     if (qty > 1) {
         // singular: try "-s", "-es", "-ies" and prefer a known item (weapon, ammunition, pouch)
         const candidates = [name.replace(/s$/, ''), name.replace(/es$/, ''), name.replace(/ies$/, 'y')];

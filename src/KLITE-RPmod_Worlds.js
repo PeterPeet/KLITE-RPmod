@@ -1747,6 +1747,11 @@ export default function initWorlds() {
         ensureRuntime();
         const entries = asArray(ids).map(id => ({ id, kind: id === '__player__' ? 'player' : 'person' }));
         if (opts.includePlayer !== false && !entries.some(e => e.id === '__player__')) entries.unshift({ id: '__player__', kind: 'player' });
+        // R8: the travelling party joins every fight the player is in (saved encounters, events, tags)
+        if (opts.includePlayer !== false && opts.withParty !== false) for (const id of asArray(rt().party)) {
+            const p = entityById(activeWorld(), id);
+            if (p && !p.isMonster && !phasedEntity(p).gone && !entries.some(e => e.id === id)) entries.push({ id, kind: 'person' });
+        }
         const stats = {}, names = new Set();
         for (const m of asArray(opts.monsters)) {
             const key = CR.findMonster(m.key || m.name); if (!key) continue;

@@ -11,7 +11,12 @@ import { loadCharacter, saveCharacter } from '../library/esoliteLibrary.js';
 import { readSheet, writeSheet, normalizeSheet, toCombatStats, sheetSummary, derive } from './sheet.js';
 import * as SP from './spell-rules.js';
 
-const cache = new Map();      // lower-case name -> { name, sheet | null, text: { personality, description } }
+const cache = new Map();      // lower-case name -> { name, sheet | null, text: { personality, description }, rev, savedRev }
+// rev counts the game changes applied to the cached sheet (updateSheet), savedRev the last one
+// written to the card. While rev > savedRev the cache holds changes the card does not have yet:
+// nothing read from the card (a reload, the result of an older save, a Library change) may
+// replace it then — that lost XP, gold and items when rewards arrived close together (R8).
+const dirty = (e) => !!e && (Number(e.rev) || 0) > (Number(e.savedRev) || 0);
 const pending = new Map();    // lower-case name -> Promise
 const k = (name) => String(name || '').trim().toLowerCase();
 
@@ -22,8 +27,10 @@ function emit(name) { try { window.dispatchEvent(new CustomEvent('klite:sheet-ch
 export async function loadSheet(name) {
     const rec = await loadCharacter(name);
     if (!rec) throw new Error('Character not found in the Library: ' + name);
+    const cur = cache.get(k(name));
+    if (dirty(cur)) { cur.text = cardText(rec.data); return cur.sheet; }   // unsaved game changes win
     const sheet = readSheet(rec.data);
-    cache.set(k(name), { name: rec.name || name, sheet, text: cardText(rec.data) });
+    cache.set(k(name), { name: rec.name || name, sheet, text: cardText(rec.data), rev: cur ? cur.rev : 0, savedRev: cur ? cur.rev : 0 });
     emit(name);
     return sheet;
 }
@@ -66,12 +73,25 @@ export function blurbFor(name, maxLen = 160) {
 }
 
 // Write the sheet into the card (null removes it). Keeps every other card field.
-export async function saveSheet(name, sheet) {
+// opts.rev: the change count of the cached sheet being saved (updateSheet's background write);
+// without it (a direct save: the sheet window, the builder) the saved sheet is the new truth.
+export async function saveSheet(name, sheet, opts) {
+    const rev = opts && opts.rev != null ? Number(opts.rev) : null;
     const rec = await loadCharacter(name);
     if (!rec) throw new Error('Character not found in the Library: ' + name);
     const inner = writeSheet(rec.data, sheet ? normalizeSheet(sheet) : null);
+    const before = cache.get(k(name));
     const res = await saveCharacter({ inner, oldName: rec.name || name });
-    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner), text: cardText(inner) });
+    const cur = cache.get(k(res.name)) || cache.get(k(name)) || before;
+    if (rev != null && cur && (Number(cur.rev) || 0) > rev) {
+        // newer changes arrived while this save ran: keep them (their own write follows)
+        cur.savedRev = Math.max(Number(cur.savedRev) || 0, rev); cur.name = res.name; cur.text = cardText(inner);
+        cache.set(k(res.name), cur);
+        emit(res.name);
+        return cur.sheet;
+    }
+    const n = cur ? (Number(cur.rev) || 0) : 0;
+    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner), text: cardText(inner), rev: n, savedRev: n });
     emit(res.name);
     return readSheet(inner);
 }
@@ -89,11 +109,12 @@ export function updateSheet(name, mutate, opts) {
     const apply = (entry) => {
         const next = normalizeSheet(entry.sheet); mutate(next);
         entry.sheet = normalizeSheet(next);
+        entry.rev = (Number(entry.rev) || 0) + 1;
         emit(entry.name);
         const key = k(entry.name);
         const chain = (writes.get(key) || Promise.resolve()).then(() => {
             const latest = cache.get(key);
-            return latest && latest.sheet ? saveSheet(latest.name, latest.sheet) : null;
+            return latest && latest.sheet && dirty(latest) ? saveSheet(latest.name, latest.sheet, { rev: latest.rev }) : null;
         }).catch(() => {});
         writes.set(key, chain);
         return entry.sheet;
@@ -112,8 +133,7 @@ export function flushSheet(name) { return writes.get(k(name)) || Promise.resolve
 if (typeof window !== 'undefined') {
     window.addEventListener('klite:library-change', (e) => {
         const d = (e && e.detail) || {};
-        if (d.oldName) forget(d.oldName);
-        if (d.name) forget(d.name);
+        for (const n of [d.oldName, d.name]) if (n && !dirty(cache.get(k(n)))) forget(n);   // unsaved game changes stay
     });
 }
 

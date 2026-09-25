@@ -155,9 +155,9 @@ async function advHost(t) {
 
 test('loader: pregens into the Library, new session with the opening, world at its start, persona, Player view', async (t) => {
     const { h, w, personas, restarts } = await advHost(t); const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
-    assert.deepEqual(plain(ADV.list()), []);
+    assert.deepEqual(plain(ADV.list().map(a => a.id)), ['drowned-lantern'], 'the bundled starter adventure');
     assert.equal(ADV.register(mini()).ok, true);
-    assert.deepEqual(plain(ADV.list().map(a => a.id)), ['mini']);
+    assert.deepEqual(plain(ADV.list().map(a => a.id)), ['drowned-lantern', 'mini']);
     w.gametext_arr.push('an older story');
 
     const r = await ADV.start('mini', { pregen: 'bo', confirm: false });
@@ -218,12 +218,15 @@ function localStorage_clear(w) { w.localStorage.removeItem('KLITE.adventures.pre
 test('picker and entry points: World tab button, pregen cards, start', async (t) => {
     const { h, w, personas } = await advHost(t); const ADV = w.KLITE_RPMod_Adventures; const doc = w.document;
     const panel = () => doc.getElementById('wm-panel');
-    assert.equal(panel().querySelector('[data-ui="play-adventure"]'), null, 'no button without adventures');
+    assert.ok(panel().querySelector('[data-ui="play-adventure"]'), 'the bundled adventure: the button is there');
     ADV.register(mini());
     await sleep(30);
     click(panel().querySelector('[data-ui="play-adventure"]'), w);
     const win = () => doc.querySelector('[data-window="adventure"]');
     assert.ok(win(), 'the picker window');
+    assert.ok(texts(win()).includes('The Drowned Lantern'), 'the first adventure is shown');
+    const sel = win().querySelector('[data-adv="select"]');
+    sel.value = 'mini'; sel.dispatchEvent(new w.Event('change'));
     assert.ok(texts(win()).includes('The Mini Test'));
     const cards = [...win().querySelectorAll('[data-pregen]')];
     assert.deepEqual(cards.map(c => c.getAttribute('data-pregen')), ['ana', 'bo']);

@@ -68,6 +68,21 @@ chatting. Everything below explains how to build your own.
   setup overlay has been retired; Esolite's **Quick Start** plus the Guide replace it.
   Stories saved with Guided RP keep their data.
 - **Worlds** — the focus of this guide, below.
+- **The starter adventure "The Drowned Lantern"** — a ready-made adventure for one character
+  and a companion (levels 1–5 when complete). Click **Play a starter adventure** on the *New
+  here?* card or **Play an adventure** in the World tab, choose one of four characters and
+  start. It is being built in layers: the first part — the village of **Brindlewick**, the
+  Forest Road, the goblins of the **Hollow Oak** and the old coin — is playable now.
+  - **The four characters:** *Oona Greycairn* (she/her), an orc fighter and old caravan guard
+    with a prosthetic leg; *Tove Emberfall* (they/them), a warm, loud dwarf cleric who is very
+    short-sighted and refuses glasses; *Kasimir Adeyemi* (he/him), a young human wizard studying
+    the drowned village; *Pell Marrow* (she/her), a halfling rogue who once rowed for smugglers.
+    They are built with the SRD 5.2.1 rules (level 1, full sheets) and added to your Library the
+    first time; cards already there are never changed, so a character you played keeps its
+    level and gear.
+  - **Companions:** the three you did not choose wait at the Tipsy Heron — **Ask … to join** in
+    the Party section (or `/join Tove`). The adventure's fights are made for you plus one
+    companion; two companions make it easier.
 
 ---
 

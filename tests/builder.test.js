@@ -100,6 +100,7 @@ test('rogue expertise, warlock pact magic, wizard spellcasting, point buy', () =
     assert.deepEqual(B.parseItem('4 Handaxes'), { name: 'Handaxe', qty: 4 });
     assert.deepEqual(B.parseItem('20 Arrows'), { name: 'Arrow', qty: 20 });
     assert.deepEqual(B.parseItem('2 Pouches'), { name: 'Pouch', qty: 2 });
+    assert.deepEqual(B.parseItem('Gaming Set (same as above)'), { name: 'Gaming Set', qty: 1 }, 'the SRD\'s note is not part of the name');
 });
 
 // ---- the builder window, driven like a player (bundle + fake Esolite Library) ----------

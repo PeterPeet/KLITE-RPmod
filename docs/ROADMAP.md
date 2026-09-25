@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-26 (R8 steps 1–2: adventure loader, world start, XP split)
+> Last updated: 2026-09-26 (R8 step 3: starter adventure layer 1, travelling party, sheet-write fix)
 
 ## Current state
 
@@ -34,7 +34,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 349 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 359 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -196,6 +196,12 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
     keeps its own game in the story — switching parks the current one (saved with the story) and
     brings back the other's, or begins it at its start. New worlds and lorebook restores go the
     same way, so no world inherits another's places any more.
+23. ~~Sheet changes lost when rewards arrive close together~~ — fixed 2026-09-26 (found by the R8 layer-1
+    playthrough): `updateSheet` saves in the background, and a finished save (or the Library change
+    it fires) replaced the cached sheet with the copy it had saved, dropping changes made meanwhile;
+    the next save wrote the older sheet back. In play: XP, gold or items vanished when a turn-in or a
+    fight's end followed a `<give>` closely. The cache now counts changes and never lets what is read
+    from the card replace unsaved ones. Test in `tests/characters.test.js`.
 
 ## Phases
 
@@ -796,7 +802,12 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
 - [x] Owner review of the design (2026-09-25: XP divided among the party, fights for two; names kept; tone; fair 3 days; initials)
 - [x] Step 1 (2026-09-26): adventure package + loader (`src/adventures/`), `world.start` + worlds per story (known issue 22), per-world view, pregen picker, validator, forbidden-names guard — tested with a fixture adventure; nothing bundled yet
 - [x] Step 2 (2026-09-26): combat XP divided evenly among the party-side combatants (SRD); the persona and companions with a sheet get a share (`xpShares`/`xpEach`, additive)
-- [ ] Steps 3–7: content layer by layer (Brindlewick → routes/Outpost → Lanternport fair → lake/sea cave → Lost Chapel)
+- [x] Step 3 (2026-09-26): layer 1 — Brindlewick (town, 8 places), Forest Road, the Hollow Oak (dungeon, 7 rooms: a trap,
+  a locked door with a key, a secret passage), River Ford; quests Missing Carts, The Hollow Oak, An Old Coin, Rats in the Mill;
+  7 encounters; the four pregens (builder-made sheets); the travelling party (join/leave) the companions need; a headless
+  playthrough test. Found and fixed on the way: sheet writes lost XP/gold/items when rewards arrived during a save
+  (known issue 23), companions were left out of event/saved-encounter fights, the builder's "Gaming Set (same as above)".
+- [ ] Steps 4–7: content layer by layer (routes/Outpost → Lanternport fair → lake/sea cave → Lost Chapel)
 - [ ] Step 8: real-backend play test (known issue 5), then the World Building guide
 
 Also planned (owner, 2026-09-25): **1:1 roleplay audit** — play a 1:1 scenario with a real backend,

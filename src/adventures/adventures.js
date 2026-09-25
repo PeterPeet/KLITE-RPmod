@@ -12,9 +12,10 @@
 import { el, clear, iconText } from '../shell/dom.js';
 import * as AR from './adventure-rules.js';
 import * as EL from '../library/esoliteLibrary.js';
+import { drownedLantern } from './content/drowned-lantern.js';
 
-// Bundled adventures (content lands with R8 step 3).
-const BUNDLED = [];
+// Bundled adventures (R8): original content, SRD 5.2.1 only.
+const BUNDLED = [drownedLantern()];
 
 const PREGEN_KEY = 'KLITE.adventures.pregens';   // { 'adventure/pregen': Library id } — found faster next time
 
