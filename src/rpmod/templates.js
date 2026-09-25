@@ -8,6 +8,8 @@
 // =============================================================================
 
 export function installTemplates(S) {
+    // old button variants → shell classes ('' = the plain Esolite button)
+    const BTN_VARIANTS = { primary: '', secondary: '', danger: 'rpm-danger', success: 'rpm-success', warning: 'rpm-warning' };
     const t = {
         // Collapsible section with a header and content
         section: (title, content, collapsed = false) => `
@@ -20,37 +22,39 @@ export function installTemplates(S) {
             </div>
         `,
 
+        // Shell button (btn btn-primary rpm-btn); older variant names map onto the shell's
         button: (text, className = '', action = '') => `
-            <button class="klite-btn ${className}" ${action ? `data-action="${action}"` : ''}>${text}</button>
+            <button class="${t.btnClass(className)}" ${action ? `data-action="${action}"` : ''}>${text}</button>
         `,
+        btnClass: (className = '') => ['btn btn-primary rpm-btn', ...String(className).split(/\s+/).filter(Boolean).map(c => BTN_VARIANTS[c] ?? c)].filter(Boolean).join(' '),
 
         textarea: (id, placeholder = '', value = '') => `
-            <textarea id="${id}" class="klite-textarea form-control" placeholder="${placeholder}">${value}</textarea>
+            <textarea id="${id}" class="form-control rpm-input" placeholder="${placeholder}">${value}</textarea>
         `,
 
         input: (id, placeholder = '', type = 'text', value = '') => `
-            <input type="${type}" id="${id}" class="klite-input form-control textbox" placeholder="${placeholder}" value="${value}">
+            <input type="${type}" id="${id}" class="form-control rpm-input" placeholder="${placeholder}" value="${value}">
         `,
 
         select: (id, options) => `
-            <select id="${id}" class="klite-select form-control">
+            <select id="${id}" class="form-control rpm-input">
                 ${options.map(o => `<option value="${o.value}" ${o.selected ? 'selected' : ''}>${o.text}</option>`).join('')}
             </select>
         `,
 
         checkbox: (id, label, checked = false) => `
-            <label style="display: flex; align-items: center; gap: 2px; cursor: pointer;">
+            <label class="rpm-check">
                 <input type="checkbox" id="${id}" ${checked ? 'checked' : ''}>
                 <span>${label}</span>
             </label>
         `,
 
-        row: (content) => `<div class="klite-row">${content}</div>`,
-        muted: (text) => `<div class="klite-muted">${text}</div>`,
+        row: (content) => `<div class="rpm-row">${content}</div>`,
+        muted: (text) => `<div class="rpm-muted">${text}</div>`,
 
         slider: (id, min, max, value, label = '') => `
             <div>
-                ${label ? `<label for="${id}" style="display: block; margin-bottom: 5px; font-size: 12px;">${label}</label>` : ''}
+                ${label ? `<label for="${id}" class="rpm-label">${label}</label>` : ''}
                 <input type="range" id="${id}" class="klite-slider" min="${min}" max="${max}" value="${value}">
             </div>
         `

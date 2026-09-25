@@ -6,12 +6,12 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-25 (R7 done: acceptance passed)
+> Last updated: 2026-09-25 (R1 cleanup step 3: RP panels on the shell's classes)
 
 ## Current state
 
-**Now: R1 cleanup of the old panel code** ("ALPHA", known issues 6, 8, 13 — see R1 below; step 1
-done), then the open R2 items (known issues 4, 15), spells in the Combat window (R5) and the
+**Now: R1 cleanup of the old panel code** ("ALPHA" — see R1 below; steps 1–3 done, next step 4:
+top-bar icons, known issue 6), then the open R2 items (known issues 4, 15), spells in the Combat window (R5) and the
 real-backend play test (known issue 5). R7 is done (✅ 2026-09-25, acceptance passed).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
 issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
@@ -30,7 +30,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 232 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 268 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -50,7 +50,7 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
   World editor (node graph) windows; Creator/Player lens.
 - **Delivery:** usermod bundle, or `index.rpmod.html` that autoloads the mod after
   Esolite's `load` event.
-- ALPHA (unchanged since 2026-05): CHARS/ROLES/TOOLS/CONTEXT/IMAGES panels, card import
+- RP panels (formerly "ALPHA"; split and restyled onto the shell in the R1 cleanup 2026-09-25): CHARS/ROLES/TOOLS/CONTEXT/IMAGES panels, card import
   (V2, partial V3), personas, group chat speaker modes, quick actions, chapters, image gen.
 
 ### Gap analysis vs. the user story
@@ -117,8 +117,8 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 12. ~~World state changed by AI chat tags reaches the UI only at the next send~~ — fixed in R7
     step 2: tags are parsed when the reply arrives (wrapper around Esolite's
     `handle_incoming_text`); the per-turn clock step stays at generation.
-13. **The RP panels' inner markup** still carries many inline styles (sizes/spacing); colours follow
-    the theme via its variables, but spacing is not yet on the shell's scale.
+13. ~~The RP panels' inner markup carries many inline styles~~ — moved onto the shell's classes
+    and spacing scale 2026-09-25 (R1 cleanup, step 3); a test keeps inline styles out.
 14. **Quick Start adapter depends on Esolite internals** (`showQuickStartPopup`,
     `applyQuickStartSelection`, `clearAllQuickStartSelections`, `popupUtils.contentElem`).
     Falls back gracefully (no RPmod section) if they change. Only used on hosts without
@@ -283,8 +283,26 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
         further: the image panel and the character selection modal live inside `core.js`'s
         object literal (moving them would mean rewriting). Live-checked in Esolite: all panels,
         New Character editor, context calculation, dice, gallery, `rpmod` save/load.
-  - [ ] Step 3: inline styles onto the shell's classes and spacing, panel by panel, and the old
-        overlay CSS (issue 13).
+  - [x] Step 3 (2026-09-25): the RP panels (Chars incl. detail view and card editor, Roles,
+        Scenario, Tools incl. Context and image panels), their two modals and the RPmod block in
+        Esolite's settings use the shell's classes and spacing scale (issue 13): ~260 inline styles
+        and ~70 style assignments gone; left only where a value comes from data (token-bar widths,
+        auto-sender progress, image sizes). `STYLES_PANELS_ONLY` rewritten on `--rpm-*` tokens and
+        trimmed to what the shell lacks (sections, modals, character rows, insets, token bar); the
+        dead pre-shell rules (fixed panel, handle, own tab bar) and the shell's `!important`
+        overrides of them are gone, as are the page-wide `:root` `--bg/--text/…` aliases. New shell
+        helpers: `rpm-stack/wrap/fill/grid2/grid4/mt/mb/center/small/empty/check/note/avatar/tag/
+        dim/disabled/text-*`, button sizes `rpm-sm`, `rpm-warning`. Also removed: the dead grid
+        renderers of the old CHARS gallery (drew into the removed `#char-gallery`) and a no-op
+        theme observer. Found and fixed on the way: untrusted names/fields went into HTML
+        unescaped (group list, custom-character modal, Scenario fields from cards, lorebook
+        "Import to WI", quick actions); `escapeHtml` now also escapes quotes. Visible changes:
+        spacing on the 4/8/12 px scale; the token bar's story/quest and "next speaker" colours
+        come from the theme's RPmod colours; the "Add Custom Character" modal (previously
+        unstyled) has a title bar and padding; the selection modal's filters wrap on phones.
+        Compared before/after in the browser (dark and light theme, dock 300/350/520 px, phone
+        portrait/landscape). Tests: `tests/rpmodPanels.test.js` (no inline styles or old control
+        classes in any panel view or modal, stylesheet on tokens only, names stay text).
   - [ ] Step 4: top-bar icons, usermod install vs `index.rpmod.html` (issue 6).
 - App shell: docked sidebars + a window manager for sheet, quest log, compendium, combat,
   editor, map; one entry point in the Esolite top bar.

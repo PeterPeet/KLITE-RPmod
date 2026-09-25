@@ -580,10 +580,6 @@ export function installCore(S) {
                     try { this.initializeMobileMode(); } catch(_){}
                     try { window.addEventListener('resize', () => { try { this.handleResize(); } catch(_){} }); } catch(_){}
 
-                    // Sync colors with Esobold/Lite active theme
-                    this.applyPanelsHostTheme();
-                    this.startPanelsThemeObserver();
-
                     // Defer storage init and character load so CHARS data is available for selection modals
                     Promise.resolve().then(async () => {
                         try { await this.initializeStorageKeys(); } catch(_) {}
@@ -888,7 +884,7 @@ export function installCore(S) {
 
             // Construct only the right panel with requested tabs
             wrapper.innerHTML = `
-                <div class="klite-panel klite-panel-right ${this.state.collapsed?.right ? 'collapsed' : ''}" id="panel-right">
+                <div class="klite-panel klite-panel-right rpm-themed ${this.state.collapsed?.right ? 'collapsed' : ''}" id="panel-right">
                     <div class="klite-handle" data-panel="right">${this.state.collapsed?.right ? '◀' : '▶'}</div>
                     <div class="klite-tabs" data-panel="right">
                         ${[
@@ -961,32 +957,6 @@ export function installCore(S) {
             try { this.updatePanelsOnlyOverlayPadding?.(); } catch(_) {}
 
             this.log('init', 'Panels-only UI built');
-        },
-
-        // Right Panel-only theme: approximate Esobold’s active theme by sampling host styles
-        applyPanelsHostTheme() {
-            try {
-                const wrap = document.getElementById('klite-panels-only');
-                if (!wrap) return;
-
-                // Theme variables are bound once in STYLES_PANELS_ONLY (:root, Esolite 1.35
-                // names). Clear any per-wrapper overrides so those bindings apply everywhere.
-                ['bg','bg2','bg3','text','muted','border','border-highlight','accent','primary','primary-text']
-                    .forEach(k => { try { wrap.style.removeProperty(`--${k}`); } catch(_){} });
-                this.log('init', 'Panels theme: using :root bindings to Esolite theme variables');
-            } catch (e) { this.log('init', `Theme apply skipped: ${e?.message || e}`); }
-        },
-
-        startPanelsThemeObserver() {
-            try {
-                if (this._panelsThemeObserver) return;
-                this._panelsThemeObserver = new MutationObserver(() => {
-                    try { this.applyPanelsHostTheme(); } catch(_){}
-                });
-                this._panelsThemeObserver.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'] });
-                // Also listen to color theme changes via localsettings proxy if available
-                this.log('init', 'Panels theme observer installed');
-            } catch (e) { this.log('init', `Panels theme observer skipped: ${e?.message || e}`); }
         },
 
         // computeHostColorsFromDOM removed in v2 (unused)
@@ -1446,19 +1416,16 @@ export function installCore(S) {
                     if (!pane.querySelector('#rpmod-debug-settings')) {
                         const dbg = document.createElement('div');
                         dbg.id = 'rpmod-debug-settings';
-                        dbg.style.cssText = 'padding:8px; border:1px solid var(--theme_color_border); border-radius:6px; background: var(--theme_color_bg_dark); margin-top:10px; color: var(--muted);';
+                        dbg.className = 'rpm-themed klite-box rpm-muted rpm-mt';
                         dbg.innerHTML = `
-                            <div style=\"display:flex; align-items:center; gap:8px; margin-bottom:6px;\">\n                                <input type=\"checkbox\" id=\"rpmod-debug-enabled\" ${this.debug ? 'checked' : ''}>\n                                <span style=\"font-weight:bold;\">Enable RPmod Debug Logging</span>\n                            </div>\n                            <div style=\"display:flex; flex-wrap:wrap; gap:8px; font-size:12px; line-height:1.6;\">\n                                ${['chat','narrator','storage','network','esolite','panels','group','avatars','state','generation','hooks','ui'].map(topic => `\n                                    <label style=\\\"display:flex; align-items:center; gap:6px;\\\">\n                                        <input type=\\\"checkbox\\\" class=\\\"rpmod-debug-topic\\\" data-topic=\\\"${topic}\\\" ${this.debugLevels?.[topic] ? 'checked' : ''}>\n                                        <span>${topic}</span>\n                                    </label>\n                                `).join('')}\n                            </div>\n                            <div style=\"display:flex; gap:6px; margin-top:8px;\">\n                                <button id=\"rpmod-debug-all\" class=\"btn btn-primary btn-small\">All</button>\n                                <button id=\"rpmod-debug-none\" class=\"btn btn-primary btn-small\">None</button>\n                                <button id=\"rpmod-debug-recommended\" class=\"btn btn-primary btn-small\">Recommended</button>\n                            </div>\n                            <div id=\"rpmod-debug-active\" style=\"margin-top:6px; font-size:11px; color: var(--muted);\"></div>`;
+                            <label class=\"rpm-check rpm-mb\">\n                                <input type=\"checkbox\" id=\"rpmod-debug-enabled\" ${this.debug ? 'checked' : ''}>\n                                <strong>Enable RPmod Debug Logging</strong>\n                            </label>\n                            <div class=\"rpm-wrap rpm-small klite-topics\">\n                                ${['chat','narrator','storage','network','esolite','panels','group','avatars','state','generation','hooks','ui'].map(topic => `\n                                    <label class=\\\"rpm-check\\\">\n                                        <input type=\\\"checkbox\\\" class=\\\"rpmod-debug-topic\\\" data-topic=\\\"${topic}\\\" ${this.debugLevels?.[topic] ? 'checked' : ''}>\n                                        <span>${topic}</span>\n                                    </label>\n                                `).join('')}\n                            </div>\n                            <div class=\"rpm-row rpm-mt\">\n                                <button id=\"rpmod-debug-all\" class=\"btn btn-primary btn-small\">All</button>\n                                <button id=\"rpmod-debug-none\" class=\"btn btn-primary btn-small\">None</button>\n                                <button id=\"rpmod-debug-recommended\" class=\"btn btn-primary btn-small\">Recommended</button>\n                            </div>\n                            <div id=\"rpmod-debug-active\" class=\"rpm-muted rpm-mt\"></div>`;
                         (wrap || pane).appendChild(dbg);
 
                         // Add restore-console checkbox row dynamically
                         try {
                             const btnRow = dbg.querySelector('#rpmod-debug-all')?.parentElement || null;
                             const row = document.createElement('div');
-                            row.style.display = 'flex';
-                            row.style.alignItems = 'center';
-                            row.style.gap = '8px';
-                            row.style.margin = '6px 0';
+                            row.className = 'rpm-check rpm-mt';
                             const cb = document.createElement('input');
                             cb.type = 'checkbox';
                             cb.id = 'rpmod-debug-restore-console';
@@ -1567,33 +1534,32 @@ export function installCore(S) {
                 // Otherwise inject full block (overlay/hide + debug)
                 const wrap = document.createElement('div');
                 wrap.id = 'rpmod-settings-wrapper';
-                wrap.style.margin = '8px 0';
+                wrap.className = 'rpm-themed klite-settings';
                 // (The old "sidepanel overlays chat area" option is gone: the app shell owns layout.)
                 wrap.innerHTML = `
-                    <label style="display:flex; align-items:center; gap:8px; font-size: 13px; color: var(--muted);">
+                    <label class="rpm-check rpm-text-muted">
                         <input type="checkbox" id="rpmod-hide-corpo-leftpanel" ${this.getHideCorpoLeftpanelEnabled() ? 'checked' : ''}>
                         Hide Corpo-LeftPanel in Corpo-Theme
                     </label>
-                    <div style="height:10px"></div>
-                    <div id="rpmod-debug-settings" style="padding:8px; border:1px solid var(--theme_color_border); border-radius:6px; background: var(--theme_color_bg_dark); color: var(--muted);">
-                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                    <div id="rpmod-debug-settings" class="klite-box rpm-muted rpm-mt">
+                        <label class="rpm-check rpm-mb">
                             <input type="checkbox" id="rpmod-debug-enabled" ${this.debug ? 'checked' : ''}>
-                            <span style="font-weight:bold;">Enable RPmod Debug Logging</span>
-                        </div>
-                        <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:12px; line-height:1.6;">
+                            <strong>Enable RPmod Debug Logging</strong>
+                        </label>
+                        <div class="rpm-wrap rpm-small klite-topics">
                             ${['chat','narrator','storage','network','esolite','panels','group','avatars','state','generation','hooks','ui'].map(topic => `
-                                <label style=\"display:flex; align-items:center; gap:6px;\">
+                                <label class=\"rpm-check\">
                                     <input type=\"checkbox\" class=\"rpmod-debug-topic\" data-topic=\"${topic}\" ${this.debugLevels?.[topic] ? 'checked' : ''}>
                                     <span>${topic}</span>
                                 </label>
                             `).join('')}
                         </div>
-                        <div style="display:flex; gap:6px; margin-top:8px;">
+                        <div class="rpm-row rpm-mt">
                             <button id="rpmod-debug-all" class="btn btn-primary btn-small">All</button>
                             <button id="rpmod-debug-none" class="btn btn-primary btn-small">None</button>
                             <button id="rpmod-debug-recommended" class="btn btn-primary btn-small">Recommended</button>
                         </div>
-                        <div id="rpmod-debug-active" style="margin-top:6px; font-size:11px; color: var(--muted);"></div>
+                        <div id="rpmod-debug-active" class="rpm-muted rpm-mt"></div>
                     </div>
                 `;
                 pane.appendChild(wrap);
@@ -1616,10 +1582,7 @@ export function installCore(S) {
                     const btnRow = wrap.querySelector('#rpmod-debug-all')?.parentElement || null;
                     if (dbgBox) {
                         const row = document.createElement('div');
-                        row.style.display = 'flex';
-                        row.style.alignItems = 'center';
-                        row.style.gap = '8px';
-                        row.style.margin = '6px 0';
+                        row.className = 'rpm-check rpm-mt';
                         const cb2 = document.createElement('input');
                         cb2.type = 'checkbox';
                         cb2.id = 'rpmod-debug-restore-console';
@@ -1883,43 +1846,43 @@ export function installCore(S) {
                         render() {
                             return `
                                 ${t.section('🎨 Image Generation', `
-                                    <div class="klite-image-status" style="margin-bottom: 12px; padding: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;">
-                                        <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px;">Image Generation Status</div>
-                                        <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
-                                            <div><span style="color: var(--muted);">Provider:</span> <span id="scene-mode-status" style="color: var(--text); font-weight: bold;">${KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode)}</span></div>
-                                            <div><span style="color: var(--muted);">Model:</span> <span id="scene-model-status" style="color: var(--text); font-weight: bold;">${(KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode) === 'AI Horde') ? (window.localsettings?.generate_images_model || 'Default') : '-'}</span></div>
+                                    <div class="klite-image-status rpm-card rpm-mb">
+                                        <div class="rpm-small rpm-mb"><strong>Image Generation Status</strong></div>
+                                        <div class="rpm-small">
+                                            <div><span class="rpm-text-muted">Provider:</span> <strong id="scene-mode-status">${KLITE_RPMod.escapeHtml(KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode))}</strong></div>
+                                            <div><span class="rpm-text-muted">Model:</span> <strong id="scene-model-status">${KLITE_RPMod.escapeHtml((KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode) === 'AI Horde') ? (window.localsettings?.generate_images_model || 'Default') : '-')}</strong></div>
                                         </div>
                                     </div>
-                                    <div class="klite-image-controls" style="margin-bottom: 12px;">
-                                        <label style="display: block; margin-bottom: 4px; font-size: 12px;">Auto-generate:</label>
+                                    <div class="klite-image-controls rpm-mb">
+                                        <label class="rpm-label" for="scene-autogen">Auto-generate:</label>
                                         ${t.select('scene-autogen', [
                                             { value: '0', text: 'Off', selected: String(window.localsettings?.img_autogen_type ?? 0) === '0' },
                                             { value: '1', text: 'Basic', selected: String(window.localsettings?.img_autogen_type ?? 0) === '1' },
                                             { value: '2', text: 'Smart', selected: String(window.localsettings?.img_autogen_type ?? 0) === '2' }
                                         ])}
-                                        <div style="margin-top: 8px;">${t.checkbox('scene-detect', 'Detect ImgGen Instructions', !!(window.localsettings?.img_gen_from_instruct))}</div>
+                                        <div class="rpm-mt">${t.checkbox('scene-detect', 'Detect ImgGen Instructions', !!(window.localsettings?.img_gen_from_instruct))}</div>
                                     </div>
                                     <div class="klite-image-generation-section">
-                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Scene & Characters</div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; margin-bottom: 10px;">
-                                            ${t.button('🏞️ Current Scene', 'klite-btn-sm', 'gen-scene')}
-                                            ${t.button('🤖 AI Character', 'klite-btn-sm', 'gen-ai-portrait')}
-                                            ${t.button('👤 Persona', 'klite-btn-sm', 'gen-user-portrait')}
-                                            ${t.button('👥 Group Shot', 'klite-btn-sm', 'gen-group')}
+                                        <div class="rpm-small rpm-mb"><strong>Scene & Characters</strong></div>
+                                        <div class="rpm-grid2 rpm-mb">
+                                            ${t.button('🏞️ Current Scene', 'rpm-sm', 'gen-scene')}
+                                            ${t.button('🤖 AI Character', 'rpm-sm', 'gen-ai-portrait')}
+                                            ${t.button('👤 Persona', 'rpm-sm', 'gen-user-portrait')}
+                                            ${t.button('👥 Group Shot', 'rpm-sm', 'gen-group')}
                                         </div>
-                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Events & Actions</div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; margin-bottom: 10px;">
-                                            ${t.button('⚔️ Combat', 'klite-btn-sm', 'gen-combat')}
-                                            ${t.button('💬 Dialogue', 'klite-btn-sm', 'gen-dialogue')}
-                                            ${t.button('🎭 Plot', 'klite-btn-sm', 'gen-dramatic')}
-                                            ${t.button('🌅 Atmosphere', 'klite-btn-sm', 'gen-atmosphere')}
+                                        <div class="rpm-small rpm-mb"><strong>Events & Actions</strong></div>
+                                        <div class="rpm-grid2 rpm-mb">
+                                            ${t.button('⚔️ Combat', 'rpm-sm', 'gen-combat')}
+                                            ${t.button('💬 Dialogue', 'rpm-sm', 'gen-dialogue')}
+                                            ${t.button('🎭 Plot', 'rpm-sm', 'gen-dramatic')}
+                                            ${t.button('🌅 Atmosphere', 'rpm-sm', 'gen-atmosphere')}
                                         </div>
-                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Context-Based</div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px;">
-                                            ${t.button('📝 Memory', 'klite-btn-sm', 'gen-memory')}
-                                            ${t.button('📄 Last Message', 'klite-btn-sm', 'gen-last-message')}
-                                            ${t.button('🔄 Recent Events', 'klite-btn-sm', 'gen-recent')}
-                                            ${t.button('🎯 Custom', 'klite-btn-sm', 'gen-custom')}
+                                        <div class="rpm-small rpm-mb"><strong>Context-Based</strong></div>
+                                        <div class="rpm-grid2">
+                                            ${t.button('📝 Memory', 'rpm-sm', 'gen-memory')}
+                                            ${t.button('📄 Last Message', 'rpm-sm', 'gen-last-message')}
+                                            ${t.button('🔄 Recent Events', 'rpm-sm', 'gen-recent')}
+                                            ${t.button('🎯 Custom', 'rpm-sm', 'gen-custom')}
                                         </div>
                                     </div>
                                 `)}
@@ -3122,7 +3085,7 @@ export function installCore(S) {
                     signature |= 0;
                 }
                 if (this._lastChatSignature !== signature) {
-                    display.innerHTML = html || '<p class="klite-center klite-muted">No content yet...</p>';
+                    display.innerHTML = html || '<p class="rpm-center rpm-muted">No content yet...</p>';
                     this._lastChatSignature = signature;
                     // Update group avatars used by chat bubble formatting
                     this.updateGroupAvatars();
@@ -3176,20 +3139,8 @@ export function installCore(S) {
             if (connEl) {
                 connEl.textContent = connectionText;
                 const isConnected = !hasDisconnectedClass;
-                connEl.style.color = isConnected ? '#5cb85c' : '#d9534f';
-
-                // Clean up any debug styling
-                connEl.style.backgroundColor = '';
-                connEl.style.padding = '';
-                connEl.style.borderRadius = '';
-                connEl.style.fontWeight = '';
-
-                // Clean up parent info div debug styling
-                const infoDiv = connEl.closest('.klite-info');
-                if (infoDiv) {
-                    infoDiv.style.border = '';
-                    infoDiv.style.backgroundColor = '';
-                }
+                connEl.classList.toggle('rpm-text-success', isConnected);
+                connEl.classList.toggle('rpm-text-danger', !isConnected);
 
                 this.log('status', `Updated connection span to: "${connectionText}", color: ${isConnected ? 'green' : 'red'}`);
             }
@@ -3399,10 +3350,11 @@ export function installCore(S) {
 
 
         // Helper functions
+        // Safe in text and in quoted attribute values
         escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text == null ? '' : String(text);
-            return div.innerHTML;
+            return (text == null ? '' : String(text))
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         },
 
         // Render an image safely. Only auto-loads data: or blob: URLs.
@@ -3418,11 +3370,11 @@ export function installCore(S) {
                 }
                 const eUrl = this.escapeHtml(src);
                 return `
-                    <div class="klite-safe-image" style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-                        <div class="klite-image-blocked" style="${eStyle};display:flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);">
-                            <span style="padding:8px 12px;">External image hidden</span>
+                    <div class="klite-safe-image">
+                        <div class="klite-image-blocked" style="${eStyle}">
+                            <span>External image hidden</span>
                         </div>
-                        <button class="klite-btn secondary" data-action="rpmod-load-image" data-url="${eUrl}" data-alt="${eAlt}" data-style="${eStyle}" style="align-self:center;">Load image</button>
+                        <button class="btn btn-primary rpm-btn" data-action="rpmod-load-image" data-url="${eUrl}" data-alt="${eAlt}" data-style="${eStyle}">Load image</button>
                     </div>
                 `;
             } catch(_) { return ''; }
@@ -3435,8 +3387,7 @@ export function installCore(S) {
         showUnifiedCharacterModal(mode = 'multi-select', onSelectCallback = null) {
             // Create unified modal for character selection
             const modal = document.createElement('div');
-            modal.className = 'klite-modal';
-            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;';
+            modal.className = 'klite-modal rpm-themed';
 
             const isMultiSelect = mode === 'multi-select';
             const title = isMultiSelect ? 'Select Characters for Group' : 'Select Character';
@@ -3447,23 +3398,18 @@ export function installCore(S) {
             const selectionType = isMultiSelect ? 'checkbox' : 'radio';
 
             modal.innerHTML = `
-                <div class="klite-modal-content" style="background: var(--bg2); border-radius: 8px; padding: 20px; border: 1px solid var(--border); min-width: 600px; max-width: 800px;">
+                <div class="klite-modal-content">
                     <div class="klite-modal-header">
                         <h3>${title}</h3>
                     </div>
-                    <div class="klite-modal-body">
-                        <p style="color: var(--muted); font-size: 12px; margin-bottom: 15px;">
-                            ${description}
-                        </p>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <input type="text" id="unified-char-search" placeholder="Search characters..." 
-                            style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; margin-bottom: 10px;">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 2px; margin-bottom: 10px;">
-                            <select id="unified-char-tag-filter" style="padding: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+                    <div class="klite-modal-body rpm-stack">
+                        <p class="rpm-muted">${description}</p>
+                        <input type="text" id="unified-char-search" class="form-control rpm-input" placeholder="Search characters...">
+                        <div class="klite-filter-grid">
+                            <select id="unified-char-tag-filter" class="form-control rpm-input">
                                 <option value="">All Tags</option>
                             </select>
-                            <select id="unified-char-rating-filter" style="padding: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+                            <select id="unified-char-rating-filter" class="form-control rpm-input">
                                 <option value="">All Ratings</option>
                                 <option value="5">★★★★★</option>
                                 <option value="4">★★★★☆</option>
@@ -3471,39 +3417,34 @@ export function installCore(S) {
                                 <option value="2">★★☆☆☆</option>
                                 <option value="1">★☆☆☆☆</option>
                             </select>
-                            <select id="unified-char-talkativeness-filter" style="padding: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+                            <select id="unified-char-talkativeness-filter" class="form-control rpm-input">
                                 <option value="">All Talkativeness</option>
                                 <option value="high">Very Talkative (80+)</option>
                                 <option value="medium">Moderate (40-79)</option>
                                 <option value="low">Quiet (10-39)</option>
                             </select>
-                            <select id="unified-char-sort" style="padding: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+                            <select id="unified-char-sort" class="form-control rpm-input">
                                 <option value="name">Name</option>
                                 <option value="rating">Rating</option>
                                 <option value="talk">Talkativeness</option>
                                 <option value="created">Import Date</option>
                             </select>
                         </div>
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: flex; align-items: center; gap: 2px; cursor: pointer;">
-                                <input type="checkbox" id="unified-include-wi" style="margin: 0;">
-                                <span>Include characters from World Info</span>
-                            </label>
+                        <label class="rpm-check">
+                            <input type="checkbox" id="unified-include-wi">
+                            <span>Include characters from World Info</span>
+                        </label>
+                        <div id="unified-character-selection-list" class="klite-pick-list">
+                            <div class="rpm-empty">Loading characters...</div>
                         </div>
                     </div>
-                    
-                    <div id="unified-character-selection-list" style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 10px; background: var(--bg); margin-bottom: 15px;">
-                        <div style="text-align: center; color: var(--muted); padding: 20px;">Loading characters...</div>
-                    </div>
-                    
-                        <div class="klite-modal-footer">
-                            <button class="klite-btn klite-btn-primary" data-action="confirm-unified-char-selection" data-mode="${mode}">
-                                ${buttonText}
-                            </button>
-                            <button class="klite-btn" data-action="close-unified-char-modal">
-                                Cancel
-                            </button>
-                        </div>
+                    <div class="klite-modal-footer">
+                        <button class="btn btn-primary rpm-btn" data-action="confirm-unified-char-selection" data-mode="${mode}">
+                            ${buttonText}
+                        </button>
+                        <button class="btn btn-primary rpm-btn" data-action="close-unified-char-modal">
+                            Cancel
+                        </button>
                     </div>
                 </div>
             `;
@@ -3662,7 +3603,7 @@ export function installCore(S) {
 
             if (characters.length === 0) {
                 list.innerHTML = `
-                    <div style="text-align: center; color: var(--muted); padding: 20px;">
+                    <div class="rpm-empty">
                         No characters available. Import some characters first.
                     </div>
                 `;
@@ -3681,27 +3622,22 @@ export function installCore(S) {
                 const safeTagsPreview = tags.length > 0 ? tags.slice(0, 3).map(KLITE_RPMod.escapeHtml).join(', ') + (tags.length > 3 ? '...' : '') : '';
 
                 return `
-                    <div style="display: flex; align-items: center; gap: 2px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; background: var(--bg2); cursor: pointer;" 
-                         data-action="toggle-unified-char-selection" data-char-id="${charId}" data-selection-type="${selectionType}">
-                        <input type="${selectionType}" name="unified-char-selection" value="${charId}" style="margin: 0;" onclick="event.stopPropagation();">
-                        ${avatar ? `
-                            <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                                ${KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width:100%;height:100%;object-fit:cover;display:block;')}
+                    <div class="klite-item-row klite-pick-row"
+                         data-action="toggle-unified-char-selection" data-char-id="${KLITE_RPMod.escapeHtml(charId)}" data-selection-type="${selectionType}">
+                        <input type="${selectionType}" name="unified-char-selection" value="${KLITE_RPMod.escapeHtml(charId)}" onclick="event.stopPropagation();">
+                        <div class="rpm-avatar">
+                            ${avatar ? KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width:100%;height:100%;object-fit:cover;display:block;')
+                                     : `<span>${KLITE_RPMod.escapeHtml((char.name || '?').charAt(0))}</span>`}
+                        </div>
+                        <div class="rpm-grow">
+                            <div>
+                                <strong>${KLITE_RPMod.escapeHtml(char.name || '')}</strong>
+                                ${isWIChar ? '<span class="rpm-tag">WI</span>' : ''}
                             </div>
-                        ` : `
-                            <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <span style="font-size: 18px;">${char.name.charAt(0)}</span>
-                            </div>
-                        `}
-                        <div style="flex: 1;">
-                            <div style="font-weight: bold; color: var(--text); display: flex; align-items: center; gap: 2px;">
-                                ${KLITE_RPMod.escapeHtml(char.name || '')}
-                                ${isWIChar ? '<span style="font-size: 9px; background: var(--accent); color: white; padding: 1px 4px; border-radius: 2px;">WI</span>' : ''}
-                            </div>
-                            <div style="font-size: 11px; color: var(--muted); margin: 2px 0; max-height: 32px; overflow: hidden;">${description}</div>
-                            <div style="font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 2px;">
+                            <div class="rpm-muted klite-pick-desc">${description}</div>
+                            <div class="rpm-muted rpm-wrap">
                                 ${!isWIChar ? `<span>Rating: ${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}</span>` : ''}
-                                <span>Talkativeness: ${talkativeness}</span>
+                                <span>Talkativeness: ${KLITE_RPMod.escapeHtml(talkativeness)}</span>
                                 ${tags.length > 0 ? `<span>Tags: ${safeTagsPreview}</span>` : ''}
                             </div>
                         </div>

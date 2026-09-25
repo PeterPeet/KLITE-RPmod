@@ -157,20 +157,20 @@ export function installRolesPanel(S) {
                 `<div id="group-chars">
                         ${this.renderActiveChars()}
                     </div>
-                    <div class="klite-buttons-fill klite-mt">
+                    <div class="rpm-fill rpm-mt">
                         ${t.button('Add Character to Group', '', 'add-from-library')}
                         ${this.getCurrentSpeaker()?.isCustom ? t.button('Edit', 'primary', 'edit-current') : ''}
                     </div>`
             )}
                 
                 ${t.section('Character selection',
-                `<div class="klite-muted" style="display: flex; gap: 12px; align-items: center;">
-                        <span>Last: <strong style="color: #e0b400;">${(this.lastSpeaker >= 0 ? (this.activeChars[this.lastSpeaker]?.name) : '—') || '—'}</strong></span>
-                        <span>Next: <strong style="color: #2aa84a;">${this.getCurrentSpeaker()?.name || '—'}</strong></span>
+                `<div class="rpm-row rpm-muted">
+                        <span>Last: <strong class="rpm-text-quest">${KLITE_RPMod.escapeHtml((this.lastSpeaker >= 0 ? (this.activeChars[this.lastSpeaker]?.name) : '—') || '—')}</strong></span>
+                        <span>Next: <strong class="rpm-text-success">${KLITE_RPMod.escapeHtml(this.getCurrentSpeaker()?.name || '—')}</strong></span>
                     </div>
-                    <div class="klite-mt">
-                        <label>Next Speaker Selection:</label>
-                        <select id="speaker-mode" class="klite-select" style="width: 100%;" onchange="KLITE_RPMod.panels.ROLES.changeSpeakerMode(this.value)">
+                    <div class="rpm-mt">
+                        <label class="rpm-label" for="speaker-mode">Next Speaker Selection:</label>
+                        <select id="speaker-mode" class="form-control rpm-input" onchange="KLITE_RPMod.panels.ROLES.changeSpeakerMode(this.value)">
                             <option value="manual" ${this.speakerMode === 'manual' ? 'selected' : ''}>Manual Order</option>
                             <option value="round-robin" ${this.speakerMode === 'round-robin' ? 'selected' : ''}>Round Robin</option>
                             <option value="random" ${this.speakerMode === 'random' ? 'selected' : ''}>Random Selection</option>
@@ -180,33 +180,33 @@ export function installRolesPanel(S) {
                         </select>
                         
                     </div>
-                    <div id="speaker-mode-description" style="margin-top: 6px; font-size: 11px; color: var(--muted); padding: 6px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                    <div id="speaker-mode-description" class="klite-inset rpm-muted rpm-mt">
                         ${this.getSpeakerModeDescription()}
                     </div>
                     
                     ${this.renderAutoResponseControls()}
                     
-                    <div class="klite-mt" style="margin-top: 10px;">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: ${this.speakerMode === 'manual' ? 'not-allowed' : 'pointer'}; font-size: 12px;">
+                    <div class="rpm-mt">
+                        <label class="rpm-check rpm-small ${this.speakerMode === 'manual' ? 'rpm-disabled' : ''}">
                             <input type="checkbox" id="auto-advance-after-trigger" ${this.autoResponses.autoAdvanceAfterTrigger ? 'checked' : ''}
                                    ${this.speakerMode === 'manual' ? 'disabled' : ''}
                                    onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseSetting('autoAdvanceAfterTrigger', this.checked)">
-                            <span style="color: ${this.speakerMode === 'manual' ? 'var(--muted)' : 'var(--text)'};">Auto advance after trigger</span>
+                            <span>Auto advance after trigger</span>
                         </label>
-                        <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">When enabled, 'Trigger Speaker' advances to the next speaker automatically.</div>
+                        <div class="rpm-muted">When enabled, 'Trigger Speaker' advances to the next speaker automatically.</div>
                     </div>
 
-                    <div class="klite-mt" style="margin-top: 6px;">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: ${this.speakerMode === 'manual' ? 'not-allowed' : 'pointer'}; font-size: 12px;">
+                    <div class="rpm-mt">
+                        <label class="rpm-check rpm-small ${this.speakerMode === 'manual' ? 'rpm-disabled' : ''}">
                             <input type="checkbox" id="auto-advance-on-submit" ${this.autoResponses.autoAdvanceOnUserSubmit ? 'checked' : ''}
                                    ${this.speakerMode === 'manual' ? 'disabled' : ''}
                                    onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseSetting('autoAdvanceOnUserSubmit', this.checked)">
-                            <span style="color: ${this.speakerMode === 'manual' ? 'var(--muted)' : 'var(--text)'};">Advance after user submit</span>
+                            <span>Advance after user submit</span>
                         </label>
-                        <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">When enabled, submitting your message advances to the next speaker.</div>
+                        <div class="rpm-muted">When enabled, submitting your message advances to the next speaker.</div>
                     </div>
                     
-                    <div class="klite-buttons-fill klite-mt">
+                    <div class="rpm-fill rpm-mt">
                         ${t.button('Manually Advance', '', 'next-speaker')}
                         ${t.button('Trigger Speaker', 'primary', 'trigger-response')}
                     </div>`
@@ -221,42 +221,42 @@ export function installRolesPanel(S) {
             const isDisabled = isManual || !this.autoResponses.enabled;
 
             return `
-                <div style="margin-top: 15px; padding: 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg3); ${isManual ? 'opacity: 0.5;' : ''}">
-                    <div style="margin-bottom: 10px;">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: ${isManual ? 'not-allowed' : 'pointer'};">
+                <div class="rpm-card rpm-stack rpm-mt ${isManual ? 'rpm-dim' : ''}">
+                    <div>
+                        <label class="rpm-check ${isManual ? 'rpm-disabled' : ''}">
                             <input type="checkbox" id="auto-responses-enabled" ${this.autoResponses.enabled ? 'checked' : ''} 
                                    ${isManual ? 'disabled' : ''}
                                    onchange="KLITE_RPMod.panels.ROLES.toggleAutoResponses(this.checked)">
-                            <span style="font-weight: bold; color: ${isManual ? 'var(--muted)' : 'var(--text)'};">Enable Auto Responses</span>
+                            <strong>Enable Auto Responses</strong>
                         </label>
-                        ${isManual ? '<div style="font-size: 11px; color: var(--muted); margin-top: 4px;">Auto responses are disabled in Manual Order mode</div>' : ''}
+                        ${isManual ? '<div class="rpm-muted">Auto responses are disabled in Manual Order mode</div>' : ''}
                     </div>
                     
-                    <div style="margin-left: 20px;">
-                        <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
-                            <label style="font-size: 12px; color: var(--muted);">Delay between triggers:</label>
+                    <div class="klite-indent rpm-stack">
+                        <div class="rpm-row">
+                            <label class="rpm-muted" for="auto-response-delay">Delay between triggers:</label>
                             <input type="number" id="auto-response-delay" min="1" max="300" value="${this.autoResponses.delay}" 
                                    ${isDisabled ? 'disabled' : ''}
-                                   style="width: 60px; padding: 2px 4px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 2px; ${isDisabled ? 'opacity: 0.5; cursor: not-allowed;' : ''}"
+                                   class="form-control rpm-input klite-num"
                                    onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseDelay(this.value)">
-                            <span style="font-size: 12px; color: var(--muted);">seconds</span>
+                            <span class="rpm-muted">seconds</span>
                         </div>
                         
-                        <div style="margin-bottom: 6px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: ${isDisabled ? 'not-allowed' : 'pointer'}; font-size: 12px;">
+                        <div>
+                            <label class="rpm-check rpm-small ${isDisabled ? 'rpm-disabled' : ''}">
                                 <input type="checkbox" id="enable-self-answers" ${this.autoResponses.enableSelfAnswers ? 'checked' : ''}
                                        ${isDisabled ? 'disabled' : ''}
                                        onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseSetting('enableSelfAnswers', this.checked)">
-                                <span style="color: ${isDisabled ? 'var(--muted)' : 'var(--text)'};">Enable self-answers</span>
+                                <span>Enable self-answers</span>
                             </label>
                         </div>
                         
-                        <div style="margin-bottom: 6px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: ${isDisabled ? 'not-allowed' : 'pointer'}; font-size: 12px;">
+                        <div>
+                            <label class="rpm-check rpm-small ${isDisabled ? 'rpm-disabled' : ''}">
                                 <input type="checkbox" id="continue-without-player" ${this.autoResponses.continueWithoutPlayer ? 'checked' : ''}
                                        ${isDisabled ? 'disabled' : ''}
                                        onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseSetting('continueWithoutPlayer', this.checked)">
-                                <span style="color: ${isDisabled ? 'var(--muted)' : 'var(--text)'};">Continue without player input</span>
+                                <span>Continue without player input</span>
                             </label>
                         </div>
                         
@@ -268,34 +268,28 @@ export function installRolesPanel(S) {
 
         renderActiveChars() {
             if (this.activeChars.length === 0) {
-                return '<div class="klite-center klite-muted">No characters in group</div>';
+                return '<div class="rpm-center rpm-muted">No characters in group</div>';
             }
 
             return this.activeChars.map((char, i) => {
                 const avatar = KLITE_RPMod.getBestCharacterAvatar(char);
                 const isNext = (i === this.currentSpeaker);
                 const isLast = (i === this.lastSpeaker);
+                const name = KLITE_RPMod.escapeHtml(char.name || '');
                 return `
-                    <div style="display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; background: var(--bg2); ${isNext ? 'border-color: var(--accent); background: rgba(42, 168, 74, 0.12);' : isLast ? 'border-color: #e0b400; background: rgba(224, 180, 0, 0.12);' : ''}">
-                        ${avatar ? `
-                            <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                                ${KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width: 100%; height: 100%; object-fit: cover;')}
-                            </div>
-                        ` : `
-                            <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <span style="font-size: 18px;">${(char.name||'?').charAt(0)}</span>
-                            </div>
-                        `}
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="font-weight: bold; color: var(--text);">
-                                ${char.name}
-                                ${isLast ? '<span style="margin-left:6px; padding:1px 4px; font-size:10px; border-radius:3px; background:#e0b400; color:#000;">Last</span>' : ''}
-                                ${isNext ? '<span style="margin-left:6px; padding:1px 4px; font-size:10px; border-radius:3px; background:#2aa84a; color:#fff;">Next</span>' : ''}
-                            </div>
+                    <div class="klite-item-row ${isNext ? 'klite-is-next' : isLast ? 'klite-is-last' : ''}">
+                        <div class="rpm-avatar">
+                            ${avatar ? KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width: 100%; height: 100%; object-fit: cover;')
+                                     : `<span>${KLITE_RPMod.escapeHtml((char.name || '?').charAt(0))}</span>`}
                         </div>
-                        <div style="display: flex; gap: 4px; flex-shrink: 0;">
-                            <button class="klite-btn" data-action="set-speaker" data-index="${i}" style="padding: 4px 8px; font-size: 11px;">Set Next</button>
-                            <button class="klite-btn danger" data-action="remove-from-group" data-index="${i}" style="padding: 4px 8px; font-size: 11px;">Remove</button>
+                        <div class="rpm-grow">
+                            <strong>${name}</strong>
+                            ${isLast ? '<span class="rpm-tag klite-tag-last">Last</span>' : ''}
+                            ${isNext ? '<span class="rpm-tag klite-tag-next">Next</span>' : ''}
+                        </div>
+                        <div class="rpm-row">
+                            <button class="btn btn-primary rpm-btn" data-action="set-speaker" data-index="${i}">Set Next</button>
+                            <button class="btn btn-primary rpm-btn rpm-danger" data-action="remove-from-group" data-index="${i}">Remove</button>
                         </div>
                     </div>
                 `;
@@ -656,42 +650,27 @@ export function installRolesPanel(S) {
 
         showCustomCharacterModal(editChar = null) {
             const modal = document.createElement('div');
-            modal.className = 'klite-modal';
-            modal.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;';
+            modal.className = 'klite-modal rpm-themed';
+            const field = (v) => KLITE_RPMod.escapeHtml(v == null ? '' : String(v));
 
             modal.innerHTML = `
-                <div class="klite-modal-content" style="background: var(--bg2); border-radius: 8px; padding: 20px; max-width: 400px; border: 1px solid var(--border);">
-                    <h3 style="margin-top: 0; color: var(--text);">${editChar ? 'Edit Custom Character' : 'Add Custom Character'}</h3>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px;">Name</label>
-                        <input type="text" id="group-custom-char-name" placeholder="Character name" value="${editChar?.name || ''}"
-                            style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+                <div class="klite-modal-content klite-modal-sm">
+                    <div class="klite-modal-header"><h3>${editChar ? 'Edit Custom Character' : 'Add Custom Character'}</h3></div>
+                    <div class="klite-modal-body">
+                        <label class="rpm-label" for="group-custom-char-name">Name</label>
+                        <input type="text" id="group-custom-char-name" class="form-control rpm-input" placeholder="Character name" value="${field(editChar?.name)}">
+                        <label class="rpm-label" for="group-custom-char-talkativeness">Talkativeness (1-100)</label>
+                        <input type="number" id="group-custom-char-talkativeness" class="form-control rpm-input" min="1" max="100" value="${field(editChar?.talkativeness || 50)}">
+                        <label class="rpm-label" for="group-custom-char-keywords">Keywords (comma separated)</label>
+                        <input type="text" id="group-custom-char-keywords" class="form-control rpm-input" placeholder="keyword1, keyword2, keyword3" value="${field(editChar?.keywords ? editChar.keywords.join(', ') : '')}">
+                        <label class="rpm-label" for="group-custom-char-description">Description</label>
+                        <textarea id="group-custom-char-description" class="form-control rpm-input" placeholder="Brief character description">${field(editChar?.description)}</textarea>
                     </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px;">Talkativeness (1-100)</label>
-                        <input type="number" id="group-custom-char-talkativeness" min="1" max="100" value="${editChar?.talkativeness || 50}" 
-                            style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px;">Keywords (comma separated)</label>
-                        <input type="text" id="group-custom-char-keywords" placeholder="keyword1, keyword2, keyword3" value="${editChar?.keywords ? editChar.keywords.join(', ') : ''}"
-                            style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px;">Description</label>
-                        <textarea id="group-custom-char-description" placeholder="Brief character description" 
-                            style="width: 100%; height: 60px; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; resize: vertical;">${editChar?.description || ''}</textarea>
-                    </div>
-                    
-                    <div style="display: flex; gap: 10px;">
-                        <button class="klite-btn klite-btn-primary" data-action="confirm-custom-character" ${editChar ? `data-edit-char-id="${editChar.id}"` : ''} style="flex: 1;">
+                    <div class="klite-modal-footer">
+                        <button class="btn btn-primary rpm-btn" data-action="confirm-custom-character" ${editChar ? `data-edit-char-id="${field(editChar.id)}"` : ''}>
                             ${editChar ? 'Update Character' : 'Add Character'}
                         </button>
-                        <button class="klite-btn" data-action="close-group-char-modal" style="flex: 1;">
+                        <button class="btn btn-primary rpm-btn" data-action="close-group-char-modal">
                             Cancel
                         </button>
                     </div>

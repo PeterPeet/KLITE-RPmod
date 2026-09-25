@@ -209,6 +209,38 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-bar { height: 6px; background: var(--rpm-bg-outer); border-radius: 3px; overflow: hidden; margin-top: 3px; }
 .rpm-bar > span { display: block; height: 100%; }
 .rpm-log { background: var(--rpm-bg-chat); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); padding: 6px; font-size: var(--rpm-fs-sm); max-height: 140px; overflow: auto; line-height: 1.5; }
+/* layout helpers on the spacing scale (s1 4px, s2 8px, s3 12px) */
+.rpm-stack { display: flex; flex-direction: column; gap: var(--rpm-s2); }
+.rpm-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rpm-s1); }
+.rpm-fill { display: flex; flex-wrap: wrap; gap: var(--rpm-s1); }
+.rpm-fill > * { flex: 1 1 0; min-width: 0; }
+.rpm-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--rpm-s1); }
+.rpm-grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--rpm-s1); }
+.rpm-mt { margin-top: var(--rpm-s2); }
+.rpm-mb { margin-bottom: var(--rpm-s2); }
+.rpm-center { text-align: center; }
+.rpm-small { font-size: var(--rpm-fs-sm); }
+.rpm-empty { text-align: center; color: var(--rpm-fg-muted); padding: var(--rpm-s3); }
+.rpm-check { display: flex; align-items: center; gap: var(--rpm-s1); cursor: pointer; }
+.rpm-check input { margin: 0; }
+.rpm-check.rpm-disabled { cursor: not-allowed; color: var(--rpm-fg-muted); }
+.rpm-dim { opacity: .5; }
+.rpm-note { background: var(--rpm-bg-alt); border: 1px solid var(--rpm-border); border-left: 3px solid var(--rpm-quest); border-radius: var(--rpm-radius); padding: var(--rpm-s2); font-size: var(--rpm-fs-sm); }
+.rpm-avatar {
+    width: 40px; height: 40px; flex: none; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--rpm-border); background: var(--rpm-bg-alt); color: var(--rpm-fg-muted); font-size: var(--rpm-fs-lg);
+}
+.rpm-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rpm-tag { display: inline-block; padding: 0 4px; border-radius: 3px; font-size: var(--rpm-fs-sm); background: var(--rpm-accent-bg-hi); color: var(--rpm-accent-fg-hi); }
+.rpm-text-muted { color: var(--rpm-fg-muted); }
+.rpm-text-hi { color: var(--rpm-fg-hi); }
+.rpm-text-info { color: var(--rpm-info); }
+.rpm-text-quest { color: var(--rpm-quest); }
+.rpm-text-success { color: var(--rpm-success); }
+.rpm-text-danger { color: var(--rpm-danger); }
+.btn.rpm-btn.rpm-sm { padding: 3px 6px; min-width: 26px; }
+.btn.rpm-btn.rpm-warning { border-color: var(--rpm-quest); box-shadow: inset 3px 0 0 var(--rpm-quest); }
+.btn.rpm-btn:disabled, .btn.rpm-btn.disabled { opacity: .5; cursor: not-allowed; }
 
 /* ---- RPmod Guide window ---- */
 .rpm-guide { display: grid; grid-template-columns: 180px 1fr; gap: 14px; min-height: 100%; }
@@ -548,15 +580,10 @@ body.rpm-docked #maincontainer {
 }
 
 /* ---- the RP panels' right panel, adopted into the right dock ---- */
-#rpm-shell #panel-right.klite-panel {
-    position: static !important; transform: none !important; width: auto !important; height: 100% !important;
-    top: auto !important; right: auto !important; bottom: auto !important; left: auto !important;
-    box-shadow: none !important; border-left: 0 !important; display: flex !important; flex-direction: column;
-    visibility: visible !important; background: transparent !important;
-}
+#rpm-shell #panel-right { display: flex; flex-direction: column; height: 100%; }
 #rpm-shell #panel-right .klite-handle,
-#rpm-shell #panel-right > .klite-tabs { display: none !important; }   /* shell tabs replace its own tab bar */
-#rpm-shell #panel-right .klite-content { flex: 1 1 auto; max-height: none !important; padding: var(--rpm-s3); }
+#rpm-shell #panel-right > .klite-tabs { display: none; }   /* shell tabs replace its own tab bar */
+#rpm-shell #panel-right .klite-content { flex: 1 1 auto; padding: var(--rpm-s3); }
 `;
 
   // src/shell/icons.js
@@ -1864,6 +1891,7 @@ ${s.text}` : s.text : `[${s.title}]`;
 
   // src/rpmod/templates.js
   function installTemplates(S2) {
+    const BTN_VARIANTS = { primary: "", secondary: "", danger: "rpm-danger", success: "rpm-success", warning: "rpm-warning" };
     const t = {
       // Collapsible section with a header and content
       section: (title, content, collapsed = false) => `
@@ -1875,31 +1903,33 @@ ${s.text}` : s.text : `[${s.title}]`;
                 <div class="klite-section-content">${content}</div>
             </div>
         `,
+      // Shell button (btn btn-primary rpm-btn); older variant names map onto the shell's
       button: (text, className = "", action = "") => `
-            <button class="klite-btn ${className}" ${action ? `data-action="${action}"` : ""}>${text}</button>
+            <button class="${t.btnClass(className)}" ${action ? `data-action="${action}"` : ""}>${text}</button>
         `,
+      btnClass: (className = "") => ["btn btn-primary rpm-btn", ...String(className).split(/\s+/).filter(Boolean).map((c) => BTN_VARIANTS[c] ?? c)].filter(Boolean).join(" "),
       textarea: (id, placeholder = "", value = "") => `
-            <textarea id="${id}" class="klite-textarea form-control" placeholder="${placeholder}">${value}</textarea>
+            <textarea id="${id}" class="form-control rpm-input" placeholder="${placeholder}">${value}</textarea>
         `,
       input: (id, placeholder = "", type = "text", value = "") => `
-            <input type="${type}" id="${id}" class="klite-input form-control textbox" placeholder="${placeholder}" value="${value}">
+            <input type="${type}" id="${id}" class="form-control rpm-input" placeholder="${placeholder}" value="${value}">
         `,
       select: (id, options) => `
-            <select id="${id}" class="klite-select form-control">
+            <select id="${id}" class="form-control rpm-input">
                 ${options.map((o) => `<option value="${o.value}" ${o.selected ? "selected" : ""}>${o.text}</option>`).join("")}
             </select>
         `,
       checkbox: (id, label2, checked = false) => `
-            <label style="display: flex; align-items: center; gap: 2px; cursor: pointer;">
+            <label class="rpm-check">
                 <input type="checkbox" id="${id}" ${checked ? "checked" : ""}>
                 <span>${label2}</span>
             </label>
         `,
-      row: (content) => `<div class="klite-row">${content}</div>`,
-      muted: (text) => `<div class="klite-muted">${text}</div>`,
+      row: (content) => `<div class="rpm-row">${content}</div>`,
+      muted: (text) => `<div class="rpm-muted">${text}</div>`,
       slider: (id, min, max, value, label2 = "") => `
             <div>
-                ${label2 ? `<label for="${id}" style="display: block; margin-bottom: 5px; font-size: 12px;">${label2}</label>` : ""}
+                ${label2 ? `<label for="${id}" class="rpm-label">${label2}</label>` : ""}
                 <input type="range" id="${id}" class="klite-slider" min="${min}" max="${max}" value="${value}">
             </div>
         `
@@ -2024,103 +2054,110 @@ ${s.text}` : s.text : `[${s.title}]`;
   // src/rpmod/styles.js
   function installStyles(S2) {
     const STYLES_PANELS_ONLY = `
-        :root {
-            --bg: var(--theme_color_bg_outer, #182330);
-            --bg2: var(--theme_color_bg_popups, var(--theme_color_bg, #263040));
-            --bg3: var(--theme_color_bg_muted, var(--theme_color_bg_dark, #484d56));
-            --text: var(--theme_color_fg, var(--theme_color_text, #d1d1d1));
-            --glowtext: var(--theme_color_fg_highlight, var(--theme_color_glow_text, #94d7ff));
-            --muted: var(--theme_color_fg_muted, var(--theme_color_placeholder_text, #9b9b9b));
-            --border: var(--theme_color_border, #415577);
-            --border-highlight: var(--theme_color_border_highlight, #596985);
-            --accent: var(--theme_color_accent_bg_highlight, var(--theme_color_highlight, #596985));
-            --primary: var(--theme_color_accent_bg, var(--theme_color_button_bg, #32496d));
-            --primary-text: var(--theme_color_accent_fg, var(--theme_color_button_text, #d1d1d1));
-            --danger: var(--theme_color_rpmod_danger, #d9534f);
-            --success: var(--theme_color_rpmod_success, #5cb85c);
-            --warning: var(--theme_color_rpmod_quest, #f0ad4e);
-        }
-        /* Wrapper that doesn't block host interactions */
-        #klite-panels-only { position: fixed; inset: 0; pointer-events: none; z-index: 2147483638; }
-        /* Ensure descendants accept events even if wrapper is non-interactive */
-        #klite-panels-only * { pointer-events: auto; }
-        /* Panels remain interactive and above host */
-        .klite-panel { pointer-events: auto; position: fixed; background: var(--bg2); box-shadow: 0 0 10px rgba(0,0,0,0.5); z-index: 2147483640; }
-        /* v2: left panel removed */
-        .klite-panel-right { right: 0; top: 0; bottom: 0; width: 350px; border-left: 1px solid var(--border); transition: transform 0.2s ease; }
-        .klite-panel-right.collapsed { transform: translateX(350px); }
-        .klite-handle { position: absolute; background: var(--bg2); border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; z-index: 9; pointer-events: auto; }
-        .klite-handle:hover { background: var(--bg3); color: var(--text); }
-        .klite-panel-right .klite-handle { left: -15px; top: 50%; transform: translateY(-50%); width: 15px; height: 50px; border-radius: 5px 0 0 5px; }
-        /* the panel's own tab bar (hidden inside the RPmod shell, which has its own tabs) */
-        .klite-tabs { display: flex; gap: 3px; padding: 6px 8px; background: var(--theme_color_topmenu); border-bottom: 1px solid var(--border); }
-        .klite-tab { flex: 1; padding: 6px 4px; border: 1px solid var(--border); border-radius: 5px; color: var(--primary-text); cursor: pointer; font-size: var(--theme_font_size_small, 9pt); font-weight: bold; text-align: center; background: var(--theme_color_topbtn, var(--primary)); line-height: 1.1; }
-        .klite-tab:hover, .klite-tab.active { background: var(--theme_color_accent_bg_highlight); border-color: var(--border-highlight); color: var(--theme_color_accent_fg_highlight, var(--primary-text)); }
-
-        .klite-content { overflow-y: auto; overflow-x: hidden; padding: 12px; max-height: calc(100vh - 60px); color: var(--text); font-family: var(--theme_font_family, inherit); font-size: var(--theme_font_size_medium, 10pt); }
+        /* the shell adopts #panel-right out of this wrapper at start-up (src/shell/shell.js) */
+        #klite-panels-only { display: none; }
+        .klite-content { overflow-y: auto; overflow-x: hidden; color: var(--rpm-fg); font-family: var(--rpm-font); font-size: var(--rpm-fs); }
         /* sections = Esolite popup title bar + body */
-        .klite-section { margin-bottom: 12px; background: transparent; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
-        .klite-section-header { padding: 6px 10px; background: var(--primary); color: var(--primary-text); font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
-        .klite-section-header:hover { background: var(--theme_color_accent_bg_highlight); color: var(--theme_color_accent_fg_highlight, var(--primary-text)); }
+        .klite-section { margin-bottom: var(--rpm-s3); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); overflow: hidden; }
+        .klite-section-header {
+            display: flex; justify-content: space-between; align-items: center; gap: var(--rpm-s2); padding: 6px var(--rpm-s2);
+            background: var(--rpm-accent-bg); color: var(--rpm-accent-fg); font-weight: bold; cursor: pointer; user-select: none;
+        }
+        .klite-section-header:hover { background: var(--rpm-accent-bg-hi); color: var(--rpm-accent-fg-hi); }
         .klite-section.collapsed .klite-section-content { display: none; }
-        .klite-section-content { padding: 10px; }
-        /* Utilities */
-        .klite-row { display: flex; gap: 4px; align-items: center; }
-        .klite-buttons-left { display: flex; gap: 4px; justify-content: flex-start; flex-wrap: wrap; }
-        .klite-buttons-center { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
-        .klite-buttons-right { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; }
-        .klite-buttons-spread { display: flex; gap: 4px; justify-content: space-between; flex-wrap: wrap; }
-        /* Inputs = Esolite .form-control */
-        .klite-input, .klite-textarea, .klite-select { width: 100%; padding: 4px 6px; background: var(--theme_color_input_bg); border: 1px solid var(--border); border-radius: 4px; color: var(--theme_color_input_fg, var(--theme_color_input_text)); font: inherit; font-size: var(--theme_font_size_small, 9pt); box-sizing: border-box; }
-        .klite-textarea { resize: vertical; min-height: 80px; }
-        .klite-input:focus, .klite-textarea:focus, .klite-select:focus { outline: none; border-color: var(--border-highlight); box-shadow: none; }
-        .klite-input::placeholder, .klite-textarea::placeholder { color: var(--muted); }
-        /* Buttons = Esolite .btn-primary */
-        .klite-btn { padding: 4px 8px; background: var(--primary); border: 1px solid var(--border); border-radius: 5px; color: var(--primary-text); cursor: pointer; font: inherit; font-size: var(--theme_font_size_small, 9pt); line-height: 1.3; transition: background .15s, border-color .15s; }
-        .klite-btn:hover { background: var(--theme_color_accent_bg_highlight); border-color: var(--border-highlight); color: var(--theme_color_accent_fg_highlight, var(--primary-text)); }
-        .klite-btn.btn.btn-primary { background-color: var(--primary) !important; color: var(--primary-text) !important; border-color: var(--border) !important; }
-        .klite-btn.danger { box-shadow: inset 3px 0 0 var(--danger); border-color: var(--danger); }
-        .klite-btn.success { box-shadow: inset 3px 0 0 var(--success); border-color: var(--success); }
-        .klite-btn.warning { box-shadow: inset 3px 0 0 var(--warning); border-color: var(--warning); }
-        .klite-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .klite-btn-sm { padding: 3px 6px; min-width: 26px; text-align: center; }
-        .klite-btn-xs { padding: 2px 6px; min-height: 22px; }
-        /* Modals = Esolite popups (dim layer, title bar, body, footer strip) */
-        .klite-modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); font-family: var(--theme_font_family, inherit); font-size: var(--theme_font_size_medium, 10pt); color: var(--text); }
-        .klite-modal-content { display: flex; flex-direction: column; max-height: 88vh; max-width: min(800px, 94vw); min-width: min(360px, 94vw) !important; overflow: hidden; padding: 0 !important; background: var(--bg2) !important; border: 1px solid var(--border) !important; border-radius: 8px !important; box-shadow: 0 12px 36px rgba(0,0,0,0.4); color: var(--text); }
-        .klite-modal-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; margin: 0; background: var(--primary); color: var(--primary-text); border: 0; }
-        .klite-modal-header h2, .klite-modal-header h3 { margin: 0; font-size: var(--theme_font_size_large, 11pt); font-weight: bold; color: inherit; }
-        .klite-modal-close { background: none; border: 1px solid transparent; color: inherit; font-size: 18px; cursor: pointer; padding: 0; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 5px; }
-        .klite-modal-close:hover { background: var(--theme_color_accent_bg_highlight); border-color: var(--border-highlight); }
-        .klite-modal-body { flex: 1 1 auto; overflow-y: auto; padding: 12px; }
-        .klite-modal-footer { display: flex; gap: 6px; justify-content: flex-end; padding: 8px 10px; margin: 0; border-top: 1px solid var(--border); background: var(--bg2); }
-        .klite-modal-footer .klite-btn { flex: 1; }
-        /* Dice (match v1) */
-        .klite-dice-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 10px; }
-        .klite-dice-btn { padding: 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); cursor: pointer; transition: all 0.2s; }
-        .klite-dice-btn:hover { background: var(--bg3); border-color: var(--border-highlight); }
-        .klite-dice-result { background: var(--bg3); border-radius: 4px; padding: 15px; text-align: center; min-height: 80px; }
-
-        /* Context Analyzer (token bar + legend) */
-        .klite-token-bar-container { margin-bottom: 10px; }
-        .klite-token-bar { display: flex; height: 20px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+        .klite-section-content { padding: var(--rpm-s2) var(--rpm-s3) var(--rpm-s3); }
+        .klite-content .rpm-input + .rpm-input, .klite-content .rpm-input + .rpm-label { margin-top: var(--rpm-s2); }
+        /* modals = Esolite popups (dim layer, title bar, body, footer strip) */
+        .klite-modal {
+            position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6);
+            font-family: var(--rpm-font); font-size: var(--rpm-fs); color: var(--rpm-fg);
+        }
+        .klite-modal-content {
+            display: flex; flex-direction: column; max-height: 88vh; width: min(640px, 94vw); max-width: 94vw; overflow: hidden;
+            background: var(--rpm-bg); border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius-lg); box-shadow: var(--rpm-shadow); color: var(--rpm-fg);
+        }
+        .klite-modal-content.klite-modal-sm { width: min(400px, 94vw); }
+        .klite-modal-header { display: flex; justify-content: space-between; align-items: center; gap: var(--rpm-s2); padding: var(--rpm-s2) var(--rpm-s3); background: var(--rpm-accent-bg); color: var(--rpm-accent-fg); }
+        .klite-modal-header h2, .klite-modal-header h3 { margin: 0; font-size: var(--rpm-fs-lg); font-weight: bold; color: inherit; }
+        .klite-modal-close {
+            display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border-radius: var(--rpm-radius);
+            background: none; border: 1px solid transparent; color: inherit; font-size: 18px; cursor: pointer;
+        }
+        .klite-modal-close:hover { background: var(--rpm-accent-bg-hi); border-color: var(--rpm-border-hi); }
+        .klite-modal-body { flex: 1 1 auto; overflow-y: auto; padding: var(--rpm-s3); }
+        .klite-modal-body > p { margin: 0; }
+        .klite-modal-footer { display: flex; gap: var(--rpm-s2); justify-content: flex-end; padding: var(--rpm-s2) var(--rpm-s3); border-top: 1px solid var(--rpm-border); }
+        .klite-modal-footer .rpm-btn { flex: 1; }
+        /* character rows (group list, selection modal) */
+        .klite-item-row { display: flex; align-items: center; gap: var(--rpm-s2); padding: var(--rpm-s2); margin-bottom: var(--rpm-s2); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); background: var(--rpm-bg); }
+        .klite-item-row:last-child { margin-bottom: 0; }
+        .klite-item-row.klite-is-next { border-color: var(--rpm-success); background: color-mix(in srgb, var(--rpm-success) 12%, var(--rpm-bg)); }
+        .klite-item-row.klite-is-last { border-color: var(--rpm-quest); background: color-mix(in srgb, var(--rpm-quest) 12%, var(--rpm-bg)); }
+        .rpm-tag.klite-tag-next { background: var(--rpm-success); color: #fff; margin-left: var(--rpm-s1); }
+        .rpm-tag.klite-tag-last { background: var(--rpm-quest); color: #000; margin-left: var(--rpm-s1); }
+        .klite-pick-row { cursor: pointer; }
+        .klite-pick-list { max-height: 400px; overflow-y: auto; border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); padding: var(--rpm-s2); background: var(--rpm-bg-outer); }
+        .klite-indent { margin-left: 20px; }
+        .klite-pick-desc { max-height: 32px; overflow: hidden; margin: 2px 0; }
+        .klite-pick-row input { margin: 0; }
+        .klite-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--rpm-s1); }
+        /* safeImageHTML: an external image waits for a click (size comes from the caller) */
+        .klite-safe-image { display: flex; flex-direction: column; align-items: center; gap: var(--rpm-s1); }
+        .klite-image-blocked { display: flex; align-items: center; justify-content: center; padding: var(--rpm-s2) var(--rpm-s3); background: var(--rpm-bg-alt); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); color: var(--rpm-fg-muted); }
+        .klite-item-row.klite-is-ai { border-color: var(--rpm-info); background: color-mix(in srgb, var(--rpm-info) 12%, var(--rpm-bg)); }
+        /* inset = the panel background, darkened (follows the theme) */
+        .klite-inset, .klite-box { background: color-mix(in srgb, var(--rpm-bg) 80%, #000); border-radius: var(--rpm-radius); padding: var(--rpm-s2); }
+        .klite-box { padding: var(--rpm-s3); }
+        .klite-item-row > .rpm-grow { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
+        .klite-item-row .rpm-btn { white-space: nowrap; }
+        .klite-disabled { opacity: .5; pointer-events: none; }
+        .klite-slots { display: flex; flex-direction: column; gap: var(--rpm-s1); }
+        #rpm-shell .klite-auto-sender textarea.form-control.rpm-input { min-height: 40px; }
+        #rpm-shell .btn.rpm-btn.klite-slot-btn { flex: none; width: 32px; min-width: 32px; padding-left: 0; padding-right: 0; }
+        .klite-slider { width: 100%; }
+        /* auto sender countdown ring; --klite-progress is set from the timer */
+        .klite-auto-countdown {
+            flex: none; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: var(--rpm-fs-sm); color: var(--rpm-fg); border: 2px solid var(--rpm-border);
+            background: conic-gradient(var(--rpm-info) 0 var(--klite-progress, 0%), var(--rpm-bg-alt) var(--klite-progress, 0%) 100%);
+        }
+        /* Chars: import drop zone, character detail view */
+        #rpm-shell .btn.rpm-btn.klite-drop-btn { padding: 18px var(--rpm-s3); font-size: var(--rpm-fs); }
+        #rpm-shell .btn.rpm-btn.rpm-chars-link { justify-content: flex-start; text-align: left; margin-bottom: var(--rpm-s1); }
+        .klite-detail-head { display: flex; justify-content: space-between; align-items: center; gap: var(--rpm-s2); margin-bottom: var(--rpm-s3); padding-bottom: var(--rpm-s2); border-bottom: 1px solid var(--rpm-border); }
+        .klite-detail-head h2 { margin: 0; }
+        .klite-profile { text-align: center; }
+        .klite-profile-noimg { width: 100px; height: 100px; margin: 0 auto var(--rpm-s2); display: flex; align-items: center; justify-content: center; font-size: 48px; color: var(--rpm-fg-muted); }
+        .klite-pre { white-space: pre-wrap; line-height: 1.5; }
+        .klite-entry { margin-bottom: var(--rpm-s3); padding: var(--rpm-s3); background: var(--rpm-bg-alt); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); }
+        .klite-entry:last-child { margin-bottom: 0; }
+        .klite-entry.klite-entry-active { border-color: var(--rpm-info); background: color-mix(in srgb, var(--rpm-info) 15%, var(--rpm-bg-alt)); }
+        .klite-entry-head { display: flex; justify-content: space-between; align-items: center; gap: var(--rpm-s2); margin-bottom: var(--rpm-s2); }
+        .rpm-chip.klite-tag-pill { cursor: pointer; }
+        .rpm-chip.klite-tag-pill.selected { background: var(--rpm-accent-bg-hi); border-color: var(--rpm-border-hi); color: var(--rpm-accent-fg-hi); }
+        /* RPmod block in Esolite's settings */
+        .klite-settings { margin: var(--rpm-s2) 0; color: var(--rpm-fg); }
+        .klite-topics { gap: var(--rpm-s1) var(--rpm-s2); line-height: 1.6; }
+        .klite-timeline-item { padding: var(--rpm-s2); cursor: pointer; border-radius: var(--rpm-radius); }
+        .klite-timeline-item:hover { background: var(--rpm-bg-alt); }
+        #rpm-shell .form-control.rpm-input.klite-num { width: 64px; flex: none; }
+        .klite-pick-desc { max-height: 32px; overflow: hidden; margin: 2px 0; }
+        /* dice result */
+        .klite-dice-total { font-size: 24px; font-weight: bold; color: var(--rpm-fg-hi); }
+        .klite-dice-result { background: var(--rpm-bg-alt); border-radius: var(--rpm-radius); padding: var(--rpm-s3); text-align: center; min-height: 80px; }
+        /* context analyzer: token bar + legend (segment widths are set from the data) */
+        .klite-token-bar { display: flex; height: 20px; margin-bottom: var(--rpm-s2); background: var(--rpm-bg-alt); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); overflow: hidden; }
         .klite-token-segment { height: 100%; transition: width 0.3s ease; }
-        .klite-memory-segment { background: #5bc0de; }
-        .klite-wi-segment { background: #5cb85c; }
-        .klite-story-segment { background: #f0ad4e; }
-        .klite-anote-segment { background: #d9534f; }
-        .klite-free-segment { background: var(--bg3); }
-        .klite-token-legend { margin-bottom: 10px; font-size: 11px; }
-        .klite-token-legend-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
-        .klite-token-legend-item { display: flex; align-items: center; gap: 4px; }
+        .klite-memory-segment { background: var(--rpm-info); }
+        .klite-wi-segment { background: var(--rpm-success); }
+        .klite-story-segment { background: var(--rpm-quest); }
+        .klite-anote-segment { background: var(--rpm-danger); }
+        .klite-free-segment { background: var(--rpm-bg-alt); }
+        .klite-token-legend { margin-bottom: var(--rpm-s2); font-size: var(--rpm-fs-sm); }
+        .klite-token-legend-item { display: flex; align-items: center; gap: var(--rpm-s1); }
         .klite-token-legend-color { width: 12px; height: 12px; border-radius: 2px; }
-        .klite-token-legend-label { color: var(--muted); }
-        .klite-token-legend-value { color: var(--text); font-weight: bold; }
-
-        /* Timeline (Bookmarks / Index) */
-        .klite-timeline { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; padding: 8px; min-height: 200px; max-height: 400px; overflow-y: auto; }
-        .klite-timeline-item { padding: 8px; margin-bottom: 4px; cursor: pointer; border-radius: 4px; transition: background 0.2s; }
-        .klite-timeline-item:hover { background: var(--bg3); }
+        .klite-token-legend-label { color: var(--rpm-fg-muted); }
+        .klite-token-legend-value { color: var(--rpm-fg); font-weight: bold; }
     `;
     S2.STYLES_PANELS_ONLY = STYLES_PANELS_ONLY;
   }
@@ -2734,8 +2771,6 @@ ${s.text}` : s.text : `[${s.title}]`;
               });
             } catch (_) {
             }
-            this.applyPanelsHostTheme();
-            this.startPanelsThemeObserver();
             Promise.resolve().then(async () => {
               try {
                 await this.initializeStorageKeys();
@@ -2994,7 +3029,7 @@ ${s.text}` : s.text : `[${s.title}]`;
           document.body.appendChild(wrapper);
         }
         wrapper.innerHTML = `
-                <div class="klite-panel klite-panel-right ${this.state.collapsed?.right ? "collapsed" : ""}" id="panel-right">
+                <div class="klite-panel klite-panel-right rpm-themed ${this.state.collapsed?.right ? "collapsed" : ""}" id="panel-right">
                     <div class="klite-handle" data-panel="right">${this.state.collapsed?.right ? "◀" : "▶"}</div>
                     <div class="klite-tabs" data-panel="right">
                         ${[
@@ -3061,37 +3096,6 @@ ${s.text}` : s.text : `[${s.title}]`;
         } catch (_) {
         }
         this.log("init", "Panels-only UI built");
-      },
-      // Right Panel-only theme: approximate Esobold’s active theme by sampling host styles
-      applyPanelsHostTheme() {
-        try {
-          const wrap = document.getElementById("klite-panels-only");
-          if (!wrap) return;
-          ["bg", "bg2", "bg3", "text", "muted", "border", "border-highlight", "accent", "primary", "primary-text"].forEach((k2) => {
-            try {
-              wrap.style.removeProperty(`--${k2}`);
-            } catch (_) {
-            }
-          });
-          this.log("init", "Panels theme: using :root bindings to Esolite theme variables");
-        } catch (e) {
-          this.log("init", `Theme apply skipped: ${e?.message || e}`);
-        }
-      },
-      startPanelsThemeObserver() {
-        try {
-          if (this._panelsThemeObserver) return;
-          this._panelsThemeObserver = new MutationObserver(() => {
-            try {
-              this.applyPanelsHostTheme();
-            } catch (_) {
-            }
-          });
-          this._panelsThemeObserver.observe(document.body, { attributes: true, attributeFilter: ["class", "style"] });
-          this.log("init", "Panels theme observer installed");
-        } catch (e) {
-          this.log("init", `Panels theme observer skipped: ${e?.message || e}`);
-        }
       },
       // computeHostColorsFromDOM removed in v2 (unused)
       handleClick(e) {
@@ -3520,34 +3524,31 @@ ${s.text}` : s.text : `[${s.title}]`;
             if (!pane.querySelector("#rpmod-debug-settings")) {
               const dbg = document.createElement("div");
               dbg.id = "rpmod-debug-settings";
-              dbg.style.cssText = "padding:8px; border:1px solid var(--theme_color_border); border-radius:6px; background: var(--theme_color_bg_dark); margin-top:10px; color: var(--muted);";
+              dbg.className = "rpm-themed klite-box rpm-muted rpm-mt";
               dbg.innerHTML = `
-                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                            <label class="rpm-check rpm-mb">
                                 <input type="checkbox" id="rpmod-debug-enabled" ${this.debug ? "checked" : ""}>
-                                <span style="font-weight:bold;">Enable RPmod Debug Logging</span>
-                            </div>
-                            <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:12px; line-height:1.6;">
+                                <strong>Enable RPmod Debug Logging</strong>
+                            </label>
+                            <div class="rpm-wrap rpm-small klite-topics">
                                 ${["chat", "narrator", "storage", "network", "esolite", "panels", "group", "avatars", "state", "generation", "hooks", "ui"].map((topic) => `
-                                    <label style=\\"display:flex; align-items:center; gap:6px;\\">
+                                    <label class=\\"rpm-check\\">
                                         <input type=\\"checkbox\\" class=\\"rpmod-debug-topic\\" data-topic=\\"${topic}\\" ${this.debugLevels?.[topic] ? "checked" : ""}>
                                         <span>${topic}</span>
                                     </label>
                                 `).join("")}
                             </div>
-                            <div style="display:flex; gap:6px; margin-top:8px;">
+                            <div class="rpm-row rpm-mt">
                                 <button id="rpmod-debug-all" class="btn btn-primary btn-small">All</button>
                                 <button id="rpmod-debug-none" class="btn btn-primary btn-small">None</button>
                                 <button id="rpmod-debug-recommended" class="btn btn-primary btn-small">Recommended</button>
                             </div>
-                            <div id="rpmod-debug-active" style="margin-top:6px; font-size:11px; color: var(--muted);"></div>`;
+                            <div id="rpmod-debug-active" class="rpm-muted rpm-mt"></div>`;
               (wrap2 || pane).appendChild(dbg);
               try {
                 const btnRow = dbg.querySelector("#rpmod-debug-all")?.parentElement || null;
                 const row2 = document.createElement("div");
-                row2.style.display = "flex";
-                row2.style.alignItems = "center";
-                row2.style.gap = "8px";
-                row2.style.margin = "6px 0";
+                row2.className = "rpm-check rpm-mt";
                 const cb = document.createElement("input");
                 cb.type = "checkbox";
                 cb.id = "rpmod-debug-restore-console";
@@ -3665,32 +3666,31 @@ ${s.text}` : s.text : `[${s.title}]`;
           }
           const wrap = document.createElement("div");
           wrap.id = "rpmod-settings-wrapper";
-          wrap.style.margin = "8px 0";
+          wrap.className = "rpm-themed klite-settings";
           wrap.innerHTML = `
-                    <label style="display:flex; align-items:center; gap:8px; font-size: 13px; color: var(--muted);">
+                    <label class="rpm-check rpm-text-muted">
                         <input type="checkbox" id="rpmod-hide-corpo-leftpanel" ${this.getHideCorpoLeftpanelEnabled() ? "checked" : ""}>
                         Hide Corpo-LeftPanel in Corpo-Theme
                     </label>
-                    <div style="height:10px"></div>
-                    <div id="rpmod-debug-settings" style="padding:8px; border:1px solid var(--theme_color_border); border-radius:6px; background: var(--theme_color_bg_dark); color: var(--muted);">
-                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                    <div id="rpmod-debug-settings" class="klite-box rpm-muted rpm-mt">
+                        <label class="rpm-check rpm-mb">
                             <input type="checkbox" id="rpmod-debug-enabled" ${this.debug ? "checked" : ""}>
-                            <span style="font-weight:bold;">Enable RPmod Debug Logging</span>
-                        </div>
-                        <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:12px; line-height:1.6;">
+                            <strong>Enable RPmod Debug Logging</strong>
+                        </label>
+                        <div class="rpm-wrap rpm-small klite-topics">
                             ${["chat", "narrator", "storage", "network", "esolite", "panels", "group", "avatars", "state", "generation", "hooks", "ui"].map((topic) => `
-                                <label style="display:flex; align-items:center; gap:6px;">
+                                <label class="rpm-check">
                                     <input type="checkbox" class="rpmod-debug-topic" data-topic="${topic}" ${this.debugLevels?.[topic] ? "checked" : ""}>
                                     <span>${topic}</span>
                                 </label>
                             `).join("")}
                         </div>
-                        <div style="display:flex; gap:6px; margin-top:8px;">
+                        <div class="rpm-row rpm-mt">
                             <button id="rpmod-debug-all" class="btn btn-primary btn-small">All</button>
                             <button id="rpmod-debug-none" class="btn btn-primary btn-small">None</button>
                             <button id="rpmod-debug-recommended" class="btn btn-primary btn-small">Recommended</button>
                         </div>
-                        <div id="rpmod-debug-active" style="margin-top:6px; font-size:11px; color: var(--muted);"></div>
+                        <div id="rpmod-debug-active" class="rpm-muted rpm-mt"></div>
                     </div>
                 `;
           pane.appendChild(wrap);
@@ -3713,10 +3713,7 @@ ${s.text}` : s.text : `[${s.title}]`;
             const btnRow = wrap.querySelector("#rpmod-debug-all")?.parentElement || null;
             if (dbgBox) {
               const row2 = document.createElement("div");
-              row2.style.display = "flex";
-              row2.style.alignItems = "center";
-              row2.style.gap = "8px";
-              row2.style.margin = "6px 0";
+              row2.className = "rpm-check rpm-mt";
               const cb2 = document.createElement("input");
               cb2.type = "checkbox";
               cb2.id = "rpmod-debug-restore-console";
@@ -3955,43 +3952,43 @@ ${s.text}` : s.text : `[${s.title}]`;
               render() {
                 return `
                                 ${t.section("🎨 Image Generation", `
-                                    <div class="klite-image-status" style="margin-bottom: 12px; padding: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;">
-                                        <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px;">Image Generation Status</div>
-                                        <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
-                                            <div><span style="color: var(--muted);">Provider:</span> <span id="scene-mode-status" style="color: var(--text); font-weight: bold;">${KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode)}</span></div>
-                                            <div><span style="color: var(--muted);">Model:</span> <span id="scene-model-status" style="color: var(--text); font-weight: bold;">${KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode) === "AI Horde" ? window.localsettings?.generate_images_model || "Default" : "-"}</span></div>
+                                    <div class="klite-image-status rpm-card rpm-mb">
+                                        <div class="rpm-small rpm-mb"><strong>Image Generation Status</strong></div>
+                                        <div class="rpm-small">
+                                            <div><span class="rpm-text-muted">Provider:</span> <strong id="scene-mode-status">${KLITE_RPMod.escapeHtml(KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode))}</strong></div>
+                                            <div><span class="rpm-text-muted">Model:</span> <strong id="scene-model-status">${KLITE_RPMod.escapeHtml(KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode) === "AI Horde" ? window.localsettings?.generate_images_model || "Default" : "-")}</strong></div>
                                         </div>
                                     </div>
-                                    <div class="klite-image-controls" style="margin-bottom: 12px;">
-                                        <label style="display: block; margin-bottom: 4px; font-size: 12px;">Auto-generate:</label>
+                                    <div class="klite-image-controls rpm-mb">
+                                        <label class="rpm-label" for="scene-autogen">Auto-generate:</label>
                                         ${t.select("scene-autogen", [
                   { value: "0", text: "Off", selected: String(window.localsettings?.img_autogen_type ?? 0) === "0" },
                   { value: "1", text: "Basic", selected: String(window.localsettings?.img_autogen_type ?? 0) === "1" },
                   { value: "2", text: "Smart", selected: String(window.localsettings?.img_autogen_type ?? 0) === "2" }
                 ])}
-                                        <div style="margin-top: 8px;">${t.checkbox("scene-detect", "Detect ImgGen Instructions", !!window.localsettings?.img_gen_from_instruct)}</div>
+                                        <div class="rpm-mt">${t.checkbox("scene-detect", "Detect ImgGen Instructions", !!window.localsettings?.img_gen_from_instruct)}</div>
                                     </div>
                                     <div class="klite-image-generation-section">
-                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Scene & Characters</div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; margin-bottom: 10px;">
-                                            ${t.button("🏞️ Current Scene", "klite-btn-sm", "gen-scene")}
-                                            ${t.button("🤖 AI Character", "klite-btn-sm", "gen-ai-portrait")}
-                                            ${t.button("👤 Persona", "klite-btn-sm", "gen-user-portrait")}
-                                            ${t.button("👥 Group Shot", "klite-btn-sm", "gen-group")}
+                                        <div class="rpm-small rpm-mb"><strong>Scene & Characters</strong></div>
+                                        <div class="rpm-grid2 rpm-mb">
+                                            ${t.button("🏞️ Current Scene", "rpm-sm", "gen-scene")}
+                                            ${t.button("🤖 AI Character", "rpm-sm", "gen-ai-portrait")}
+                                            ${t.button("👤 Persona", "rpm-sm", "gen-user-portrait")}
+                                            ${t.button("👥 Group Shot", "rpm-sm", "gen-group")}
                                         </div>
-                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Events & Actions</div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; margin-bottom: 10px;">
-                                            ${t.button("⚔️ Combat", "klite-btn-sm", "gen-combat")}
-                                            ${t.button("💬 Dialogue", "klite-btn-sm", "gen-dialogue")}
-                                            ${t.button("🎭 Plot", "klite-btn-sm", "gen-dramatic")}
-                                            ${t.button("🌅 Atmosphere", "klite-btn-sm", "gen-atmosphere")}
+                                        <div class="rpm-small rpm-mb"><strong>Events & Actions</strong></div>
+                                        <div class="rpm-grid2 rpm-mb">
+                                            ${t.button("⚔️ Combat", "rpm-sm", "gen-combat")}
+                                            ${t.button("💬 Dialogue", "rpm-sm", "gen-dialogue")}
+                                            ${t.button("🎭 Plot", "rpm-sm", "gen-dramatic")}
+                                            ${t.button("🌅 Atmosphere", "rpm-sm", "gen-atmosphere")}
                                         </div>
-                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Context-Based</div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px;">
-                                            ${t.button("📝 Memory", "klite-btn-sm", "gen-memory")}
-                                            ${t.button("📄 Last Message", "klite-btn-sm", "gen-last-message")}
-                                            ${t.button("🔄 Recent Events", "klite-btn-sm", "gen-recent")}
-                                            ${t.button("🎯 Custom", "klite-btn-sm", "gen-custom")}
+                                        <div class="rpm-small rpm-mb"><strong>Context-Based</strong></div>
+                                        <div class="rpm-grid2">
+                                            ${t.button("📝 Memory", "rpm-sm", "gen-memory")}
+                                            ${t.button("📄 Last Message", "rpm-sm", "gen-last-message")}
+                                            ${t.button("🔄 Recent Events", "rpm-sm", "gen-recent")}
+                                            ${t.button("🎯 Custom", "rpm-sm", "gen-custom")}
                                         </div>
                                     </div>
                                 `)}
@@ -5092,7 +5089,7 @@ ${s.text}` : s.text : `[${s.title}]`;
             signature |= 0;
           }
           if (this._lastChatSignature !== signature) {
-            display.innerHTML = html || '<p class="klite-center klite-muted">No content yet...</p>';
+            display.innerHTML = html || '<p class="rpm-center rpm-muted">No content yet...</p>';
             this._lastChatSignature = signature;
             this.updateGroupAvatars();
           }
@@ -5131,16 +5128,8 @@ ${s.text}` : s.text : `[${s.title}]`;
         if (connEl) {
           connEl.textContent = connectionText;
           const isConnected = !hasDisconnectedClass;
-          connEl.style.color = isConnected ? "#5cb85c" : "#d9534f";
-          connEl.style.backgroundColor = "";
-          connEl.style.padding = "";
-          connEl.style.borderRadius = "";
-          connEl.style.fontWeight = "";
-          const infoDiv = connEl.closest(".klite-info");
-          if (infoDiv) {
-            infoDiv.style.border = "";
-            infoDiv.style.backgroundColor = "";
-          }
+          connEl.classList.toggle("rpm-text-success", isConnected);
+          connEl.classList.toggle("rpm-text-danger", !isConnected);
           this.log("status", `Updated connection span to: "${connectionText}", color: ${isConnected ? "green" : "red"}`);
         }
         const waitEl = document.getElementById("wait");
@@ -5324,10 +5313,9 @@ ${s.text}` : s.text : `[${s.title}]`;
         }
       },
       // Helper functions
+      // Safe in text and in quoted attribute values
       escapeHtml(text) {
-        const div = document.createElement("div");
-        div.textContent = text == null ? "" : String(text);
-        return div.innerHTML;
+        return (text == null ? "" : String(text)).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
       },
       // Render an image safely. Only auto-loads data: or blob: URLs.
       // For external http/https, shows a button to opt-in to load.
@@ -5342,11 +5330,11 @@ ${s.text}` : s.text : `[${s.title}]`;
           }
           const eUrl = this.escapeHtml(src);
           return `
-                    <div class="klite-safe-image" style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-                        <div class="klite-image-blocked" style="${eStyle};display:flex;align-items:center;justify-content:center;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--muted);">
-                            <span style="padding:8px 12px;">External image hidden</span>
+                    <div class="klite-safe-image">
+                        <div class="klite-image-blocked" style="${eStyle}">
+                            <span>External image hidden</span>
                         </div>
-                        <button class="klite-btn secondary" data-action="rpmod-load-image" data-url="${eUrl}" data-alt="${eAlt}" data-style="${eStyle}" style="align-self:center;">Load image</button>
+                        <button class="btn btn-primary rpm-btn" data-action="rpmod-load-image" data-url="${eUrl}" data-alt="${eAlt}" data-style="${eStyle}">Load image</button>
                     </div>
                 `;
         } catch (_) {
@@ -5358,31 +5346,25 @@ ${s.text}` : s.text : `[${s.title}]`;
       // =============================================
       showUnifiedCharacterModal(mode2 = "multi-select", onSelectCallback = null) {
         const modal = document.createElement("div");
-        modal.className = "klite-modal";
-        modal.style.cssText = "position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;";
+        modal.className = "klite-modal rpm-themed";
         const isMultiSelect = mode2 === "multi-select";
         const title = isMultiSelect ? "Select Characters for Group" : "Select Character";
         const description = isMultiSelect ? "Choose characters from the library to add to your group chat." : "Choose a character to apply to your conversation.";
         const buttonText = isMultiSelect ? "Add Selected Characters" : "Select Character";
         const selectionType = isMultiSelect ? "checkbox" : "radio";
         modal.innerHTML = `
-                <div class="klite-modal-content" style="background: var(--bg2); border-radius: 8px; padding: 20px; border: 1px solid var(--border); min-width: 600px; max-width: 800px;">
+                <div class="klite-modal-content">
                     <div class="klite-modal-header">
                         <h3>${title}</h3>
                     </div>
-                    <div class="klite-modal-body">
-                        <p style="color: var(--muted); font-size: 12px; margin-bottom: 15px;">
-                            ${description}
-                        </p>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <input type="text" id="unified-char-search" placeholder="Search characters..." 
-                            style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; margin-bottom: 10px;">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 2px; margin-bottom: 10px;">
-                            <select id="unified-char-tag-filter" style="padding: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+                    <div class="klite-modal-body rpm-stack">
+                        <p class="rpm-muted">${description}</p>
+                        <input type="text" id="unified-char-search" class="form-control rpm-input" placeholder="Search characters...">
+                        <div class="klite-filter-grid">
+                            <select id="unified-char-tag-filter" class="form-control rpm-input">
                                 <option value="">All Tags</option>
                             </select>
-                            <select id="unified-char-rating-filter" style="padding: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+                            <select id="unified-char-rating-filter" class="form-control rpm-input">
                                 <option value="">All Ratings</option>
                                 <option value="5">★★★★★</option>
                                 <option value="4">★★★★☆</option>
@@ -5390,39 +5372,34 @@ ${s.text}` : s.text : `[${s.title}]`;
                                 <option value="2">★★☆☆☆</option>
                                 <option value="1">★☆☆☆☆</option>
                             </select>
-                            <select id="unified-char-talkativeness-filter" style="padding: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+                            <select id="unified-char-talkativeness-filter" class="form-control rpm-input">
                                 <option value="">All Talkativeness</option>
                                 <option value="high">Very Talkative (80+)</option>
                                 <option value="medium">Moderate (40-79)</option>
                                 <option value="low">Quiet (10-39)</option>
                             </select>
-                            <select id="unified-char-sort" style="padding: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+                            <select id="unified-char-sort" class="form-control rpm-input">
                                 <option value="name">Name</option>
                                 <option value="rating">Rating</option>
                                 <option value="talk">Talkativeness</option>
                                 <option value="created">Import Date</option>
                             </select>
                         </div>
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: flex; align-items: center; gap: 2px; cursor: pointer;">
-                                <input type="checkbox" id="unified-include-wi" style="margin: 0;">
-                                <span>Include characters from World Info</span>
-                            </label>
+                        <label class="rpm-check">
+                            <input type="checkbox" id="unified-include-wi">
+                            <span>Include characters from World Info</span>
+                        </label>
+                        <div id="unified-character-selection-list" class="klite-pick-list">
+                            <div class="rpm-empty">Loading characters...</div>
                         </div>
                     </div>
-                    
-                    <div id="unified-character-selection-list" style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 10px; background: var(--bg); margin-bottom: 15px;">
-                        <div style="text-align: center; color: var(--muted); padding: 20px;">Loading characters...</div>
-                    </div>
-                    
-                        <div class="klite-modal-footer">
-                            <button class="klite-btn klite-btn-primary" data-action="confirm-unified-char-selection" data-mode="${mode2}">
-                                ${buttonText}
-                            </button>
-                            <button class="klite-btn" data-action="close-unified-char-modal">
-                                Cancel
-                            </button>
-                        </div>
+                    <div class="klite-modal-footer">
+                        <button class="btn btn-primary rpm-btn" data-action="confirm-unified-char-selection" data-mode="${mode2}">
+                            ${buttonText}
+                        </button>
+                        <button class="btn btn-primary rpm-btn" data-action="close-unified-char-modal">
+                            Cancel
+                        </button>
                     </div>
                 </div>
             `;
@@ -5546,7 +5523,7 @@ ${s.text}` : s.text : `[${s.title}]`;
         if (!list2) return;
         if (characters.length === 0) {
           list2.innerHTML = `
-                    <div style="text-align: center; color: var(--muted); padding: 20px;">
+                    <div class="rpm-empty">
                         No characters available. Import some characters first.
                     </div>
                 `;
@@ -5563,27 +5540,21 @@ ${s.text}` : s.text : `[${s.title}]`;
           const charId = char.id || char.name;
           const safeTagsPreview = tags.length > 0 ? tags.slice(0, 3).map(KLITE_RPMod.escapeHtml).join(", ") + (tags.length > 3 ? "..." : "") : "";
           return `
-                    <div style="display: flex; align-items: center; gap: 2px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; background: var(--bg2); cursor: pointer;" 
-                         data-action="toggle-unified-char-selection" data-char-id="${charId}" data-selection-type="${selectionType}">
-                        <input type="${selectionType}" name="unified-char-selection" value="${charId}" style="margin: 0;" onclick="event.stopPropagation();">
-                        ${avatar ? `
-                            <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                                ${KLITE_RPMod.safeImageHTML(avatar, char.name || "", "width:100%;height:100%;object-fit:cover;display:block;")}
+                    <div class="klite-item-row klite-pick-row"
+                         data-action="toggle-unified-char-selection" data-char-id="${KLITE_RPMod.escapeHtml(charId)}" data-selection-type="${selectionType}">
+                        <input type="${selectionType}" name="unified-char-selection" value="${KLITE_RPMod.escapeHtml(charId)}" onclick="event.stopPropagation();">
+                        <div class="rpm-avatar">
+                            ${avatar ? KLITE_RPMod.safeImageHTML(avatar, char.name || "", "width:100%;height:100%;object-fit:cover;display:block;") : `<span>${KLITE_RPMod.escapeHtml((char.name || "?").charAt(0))}</span>`}
+                        </div>
+                        <div class="rpm-grow">
+                            <div>
+                                <strong>${KLITE_RPMod.escapeHtml(char.name || "")}</strong>
+                                ${isWIChar ? '<span class="rpm-tag">WI</span>' : ""}
                             </div>
-                        ` : `
-                            <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <span style="font-size: 18px;">${char.name.charAt(0)}</span>
-                            </div>
-                        `}
-                        <div style="flex: 1;">
-                            <div style="font-weight: bold; color: var(--text); display: flex; align-items: center; gap: 2px;">
-                                ${KLITE_RPMod.escapeHtml(char.name || "")}
-                                ${isWIChar ? '<span style="font-size: 9px; background: var(--accent); color: white; padding: 1px 4px; border-radius: 2px;">WI</span>' : ""}
-                            </div>
-                            <div style="font-size: 11px; color: var(--muted); margin: 2px 0; max-height: 32px; overflow: hidden;">${description}</div>
-                            <div style="font-size: 10px; color: var(--muted); display: flex; align-items: center; gap: 2px;">
+                            <div class="rpm-muted klite-pick-desc">${description}</div>
+                            <div class="rpm-muted rpm-wrap">
                                 ${!isWIChar ? `<span>Rating: ${"★".repeat(rating)}${"☆".repeat(5 - rating)}</span>` : ""}
-                                <span>Talkativeness: ${talkativeness}</span>
+                                <span>Talkativeness: ${KLITE_RPMod.escapeHtml(talkativeness)}</span>
                                 ${tags.length > 0 ? `<span>Tags: ${safeTagsPreview}</span>` : ""}
                             </div>
                         </div>
@@ -5960,14 +5931,14 @@ ${s.text}` : s.text : `[${s.title}]`;
                     margin-bottom: 12px;
                     padding: 12px;
                     border-radius: 8px;
-                    background: var(--bg2);
-                    border: 1px solid var(--border);
+                    background: var(--theme_color_bg_popups, #263040);
+                    border: 1px solid var(--theme_color_border, #415577);
                     gap: 12px;
                     transition: background-color 0.2s ease;
                 }
                 
                 .rp-message-container:hover {
-                    background: var(--bg3);
+                    background: var(--theme_color_bg_muted, #484d56);
                 }
                 
                 /* RP Avatar */
@@ -5975,18 +5946,18 @@ ${s.text}` : s.text : `[${s.title}]`;
                     width: 40px;
                     height: 40px;
                     border-radius: 50%;
-                    border: 2px solid var(--border);
+                    border: 2px solid var(--theme_color_border, #415577);
                     object-fit: cover;
                     flex-shrink: 0;
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
                 }
                 
                 .rp-avatar.user-avatar {
-                    border-color: var(--accent);
+                    border-color: var(--theme_color_accent_bg_highlight, #596985);
                 }
                 
                 .rp-avatar.ai-avatar {
-                    border-color: var(--success);
+                    border-color: var(--theme_color_rpmod_success, #5cb85c);
                 }
                 
                 /* RP Message Content Area */
@@ -6006,20 +5977,20 @@ ${s.text}` : s.text : `[${s.title}]`;
                 .rp-speaker-name {
                     font-weight: bold;
                     font-size: 14px;
-                    color: var(--text);
+                    color: var(--theme_color_fg, #d1d1d1);
                 }
                 
                 .rp-speaker-name.user-speaker {
-                    color: var(--accent);
+                    color: var(--theme_color_accent_bg_highlight, #596985);
                 }
                 
                 .rp-speaker-name.ai-speaker {
-                    color: var(--success);
+                    color: var(--theme_color_rpmod_success, #5cb85c);
                 }
                 
                 .rp-message-timestamp {
                     font-size: 11px;
-                    color: var(--muted);
+                    color: var(--theme_color_fg_muted, #9b9b9b);
                     margin-left: auto;
                 }
                 
@@ -6027,16 +5998,16 @@ ${s.text}` : s.text : `[${s.title}]`;
                     font-size: 10px;
                     padding: 2px 6px;
                     border-radius: 12px;
-                    background: var(--bg3);
-                    color: var(--muted);
-                    border: 1px solid var(--border);
+                    background: var(--theme_color_bg_muted, #484d56);
+                    color: var(--theme_color_fg_muted, #9b9b9b);
+                    border: 1px solid var(--theme_color_border, #415577);
                 }
                 
                 /* RP Message Content */
                 .rp-message-content {
                     font-size: 14px;
                     line-height: 1.5;
-                    color: var(--text);
+                    color: var(--theme_color_fg, #d1d1d1);
                     word-wrap: break-word;
                     margin: 0;
                     padding: 0;
@@ -6049,7 +6020,7 @@ ${s.text}` : s.text : `[${s.title}]`;
                 /* Special styling for actions (text in asterisks) */
                 .rp-message-content em,
                 .rp-message-content i {
-                    color: var(--muted);
+                    color: var(--theme_color_fg_muted, #9b9b9b);
                     font-style: italic;
                 }
                 
@@ -6071,12 +6042,12 @@ ${s.text}` : s.text : `[${s.title}]`;
                 
                 /* Dark mode adjustments */
                 .klite-active .rp-message-container {
-                    background: var(--bg2);
-                    border-color: var(--border);
+                    background: var(--theme_color_bg_popups, #263040);
+                    border-color: var(--theme_color_border, #415577);
                 }
                 
                 .klite-active .rp-message-container:hover {
-                    background: var(--bg3);
+                    background: var(--theme_color_bg_muted, #484d56);
                 }
             </style>
         `;
@@ -6322,43 +6293,43 @@ ${s.text}` : s.text : `[${s.title}]`;
               render() {
                 return `
                                 ${t.section("🎨 Image Generation", `
-                                    <div class="klite-image-status" style="margin-bottom: 12px; padding: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;">
-                                        <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px;">Image Generation Status</div>
-                                        <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
-                                            <div><span style="color: var(--muted);">Provider:</span> <span id="scene-mode-status" style="color: var(--text); font-weight: bold;">${KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode)}</span></div>
-                                            <div><span style="color: var(--muted);">Model:</span> <span id="scene-model-status" style="color: var(--text); font-weight: bold;">${KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode) === "AI Horde" ? window.localsettings?.generate_images_model || "Default" : "-"}</span></div>
+                                    <div class="klite-image-status rpm-card rpm-mb">
+                                        <div class="rpm-small rpm-mb"><strong>Image Generation Status</strong></div>
+                                        <div class="rpm-small">
+                                            <div><span class="rpm-text-muted">Provider:</span> <strong id="scene-mode-status">${KLITE_RPMod.escapeHtml(KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode))}</strong></div>
+                                            <div><span class="rpm-text-muted">Model:</span> <strong id="scene-model-status">${KLITE_RPMod.escapeHtml(KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode) === "AI Horde" ? window.localsettings?.generate_images_model || "Default" : "-")}</strong></div>
                                         </div>
                                     </div>
-                                    <div class="klite-image-controls" style="margin-bottom: 12px;">
-                                        <label style="display: block; margin-bottom: 4px; font-size: 12px;">Auto-generate:</label>
+                                    <div class="klite-image-controls rpm-mb">
+                                        <label class="rpm-label" for="scene-autogen">Auto-generate:</label>
                                         ${t.select("scene-autogen", [
                   { value: "0", text: "Off", selected: String(window.localsettings?.img_autogen_type ?? 0) === "0" },
                   { value: "1", text: "Basic", selected: String(window.localsettings?.img_autogen_type ?? 0) === "1" },
                   { value: "2", text: "Smart", selected: String(window.localsettings?.img_autogen_type ?? 0) === "2" }
                 ])}
-                                        <div style="margin-top: 8px;">${t.checkbox("scene-detect", "Detect ImgGen Instructions", !!window.localsettings?.img_gen_from_instruct)}</div>
+                                        <div class="rpm-mt">${t.checkbox("scene-detect", "Detect ImgGen Instructions", !!window.localsettings?.img_gen_from_instruct)}</div>
                                     </div>
                                     <div class="klite-image-generation-section">
-                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Scene & Characters</div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; margin-bottom: 10px;">
-                                            ${t.button("🏞️ Current Scene", "klite-btn-sm", "gen-scene")}
-                                            ${t.button("🤖 AI Character", "klite-btn-sm", "gen-ai-portrait")}
-                                            ${t.button("👤 Persona", "klite-btn-sm", "gen-user-portrait")}
-                                            ${t.button("👥 Group Shot", "klite-btn-sm", "gen-group")}
+                                        <div class="rpm-small rpm-mb"><strong>Scene & Characters</strong></div>
+                                        <div class="rpm-grid2 rpm-mb">
+                                            ${t.button("🏞️ Current Scene", "rpm-sm", "gen-scene")}
+                                            ${t.button("🤖 AI Character", "rpm-sm", "gen-ai-portrait")}
+                                            ${t.button("👤 Persona", "rpm-sm", "gen-user-portrait")}
+                                            ${t.button("👥 Group Shot", "rpm-sm", "gen-group")}
                                         </div>
-                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Events & Actions</div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; margin-bottom: 10px;">
-                                            ${t.button("⚔️ Combat", "klite-btn-sm", "gen-combat")}
-                                            ${t.button("💬 Dialogue", "klite-btn-sm", "gen-dialogue")}
-                                            ${t.button("🎭 Plot", "klite-btn-sm", "gen-dramatic")}
-                                            ${t.button("🌅 Atmosphere", "klite-btn-sm", "gen-atmosphere")}
+                                        <div class="rpm-small rpm-mb"><strong>Events & Actions</strong></div>
+                                        <div class="rpm-grid2 rpm-mb">
+                                            ${t.button("⚔️ Combat", "rpm-sm", "gen-combat")}
+                                            ${t.button("💬 Dialogue", "rpm-sm", "gen-dialogue")}
+                                            ${t.button("🎭 Plot", "rpm-sm", "gen-dramatic")}
+                                            ${t.button("🌅 Atmosphere", "rpm-sm", "gen-atmosphere")}
                                         </div>
-                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Context-Based</div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px;">
-                                            ${t.button("📝 Memory", "klite-btn-sm", "gen-memory")}
-                                            ${t.button("📄 Last Message", "klite-btn-sm", "gen-last-message")}
-                                            ${t.button("🔄 Recent Events", "klite-btn-sm", "gen-recent")}
-                                            ${t.button("🎯 Custom", "klite-btn-sm", "gen-custom")}
+                                        <div class="rpm-small rpm-mb"><strong>Context-Based</strong></div>
+                                        <div class="rpm-grid2">
+                                            ${t.button("📝 Memory", "rpm-sm", "gen-memory")}
+                                            ${t.button("📄 Last Message", "rpm-sm", "gen-last-message")}
+                                            ${t.button("🔄 Recent Events", "rpm-sm", "gen-recent")}
+                                            ${t.button("🎯 Custom", "rpm-sm", "gen-custom")}
                                         </div>
                                     </div>
                                 `)}
@@ -6540,17 +6511,15 @@ ${s.text}` : s.text : `[${s.title}]`;
                 <!-- Context Analyzer (moved from CONTEXT) -->
                 ${t.section(
           "🔍 Context Analyzer",
-          `<div class="klite-token-bar-container">
-                        <div class="klite-token-bar">
+          `<div class="klite-token-bar">
                             <div id="tools-memory-bar" class="klite-token-segment klite-memory-segment" title="Memory"></div>
                             <div id="tools-wi-bar" class="klite-token-segment klite-wi-segment" title="Minimum WI (Always Active)"></div>
                             <div id="tools-story-bar" class="klite-token-segment klite-story-segment" title="Story"></div>
                             <div id="tools-anote-bar" class="klite-token-segment klite-anote-segment" title="Author's Note"></div>
                             <div id="tools-free-bar" class="klite-token-segment klite-free-segment" title="Free Space"></div>
-                        </div>
                     </div>
                     <div class="klite-token-legend">
-                        <div class="klite-token-legend-grid">
+                        <div class="rpm-grid2">
                             <div class="klite-token-legend-item">
                                 <div class="klite-token-legend-color klite-memory-segment"></div>
                                 <span class="klite-token-legend-label">Memory:</span>
@@ -6573,18 +6542,18 @@ ${s.text}` : s.text : `[${s.title}]`;
                             </div>
                         </div>
                     </div>
-                    <div class="klite-context-summary" style="margin-bottom: 10px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 12px;">
-                        <div style="margin-bottom: 4px;">
+                    <div class="klite-context-summary klite-inset rpm-small">
+                        <div>
                             <strong>Total Context:</strong> 
                             <span id="tools-total-context">0</span> / <span id="tools-max-context">8192</span> tokens
                         </div>
                         <div>
-                            <span style="color: var(--muted);">Free:</span> 
-                            <span id="tools-free-tokens" style="color: var(--text); font-weight: bold;">8192</span> tokens 
-                            (<span id="tools-free-percent" style="color: var(--text); font-weight: bold;">100</span>%)
+                            <span class="rpm-text-muted">Free:</span> 
+                            <strong id="tools-free-tokens">8192</strong> tokens 
+                            (<strong id="tools-free-percent">100</strong>%)
                         </div>
-                        <div style="margin-top: 8px;">
-                            <button class="klite-btn" data-action="calculate-context" style="width: 100%; padding: 6px;">Calculate Context</button>
+                        <div class="rpm-mt">
+                            <button class="btn btn-primary rpm-btn rpm-block" data-action="calculate-context">Calculate Context</button>
                         </div>
                     </div>`
         )}
@@ -6594,18 +6563,11 @@ ${s.text}` : s.text : `[${s.title}]`;
                 <!-- Quick Actions (from ADV) -->
                 ${t.section(
           "Quick Actions",
-          `<div style="display: grid; gap: 4px;">
+          `<div class="klite-slots">
                         ${this.quickActions.map((action, i) => `
-                            <div class="klite-row" style="display: grid; grid-template-columns: minmax(0,1fr) 32px; gap: 2px; align-items: center;">
-                                <div class="klite-input-wrap" style="position: relative; display: flex; align-items: center;">
-                                    <input id="adv-quick-${i}" type="text" value="${action}" 
-                                           style="flex:1; min-width:0; padding: 4px 8px; font-size: 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text);"
-                                           placeholder="">
-                                </div>
-                                <button class="klite-btn klite-btn-sm" data-action="quick-${i}" 
-                                        style="width: 32px; min-width: 32px; padding: 4px 0; font-size: 12px;">
-                                    ${i + 1}
-                                </button>
+                            <div class="rpm-row">
+                                <input id="adv-quick-${i}" type="text" class="form-control rpm-input rpm-grow" value="${KLITE_RPMod.escapeHtml(action)}" placeholder="">
+                                <button class="btn btn-primary rpm-btn rpm-sm klite-slot-btn" data-action="quick-${i}">${i + 1}</button>
                             </div>
                         `).join("")}
                     </div>`
@@ -6618,7 +6580,7 @@ ${s.text}` : s.text : `[${s.title}]`;
                 ${t.section(
           "Narrator Controls",
           `<div class="klite-narrator-controls">
-                        <div class="klite-row">
+                        <div class="rpm-row">
                             ${t.select("narrator-style", [
             { value: "omniscient", text: "Omniscient", selected: true },
             { value: "limited", text: "Limited" },
@@ -6626,7 +6588,7 @@ ${s.text}` : s.text : `[${s.title}]`;
             { value: "character", text: "Character POV" }
           ])}
                         </div>
-                        <div class="klite-row" style="margin-top: 6px;">
+                        <div class="rpm-row rpm-mt">
                             ${t.select("narrator-focus", [
             { value: "environment", text: "Environment" },
             { value: "emotions", text: "Emotions" },
@@ -6635,16 +6597,16 @@ ${s.text}` : s.text : `[${s.title}]`;
             { value: "mixed", text: "Mixed", selected: true }
           ])}
                         </div>
-                        <div class="klite-narrator-explanation" style="margin: 8px 0; padding: 6px; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 11px; color: var(--muted);">
+                        <div class="klite-narrator-explanation klite-inset rpm-muted rpm-mb">
                             <div id="narrator-explanation-text">
                                 <strong>Omniscient:</strong> The narrator knows all characters' thoughts and can see everything happening in the scene. Will generate comprehensive descriptions of environment, emotions, and actions.
                             </div>
                         </div>
-                        <div class="klite-row" style="font-size: 11px; color: var(--muted); margin-bottom: 6px;">
+                        <div class="rpm-muted">
                             The quality of the generated output depends highly on the model and it's capability to understand OOC instructions.
                         </div>
-                        <div class="klite-row" style="margin-top: 10px;">
-                            <button class="klite-btn klite-btn-sm" data-action="narrator" style="width: 100%; padding: 4px 0; font-size: 14px;">
+                        <div class="rpm-mt">
+                            <button class="btn btn-primary rpm-btn rpm-lg rpm-block" data-action="narrator">
                                 🎬 Trigger Narrator
                             </button>  
                         </div>
@@ -6654,18 +6616,18 @@ ${s.text}` : s.text : `[${s.title}]`;
                 <!-- Quick Dice (moved from CONTEXT) -->
                 ${t.section(
           "🎲 Quick Dice",
-          `<div class="klite-dice-grid" style="gap: 4px;">
+          `<div class="rpm-grid4 rpm-mb">
                         ${["d2", "d4", "d6", "d8", "d10", "d12", "d20", "d100"].map(
             (d) => `
-                            <button class="klite-btn klite-btn-sm" data-action="roll-${d}" style="width: 100%;">${d}</button>
+                            <button class="btn btn-primary rpm-btn rpm-sm" data-action="roll-${d}">${d}</button>
                         `
           ).join("")}
                     </div>
-                    <div class="klite-row">
+                    <div class="rpm-row">
                         ${t.input("tools-custom-dice", "e.g., 2d6+3")}
                         ${t.button("🎲 Roll", "", "roll-custom")}
                     </div>
-                    <div id="tools-dice-result" class="klite-dice-result klite-mt"></div>`
+                    <div id="tools-dice-result" class="klite-dice-result rpm-mt"></div>`
         )}
 
                 
@@ -6875,16 +6837,12 @@ ${s.text}` : s.text : `[${s.title}]`;
       renderPersonaControls() {
         const userName = window.localsettings?.chatname || "User";
         return `
-                <div class="klite-persona-section" style="margin-bottom: 15px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 6px;">
-                    <div style="margin-bottom: 10px;">
-                        <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text);">Username (for the human player):</label>
-                        ${t.input("rp-user-name", "", "text", userName, "width: 100%; margin-bottom: 8px;")}
-                        
-                        <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                            ${t.checkbox("persona-enabled", "Enable User Character", this.personaEnabled)}
-                        </div>
-                        
-                        <div class="persona-controls" style="${this.personaEnabled ? "" : "opacity: 0.5; pointer-events: none;"}">
+                <div class="klite-persona-section klite-box rpm-mb">
+                    <div class="rpm-stack">
+                        <label class="rpm-label" for="rp-user-name">Username (for the human player):</label>
+                        ${t.input("rp-user-name", "", "text", KLITE_RPMod.escapeHtml(userName))}
+                        ${t.checkbox("persona-enabled", "Enable User Character", this.personaEnabled)}
+                        <div class="persona-controls ${this.personaEnabled ? "" : "klite-disabled"}">
                             ${this.selectedPersona ? this.renderActivePersona() : this.renderSelectPersonaButton()}
                         </div>
                     </div>
@@ -6893,11 +6851,11 @@ ${s.text}` : s.text : `[${s.title}]`;
       },
       renderSelectPersonaButton() {
         return `
-                <div style="text-align: center; padding: 20px;">
-                    <button class="klite-btn primary" data-action="select-persona" style="font-size: 14px; padding: 12px 24px;">
+                <div class="rpm-empty">
+                    <button class="btn btn-primary rpm-btn rpm-lg" data-action="select-persona">
                         📋 Select Character
                     </button>
-                    <div style="margin-top: 8px; font-size: 11px; color: var(--muted);">
+                    <div class="rpm-muted rpm-mt">
                         Choose a character for the user to roleplay
                     </div>
                 </div>
@@ -6908,28 +6866,20 @@ ${s.text}` : s.text : `[${s.title}]`;
         const avatar = KLITE_RPMod.getBestCharacterAvatar(char);
         const isWIChar = char.type === "worldinfo";
         return `
-                <div style="display: flex; align-items: center; gap: 2px; padding: 12px; border: 1px solid var(--success); border-radius: 6px; background: rgba(34, 197, 94, 0.1); margin-bottom: 8px;">
-                    ${avatar ? `
-                        <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                            ${KLITE_RPMod.safeImageHTML(avatar, char.name || "", "width:100%;height:100%;object-fit:cover;display:block;")}
-                        </div>
-                    ` : `
-                        <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <span style="font-size: 18px;">${char.name.charAt(0)}</span>
-                        </div>
-                    `}
-                    <div style="flex: 1;">
-                        <div style="font-weight: bold; color: var(--text); display: flex; align-items: center; gap: 8px;">
-                            ${KLITE_RPMod.escapeHtml(char.name)}
-                            ${isWIChar ? '<span style="font-size: 9px; background: var(--accent); color: white; padding: 1px 4px; border-radius: 2px;">WI</span>' : ""}
-                        </div>
+                <div class="klite-item-row klite-is-next">
+                    <div class="rpm-avatar">
+                        ${avatar ? KLITE_RPMod.safeImageHTML(avatar, char.name || "", "width:100%;height:100%;object-fit:cover;display:block;") : `<span>${KLITE_RPMod.escapeHtml((char.name || "?").charAt(0))}</span>`}
                     </div>
-                    <button class="klite-btn secondary" data-action="remove-persona" style="padding: 6px 12px; font-size: 11px;">
+                    <div class="rpm-grow">
+                        <strong>${KLITE_RPMod.escapeHtml(char.name)}</strong>
+                        ${isWIChar ? '<span class="rpm-tag">WI</span>' : ""}
+                    </div>
+                    <button class="btn btn-primary rpm-btn" data-action="remove-persona">
                         ✕ Remove
                     </button>
                 </div>
-                <div style="display: flex; gap: 2px;">
-                    <button class="klite-btn" data-action="select-persona" style="flex: 1;">
+                <div class="rpm-fill">
+                    <button class="btn btn-primary rpm-btn" data-action="select-persona">
                         📋 Change Character
                     </button>
                 </div>
@@ -6942,19 +6892,17 @@ ${s.text}` : s.text : `[${s.title}]`;
         const policy = KLITE_RPMod.state?.avatarPolicy || { esoliteAdapter: false, liteExperimental: false };
         const adapterStatus = isEsolite ? "Esolite (active)" : policy.liteExperimental ? "Lite Experimental (active)" : "Off";
         return `
-                <div class="klite-character-section" style="padding: 12px; background: rgba(0,0,0,0.2); border-radius: 6px;">
-                    ${isGroupChatActive ? `<div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
+                <div class="klite-character-section klite-box">
+                    ${isGroupChatActive ? `<div class="rpm-note rpm-mb">
                         <strong>Note:</strong> Character integration is disabled when Group Chat is active.
                     </div>` : ""}
-                    <div style="margin-bottom: 10px;">
-                        <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text);">Charactername (for the AI):</label>
-                        <input type="text" id="rp-ai-name" class="klite-input" value="${aiName}" style="width: 100%; margin-bottom: 8px;" ${isGroupChatActive ? "readonly disabled" : ""}>
-                        
-                        <div style="display: flex; align-items: center; margin-bottom: 8px;${isGroupChatActive ? " opacity: 0.5; pointer-events: none;" : ""}">
+                    <div class="rpm-stack">
+                        <label class="rpm-label" for="rp-ai-name">Charactername (for the AI):</label>
+                        <input type="text" id="rp-ai-name" class="form-control rpm-input" value="${KLITE_RPMod.escapeHtml(aiName)}" ${isGroupChatActive ? "readonly disabled" : ""}>
+                        <div class="${isGroupChatActive ? "klite-disabled" : ""}">
                             ${t.checkbox("character-enabled", "Enable AI Character", isGroupChatActive ? false : this.characterEnabled)}
                         </div>
-                        
-                        <div class="character-controls" style="${this.characterEnabled && !isGroupChatActive ? "" : "opacity: 0.5; pointer-events: none;"}">
+                        <div class="character-controls ${this.characterEnabled && !isGroupChatActive ? "" : "klite-disabled"}">
                             ${this.selectedCharacter ? this.renderActiveCharacter() : this.renderSelectCharacterButton()}
                         </div>
                     </div>
@@ -6963,11 +6911,11 @@ ${s.text}` : s.text : `[${s.title}]`;
       },
       renderSelectCharacterButton() {
         return `
-                <div style="text-align: center; padding: 20px;">
-                    <button class="klite-btn primary" data-action="select-character" style="font-size: 14px; padding: 12px 24px;">
+                <div class="rpm-empty">
+                    <button class="btn btn-primary rpm-btn rpm-lg" data-action="select-character">
                         📋 Select Character
                     </button>
-                    <div style="margin-top: 8px; font-size: 11px; color: var(--muted);">
+                    <div class="rpm-muted rpm-mt">
                         Choose from your character library or World Info
                     </div>
                 </div>
@@ -6978,28 +6926,20 @@ ${s.text}` : s.text : `[${s.title}]`;
         const avatar = KLITE_RPMod.getBestCharacterAvatar(char);
         const isWIChar = char.type === "worldinfo";
         return `
-                <div style="display: flex; align-items: center; gap: 2px; padding: 12px; border: 1px solid var(--accent); border-radius: 6px; background: rgba(74, 158, 255, 0.1); margin-bottom: 8px;">
-                    ${avatar ? `
-                        <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                            ${KLITE_RPMod.safeImageHTML(avatar, char.name || "", "width:100%;height:100%;object-fit:cover;display:block;")}
-                        </div>
-                    ` : `
-                        <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <span style="font-size: 18px;">${char.name.charAt(0)}</span>
-                        </div>
-                    `}
-                    <div style="flex: 1;">
-                        <div style="font-weight: bold; color: var(--text); display: flex; align-items: center; gap: 8px;">
-                            ${KLITE_RPMod.escapeHtml(char.name)}
-                            ${isWIChar ? '<span style="font-size: 9px; background: var(--accent); color: white; padding: 1px 4px; border-radius: 2px;">WI</span>' : ""}
-                        </div>
+                <div class="klite-item-row klite-is-ai">
+                    <div class="rpm-avatar">
+                        ${avatar ? KLITE_RPMod.safeImageHTML(avatar, char.name || "", "width:100%;height:100%;object-fit:cover;display:block;") : `<span>${KLITE_RPMod.escapeHtml((char.name || "?").charAt(0))}</span>`}
                     </div>
-                    <button class="klite-btn secondary" data-action="remove-character" style="padding: 6px 12px; font-size: 11px;">
+                    <div class="rpm-grow">
+                        <strong>${KLITE_RPMod.escapeHtml(char.name)}</strong>
+                        ${isWIChar ? '<span class="rpm-tag">WI</span>' : ""}
+                    </div>
+                    <button class="btn btn-primary rpm-btn" data-action="remove-character">
                         ✕ Remove
                     </button>
                 </div>
-                <div style="display: flex; gap: 2px;">
-                    <button class="klite-btn" data-action="select-character" style="flex: 1;">
+                <div class="rpm-fill">
+                    <button class="btn btn-primary rpm-btn" data-action="select-character">
                         📋 Change Character
                     </button>
                 </div>
@@ -7008,37 +6948,37 @@ ${s.text}` : s.text : `[${s.title}]`;
       renderAutoSender() {
         return `
                 <div class="klite-auto-sender-wrapper">
-                    <div class="klite-auto-sender-controls" style="display: grid; grid-template-columns: 1fr auto; gap: 2px; margin-bottom: 8px;">
-                        <div class="klite-auto-sender-buttons">
-                            ${t.button("Start", "klite-btn-sm", "auto-start", "auto-start-btn")}
-                            ${t.button("Pause", "klite-btn-sm klite-btn-success", "auto-pause", "auto-pause-btn", "display: none;")}
-                            ${t.button("Continue", "klite-btn-sm", "auto-continue", "auto-continue-btn", "display: none;")}
+                    <div class="klite-auto-sender-controls rpm-row rpm-mb">
+                        <div class="klite-auto-sender-buttons rpm-wrap rpm-grow">
+                            ${t.button("Start", "rpm-sm", "auto-start", "auto-start-btn")}
+                            ${t.button("Pause", "rpm-sm", "auto-pause", "auto-pause-btn", "display: none;")}
+                            ${t.button("Continue", "rpm-sm", "auto-continue", "auto-continue-btn", "display: none;")}
                         </div>
-                        <div id="auto-countdown" class="klite-auto-countdown" style="width: 40px; height: 40px; border-radius: 50%; background: conic-gradient(#333 0% 100%); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; color: white; border: 2px solid #555;">--</div>
+                        <div id="auto-countdown" class="klite-auto-countdown">--</div>
                     </div>
-                    <div class="klite-auto-sender-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin-bottom: 8px;">
-                        ${t.button("Stop", "klite-btn-sm", "auto-stop")}
-                        ${t.button("Reset", "klite-btn-sm", "auto-reset")}
+                    <div class="klite-auto-sender-buttons rpm-grid2">
+                        ${t.button("Stop", "rpm-sm", "auto-stop")}
+                        ${t.button("Reset", "rpm-sm", "auto-reset")}
                     </div>
-                    <div class="klite-auto-sender-interval" style="margin-bottom: 8px;">
-                        <label style="font-size: 11px; color: #ccc; display: block; margin-bottom: 2px;">Interval: <span id="auto-interval-display">30</span> seconds</label>
-                        <input type="range" min="10" max="300" value="30" step="5" class="klite-slider" id="auto-interval-slider" style="width: 100%;">
+                    <div class="klite-auto-sender-interval">
+                        <label class="rpm-label" for="auto-interval-slider">Interval: <span id="auto-interval-display">30</span> seconds</label>
+                        <input type="range" min="10" max="300" value="30" step="5" class="klite-slider" id="auto-interval-slider">
                     </div>
-                    <div class="klite-auto-sender-start-message" style="margin-bottom: 8px;">
-                        <label style="font-size: 11px; color: #ccc; display: block; margin-bottom: 2px;">Start Message:</label>
-                        <textarea id="auto-start-message" placeholder="Start Message (optional)" style="width: 100%; min-height: 40px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #e0e0e0; padding: 4px; border-radius: 4px; font-size: 11px; resize: vertical;"></textarea>
+                    <div class="klite-auto-sender-start-message">
+                        <label class="rpm-label" for="auto-start-message">Start Message:</label>
+                        <textarea id="auto-start-message" class="form-control rpm-input" placeholder="Start Message (optional)"></textarea>
                     </div>
-                    <div class="klite-auto-sender-auto-message" style="margin-bottom: 8px;">
-                        <label style="font-size: 11px; color: #ccc; display: block; margin-bottom: 2px;">Automatic Message:</label>
-                        <textarea id="auto-message" placeholder="Automatic Message" style="width: 100%; min-height: 40px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #e0e0e0; padding: 4px; border-radius: 4px; font-size: 11px; resize: vertical;">Continue.</textarea>
+                    <div class="klite-auto-sender-auto-message">
+                        <label class="rpm-label" for="auto-message">Automatic Message:</label>
+                        <textarea id="auto-message" class="form-control rpm-input" placeholder="Automatic Message">Continue.</textarea>
                     </div>
-                    <div class="klite-auto-sender-quick-messages" style="margin-bottom: 0;">
-                        <label style="font-size: 11px; color: #ccc; display: block; margin-bottom: 2px;">Quick Slot Messages:</label>
-                        <div class="klite-quick-messages-grid" style="display: grid; grid-template-columns: 1fr; gap: 2px;">
+                    <div class="klite-auto-sender-quick-messages">
+                        <label class="rpm-label">Quick Slot Messages:</label>
+                        <div class="klite-quick-messages-grid klite-slots">
                             ${[1, 2, 3, 4, 5].map((i) => `
-                                <div class="klite-quick-message-row" style="display: flex; gap: 2px;">
-                                    <input type="text" id="auto-quick-${i}" placeholder="Quick Message ${i}" style="flex: 1; padding: 3px 4px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #e0e0e0; border-radius: 4px; font-size: 11px;">
-                                    ${t.button(i.toString(), "klite-btn-sm", `quick-send-${i}`, "", "width: 26px; padding: 3px; font-size: 11px;")}
+                                <div class="klite-quick-message-row rpm-row">
+                                    <input type="text" id="auto-quick-${i}" class="form-control rpm-input rpm-grow" placeholder="Quick Message ${i}">
+                                    ${t.button(i.toString(), "rpm-sm klite-slot-btn", `quick-send-${i}`)}
                                 </div>
                             `).join("")}
                         </div>
@@ -7181,8 +7121,7 @@ ${s.text}` : s.text : `[${s.title}]`;
           this.personaEnabled = e.target.checked;
           const controls = document.querySelector(".persona-controls");
           if (controls) {
-            controls.style.opacity = e.target.checked ? "1" : "0.5";
-            controls.style.pointerEvents = e.target.checked ? "auto" : "none";
+            controls.classList.toggle("klite-disabled", !e.target.checked);
           }
           this.updateCharacterContext();
         });
@@ -7190,8 +7129,7 @@ ${s.text}` : s.text : `[${s.title}]`;
           this.characterEnabled = e.target.checked;
           const controls = document.querySelector(".character-controls");
           if (controls) {
-            controls.style.opacity = e.target.checked ? "1" : "0.5";
-            controls.style.pointerEvents = e.target.checked ? "auto" : "none";
+            controls.classList.toggle("klite-disabled", !e.target.checked);
           }
           this.updateCharacterContext();
         });
@@ -7310,7 +7248,7 @@ ${s.text}` : s.text : `[${s.title}]`;
         this.updateAutoButtons("stopped");
         if (this.countdownEl) {
           this.countdownEl.textContent = "--";
-          this.countdownEl.style.background = "conic-gradient(#333 0% 100%)";
+          this.countdownEl.style.setProperty("--klite-progress", "0%");
         }
         KLITE_RPMod.log("panels", "Auto sender stopped - aborted generation and reset interval");
       },
@@ -7323,7 +7261,7 @@ ${s.text}` : s.text : `[${s.title}]`;
         this.updateAutoButtons("reset");
         if (this.countdownEl) {
           this.countdownEl.textContent = "--";
-          this.countdownEl.style.background = "conic-gradient(#333 0% 100%)";
+          this.countdownEl.style.setProperty("--klite-progress", "0%");
         }
         KLITE_RPMod.log("panels", "Auto sender completely reset");
       },
@@ -7358,7 +7296,7 @@ ${s.text}` : s.text : `[${s.title}]`;
               const remaining = this.autoSender.interval - this.autoSender.currentCount;
               const progress = this.autoSender.currentCount / this.autoSender.interval * 100;
               this.countdownEl.textContent = remaining;
-              this.countdownEl.style.background = `conic-gradient(#4a9eff 0% ${progress}%, #333 ${progress}% 100%)`;
+              this.countdownEl.style.setProperty("--klite-progress", `${progress}%`);
             }
           }
         }, 1e3);
@@ -7369,30 +7307,30 @@ ${s.text}` : s.text : `[${s.title}]`;
         const continueBtn = document.getElementById("auto-continue-btn");
         switch (state) {
           case "running":
-            if (startBtn) startBtn.style.display = "none";
-            if (pauseBtn) pauseBtn.style.display = "block";
-            if (continueBtn) continueBtn.style.display = "none";
+            if (startBtn) startBtn.hidden = true;
+            if (pauseBtn) pauseBtn.hidden = false;
+            if (continueBtn) continueBtn.hidden = true;
             break;
           case "paused":
-            if (startBtn) startBtn.style.display = "none";
-            if (pauseBtn) pauseBtn.style.display = "none";
-            if (continueBtn) continueBtn.style.display = "block";
+            if (startBtn) startBtn.hidden = true;
+            if (pauseBtn) pauseBtn.hidden = true;
+            if (continueBtn) continueBtn.hidden = false;
             break;
           case "stopped":
             if (startBtn) {
               startBtn.textContent = "Continue";
-              startBtn.style.display = "block";
+              startBtn.hidden = false;
             }
-            if (pauseBtn) pauseBtn.style.display = "none";
-            if (continueBtn) continueBtn.style.display = "none";
+            if (pauseBtn) pauseBtn.hidden = true;
+            if (continueBtn) continueBtn.hidden = true;
             break;
           case "reset":
             if (startBtn) {
               startBtn.textContent = "Start";
-              startBtn.style.display = "block";
+              startBtn.hidden = false;
             }
-            if (pauseBtn) pauseBtn.style.display = "none";
-            if (continueBtn) continueBtn.style.display = "block";
+            if (pauseBtn) pauseBtn.hidden = true;
+            if (continueBtn) continueBtn.hidden = false;
             break;
         }
       },
@@ -7527,9 +7465,9 @@ ${s.text}` : s.text : `[${s.title}]`;
         return this.chapters.map((ch, i) => {
           const safeTitle = KLITE_RPMod.escapeHtml(ch.title || "");
           return `
-                <div class="klite-timeline-item" data-chapter="${i}" data-action="goto-chapter" style="cursor: pointer;">
+                <div class="klite-timeline-item" data-chapter="${i}" data-action="goto-chapter">
                     <strong>Chapter ${ch.number}:</strong> ${safeTitle}
-                    <div style="font-size: 11px; color: var(--muted);">${ch.wordCount} words</div>
+                    <div class="rpm-muted">${ch.wordCount} words</div>
                 </div>`;
         }).join("");
       },
@@ -7571,7 +7509,7 @@ ${s.text}` : s.text : `[${s.title}]`;
       updateTimeline() {
         const timeline = document.getElementById("story-timeline");
         if (timeline) {
-          timeline.innerHTML = this.chapters.length ? this.renderChapters() : '<div class="klite-center klite-muted">No bookmarks yet</div>';
+          timeline.innerHTML = this.chapters.length ? this.renderChapters() : '<div class="rpm-center rpm-muted">No bookmarks yet</div>';
         }
       },
       goToChapter(index) {
@@ -7697,8 +7635,7 @@ ${s.text}` : s.text : `[${s.title}]`;
           }
           const removeBtn = document.getElementById("remove-persona-btn");
           if (removeBtn) {
-            removeBtn.style.opacity = "1";
-            removeBtn.style.pointerEvents = "auto";
+            removeBtn.classList.remove("klite-disabled");
           }
           const best = KLITE_RPMod.getBestCharacterAvatar(personaData);
           KLITE_RPMod.updateUserAvatar(best || null);
@@ -7744,8 +7681,7 @@ ${s.text}` : s.text : `[${s.title}]`;
           }
           const removeBtn = document.getElementById("remove-character-btn");
           if (removeBtn) {
-            removeBtn.style.opacity = "1";
-            removeBtn.style.pointerEvents = "auto";
+            removeBtn.classList.remove("klite-disabled");
           }
           const best = KLITE_RPMod.getBestCharacterAvatar(characterData);
           KLITE_RPMod.updateAIAvatar(best || null);
@@ -7819,8 +7755,7 @@ ${s.text}` : s.text : `[${s.title}]`;
         }
         const removeBtn = document.getElementById("remove-persona-btn");
         if (removeBtn) {
-          removeBtn.style.opacity = "0.5";
-          removeBtn.style.pointerEvents = "none";
+          removeBtn.classList.add("klite-disabled");
         }
         KLITE_RPMod.updateUserAvatar(null);
         try {
@@ -7850,8 +7785,7 @@ ${s.text}` : s.text : `[${s.title}]`;
         }
         const removeBtn = document.getElementById("remove-character-btn");
         if (removeBtn) {
-          removeBtn.style.opacity = "0.5";
-          removeBtn.style.pointerEvents = "none";
+          removeBtn.classList.add("klite-disabled");
         }
         KLITE_RPMod.updateAIAvatar(null);
         try {
@@ -7958,10 +7892,10 @@ ${s.text}` : s.text : `[${s.title}]`;
                 <!-- Smart Memory Writer -->
                 ${t.section(
           "🧠 Smart Memory Writer",
-          `<div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
+          `<div class="rpm-note rpm-mb">
                         <strong>Warning:</strong> does not work if Agent Mode in Esolite is active.
                     </div>
-                    <div class="klite-row">
+                    <div class="rpm-row">
                         ${t.select("tools-memory-context", [
             { value: "entire", text: "Entire Story" },
             { value: "last50", text: "Last 50 Messages" },
@@ -7969,21 +7903,21 @@ ${s.text}` : s.text : `[${s.title}]`;
             { value: "last3", text: "Most Recent (3)" }
           ])}
                     </div>
-                    <div class="klite-row" style="margin-top: 6px;">
+                    <div class="rpm-row rpm-mt">
                         ${t.select("tools-memory-type", [
             { value: "summary", text: "Summary", selected: true },
             { value: "keywords", text: "Keywords" },
             { value: "outline", text: "Outline" }
           ])}
                     </div>
-                    <div style="text-align: center; margin: 15px 0;">
+                    <div class="rpm-center rpm-mt rpm-mb">
                         ${t.button("🧠 Generate Memory", "", "generate-memory")}
                     </div>
                     ${t.textarea("tools-memory-output", "Generated memory will appear here.")}
-                    <div class="klite-row" style="font-size: 11px; color: var(--muted); margin-top: 6px;">
+                    <div class="rpm-muted rpm-mt">
                         The quality of the generated output depends highly on the model and it's capability to understand OOC instructions.
                     </div>
-                    <div class="klite-buttons-fill klite-mt">
+                    <div class="rpm-fill rpm-mt">
                         ${t.button("✓ Apply", "", "apply-memory")}
                         ${t.button("➕ Append", "", "append-memory")}
                     </div>`
@@ -7991,7 +7925,7 @@ ${s.text}` : s.text : `[${s.title}]`;
                 <!-- Export Tools -->
                 ${t.section(
           "📤 Export Context History",
-          `<div class="klite-buttons-fill">
+          `<div class="rpm-fill">
                         ${t.button("📝 Markdown", "", "export-markdown")}
                         ${t.button("📊 JSON", "", "export-json")}
                         ${t.button("🌐 HTML", "", "export-html")}
@@ -8301,8 +8235,8 @@ Outline:`
         try {
           const result = this.parseDiceRoll(diceString);
           resultDiv.innerHTML = `
-                    <div style="font-size: 24px; font-weight: bold; color: #4a9eff;">${result.total}</div>
-                    <div style="margin-top: 5px; color: #999;">${result.formula} = ${result.breakdown}</div>
+                    <div class="klite-dice-total">${result.total}</div>
+                    <div class="rpm-muted">${KLITE_RPMod.escapeHtml(`${result.formula} = ${result.breakdown}`)}</div>
                 `;
           this.lastRoll = result;
           if (window.gametext_arr) {
@@ -8314,7 +8248,7 @@ Result: ${result.total} (${result.breakdown})
             window.render_gametext?.();
           }
         } catch (error) {
-          resultDiv.innerHTML = `<div style="color: #d9534f;">Error: ${error.message}</div>`;
+          resultDiv.innerHTML = `<div class="rpm-text-danger">Error: ${KLITE_RPMod.escapeHtml(error.message)}</div>`;
           KLITE_RPMod.error("Dice roll error:", error);
         }
       },
@@ -8543,11 +8477,11 @@ ${wi.content}
           if (this.autoRegenerateState.enabled) {
             this.startAutoRegenerate();
             status.textContent = "✓ Auto-regenerate is active";
-            status.style.color = "var(--success)";
+            status.className = "rpm-text-success";
           } else {
             this.stopAutoRegenerate();
             status.textContent = "Auto-regenerate is disabled";
-            status.style.color = "var(--muted)";
+            status.className = "rpm-text-muted";
           }
         });
         delayInput?.addEventListener("change", () => {
@@ -8603,7 +8537,7 @@ ${wi.content}
           const status2 = document.getElementById("tools-auto-regen-status");
           if (status2) {
             status2.textContent = "⚠️ Max retries reached";
-            status2.style.color = "#f0ad4e";
+            status2.className = "rpm-text-quest";
           }
           return;
         }
@@ -8612,7 +8546,7 @@ ${wi.content}
         const status = document.getElementById("tools-auto-regen-status");
         if (status) {
           status.textContent = `🔄 Regenerating... (${this.autoRegenerateState.retryCount}/${this.autoRegenerateState.maxRetries})`;
-          status.style.color = "#5bc0de";
+          status.className = "rpm-text-info";
         }
         if (typeof btn_retry === "function") {
           btn_retry();
@@ -8717,24 +8651,24 @@ ${wi.content}
         const hasStored = !!(st.scenario || st.example || st.first);
         const vals = hasStored ? { scenario: st.scenario || "", example: st.example || "", first: st.first || "" } : this._getScenarioFieldsFromChar(src);
         return `
-                <div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
+                <div class="rpm-note rpm-mb">
                     <strong>Note:</strong> on clicking Start Role Play all necessary data gets stored into WI. If you want to change the configuration afterwards do it manually in WI.
                 </div>
                 ${t.section(
           "🗺️ Scenario",
-          `${t.textarea("scenario-text", "Describe the world, setting, and background.", vals.scenario)}`
+          `${t.textarea("scenario-text", "Describe the world, setting, and background.", KLITE_RPMod.escapeHtml(vals.scenario))}`
         )}
                 
                 ${t.section(
           "💬 Example Dialogue",
-          `${t.textarea("scenario-example", "Provide example dialogue lines.", vals.example)}`
+          `${t.textarea("scenario-example", "Provide example dialogue lines.", KLITE_RPMod.escapeHtml(vals.example))}`
         )}
                 
                 ${t.section(
           "📩 First Message",
-          `${t.textarea("scenario-first-message", "Write the first message to start the chat.", vals.first)}`
+          `${t.textarea("scenario-first-message", "Write the first message to start the chat.", KLITE_RPMod.escapeHtml(vals.first))}`
         )}
-            <div class="klite-buttons-fill klite-mt">
+            <div class="rpm-fill rpm-mt">
                 ${t.button("Start Role Play", "", "scenario-start-roleplay")}
             </div>
             `;
@@ -9184,7 +9118,7 @@ ${examples}`;
           `<div id="group-chars">
                         ${this.renderActiveChars()}
                     </div>
-                    <div class="klite-buttons-fill klite-mt">
+                    <div class="rpm-fill rpm-mt">
                         ${t.button("Add Character to Group", "", "add-from-library")}
                         ${this.getCurrentSpeaker()?.isCustom ? t.button("Edit", "primary", "edit-current") : ""}
                     </div>`
@@ -9192,13 +9126,13 @@ ${examples}`;
                 
                 ${t.section(
           "Character selection",
-          `<div class="klite-muted" style="display: flex; gap: 12px; align-items: center;">
-                        <span>Last: <strong style="color: #e0b400;">${(this.lastSpeaker >= 0 ? this.activeChars[this.lastSpeaker]?.name : "—") || "—"}</strong></span>
-                        <span>Next: <strong style="color: #2aa84a;">${this.getCurrentSpeaker()?.name || "—"}</strong></span>
+          `<div class="rpm-row rpm-muted">
+                        <span>Last: <strong class="rpm-text-quest">${KLITE_RPMod.escapeHtml((this.lastSpeaker >= 0 ? this.activeChars[this.lastSpeaker]?.name : "—") || "—")}</strong></span>
+                        <span>Next: <strong class="rpm-text-success">${KLITE_RPMod.escapeHtml(this.getCurrentSpeaker()?.name || "—")}</strong></span>
                     </div>
-                    <div class="klite-mt">
-                        <label>Next Speaker Selection:</label>
-                        <select id="speaker-mode" class="klite-select" style="width: 100%;" onchange="KLITE_RPMod.panels.ROLES.changeSpeakerMode(this.value)">
+                    <div class="rpm-mt">
+                        <label class="rpm-label" for="speaker-mode">Next Speaker Selection:</label>
+                        <select id="speaker-mode" class="form-control rpm-input" onchange="KLITE_RPMod.panels.ROLES.changeSpeakerMode(this.value)">
                             <option value="manual" ${this.speakerMode === "manual" ? "selected" : ""}>Manual Order</option>
                             <option value="round-robin" ${this.speakerMode === "round-robin" ? "selected" : ""}>Round Robin</option>
                             <option value="random" ${this.speakerMode === "random" ? "selected" : ""}>Random Selection</option>
@@ -9208,33 +9142,33 @@ ${examples}`;
                         </select>
                         
                     </div>
-                    <div id="speaker-mode-description" style="margin-top: 6px; font-size: 11px; color: var(--muted); padding: 6px; background: rgba(0,0,0,0.2); border-radius: 4px;">
+                    <div id="speaker-mode-description" class="klite-inset rpm-muted rpm-mt">
                         ${this.getSpeakerModeDescription()}
                     </div>
                     
                     ${this.renderAutoResponseControls()}
                     
-                    <div class="klite-mt" style="margin-top: 10px;">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: ${this.speakerMode === "manual" ? "not-allowed" : "pointer"}; font-size: 12px;">
+                    <div class="rpm-mt">
+                        <label class="rpm-check rpm-small ${this.speakerMode === "manual" ? "rpm-disabled" : ""}">
                             <input type="checkbox" id="auto-advance-after-trigger" ${this.autoResponses.autoAdvanceAfterTrigger ? "checked" : ""}
                                    ${this.speakerMode === "manual" ? "disabled" : ""}
                                    onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseSetting('autoAdvanceAfterTrigger', this.checked)">
-                            <span style="color: ${this.speakerMode === "manual" ? "var(--muted)" : "var(--text)"};">Auto advance after trigger</span>
+                            <span>Auto advance after trigger</span>
                         </label>
-                        <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">When enabled, 'Trigger Speaker' advances to the next speaker automatically.</div>
+                        <div class="rpm-muted">When enabled, 'Trigger Speaker' advances to the next speaker automatically.</div>
                     </div>
 
-                    <div class="klite-mt" style="margin-top: 6px;">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: ${this.speakerMode === "manual" ? "not-allowed" : "pointer"}; font-size: 12px;">
+                    <div class="rpm-mt">
+                        <label class="rpm-check rpm-small ${this.speakerMode === "manual" ? "rpm-disabled" : ""}">
                             <input type="checkbox" id="auto-advance-on-submit" ${this.autoResponses.autoAdvanceOnUserSubmit ? "checked" : ""}
                                    ${this.speakerMode === "manual" ? "disabled" : ""}
                                    onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseSetting('autoAdvanceOnUserSubmit', this.checked)">
-                            <span style="color: ${this.speakerMode === "manual" ? "var(--muted)" : "var(--text)"};">Advance after user submit</span>
+                            <span>Advance after user submit</span>
                         </label>
-                        <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">When enabled, submitting your message advances to the next speaker.</div>
+                        <div class="rpm-muted">When enabled, submitting your message advances to the next speaker.</div>
                     </div>
                     
-                    <div class="klite-buttons-fill klite-mt">
+                    <div class="rpm-fill rpm-mt">
                         ${t.button("Manually Advance", "", "next-speaker")}
                         ${t.button("Trigger Speaker", "primary", "trigger-response")}
                     </div>`
@@ -9247,42 +9181,42 @@ ${examples}`;
         const isManual = this.speakerMode === "manual";
         const isDisabled = isManual || !this.autoResponses.enabled;
         return `
-                <div style="margin-top: 15px; padding: 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg3); ${isManual ? "opacity: 0.5;" : ""}">
-                    <div style="margin-bottom: 10px;">
-                        <label style="display: flex; align-items: center; gap: 8px; cursor: ${isManual ? "not-allowed" : "pointer"};">
+                <div class="rpm-card rpm-stack rpm-mt ${isManual ? "rpm-dim" : ""}">
+                    <div>
+                        <label class="rpm-check ${isManual ? "rpm-disabled" : ""}">
                             <input type="checkbox" id="auto-responses-enabled" ${this.autoResponses.enabled ? "checked" : ""} 
                                    ${isManual ? "disabled" : ""}
                                    onchange="KLITE_RPMod.panels.ROLES.toggleAutoResponses(this.checked)">
-                            <span style="font-weight: bold; color: ${isManual ? "var(--muted)" : "var(--text)"};">Enable Auto Responses</span>
+                            <strong>Enable Auto Responses</strong>
                         </label>
-                        ${isManual ? '<div style="font-size: 11px; color: var(--muted); margin-top: 4px;">Auto responses are disabled in Manual Order mode</div>' : ""}
+                        ${isManual ? '<div class="rpm-muted">Auto responses are disabled in Manual Order mode</div>' : ""}
                     </div>
                     
-                    <div style="margin-left: 20px;">
-                        <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
-                            <label style="font-size: 12px; color: var(--muted);">Delay between triggers:</label>
+                    <div class="klite-indent rpm-stack">
+                        <div class="rpm-row">
+                            <label class="rpm-muted" for="auto-response-delay">Delay between triggers:</label>
                             <input type="number" id="auto-response-delay" min="1" max="300" value="${this.autoResponses.delay}" 
                                    ${isDisabled ? "disabled" : ""}
-                                   style="width: 60px; padding: 2px 4px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 2px; ${isDisabled ? "opacity: 0.5; cursor: not-allowed;" : ""}"
+                                   class="form-control rpm-input klite-num"
                                    onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseDelay(this.value)">
-                            <span style="font-size: 12px; color: var(--muted);">seconds</span>
+                            <span class="rpm-muted">seconds</span>
                         </div>
                         
-                        <div style="margin-bottom: 6px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: ${isDisabled ? "not-allowed" : "pointer"}; font-size: 12px;">
+                        <div>
+                            <label class="rpm-check rpm-small ${isDisabled ? "rpm-disabled" : ""}">
                                 <input type="checkbox" id="enable-self-answers" ${this.autoResponses.enableSelfAnswers ? "checked" : ""}
                                        ${isDisabled ? "disabled" : ""}
                                        onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseSetting('enableSelfAnswers', this.checked)">
-                                <span style="color: ${isDisabled ? "var(--muted)" : "var(--text)"};">Enable self-answers</span>
+                                <span>Enable self-answers</span>
                             </label>
                         </div>
                         
-                        <div style="margin-bottom: 6px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: ${isDisabled ? "not-allowed" : "pointer"}; font-size: 12px;">
+                        <div>
+                            <label class="rpm-check rpm-small ${isDisabled ? "rpm-disabled" : ""}">
                                 <input type="checkbox" id="continue-without-player" ${this.autoResponses.continueWithoutPlayer ? "checked" : ""}
                                        ${isDisabled ? "disabled" : ""}
                                        onchange="KLITE_RPMod.panels.ROLES.updateAutoResponseSetting('continueWithoutPlayer', this.checked)">
-                                <span style="color: ${isDisabled ? "var(--muted)" : "var(--text)"};">Continue without player input</span>
+                                <span>Continue without player input</span>
                             </label>
                         </div>
                         
@@ -9293,33 +9227,26 @@ ${examples}`;
       },
       renderActiveChars() {
         if (this.activeChars.length === 0) {
-          return '<div class="klite-center klite-muted">No characters in group</div>';
+          return '<div class="rpm-center rpm-muted">No characters in group</div>';
         }
         return this.activeChars.map((char, i) => {
           const avatar = KLITE_RPMod.getBestCharacterAvatar(char);
           const isNext = i === this.currentSpeaker;
           const isLast = i === this.lastSpeaker;
+          const name = KLITE_RPMod.escapeHtml(char.name || "");
           return `
-                    <div style="display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; background: var(--bg2); ${isNext ? "border-color: var(--accent); background: rgba(42, 168, 74, 0.12);" : isLast ? "border-color: #e0b400; background: rgba(224, 180, 0, 0.12);" : ""}">
-                        ${avatar ? `
-                            <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                                ${KLITE_RPMod.safeImageHTML(avatar, char.name || "", "width: 100%; height: 100%; object-fit: cover;")}
-                            </div>
-                        ` : `
-                            <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <span style="font-size: 18px;">${(char.name || "?").charAt(0)}</span>
-                            </div>
-                        `}
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="font-weight: bold; color: var(--text);">
-                                ${char.name}
-                                ${isLast ? '<span style="margin-left:6px; padding:1px 4px; font-size:10px; border-radius:3px; background:#e0b400; color:#000;">Last</span>' : ""}
-                                ${isNext ? '<span style="margin-left:6px; padding:1px 4px; font-size:10px; border-radius:3px; background:#2aa84a; color:#fff;">Next</span>' : ""}
-                            </div>
+                    <div class="klite-item-row ${isNext ? "klite-is-next" : isLast ? "klite-is-last" : ""}">
+                        <div class="rpm-avatar">
+                            ${avatar ? KLITE_RPMod.safeImageHTML(avatar, char.name || "", "width: 100%; height: 100%; object-fit: cover;") : `<span>${KLITE_RPMod.escapeHtml((char.name || "?").charAt(0))}</span>`}
                         </div>
-                        <div style="display: flex; gap: 4px; flex-shrink: 0;">
-                            <button class="klite-btn" data-action="set-speaker" data-index="${i}" style="padding: 4px 8px; font-size: 11px;">Set Next</button>
-                            <button class="klite-btn danger" data-action="remove-from-group" data-index="${i}" style="padding: 4px 8px; font-size: 11px;">Remove</button>
+                        <div class="rpm-grow">
+                            <strong>${name}</strong>
+                            ${isLast ? '<span class="rpm-tag klite-tag-last">Last</span>' : ""}
+                            ${isNext ? '<span class="rpm-tag klite-tag-next">Next</span>' : ""}
+                        </div>
+                        <div class="rpm-row">
+                            <button class="btn btn-primary rpm-btn" data-action="set-speaker" data-index="${i}">Set Next</button>
+                            <button class="btn btn-primary rpm-btn rpm-danger" data-action="remove-from-group" data-index="${i}">Remove</button>
                         </div>
                     </div>
                 `;
@@ -9609,41 +9536,26 @@ ${examples}`;
       },
       showCustomCharacterModal(editChar = null) {
         const modal = document.createElement("div");
-        modal.className = "klite-modal";
-        modal.style.cssText = "position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;";
+        modal.className = "klite-modal rpm-themed";
+        const field = (v) => KLITE_RPMod.escapeHtml(v == null ? "" : String(v));
         modal.innerHTML = `
-                <div class="klite-modal-content" style="background: var(--bg2); border-radius: 8px; padding: 20px; max-width: 400px; border: 1px solid var(--border);">
-                    <h3 style="margin-top: 0; color: var(--text);">${editChar ? "Edit Custom Character" : "Add Custom Character"}</h3>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px;">Name</label>
-                        <input type="text" id="group-custom-char-name" placeholder="Character name" value="${editChar?.name || ""}"
-                            style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
+                <div class="klite-modal-content klite-modal-sm">
+                    <div class="klite-modal-header"><h3>${editChar ? "Edit Custom Character" : "Add Custom Character"}</h3></div>
+                    <div class="klite-modal-body">
+                        <label class="rpm-label" for="group-custom-char-name">Name</label>
+                        <input type="text" id="group-custom-char-name" class="form-control rpm-input" placeholder="Character name" value="${field(editChar?.name)}">
+                        <label class="rpm-label" for="group-custom-char-talkativeness">Talkativeness (1-100)</label>
+                        <input type="number" id="group-custom-char-talkativeness" class="form-control rpm-input" min="1" max="100" value="${field(editChar?.talkativeness || 50)}">
+                        <label class="rpm-label" for="group-custom-char-keywords">Keywords (comma separated)</label>
+                        <input type="text" id="group-custom-char-keywords" class="form-control rpm-input" placeholder="keyword1, keyword2, keyword3" value="${field(editChar?.keywords ? editChar.keywords.join(", ") : "")}">
+                        <label class="rpm-label" for="group-custom-char-description">Description</label>
+                        <textarea id="group-custom-char-description" class="form-control rpm-input" placeholder="Brief character description">${field(editChar?.description)}</textarea>
                     </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px;">Talkativeness (1-100)</label>
-                        <input type="number" id="group-custom-char-talkativeness" min="1" max="100" value="${editChar?.talkativeness || 50}" 
-                            style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px;">Keywords (comma separated)</label>
-                        <input type="text" id="group-custom-char-keywords" placeholder="keyword1, keyword2, keyword3" value="${editChar?.keywords ? editChar.keywords.join(", ") : ""}"
-                            style="width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px;">
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px;">Description</label>
-                        <textarea id="group-custom-char-description" placeholder="Brief character description" 
-                            style="width: 100%; height: 60px; padding: 8px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 4px; resize: vertical;">${editChar?.description || ""}</textarea>
-                    </div>
-                    
-                    <div style="display: flex; gap: 10px;">
-                        <button class="klite-btn klite-btn-primary" data-action="confirm-custom-character" ${editChar ? `data-edit-char-id="${editChar.id}"` : ""} style="flex: 1;">
+                    <div class="klite-modal-footer">
+                        <button class="btn btn-primary rpm-btn" data-action="confirm-custom-character" ${editChar ? `data-edit-char-id="${field(editChar.id)}"` : ""}>
                             ${editChar ? "Update Character" : "Add Character"}
                         </button>
-                        <button class="klite-btn" data-action="close-group-char-modal" style="flex: 1;">
+                        <button class="btn btn-primary rpm-btn" data-action="close-group-char-modal">
                             Cancel
                         </button>
                     </div>
@@ -10286,12 +10198,12 @@ ${examples}`;
         return `
                 ${t.section(
           "Import Characters",
-          `<div id="char-upload-zone" style="text-align:center;">
-                        <button class="klite-btn" style="width:100%; padding: 18px 12px; font-size: 14px;">
+          `<div id="char-upload-zone">
+                        <button class="btn btn-primary rpm-btn rpm-block klite-drop-btn">
                             Click or drag characters, saves, lorebooks, world info or PDFs here to add
                         </button>
                     </div>
-                    <div class="klite-buttons-fill klite-mt">
+                    <div class="rpm-fill rpm-mt">
                         ${t.button("Backup the Characters", "secondary", "export-chars")}
                     </div>`
         )}
@@ -10310,40 +10222,19 @@ ${examples}`;
         const favs = new Set(all.filter((m) => m.favorite).map((m) => m.name));
         const sorted = all.slice().sort((a, b) => favs.has(b.name) - favs.has(a.name) || String(a.name).localeCompare(String(b.name)));
         const shown = sorted.slice(0, 12);
-        const rows = shown.map((c) => `<button type="button" class="klite-btn secondary rpm-chars-link" data-action="open-gallery" data-char-name="${this.escapeHTML(c.name)}" style="width:100%;text-align:left;margin-bottom:4px;">${favs.has(c.name) ? "★ " : ""}${this.escapeHTML(c.name)}</button>`).join("");
-        const more = sorted.length > shown.length ? `<div class="klite-muted" style="font-size:11px;">and ${sorted.length - shown.length} more in the gallery</div>` : "";
+        const rows = shown.map((c) => `<button type="button" class="btn btn-primary rpm-btn rpm-block rpm-chars-link" data-action="open-gallery" data-char-name="${this.escapeHTML(c.name)}">${favs.has(c.name) ? "★ " : ""}${this.escapeHTML(c.name)}</button>`).join("");
+        const more = sorted.length > shown.length ? `<div class="rpm-muted">and ${sorted.length - shown.length} more in the gallery</div>` : "";
         return t.section(
           "Character Gallery",
-          `<div class="klite-buttons-fill klite-mb">
-                        <button type="button" class="klite-btn primary" data-action="open-gallery" style="width:100%;padding:12px;">Open character gallery (${all.length})</button>
+          `<div class="rpm-fill rpm-mb">
+                        <button type="button" class="btn btn-primary rpm-btn rpm-lg" data-action="open-gallery">Open character gallery (${all.length})</button>
                     </div>
-                    <div class="klite-muted" style="font-size:11px;margin-bottom:6px;">Browse, search, play, edit and build characters in the full-screen gallery. Click a name to open its page.</div>
-                    ${rows || '<div class="klite-muted">No characters yet — import a card above.</div>'}
+                    <div class="rpm-muted rpm-mb">Browse, search, play, edit and build characters in the full-screen gallery. Click a name to open its page.</div>
+                    ${rows || '<div class="rpm-muted">No characters yet — import a card above.</div>'}
                     ${more}`
         );
       },
       init() {
-        try {
-          if (!document.getElementById("klite-chars-gallery-styles")) {
-            const s = document.createElement("style");
-            s.id = "klite-chars-gallery-styles";
-            s.textContent = `
-                        .klite-character-overview { display: grid !important; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 100%; }
-                        .klite-character-grid { display: grid !important; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
-                        .klite-character-overview .klite-overview-thumb { width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
-                        .klite-character-overview .klite-overview-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-                        /* Ensure grid items can shrink to fit tracks */
-                        .klite-character-grid > * , .klite-character-overview > * { min-width: 0 !important; max-width: 100% !important; width: 100% !important; box-sizing: border-box; }
-                        .klite-character-grid .klite-grid-thumb { width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
-                        .klite-character-grid .klite-grid-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-                        /* Detail view tag chips (non-interactive) */
-                        .klite-character-detail .klite-char-tags .klite-tag-pill { background: var(--bg2) !important; color: var(--text) !important; border: 1px solid var(--border) !important; }
-                        .klite-character-detail .klite-char-tags .klite-tag-pill.selected { background: var(--border) !important; color: var(--text) !important; border: 1px solid var(--bg2) !important; }
-                    `;
-            document.head.appendChild(s);
-          }
-        } catch (_) {
-        }
         try {
           this.loadGalleryPrefs?.();
         } catch (_) {
@@ -10822,180 +10713,10 @@ ${examples}`;
         });
         return Array.from(allTags).sort();
       },
-      renderCharacters() {
-        const characters = this.getFilteredCharacters();
-        if (characters.length === 0) {
-          return '<div class="klite-center klite-muted">No characters found</div>';
-        }
-        switch (this.currentView) {
-          case "overview":
-            return characters.map((char) => this.renderCharacterOverviewItem(char)).join("");
-          case "list":
-            return characters.map((char) => this.renderCharacterListItem(char)).join("");
-          case "detail":
-            return characters.map((char) => this.renderCharacterGridItem(char)).join("");
-          default:
-            return characters.map((char) => this.renderCharacterGridItem(char)).join("");
-        }
-      },
-      renderCharacterOverviewItem(char) {
-        return `
-                <div style="display: flex; flex-direction: column; align-items: center; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg2); cursor: pointer; text-align: center;" 
-                     data-char-id="${char.id}" data-action="view-char">
-                    ${char.thumbnail || char.image ? `
-                        <div class="klite-overview-thumb" style="width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; margin-bottom: 6px; border: 1px solid var(--border);">
-                            ${KLITE_RPMod.safeImageHTML(char.thumbnail || char.image, char.name || "", "width: 100%; height: 100%; object-fit: cover; display: block;")}
-                        </div>
-                    ` : `
-                        <div class="klite-overview-thumb" style="width: 100%; aspect-ratio: 2/3; border-radius: 4px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin-bottom: 6px;">
-                            <span style="font-size: 24px;">${KLITE_RPMod.panels.CHARS.escapeHTML((char.name || "?").charAt(0))}</span>
-                        </div>
-                    `}
-                    <div style="font-size: 12px; font-weight: bold; color: var(--text); line-height: 1.2; word-wrap: break-word; max-width: 100%;">
-                        ${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || "").length > 12 ? KLITE_RPMod.panels.CHARS.escapeHTML(char.name || "").substring(0, 12) + "..." : KLITE_RPMod.panels.CHARS.escapeHTML(char.name || "")}
-                    </div>
-                    <div class="klite-char-creator" style="font-size: 10px; color: var(--muted);">by ${KLITE_RPMod.panels.CHARS.escapeHTML(char.creator || "Unknown")}</div>
-                </div>
-            `;
-      },
-      // New: 2-per-row grid tile similar to overview, with rating
-      renderCharacterGridItem(char) {
-        const rating = char.rating || 0;
-        const preferFull = this.currentView === "detail";
-        const imgsrc = preferFull ? char.image || char.thumbnail : char.thumbnail || char.image;
-        return `
-                <div class="klite-char-grid-item" data-char-id="${char.id}" data-action="view-char" style="display: flex; flex-direction: column; align-items: center; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg2); cursor: pointer; text-align: center;">
-                    ${imgsrc ? `
-                        <div class="klite-grid-thumb" style="width: 100%; aspect-ratio: 2/3; border-radius: 4px; overflow: hidden; margin-bottom: 8px; border: 1px solid var(--border);">
-                            ${KLITE_RPMod.safeImageHTML(imgsrc, char.name || "", "width: 100%; height: 100%; object-fit: cover; display: block;")}
-                        </div>
-                    ` : `
-                        <div class="klite-grid-thumb" style="width: 100%; aspect-ratio: 2/3; border-radius: 4px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
-                            <span style="font-size: 36px;">👤</span>
-                        </div>
-                    `}
-                    <div class="klite-char-name" style="font-weight: bold; color: var(--text); margin-bottom: 4px;">${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || "")}</div>
-                    <div class="klite-char-creator" style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">by ${KLITE_RPMod.panels.CHARS.escapeHTML(char.creator || "Unknown")}</div>
-                    <div style="text-align: center;">
-                        <select class="klite-select" style="font-size: 10px; padding: 2px 4px;" onchange="KLITE_RPMod.panels.CHARS.updateCharacterRating(${char.id}, this.value)" onclick="event.stopPropagation();">
-                            <option value="0" ${rating === 0 ? "selected" : ""}>☆ Unrated</option>
-                            <option value="1" ${rating === 1 ? "selected" : ""}>★☆☆☆☆</option>
-                            <option value="2" ${rating === 2 ? "selected" : ""}>★★☆☆☆</option>
-                            <option value="3" ${rating === 3 ? "selected" : ""}>★★★☆☆</option>
-                            <option value="4" ${rating === 4 ? "selected" : ""}>★★★★☆</option>
-                            <option value="5" ${rating === 5 ? "selected" : ""}>★★★★★</option>
-                        </select>
-                        ${this.currentView === "detail" ? `
-                        <div class="klite-char-tags" style="margin-top: 6px; display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;">
-                            ${Array.isArray(char.tags) && char.tags.length > 0 ? char.tags.map((t2) => `<span class="klite-tag-pill" style="pointer-events:none; cursor: default; border-radius: 10px;">&nbsp;&nbsp;${KLITE_RPMod.panels.CHARS.escapeHTML(String(t2))}&nbsp;&nbsp;</span>`).join(" ") : ""}
-                        </div>
-                        ` : ""}
-                    </div>
-                </div>
-            `;
-      },
-      renderCharacterListItem(char) {
-        const rating = char.rating || 0;
-        return `
-                <div style="display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; background: var(--bg2); cursor: pointer;" 
-                     data-char-id="${char.id}" data-action="view-char">
-                    ${char.thumbnail || char.image ? `
-                        <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                            ${KLITE_RPMod.safeImageHTML(char.thumbnail || char.image, char.name || "", "width: 100%; height: 100%; object-fit: cover;")}
-                        </div>
-                    ` : `
-                        <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <span style="font-size: 18px;">${KLITE_RPMod.panels.CHARS.escapeHTML((char.name || "?").charAt(0))}</span>
-                        </div>
-                    `}
-                    <div style="flex: 1; min-width: 0;">
-                        <div style="font-weight: bold; color: var(--text); margin-bottom: 2px;">${KLITE_RPMod.panels.CHARS.escapeHTML(char.name || "")}</div>
-                        <div style="font-size: 10px; color: var(--muted); display: flex; gap: 8px; align-items: center;">
-                            <span>by ${KLITE_RPMod.panels.CHARS.escapeHTML(char.creator || "Unknown")}</span>
-                            <select class="klite-select" style="font-size: 9px; padding: 2px 4px;" onchange="KLITE_RPMod.panels.CHARS.updateCharacterRating(${char.id}, this.value)" onclick="event.stopPropagation();">
-                                <option value="0" ${rating === 0 ? "selected" : ""}>☆ Unrated</option>
-                                <option value="1" ${rating === 1 ? "selected" : ""}>★☆☆☆☆</option>
-                                <option value="2" ${rating === 2 ? "selected" : ""}>★★☆☆☆</option>
-                                <option value="3" ${rating === 3 ? "selected" : ""}>★★★☆☆</option>
-                                <option value="4" ${rating === 4 ? "selected" : ""}>★★★★☆</option>
-                                <option value="5" ${rating === 5 ? "selected" : ""}>★★★★★</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            `;
-      },
+      // The character grid lives in the full-screen gallery (src/characters/gallery.js), which
+      // redraws itself from the Library; the tab has no grid of its own any more. Kept because
+      // the tag, rating and import code still calls it.
       refreshGallery() {
-        const gallery = document.getElementById("char-gallery");
-        if (gallery) {
-          gallery.className = `klite-character-${this.currentView}`;
-          if (this.currentView === "overview") {
-            gallery.style.display = "grid";
-            gallery.style.gridTemplateColumns = "repeat(3, 1fr)";
-            gallery.style.gap = "6px";
-          } else if (this.currentView === "grid") {
-            gallery.style.display = "grid";
-            gallery.style.gridTemplateColumns = "repeat(2, 1fr)";
-            gallery.style.gap = "10px";
-          } else if (this.currentView === "detail") {
-            gallery.style.display = "grid";
-            gallery.style.gridTemplateColumns = "repeat(1, 1fr)";
-            gallery.style.gap = "10px";
-          } else {
-            gallery.style.display = "";
-            gallery.style.gridTemplateColumns = "";
-            gallery.style.gap = "";
-          }
-          if (this.currentView === "detail") {
-            try {
-              this._renderDetailAfterPrefetch(gallery);
-            } catch (_) {
-              gallery.innerHTML = this.renderCharacters();
-            }
-          } else {
-            gallery.innerHTML = this.renderCharacters();
-            try {
-              const countEl = document.getElementById("char-count");
-              if (countEl) {
-                const total = Array.isArray(KLITE_RPMod.characters) ? KLITE_RPMod.characters.length : 0;
-                const shown = this.getFilteredCharacters().length;
-                countEl.textContent = `${shown} of ${total} characters shown`;
-              }
-            } catch (_) {
-            }
-          }
-        }
-      },
-      async _renderDetailAfterPrefetch(galleryEl) {
-        try {
-          const list2 = this.getFilteredCharacters();
-          if (Array.isArray(list2) && typeof window.getCharacterData === "function") {
-            for (let i = 0; i < list2.length; i++) {
-              const c = list2[i];
-              if (!c?.image) {
-                try {
-                  const data = await window.getCharacterData(c.name);
-                  if (data?.image) c.image = data.image;
-                } catch (_) {
-                }
-              }
-            }
-          }
-        } catch (_) {
-        }
-        try {
-          galleryEl.innerHTML = this.renderCharacters();
-        } catch (_) {
-        }
-        try {
-          const countEl = document.getElementById("char-count");
-          if (countEl) {
-            const total = Array.isArray(KLITE_RPMod.characters) ? KLITE_RPMod.characters.length : 0;
-            const shown = this.getFilteredCharacters().length;
-            countEl.textContent = `${shown} of ${total} characters shown`;
-          }
-        } catch (_) {
-        }
       },
       refreshTagDropdown() {
         const tagFilter = document.getElementById("char-tag-filter");
@@ -11716,38 +11437,38 @@ ${char.mes_example}
           worldInfo.push(...entries);
         }
         rightPanel.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--border);">
-                    <h2 style="margin: 0; font-size: 20px; color: var(--text);">${KLITE_RPMod.escapeHtml(char.name)}</h2>
-                    <button class="klite-btn" onclick="KLITE_RPMod.panels.CHARS.hideCharacterFullscreen()">← Back</button>
+                <div class="klite-detail-head">
+                    <h2 class="rpm-heading">${KLITE_RPMod.escapeHtml(char.name)}</h2>
+                    <button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.hideCharacterFullscreen()">← Back</button>
                 </div>
 
                ${t.section(
           "Character Profile",
-          `<div style="text-align: center; margin-bottom: 15px;">
-                        ${char.image ? KLITE_RPMod.safeImageHTML(char.image, char.name || "", "width: 100%; max-width: 200px; border-radius: 8px; margin-bottom: 8px;") : '<div style="width: 100px; height: 100px; background: var(--bg2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 48px; margin: 0 auto 8px; color: var(--muted);">👤</div>'}
-                        <div style="font-weight: 600; font-size: 18px; color: var(--text);">${KLITE_RPMod.escapeHtml(char.name)}</div>
-                        <div style="color: var(--muted); font-size: 14px;">by ${KLITE_RPMod.panels.CHARS.escapeHTML(characterData?.creator || "Unknown")}</div>
+          `<div class="klite-profile">
+                        ${char.image ? KLITE_RPMod.safeImageHTML(char.image, char.name || "", "width: 100%; max-width: 200px; border-radius: 8px; margin-bottom: 8px;") : '<div class="klite-profile-noimg">👤</div>'}
+                        <div class="rpm-heading">${KLITE_RPMod.escapeHtml(char.name)}</div>
+                        <div class="rpm-muted">by ${KLITE_RPMod.panels.CHARS.escapeHTML(characterData?.creator || "Unknown")}</div>
                     </div>`
         )}
           
                ${t.section(
           "Tags",
-          `<div id="tags-container-${char.id}" style="margin-bottom: 12px;">
+          `<div id="tags-container-${char.id}" class="rpm-wrap rpm-mb">
                         ${(effectiveTags || []).map((tag) => {
             const t2 = KLITE_RPMod.panels.CHARS.escapeHTML(String(tag || ""));
             return `
-                            <span class="klite-tag-pill" style="background: var(--bg2); border-radius: 10px;" data-tag="${t2}" onclick="KLITE_RPMod.panels.CHARS.toggleTagSelection(this)">&nbsp;&nbsp;${t2}&nbsp;&nbsp;</span>`;
+                            <span class="rpm-chip klite-tag-pill" role="button" data-tag="${t2}" onclick="KLITE_RPMod.panels.CHARS.toggleTagSelection(this)">${t2}</span>`;
           }).join(" ")}
                     </div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <button class="klite-btn" onclick="KLITE_RPMod.panels.CHARS.addTag(${char.id})">Add Tag</button>
-                        <button class="klite-btn danger disabled" id="remove-tag-btn-${char.id}" onclick="KLITE_RPMod.panels.CHARS.removeSelectedTags(${char.id})" disabled>✕ Remove Selected</button>
+                    <div class="rpm-row">
+                        <button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.addTag(${char.id})">Add Tag</button>
+                        <button class="btn btn-primary rpm-btn rpm-danger disabled" id="remove-tag-btn-${char.id}" onclick="KLITE_RPMod.panels.CHARS.removeSelectedTags(${char.id})" disabled>✕ Remove Selected</button>
                     </div>`
         )}
                 
                 ${t.section(
           "Rating",
-          `<select class="klite-select" onchange="KLITE_RPMod.panels.CHARS.updateCharacterRating(${char.id}, this.value)" style="width: 100%;">
+          `<select class="form-control rpm-input" onchange="KLITE_RPMod.panels.CHARS.updateCharacterRating(${char.id}, this.value)">
                         <option value="0" ${char.rating === 0 ? "selected" : ""}>☆ Unrated</option>
                         <option value="1" ${char.rating === 1 ? "selected" : ""}>★☆☆☆☆</option>
                         <option value="2" ${char.rating === 2 ? "selected" : ""}>★★☆☆☆</option>
@@ -11759,34 +11480,34 @@ ${char.mes_example}
                 
                 ${t.section(
           "Actions",
-          `<div style="display: flex; flex-direction: column; gap: 6px;">
-                        <button class="klite-btn secondary" data-action="export-char-json" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${char.id}">Export as JSON</button>
-                        <button class="klite-btn secondary" data-action="export-char-png" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${char.id}">Export as V2 PNG</button>
-                        <button class="klite-btn secondary" data-action="edit-character" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">✏️ Edit</button>
-                        <button class="klite-btn secondary" data-action="clone-character" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">📄 Clone</button>
-                        <button class="klite-btn danger" data-action="delete-char-modal" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">Delete Character</button>
+          `<div class="rpm-stack">
+                        <button class="btn btn-primary rpm-btn" data-action="export-char-json" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${char.id}">Export as JSON</button>
+                        <button class="btn btn-primary rpm-btn" data-action="export-char-png" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${char.id}">Export as V2 PNG</button>
+                        <button class="btn btn-primary rpm-btn" data-action="edit-character" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">✏️ Edit</button>
+                        <button class="btn btn-primary rpm-btn" data-action="clone-character" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">📄 Clone</button>
+                        <button class="btn btn-primary rpm-btn rpm-danger" data-action="delete-char-modal" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">Delete Character</button>
                     </div>`
         )}
                 
-                ${characterData.description ? t.section("Description", `<div style="white-space: pre-wrap;">${KLITE_RPMod.escapeHtml(characterData.description)}</div>`) : ""}
-                ${characterData.personality ? t.section("Personality", `<div style="white-space: pre-wrap;">${KLITE_RPMod.escapeHtml(characterData.personality)}</div>`) : ""}
-                ${characterData.scenario ? t.section("Scenario", `<div style="white-space: pre-wrap;">${KLITE_RPMod.escapeHtml(characterData.scenario)}</div>`) : ""}
-                ${characterData.creator_notes ? t.section("Creator Notes", `<div style="white-space: pre-wrap;">${KLITE_RPMod.escapeHtml(characterData.creator_notes)}</div>`) : ""}
-                ${characterData.post_history_instructions ? t.section("Post History Instructions", `<div style="white-space: pre-wrap;">${KLITE_RPMod.escapeHtml(characterData.post_history_instructions)}</div>`) : ""}
-                ${characterData.mes_example ? t.section("Example Messages", `<div style="white-space: pre-wrap;">${KLITE_RPMod.escapeHtml(characterData.mes_example)}</div>`) : ""}
-                ${characterData.system_prompt ? t.section("System Prompt", `<div style="white-space: pre-wrap;">${KLITE_RPMod.escapeHtml(characterData.system_prompt)}</div>`) : ""}
-                ${characterData.jailbreak ? t.section("Jailbreak", `<div style="white-space: pre-wrap;">${KLITE_RPMod.escapeHtml(characterData.jailbreak)}</div>`) : ""}
-                ${characterData.depth_prompt_prompt ? t.section("Depth Prompt", `<div style="white-space: pre-wrap;">${KLITE_RPMod.escapeHtml(characterData.depth_prompt_prompt)}</div>`) : ""}
+                ${characterData.description ? t.section("Description", `<div class="klite-pre">${KLITE_RPMod.escapeHtml(characterData.description)}</div>`) : ""}
+                ${characterData.personality ? t.section("Personality", `<div class="klite-pre">${KLITE_RPMod.escapeHtml(characterData.personality)}</div>`) : ""}
+                ${characterData.scenario ? t.section("Scenario", `<div class="klite-pre">${KLITE_RPMod.escapeHtml(characterData.scenario)}</div>`) : ""}
+                ${characterData.creator_notes ? t.section("Creator Notes", `<div class="klite-pre">${KLITE_RPMod.escapeHtml(characterData.creator_notes)}</div>`) : ""}
+                ${characterData.post_history_instructions ? t.section("Post History Instructions", `<div class="klite-pre">${KLITE_RPMod.escapeHtml(characterData.post_history_instructions)}</div>`) : ""}
+                ${characterData.mes_example ? t.section("Example Messages", `<div class="klite-pre">${KLITE_RPMod.escapeHtml(characterData.mes_example)}</div>`) : ""}
+                ${characterData.system_prompt ? t.section("System Prompt", `<div class="klite-pre">${KLITE_RPMod.escapeHtml(characterData.system_prompt)}</div>`) : ""}
+                ${characterData.jailbreak ? t.section("Jailbreak", `<div class="klite-pre">${KLITE_RPMod.escapeHtml(characterData.jailbreak)}</div>`) : ""}
+                ${characterData.depth_prompt_prompt ? t.section("Depth Prompt", `<div class="klite-pre">${KLITE_RPMod.escapeHtml(characterData.depth_prompt_prompt)}</div>`) : ""}
                 
                 ${greetings.length > 0 ? t.section(
           `First Messages (${greetings.length})`,
           greetings.map((greeting) => `
-                        <div style="margin-bottom: 16px; padding: 12px; background: ${greeting.index === (char.activeGreeting ?? -1) ? "rgba(74,158,255,0.15)" : "var(--bg3)"}; border-radius: 6px; border: ${greeting.index === (char.activeGreeting ?? -1) ? "1px solid var(--accent)" : "1px solid var(--border)"};">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div class="klite-entry ${greeting.index === (char.activeGreeting ?? -1) ? "klite-entry-active" : ""}">
+                            <div class="klite-entry-head">
                                 <strong>${greeting.label} ${greeting.index === (char.activeGreeting ?? -1) ? "(Active)" : ""}</strong>
-                                ${greeting.index !== (char.activeGreeting ?? -1) ? `<button class="klite-btn" onclick="KLITE_RPMod.panels.CHARS.setActiveGreeting(${char.id}, ${greeting.index})" style="font-size: 12px; padding: 6px 12px; background: var(--accent); color: white;">Set</button>` : ""}
+                                ${greeting.index !== (char.activeGreeting ?? -1) ? `<button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.setActiveGreeting(${char.id}, ${greeting.index})">Set</button>` : ""}
                             </div>
-                            <div style="white-space: pre-wrap; line-height: 1.5; color: var(--text);">${KLITE_RPMod.escapeHtml(greeting.content || "")}</div>
+                            <div class="klite-pre">${KLITE_RPMod.escapeHtml(greeting.content || "")}</div>
                         </div>
                     `).join("")
         ) : ""}
@@ -11794,13 +11515,13 @@ ${char.mes_example}
                 ${worldInfo.length > 0 ? t.section(
           `World Info / Character Book (${worldInfo.length})`,
           worldInfo.map((entry, i) => `
-                        <div style="margin-bottom: 12px; padding: 12px; background: var(--bg3); border-radius: 6px; border: 1px solid var(--border);">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <div class="klite-entry">
+                            <div class="klite-entry-head">
                                 <strong>Entry ${i + 1}</strong>
-                                <button class="klite-btn secondary" onclick="KLITE_RPMod.panels.CHARS.importWorldInfoEntry(${JSON.stringify(entry).replace(/"/g, "&quot;")})" style="font-size: 11px; padding: 4px 8px;">📥 Import to WI</button>
+                                <button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.importWorldInfoEntry(${KLITE_RPMod.escapeHtml(JSON.stringify(entry))})">📥 Import to WI</button>
                             </div>
-                            <div style="margin-bottom: 6px;"><strong>Keys:</strong> ${(entry.keys || []).map((k2) => KLITE_RPMod.escapeHtml(String(k2))).join(", ")}</div>
-                            <div style="white-space: pre-wrap; line-height: 1.5; color: var(--text);">${KLITE_RPMod.escapeHtml(entry.content || "")}</div>
+                            <div class="rpm-mb"><strong>Keys:</strong> ${(entry.keys || []).map((k2) => KLITE_RPMod.escapeHtml(String(k2))).join(", ")}</div>
+                            <div class="klite-pre">${KLITE_RPMod.escapeHtml(entry.content || "")}</div>
                         </div>
                     `).join("")
         ) : ""}
@@ -11943,15 +11664,7 @@ ${char.mes_example}
       toggleTagSelection(tagElement) {
         tagElement.classList.toggle("selected");
         const isSelected = tagElement.classList.contains("selected");
-        if (isSelected) {
-          tagElement.style.background = "var(--accent)";
-          tagElement.style.color = "white";
-          tagElement.style.borderColor = "var(--accent)";
-        } else {
-          tagElement.style.background = "var(--bg2)";
-          tagElement.style.color = "var(--text)";
-          tagElement.style.borderColor = "var(--border)";
-        }
+        tagElement.setAttribute("aria-pressed", String(isSelected));
         const container = tagElement.closest('[id^="tags-container-"]');
         const charId = container.id.replace("tags-container-", "");
         const removeBtn = document.getElementById(`remove-tag-btn-${charId}`);
@@ -12638,58 +12351,58 @@ ${char.mes_example}
       }
       return `
     <div class="klite-char-editor">
-        <h3>${d.id ? "Edit Character" : charData ? "Clone Character" : "Create New Character"}</h3>
+        <h3 class="rpm-heading">${d.id ? "Edit Character" : charData ? "Clone Character" : "Create New Character"}</h3>
 
-        <label>Name:</label>
-        <input class="klite-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.name)}" oninput="KLITE_RPMod.panels.CHARS.editData.name=this.value"><br>
+        <label class="rpm-label">Name:</label>
+        <input class="form-control rpm-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.name)}" oninput="KLITE_RPMod.panels.CHARS.editData.name=this.value">
 
-        <label>Description:</label>
-        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.description=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.description)}</textarea><br>
+        <label class="rpm-label">Description:</label>
+        <textarea class="form-control rpm-input" oninput="KLITE_RPMod.panels.CHARS.editData.description=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.description)}</textarea>
 
-        <label>Personality:</label>
-        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.personality=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.personality)}</textarea><br>
+        <label class="rpm-label">Personality:</label>
+        <textarea class="form-control rpm-input" oninput="KLITE_RPMod.panels.CHARS.editData.personality=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.personality)}</textarea>
 
-        <label>Scenario:</label>
-        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.scenario=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.scenario)}</textarea><br>
+        <label class="rpm-label">Scenario:</label>
+        <textarea class="form-control rpm-input" oninput="KLITE_RPMod.panels.CHARS.editData.scenario=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.scenario)}</textarea>
 
-        <label>Greeting (first message):</label>
-        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.first_mes=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.first_mes)}</textarea><br>
+        <label class="rpm-label">Greeting (first message):</label>
+        <textarea class="form-control rpm-input" oninput="KLITE_RPMod.panels.CHARS.editData.first_mes=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.first_mes)}</textarea>
 
-        <label>Example Dialogue:</label>
-        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.mes_example=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.mes_example)}</textarea><br>
+        <label class="rpm-label">Example Dialogue:</label>
+        <textarea class="form-control rpm-input" oninput="KLITE_RPMod.panels.CHARS.editData.mes_example=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.mes_example)}</textarea>
 
-        <label>Tags (comma-separated):</label>
-        <input class="klite-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML((Array.isArray(d.tags) ? d.tags : []).join(", "))}" oninput="KLITE_RPMod.panels.CHARS.editData.tags=this.value.split(',').map(t=>t.trim()).filter(Boolean)"><br>
+        <label class="rpm-label">Tags (comma-separated):</label>
+        <input class="form-control rpm-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML((Array.isArray(d.tags) ? d.tags : []).join(", "))}" oninput="KLITE_RPMod.panels.CHARS.editData.tags=this.value.split(',').map(t=>t.trim()).filter(Boolean)">
 
-        <label>Creator:</label>
-        <input class="klite-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.creator)}" oninput="KLITE_RPMod.panels.CHARS.editData.creator=this.value"><br>
+        <label class="rpm-label">Creator:</label>
+        <input class="form-control rpm-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.creator)}" oninput="KLITE_RPMod.panels.CHARS.editData.creator=this.value">
 
-        <label>Character Version:</label>
-        <input class="klite-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.character_version)}" oninput="KLITE_RPMod.panels.CHARS.editData.character_version=this.value"><br>
+        <label class="rpm-label">Character Version:</label>
+        <input class="form-control rpm-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.character_version)}" oninput="KLITE_RPMod.panels.CHARS.editData.character_version=this.value">
 
-        <label>Creator Notes (not shown to AI):</label>
-        <textarea class="klite-input" rows="3" oninput="KLITE_RPMod.panels.CHARS.editData.creator_notes=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.creator_notes)}</textarea><br>
+        <label class="rpm-label">Creator Notes (not shown to AI):</label>
+        <textarea class="form-control rpm-input" rows="3" oninput="KLITE_RPMod.panels.CHARS.editData.creator_notes=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.creator_notes)}</textarea>
 
-        <label>System Prompt Override:</label>
-        <textarea class="klite-input" rows="3" oninput="KLITE_RPMod.panels.CHARS.editData.system_prompt=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.system_prompt)}</textarea><br>
+        <label class="rpm-label">System Prompt Override:</label>
+        <textarea class="form-control rpm-input" rows="3" oninput="KLITE_RPMod.panels.CHARS.editData.system_prompt=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.system_prompt)}</textarea>
 
-        <label>Post-History Instructions:</label>
-        <textarea class="klite-input" rows="3" oninput="KLITE_RPMod.panels.CHARS.editData.post_history_instructions=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.post_history_instructions)}</textarea><br>
+        <label class="rpm-label">Post-History Instructions:</label>
+        <textarea class="form-control rpm-input" rows="3" oninput="KLITE_RPMod.panels.CHARS.editData.post_history_instructions=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.post_history_instructions)}</textarea>
 
-        <label>Alternate Greetings (one per line):</label>
-        <textarea class="klite-input" rows="3"
-            oninput="KLITE_RPMod.panels.CHARS.editData.alternate_greetings = this.value.split('\\n').map(l => l.trim()).filter(Boolean)">${KLITE_RPMod.panels.CHARS.escapeTextarea((d.alternate_greetings || []).join("\\n"))}</textarea><br>
+        <label class="rpm-label">Alternate Greetings (one per line):</label>
+        <textarea class="form-control rpm-input" rows="3"
+            oninput="KLITE_RPMod.panels.CHARS.editData.alternate_greetings = this.value.split('\\n').map(l => l.trim()).filter(Boolean)">${KLITE_RPMod.panels.CHARS.escapeTextarea((d.alternate_greetings || []).join("\\n"))}</textarea>
 
-        <label>Upload Avatar:</label>
+        <label class="rpm-label">Upload Avatar:</label>
         <input type="file" accept="image/png" onchange="KLITE_RPMod.panels.CHARS.uploadImage(event)">
-        <div>${KLITE_RPMod.safeImageHTML(d.avatar || "", "Avatar preview", "max-height:120px;margin-top:8px;")}</div>
+        <div class="rpm-mt">${KLITE_RPMod.safeImageHTML(d.avatar || "", "Avatar preview", "max-height:120px;")}</div>
 
         ${this.renderGroupSelector()}
 
-        <div class="klite-buttons-fill klite-mt">
-            <button class="klite-btn primary" onclick="KLITE_RPMod.panels.CHARS.saveCharacterwithWI()">💾 Save</button>
-            <button class="klite-btn primary" onclick="KLITE_RPMod.panels.CHARS.abortEdit()">↩️ Back</button>
-            <button class="klite-btn primary" onclick="KLITE_RPMod.panels.CHARS.toggleGroupSelector()">🔗 Connect WI Group</button>
+        <div class="rpm-fill rpm-mt">
+            <button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.saveCharacterwithWI()">💾 Save</button>
+            <button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.abortEdit()">↩️ Back</button>
+            <button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.toggleGroupSelector()">🔗 Connect WI Group</button>
         </div>
     </div>`;
     };
@@ -12699,7 +12412,7 @@ ${char.mes_example}
       if (this.editMode === "edit") return this.renderEditor(this.currentChar);
       if (this.editMode === "clone") return this.renderEditor(this.currentChar);
       const base = originalRender.call(this);
-      const newBtn = `<div class="klite-buttons-fill klite-mb"><button class="klite-btn primary" onclick="KLITE_RPMod.panels.CHARS.setEditMode('new')">➕ New Character</button></div>`;
+      const newBtn = `<div class="rpm-fill rpm-mb"><button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.setEditMode('new')">➕ New Character</button></div>`;
       return newBtn + base;
     };
     KLITE_RPMod.panels.CHARS.setEditMode = function(mode2, char = null) {
@@ -12716,14 +12429,14 @@ ${char.mes_example}
     KLITE_RPMod.panels.CHARS.renderGroupSelector = function() {
       if (!this.showGroupSelector) return "";
       const groups = this.getEsoliteWIGroups ? this.getEsoliteWIGroups() : [];
-      if (!groups.length) return '<div class="klite-muted">No WorldInfo groups available.</div>';
+      if (!groups.length) return '<div class="rpm-muted">No WorldInfo groups available.</div>';
       const selected = this.editData.character_book || "";
       const options = groups.map(
-        (g) => `<option value="${g}" ${selected === g ? "selected" : ""}>${g || "[Unassigned]"}</option>`
+        (g) => `<option value="${KLITE_RPMod.escapeHtml(g)}" ${selected === g ? "selected" : ""}>${KLITE_RPMod.escapeHtml(g || "[Unassigned]")}</option>`
       ).join("");
       return `
-        <label>WorldInfo Group:</label>
-        <select class="klite-select" onchange="KLITE_RPMod.panels.CHARS.selectGroup(this.value)">
+        <label class="rpm-label">WorldInfo Group:</label>
+        <select class="form-control rpm-input" onchange="KLITE_RPMod.panels.CHARS.selectGroup(this.value)">
             <option value="">— Select Group —</option>
             ${options}
         </select>

@@ -43,21 +43,21 @@ export function installScenarioPanel(S) {
             const vals = hasStored ? { scenario: st.scenario || '', example: st.example || '', first: st.first || '' }
                                    : this._getScenarioFieldsFromChar(src);
             return `
-                <div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
+                <div class="rpm-note rpm-mb">
                     <strong>Note:</strong> on clicking Start Role Play all necessary data gets stored into WI. If you want to change the configuration afterwards do it manually in WI.
                 </div>
                 ${t.section('🗺️ Scenario',
-                `${t.textarea('scenario-text', 'Describe the world, setting, and background.', vals.scenario)}`
+                `${t.textarea('scenario-text', 'Describe the world, setting, and background.', KLITE_RPMod.escapeHtml(vals.scenario))}`
             )}
                 
                 ${t.section('💬 Example Dialogue',
-                `${t.textarea('scenario-example', 'Provide example dialogue lines.', vals.example)}`
+                `${t.textarea('scenario-example', 'Provide example dialogue lines.', KLITE_RPMod.escapeHtml(vals.example))}`
             )}
                 
                 ${t.section('📩 First Message',
-                `${t.textarea('scenario-first-message', 'Write the first message to start the chat.', vals.first)}`
+                `${t.textarea('scenario-first-message', 'Write the first message to start the chat.', KLITE_RPMod.escapeHtml(vals.first))}`
             )}
-            <div class="klite-buttons-fill klite-mt">
+            <div class="rpm-fill rpm-mt">
                 ${t.button('Start Role Play', '', 'scenario-start-roleplay')}
             </div>
             `;

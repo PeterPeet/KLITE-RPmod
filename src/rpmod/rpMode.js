@@ -69,14 +69,14 @@ export function installRpMode(S) {
                     margin-bottom: 12px;
                     padding: 12px;
                     border-radius: 8px;
-                    background: var(--bg2);
-                    border: 1px solid var(--border);
+                    background: var(--theme_color_bg_popups, #263040);
+                    border: 1px solid var(--theme_color_border, #415577);
                     gap: 12px;
                     transition: background-color 0.2s ease;
                 }
                 
                 .rp-message-container:hover {
-                    background: var(--bg3);
+                    background: var(--theme_color_bg_muted, #484d56);
                 }
                 
                 /* RP Avatar */
@@ -84,18 +84,18 @@ export function installRpMode(S) {
                     width: 40px;
                     height: 40px;
                     border-radius: 50%;
-                    border: 2px solid var(--border);
+                    border: 2px solid var(--theme_color_border, #415577);
                     object-fit: cover;
                     flex-shrink: 0;
                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
                 }
                 
                 .rp-avatar.user-avatar {
-                    border-color: var(--accent);
+                    border-color: var(--theme_color_accent_bg_highlight, #596985);
                 }
                 
                 .rp-avatar.ai-avatar {
-                    border-color: var(--success);
+                    border-color: var(--theme_color_rpmod_success, #5cb85c);
                 }
                 
                 /* RP Message Content Area */
@@ -115,20 +115,20 @@ export function installRpMode(S) {
                 .rp-speaker-name {
                     font-weight: bold;
                     font-size: 14px;
-                    color: var(--text);
+                    color: var(--theme_color_fg, #d1d1d1);
                 }
                 
                 .rp-speaker-name.user-speaker {
-                    color: var(--accent);
+                    color: var(--theme_color_accent_bg_highlight, #596985);
                 }
                 
                 .rp-speaker-name.ai-speaker {
-                    color: var(--success);
+                    color: var(--theme_color_rpmod_success, #5cb85c);
                 }
                 
                 .rp-message-timestamp {
                     font-size: 11px;
-                    color: var(--muted);
+                    color: var(--theme_color_fg_muted, #9b9b9b);
                     margin-left: auto;
                 }
                 
@@ -136,16 +136,16 @@ export function installRpMode(S) {
                     font-size: 10px;
                     padding: 2px 6px;
                     border-radius: 12px;
-                    background: var(--bg3);
-                    color: var(--muted);
-                    border: 1px solid var(--border);
+                    background: var(--theme_color_bg_muted, #484d56);
+                    color: var(--theme_color_fg_muted, #9b9b9b);
+                    border: 1px solid var(--theme_color_border, #415577);
                 }
                 
                 /* RP Message Content */
                 .rp-message-content {
                     font-size: 14px;
                     line-height: 1.5;
-                    color: var(--text);
+                    color: var(--theme_color_fg, #d1d1d1);
                     word-wrap: break-word;
                     margin: 0;
                     padding: 0;
@@ -158,7 +158,7 @@ export function installRpMode(S) {
                 /* Special styling for actions (text in asterisks) */
                 .rp-message-content em,
                 .rp-message-content i {
-                    color: var(--muted);
+                    color: var(--theme_color_fg_muted, #9b9b9b);
                     font-style: italic;
                 }
                 
@@ -180,12 +180,12 @@ export function installRpMode(S) {
                 
                 /* Dark mode adjustments */
                 .klite-active .rp-message-container {
-                    background: var(--bg2);
-                    border-color: var(--border);
+                    background: var(--theme_color_bg_popups, #263040);
+                    border-color: var(--theme_color_border, #415577);
                 }
                 
                 .klite-active .rp-message-container:hover {
-                    background: var(--bg3);
+                    background: var(--theme_color_bg_muted, #484d56);
                 }
             </style>
         `;

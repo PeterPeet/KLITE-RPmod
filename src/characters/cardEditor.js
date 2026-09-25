@@ -125,58 +125,58 @@ export function installCardEditor(S) {
 
         return `
     <div class="klite-char-editor">
-        <h3>${d.id ? 'Edit Character' : charData ? 'Clone Character' : 'Create New Character'}</h3>
+        <h3 class="rpm-heading">${d.id ? 'Edit Character' : charData ? 'Clone Character' : 'Create New Character'}</h3>
 
-        <label>Name:</label>
-        <input class="klite-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.name)}" oninput="KLITE_RPMod.panels.CHARS.editData.name=this.value"><br>
+        <label class="rpm-label">Name:</label>
+        <input class="form-control rpm-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.name)}" oninput="KLITE_RPMod.panels.CHARS.editData.name=this.value">
 
-        <label>Description:</label>
-        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.description=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.description)}</textarea><br>
+        <label class="rpm-label">Description:</label>
+        <textarea class="form-control rpm-input" oninput="KLITE_RPMod.panels.CHARS.editData.description=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.description)}</textarea>
 
-        <label>Personality:</label>
-        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.personality=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.personality)}</textarea><br>
+        <label class="rpm-label">Personality:</label>
+        <textarea class="form-control rpm-input" oninput="KLITE_RPMod.panels.CHARS.editData.personality=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.personality)}</textarea>
 
-        <label>Scenario:</label>
-        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.scenario=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.scenario)}</textarea><br>
+        <label class="rpm-label">Scenario:</label>
+        <textarea class="form-control rpm-input" oninput="KLITE_RPMod.panels.CHARS.editData.scenario=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.scenario)}</textarea>
 
-        <label>Greeting (first message):</label>
-        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.first_mes=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.first_mes)}</textarea><br>
+        <label class="rpm-label">Greeting (first message):</label>
+        <textarea class="form-control rpm-input" oninput="KLITE_RPMod.panels.CHARS.editData.first_mes=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.first_mes)}</textarea>
 
-        <label>Example Dialogue:</label>
-        <textarea class="klite-input" oninput="KLITE_RPMod.panels.CHARS.editData.mes_example=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.mes_example)}</textarea><br>
+        <label class="rpm-label">Example Dialogue:</label>
+        <textarea class="form-control rpm-input" oninput="KLITE_RPMod.panels.CHARS.editData.mes_example=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.mes_example)}</textarea>
 
-        <label>Tags (comma-separated):</label>
-        <input class="klite-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML((Array.isArray(d.tags) ? d.tags : []).join(', '))}" oninput="KLITE_RPMod.panels.CHARS.editData.tags=this.value.split(',').map(t=>t.trim()).filter(Boolean)"><br>
+        <label class="rpm-label">Tags (comma-separated):</label>
+        <input class="form-control rpm-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML((Array.isArray(d.tags) ? d.tags : []).join(', '))}" oninput="KLITE_RPMod.panels.CHARS.editData.tags=this.value.split(',').map(t=>t.trim()).filter(Boolean)">
 
-        <label>Creator:</label>
-        <input class="klite-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.creator)}" oninput="KLITE_RPMod.panels.CHARS.editData.creator=this.value"><br>
+        <label class="rpm-label">Creator:</label>
+        <input class="form-control rpm-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.creator)}" oninput="KLITE_RPMod.panels.CHARS.editData.creator=this.value">
 
-        <label>Character Version:</label>
-        <input class="klite-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.character_version)}" oninput="KLITE_RPMod.panels.CHARS.editData.character_version=this.value"><br>
+        <label class="rpm-label">Character Version:</label>
+        <input class="form-control rpm-input" value="${KLITE_RPMod.panels.CHARS.escapeHTML(d.character_version)}" oninput="KLITE_RPMod.panels.CHARS.editData.character_version=this.value">
 
-        <label>Creator Notes (not shown to AI):</label>
-        <textarea class="klite-input" rows="3" oninput="KLITE_RPMod.panels.CHARS.editData.creator_notes=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.creator_notes)}</textarea><br>
+        <label class="rpm-label">Creator Notes (not shown to AI):</label>
+        <textarea class="form-control rpm-input" rows="3" oninput="KLITE_RPMod.panels.CHARS.editData.creator_notes=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.creator_notes)}</textarea>
 
-        <label>System Prompt Override:</label>
-        <textarea class="klite-input" rows="3" oninput="KLITE_RPMod.panels.CHARS.editData.system_prompt=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.system_prompt)}</textarea><br>
+        <label class="rpm-label">System Prompt Override:</label>
+        <textarea class="form-control rpm-input" rows="3" oninput="KLITE_RPMod.panels.CHARS.editData.system_prompt=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.system_prompt)}</textarea>
 
-        <label>Post-History Instructions:</label>
-        <textarea class="klite-input" rows="3" oninput="KLITE_RPMod.panels.CHARS.editData.post_history_instructions=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.post_history_instructions)}</textarea><br>
+        <label class="rpm-label">Post-History Instructions:</label>
+        <textarea class="form-control rpm-input" rows="3" oninput="KLITE_RPMod.panels.CHARS.editData.post_history_instructions=this.value">${KLITE_RPMod.panels.CHARS.escapeTextarea(d.post_history_instructions)}</textarea>
 
-        <label>Alternate Greetings (one per line):</label>
-        <textarea class="klite-input" rows="3"
-            oninput="KLITE_RPMod.panels.CHARS.editData.alternate_greetings = this.value.split('\\n').map(l => l.trim()).filter(Boolean)">${KLITE_RPMod.panels.CHARS.escapeTextarea((d.alternate_greetings || []).join('\\n'))}</textarea><br>
+        <label class="rpm-label">Alternate Greetings (one per line):</label>
+        <textarea class="form-control rpm-input" rows="3"
+            oninput="KLITE_RPMod.panels.CHARS.editData.alternate_greetings = this.value.split('\\n').map(l => l.trim()).filter(Boolean)">${KLITE_RPMod.panels.CHARS.escapeTextarea((d.alternate_greetings || []).join('\\n'))}</textarea>
 
-        <label>Upload Avatar:</label>
+        <label class="rpm-label">Upload Avatar:</label>
         <input type="file" accept="image/png" onchange="KLITE_RPMod.panels.CHARS.uploadImage(event)">
-        <div>${KLITE_RPMod.safeImageHTML(d.avatar || '', 'Avatar preview', 'max-height:120px;margin-top:8px;')}</div>
+        <div class="rpm-mt">${KLITE_RPMod.safeImageHTML(d.avatar || '', 'Avatar preview', 'max-height:120px;')}</div>
 
         ${this.renderGroupSelector()}
 
-        <div class="klite-buttons-fill klite-mt">
-            <button class="klite-btn primary" onclick="KLITE_RPMod.panels.CHARS.saveCharacterwithWI()">💾 Save</button>
-            <button class="klite-btn primary" onclick="KLITE_RPMod.panels.CHARS.abortEdit()">↩️ Back</button>
-            <button class="klite-btn primary" onclick="KLITE_RPMod.panels.CHARS.toggleGroupSelector()">🔗 Connect WI Group</button>
+        <div class="rpm-fill rpm-mt">
+            <button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.saveCharacterwithWI()">💾 Save</button>
+            <button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.abortEdit()">↩️ Back</button>
+            <button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.toggleGroupSelector()">🔗 Connect WI Group</button>
         </div>
     </div>`;
     };
@@ -189,8 +189,8 @@ export function installCardEditor(S) {
         if (this.editMode === 'clone') return this.renderEditor(this.currentChar);
 
         const base = originalRender.call(this);
-        const newBtn = '<div class="klite-buttons-fill klite-mb">' +
-            '<button class="klite-btn primary" onclick="KLITE_RPMod.panels.CHARS.setEditMode(\'new\')">➕ New Character</button>' +
+        const newBtn = '<div class="rpm-fill rpm-mb">' +
+            '<button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.setEditMode(\'new\')">➕ New Character</button>' +
             '</div>';
         return newBtn + base;
     };
@@ -217,16 +217,16 @@ export function installCardEditor(S) {
         // Read WI groups from Esolite's WI tab (UI/data)
         const groups = this.getEsoliteWIGroups ? this.getEsoliteWIGroups() : [];
 
-        if (!groups.length) return '<div class="klite-muted">No WorldInfo groups available.</div>';
+        if (!groups.length) return '<div class="rpm-muted">No WorldInfo groups available.</div>';
 
         const selected = this.editData.character_book || '';
         const options = groups.map(g =>
-            `<option value="${g}" ${selected === g ? 'selected' : ''}>${g || '[Unassigned]'}</option>`
+            `<option value="${KLITE_RPMod.escapeHtml(g)}" ${selected === g ? 'selected' : ''}>${KLITE_RPMod.escapeHtml(g || '[Unassigned]')}</option>`
         ).join('');
 
         return `
-        <label>WorldInfo Group:</label>
-        <select class="klite-select" onchange="KLITE_RPMod.panels.CHARS.selectGroup(this.value)">
+        <label class="rpm-label">WorldInfo Group:</label>
+        <select class="form-control rpm-input" onchange="KLITE_RPMod.panels.CHARS.selectGroup(this.value)">
             <option value="">— Select Group —</option>
             ${options}
         </select>

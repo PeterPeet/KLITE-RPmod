@@ -99,43 +99,43 @@ export function installToolsPanel(S) {
                         render() {
                             return `
                                 ${t.section('🎨 Image Generation', `
-                                    <div class="klite-image-status" style="margin-bottom: 12px; padding: 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;">
-                                        <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px;">Image Generation Status</div>
-                                        <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
-                                            <div><span style="color: var(--muted);">Provider:</span> <span id="scene-mode-status" style="color: var(--text); font-weight: bold;">${KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode)}</span></div>
-                                            <div><span style="color: var(--muted);">Model:</span> <span id="scene-model-status" style="color: var(--text); font-weight: bold;">${(KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode) === 'AI Horde') ? (window.localsettings?.generate_images_model || 'Default') : '-'}</span></div>
+                                    <div class="klite-image-status rpm-card rpm-mb">
+                                        <div class="rpm-small rpm-mb"><strong>Image Generation Status</strong></div>
+                                        <div class="rpm-small">
+                                            <div><span class="rpm-text-muted">Provider:</span> <strong id="scene-mode-status">${KLITE_RPMod.escapeHtml(KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode))}</strong></div>
+                                            <div><span class="rpm-text-muted">Model:</span> <strong id="scene-model-status">${KLITE_RPMod.escapeHtml((KLITE_RPMod.getGenerationMode(window.localsettings?.generate_images_mode) === 'AI Horde') ? (window.localsettings?.generate_images_model || 'Default') : '-')}</strong></div>
                                         </div>
                                     </div>
-                                    <div class="klite-image-controls" style="margin-bottom: 12px;">
-                                        <label style="display: block; margin-bottom: 4px; font-size: 12px;">Auto-generate:</label>
+                                    <div class="klite-image-controls rpm-mb">
+                                        <label class="rpm-label" for="scene-autogen">Auto-generate:</label>
                                         ${t.select('scene-autogen', [
                                             { value: '0', text: 'Off', selected: String(window.localsettings?.img_autogen_type ?? 0) === '0' },
                                             { value: '1', text: 'Basic', selected: String(window.localsettings?.img_autogen_type ?? 0) === '1' },
                                             { value: '2', text: 'Smart', selected: String(window.localsettings?.img_autogen_type ?? 0) === '2' }
                                         ])}
-                                        <div style="margin-top: 8px;">${t.checkbox('scene-detect', 'Detect ImgGen Instructions', !!(window.localsettings?.img_gen_from_instruct))}</div>
+                                        <div class="rpm-mt">${t.checkbox('scene-detect', 'Detect ImgGen Instructions', !!(window.localsettings?.img_gen_from_instruct))}</div>
                                     </div>
                                     <div class="klite-image-generation-section">
-                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Scene & Characters</div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; margin-bottom: 10px;">
-                                            ${t.button('🏞️ Current Scene', 'klite-btn-sm', 'gen-scene')}
-                                            ${t.button('🤖 AI Character', 'klite-btn-sm', 'gen-ai-portrait')}
-                                            ${t.button('👤 Persona', 'klite-btn-sm', 'gen-user-portrait')}
-                                            ${t.button('👥 Group Shot', 'klite-btn-sm', 'gen-group')}
+                                        <div class="rpm-small rpm-mb"><strong>Scene & Characters</strong></div>
+                                        <div class="rpm-grid2 rpm-mb">
+                                            ${t.button('🏞️ Current Scene', 'rpm-sm', 'gen-scene')}
+                                            ${t.button('🤖 AI Character', 'rpm-sm', 'gen-ai-portrait')}
+                                            ${t.button('👤 Persona', 'rpm-sm', 'gen-user-portrait')}
+                                            ${t.button('👥 Group Shot', 'rpm-sm', 'gen-group')}
                                         </div>
-                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Events & Actions</div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; margin-bottom: 10px;">
-                                            ${t.button('⚔️ Combat', 'klite-btn-sm', 'gen-combat')}
-                                            ${t.button('💬 Dialogue', 'klite-btn-sm', 'gen-dialogue')}
-                                            ${t.button('🎭 Plot', 'klite-btn-sm', 'gen-dramatic')}
-                                            ${t.button('🌅 Atmosphere', 'klite-btn-sm', 'gen-atmosphere')}
+                                        <div class="rpm-small rpm-mb"><strong>Events & Actions</strong></div>
+                                        <div class="rpm-grid2 rpm-mb">
+                                            ${t.button('⚔️ Combat', 'rpm-sm', 'gen-combat')}
+                                            ${t.button('💬 Dialogue', 'rpm-sm', 'gen-dialogue')}
+                                            ${t.button('🎭 Plot', 'rpm-sm', 'gen-dramatic')}
+                                            ${t.button('🌅 Atmosphere', 'rpm-sm', 'gen-atmosphere')}
                                         </div>
-                                        <div style="margin-bottom: 8px; font-size: 12px; font-weight: bold;">Context-Based</div>
-                                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px;">
-                                            ${t.button('📝 Memory', 'klite-btn-sm', 'gen-memory')}
-                                            ${t.button('📄 Last Message', 'klite-btn-sm', 'gen-last-message')}
-                                            ${t.button('🔄 Recent Events', 'klite-btn-sm', 'gen-recent')}
-                                            ${t.button('🎯 Custom', 'klite-btn-sm', 'gen-custom')}
+                                        <div class="rpm-small rpm-mb"><strong>Context-Based</strong></div>
+                                        <div class="rpm-grid2">
+                                            ${t.button('📝 Memory', 'rpm-sm', 'gen-memory')}
+                                            ${t.button('📄 Last Message', 'rpm-sm', 'gen-last-message')}
+                                            ${t.button('🔄 Recent Events', 'rpm-sm', 'gen-recent')}
+                                            ${t.button('🎯 Custom', 'rpm-sm', 'gen-custom')}
                                         </div>
                                     </div>
                                 `)}
@@ -305,17 +305,15 @@ export function installToolsPanel(S) {
             return `
                 <!-- Context Analyzer (moved from CONTEXT) -->
                 ${t.section('🔍 Context Analyzer',
-                `<div class="klite-token-bar-container">
-                        <div class="klite-token-bar">
+                `<div class="klite-token-bar">
                             <div id="tools-memory-bar" class="klite-token-segment klite-memory-segment" title="Memory"></div>
                             <div id="tools-wi-bar" class="klite-token-segment klite-wi-segment" title="Minimum WI (Always Active)"></div>
                             <div id="tools-story-bar" class="klite-token-segment klite-story-segment" title="Story"></div>
                             <div id="tools-anote-bar" class="klite-token-segment klite-anote-segment" title="Author's Note"></div>
                             <div id="tools-free-bar" class="klite-token-segment klite-free-segment" title="Free Space"></div>
-                        </div>
                     </div>
                     <div class="klite-token-legend">
-                        <div class="klite-token-legend-grid">
+                        <div class="rpm-grid2">
                             <div class="klite-token-legend-item">
                                 <div class="klite-token-legend-color klite-memory-segment"></div>
                                 <span class="klite-token-legend-label">Memory:</span>
@@ -338,18 +336,18 @@ export function installToolsPanel(S) {
                             </div>
                         </div>
                     </div>
-                    <div class="klite-context-summary" style="margin-bottom: 10px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 12px;">
-                        <div style="margin-bottom: 4px;">
+                    <div class="klite-context-summary klite-inset rpm-small">
+                        <div>
                             <strong>Total Context:</strong> 
                             <span id="tools-total-context">0</span> / <span id="tools-max-context">8192</span> tokens
                         </div>
                         <div>
-                            <span style="color: var(--muted);">Free:</span> 
-                            <span id="tools-free-tokens" style="color: var(--text); font-weight: bold;">8192</span> tokens 
-                            (<span id="tools-free-percent" style="color: var(--text); font-weight: bold;">100</span>%)
+                            <span class="rpm-text-muted">Free:</span> 
+                            <strong id="tools-free-tokens">8192</strong> tokens 
+                            (<strong id="tools-free-percent">100</strong>%)
                         </div>
-                        <div style="margin-top: 8px;">
-                            <button class="klite-btn" data-action="calculate-context" style="width: 100%; padding: 6px;">Calculate Context</button>
+                        <div class="rpm-mt">
+                            <button class="btn btn-primary rpm-btn rpm-block" data-action="calculate-context">Calculate Context</button>
                         </div>
                     </div>`
             )}
@@ -358,18 +356,11 @@ export function installToolsPanel(S) {
 
                 <!-- Quick Actions (from ADV) -->
                 ${t.section('Quick Actions',
-                `<div style="display: grid; gap: 4px;">
+                `<div class="klite-slots">
                         ${this.quickActions.map((action, i) => `
-                            <div class="klite-row" style="display: grid; grid-template-columns: minmax(0,1fr) 32px; gap: 2px; align-items: center;">
-                                <div class="klite-input-wrap" style="position: relative; display: flex; align-items: center;">
-                                    <input id="adv-quick-${i}" type="text" value="${action}" 
-                                           style="flex:1; min-width:0; padding: 4px 8px; font-size: 12px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text);"
-                                           placeholder="">
-                                </div>
-                                <button class="klite-btn klite-btn-sm" data-action="quick-${i}" 
-                                        style="width: 32px; min-width: 32px; padding: 4px 0; font-size: 12px;">
-                                    ${i + 1}
-                                </button>
+                            <div class="rpm-row">
+                                <input id="adv-quick-${i}" type="text" class="form-control rpm-input rpm-grow" value="${KLITE_RPMod.escapeHtml(action)}" placeholder="">
+                                <button class="btn btn-primary rpm-btn rpm-sm klite-slot-btn" data-action="quick-${i}">${i + 1}</button>
                             </div>
                         `).join('')}
                     </div>`
@@ -381,7 +372,7 @@ export function installToolsPanel(S) {
                 <!-- Narrator Controls -->
                 ${t.section('Narrator Controls',
                 `<div class="klite-narrator-controls">
-                        <div class="klite-row">
+                        <div class="rpm-row">
                             ${t.select('narrator-style', [
                     { value: 'omniscient', text: 'Omniscient', selected: true },
                     { value: 'limited', text: 'Limited' },
@@ -389,7 +380,7 @@ export function installToolsPanel(S) {
                     { value: 'character', text: 'Character POV' }
                 ])}
                         </div>
-                        <div class="klite-row" style="margin-top: 6px;">
+                        <div class="rpm-row rpm-mt">
                             ${t.select('narrator-focus', [
                     { value: 'environment', text: 'Environment' },
                     { value: 'emotions', text: 'Emotions' },
@@ -398,16 +389,16 @@ export function installToolsPanel(S) {
                     { value: 'mixed', text: 'Mixed', selected: true }
                 ])}
                         </div>
-                        <div class="klite-narrator-explanation" style="margin: 8px 0; padding: 6px; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 11px; color: var(--muted);">
+                        <div class="klite-narrator-explanation klite-inset rpm-muted rpm-mb">
                             <div id="narrator-explanation-text">
                                 <strong>Omniscient:</strong> The narrator knows all characters' thoughts and can see everything happening in the scene. Will generate comprehensive descriptions of environment, emotions, and actions.
                             </div>
                         </div>
-                        <div class="klite-row" style="font-size: 11px; color: var(--muted); margin-bottom: 6px;">
+                        <div class="rpm-muted">
                             The quality of the generated output depends highly on the model and it's capability to understand OOC instructions.
                         </div>
-                        <div class="klite-row" style="margin-top: 10px;">
-                            <button class="klite-btn klite-btn-sm" data-action="narrator" style="width: 100%; padding: 4px 0; font-size: 14px;">
+                        <div class="rpm-mt">
+                            <button class="btn btn-primary rpm-btn rpm-lg rpm-block" data-action="narrator">
                                 🎬 Trigger Narrator
                             </button>  
                         </div>
@@ -416,18 +407,18 @@ export function installToolsPanel(S) {
                 
                 <!-- Quick Dice (moved from CONTEXT) -->
                 ${t.section('🎲 Quick Dice',
-                `<div class=\"klite-dice-grid\" style=\"gap: 4px;\">\n\
+                `<div class=\"rpm-grid4 rpm-mb\">\n\
                         ${['d2', 'd4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd100'].map(d =>
                     `
-                            <button class=\"klite-btn klite-btn-sm\" data-action=\"roll-${d}\" style=\"width: 100%;\">${d}</button>
+                            <button class=\"btn btn-primary rpm-btn rpm-sm\" data-action=\"roll-${d}\">${d}</button>
                         `
                 ).join('')}\n\
                     </div>
-                    <div class=\"klite-row\">\n\
+                    <div class=\"rpm-row\">\n\
                         ${t.input('tools-custom-dice', 'e.g., 2d6+3')}\n\
                         ${t.button('🎲 Roll', '', 'roll-custom')}\n\
                     </div>
-                    <div id=\"tools-dice-result\" class=\"klite-dice-result klite-mt\"></div>`
+                    <div id=\"tools-dice-result\" class=\"klite-dice-result rpm-mt\"></div>`
             )}
 
                 
@@ -604,16 +595,12 @@ export function installToolsPanel(S) {
         renderPersonaControls() {
             const userName = window.localsettings?.chatname || 'User';
             return `
-                <div class="klite-persona-section" style="margin-bottom: 15px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 6px;">
-                    <div style="margin-bottom: 10px;">
-                        <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text);">Username (for the human player):</label>
-                        ${t.input('rp-user-name', '', 'text', userName, 'width: 100%; margin-bottom: 8px;')}
-                        
-                        <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                            ${t.checkbox('persona-enabled', 'Enable User Character', this.personaEnabled)}
-                        </div>
-                        
-                        <div class="persona-controls" style="${this.personaEnabled ? '' : 'opacity: 0.5; pointer-events: none;'}">
+                <div class="klite-persona-section klite-box rpm-mb">
+                    <div class="rpm-stack">
+                        <label class="rpm-label" for="rp-user-name">Username (for the human player):</label>
+                        ${t.input('rp-user-name', '', 'text', KLITE_RPMod.escapeHtml(userName))}
+                        ${t.checkbox('persona-enabled', 'Enable User Character', this.personaEnabled)}
+                        <div class="persona-controls ${this.personaEnabled ? '' : 'klite-disabled'}">
                             ${this.selectedPersona ? this.renderActivePersona() : this.renderSelectPersonaButton()}
                         </div>
                     </div>
@@ -623,11 +610,11 @@ export function installToolsPanel(S) {
 
         renderSelectPersonaButton() {
             return `
-                <div style="text-align: center; padding: 20px;">
-                    <button class="klite-btn primary" data-action="select-persona" style="font-size: 14px; padding: 12px 24px;">
+                <div class="rpm-empty">
+                    <button class="btn btn-primary rpm-btn rpm-lg" data-action="select-persona">
                         📋 Select Character
                     </button>
-                    <div style="margin-top: 8px; font-size: 11px; color: var(--muted);">
+                    <div class="rpm-muted rpm-mt">
                         Choose a character for the user to roleplay
                     </div>
                 </div>
@@ -640,28 +627,21 @@ export function installToolsPanel(S) {
             const isWIChar = char.type === 'worldinfo';
 
             return `
-                <div style="display: flex; align-items: center; gap: 2px; padding: 12px; border: 1px solid var(--success); border-radius: 6px; background: rgba(34, 197, 94, 0.1); margin-bottom: 8px;">
-                    ${avatar ? `
-                        <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                            ${KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width:100%;height:100%;object-fit:cover;display:block;')}
-                        </div>
-                    ` : `
-                        <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <span style="font-size: 18px;">${char.name.charAt(0)}</span>
-                        </div>
-                    `}
-                    <div style="flex: 1;">
-                        <div style="font-weight: bold; color: var(--text); display: flex; align-items: center; gap: 8px;">
-                            ${KLITE_RPMod.escapeHtml(char.name)}
-                            ${isWIChar ? '<span style="font-size: 9px; background: var(--accent); color: white; padding: 1px 4px; border-radius: 2px;">WI</span>' : ''}
-                        </div>
+                <div class="klite-item-row klite-is-next">
+                    <div class="rpm-avatar">
+                        ${avatar ? KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width:100%;height:100%;object-fit:cover;display:block;')
+                                 : `<span>${KLITE_RPMod.escapeHtml((char.name || '?').charAt(0))}</span>`}
                     </div>
-                    <button class="klite-btn secondary" data-action="remove-persona" style="padding: 6px 12px; font-size: 11px;">
+                    <div class="rpm-grow">
+                        <strong>${KLITE_RPMod.escapeHtml(char.name)}</strong>
+                        ${isWIChar ? '<span class="rpm-tag">WI</span>' : ''}
+                    </div>
+                    <button class="btn btn-primary rpm-btn" data-action="remove-persona">
                         ✕ Remove
                     </button>
                 </div>
-                <div style="display: flex; gap: 2px;">
-                    <button class="klite-btn" data-action="select-persona" style="flex: 1;">
+                <div class="rpm-fill">
+                    <button class="btn btn-primary rpm-btn" data-action="select-persona">
                         📋 Change Character
                     </button>
                 </div>
@@ -676,19 +656,17 @@ export function installToolsPanel(S) {
             const adapterStatus = isEsolite ? 'Esolite (active)' : (policy.liteExperimental ? 'Lite Experimental (active)' : 'Off');
 
             return `
-                <div class="klite-character-section" style="padding: 12px; background: rgba(0,0,0,0.2); border-radius: 6px;">
-                    ${isGroupChatActive ? `<div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
+                <div class="klite-character-section klite-box">
+                    ${isGroupChatActive ? `<div class="rpm-note rpm-mb">
                         <strong>Note:</strong> Character integration is disabled when Group Chat is active.
                     </div>` : ''}
-                    <div style="margin-bottom: 10px;">
-                        <label style="display: block; margin-bottom: 6px; font-size: 12px; color: var(--text);">Charactername (for the AI):</label>
-                        <input type="text" id="rp-ai-name" class="klite-input" value="${aiName}" style="width: 100%; margin-bottom: 8px;" ${isGroupChatActive ? 'readonly disabled' : ''}>
-                        
-                        <div style="display: flex; align-items: center; margin-bottom: 8px;${isGroupChatActive ? ' opacity: 0.5; pointer-events: none;' : ''}">
+                    <div class="rpm-stack">
+                        <label class="rpm-label" for="rp-ai-name">Charactername (for the AI):</label>
+                        <input type="text" id="rp-ai-name" class="form-control rpm-input" value="${KLITE_RPMod.escapeHtml(aiName)}" ${isGroupChatActive ? 'readonly disabled' : ''}>
+                        <div class="${isGroupChatActive ? 'klite-disabled' : ''}">
                             ${t.checkbox('character-enabled', 'Enable AI Character', isGroupChatActive ? false : this.characterEnabled)}
                         </div>
-                        
-                        <div class="character-controls" style="${this.characterEnabled && !isGroupChatActive ? '' : 'opacity: 0.5; pointer-events: none;'}">
+                        <div class="character-controls ${this.characterEnabled && !isGroupChatActive ? '' : 'klite-disabled'}">
                             ${this.selectedCharacter ? this.renderActiveCharacter() : this.renderSelectCharacterButton()}
                         </div>
                     </div>
@@ -698,11 +676,11 @@ export function installToolsPanel(S) {
 
         renderSelectCharacterButton() {
             return `
-                <div style="text-align: center; padding: 20px;">
-                    <button class="klite-btn primary" data-action="select-character" style="font-size: 14px; padding: 12px 24px;">
+                <div class="rpm-empty">
+                    <button class="btn btn-primary rpm-btn rpm-lg" data-action="select-character">
                         📋 Select Character
                     </button>
-                    <div style="margin-top: 8px; font-size: 11px; color: var(--muted);">
+                    <div class="rpm-muted rpm-mt">
                         Choose from your character library or World Info
                     </div>
                 </div>
@@ -715,28 +693,21 @@ export function installToolsPanel(S) {
             const isWIChar = char.type === 'worldinfo';
 
             return `
-                <div style="display: flex; align-items: center; gap: 2px; padding: 12px; border: 1px solid var(--accent); border-radius: 6px; background: rgba(74, 158, 255, 0.1); margin-bottom: 8px;">
-                    ${avatar ? `
-                        <div style="width: 40px; height: 40px; border-radius: 20px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
-                            ${KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width:100%;height:100%;object-fit:cover;display:block;')}
-                        </div>
-                    ` : `
-                        <div style="width: 40px; height: 40px; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                            <span style="font-size: 18px;">${char.name.charAt(0)}</span>
-                        </div>
-                    `}
-                    <div style="flex: 1;">
-                        <div style="font-weight: bold; color: var(--text); display: flex; align-items: center; gap: 8px;">
-                            ${KLITE_RPMod.escapeHtml(char.name)}
-                            ${isWIChar ? '<span style="font-size: 9px; background: var(--accent); color: white; padding: 1px 4px; border-radius: 2px;">WI</span>' : ''}
-                        </div>
+                <div class="klite-item-row klite-is-ai">
+                    <div class="rpm-avatar">
+                        ${avatar ? KLITE_RPMod.safeImageHTML(avatar, char.name || '', 'width:100%;height:100%;object-fit:cover;display:block;')
+                                 : `<span>${KLITE_RPMod.escapeHtml((char.name || '?').charAt(0))}</span>`}
                     </div>
-                    <button class="klite-btn secondary" data-action="remove-character" style="padding: 6px 12px; font-size: 11px;">
+                    <div class="rpm-grow">
+                        <strong>${KLITE_RPMod.escapeHtml(char.name)}</strong>
+                        ${isWIChar ? '<span class="rpm-tag">WI</span>' : ''}
+                    </div>
+                    <button class="btn btn-primary rpm-btn" data-action="remove-character">
                         ✕ Remove
                     </button>
                 </div>
-                <div style="display: flex; gap: 2px;">
-                    <button class="klite-btn" data-action="select-character" style="flex: 1;">
+                <div class="rpm-fill">
+                    <button class="btn btn-primary rpm-btn" data-action="select-character">
                         📋 Change Character
                     </button>
                 </div>
@@ -746,37 +717,37 @@ export function installToolsPanel(S) {
         renderAutoSender() {
             return `
                 <div class="klite-auto-sender-wrapper">
-                    <div class="klite-auto-sender-controls" style="display: grid; grid-template-columns: 1fr auto; gap: 2px; margin-bottom: 8px;">
-                        <div class="klite-auto-sender-buttons">
-                            ${t.button('Start', 'klite-btn-sm', 'auto-start', 'auto-start-btn')}
-                            ${t.button('Pause', 'klite-btn-sm klite-btn-success', 'auto-pause', 'auto-pause-btn', 'display: none;')}
-                            ${t.button('Continue', 'klite-btn-sm', 'auto-continue', 'auto-continue-btn', 'display: none;')}
+                    <div class="klite-auto-sender-controls rpm-row rpm-mb">
+                        <div class="klite-auto-sender-buttons rpm-wrap rpm-grow">
+                            ${t.button('Start', 'rpm-sm', 'auto-start', 'auto-start-btn')}
+                            ${t.button('Pause', 'rpm-sm', 'auto-pause', 'auto-pause-btn', 'display: none;')}
+                            ${t.button('Continue', 'rpm-sm', 'auto-continue', 'auto-continue-btn', 'display: none;')}
                         </div>
-                        <div id="auto-countdown" class="klite-auto-countdown" style="width: 40px; height: 40px; border-radius: 50%; background: conic-gradient(#333 0% 100%); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; color: white; border: 2px solid #555;">--</div>
+                        <div id="auto-countdown" class="klite-auto-countdown">--</div>
                     </div>
-                    <div class="klite-auto-sender-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin-bottom: 8px;">
-                        ${t.button('Stop', 'klite-btn-sm', 'auto-stop')}
-                        ${t.button('Reset', 'klite-btn-sm', 'auto-reset')}
+                    <div class="klite-auto-sender-buttons rpm-grid2">
+                        ${t.button('Stop', 'rpm-sm', 'auto-stop')}
+                        ${t.button('Reset', 'rpm-sm', 'auto-reset')}
                     </div>
-                    <div class="klite-auto-sender-interval" style="margin-bottom: 8px;">
-                        <label style="font-size: 11px; color: #ccc; display: block; margin-bottom: 2px;">Interval: <span id="auto-interval-display">30</span> seconds</label>
-                        <input type="range" min="10" max="300" value="30" step="5" class="klite-slider" id="auto-interval-slider" style="width: 100%;">
+                    <div class="klite-auto-sender-interval">
+                        <label class="rpm-label" for="auto-interval-slider">Interval: <span id="auto-interval-display">30</span> seconds</label>
+                        <input type="range" min="10" max="300" value="30" step="5" class="klite-slider" id="auto-interval-slider">
                     </div>
-                    <div class="klite-auto-sender-start-message" style="margin-bottom: 8px;">
-                        <label style="font-size: 11px; color: #ccc; display: block; margin-bottom: 2px;">Start Message:</label>
-                        <textarea id="auto-start-message" placeholder="Start Message (optional)" style="width: 100%; min-height: 40px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #e0e0e0; padding: 4px; border-radius: 4px; font-size: 11px; resize: vertical;"></textarea>
+                    <div class="klite-auto-sender-start-message">
+                        <label class="rpm-label" for="auto-start-message">Start Message:</label>
+                        <textarea id="auto-start-message" class="form-control rpm-input" placeholder="Start Message (optional)"></textarea>
                     </div>
-                    <div class="klite-auto-sender-auto-message" style="margin-bottom: 8px;">
-                        <label style="font-size: 11px; color: #ccc; display: block; margin-bottom: 2px;">Automatic Message:</label>
-                        <textarea id="auto-message" placeholder="Automatic Message" style="width: 100%; min-height: 40px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #e0e0e0; padding: 4px; border-radius: 4px; font-size: 11px; resize: vertical;">Continue.</textarea>
+                    <div class="klite-auto-sender-auto-message">
+                        <label class="rpm-label" for="auto-message">Automatic Message:</label>
+                        <textarea id="auto-message" class="form-control rpm-input" placeholder="Automatic Message">Continue.</textarea>
                     </div>
-                    <div class="klite-auto-sender-quick-messages" style="margin-bottom: 0;">
-                        <label style="font-size: 11px; color: #ccc; display: block; margin-bottom: 2px;">Quick Slot Messages:</label>
-                        <div class="klite-quick-messages-grid" style="display: grid; grid-template-columns: 1fr; gap: 2px;">
+                    <div class="klite-auto-sender-quick-messages">
+                        <label class="rpm-label">Quick Slot Messages:</label>
+                        <div class="klite-quick-messages-grid klite-slots">
                             ${[1, 2, 3, 4, 5].map(i => `
-                                <div class="klite-quick-message-row" style="display: flex; gap: 2px;">
-                                    <input type="text" id="auto-quick-${i}" placeholder="Quick Message ${i}" style="flex: 1; padding: 3px 4px; background: rgba(0,0,0,0.3); border: 1px solid #444; color: #e0e0e0; border-radius: 4px; font-size: 11px;">
-                                    ${t.button(i.toString(), 'klite-btn-sm', `quick-send-${i}`, '', 'width: 26px; padding: 3px; font-size: 11px;')}
+                                <div class="klite-quick-message-row rpm-row">
+                                    <input type="text" id="auto-quick-${i}" class="form-control rpm-input rpm-grow" placeholder="Quick Message ${i}">
+                                    ${t.button(i.toString(), 'rpm-sm klite-slot-btn', `quick-send-${i}`)}
                                 </div>
                             `).join('')}
                         </div>
@@ -927,8 +898,7 @@ export function installToolsPanel(S) {
                 this.personaEnabled = e.target.checked;
                 const controls = document.querySelector('.persona-controls');
                 if (controls) {
-                    controls.style.opacity = e.target.checked ? '1' : '0.5';
-                    controls.style.pointerEvents = e.target.checked ? 'auto' : 'none';
+                    controls.classList.toggle('klite-disabled', !e.target.checked);
                 }
                 this.updateCharacterContext();
             });
@@ -938,8 +908,7 @@ export function installToolsPanel(S) {
                 this.characterEnabled = e.target.checked;
                 const controls = document.querySelector('.character-controls');
                 if (controls) {
-                    controls.style.opacity = e.target.checked ? '1' : '0.5';
-                    controls.style.pointerEvents = e.target.checked ? 'auto' : 'none';
+                    controls.classList.toggle('klite-disabled', !e.target.checked);
                 }
                 this.updateCharacterContext();
             });
@@ -1094,7 +1063,7 @@ export function installToolsPanel(S) {
             this.updateAutoButtons('stopped');
             if (this.countdownEl) {
                 this.countdownEl.textContent = '--';
-                this.countdownEl.style.background = 'conic-gradient(#333 0% 100%)';
+                this.countdownEl.style.setProperty('--klite-progress', '0%');
             }
             KLITE_RPMod.log('panels', 'Auto sender stopped - aborted generation and reset interval');
         },
@@ -1111,7 +1080,7 @@ export function installToolsPanel(S) {
             this.updateAutoButtons('reset');
             if (this.countdownEl) {
                 this.countdownEl.textContent = '--';
-                this.countdownEl.style.background = 'conic-gradient(#333 0% 100%)';
+                this.countdownEl.style.setProperty('--klite-progress', '0%');
             }
             KLITE_RPMod.log('panels', 'Auto sender completely reset');
         },
@@ -1154,7 +1123,7 @@ export function installToolsPanel(S) {
                         const progress = (this.autoSender.currentCount / this.autoSender.interval) * 100;
 
                         this.countdownEl.textContent = remaining;
-                        this.countdownEl.style.background = `conic-gradient(#4a9eff 0% ${progress}%, #333 ${progress}% 100%)`;
+                        this.countdownEl.style.setProperty('--klite-progress', `${progress}%`);   // data-driven
                     }
                 }
             }, 1000);
@@ -1167,30 +1136,30 @@ export function installToolsPanel(S) {
 
             switch (state) {
                 case 'running':
-                    if (startBtn) startBtn.style.display = 'none';
-                    if (pauseBtn) pauseBtn.style.display = 'block';
-                    if (continueBtn) continueBtn.style.display = 'none';
+                    if (startBtn) startBtn.hidden = true;
+                    if (pauseBtn) pauseBtn.hidden = false;
+                    if (continueBtn) continueBtn.hidden = true;
                     break;
                 case 'paused':
-                    if (startBtn) startBtn.style.display = 'none';
-                    if (pauseBtn) pauseBtn.style.display = 'none';
-                    if (continueBtn) continueBtn.style.display = 'block';
+                    if (startBtn) startBtn.hidden = true;
+                    if (pauseBtn) pauseBtn.hidden = true;
+                    if (continueBtn) continueBtn.hidden = false;
                     break;
                 case 'stopped':
                     if (startBtn) {
                         startBtn.textContent = 'Continue';
-                        startBtn.style.display = 'block';
+                        startBtn.hidden = false;
                     }
-                    if (pauseBtn) pauseBtn.style.display = 'none';
-                    if (continueBtn) continueBtn.style.display = 'none';
+                    if (pauseBtn) pauseBtn.hidden = true;
+                    if (continueBtn) continueBtn.hidden = true;
                     break;
                 case 'reset':
                     if (startBtn) {
                         startBtn.textContent = 'Start';
-                        startBtn.style.display = 'block';
+                        startBtn.hidden = false;
                     }
-                    if (pauseBtn) pauseBtn.style.display = 'none';
-                    if (continueBtn) continueBtn.style.display = 'block';
+                    if (pauseBtn) pauseBtn.hidden = true;
+                    if (continueBtn) continueBtn.hidden = false;
                     break;
             }
         },
@@ -1347,9 +1316,9 @@ export function installToolsPanel(S) {
             return this.chapters.map((ch, i) => {
                 const safeTitle = KLITE_RPMod.escapeHtml(ch.title || '');
                 return `
-                <div class="klite-timeline-item" data-chapter="${i}" data-action="goto-chapter" style="cursor: pointer;">
+                <div class="klite-timeline-item" data-chapter="${i}" data-action="goto-chapter">
                     <strong>Chapter ${ch.number}:</strong> ${safeTitle}
-                    <div style="font-size: 11px; color: var(--muted);">${ch.wordCount} words</div>
+                    <div class="rpm-muted">${ch.wordCount} words</div>
                 </div>`;
             }).join('');
         },
@@ -1402,7 +1371,7 @@ export function installToolsPanel(S) {
         updateTimeline() {
             const timeline = document.getElementById('story-timeline');
             if (timeline) {
-                timeline.innerHTML = this.chapters.length ? this.renderChapters() : '<div class="klite-center klite-muted">No bookmarks yet</div>';
+                timeline.innerHTML = this.chapters.length ? this.renderChapters() : '<div class="rpm-center rpm-muted">No bookmarks yet</div>';
             }
         },
 
@@ -1561,8 +1530,7 @@ export function installToolsPanel(S) {
                 // Update remove button state
                 const removeBtn = document.getElementById('remove-persona-btn');
                 if (removeBtn) {
-                    removeBtn.style.opacity = '1';
-                    removeBtn.style.pointerEvents = 'auto';
+                    removeBtn.classList.remove('klite-disabled');
                 }
 
                 // Applied persona: ${personaData.name}
@@ -1624,8 +1592,7 @@ export function installToolsPanel(S) {
                 // Update remove button state
                 const removeBtn = document.getElementById('remove-character-btn');
                 if (removeBtn) {
-                    removeBtn.style.opacity = '1';
-                    removeBtn.style.pointerEvents = 'auto';
+                    removeBtn.classList.remove('klite-disabled');
                 }
 
                 // Applied character: ${characterData.name}
@@ -1707,8 +1674,7 @@ export function installToolsPanel(S) {
             // Update remove button state
             const removeBtn = document.getElementById('remove-persona-btn');
             if (removeBtn) {
-                removeBtn.style.opacity = '0.5';
-                removeBtn.style.pointerEvents = 'none';
+                removeBtn.classList.add('klite-disabled');
             }
 
             // Persona removed
@@ -1750,8 +1716,7 @@ export function installToolsPanel(S) {
             // Update remove button state
             const removeBtn = document.getElementById('remove-character-btn');
             if (removeBtn) {
-                removeBtn.style.opacity = '0.5';
-                removeBtn.style.pointerEvents = 'none';
+                removeBtn.classList.add('klite-disabled');
             }
 
             // Character removed

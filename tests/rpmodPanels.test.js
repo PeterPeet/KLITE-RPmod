@@ -61,3 +61,82 @@ test('startup runs once: a second load event does not close open windows', async
     assert.ok(doc.querySelector('[data-window="combat"]'), 'the Combat window is still open');
     assert.equal(doc.querySelectorAll('[data-window="combat"]').length, 1);
 });
+
+// Known issue 13 (R1 cleanup step 3): the panels use the shell's classes and spacing scale.
+// Inline styles are left only where a value comes from data (token-bar widths, the auto-sender
+// progress, image sizes passed to safeImageHTML).
+function styleViolations(root) {
+    const bad = [];
+    for (const el of root.querySelectorAll('[style]')) {
+        const style = el.getAttribute('style').trim();
+        if (!style) continue;
+        if (el.tagName === 'IMG' || el.classList.contains('klite-image-blocked')) continue;   // caller-given image size
+        if (el.classList.contains('klite-token-segment') && /^width:\s*[\d.]+%;?$/.test(style)) continue;
+        if (el.id === 'auto-countdown' && /^--klite-progress:\s*[\d.]+%;?$/.test(style)) continue;
+        bad.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}.${el.className}: ${style}`);
+    }
+    for (const el of root.querySelectorAll('.klite-btn, .klite-input, .klite-select, .klite-textarea')) bad.push(`old class: ${el.className}`);
+    return bad;
+}
+
+test('RP panels: no inline styles or old control classes (shell classes, spacing scale)', async (t) => {
+    const h = await bundleHost(t); const w = h.window; const doc = w.document; const R = w.KLITE_RPMod;
+    const aria = { id: 'c1', name: 'Aria', description: 'Bard.', tags: ['bard'], talkativeness: 60 };
+    const borin = { id: 'c2', name: 'Borin', description: 'Smith.', talkativeness: 40, type: 'worldinfo' };
+    R.characters = [aria, borin];
+    R.panels.TOOLS.selectedPersona = borin; R.panels.TOOLS.personaEnabled = true;
+    R.panels.TOOLS.selectedCharacter = aria; R.panels.TOOLS.characterEnabled = true;
+    R.panels.ROLES.enabled = true; R.panels.ROLES.activeChars = [aria, borin]; R.panels.ROLES.currentSpeaker = 0; R.panels.ROLES.lastSpeaker = 1;
+    const panel = () => doc.getElementById('panel-right');
+    for (const [id, key] of [['chars', 'CHARS'], ['roles', 'ROLES'], ['scenario', 'SCENARIO'], ['tools', 'TOOLS']]) {
+        h.shell().open(id);
+        await until(() => R.state.tabs.right === key && panel().textContent.trim().length > 40);
+        R.loadPanel('right', key);
+        assert.deepEqual(styleViolations(panel()), [], `${id} tab`);
+    }
+    h.shell().open('chars');
+    await until(() => R.state.tabs.right === 'CHARS');
+    R.panels.CHARS.setEditMode('new');
+    await until(() => panel().querySelector('.klite-char-editor'));
+    assert.deepEqual(styleViolations(panel()), [], 'card editor');
+    R.panels.CHARS.abortEdit();
+    R.panels.CHARS.showCharacterFullscreen(Object.assign({ rawData: { data: { first_mes: 'Hi.', alternate_greetings: ['Yo.'], character_book: { entries: [{ keys: ['lute'], content: 'A lute.' }] } } } }, aria));
+    await until(() => panel().querySelector('.klite-detail-head'));
+    assert.deepEqual(styleViolations(panel()), [], 'character detail view');
+    R.showUnifiedCharacterModal('multi-select');
+    R.panels.ROLES.showCustomCharacterModal();
+    const modals = doc.querySelectorAll('.klite-modal');
+    assert.equal(modals.length, 2);
+    for (const m of modals) {
+        assert.ok(m.classList.contains('rpm-themed'), 'modals get the shell tokens');
+        assert.deepEqual(styleViolations(m), [], 'modal');
+    }
+});
+
+test('RP panels: the panel stylesheet uses the shell tokens only', async (t) => {
+    const h = await bundleHost(t);
+    const css = h.window.document.getElementById('klite-rpmod-styles').textContent;
+    assert.doesNotMatch(css, /var\(--(bg|bg2|bg3|text|muted|border|primary|primary-text|accent|danger|success|warning)\)/, 'no old short aliases');
+    assert.doesNotMatch(css, /:root\s*\{/, 'defines no page-wide variables');
+    const colours = (css.match(/#[0-9a-f]{3,8}\b|rgba?\([^)]*\)/gi) || []).filter(c => !/^(#000|#fff|rgba\(0,\s*0,\s*0,\s*0?\.\d+\))$/i.test(c));
+    assert.deepEqual(colours, [], 'colours come from --rpm-* tokens (black/white shading aside)');
+});
+
+test('RP panels: character names and fields from cards stay text', async (t) => {
+    const h = await bundleHost(t); const w = h.window; const doc = w.document; const R = w.KLITE_RPMod;
+    const evil = '<img src=x onerror="window.__pwned=1">"\'';
+    assert.equal(R.escapeHtml('a"b\'c<d>&'), 'a&quot;b&#39;c&lt;d&gt;&amp;');
+    R.panels.ROLES.enabled = true; R.panels.ROLES.activeChars = [{ id: 'x', name: evil }];
+    R.state.scenario = { scenario: `</textarea>${evil}`, example: '', first: '' };
+    for (const [id, key] of [['roles', 'ROLES'], ['scenario', 'SCENARIO']]) {
+        h.shell().open(id);
+        await until(() => R.state.tabs.right === key);
+        R.loadPanel('right', key);
+    }
+    R.panels.ROLES.showCustomCharacterModal({ id: 'x', name: evil, description: `</textarea>${evil}`, keywords: [evil] });
+    await sleep(50);
+    assert.equal(doc.querySelectorAll('img[src="x"]').length, 0, 'no injected element');
+    assert.equal(doc.getElementById('group-custom-char-name').value, evil);
+    assert.equal(doc.getElementById('group-custom-char-description').value, `</textarea>${evil}`);
+    assert.equal(w.__pwned, undefined);
+});

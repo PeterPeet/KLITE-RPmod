@@ -210,6 +210,38 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-bar { height: 6px; background: var(--rpm-bg-outer); border-radius: 3px; overflow: hidden; margin-top: 3px; }
 .rpm-bar > span { display: block; height: 100%; }
 .rpm-log { background: var(--rpm-bg-chat); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); padding: 6px; font-size: var(--rpm-fs-sm); max-height: 140px; overflow: auto; line-height: 1.5; }
+/* layout helpers on the spacing scale (s1 4px, s2 8px, s3 12px) */
+.rpm-stack { display: flex; flex-direction: column; gap: var(--rpm-s2); }
+.rpm-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: var(--rpm-s1); }
+.rpm-fill { display: flex; flex-wrap: wrap; gap: var(--rpm-s1); }
+.rpm-fill > * { flex: 1 1 0; min-width: 0; }
+.rpm-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--rpm-s1); }
+.rpm-grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--rpm-s1); }
+.rpm-mt { margin-top: var(--rpm-s2); }
+.rpm-mb { margin-bottom: var(--rpm-s2); }
+.rpm-center { text-align: center; }
+.rpm-small { font-size: var(--rpm-fs-sm); }
+.rpm-empty { text-align: center; color: var(--rpm-fg-muted); padding: var(--rpm-s3); }
+.rpm-check { display: flex; align-items: center; gap: var(--rpm-s1); cursor: pointer; }
+.rpm-check input { margin: 0; }
+.rpm-check.rpm-disabled { cursor: not-allowed; color: var(--rpm-fg-muted); }
+.rpm-dim { opacity: .5; }
+.rpm-note { background: var(--rpm-bg-alt); border: 1px solid var(--rpm-border); border-left: 3px solid var(--rpm-quest); border-radius: var(--rpm-radius); padding: var(--rpm-s2); font-size: var(--rpm-fs-sm); }
+.rpm-avatar {
+    width: 40px; height: 40px; flex: none; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--rpm-border); background: var(--rpm-bg-alt); color: var(--rpm-fg-muted); font-size: var(--rpm-fs-lg);
+}
+.rpm-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rpm-tag { display: inline-block; padding: 0 4px; border-radius: 3px; font-size: var(--rpm-fs-sm); background: var(--rpm-accent-bg-hi); color: var(--rpm-accent-fg-hi); }
+.rpm-text-muted { color: var(--rpm-fg-muted); }
+.rpm-text-hi { color: var(--rpm-fg-hi); }
+.rpm-text-info { color: var(--rpm-info); }
+.rpm-text-quest { color: var(--rpm-quest); }
+.rpm-text-success { color: var(--rpm-success); }
+.rpm-text-danger { color: var(--rpm-danger); }
+.btn.rpm-btn.rpm-sm { padding: 3px 6px; min-width: 26px; }
+.btn.rpm-btn.rpm-warning { border-color: var(--rpm-quest); box-shadow: inset 3px 0 0 var(--rpm-quest); }
+.btn.rpm-btn:disabled, .btn.rpm-btn.disabled { opacity: .5; cursor: not-allowed; }
 
 /* ---- RPmod Guide window ---- */
 .rpm-guide { display: grid; grid-template-columns: 180px 1fr; gap: 14px; min-height: 100%; }
@@ -549,13 +581,8 @@ body.rpm-docked #maincontainer {
 }
 
 /* ---- the RP panels' right panel, adopted into the right dock ---- */
-#rpm-shell #panel-right.klite-panel {
-    position: static !important; transform: none !important; width: auto !important; height: 100% !important;
-    top: auto !important; right: auto !important; bottom: auto !important; left: auto !important;
-    box-shadow: none !important; border-left: 0 !important; display: flex !important; flex-direction: column;
-    visibility: visible !important; background: transparent !important;
-}
+#rpm-shell #panel-right { display: flex; flex-direction: column; height: 100%; }
 #rpm-shell #panel-right .klite-handle,
-#rpm-shell #panel-right > .klite-tabs { display: none !important; }   /* shell tabs replace its own tab bar */
-#rpm-shell #panel-right .klite-content { flex: 1 1 auto; max-height: none !important; padding: var(--rpm-s3); }
+#rpm-shell #panel-right > .klite-tabs { display: none; }   /* shell tabs replace its own tab bar */
+#rpm-shell #panel-right .klite-content { flex: 1 1 auto; padding: var(--rpm-s3); }
 `;

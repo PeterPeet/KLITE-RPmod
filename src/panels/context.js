@@ -32,10 +32,10 @@ KLITE_RPMod.panels.CONTEXT = {
                 
                 <!-- Smart Memory Writer -->
                 ${t.section('🧠 Smart Memory Writer',
-                `<div style="margin-bottom: 10px; padding: 8px; background: rgba(255,165,0,0.1); border: 1px solid rgba(255,165,0,0.3); border-radius: 4px; font-size: 12px; color: var(--text);">
+                `<div class="rpm-note rpm-mb">
                         <strong>Warning:</strong> does not work if Agent Mode in Esolite is active.
                     </div>
-                    <div class="klite-row">
+                    <div class="rpm-row">
                         ${t.select('tools-memory-context', [
                     { value: 'entire', text: 'Entire Story' },
                     { value: 'last50', text: 'Last 50 Messages' },
@@ -43,28 +43,28 @@ KLITE_RPMod.panels.CONTEXT = {
                     { value: 'last3', text: 'Most Recent (3)' }
                 ])}
                     </div>
-                    <div class="klite-row" style="margin-top: 6px;">
+                    <div class="rpm-row rpm-mt">
                         ${t.select('tools-memory-type', [
                     { value: 'summary', text: 'Summary', selected: true },
                     { value: 'keywords', text: 'Keywords' },
                     { value: 'outline', text: 'Outline' }
                 ])}
                     </div>
-                    <div style="text-align: center; margin: 15px 0;">
+                    <div class="rpm-center rpm-mt rpm-mb">
                         ${t.button('🧠 Generate Memory', '', 'generate-memory')}
                     </div>
                     ${t.textarea('tools-memory-output', 'Generated memory will appear here.')}
-                    <div class="klite-row" style="font-size: 11px; color: var(--muted); margin-top: 6px;">
+                    <div class="rpm-muted rpm-mt">
                         The quality of the generated output depends highly on the model and it's capability to understand OOC instructions.
                     </div>
-                    <div class="klite-buttons-fill klite-mt">
+                    <div class="rpm-fill rpm-mt">
                         ${t.button('✓ Apply', '', 'apply-memory')}
                         ${t.button('➕ Append', '', 'append-memory')}
                     </div>`
             )}
                 <!-- Export Tools -->
                 ${t.section('📤 Export Context History',
-                `<div class="klite-buttons-fill">
+                `<div class="rpm-fill">
                         ${t.button('📝 Markdown', '', 'export-markdown')}
                         ${t.button('📊 JSON', '', 'export-json')}
                         ${t.button('🌐 HTML', '', 'export-html')}
@@ -502,8 +502,8 @@ Outline:`
                 const result = this.parseDiceRoll(diceString);
 
                 resultDiv.innerHTML = `
-                    <div style="font-size: 24px; font-weight: bold; color: #4a9eff;">${result.total}</div>
-                    <div style="margin-top: 5px; color: #999;">${result.formula} = ${result.breakdown}</div>
+                    <div class="klite-dice-total">${result.total}</div>
+                    <div class="rpm-muted">${KLITE_RPMod.escapeHtml(`${result.formula} = ${result.breakdown}`)}</div>
                 `;
 
                 this.lastRoll = result;
@@ -516,7 +516,7 @@ Outline:`
                 }
 
             } catch (error) {
-                resultDiv.innerHTML = `<div style="color: #d9534f;">Error: ${error.message}</div>`;
+                resultDiv.innerHTML = `<div class="rpm-text-danger">Error: ${KLITE_RPMod.escapeHtml(error.message)}</div>`;
                 KLITE_RPMod.error('Dice roll error:', error);
             }
         },
@@ -751,11 +751,11 @@ Outline:`
                 if (this.autoRegenerateState.enabled) {
                     this.startAutoRegenerate();
                     status.textContent = '✓ Auto-regenerate is active';
-                    status.style.color = 'var(--success)';
+                    status.className = 'rpm-text-success';
                 } else {
                     this.stopAutoRegenerate();
                     status.textContent = 'Auto-regenerate is disabled';
-                    status.style.color = 'var(--muted)';
+                    status.className = 'rpm-text-muted';
                 }
             });
 
@@ -838,7 +838,7 @@ Outline:`
                 const status = document.getElementById('tools-auto-regen-status');
                 if (status) {
                     status.textContent = '⚠️ Max retries reached';
-                    status.style.color = '#f0ad4e';
+                    status.className = 'rpm-text-quest';
                 }
                 return;
             }
@@ -852,7 +852,7 @@ Outline:`
             const status = document.getElementById('tools-auto-regen-status');
             if (status) {
                 status.textContent = `🔄 Regenerating... (${this.autoRegenerateState.retryCount}/${this.autoRegenerateState.maxRetries})`;
-                status.style.color = '#5bc0de';
+                status.className = 'rpm-text-info';
             }
 
             // Call Lite's retry function
