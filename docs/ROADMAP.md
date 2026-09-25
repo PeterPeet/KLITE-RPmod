@@ -839,6 +839,10 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
 - [ ] Mini-map: Forest Road is not shown. Idea: a regional map above the local (dungeon/town) map, both in the
   Adventure panel.
 - [ ] Starting the adventure with a character already selected in Roles does not replace the persona with the pregen.
+- [ ] Esolite's **New Session** keeps the player character (persona) in the Party section; RPmod should reset to a
+  blank state (persona, party, world state for the story).
+- [ ] Esolite's **Settings → Misc → Reset ALL Settings** should also reset RPmod's Guide state, so the "New here?"
+  section shows again.
 
 Also planned (owner, 2026-09-25): **1:1 roleplay audit** — play a 1:1 scenario with a real backend,
 fold the Scenario tab's "Start Role Play" into Esolite's Quick Start, move the gallery/Compendium
