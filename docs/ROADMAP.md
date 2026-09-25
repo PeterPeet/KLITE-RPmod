@@ -828,6 +828,18 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
 - [ ] Steps 5–7: content layer by layer (Lanternport fair → lake/sea cave → Lost Chapel)
 - [ ] Step 8: real-backend play test (known issue 5), then the World Building guide
 
+**Open items (owner's play test, 2026-09-26)** — not done yet:
+- [ ] **Tab row (step B, promised 2026-09-25, not implemented):** fold the Scenario tab's "Start Role Play" into
+  Esolite's Quick Start; then the right panel has four tabs (World, Chars, Roles, Tools) and the gallery and
+  Compendium icons move into the same row, styled like tabs (still plain buttons with a label for screen
+  readers). The extra header row from the dock fix goes away again.
+- [ ] World editor: the inspector does not refresh after linking two elements.
+- [ ] Starter adventure: the Brindlewick ↔ Forest Road connection exists twice; removing one hides both in the
+  inspector, and the exit from Brindlewick to the Forest Road cannot be fixed — travel there is blocked.
+- [ ] Mini-map: Forest Road is not shown. Idea: a regional map above the local (dungeon/town) map, both in the
+  Adventure panel.
+- [ ] Starting the adventure with a character already selected in Roles does not replace the persona with the pregen.
+
 Also planned (owner, 2026-09-25): **1:1 roleplay audit** — play a 1:1 scenario with a real backend,
 fold the Scenario tab's "Start Role Play" into Esolite's Quick Start, move the gallery/Compendium
 icons into the tab row, and a per-story **play style** (Adventure with a world / Roleplay without).
