@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-25 (R6 done: chat power features)
+> Last updated: 2026-09-25 (game state fix; R8 starter adventure designed)
 
 ## Current state
 
@@ -785,6 +785,22 @@ tomb, mini-map clicks with fog, the AI's `<room>`/`<door>` reply through Esolite
 handler, Search button finding the secret door, `<encounter>` reply → zone fight in the large
 hall: move, take cover, enemies close in, victory). A real AI backend is the separate play test
 (known issue 5).
+
+### R8 — Starter adventure "The Drowned Lantern" ⬜ (planned 2026-09-25)
+Design (draft, owner's review pending): [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
+An original adventure for levels 1–5 built into RPmod (two settlements, two routes, a hidden lake
+side, two questlines that meet at a finale), four pregenerated characters added to Esolite's Library
+on load, starting in the Player view. Only SRD 5.2.1 content; the reference material in
+`docs/reference/` is used for size and structure only.
+- [ ] Owner review of the design (open questions at its end: XP split, names, tone, fair length, portraits)
+- [ ] Step 1: adventure package + loader, `world.start` (known issue 22), per-world view, pregen picker, validator, forbidden-names test
+- [ ] Step 2: companions and XP (owner's decision)
+- [ ] Steps 3–7: content layer by layer (Brindlewick → routes/Outpost → Lanternport fair → lake/sea cave → Lost Chapel)
+- [ ] Step 8: real-backend play test (known issue 5), then the World Building guide
+
+Also planned (owner, 2026-09-25): **1:1 roleplay audit** — play a 1:1 scenario with a real backend,
+fold the Scenario tab's "Start Role Play" into Esolite's Quick Start, move the gallery/Compendium
+icons into the tab row, and a per-story **play style** (Adventure with a world / Roleplay without).
 
 ## Working agreement
 1. Plan the phase (or item) briefly; confirm scope with the owner when unclear.

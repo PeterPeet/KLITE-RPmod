@@ -11,7 +11,7 @@ JavaScript usermod.
 2. [docs/USERSTORY.md](docs/USERSTORY.md) — the product vision, locked decisions, copyright guardrails.
 3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — internals and the Esolite host constraints.
 4. [USER_GUIDE.md](USER_GUIDE.md) — end-user documentation (keep in sync with features).
-5. `docs/design/` — design of the active phase when it has one (R6, done: [docs/design/R6-chat-power.md](docs/design/R6-chat-power.md); R7: [docs/design/R7-world-map.md](docs/design/R7-world-map.md)).
+5. `docs/design/` — design of the active phase when it has one (R6, done: [docs/design/R6-chat-power.md](docs/design/R6-chat-power.md); R7: [docs/design/R7-world-map.md](docs/design/R7-world-map.md); R8, draft: [docs/design/R8-starter-adventure.md](docs/design/R8-starter-adventure.md)).
 
 ## Commands
 ```
