@@ -115,7 +115,7 @@ export const CHAPTERS = [
                 'Fights take place in zones of the room you are in: melee in the same zone, ranged by weapon range, moving one zone per turn, cover and hiding. The Guide\'s "Zone combat" tab explains it.',
                 'On your turn move, take cover or hide, pick weapon and target and press Attack, then End turn: the enemies act automatically until it is your turn again.',
                 'Then write in the chat what you do — the AI narrates the rolls from the combat log.',
-                'After a victory your HP and the XP earned are saved to your persona\'s sheet.',
+                'After a victory your HP and the XP earned are saved to your persona\'s sheet. The XP is divided evenly among everyone who fought on your side; companions with a character sheet get their share too.',
                 'The AI can start a fight too: it writes <encounter>2 Wolf</encounter>.',
             ] },
         ],

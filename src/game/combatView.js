@@ -186,7 +186,7 @@ function renderFight(box, cb, A, refresh) {
     if (cb.outcome) {
         box.appendChild(el('div', { class: 'rpm-card rpm-cb-outcome rpm-cb-' + cb.outcome, 'data-cb': 'outcome' }, [
             el('div', { class: 'rpm-heading', text: cb.outcome === 'victory' ? 'Victory!' : 'Defeat' }),
-            muted(cb.outcome === 'victory' ? `${cb.xp || 0} XP earned${cb.persona ? ` — saved to ${cb.persona}'s sheet` : ''}. Send a message so the AI narrates the end of the fight.` : 'The party has fallen. Send a message so the AI tells what happens next.'),
+            muted(cb.outcome === 'victory' ? `${cb.xp || 0} XP earned${cb.xpShares > 1 ? ` — ${cb.xpEach} XP each for ${cb.xpShares} characters` : ''}${cb.persona ? `, saved to ${cb.persona}'s sheet${cb.xpShares > 1 ? ' and your companions\' sheets' : ''}` : ''}. Send a message so the AI narrates the end of the fight.` : 'The party has fallen. Send a message so the AI tells what happens next.'),
         ]));
     }
 

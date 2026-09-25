@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-26 (R8 step 1: adventure loader, world start)
+> Last updated: 2026-09-26 (R8 steps 1–2: adventure loader, world start, XP split)
 
 ## Current state
 
@@ -34,7 +34,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 348 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 349 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -795,7 +795,7 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
 `docs/reference/` is used for size and structure only.
 - [x] Owner review of the design (2026-09-25: XP divided among the party, fights for two; names kept; tone; fair 3 days; initials)
 - [x] Step 1 (2026-09-26): adventure package + loader (`src/adventures/`), `world.start` + worlds per story (known issue 22), per-world view, pregen picker, validator, forbidden-names guard — tested with a fixture adventure; nothing bundled yet
-- [ ] Step 2: companions and XP (owner's decision)
+- [x] Step 2 (2026-09-26): combat XP divided evenly among the party-side combatants (SRD); the persona and companions with a sheet get a share (`xpShares`/`xpEach`, additive)
 - [ ] Steps 3–7: content layer by layer (Brindlewick → routes/Outpost → Lanternport fair → lake/sea cave → Lost Chapel)
 - [ ] Step 8: real-backend play test (known issue 5), then the World Building guide
 

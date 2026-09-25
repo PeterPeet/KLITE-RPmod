@@ -25001,7 +25001,9 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       if (enemies.length && enemies.every((o) => isDown(cb, o.id))) {
         cb.outcome = "victory";
         cb.xp = enemies.reduce((n, o) => n + (Number(combatantStats(o.id).xp) || 0), 0);
-        combatLog(`Victory! All enemies are defeated.${cb.xp ? ` ${cb.xp} XP earned.` : ""}`);
+        cb.xpShares = Math.max(1, party.length);
+        cb.xpEach = Math.floor(cb.xp / cb.xpShares);
+        combatLog(`Victory! All enemies are defeated.${cb.xp ? cb.xpShares > 1 ? ` ${cb.xp} XP, ${cb.xpEach} XP each for ${cb.xpShares} characters.` : ` ${cb.xp} XP earned.` : ""}`);
       } else if (party.length && party.every((o) => isDown(cb, o.id) && !(deathOf(cb, o.id) && !deathOf(cb, o.id).stable && !deathOf(cb, o.id).dead))) {
         cb.outcome = "defeat";
         const p = deathOf(cb, "__player__");
@@ -25014,24 +25016,29 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       if (!cb || cb.synced) return;
       cb.synced = true;
       const C2 = window.KLITE_RPMod_Characters;
+      const xp = cb.outcome === "victory" ? Number(cb.xpEach != null ? cb.xpEach : cb.xp) || 0 : 0;
+      const addXp2 = (s, name2) => {
+        const before = levelForXp(s.xp);
+        s.xp = (Number(s.xp) || 0) + xp;
+        if (xp && levelForXp(s.xp) > (Number(s.level) || 1) && levelForXp(s.xp) > before) gameLog(`${name2} has enough XP for level ${(Number(s.level) || 1) + 1} — use Level up on the character sheet.`, "combat");
+      };
       for (const o of sideList(cb, "party")) {
         if (o.kind !== "person" || cb.hp[o.id] == null) continue;
         const hpNow = cb.hp[o.id];
         if (rt() && !asArray5(rt().companions).includes(o.id)) rt().companions = [...asArray5(rt().companions), o.id];
         if (o.sheet && C2 && C2.updateSheet) C2.updateSheet(o.sheet, (s) => {
           s.hp.current = hpNow;
+          addXp2(s, o.sheet);
         });
         else if (rt()) {
           rt().partyHp = Object.assign({}, rt().partyHp, { [o.id]: hpNow });
         }
       }
       if (!cb.persona || !C2 || !C2.updateSheet) return;
-      const name = cb.persona, hp = cb.hp.__player__, xp = cb.outcome === "victory" ? Number(cb.xp) || 0 : 0;
+      const name = cb.persona, hp = cb.hp.__player__;
       C2.updateSheet(name, (s) => {
         if (hp != null) s.hp.current = hp;
-        const before = levelForXp(s.xp);
-        s.xp = (Number(s.xp) || 0) + xp;
-        if (xp && levelForXp(s.xp) > (Number(s.level) || 1) && levelForXp(s.xp) > before) gameLog(`${name} has enough XP for level ${(Number(s.level) || 1) + 1} — use Level up on the character sheet.`, "combat");
+        addXp2(s, name);
       });
     }
     function personSheetName(id) {
@@ -25610,7 +25617,7 @@ ${recent}` : "");
       if (zoneState(cb)) parts.push(zoneText(cb));
       parts.push("Party:\n" + sideList(cb, "party").map(line).join("\n"));
       parts.push("Enemies:\n" + sideList(cb, "enemy").map(line).join("\n"));
-      if (cb.outcome === "victory") parts.push(`OUTCOME: Victory — every enemy is defeated${cb.xp ? ` (${cb.xp} XP)` : ""}. Narrate the end of the fight.`);
+      if (cb.outcome === "victory") parts.push(`OUTCOME: Victory — every enemy is defeated${cb.xp ? ` (${cb.xp} XP${cb.xpShares > 1 ? `, ${cb.xpEach} XP each` : ""})` : ""}. Narrate the end of the fight.`);
       else if (cb.outcome === "defeat") parts.push("OUTCOME: Defeat — the party has fallen. Narrate what happens to the player character now; do not revive them by yourself.");
       else parts.push(`RPmod rolls every attack, saving throw and HP change; narrate only the results listed under "Rolls and combat" — do not invent hits, damage or deaths.${cur.isPlayer ? " It is the player's turn: set the scene and wait for their action." : ""}`);
       if (!window.KLITE_RPMod_Log) {
@@ -27921,7 +27928,7 @@ ${xl.join("\n")}`;
     if (cb.outcome) {
       box.appendChild(el("div", { class: "rpm-card rpm-cb-outcome rpm-cb-" + cb.outcome, "data-cb": "outcome" }, [
         el("div", { class: "rpm-heading", text: cb.outcome === "victory" ? "Victory!" : "Defeat" }),
-        muted(cb.outcome === "victory" ? `${cb.xp || 0} XP earned${cb.persona ? ` — saved to ${cb.persona}'s sheet` : ""}. Send a message so the AI narrates the end of the fight.` : "The party has fallen. Send a message so the AI tells what happens next.")
+        muted(cb.outcome === "victory" ? `${cb.xp || 0} XP earned${cb.xpShares > 1 ? ` — ${cb.xpEach} XP each for ${cb.xpShares} characters` : ""}${cb.persona ? `, saved to ${cb.persona}'s sheet${cb.xpShares > 1 ? " and your companions' sheets" : ""}` : ""}. Send a message so the AI narrates the end of the fight.` : "The party has fallen. Send a message so the AI tells what happens next.")
       ]));
     }
     const zv = A.zoneView && A.zoneView();
@@ -31745,7 +31752,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           `Fights take place in zones of the room you are in: melee in the same zone, ranged by weapon range, moving one zone per turn, cover and hiding. The Guide's "Zone combat" tab explains it.`,
           "On your turn move, take cover or hide, pick weapon and target and press Attack, then End turn: the enemies act automatically until it is your turn again.",
           "Then write in the chat what you do — the AI narrates the rolls from the combat log.",
-          "After a victory your HP and the XP earned are saved to your persona's sheet.",
+          "After a victory your HP and the XP earned are saved to your persona's sheet. The XP is divided evenly among everyone who fought on your side; companions with a character sheet get their share too.",
           "The AI can start a fight too: it writes <encounter>2 Wolf</encounter>."
         ] }
       ],

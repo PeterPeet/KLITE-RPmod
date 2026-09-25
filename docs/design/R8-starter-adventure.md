@@ -1,6 +1,6 @@
 # R8 — Starter adventure "The Drowned Lantern" (design)
 
-> Status: **approved by the owner** (2026-09-25; decisions at the end). Step 1 in progress.
+> Status: **approved by the owner** (2026-09-25; decisions at the end). Steps 1–2 done (2026-09-26); next: step 3.
 > Related: [USERSTORY.md](../USERSTORY.md) (copyright guardrails), [ROADMAP.md](../ROADMAP.md)
 > (known issue 22), [R7-world-map.md](R7-world-map.md) (dungeons, towns, zone combat).
 

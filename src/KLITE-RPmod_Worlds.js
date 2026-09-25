@@ -1975,7 +1975,11 @@ export default function initWorlds() {
         if (enemies.length && enemies.every(o => isDown(cb, o.id))) {
             cb.outcome = 'victory';
             cb.xp = enemies.reduce((n, o) => n + (Number(combatantStats(o.id).xp) || 0), 0);
-            combatLog(`Victory! All enemies are defeated.${cb.xp ? ` ${cb.xp} XP earned.` : ''}`);
+            // SRD 5.2.1: the XP is divided evenly among the party members who took part (R8, owner's
+            // decision 2026-09-25) — the persona and every companion on the party side
+            cb.xpShares = Math.max(1, party.length);
+            cb.xpEach = Math.floor(cb.xp / cb.xpShares);
+            combatLog(`Victory! All enemies are defeated.${cb.xp ? (cb.xpShares > 1 ? ` ${cb.xp} XP, ${cb.xpEach} XP each for ${cb.xpShares} characters.` : ` ${cb.xp} XP earned.`) : ''}`);
         } else if (party.length && party.every(o => isDown(cb, o.id) && !(deathOf(cb, o.id) && !deathOf(cb, o.id).stable && !deathOf(cb, o.id).dead))) {
             cb.outcome = 'defeat';
             const p = deathOf(cb, '__player__');
@@ -1984,27 +1988,33 @@ export default function initWorlds() {
         if (cb.outcome) syncPersonaSheet(cb);
         return cb.outcome;
     }
-    // Write HP (and XP on victory) back to the persona's sheet, and the companions' HP to their
-    // sheets (or, without a sheet, to the story's runtime `partyHp`) — once per encounter.
+    // Write HP (and the XP share on victory) back to the persona's sheet, and the companions' HP
+    // and XP share to their sheets (without a sheet: HP to the story's runtime `partyHp`; its XP
+    // share is not kept) — once per encounter.
     function syncPersonaSheet(cb) {
         if (!cb || cb.synced) return;
         cb.synced = true;
         const C = window.KLITE_RPMod_Characters;
+        // the share per character (fights won before R8 step 2 kept the whole XP: xpEach missing)
+        const xp = cb.outcome === 'victory' ? (Number(cb.xpEach != null ? cb.xpEach : cb.xp) || 0) : 0;
+        const addXp = (s, name) => {
+            const before = CR.levelForXp(s.xp); s.xp = (Number(s.xp) || 0) + xp;
+            if (xp && CR.levelForXp(s.xp) > (Number(s.level) || 1) && CR.levelForXp(s.xp) > before) gameLog(`${name} has enough XP for level ${(Number(s.level) || 1) + 1} — use Level up on the character sheet.`, 'combat');
+        };
         for (const o of sideList(cb, 'party')) {
             if (o.kind !== 'person' || cb.hp[o.id] == null) continue;
             const hpNow = cb.hp[o.id];
             if (rt() && !asArray(rt().companions).includes(o.id)) rt().companions = [...asArray(rt().companions), o.id];
-            if (o.sheet && C && C.updateSheet) C.updateSheet(o.sheet, s => { s.hp.current = hpNow; });
+            if (o.sheet && C && C.updateSheet) C.updateSheet(o.sheet, s => { s.hp.current = hpNow; addXp(s, o.sheet); });
             else if (rt()) { rt().partyHp = Object.assign({}, rt().partyHp, { [o.id]: hpNow }); }
         }
         if (!cb.persona || !C || !C.updateSheet) return;
-        const name = cb.persona, hp = cb.hp.__player__, xp = cb.outcome === 'victory' ? (Number(cb.xp) || 0) : 0;
+        const name = cb.persona, hp = cb.hp.__player__;
         // through the same queue as quest rewards (applied to the cached sheet at once), so
         // neither write can overwrite the other
         C.updateSheet(name, s => {
             if (hp != null) s.hp.current = hp;
-            const before = CR.levelForXp(s.xp); s.xp = (Number(s.xp) || 0) + xp;
-            if (xp && CR.levelForXp(s.xp) > (Number(s.level) || 1) && CR.levelForXp(s.xp) > before) gameLog(`${name} has enough XP for level ${(Number(s.level) || 1) + 1} — use Level up on the character sheet.`, 'combat');
+            addXp(s, name);
         });
     }
     // ---- spells in combat (R5) ----
@@ -2479,7 +2489,7 @@ export default function initWorlds() {
         if (zoneState(cb)) parts.push(zoneText(cb));
         parts.push('Party:\n' + sideList(cb, 'party').map(line).join('\n'));
         parts.push('Enemies:\n' + sideList(cb, 'enemy').map(line).join('\n'));
-        if (cb.outcome === 'victory') parts.push(`OUTCOME: Victory — every enemy is defeated${cb.xp ? ` (${cb.xp} XP)` : ''}. Narrate the end of the fight.`);
+        if (cb.outcome === 'victory') parts.push(`OUTCOME: Victory — every enemy is defeated${cb.xp ? ` (${cb.xp} XP${cb.xpShares > 1 ? `, ${cb.xpEach} XP each` : ''})` : ''}. Narrate the end of the fight.`);
         else if (cb.outcome === 'defeat') parts.push('OUTCOME: Defeat — the party has fallen. Narrate what happens to the player character now; do not revive them by yourself.');
         else parts.push(`RPmod rolls every attack, saving throw and HP change; narrate only the results listed under "Rolls and combat" — do not invent hits, damage or deaths.${cur.isPlayer ? ' It is the player\'s turn: set the scene and wait for their action.' : ''}`);
         if (!window.KLITE_RPMod_Log) { const recent = cb.log.slice(-6).join('\n'); if (recent) parts.push('Recent:\n' + recent); }

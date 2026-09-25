@@ -650,7 +650,9 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
 - **Dropping to 0 HP:** you fall unconscious and make **death saving throws** on your turn
   (10+ succeeds, 1 counts twice, 20 brings you back with 1 HP); damage while down counts as a
   failure. Three successes = stable, three failures = dead.
-- **Victory** (every enemy down) awards the monsters' XP; **defeat** when no one of the party is
+- **Victory** (every enemy down) awards the monsters' XP, **divided evenly among everyone who
+  fought on your side** (SRD: two Goblin Warriors, 100 XP, give you and one companion 50 XP each;
+  companions with a character sheet keep their share); **defeat** when no one of the party is
   standing. Your persona's remaining **HP and the XP are saved to its sheet** (the fight also
   starts from the sheet's current HP); when you reach the next level's XP, the log says so and
   **Level up** on the sheet takes you there.

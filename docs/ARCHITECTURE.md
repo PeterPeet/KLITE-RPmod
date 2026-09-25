@@ -345,7 +345,8 @@ outcome: null|'victory'|'defeat', xp, persona, synced, encounter, difficulty }`.
   (monster DC actions, half damage on success), `savingThrow`, `damage/heal`. `setHp` handles
   0 HP: party → Unconscious + death saves (hits while down = failures, crit = two); enemies →
   defeated. `deathSave` (nat 20 → 1 HP). `checkOutcome` after every change: victory = every enemy
-  at 0 (XP = sum of monster XP), defeat = no party member standing or dying. On the outcome (or
+  at 0 (XP = sum of monster XP; R8 step 2: `xpShares` = party-side combatants, `xpEach` = ⌊XP / shares⌋ —
+  the persona and each companion with a sheet get `xpEach`), defeat = no party member standing or dying. On the outcome (or
   `endEncounter` without one) `syncPersonaSheet` writes HP (+ XP on victory) to the persona's
   card once; a log line announces a reachable level.
 - **Companions' HP (2026-09-25):** a party-side person whose stats come from its linked card

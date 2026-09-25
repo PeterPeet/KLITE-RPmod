@@ -192,6 +192,32 @@ test('companions keep their HP between fights; the Long rest restores HP, slots 
     assert.ok(h.window.KLITE_RPMod_Log.entries().some(e => /finish a Long Rest: HP, spell slots and free casts are restored/.test(e.what)));
 });
 
+test('XP is divided among the party (SRD): persona and companions with a sheet get a share each', async (t) => {
+    const { h, W, C, bram, ned } = await field(t);
+    const before = { mira: Number((await C.loadSheet('Mira')).xp) || 0, bram: Number((await C.loadSheet('Bram')).xp) || 0 };
+    h.seedRandom([0.5]);
+    // two Goblin Warriors (100 XP) for a party of three: Mira (persona), Bram (sheet), Ned (no sheet)
+    W.startEncounter([bram, ned], { monsters: [{ key: 'goblin-warrior', count: 2 }], sides: { [bram]: 'party', [ned]: 'party' }, zones: false });
+    for (const id of monsterIds(W)) W.damage(id, 50);
+    const cb = W.getCombat();
+    assert.equal(cb.outcome, 'victory');
+    assert.deepEqual([cb.xp, cb.xpShares, cb.xpEach], [100, 3, 33]);
+    assert.ok(cb.log.some(l => /100 XP, 33 XP each for 3 characters/.test(l)));
+    assert.match(W.preview(), /Victory — every enemy is defeated \(100 XP, 33 XP each\)/);
+    await sleep(40);
+    assert.equal((await C.loadSheet('Mira')).xp, before.mira + 33, 'the persona gets a share');
+    assert.equal((await C.loadSheet('Bram')).xp, before.bram + 33, 'a companion with a sheet gets a share');
+    W.endEncounter(); await sleep(30);
+    assert.equal((await C.loadSheet('Mira')).xp, before.mira + 33, 'written once');
+
+    // alone, the persona keeps the whole XP
+    W.startEncounter([], { monsters: [{ key: 'goblin-warrior' }], zones: false });
+    W.damage(monsterIds(W)[0], 50);
+    assert.deepEqual([W.getCombat().xpShares, W.getCombat().xpEach], [1, 50]);
+    await sleep(40);
+    assert.equal((await C.loadSheet('Mira')).xp, before.mira + 33 + 50);
+});
+
 test('Combat window: Weapon/Spell switch, cast from the window; Party section shows companions and Long rest', async (t) => {
     const { h, w, W, ned } = await field(t);
     const doc = w.document;
