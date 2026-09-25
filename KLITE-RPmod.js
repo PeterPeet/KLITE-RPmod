@@ -90,6 +90,11 @@ ${Object.entries(RPMOD_THEME_DEFAULTS).map(([k2, v]) => `    ${k2}: ${v};`).join
     color: var(--rpm-accent-fg); font-weight: bold; font-size: var(--rpm-fs);
 }
 .rpm-dock-head .rpm-title { flex: 1; padding-left: var(--rpm-s1); }
+.rpm-dock-actions { display: flex; gap: 2px; }
+/* right dock: the tabs need the whole strip, so its icon buttons get their own row below them */
+.rpm-dock-right .rpm-dock-head { flex-wrap: wrap; row-gap: 4px; }
+.rpm-dock-right .rpm-dock-actions { flex-basis: 100%; justify-content: flex-end; }
+.rpm-dock-right .rpm-dock-actions:empty { display: none; }
 .rpm-iconbtn {
     display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
     width: 28px; height: 28px; padding: 0; border-radius: var(--rpm-radius);
@@ -1297,7 +1302,7 @@ body.rpm-docked #maincontainer {
       const body = el("div", { class: "rpm-dock-body" });
       const dock = el("aside", { class: "rpm-dock rpm-dock-" + side, id: "rpm-dock-" + side, "aria-label": side === "left" ? "RPmod adventure panel" : "RPmod tools panel" }, [head, body]);
       let tabs = null;
-      const actions = el("div", { class: "rpm-dock-actions", style: "display:flex;gap:2px" });
+      const actions = el("div", { class: "rpm-dock-actions" });
       if (side === "left") {
         head.appendChild(el("span", { class: "rpm-title", text: "Adventure" }));
         head.appendChild(actions);

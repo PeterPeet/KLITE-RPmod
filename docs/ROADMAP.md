@@ -34,7 +34,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 332 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 333 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.

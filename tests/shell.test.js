@@ -56,6 +56,22 @@ test('shell: docks, top-bar button, tabs in order, lazy mount', async (t) => {
     assert.match($(h, '[data-section="side"]').textContent, /side view/);
 });
 
+test('shell: right-dock icon buttons sit on their own row, not in the tab strip', async (t) => {
+    const h = await shellHost(t); const sh = h.shell();
+    addViews(sh);
+    const actions = $(h, '#rpm-dock-right .rpm-dock-actions');
+    assert.equal(actions.getAttribute('style'), null, 'no inline display: the CSS decides the row');
+    assert.equal(actions.children.length, 0);
+    sh.addDockAction('right', { id: 'x', title: 'X', icon: 'layout-grid', onClick: () => {} });
+    assert.ok(actions.querySelector('[data-action="x"]'));
+    assert.ok(!$(h, '#rpm-dock-right .rpm-tabs').contains(actions), 'not inside the tabs');
+    // jsdom has no layout: check the rules that put the actions on a full-width row below the tabs
+    const css = $(h, '#rpm-shell-styles').textContent;
+    assert.match(css, /\.rpm-dock-right \.rpm-dock-head \{ flex-wrap: wrap;/);
+    assert.match(css, /\.rpm-dock-right \.rpm-dock-actions \{ flex-basis: 100%; justify-content: flex-end; \}/);
+    assert.match(css, /\.rpm-dock-right \.rpm-dock-actions:empty \{ display: none; \}/);
+});
+
 test('shell: docked mode pushes Esolite in; top-bar button hides both docks', async (t) => {
     const h = await shellHost(t); const sh = h.shell(); addViews(sh);
     assert.equal(sh.mode(), 'docked');

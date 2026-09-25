@@ -85,6 +85,11 @@ ${Object.entries(RPMOD_THEME_DEFAULTS).map(([k, v]) => `    ${k}: ${v};`).join('
     color: var(--rpm-accent-fg); font-weight: bold; font-size: var(--rpm-fs);
 }
 .rpm-dock-head .rpm-title { flex: 1; padding-left: var(--rpm-s1); }
+.rpm-dock-actions { display: flex; gap: 2px; }
+/* right dock: the tabs need the whole strip, so its icon buttons get their own row below them */
+.rpm-dock-right .rpm-dock-head { flex-wrap: wrap; row-gap: 4px; }
+.rpm-dock-right .rpm-dock-actions { flex-basis: 100%; justify-content: flex-end; }
+.rpm-dock-right .rpm-dock-actions:empty { display: none; }
 .rpm-iconbtn {
     display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
     width: 28px; height: 28px; padding: 0; border-radius: var(--rpm-radius);

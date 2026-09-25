@@ -289,7 +289,7 @@ export default function initShell() {
         const body = el('div', { class: 'rpm-dock-body' });
         const dock = el('aside', { class: 'rpm-dock rpm-dock-' + side, id: 'rpm-dock-' + side, 'aria-label': side === 'left' ? 'RPmod adventure panel' : 'RPmod tools panel' }, [head, body]);
         let tabs = null;
-        const actions = el('div', { class: 'rpm-dock-actions', style: 'display:flex;gap:2px' });
+        const actions = el('div', { class: 'rpm-dock-actions' });
         if (side === 'left') {
             head.appendChild(el('span', { class: 'rpm-title', text: 'Adventure' }));
             head.appendChild(actions);
