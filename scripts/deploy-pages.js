@@ -81,8 +81,9 @@ try {
         console.log(`= committed in ${PAGES_DIR}: ${git(PAGES_DIR, 'log', '-1', '--format=%h %s')}`);
     }
     if (push) {
-        // an https GitHub remote without stored credentials cannot push; use SSH instead
-        const url = git(PAGES_DIR, 'remote', 'get-url', 'origin').replace(/^https:\/\/github\.com\//, 'git@github.com:');
+        // origin's push URL (SSH when set); a plain https GitHub URL is pushed via SSH instead,
+        // because https has no stored credentials here
+        const url = git(PAGES_DIR, 'remote', 'get-url', '--push', 'origin').replace(/^https:\/\/github\.com\//, 'git@github.com:');
         run('git', ['-C', PAGES_DIR, 'push', url, PAGES_BRANCH]);
         run('git', ['-C', PAGES_DIR, 'fetch', '-q', 'origin']);
         console.log('= pushed — https://rp-lite.koboldai.net updates in about a minute');
