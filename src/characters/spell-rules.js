@@ -180,3 +180,87 @@ export function slotFor(spellLevel, slots, used) {
 }
 // Save DC and spell attack for an ability (8 + mod + PB / mod + PB).
 export function castingNumbers(abilities, ability, pb) { const m = mod(abilities && abilities[ability]); return { dc: 8 + m + pb, attack: m + pb }; }
+
+// ---- in combat (R5) ------------------------------------------------------------------------------
+// The spells a sheet can cast: cantrips, prepared spells and granted (always prepared) spells.
+// sc = sheet.spellcasting (normalized). → [{ key, ability, source?, free? }], sorted by level, name.
+export function spellEntries(sc) {
+    if (!sc) return [];
+    const seen = new Set(), out = [];
+    const add = (e) => { if (!e.key || seen.has(e.key) || !SPELLS[e.key]) return; seen.add(e.key); out.push(e); };
+    asArray(sc.cantripsKnown).forEach(k => add({ key: k, ability: sc.ability }));
+    asArray(sc.preparedSpells).forEach(k => add({ key: k, ability: sc.ability }));
+    asArray(sc.granted).forEach(g => add({ key: g.key, ability: g.ability || sc.ability, source: g.source, free: g.free }));
+    return out.sort((a, b) => SPELLS[a.key].level - SPELLS[b.key].level || SPELLS[a.key].name.localeCompare(SPELLS[b.key].name));
+}
+// What a spell does in a fight. kind: 'attack' (spell attack roll), 'save' (targets save against
+// the DC; with or without damage), 'heal', 'darts' (Magic Missile: automatic hits) or 'other'
+// (narrated: the slot is spent and the cast logged). area: the text affects each creature in an
+// area (several targets); half: half damage on a successful save.
+export function combatUse(s) {
+    if (!s) return null;
+    const text = asArray(s.text).join(' ');
+    const base = { castingTime: s.castingTime || 'Action', bonus: /^bonus action/i.test(s.castingTime || ''), range: rangeProfile(s) };
+    if (s.name === 'Magic Missile') return { ...base, kind: 'darts', damage: '1d4+1', damageType: 'Force' };
+    if (s.attack && s.damage) return { ...base, kind: 'attack', ranged: s.attack === 'ranged', damage: s.damage, damageType: s.damageType || '' };
+    if (s.save) return { ...base, kind: 'save', save: s.save, damage: s.damage || '', damageType: s.damageType || '', half: !!s.damage && /half as much damage/i.test(text), area: /each creature/i.test(text) };
+    if (s.heal) return { ...base, kind: 'heal', heal: s.heal };
+    return { ...base, kind: 'other' };
+}
+// The spell's range as a zone-combat attack profile (zone-rules attackProfile shape):
+// Touch → melee 5 ft; Self (cones, lines, emanations) → the caster's own zone; N feet → ranged N.
+export function rangeProfile(s) {
+    const r = String((s && s.range) || '');
+    const ft = /(\d+)\s*(?:feet|foot|ft)/i.exec(r);
+    if (/^touch/i.test(r)) return { melee: true, ranged: false, reachFt: 5, normalFt: 0, longFt: 0 };
+    if (/^self/i.test(r)) {
+        const size = ft ? Number(ft[1]) : 5;   // "Self (15-foot Cone)"
+        return size > 30 ? { melee: false, ranged: true, reachFt: 5, normalFt: size, longFt: size } : { melee: true, ranged: false, reachFt: 5, normalFt: 0, longFt: 0 };
+    }
+    const n = ft ? Number(ft[1]) : /mile|sight|unlimited/i.test(r) ? 1000 : 60;
+    return { melee: false, ranged: true, reachFt: 5, normalFt: n, longFt: n };
+}
+// Add dice to an expression: "8d6" + 2d6 → "10d6"; "2d8+mod" + 1d8 → "3d8+mod"; else "…+2d6".
+function addDice(expr, count, sides) {
+    if (!count) return expr;
+    const m = /^(\d+)d(\d+)(.*)$/.exec(String(expr));
+    if (m && Number(m[2]) === sides) return `${Number(m[1]) + count}d${sides}${m[3] || ''}`;
+    return `${expr}+${count}d${sides}`;
+}
+// Extra dice for a higher spell slot, from the "Using a Higher-Level Spell Slot" text
+// ("The damage increases by 1d6 for each spell slot level above 3."). → { count, sides } or null.
+export function upcastStep(s, what) {
+    const m = /(damage|healing)[^.]*?increases by (\d+)d(\d+) for each spell slot level above (\d+)/i.exec((s && s.higher) || '');
+    if (!m || (what && m[1].toLowerCase() !== what)) return null;
+    return { count: Number(m[2]), sides: Number(m[3]), above: Number(m[4]) };
+}
+// Damage of a cast: cantrips grow with the character level, leveled spells with the slot level.
+export function castDamage(s, charLevel, slotLevel) {
+    if (!s || !s.damage) return '';
+    if (!s.level) return cantripDamage(s, charLevel);
+    const up = upcastStep(s, 'damage');
+    return up && slotLevel > up.above ? addDice(s.damage, (slotLevel - up.above) * up.count, up.sides) : s.damage;
+}
+// Healing of a cast with the caster's ability modifier ("2d8+mod"), upcast like damage.
+export function castHealing(s, abilityMod, slotLevel) {
+    if (!s || !s.heal) return '';
+    const up = upcastStep(s, 'healing');
+    const expr = up && slotLevel > up.above ? addDice(s.heal, (slotLevel - up.above) * up.count, up.sides) : s.heal;
+    const m = Number(abilityMod) || 0;
+    return expr.replace('+mod', m ? (m > 0 ? '+' + m : String(m)) : '');
+}
+// Magic Missile: three darts, one more for each slot level above 1.
+export function dartCount(slotLevel) { return 3 + Math.max(0, (Number(slotLevel) || 1) - 1); }
+// Spending a slot: the new `used` array, or null when no slot of that level is free.
+export function spendSlot(slots, used, slotLevel) {
+    const l = Number(slotLevel) || 0; if (l < 1) return null;
+    if ((Number(asArray(slots)[l - 1]) || 0) <= (Number(asArray(used)[l - 1]) || 0)) return null;
+    const u = asArray(used).slice(); while (u.length < l) u.push(0); u[l - 1] = (Number(u[l - 1]) || 0) + 1;
+    return u;
+}
+// Slot levels a spell can be cast with (a free slot at its level or higher).
+export function castableSlots(spellLevel, slots, used) {
+    const out = [];
+    for (let l = Math.max(1, spellLevel); l <= asArray(slots).length; l++) if ((Number(slots[l - 1]) || 0) > (Number(asArray(used)[l - 1]) || 0)) out.push(l);
+    return out;
+}

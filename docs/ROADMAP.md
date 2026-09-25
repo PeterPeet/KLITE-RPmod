@@ -6,13 +6,14 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-25 (R2 carry-overs: known issues 4 and 15)
+> Last updated: 2026-09-25 (R5: spells in combat, companions' HP, Long rest)
 
 ## Current state
 
 **Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
-is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). Next:
-spells in the Combat window (R5), then R3 (compendium) or the R4 extras. The real-backend play
+is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). Spells in
+the Combat window and companions' HP (R5) are done too. Next: the Encounter node in the editor
+graph (R5), then R3 (compendium) or the R4 extras. The real-backend play
 test (known issue 5) is postponed (owner, 2026-09-25). R7 is done (✅ 2026-09-25, acceptance passed).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
 issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
@@ -31,7 +32,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 271 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 278 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -141,7 +142,8 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
     wrapped for syncing, issue 15): recheck on every host upgrade; a small official save/delete API
     with a "Library changed" event would be a good next proposal to Jaxxks.
 17. ~~Combat HP and sheet HP are separate~~ — the fight starts at the persona sheet's current HP
-    and writes HP/XP back (R5, owner's decision). Companions (world persons) still start at full HP.
+    and writes HP/XP back (R5, owner's decision). Companions keep their HP too since 2026-09-25
+    (their sheet, else the story's `partyHp`); the Long rest restores it.
 18. ~~Flaky test seen once (2026-09-23)~~: "Combat window: build an encounter…" failed in one full
     run and passed in ~10 runs since; the failure text was not captured. Full-run output is now
     kept while developing; investigate if it shows up again. **Seen again 2026-09-24** (one full run
@@ -160,6 +162,13 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
     that cannot be read is copied to `KLITE_WORLDS_LIBRARY_corrupt_<time>` before anything is saved
     over it. Tests in `tests/engine.test.js` ("library: …"). Whether this caused the example world
     to disappear from the test browser is unknown (another chat also used that browser).
+20. **Two speaker choices in group chat** (found 2026-09-25 in the live check of issue 4): the
+    Roles tab keeps its own "Next" speaker (speaker modes, round robin, talkativeness), but a
+    normal chat submit lets Esolite's group chat pick the speaker itself (seen: Roles "Next:
+    Borin", Esolite answered as Aria). They agree only when the turn is started with **Trigger
+    Speaker**, which sets Esolite's opponent. The per-turn context follows the Roles choice, so on
+    a normal submit the sheet it adds can belong to a different character than the one speaking.
+    Decide: let Roles set Esolite's speaker on every submit, or follow Esolite's choice.
 
 ## Phases
 
@@ -437,7 +446,7 @@ play test with a real backend, owner's decision 2026-09-23).
   export and re-import as a card without data loss") met, incl. the SillyTavern round trip.
   Carried over (not blocking): casting a spell at a higher level (Cast uses the lowest free slot),
   ritual casting and copying spells into a wizard's spellbook are narrated; spells in the Combat
-  window come with R5. Done since: the old card code split out of the monolith (known issues 8,
+  window came with R5 (2026-09-25; there a higher slot can be chosen). Done since: the old card code split out of the monolith (known issues 8,
   10) and the character list on Library ids / one copy of a card (known issues 15, 4; 2026-09-25).
 - One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,
   background, abilities, proficiencies, skills, saves, AC, HP, speed, equipment,
@@ -536,11 +545,24 @@ the AI narrates; HP and XP are written back to the persona sheet; all SRD monste
       automatically" (default on). AI: "Starting a fight" hint + `<encounter>` tag; event effect
       *encounter* in the editor. Combat log lines state the cause before the result. Live-checked
       (a wolf fight to victory in Esolite).
+- [x] **Spells in combat + companions' HP** (2026-09-25): the turn panel has **Weapon / Spell**
+      for the persona and companions with a sheet: spell, slot level (upcast; free casts), target(s),
+      Cast. Rules `spell-rules.js` (`combatUse`, `rangeProfile`, `castDamage/castHealing` with the
+      "higher-level slot" text — 51 of 109 spells scale automatically — `dartCount`, `spendSlot`);
+      engine `castSpell`: spell attacks like weapon attacks (zones, cover, crits), save spells (one
+      damage roll, every target saves, half when the text says so; area spells take several
+      targets), healing (+ ability modifier, wakes a dying ally), Magic Missile's darts, everything
+      else narrated (slot spent, logged; conditions with the Tools). Zones: the spell's range (Touch
+      = same zone), Action vs Bonus Action. The slot is spent on the sheet through `updateSheet`; an
+      open sheet takes it into its draft (`spellcasting` joined the game fields). Companions keep
+      their HP between fights (sheet, else runtime `partyHp`; who fought on your side: runtime
+      `companions`); the **Party** section lists them; **Long rest** there restores HP, slots and
+      free casts. Tests `tests/spellsCombat.test.js`; live-checked in Esolite (cleric 3 + a fighter
+      companion vs two wolves: Guiding Bolt, Healing Word, write-back, Long rest).
 - **Open (R5):** needs a play test with a real backend (does the AI stick to the logged results?);
-  an Encounter node in the editor graph; spells in combat (spell attack/save DC, slots used from
-  the Combat window); companions' HP kept between fights; monster recharge and legendary actions
-  are manual (Tools); no map, so no range/movement — ranged monsters only prefer melee when they
-  have it. Acceptance "build a Moderate encounter, fight it through victory and through defeat"
+  an Encounter node in the editor graph; monster recharge and legendary actions are manual (Tools);
+  spells: concentration, monsters' spellcasting, companions casting on their automatic turns, and
+  conditions from spells (added with the Tools). Range and movement exist since R7 (zone combat). Acceptance "build a Moderate encounter, fight it through victory and through defeat"
   is covered by tests (`tests/encounter.test.js`) and the live check.
 - Encounter builder with SRD 5.2 XP budget / difficulty; Encounter node linked to
   locations/events. *(done: builder + saved encounters with location + event effect; an

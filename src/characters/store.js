@@ -8,7 +8,8 @@
 // sheet is loaded, saved or removed).
 // =============================================================================
 import { loadCharacter, saveCharacter } from '../library/esoliteLibrary.js';
-import { readSheet, writeSheet, normalizeSheet, toCombatStats, sheetSummary } from './sheet.js';
+import { readSheet, writeSheet, normalizeSheet, toCombatStats, sheetSummary, derive } from './sheet.js';
+import * as SP from './spell-rules.js';
 
 const cache = new Map();      // lower-case name -> { name, sheet | null, text: { personality, description } }
 const pending = new Map();    // lower-case name -> Promise
@@ -119,3 +120,44 @@ if (typeof window !== 'undefined') {
 // For Worlds combat / the AI context (synchronous; undefined/null when unknown).
 export function combatStatsFor(name) { const s = cachedSheet(name); return s ? toCombatStats(s) : null; }
 export function summaryFor(name) { const s = cachedSheet(name); return s ? sheetSummary(s) : ''; }
+
+// ---- spells in combat (R5) and the long rest ------------------------------------------------
+// The spells a character can cast right now (from the cached sheet): each with its combat use,
+// save DC / spell attack for its ability, the slot levels it can use and free casts left.
+export function combatSpellsFor(name) {
+    const s = cachedSheet(name); if (!s || !s.spellcasting) return null;
+    const D = derive(s), sc = D.sheet.spellcasting;
+    const freeUsed = sc.freeUsed || {};
+    const spells = SP.spellEntries(sc).map(e => {
+        const sv = SP.spell(e.key), nums = SP.castingNumbers(D.sheet.abilities, e.ability, D.pb);
+        const freeMax = e.free === 'pb' ? D.pb : e.free === 'long' ? 1 : 0;
+        return { key: e.key, name: sv.name, level: sv.level, ability: e.ability, source: e.source || '', dc: nums.dc, attack: nums.attack, mod: D.mods[e.ability] || 0,
+            use: SP.combatUse(sv), slots: sv.level ? SP.castableSlots(sv.level, sc.slots, sc.used) : [], freeLeft: Math.max(0, freeMax - (Number(freeUsed[e.key]) || 0)) };
+    });
+    return { name, level: D.sheet.level, spells, slots: sc.slots.slice(), used: (sc.used || []).slice() };
+}
+// Spend what a cast costs on the sheet: a slot of `slotLevel` (or the free cast); cantrips
+// cost nothing. → { ok, slotLevel } or { ok: false, reason }. Goes through updateSheet (the
+// same queue as HP/XP), so an open sheet takes the change into its draft.
+export function spendSpell(name, key, opts = {}) {
+    const info = combatSpellsFor(name); const e = info && info.spells.find(x => x.key === key);
+    if (!e) return { ok: false, reason: `${name} cannot cast that spell` };
+    if (!e.level) return { ok: true, slotLevel: 0 };
+    if (opts.free) {
+        if (e.freeLeft <= 0) return { ok: false, reason: `no free cast of ${e.name} left (back after a Long Rest)` };
+        updateSheet(name, s => { const f = s.spellcasting.freeUsed = Object.assign({}, s.spellcasting.freeUsed); f[key] = (Number(f[key]) || 0) + 1; });
+        return { ok: true, slotLevel: e.level, free: true };
+    }
+    const lvl = Number(opts.slotLevel) || e.slots[0] || 0;
+    if (!lvl || lvl < e.level || !e.slots.includes(lvl)) return { ok: false, reason: lvl ? `no level ${lvl} spell slot left` : `no spell slot of level ${e.level} or higher left` };
+    let ok = false;
+    updateSheet(name, s => { const u = SP.spendSlot(s.spellcasting.slots, s.spellcasting.used, lvl); if (u) { s.spellcasting.used = u; ok = true; } });
+    return ok ? { ok: true, slotLevel: lvl } : { ok: false, reason: `no level ${lvl} spell slot left` };
+}
+// Long Rest on a sheet: full HP, no temporary HP, spell slots and free casts back.
+export function longRestSheet(name) {
+    return updateSheet(name, s => {
+        s.hp.current = s.hp.max; s.hp.temp = 0;
+        if (s.spellcasting) { s.spellcasting.used = []; s.spellcasting.freeUsed = {}; }
+    });
+}

@@ -21,7 +21,7 @@ const CR_BANDS = [['', 'Any CR'], ['0-0.25', 'CR 0–1/4'], ['0.5-1', 'CR 1/2–
 const DIFF_LABEL = { none: 'No enemies yet', trivial: 'Trivial', low: 'Low', moderate: 'Moderate', high: 'High', beyond: 'Beyond High (deadly)' };
 
 // Builder / fight choices that survive re-renders (per session).
-const U = { monsters: {}, persons: {}, q: '', band: '', name: '', start: 'auto', atk: 0, target: '', mode: '', moveTo: '', cover: '', tool: { who: '', amount: 5, cond: 'Prone', rounds: 1, action: 0, actTarget: '', zone: '' } };
+const U = { monsters: {}, persons: {}, q: '', band: '', name: '', start: 'auto', atk: 0, target: '', mode: '', act: 'weapon', spell: '', slot: '', spellTarget: '', spellTargets: [], spellMsg: '', moveTo: '', cover: '', tool: { who: '', amount: 5, cond: 'Prone', rounds: 1, action: 0, actTarget: '', zone: '' } };
 
 export function renderCombat(box, refresh) {
     const A = window.KLITE_RPMod_Worlds;
@@ -244,6 +244,19 @@ function renderTurn(box, cb, cur, A, refresh) {
         const attacks = (st.attacks || []).map((a, i) => [i, `${a.name} (${a.toHit >= 0 ? '+' : ''}${a.toHit}, ${a.damage})`]);
         if (U.atk >= attacks.length) U.atk = 0;
         wrap.appendChild(el('div', { style: 'font-weight:bold', text: cur.isPlayer ? 'Your turn' : `${cur.name}'s turn` }));
+        const book = A.combatSpells ? A.combatSpells(cur.id) : null;
+        if (book && book.spells.length) {
+            wrap.appendChild(row([
+                btn('Weapon', () => { U.act = 'weapon'; U.spellMsg = ''; refresh(); }, { icon: 'swords', on: U.act !== 'spell', id: 'act-weapon', grow: true }),
+                btn('Spell', () => { U.act = 'spell'; refresh(); }, { icon: 'wand-sparkles', on: U.act === 'spell', id: 'act-spell', grow: true }),
+            ], 'margin-top:4px'));
+        }
+        if (U.act === 'spell' && book && book.spells.length) {
+            const zv0 = A.zoneView && A.zoneView();
+            if (zv0) zoneControls(wrap, cb, cur, zv0, A, refresh);
+            renderSpellRow(wrap, cb, cur, book, A, refresh, endTurn);
+            return;
+        }
         wrap.appendChild(row([
             attacks.length ? sel(attacks, U.atk, v => { U.atk = Number(v); refresh(); }, 'Weapon', 'weapon') : muted('No attacks on the sheet — Unarmed Strike.'),
             sel(foes.map(f => [f.id, `${f.name} (${cb.hp[f.id]} HP)`]), U.target, v => { U.target = v; refresh(); }, 'Target', 'target'),
@@ -266,6 +279,67 @@ function renderTurn(box, cb, cur, A, refresh) {
         btn('Run enemy turns', () => { A.runAutoTurns(); refresh(); }, { icon: 'play', variant: 'danger', id: 'run-enemies' }),
         btn('Skip', () => { A.nextTurn(); refresh(); }, { id: 'skip' }),
     ]));
+}
+
+// ---- spells (R5): cast from the caster's sheet ------------------------------------------------
+const SAVE_NAMES = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
+function spellInfo(sp, slotLevel, charLevel) {
+    const u = sp.use;
+    if (u.kind === 'attack') return `Spell attack ${sp.attack >= 0 ? '+' : ''}${sp.attack}${u.damageType ? ' · ' + u.damageType.toLowerCase() + ' damage' : ''}`;
+    if (u.kind === 'save') return `${SAVE_NAMES[u.save] || u.save} save, DC ${sp.dc}${u.damage ? ` · ${u.damageType ? u.damageType.toLowerCase() + ' damage' : 'damage'}${u.half ? ', half on a success' : ''}` : ' · no damage: the AI narrates the effect'}${u.area ? ' · area: choose every creature in it' : ''}`;
+    if (u.kind === 'heal') return 'Healing';
+    if (u.kind === 'darts') return `${3 + Math.max(0, (Number(slotLevel) || 1) - 1)} darts, each 1d4+1 force, always hit (spread them over the chosen targets)`;
+    return 'The slot is spent and the cast logged; the AI narrates the effect (conditions with the Tools).';
+}
+function renderSpellRow(wrap, cb, cur, book, A, refresh, endTurn) {
+    const spells = book.spells;
+    if (!spells.some(x => x.key === U.spell)) U.spell = spells[0].key;
+    const sp = spells.find(x => x.key === U.spell), u = sp.use;
+    const opts = spells.map(x => [x.key, `${x.level ? 'Level ' + x.level : 'Cantrip'}: ${x.name}${x.level && !x.slots.length && !x.freeLeft ? ' (no slot left)' : ''}`]);
+    const kids = [sel(opts, U.spell, v => { U.spell = v; U.slot = ''; U.spellMsg = ''; refresh(); }, 'Spell', 'spell')];
+    if (sp.level) {
+        const slotOpts = sp.slots.map(l => [String(l), `Level ${l} slot`]);
+        if (sp.freeLeft > 0) slotOpts.push(['free', `Free cast (${sp.freeLeft} left)`]);
+        if (!slotOpts.some(o => o[0] === U.slot)) U.slot = slotOpts.length ? slotOpts[0][0] : '';
+        kids.push(slotOpts.length ? sel(slotOpts, U.slot, v => { U.slot = v; refresh(); }, 'Spell slot', 'slot') : muted('No spell slot left', { 'data-cb': 'no-slot' }));
+    }
+    const party = cb.order.filter(o => o.side === cur.side && (cb.hp[o.id] > 0 || (cb.death && cb.death[o.id] && !cb.death[o.id].dead)));
+    const foes = cb.order.filter(o => o.side !== cur.side && cb.hp[o.id] > 0);
+    const pool = u.kind === 'heal' ? party : foes;
+    const multi = (u.kind === 'save' && u.area) || u.kind === 'darts';
+    if (u.kind !== 'other') {
+        if (multi) {
+            U.spellTargets = U.spellTargets.filter(id => pool.some(o => o.id === id));
+            if (!U.spellTargets.length && pool[0]) U.spellTargets = [pool[0].id];
+        } else if (!pool.some(o => o.id === U.spellTarget)) U.spellTarget = pool[0] ? pool[0].id : '';
+        if (!multi) kids.push(sel(pool.map(o => [o.id, `${o.name} (${cb.hp[o.id]} HP)`]), U.spellTarget, v => { U.spellTarget = v; }, 'Target', 'spell-target'));
+    }
+    if (u.kind === 'attack') kids.push(sel([['', 'Normal'], ['adv', 'Advantage'], ['dis', 'Disadvantage']], U.mode, v => { U.mode = v; }, 'Roll mode', 'mode'));
+    wrap.appendChild(row(kids, 'margin-top:4px'));
+    if (multi && u.kind !== 'other') {
+        const list = el('div', { class: 'rpm-wrap', 'data-cb': 'spell-targets', style: 'margin-top:4px' });
+        for (const o of pool) {
+            const cbx = el('input', { type: 'checkbox', value: o.id });
+            cbx.checked = U.spellTargets.includes(o.id);
+            cbx.addEventListener('change', () => { U.spellTargets = cbx.checked ? [...U.spellTargets, o.id] : U.spellTargets.filter(x => x !== o.id); });
+            list.appendChild(el('label', { class: 'rpm-check' }, [cbx, el('span', { text: `${o.name} (${cb.hp[o.id]} HP)` })]));
+        }
+        wrap.appendChild(list);
+    }
+    const slotLevel = U.slot && U.slot !== 'free' ? Number(U.slot) : sp.level;
+    wrap.appendChild(muted(spellInfo(sp, slotLevel, book.level) + (u.bonus ? ' · Bonus Action' : ''), { 'data-cb': 'spell-info', style: 'margin-top:4px' }));
+    if (U.spellMsg) wrap.appendChild(muted(U.spellMsg, { 'data-cb': 'spell-why', style: 'margin-top:4px' }));
+    const canPay = !sp.level || sp.slots.length || sp.freeLeft > 0;
+    wrap.appendChild(row([
+        btn('Cast', () => {
+            const targets = u.kind === 'other' ? [] : (multi ? U.spellTargets : [U.spellTarget].filter(Boolean));
+            const r = A.castSpell(cur.id, sp.key, { targets, slot: U.slot && U.slot !== 'free' ? Number(U.slot) : undefined, free: U.slot === 'free', mode: U.mode || undefined });
+            U.spellMsg = r && !r.ok ? `Cannot cast: ${r.reason}.` : '';
+            refresh();
+        }, { icon: 'wand-sparkles', variant: 'danger', grow: true, disabled: !canPay, id: 'cast' }),
+        btn('End turn', () => { U.spellMsg = ''; endTurn(); }, { icon: 'arrow-right', grow: true, id: 'end-turn' }),
+    ], 'margin-top:6px'));
+    wrap.appendChild(muted('Then tell the AI in the chat what you do — it narrates the rolls from the log.', { style: 'margin-top:4px' }));
 }
 
 function toolsPanel(cb, A, refresh) {

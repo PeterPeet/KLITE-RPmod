@@ -289,6 +289,28 @@ outcome: null|'victory'|'defeat', xp, persona, synced, encounter, difficulty }`.
   at 0 (XP = sum of monster XP), defeat = no party member standing or dying. On the outcome (or
   `endEncounter` without one) `syncPersonaSheet` writes HP (+ XP on victory) to the persona's
   card once; a log line announces a reachable level.
+- **Companions' HP (2026-09-25):** a party-side person whose stats come from its linked card
+  (`personSheetName`: `characterRef` + cached sheet, no own `stats`) starts at the sheet's current
+  HP (`order[].sheet` = its name); others start at runtime `partyHp[id]` when set. At the outcome
+  (or `endEncounter`) `syncPersonaSheet` writes each companion's HP to its sheet or `partyHp` and
+  records it in runtime `companions` (additive fields). `partyStatus()` lists runtime `party` ∪
+  `companions` with the HP of their next fight; `longRest()` (refused during a fight) restores
+  the persona's and the companions' sheets (`longRestSheet`: full HP, no temp HP, slots and free
+  casts back), clears `partyHp` and logs it for the AI.
+- **Spells (2026-09-25):** `combatSpells(id)` = `KLITE_RPMod_Characters.combatSpellsFor(sheet)`
+  (the sheet's cantrips, prepared and granted spells with DC/attack for their ability, castable
+  slot levels, free casts left, `use` = `spell-rules.combatUse`: kind attack|save|heal|darts|other,
+  range profile, damage/save/half/area, bonus action). `castSpell(id, key, { targets, slot, free,
+  mode })` checks (target needed, zones: fled, Action already used / attacked, Bonus Action used,
+  `ZR.attackCheck` with the spell's range profile — Touch = same zone; attack spells the full
+  `zoneAttackCheck`), then pays through `spendSpell` (slot on the sheet via `updateSheet`, or the
+  free cast; refusals spend and log nothing), logs "X casts S (level N spell slot) at T", and
+  resolves: attack → `combatAttack(…, { atk, profile })` (explicit attack; crits, cover, −3);
+  save → one damage roll, `savingThrow` per target, half on success when the text says so;
+  heal → `combatHeal` (dice + ability modifier; upcast); darts → `dartCount(slot)` × 1d4+1 force
+  spread over the targets; other → logged for the AI. Zones: `turn.acted` after an Action spell,
+  `turn.bonusUsed` after a Bonus Action spell. The Combat window's turn panel shows **Weapon /
+  Spell** when `combatSpells` has entries (`renderSpellRow` in `combatView.js`).
 - Turns: `nextTurn` ticks the ending creature's condition durations and skips the dead, the
   down enemies and stable/dead party members (a dying player gets the turn for a death save);
   `autoTurn(id)` = pick attack (`pickAttack`: best average damage, ranged ×0.75) and target

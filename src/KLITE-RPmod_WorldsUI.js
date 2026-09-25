@@ -944,8 +944,9 @@ export default function initWorldsUI() {
     function uiBtn(text, onclick, opts) {
         opts = opts || {};
         const cls = 'btn btn-primary rpm-btn' + (opts.block ? ' rpm-block' : '') + (opts.grow ? ' rpm-grow' : '') + (opts.variant ? ' rpm-' + opts.variant : '') + (opts.lg ? ' rpm-lg' : '') + (opts.icon ? ' rpm-btn-icon' : '');
-        if (!opts.icon) return el('button', { type: 'button', class: cls, title: opts.title, style: opts.style, text, onclick });
-        return el('button', { type: 'button', class: cls, title: opts.title, 'aria-label': text ? null : opts.title, style: opts.style, onclick }, [iconText(opts.icon, text)]);
+        const data = opts.id ? { 'data-ui': opts.id } : {};
+        if (!opts.icon) return el('button', Object.assign({ type: 'button', class: cls, title: opts.title, style: opts.style, text, onclick }, data));
+        return el('button', Object.assign({ type: 'button', class: cls, title: opts.title, 'aria-label': text ? null : opts.title, style: opts.style, onclick }, data), [iconText(opts.icon, text)]);
     }
     function uiInput(props) { return el('input', Object.assign({ type: 'text', class: 'form-control rpm-input' }, props)); }
     function uiSelect(props) { return el('select', Object.assign({ class: 'form-control rpm-input' }, props)); }
@@ -1083,6 +1084,22 @@ export default function initWorldsUI() {
         const zone = loc ? A.zonePath(loc.id).map(z => z.name) : [];
         box.appendChild(el('div', { class: 'rpm-muted', 'data-party': 'location', style: 'margin-top:2px;display:flex;align-items:center;gap:4px' }, [icon('map-pin', 13), locName + (zone.length ? ' · ' + zone[zone.length - 1] : '')]));
         box.appendChild(muted(`🕑 Day ${c.day || 1}, ${c.time || '—'}${c.weather ? ' · ' + c.weather : ''}`));
+        // companions: the HP they start the next fight with (kept between fights, R5)
+        const fighting = !!(cb && cb.active && !cb.outcome);
+        const mates = A.partyStatus ? A.partyStatus() : [];
+        for (const m of mates) {
+            const hp = fighting && cb.hp[m.id] != null ? cb.hp[m.id] : m.hp, max = fighting && cb.maxHp[m.id] ? cb.maxHp[m.id] : m.max;
+            box.appendChild(el('div', { class: 'rpm-card', 'data-party-member': m.id }, [
+                row([el('span', { class: 'rpm-grow', style: 'font-weight:bold', text: m.name }), el('span', { class: 'rpm-muted', text: `HP ${hp}/${max}${fighting ? ' ⚔' : ''}` })]),
+                hpBar(hp, max),
+            ]));
+        }
+        if (!fighting) {
+            box.appendChild(uiBtn('Long rest', () => {
+                const r = A.longRest(); if (r && !r.ok) return;
+                try { window.KLITE_RPMod_Shell?.refresh?.(['party']); } catch (_) {}
+            }, { icon: 'moon', block: true, style: 'margin-top:8px', id: 'long-rest', title: 'Full HP for you and your companions, spell slots and free casts back (tells the AI)' }));
+        }
         if (cb && cb.active) {
             const cur = cb.order[cb.turnIndex];
             const hp = cb.hp.__player__, max = cb.maxHp.__player__;

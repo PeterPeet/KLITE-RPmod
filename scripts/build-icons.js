@@ -38,6 +38,8 @@ const NAMES = {
     'download': 'export',
     'scroll-text': 'quest log',
     'swords': 'combat',
+    'moon': 'long rest (Party section)',
+    'wand-sparkles': 'cast a spell (Combat window)',
     'workflow': 'world editor (node graph)',
     'trash-2': 'delete',
     'lock': 'hidden',

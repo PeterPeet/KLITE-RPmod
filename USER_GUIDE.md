@@ -370,7 +370,8 @@ you can do it later on the sheet; too many or wrong spells block *Create*.
 
 On the **sheet**, the Spellcasting section lists your spells by level: open one for its text; roll
 **Hit** (spell attack), **Dmg** (cantrips grow at levels 5, 11 and 17) or **Heal**; the target's
-**save DC** is shown. **Cast** uses the lowest free spell slot of the spell's level or higher and
+**save DC** is shown. In a fight, cast from the **Combat** window instead: it rolls against the
+targets and spends the slot (see *Combat* below). **Cast** here uses the lowest free spell slot of the spell's level or higher and
 writes it to the game log, so the AI narrates it; species and Magic Initiate spells also have a
 **Free** cast (once, or a gnome's Proficiency Bonus times, per Long Rest). **Restore slots (Long
 Rest)** clears used slots and free casts. **Change spells** (built characters) opens the same
@@ -475,6 +476,26 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
   press **Attack**, then **End turn** — the enemies' turns are rolled automatically until it is
   your turn again (switch this off in Settings → RPmod → *Run enemy turns automatically*). Then
   write in the chat what your character does; the AI narrates from the combat log.
+- **Spells:** if your character (or a companion with a character sheet) has spells, the turn
+  panel has **Weapon / Spell**. Choose the spell, the **slot level** (the lowest free one; a
+  higher slot adds dice when the spell says so; species and feat spells also offer their *free
+  cast*) and the target, then **Cast**. The slot is taken from the character sheet.
+  - *Spell attacks* (Fire Bolt, Guiding Bolt) roll against AC like weapons.
+  - *Saving throw spells* (Sacred Flame, Burning Hands): each target saves against your spell save
+    DC; damage is rolled once, half on a success when the spell says so. For area spells tick every
+    creature caught in it.
+  - *Healing* (Cure Wounds, Healing Word) adds your ability modifier and wakes a dying ally.
+  - *Magic Missile*: three darts (+1 per higher slot) that always hit; spread them over the targets.
+  - *Everything else* (Bless, Shield, Hold Person, …) spends the slot and goes to the log for the
+    AI to narrate; add its condition under **Tools** if it has one.
+  - With zone combat the spell's range counts (Touch = the same zone), and a spell with a casting
+    time of an Action uses your action; a Bonus Action spell (Healing Word) does not.
+  - Not handled yet: concentration, monsters casting spells, companions casting on their own turns.
+- **Companions keep their HP.** Allies from your world start the next fight with the HP they
+  ended the last one with — from their character sheet if they have one, else remembered in the
+  story. The **Party** section lists them with their HP.
+- **Long rest** (Party section, outside a fight): you and your companions get full HP back, and
+  your spell slots and free casts are restored. The AI is told.
 - **Conditions** (Prone, Poisoned, Restrained, …, from the SRD) change attack rolls
   (advantage/disadvantage, automatic critical hits against the unconscious) and can run for a
   number of rounds. Stunned or paralyzed creatures lose their turn. Add them under **Tools**,

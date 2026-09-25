@@ -26,6 +26,7 @@ import * as MT from './game/map-tags.js';
 import * as MG from './game/map-gen.js';
 import * as ZR from './game/zone-rules.js';
 import { derive as deriveSheet } from './characters/sheet.js';
+import * as SP from './characters/spell-rules.js';
 
 export default function initWorlds() {
     'use strict';
@@ -67,6 +68,8 @@ export default function initWorlds() {
         return {
             playerLocationId: null,
             party: [],               // npc ids travelling with the player
+            // (added when needed, R5) companions: [npc ids that fought on the player's side],
+            //   partyHp: { [npc id]: HP } for companions without a character sheet (kept between fights)
             knownNpcIds: [],
             visitedLocationIds: [],
             flags: {},               // arbitrary string/number/bool flags
@@ -892,8 +895,8 @@ export default function initWorlds() {
         const ref = person.characterRef;
         if (ref) {
             const lib = characterLibrary();
-            // Name first: it is the Esolite Library's key, while gallery ids are list
-            // positions that shift when a character is added or removed.
+            // Name first: it is the Esolite Library's key (gallery ids were list positions
+            // before 2026-09-25; links saved then still carry those).
             let hit = null;
             if (ref.name) { const n = norm(ref.name).toLowerCase(); hit = lib.find(c => norm(c && c.name).toLowerCase() === n); }
             if (!hit && ref.id && !ref.name) hit = lib.find(c => c && (c.id === ref.id));
@@ -1587,9 +1590,16 @@ export default function initWorlds() {
         order.sort((a, b) => b.init - a.init || (b.isPlayer - a.isPlayer));
         const hp = {}, maxHp = {}, death = {};
         const sheet = personaSheet(); const usePersona = !!sheet;   // the persona is the player character; world stats are the fallback
+        const keptHp = (rt().partyHp && typeof rt().partyHp === 'object') ? rt().partyHp : {};
         for (const c of order) {
             const st = statOf(c.id); maxHp[c.id] = st.hpMax; hp[c.id] = st.hpMax;
             if (c.id === '__player__' && usePersona) { maxHp[c.id] = sheet.hp.max; hp[c.id] = Math.max(0, Math.min(sheet.hp.max, sheet.hp.current)); }
+            // companions keep their HP between fights: from their sheet, else from the story
+            if (c.kind === 'person' && c.side === 'party') {
+                const sn = personSheetName(c.id), sh = sn && window.KLITE_RPMod_Characters.cachedSheet(sn);
+                if (sh) { c.sheet = sn; maxHp[c.id] = sh.hp.max; hp[c.id] = Math.max(0, Math.min(sh.hp.max, sh.hp.current)); }
+                else if (typeof keptHp[c.id] === 'number') hp[c.id] = Math.max(0, Math.min(maxHp[c.id], keptHp[c.id]));
+            }
         }
         rt().combat = { version: 2, active: true, round: 1, turnIndex: 0, order, hp, maxHp, log: [], stats: cbStats.stats, conditions: {}, death,
             lastTarget: {}, outcome: null, xp: 0, persona: usePersona ? personaName() : '', synced: false,
@@ -1689,7 +1699,8 @@ export default function initWorlds() {
         const cb = getCombat(); if (!cb) return null;
         if (cb.outcome) return null;
         const aSt = combatantStats(attackerId), tSt0 = combatantStats(targetId);
-        const { atk, P } = attackOf(attackerId, attackIndex);
+        // opts.atk: an attack that is not on the stat block (a spell attack), opts.profile its range
+        const { atk, P } = opts.atk ? { atk: opts.atk, P: opts.profile || ZR.attackProfile(opts.atk) } : attackOf(attackerId, attackIndex);
         const A = combatantName(attackerId), T = combatantName(targetId);
         // zone combat: reach/range, −3 in melee, cover, the doorway limit (RPmod refuses, logged)
         const Z = zoneState(cb); let zc = null;
@@ -1699,7 +1710,7 @@ export default function initWorlds() {
         }
         const tSt = zc && zc.cover ? Object.assign({}, tSt0, { ac: tSt0.ac + ZR.coverBonus(zc.cover) }) : tSt0;
         const toHit = ((atk.toHit != null) ? Number(atk.toHit) : (aSt.proficiency + abilityMod(aSt.abilities.str))) - (zc ? zc.penalty : 0);
-        const ranged = zc ? zc.ranged : CR.isRanged(atk);
+        const ranged = zc ? zc.ranged : (opts.atk ? !!(P && P.ranged && !P.melee) : CR.isRanged(atk));
         const m = isV2(cb) ? CR.attackMode(conds(attackerId), conds(targetId), ranged, opts.mode) : { mode: opts.mode || null, autoCrit: false, why: [] };
         const hit = rollD20(toHit, m.mode);
         const zoneNotes = zc ? [zc.penalty ? `−${zc.penalty}: ${T} attacked in melee` : '', zc.cover ? `${ZR.COVER_NAMES[zc.cover]} +${ZR.coverBonus(zc.cover)} AC` : ''].filter(Boolean) : [];
@@ -1781,11 +1792,20 @@ export default function initWorlds() {
         if (cb.outcome) syncPersonaSheet(cb);
         return cb.outcome;
     }
-    // Write HP (and XP on victory) back to the persona's sheet, once per encounter.
+    // Write HP (and XP on victory) back to the persona's sheet, and the companions' HP to their
+    // sheets (or, without a sheet, to the story's runtime `partyHp`) — once per encounter.
     function syncPersonaSheet(cb) {
-        if (!cb || cb.synced || !cb.persona) return;
+        if (!cb || cb.synced) return;
         cb.synced = true;
-        const C = window.KLITE_RPMod_Characters; if (!C || !C.updateSheet) return;
+        const C = window.KLITE_RPMod_Characters;
+        for (const o of sideList(cb, 'party')) {
+            if (o.kind !== 'person' || cb.hp[o.id] == null) continue;
+            const hpNow = cb.hp[o.id];
+            if (rt() && !asArray(rt().companions).includes(o.id)) rt().companions = [...asArray(rt().companions), o.id];
+            if (o.sheet && C && C.updateSheet) C.updateSheet(o.sheet, s => { s.hp.current = hpNow; });
+            else if (rt()) { rt().partyHp = Object.assign({}, rt().partyHp, { [o.id]: hpNow }); }
+        }
+        if (!cb.persona || !C || !C.updateSheet) return;
         const name = cb.persona, hp = cb.hp.__player__, xp = cb.outcome === 'victory' ? (Number(cb.xp) || 0) : 0;
         // through the same queue as quest rewards (applied to the cached sheet at once), so
         // neither write can overwrite the other
@@ -1794,6 +1814,126 @@ export default function initWorlds() {
             const before = CR.levelForXp(s.xp); s.xp = (Number(s.xp) || 0) + xp;
             if (xp && CR.levelForXp(s.xp) > (Number(s.level) || 1) && CR.levelForXp(s.xp) > before) gameLog(`${name} has enough XP for level ${(Number(s.level) || 1) + 1} — use Level up on the character sheet.`, 'combat');
         });
+    }
+    // ---- spells in combat (R5) ----
+    // The Library character whose sheet a combatant fights with: the persona for the player; a
+    // world person whose stats come from its linked card. '' when none.
+    function personSheetName(id) {
+        const C = window.KLITE_RPMod_Characters; const p = entityById(activeWorld(), id); const ref = p && p.characterRef;
+        try { return C && ref && ref.name && !p.stats && C.cachedSheet(ref.name) ? ref.name : ''; } catch (_) { return ''; }
+    }
+    function sheetNameOf(id) {
+        const cb = getCombat();
+        if (id === '__player__') return (cb && cb.persona) || '';
+        const o = cb && cb.order.find(x => x.id === id);
+        return (o && o.sheet) || personSheetName(id);
+    }
+    // The spells a combatant can cast now (null: none / no sheet).
+    function combatSpells(id) {
+        const n = sheetNameOf(id); const C = window.KLITE_RPMod_Characters;
+        try { return n && C && C.combatSpellsFor ? C.combatSpellsFor(n) : null; } catch (_) { return null; }
+    }
+    // Cast a spell from the caster's sheet. opts: { targets: [ids], slot (level), free, mode }.
+    // Attack spells roll like weapon attacks (zones, cover, crits); save spells: every target saves
+    // against the caster's DC, damage is rolled once (half on a success when the spell says so);
+    // healing adds the ability modifier; Magic Missile's darts hit automatically; other spells
+    // spend the slot and are logged for the AI to narrate. The slot is spent on the sheet.
+    // → { ok, … } or { ok: false, reason } (nothing spent, nothing logged).
+    function castSpell(casterId, key, opts = {}) {
+        const cb = getCombat(); if (!cb || cb.outcome) return { ok: false, reason: 'no fight is running' };
+        const info = combatSpells(casterId); const sp = info && info.spells.find(x => x.key === key);
+        if (!sp) return { ok: false, reason: `${combatantName(casterId)} cannot cast that spell` };
+        const sv = SP.spell(key), u = sp.use, C = window.KLITE_RPMod_Characters;
+        const A = combatantName(casterId);
+        if (isDown(cb, casterId) || CR.cannotAct(conds(casterId))) return { ok: false, reason: `${A} cannot cast spells now` };
+        let targets = [...new Set(asArray(opts.targets).filter(t => cb.order.some(o => o.id === t)))];
+        const needsTarget = u.kind === 'attack' || u.kind === 'heal' || u.kind === 'darts' || (u.kind === 'save' && !!u.damage);
+        if (needsTarget && !targets.length) return { ok: false, reason: 'choose a target' };
+        if (u.kind === 'attack' || u.kind === 'heal' || (u.kind === 'save' && !u.area)) targets = targets.slice(0, 1);
+        const Z = zoneState(cb);
+        let zc = null;
+        if (Z) {
+            const T = Z.turn, onTurn = zoneOnTurn(Z, casterId);
+            if (onTurn && T.fled) return { ok: false, reason: 'a creature that flees or dashes cannot cast this turn' };
+            if (onTurn && !u.bonus && (T.acted || T.attacked)) return { ok: false, reason: 'the action is already used this turn' };
+            if (onTurn && u.bonus && T.bonusUsed) return { ok: false, reason: 'the bonus action is already used this turn' };
+            for (const t of targets) {
+                if (t === casterId) continue;
+                const r = u.kind === 'attack' ? zoneAttackCheck(cb, Z, casterId, t, u.range, {}) : ZR.attackCheck(Z.layout, Z.pos[casterId], Z.pos[t], u.range);
+                if (!r.ok) return { ok: false, reason: `${combatantName(t)}: ${r.reason}` };
+                if (u.kind === 'attack') zc = r;
+            }
+        }
+        const pay = C && C.spendSpell ? C.spendSpell(sheetNameOf(casterId), key, { slotLevel: opts.slot, free: opts.free }) : { ok: false, reason: 'no character sheet' };
+        if (!pay.ok) return { ok: false, reason: pay.reason };
+        const slot = pay.slotLevel || sv.level;
+        const how = sv.level ? (pay.free ? ' without a spell slot' : ` (level ${pay.slotLevel} spell slot)`) : '';
+        const names = targets.map(combatantName).join(', ');
+        combatLog(`${A} casts ${sv.name}${how}${names ? ` at ${names}` : ''}.`);
+        if (Z && zoneOnTurn(Z, casterId) && u.bonus) Z.turn.bonusUsed = true;
+        const out = { ok: true, key, slotLevel: sv.level ? slot : 0, free: !!pay.free, kind: u.kind, results: [] };
+        if (u.kind === 'attack') {
+            const atk = { name: sv.name, toHit: sp.attack, damage: SP.castDamage(sv, info.level, slot), type: u.damageType };
+            out.results.push(combatAttack(casterId, targets[0], 0, { mode: opts.mode, atk, profile: u.range }));
+        } else if (u.kind === 'save') {
+            const expr = SP.castDamage(sv, info.level, slot);
+            const rolled = expr ? rollExpr(expr).total : 0;
+            if (Z) unhide(casterId, 'casting a spell');
+            for (const t of targets) {
+                const r = savingThrow(t, u.save, sp.dc, { quiet: true });
+                const dmg = !expr ? 0 : r.success ? (u.half ? Math.floor(rolled / 2) : 0) : rolled;
+                combatLog(`${combatantName(t)}: ${u.save.toUpperCase()} save ${r.total} vs DC ${sp.dc} — ${r.success ? 'success' : 'failure'}${dmg ? `, ${dmg} ${u.damageType ? u.damageType.toLowerCase() + ' ' : ''}damage` : ''}${!expr && !r.success ? ` (${sv.name} takes effect — add its condition with the Tools)` : ''}.`);
+                if (dmg) { if (isDown(cb, t) && deathOf(cb, t)) hitWhileDown(t, false); else setHp(t, (cb.hp[t] || 0) - dmg); }
+                out.results.push({ id: t, save: r.total, success: r.success, damage: dmg });
+            }
+            if (!targets.length) combatLog(`${sv.name}: ${u.save.toUpperCase()} save against DC ${sp.dc} — the AI narrates who is affected.`);
+        } else if (u.kind === 'heal') {
+            if (Z) unhide(casterId, 'casting a spell');
+            const amount = Math.max(0, rollExpr(SP.castHealing(sv, sp.mod, slot)).total);
+            out.results.push({ id: targets[0], healed: amount, hp: combatHeal(targets[0], amount) });
+        } else if (u.kind === 'darts') {
+            if (Z) unhide(casterId, 'casting a spell');
+            const n = SP.dartCount(slot), per = {}, hits = {};
+            for (let i = 0; i < n; i++) { const t = targets[i % targets.length]; per[t] = (per[t] || 0) + rollExpr(u.damage).total; hits[t] = (hits[t] || 0) + 1; }
+            for (const t of targets) { combatLog(`${hits[t]} dart${hits[t] > 1 ? 's hit' : ' hits'} ${combatantName(t)} (${u.damageType.toLowerCase()}).`); out.results.push({ id: t, damage: per[t], hp: combatDamage(t, per[t]) }); }
+        } else {
+            if (Z) unhide(casterId, 'casting a spell');
+            combatLog(`${sv.name}: its effect is narrated (conditions and other changes with the Tools).`);
+        }
+        if (Z && zoneOnTurn(Z, casterId) && !u.bonus) Z.turn.acted = true;
+        checkOutcome();
+        return out;
+    }
+    // Companions: world persons travelling with the player (runtime `party`) or who fought on the
+    // player's side (runtime `companions`, recorded after each fight).
+    function companionIds() { return [...new Set([...asArray(rt() && rt().party), ...asArray(rt() && rt().companions)])]; }
+    // The companions with the HP they will start the next fight with.
+    function partyStatus() {
+        const C = window.KLITE_RPMod_Characters; const kept = (rt() && rt().partyHp) || {};
+        return companionIds().map(id => {
+            const p = entityById(activeWorld(), id); if (!p || p.isMonster) return null;
+            const sn = personSheetName(id), sh = sn && C && C.cachedSheet(sn);
+            const max = sh ? sh.hp.max : combatantStatsNoCombat(id).hpMax;
+            const hp = sh ? Math.max(0, Math.min(max, sh.hp.current)) : (typeof kept[id] === 'number' ? Math.max(0, Math.min(max, kept[id])) : max);
+            return { id, name: personName(p), hp, max, sheet: sn || '' };
+        }).filter(Boolean);
+    }
+    // Long Rest (outside a fight): the persona and every companion back to full HP, spell slots
+    // and free casts restored (sheets), stored companion HP cleared.
+    function longRest() {
+        const cb = getCombat();
+        if (cb && cb.active !== false && !cb.outcome) return { ok: false, reason: 'not during a fight' };
+        const C = window.KLITE_RPMod_Characters; const who = [];
+        const persona = personaName();
+        if (persona && C && C.longRestSheet && personaSheet()) { C.longRestSheet(persona); who.push(persona); }
+        for (const id of companionIds()) {
+            const n = personSheetName(id);
+            if (n && C && C.longRestSheet) C.longRestSheet(n);
+            const p = entityById(activeWorld(), id); if (p) who.push(personName(p));
+        }
+        if (rt()) rt().partyHp = {};
+        gameLog(`${who.length ? who.join(', ') + ' finish' + (who.length === 1 ? 'es' : '') : 'The party finishes'} a Long Rest: HP, spell slots and free casts are restored.`, 'rest');
+        return { ok: true, who };
     }
     // A monster's (or ally's) turn: pick a target on the other side and attack
     // (multiattack = several attacks). Returns what happened.
@@ -3044,6 +3184,10 @@ export default function initWorlds() {
         endEncounter() { endEncounter(); syncLive(); return true; },
         getCombat, combatText, combatantStats, combatantName, resolveCombatant,
         attack(a, t, i, opts) { const r = combatAttack(a, t, i, opts || {}); syncLive(); return r; },
+        combatSpells: (id) => combatSpells(id || '__player__'),
+        castSpell(id, key, opts) { const r = castSpell(id || '__player__', key, opts || {}); syncLive(); return r; },
+        longRest() { const r = longRest(); syncLive(); return r; },
+        partyStatus,
         damage(id, n) { const r = combatDamage(id, n); syncLive(); return r; },
         heal(id, n) { const r = combatHeal(id, n); syncLive(); return r; },
         nextTurn() { const r = nextTurn(); syncLive(); return r; },

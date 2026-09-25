@@ -13,7 +13,7 @@
 // =============================================================================
 import { el, clear, icon, iconText } from '../shell/dom.js';
 import { ABILITIES, ABILITY_NAMES, SKILLS, defaultSheet, normalizeSheet, derive, fmt, fromCombatStats } from './sheet.js';
-import { loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor, updateSheet, flushSheet } from './store.js';
+import { loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor, updateSheet, flushSheet, combatSpellsFor, spendSpell, longRestSheet } from './store.js';
 import { characterNames } from '../library/esoliteLibrary.js';
 import * as SP from './spell-rules.js';
 import * as BR from './builder-rules.js';
@@ -21,7 +21,7 @@ import { spellPicker, spellDetails, spellTags } from './spellPicker.js';
 
 const LAST_KEY = 'KLITE.sheet.last';
 const AUTOSAVE_SETTING = 'sheets_autosave';
-const GAME_FIELDS = ['inventory', 'coins', 'xp', 'hp'];   // changed by quests and fights while you play
+const GAME_FIELDS = ['inventory', 'coins', 'xp', 'hp', 'spellcasting'];   // changed by quests and fights while you play (slots spent in combat)
 
 export default function initCharacters() {
     'use strict';
@@ -465,6 +465,7 @@ export default function initCharacters() {
     const api = {
         open(name) { const sh = Shell(); if (!sh) return false; if (name && name !== V.name) { V.name = null; V.draft = null; select(name); } sh.open('sheet'); return true; },
         loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor, updateSheet, flushSheet,
+        combatSpellsFor, spendSpell, longRestSheet,
         // the player's persona (Tools panel): name when chosen and enabled, else ''
         personaName: () => { try { const T = window.KLITE_RPMod?.panels?.TOOLS; return (T && T.personaEnabled && T.selectedPersona && T.selectedPersona.name) || ''; } catch (_) { return ''; } },
         current: () => ({ name: V.name, sheet: V.draft ? normalizeSheet(V.draft) : null, dirty: dirty() }),

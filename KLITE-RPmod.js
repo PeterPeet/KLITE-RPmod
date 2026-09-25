@@ -676,6 +676,10 @@ body.rpm-docked #maincontainer {
     "scroll-text": [["path", { "d": "M15 12h-5" }], ["path", { "d": "M15 8h-5" }], ["path", { "d": "M19 17V5a2 2 0 0 0-2-2H4" }], ["path", { "d": "M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" }]],
     // combat
     "swords": [["path", { "d": "m13 19 6-6" }], ["path", { "d": "M14.5 17.5 3.586 6.586A2 2 0 013 5.172V3h2.172a2 2 0 011.414.586L17.5 14.5" }], ["path", { "d": "m14.828 6.172 2.586-2.586A2 2 0 0118.828 3H21v2.172a2 2 0 01-.586 1.414l-2.586 2.586" }], ["path", { "d": "m16 16 4 4" }], ["path", { "d": "m19 21 2-2" }], ["path", { "d": "m5 14 4 4" }], ["path", { "d": "m5 21-2-2" }], ["path", { "d": "M7.5 16.5 4 20" }]],
+    // long rest (Party section)
+    "moon": [["path", { "d": "M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" }]],
+    // Generate a dungeon or town
+    "wand-sparkles": [["path", { "d": "m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" }], ["path", { "d": "m14 7 3 3" }], ["path", { "d": "M5 6v4" }], ["path", { "d": "M19 14v4" }], ["path", { "d": "M10 2v2" }], ["path", { "d": "M7 8H3" }], ["path", { "d": "M21 16h-4" }], ["path", { "d": "M11 3H9" }]],
     // world editor (node graph)
     "workflow": [["rect", { "width": "8", "height": "8", "x": "3", "y": "3", "rx": "2" }], ["path", { "d": "M7 11v4a2 2 0 0 0 2 2h4" }], ["rect", { "width": "8", "height": "8", "x": "13", "y": "13", "rx": "2" }]],
     // delete
@@ -706,8 +710,6 @@ body.rpm-docked #maincontainer {
     "map": [["path", { "d": "M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" }], ["path", { "d": "M15 5.764v15" }], ["path", { "d": "M9 3.236v15" }]],
     // Search the room (map)
     "search": [["path", { "d": "m21 21-4.34-4.34" }], ["circle", { "cx": "11", "cy": "11", "r": "8" }]],
-    // Generate a dungeon or town
-    "wand-sparkles": [["path", { "d": "m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" }], ["path", { "d": "m14 7 3 3" }], ["path", { "d": "M5 6v4" }], ["path", { "d": "M19 14v4" }], ["path", { "d": "M10 2v2" }], ["path", { "d": "M7 8H3" }], ["path", { "d": "M21 16h-4" }], ["path", { "d": "M11 3H9" }]],
     // new random seed (generator)
     "dices": [["rect", { "width": "12", "height": "12", "x": "2", "y": "10", "rx": "2", "ry": "2" }], ["path", { "d": "m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6" }], ["path", { "d": "M6 18h.01" }], ["path", { "d": "M10 14h.01" }], ["path", { "d": "M15 6h.01" }], ["path", { "d": "M18 9h.01" }]],
     // zone combat: move
@@ -21501,6 +21503,81 @@ ${char.mes_example}
     const m = mod(abilities && abilities[ability]);
     return { dc: 8 + m + pb, attack: m + pb };
   }
+  function spellEntries(sc) {
+    if (!sc) return [];
+    const seen = /* @__PURE__ */ new Set(), out = [];
+    const add = (e) => {
+      if (!e.key || seen.has(e.key) || !SPELLS[e.key]) return;
+      seen.add(e.key);
+      out.push(e);
+    };
+    asArray3(sc.cantripsKnown).forEach((k2) => add({ key: k2, ability: sc.ability }));
+    asArray3(sc.preparedSpells).forEach((k2) => add({ key: k2, ability: sc.ability }));
+    asArray3(sc.granted).forEach((g) => add({ key: g.key, ability: g.ability || sc.ability, source: g.source, free: g.free }));
+    return out.sort((a, b) => SPELLS[a.key].level - SPELLS[b.key].level || SPELLS[a.key].name.localeCompare(SPELLS[b.key].name));
+  }
+  function combatUse(s) {
+    if (!s) return null;
+    const text = asArray3(s.text).join(" ");
+    const base = { castingTime: s.castingTime || "Action", bonus: /^bonus action/i.test(s.castingTime || ""), range: rangeProfile(s) };
+    if (s.name === "Magic Missile") return { ...base, kind: "darts", damage: "1d4+1", damageType: "Force" };
+    if (s.attack && s.damage) return { ...base, kind: "attack", ranged: s.attack === "ranged", damage: s.damage, damageType: s.damageType || "" };
+    if (s.save) return { ...base, kind: "save", save: s.save, damage: s.damage || "", damageType: s.damageType || "", half: !!s.damage && /half as much damage/i.test(text), area: /each creature/i.test(text) };
+    if (s.heal) return { ...base, kind: "heal", heal: s.heal };
+    return { ...base, kind: "other" };
+  }
+  function rangeProfile(s) {
+    const r = String(s && s.range || "");
+    const ft = /(\d+)\s*(?:feet|foot|ft)/i.exec(r);
+    if (/^touch/i.test(r)) return { melee: true, ranged: false, reachFt: 5, normalFt: 0, longFt: 0 };
+    if (/^self/i.test(r)) {
+      const size = ft ? Number(ft[1]) : 5;
+      return size > 30 ? { melee: false, ranged: true, reachFt: 5, normalFt: size, longFt: size } : { melee: true, ranged: false, reachFt: 5, normalFt: 0, longFt: 0 };
+    }
+    const n = ft ? Number(ft[1]) : /mile|sight|unlimited/i.test(r) ? 1e3 : 60;
+    return { melee: false, ranged: true, reachFt: 5, normalFt: n, longFt: n };
+  }
+  function addDice(expr, count, sides) {
+    if (!count) return expr;
+    const m = /^(\d+)d(\d+)(.*)$/.exec(String(expr));
+    if (m && Number(m[2]) === sides) return `${Number(m[1]) + count}d${sides}${m[3] || ""}`;
+    return `${expr}+${count}d${sides}`;
+  }
+  function upcastStep(s, what) {
+    const m = /(damage|healing)[^.]*?increases by (\d+)d(\d+) for each spell slot level above (\d+)/i.exec(s && s.higher || "");
+    if (!m || what && m[1].toLowerCase() !== what) return null;
+    return { count: Number(m[2]), sides: Number(m[3]), above: Number(m[4]) };
+  }
+  function castDamage(s, charLevel, slotLevel) {
+    if (!s || !s.damage) return "";
+    if (!s.level) return cantripDamage(s, charLevel);
+    const up = upcastStep(s, "damage");
+    return up && slotLevel > up.above ? addDice(s.damage, (slotLevel - up.above) * up.count, up.sides) : s.damage;
+  }
+  function castHealing(s, abilityMod2, slotLevel) {
+    if (!s || !s.heal) return "";
+    const up = upcastStep(s, "healing");
+    const expr = up && slotLevel > up.above ? addDice(s.heal, (slotLevel - up.above) * up.count, up.sides) : s.heal;
+    const m = Number(abilityMod2) || 0;
+    return expr.replace("+mod", m ? m > 0 ? "+" + m : String(m) : "");
+  }
+  function dartCount(slotLevel) {
+    return 3 + Math.max(0, (Number(slotLevel) || 1) - 1);
+  }
+  function spendSlot(slots, used, slotLevel) {
+    const l = Number(slotLevel) || 0;
+    if (l < 1) return null;
+    if ((Number(asArray3(slots)[l - 1]) || 0) <= (Number(asArray3(used)[l - 1]) || 0)) return null;
+    const u = asArray3(used).slice();
+    while (u.length < l) u.push(0);
+    u[l - 1] = (Number(u[l - 1]) || 0) + 1;
+    return u;
+  }
+  function castableSlots(spellLevel, slots, used) {
+    const out = [];
+    for (let l = Math.max(1, spellLevel); l <= asArray3(slots).length; l++) if ((Number(slots[l - 1]) || 0) > (Number(asArray3(used)[l - 1]) || 0)) out.push(l);
+    return out;
+  }
 
   // src/characters/sheet.js
   var EXT_KEY = "klite_rpmod";
@@ -21764,6 +21841,8 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         playerLocationId: null,
         party: [],
         // npc ids travelling with the player
+        // (added when needed, R5) companions: [npc ids that fought on the player's side],
+        //   partyHp: { [npc id]: HP } for companions without a character sheet (kept between fights)
         knownNpcIds: [],
         visitedLocationIds: [],
         flags: {},
@@ -23873,6 +23952,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       const hp = {}, maxHp = {}, death = {};
       const sheet = personaSheet();
       const usePersona = !!sheet;
+      const keptHp = rt().partyHp && typeof rt().partyHp === "object" ? rt().partyHp : {};
       for (const c of order) {
         const st = statOf(c.id);
         maxHp[c.id] = st.hpMax;
@@ -23880,6 +23960,14 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         if (c.id === "__player__" && usePersona) {
           maxHp[c.id] = sheet.hp.max;
           hp[c.id] = Math.max(0, Math.min(sheet.hp.max, sheet.hp.current));
+        }
+        if (c.kind === "person" && c.side === "party") {
+          const sn = personSheetName(c.id), sh = sn && window.KLITE_RPMod_Characters.cachedSheet(sn);
+          if (sh) {
+            c.sheet = sn;
+            maxHp[c.id] = sh.hp.max;
+            hp[c.id] = Math.max(0, Math.min(sh.hp.max, sh.hp.current));
+          } else if (typeof keptHp[c.id] === "number") hp[c.id] = Math.max(0, Math.min(maxHp[c.id], keptHp[c.id]));
         }
       }
       rt().combat = {
@@ -24073,7 +24161,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       if (!cb) return null;
       if (cb.outcome) return null;
       const aSt = combatantStats(attackerId), tSt0 = combatantStats(targetId);
-      const { atk, P } = attackOf(attackerId, attackIndex);
+      const { atk, P } = opts.atk ? { atk: opts.atk, P: opts.profile || attackProfile(opts.atk) } : attackOf(attackerId, attackIndex);
       const A = combatantName(attackerId), T = combatantName(targetId);
       const Z2 = zoneState(cb);
       let zc = null;
@@ -24086,7 +24174,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       }
       const tSt = zc && zc.cover ? Object.assign({}, tSt0, { ac: tSt0.ac + coverBonus(zc.cover) }) : tSt0;
       const toHit = (atk.toHit != null ? Number(atk.toHit) : aSt.proficiency + abilityMod2(aSt.abilities.str)) - (zc ? zc.penalty : 0);
-      const ranged = zc ? zc.ranged : isRanged(atk);
+      const ranged = zc ? zc.ranged : opts.atk ? !!(P && P.ranged && !P.melee) : isRanged(atk);
       const m = isV2(cb) ? attackMode(conds(attackerId), conds(targetId), ranged, opts.mode) : { mode: opts.mode || null, autoCrit: false, why: [] };
       const hit = rollD20(toHit, m.mode);
       const zoneNotes = zc ? [zc.penalty ? `−${zc.penalty}: ${T} attacked in melee` : "", zc.cover ? `${COVER_NAMES[zc.cover]} +${coverBonus(zc.cover)} AC` : ""].filter(Boolean) : [];
@@ -24194,10 +24282,21 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       return cb.outcome;
     }
     function syncPersonaSheet(cb) {
-      if (!cb || cb.synced || !cb.persona) return;
+      if (!cb || cb.synced) return;
       cb.synced = true;
       const C2 = window.KLITE_RPMod_Characters;
-      if (!C2 || !C2.updateSheet) return;
+      for (const o of sideList(cb, "party")) {
+        if (o.kind !== "person" || cb.hp[o.id] == null) continue;
+        const hpNow = cb.hp[o.id];
+        if (rt() && !asArray4(rt().companions).includes(o.id)) rt().companions = [...asArray4(rt().companions), o.id];
+        if (o.sheet && C2 && C2.updateSheet) C2.updateSheet(o.sheet, (s) => {
+          s.hp.current = hpNow;
+        });
+        else if (rt()) {
+          rt().partyHp = Object.assign({}, rt().partyHp, { [o.id]: hpNow });
+        }
+      }
+      if (!cb.persona || !C2 || !C2.updateSheet) return;
       const name = cb.persona, hp = cb.hp.__player__, xp = cb.outcome === "victory" ? Number(cb.xp) || 0 : 0;
       C2.updateSheet(name, (s) => {
         if (hp != null) s.hp.current = hp;
@@ -24205,6 +24304,143 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         s.xp = (Number(s.xp) || 0) + xp;
         if (xp && levelForXp(s.xp) > (Number(s.level) || 1) && levelForXp(s.xp) > before) gameLog(`${name} has enough XP for level ${(Number(s.level) || 1) + 1} — use Level up on the character sheet.`, "combat");
       });
+    }
+    function personSheetName(id) {
+      const C2 = window.KLITE_RPMod_Characters;
+      const p = entityById(activeWorld(), id);
+      const ref = p && p.characterRef;
+      try {
+        return C2 && ref && ref.name && !p.stats && C2.cachedSheet(ref.name) ? ref.name : "";
+      } catch (_) {
+        return "";
+      }
+    }
+    function sheetNameOf(id) {
+      const cb = getCombat();
+      if (id === "__player__") return cb && cb.persona || "";
+      const o = cb && cb.order.find((x) => x.id === id);
+      return o && o.sheet || personSheetName(id);
+    }
+    function combatSpells(id) {
+      const n = sheetNameOf(id);
+      const C2 = window.KLITE_RPMod_Characters;
+      try {
+        return n && C2 && C2.combatSpellsFor ? C2.combatSpellsFor(n) : null;
+      } catch (_) {
+        return null;
+      }
+    }
+    function castSpell(casterId, key, opts = {}) {
+      const cb = getCombat();
+      if (!cb || cb.outcome) return { ok: false, reason: "no fight is running" };
+      const info = combatSpells(casterId);
+      const sp = info && info.spells.find((x) => x.key === key);
+      if (!sp) return { ok: false, reason: `${combatantName(casterId)} cannot cast that spell` };
+      const sv = spell(key), u = sp.use, C2 = window.KLITE_RPMod_Characters;
+      const A = combatantName(casterId);
+      if (isDown(cb, casterId) || cannotAct(conds(casterId))) return { ok: false, reason: `${A} cannot cast spells now` };
+      let targets = [...new Set(asArray4(opts.targets).filter((t) => cb.order.some((o) => o.id === t)))];
+      const needsTarget = u.kind === "attack" || u.kind === "heal" || u.kind === "darts" || u.kind === "save" && !!u.damage;
+      if (needsTarget && !targets.length) return { ok: false, reason: "choose a target" };
+      if (u.kind === "attack" || u.kind === "heal" || u.kind === "save" && !u.area) targets = targets.slice(0, 1);
+      const Z2 = zoneState(cb);
+      let zc = null;
+      if (Z2) {
+        const T = Z2.turn, onTurn = zoneOnTurn(Z2, casterId);
+        if (onTurn && T.fled) return { ok: false, reason: "a creature that flees or dashes cannot cast this turn" };
+        if (onTurn && !u.bonus && (T.acted || T.attacked)) return { ok: false, reason: "the action is already used this turn" };
+        if (onTurn && u.bonus && T.bonusUsed) return { ok: false, reason: "the bonus action is already used this turn" };
+        for (const t of targets) {
+          if (t === casterId) continue;
+          const r = u.kind === "attack" ? zoneAttackCheck(cb, Z2, casterId, t, u.range, {}) : attackCheck(Z2.layout, Z2.pos[casterId], Z2.pos[t], u.range);
+          if (!r.ok) return { ok: false, reason: `${combatantName(t)}: ${r.reason}` };
+          if (u.kind === "attack") zc = r;
+        }
+      }
+      const pay = C2 && C2.spendSpell ? C2.spendSpell(sheetNameOf(casterId), key, { slotLevel: opts.slot, free: opts.free }) : { ok: false, reason: "no character sheet" };
+      if (!pay.ok) return { ok: false, reason: pay.reason };
+      const slot = pay.slotLevel || sv.level;
+      const how = sv.level ? pay.free ? " without a spell slot" : ` (level ${pay.slotLevel} spell slot)` : "";
+      const names = targets.map(combatantName).join(", ");
+      combatLog(`${A} casts ${sv.name}${how}${names ? ` at ${names}` : ""}.`);
+      if (Z2 && zoneOnTurn(Z2, casterId) && u.bonus) Z2.turn.bonusUsed = true;
+      const out = { ok: true, key, slotLevel: sv.level ? slot : 0, free: !!pay.free, kind: u.kind, results: [] };
+      if (u.kind === "attack") {
+        const atk = { name: sv.name, toHit: sp.attack, damage: castDamage(sv, info.level, slot), type: u.damageType };
+        out.results.push(combatAttack(casterId, targets[0], 0, { mode: opts.mode, atk, profile: u.range }));
+      } else if (u.kind === "save") {
+        const expr = castDamage(sv, info.level, slot);
+        const rolled = expr ? rollExpr(expr).total : 0;
+        if (Z2) unhide(casterId, "casting a spell");
+        for (const t of targets) {
+          const r = savingThrow(t, u.save, sp.dc, { quiet: true });
+          const dmg = !expr ? 0 : r.success ? u.half ? Math.floor(rolled / 2) : 0 : rolled;
+          combatLog(`${combatantName(t)}: ${u.save.toUpperCase()} save ${r.total} vs DC ${sp.dc} — ${r.success ? "success" : "failure"}${dmg ? `, ${dmg} ${u.damageType ? u.damageType.toLowerCase() + " " : ""}damage` : ""}${!expr && !r.success ? ` (${sv.name} takes effect — add its condition with the Tools)` : ""}.`);
+          if (dmg) {
+            if (isDown(cb, t) && deathOf(cb, t)) hitWhileDown(t, false);
+            else setHp(t, (cb.hp[t] || 0) - dmg);
+          }
+          out.results.push({ id: t, save: r.total, success: r.success, damage: dmg });
+        }
+        if (!targets.length) combatLog(`${sv.name}: ${u.save.toUpperCase()} save against DC ${sp.dc} — the AI narrates who is affected.`);
+      } else if (u.kind === "heal") {
+        if (Z2) unhide(casterId, "casting a spell");
+        const amount = Math.max(0, rollExpr(castHealing(sv, sp.mod, slot)).total);
+        out.results.push({ id: targets[0], healed: amount, hp: combatHeal(targets[0], amount) });
+      } else if (u.kind === "darts") {
+        if (Z2) unhide(casterId, "casting a spell");
+        const n = dartCount(slot), per = {}, hits = {};
+        for (let i = 0; i < n; i++) {
+          const t = targets[i % targets.length];
+          per[t] = (per[t] || 0) + rollExpr(u.damage).total;
+          hits[t] = (hits[t] || 0) + 1;
+        }
+        for (const t of targets) {
+          combatLog(`${hits[t]} dart${hits[t] > 1 ? "s hit" : " hits"} ${combatantName(t)} (${u.damageType.toLowerCase()}).`);
+          out.results.push({ id: t, damage: per[t], hp: combatDamage(t, per[t]) });
+        }
+      } else {
+        if (Z2) unhide(casterId, "casting a spell");
+        combatLog(`${sv.name}: its effect is narrated (conditions and other changes with the Tools).`);
+      }
+      if (Z2 && zoneOnTurn(Z2, casterId) && !u.bonus) Z2.turn.acted = true;
+      checkOutcome();
+      return out;
+    }
+    function companionIds() {
+      return [.../* @__PURE__ */ new Set([...asArray4(rt() && rt().party), ...asArray4(rt() && rt().companions)])];
+    }
+    function partyStatus() {
+      const C2 = window.KLITE_RPMod_Characters;
+      const kept = rt() && rt().partyHp || {};
+      return companionIds().map((id) => {
+        const p = entityById(activeWorld(), id);
+        if (!p || p.isMonster) return null;
+        const sn = personSheetName(id), sh = sn && C2 && C2.cachedSheet(sn);
+        const max = sh ? sh.hp.max : combatantStatsNoCombat(id).hpMax;
+        const hp = sh ? Math.max(0, Math.min(max, sh.hp.current)) : typeof kept[id] === "number" ? Math.max(0, Math.min(max, kept[id])) : max;
+        return { id, name: personName(p), hp, max, sheet: sn || "" };
+      }).filter(Boolean);
+    }
+    function longRest() {
+      const cb = getCombat();
+      if (cb && cb.active !== false && !cb.outcome) return { ok: false, reason: "not during a fight" };
+      const C2 = window.KLITE_RPMod_Characters;
+      const who = [];
+      const persona = personaName();
+      if (persona && C2 && C2.longRestSheet && personaSheet()) {
+        C2.longRestSheet(persona);
+        who.push(persona);
+      }
+      for (const id of companionIds()) {
+        const n = personSheetName(id);
+        if (n && C2 && C2.longRestSheet) C2.longRestSheet(n);
+        const p = entityById(activeWorld(), id);
+        if (p) who.push(personName(p));
+      }
+      if (rt()) rt().partyHp = {};
+      gameLog(`${who.length ? who.join(", ") + " finish" + (who.length === 1 ? "es" : "") : "The party finishes"} a Long Rest: HP, spell slots and free casts are restored.`, "rest");
+      return { ok: true, who };
     }
     function autoTurn(id) {
       const cb = getCombat();
@@ -25885,6 +26121,18 @@ ${xl.join("\n")}`;
         syncLive();
         return r;
       },
+      combatSpells: (id) => combatSpells(id || "__player__"),
+      castSpell(id, key, opts) {
+        const r = castSpell(id || "__player__", key, opts || {});
+        syncLive();
+        return r;
+      },
+      longRest() {
+        const r = longRest();
+        syncLive();
+        return r;
+      },
+      partyStatus,
       damage(id, n) {
         const r = combatDamage(id, n);
         syncLive();
@@ -26494,7 +26742,7 @@ ${xl.join("\n")}`;
   var STARTS = [["auto", "Enemies start: across the room"], ["same", "Enemies start: right beside you"], ["near", "Enemies start: the next zone"], ["outside", "Enemies start: outside the room"]];
   var CR_BANDS = [["", "Any CR"], ["0-0.25", "CR 0–1/4"], ["0.5-1", "CR 1/2–1"], ["2-4", "CR 2–4"], ["5-10", "CR 5–10"], ["11-30", "CR 11+"]];
   var DIFF_LABEL = { none: "No enemies yet", trivial: "Trivial", low: "Low", moderate: "Moderate", high: "High", beyond: "Beyond High (deadly)" };
-  var U = { monsters: {}, persons: {}, q: "", band: "", name: "", start: "auto", atk: 0, target: "", mode: "", moveTo: "", cover: "", tool: { who: "", amount: 5, cond: "Prone", rounds: 1, action: 0, actTarget: "", zone: "" } };
+  var U = { monsters: {}, persons: {}, q: "", band: "", name: "", start: "auto", atk: 0, target: "", mode: "", act: "weapon", spell: "", slot: "", spellTarget: "", spellTargets: [], spellMsg: "", moveTo: "", cover: "", tool: { who: "", amount: 5, cond: "Prone", rounds: 1, action: 0, actTarget: "", zone: "" } };
   function renderCombat(box, refresh2) {
     const A = window.KLITE_RPMod_Worlds;
     const cb = A.getCombat();
@@ -26774,6 +27022,26 @@ ${xl.join("\n")}`;
       const attacks = (st.attacks || []).map((a, i) => [i, `${a.name} (${a.toHit >= 0 ? "+" : ""}${a.toHit}, ${a.damage})`]);
       if (U.atk >= attacks.length) U.atk = 0;
       wrap.appendChild(el("div", { style: "font-weight:bold", text: cur.isPlayer ? "Your turn" : `${cur.name}'s turn` }));
+      const book = A.combatSpells ? A.combatSpells(cur.id) : null;
+      if (book && book.spells.length) {
+        wrap.appendChild(row([
+          btn("Weapon", () => {
+            U.act = "weapon";
+            U.spellMsg = "";
+            refresh2();
+          }, { icon: "swords", on: U.act !== "spell", id: "act-weapon", grow: true }),
+          btn("Spell", () => {
+            U.act = "spell";
+            refresh2();
+          }, { icon: "wand-sparkles", on: U.act === "spell", id: "act-spell", grow: true })
+        ], "margin-top:4px"));
+      }
+      if (U.act === "spell" && book && book.spells.length) {
+        const zv0 = A.zoneView && A.zoneView();
+        if (zv0) zoneControls(wrap, cb, cur, zv0, A, refresh2);
+        renderSpellRow(wrap, cb, cur, book, A, refresh2, endTurn);
+        return;
+      }
       wrap.appendChild(row([
         attacks.length ? sel(attacks, U.atk, (v) => {
           U.atk = Number(v);
@@ -26813,6 +27081,82 @@ ${xl.join("\n")}`;
         refresh2();
       }, { id: "skip" })
     ]));
+  }
+  var SAVE_NAMES = { str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" };
+  function spellInfo(sp, slotLevel, charLevel) {
+    const u = sp.use;
+    if (u.kind === "attack") return `Spell attack ${sp.attack >= 0 ? "+" : ""}${sp.attack}${u.damageType ? " · " + u.damageType.toLowerCase() + " damage" : ""}`;
+    if (u.kind === "save") return `${SAVE_NAMES[u.save] || u.save} save, DC ${sp.dc}${u.damage ? ` · ${u.damageType ? u.damageType.toLowerCase() + " damage" : "damage"}${u.half ? ", half on a success" : ""}` : " · no damage: the AI narrates the effect"}${u.area ? " · area: choose every creature in it" : ""}`;
+    if (u.kind === "heal") return "Healing";
+    if (u.kind === "darts") return `${3 + Math.max(0, (Number(slotLevel) || 1) - 1)} darts, each 1d4+1 force, always hit (spread them over the chosen targets)`;
+    return "The slot is spent and the cast logged; the AI narrates the effect (conditions with the Tools).";
+  }
+  function renderSpellRow(wrap, cb, cur, book, A, refresh2, endTurn) {
+    const spells = book.spells;
+    if (!spells.some((x) => x.key === U.spell)) U.spell = spells[0].key;
+    const sp = spells.find((x) => x.key === U.spell), u = sp.use;
+    const opts = spells.map((x) => [x.key, `${x.level ? "Level " + x.level : "Cantrip"}: ${x.name}${x.level && !x.slots.length && !x.freeLeft ? " (no slot left)" : ""}`]);
+    const kids = [sel(opts, U.spell, (v) => {
+      U.spell = v;
+      U.slot = "";
+      U.spellMsg = "";
+      refresh2();
+    }, "Spell", "spell")];
+    if (sp.level) {
+      const slotOpts = sp.slots.map((l) => [String(l), `Level ${l} slot`]);
+      if (sp.freeLeft > 0) slotOpts.push(["free", `Free cast (${sp.freeLeft} left)`]);
+      if (!slotOpts.some((o) => o[0] === U.slot)) U.slot = slotOpts.length ? slotOpts[0][0] : "";
+      kids.push(slotOpts.length ? sel(slotOpts, U.slot, (v) => {
+        U.slot = v;
+        refresh2();
+      }, "Spell slot", "slot") : muted("No spell slot left", { "data-cb": "no-slot" }));
+    }
+    const party = cb.order.filter((o) => o.side === cur.side && (cb.hp[o.id] > 0 || cb.death && cb.death[o.id] && !cb.death[o.id].dead));
+    const foes = cb.order.filter((o) => o.side !== cur.side && cb.hp[o.id] > 0);
+    const pool = u.kind === "heal" ? party : foes;
+    const multi = u.kind === "save" && u.area || u.kind === "darts";
+    if (u.kind !== "other") {
+      if (multi) {
+        U.spellTargets = U.spellTargets.filter((id) => pool.some((o) => o.id === id));
+        if (!U.spellTargets.length && pool[0]) U.spellTargets = [pool[0].id];
+      } else if (!pool.some((o) => o.id === U.spellTarget)) U.spellTarget = pool[0] ? pool[0].id : "";
+      if (!multi) kids.push(sel(pool.map((o) => [o.id, `${o.name} (${cb.hp[o.id]} HP)`]), U.spellTarget, (v) => {
+        U.spellTarget = v;
+      }, "Target", "spell-target"));
+    }
+    if (u.kind === "attack") kids.push(sel([["", "Normal"], ["adv", "Advantage"], ["dis", "Disadvantage"]], U.mode, (v) => {
+      U.mode = v;
+    }, "Roll mode", "mode"));
+    wrap.appendChild(row(kids, "margin-top:4px"));
+    if (multi && u.kind !== "other") {
+      const list2 = el("div", { class: "rpm-wrap", "data-cb": "spell-targets", style: "margin-top:4px" });
+      for (const o of pool) {
+        const cbx = el("input", { type: "checkbox", value: o.id });
+        cbx.checked = U.spellTargets.includes(o.id);
+        cbx.addEventListener("change", () => {
+          U.spellTargets = cbx.checked ? [...U.spellTargets, o.id] : U.spellTargets.filter((x) => x !== o.id);
+        });
+        list2.appendChild(el("label", { class: "rpm-check" }, [cbx, el("span", { text: `${o.name} (${cb.hp[o.id]} HP)` })]));
+      }
+      wrap.appendChild(list2);
+    }
+    const slotLevel = U.slot && U.slot !== "free" ? Number(U.slot) : sp.level;
+    wrap.appendChild(muted(spellInfo(sp, slotLevel, book.level) + (u.bonus ? " · Bonus Action" : ""), { "data-cb": "spell-info", style: "margin-top:4px" }));
+    if (U.spellMsg) wrap.appendChild(muted(U.spellMsg, { "data-cb": "spell-why", style: "margin-top:4px" }));
+    const canPay = !sp.level || sp.slots.length || sp.freeLeft > 0;
+    wrap.appendChild(row([
+      btn("Cast", () => {
+        const targets = u.kind === "other" ? [] : multi ? U.spellTargets : [U.spellTarget].filter(Boolean);
+        const r = A.castSpell(cur.id, sp.key, { targets, slot: U.slot && U.slot !== "free" ? Number(U.slot) : void 0, free: U.slot === "free", mode: U.mode || void 0 });
+        U.spellMsg = r && !r.ok ? `Cannot cast: ${r.reason}.` : "";
+        refresh2();
+      }, { icon: "wand-sparkles", variant: "danger", grow: true, disabled: !canPay, id: "cast" }),
+      btn("End turn", () => {
+        U.spellMsg = "";
+        endTurn();
+      }, { icon: "arrow-right", grow: true, id: "end-turn" })
+    ], "margin-top:6px"));
+    wrap.appendChild(muted("Then tell the AI in the chat what you do — it narrates the rolls from the log.", { style: "margin-top:4px" }));
   }
   function toolsPanel(cb, A, refresh2) {
     const T = U.tool;
@@ -29241,8 +29585,9 @@ ${xl.join("\n")}`;
     function uiBtn(text, onclick, opts) {
       opts = opts || {};
       const cls = "btn btn-primary rpm-btn" + (opts.block ? " rpm-block" : "") + (opts.grow ? " rpm-grow" : "") + (opts.variant ? " rpm-" + opts.variant : "") + (opts.lg ? " rpm-lg" : "") + (opts.icon ? " rpm-btn-icon" : "");
-      if (!opts.icon) return el2("button", { type: "button", class: cls, title: opts.title, style: opts.style, text, onclick });
-      return el2("button", { type: "button", class: cls, title: opts.title, "aria-label": text ? null : opts.title, style: opts.style, onclick }, [iconText(opts.icon, text)]);
+      const data = opts.id ? { "data-ui": opts.id } : {};
+      if (!opts.icon) return el2("button", Object.assign({ type: "button", class: cls, title: opts.title, style: opts.style, text, onclick }, data));
+      return el2("button", Object.assign({ type: "button", class: cls, title: opts.title, "aria-label": text ? null : opts.title, style: opts.style, onclick }, data), [iconText(opts.icon, text)]);
     }
     function uiInput(props) {
       return el2("input", Object.assign({ type: "text", class: "form-control rpm-input" }, props));
@@ -29423,6 +29768,25 @@ ${xl.join("\n")}`;
       const zone = loc ? A.zonePath(loc.id).map((z) => z.name) : [];
       box.appendChild(el2("div", { class: "rpm-muted", "data-party": "location", style: "margin-top:2px;display:flex;align-items:center;gap:4px" }, [icon("map-pin", 13), locName + (zone.length ? " · " + zone[zone.length - 1] : "")]));
       box.appendChild(muted2(`🕑 Day ${c.day || 1}, ${c.time || "—"}${c.weather ? " · " + c.weather : ""}`));
+      const fighting = !!(cb && cb.active && !cb.outcome);
+      const mates = A.partyStatus ? A.partyStatus() : [];
+      for (const m of mates) {
+        const hp = fighting && cb.hp[m.id] != null ? cb.hp[m.id] : m.hp, max = fighting && cb.maxHp[m.id] ? cb.maxHp[m.id] : m.max;
+        box.appendChild(el2("div", { class: "rpm-card", "data-party-member": m.id }, [
+          row2([el2("span", { class: "rpm-grow", style: "font-weight:bold", text: m.name }), el2("span", { class: "rpm-muted", text: `HP ${hp}/${max}${fighting ? " ⚔" : ""}` })]),
+          hpBar2(hp, max)
+        ]));
+      }
+      if (!fighting) {
+        box.appendChild(uiBtn("Long rest", () => {
+          const r = A.longRest();
+          if (r && !r.ok) return;
+          try {
+            window.KLITE_RPMod_Shell?.refresh?.(["party"]);
+          } catch (_) {
+          }
+        }, { icon: "moon", block: true, style: "margin-top:8px", id: "long-rest", title: "Full HP for you and your companions, spell slots and free casts back (tells the AI)" }));
+      }
       if (cb && cb.active) {
         const cur = cb.order[cb.turnIndex];
         const hp = cb.hp.__player__, max = cb.maxHp.__player__;
@@ -31287,6 +31651,65 @@ ${xl.join("\n")}`;
     const s = cachedSheet(name);
     return s ? sheetSummary(s) : "";
   }
+  function combatSpellsFor(name) {
+    const s = cachedSheet(name);
+    if (!s || !s.spellcasting) return null;
+    const D = derive(s), sc = D.sheet.spellcasting;
+    const freeUsed = sc.freeUsed || {};
+    const spells = spellEntries(sc).map((e) => {
+      const sv = spell(e.key), nums = castingNumbers(D.sheet.abilities, e.ability, D.pb);
+      const freeMax = e.free === "pb" ? D.pb : e.free === "long" ? 1 : 0;
+      return {
+        key: e.key,
+        name: sv.name,
+        level: sv.level,
+        ability: e.ability,
+        source: e.source || "",
+        dc: nums.dc,
+        attack: nums.attack,
+        mod: D.mods[e.ability] || 0,
+        use: combatUse(sv),
+        slots: sv.level ? castableSlots(sv.level, sc.slots, sc.used) : [],
+        freeLeft: Math.max(0, freeMax - (Number(freeUsed[e.key]) || 0))
+      };
+    });
+    return { name, level: D.sheet.level, spells, slots: sc.slots.slice(), used: (sc.used || []).slice() };
+  }
+  function spendSpell(name, key, opts = {}) {
+    const info = combatSpellsFor(name);
+    const e = info && info.spells.find((x) => x.key === key);
+    if (!e) return { ok: false, reason: `${name} cannot cast that spell` };
+    if (!e.level) return { ok: true, slotLevel: 0 };
+    if (opts.free) {
+      if (e.freeLeft <= 0) return { ok: false, reason: `no free cast of ${e.name} left (back after a Long Rest)` };
+      updateSheet(name, (s) => {
+        const f = s.spellcasting.freeUsed = Object.assign({}, s.spellcasting.freeUsed);
+        f[key] = (Number(f[key]) || 0) + 1;
+      });
+      return { ok: true, slotLevel: e.level, free: true };
+    }
+    const lvl = Number(opts.slotLevel) || e.slots[0] || 0;
+    if (!lvl || lvl < e.level || !e.slots.includes(lvl)) return { ok: false, reason: lvl ? `no level ${lvl} spell slot left` : `no spell slot of level ${e.level} or higher left` };
+    let ok = false;
+    updateSheet(name, (s) => {
+      const u = spendSlot(s.spellcasting.slots, s.spellcasting.used, lvl);
+      if (u) {
+        s.spellcasting.used = u;
+        ok = true;
+      }
+    });
+    return ok ? { ok: true, slotLevel: lvl } : { ok: false, reason: `no level ${lvl} spell slot left` };
+  }
+  function longRestSheet(name) {
+    return updateSheet(name, (s) => {
+      s.hp.current = s.hp.max;
+      s.hp.temp = 0;
+      if (s.spellcasting) {
+        s.spellcasting.used = [];
+        s.spellcasting.freeUsed = {};
+      }
+    });
+  }
 
   // src/characters/builder-rules.js
   var MAX_LEVEL = 20;
@@ -31787,7 +32210,7 @@ ${xl.join("\n")}`;
   // src/characters/characters.js
   var LAST_KEY = "KLITE.sheet.last";
   var AUTOSAVE_SETTING = "sheets_autosave";
-  var GAME_FIELDS = ["inventory", "coins", "xp", "hp"];
+  var GAME_FIELDS = ["inventory", "coins", "xp", "hp", "spellcasting"];
   function initCharacters() {
     "use strict";
     if (window.KLITE_RPMod_Characters) return;
@@ -32453,6 +32876,9 @@ OK = save and close · Cancel = close and discard them`);
       blurbFor,
       updateSheet,
       flushSheet,
+      combatSpellsFor,
+      spendSpell,
+      longRestSheet,
       // the player's persona (Tools panel): name when chosen and enabled, else ''
       personaName: () => {
         try {
