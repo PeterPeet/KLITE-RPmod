@@ -86,7 +86,8 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 ### Known issues / tech debt
 1. ~~"Monster / NPC combatant" flag does nothing~~ — decides the combat side since R5 (a monster is
    never an ally; victory = every enemy down).
-2. **Chat tags remain visible** in the chat text (parsed, not stripped) (R6).
+2. ~~Chat tags remain visible~~ — optional since R6 step 3 (2026-09-25): Settings → RPmod → Display → "Hide control
+   tags in the chat" (off by default) removes them from the shown chat; the story keeps them.
 3. ~~Worlds panel overlaps ALPHA's right panel~~ — fixed by the shell (2026-09-23).
 4. ~~Two systems inject character data~~ — one owner since 2026-09-23 (`src/context/`); the
    remaining double card (Start RP's `<name>_imported_memory` WI + the context's copy) fixed
@@ -629,6 +630,9 @@ commands / custom tools, display pipeline, summaries and lorebook import work; d
       Quick Actions are migrated once (custom ones kept, sent as messages). The **Here** row follows the world
       (`W.here()`: ways out, people with quest markers, quests to accept/turn in, shop, search) — a session can be
       played by clicking. Tests `tests/quickReplies.test.js`.
+- [x] **Step 3 — hide control tags** (2026-09-25, known issue 2): a Display setting; wrapper on Esolite's
+      `apply_display_only_regex`, so only the shown chat changes (Allow Editing shows the tags, the engine reads them).
+      Tests `tests/hideTags.test.js`.
 - Quick replies panel; slash commands (`/roll`, `/move`, `/give`, …) mapped to the engine.
 - Optional stripping of control tags from displayed chat (known issue 2).
 - Lorebook round-trip (Worlds ↔ WI V2/V3); summaries / memory.

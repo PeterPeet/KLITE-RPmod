@@ -227,7 +227,8 @@ side-effect free.
 (`lastParsedIndex`) **when the AI's reply arrives** (R7: wrapper around Esolite's
 `handle_incoming_text`, which pushes the reply synchronously — Esolite wraps it the same way in
 `static/js/contextUsage.js`; parse only, the per-turn clock step stays at generation) and again at
-the start of the next generation (the user's own typed tags); tags stay visible in chat.
+the start of the next generation (the user's own typed tags). Tags stay in the story text; the
+Display setting "Hide control tags in the chat" removes them from the shown chat only (R6, §5d).
 The map tags `<move>`/`<go>`, `<open>`, `<close>`, `<unlock>`, `<search>`, `<room>`, `<door>`,
 `<light>` are applied in **reply order** in one pass (`MT.scanMapTags` → `applyMapTag`, §3.9);
 `<move>` inside/into a dungeon or town goes through `go()`.
@@ -878,7 +879,14 @@ Design and the study of Esolite's custom tools: [design/R6-chat-power.md](design
   action: accept|turnin }], trade }` from the slice's sources (exits, connected places, places
   within, the parent zone; persons present; visible quests without locks). World names pass
   `safeName` (no ` | `, new lines or `<>`), labels are `textContent`.
-- Tests: `tests/slash.test.js`, `tests/quickReplies.test.js`.
+- **Hiding tags** (step 3, known issue 2): wrapper on Esolite's `apply_display_only_regex` (every
+  non-edit render passes each message through it — classic mode and `repack_postprocess_turn`
+  for instruct/aesthetic/messenger/corpo); with the setting `hide_control_tags` (Display, off by
+  default) its output goes through `stripControlTags` (`chat-rules.js`: every engine tag as a
+  pair, `<x/>`, lone `<advance>`/`<search>`; `&lt;…&gt;` and raw). Allow Editing and the stored
+  text are untouched; toggling calls `render_gametext(false, false)`. Streaming text (not yet
+  through the display regex) still shows tags until the reply is complete.
+- Tests: `tests/slash.test.js`, `tests/quickReplies.test.js`, `tests/hideTags.test.js`.
 
 ## 5. RP core and panels (`src/rpmod/`, `src/panels/`) — overview
 Formerly one 17.5k-line file `KLITE-RPmod_ALPHA.js` ("ALPHA" was a version label). R1 cleanup

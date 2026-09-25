@@ -134,7 +134,7 @@ export const CHAPTERS = [
                 ['<roll>1d20+3</roll> · <attack>You->Goblin</attack>', 'dice and combat'],
                 ['<hp>Goblin=-4</hp> · <check>You=dex 12</check>', 'hit points, checks'],
             ] },
-            { tip: 'The full list is in the User Guide, chapter "In-chat commands".' },
+            { tip: 'The full list is in the User Guide, chapter "In-chat commands". To keep the chat clean, turn on Settings → RPmod → "Hide control tags in the chat": RPmod still reads them, the game log says what they did.' },
         ],
         show: [{ label: 'Chat input', run: (c) => c.highlight('#input_text', 'Type tags here, like any message') }],
     },

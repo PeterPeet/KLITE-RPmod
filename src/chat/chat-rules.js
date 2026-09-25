@@ -132,3 +132,18 @@ export function hereReplies(info) {
     if (info.inMap) out.push({ label: 'Search', text: '/search | I search the room.', send: true, kind: 'search' });
     return out;
 }
+
+// ---- hiding control tags in the displayed chat (R6 step 3) ---------------------------------
+// Every tag the Worlds engine reads (§3.4 of ARCHITECTURE, map tags included). The display
+// text reaches Esolite's apply_display_only_regex HTML-escaped (&lt;move&gt;) — or raw when
+// Esolite's escaping is off — so both spellings are matched. Only the display changes; the
+// story text keeps the tags and the engine parses them as before.
+export const CONTROL_TAGS = ['move', 'go', 'npcmove', 'mood', 'flag', 'unflag', 'give', 'take', 'rep', 'accept', 'turnin',
+    'buy', 'sell', 'talk', 'encounter', 'quest', 'time', 'weather', 'advance', 'action', 'roll', 'attack', 'hp', 'check',
+    'open', 'close', 'unlock', 'search', 'room', 'door', 'light'];
+const LT = '(?:<|&lt;)', GT = '(?:>|&gt;)', NAMES = CONTROL_TAGS.join('|');
+const PAIR_RE = new RegExp(`[ \\t]*${LT}(${NAMES})\\s*${GT}[\\s\\S]*?${LT}\\/\\1\\s*${GT}`, 'gi');
+const SINGLE_RE = new RegExp(`[ \\t]*${LT}(?:(?:${NAMES})\\s*\\/|advance\\s*\\/?|search\\s*)${GT}`, 'gi');
+export function stripControlTags(text) {
+    return String(text == null ? '' : text).replace(PAIR_RE, '').replace(SINGLE_RE, '');
+}

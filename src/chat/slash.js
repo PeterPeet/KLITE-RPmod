@@ -14,7 +14,7 @@
 // Public API: window.KLITE_RPMod_Chat — commands(), isCommand(text), run(text, { send }), help(),
 // quickReplies (src/chat/quickReplies.js).
 // =============================================================================
-import { splitInput, startsWithCommand, messageOf, cleanArg, splitMode, parseCheck, parseAttack, parseAssign, nameKey } from './chat-rules.js';
+import { splitInput, startsWithCommand, messageOf, cleanArg, splitMode, parseCheck, parseAttack, parseAssign, nameKey, stripControlTags } from './chat-rules.js';
 import { SKILLS, ABILITIES, ABILITY_NAMES, derive, fmt } from '../characters/sheet.js';
 import { autoTurnsOn } from '../game/combatView.js';
 import { el } from '../shell/dom.js';
@@ -311,20 +311,51 @@ export default function initChat() {
         return true;
     }
 
+    // ---- hiding control tags in the displayed chat (R6 step 3; known issue 2) ----------------------
+    // Esolite passes every message it displays (not in Allow Editing) through
+    // apply_display_only_regex; RPmod removes its tags from that output only. The story text keeps
+    // them and the engine parses them as before.
+    const HIDE_TAGS = 'hide_control_tags';
+    const hideTags = () => { try { return window.KLITE_RPMod_Settings?.get(HIDE_TAGS) === true; } catch (_) { return false; } };
+    let displayHooked = false;
+    function installDisplay() {
+        if (displayHooked) return true;
+        const orig = window.apply_display_only_regex;
+        if (typeof orig !== 'function') return false;
+        const wrapped = function () {
+            const out = orig.apply(this, arguments);
+            try { return hideTags() && typeof out === 'string' ? stripControlTags(out) : out; } catch (_) { return out; }
+        };
+        wrapped.__rpmod_tags = true;
+        window.apply_display_only_regex = wrapped;
+        displayHooked = true;
+        return true;
+    }
+    function registerDisplaySetting() {
+        const S = window.KLITE_RPMod_Settings; if (!S) return false;
+        S.registerSetting({ id: HIDE_TAGS, section: 'Display', order: 10, default: false, label: 'Hide control tags in the chat',
+            help: 'Removes <move>, <give>, <buy> and the other RPmod tags from the chat as it is shown. The story keeps them (Allow Editing shows them) and RPmod still reads them; the game log shows what they did.' });
+        S.onChange(HIDE_TAGS, () => { try { window.render_gametext?.(false, false); } catch (_) {} });
+        return true;
+    }
+
     const api = {
         commands: () => COMMANDS.map(c => ({ name: c.name, aliases: (c.aliases || []).slice(), usage: c.usage, help: c.help, group: c.group, world: !!c.world })),
         isCommand, run, runText, install, help: () => help('').info,
         installed: () => hooked,
+        displayHooked: () => displayHooked,
+        stripControlTags,
     };
     window.KLITE_RPMod_Chat = api;
     const quick = installQuickReplies(api);   // R6 step 2: the left-dock section
     api.quickReplies = quick;
 
-    let tries = 0, registered = false;
+    let tries = 0, registered = false, setting = false;
     const attempt = () => {
-        const hooked = install();
+        const hooked = install(); const shown = installDisplay();
         if (!registered && window.KLITE_RPMod_Shell) registered = quick.register();
-        if ((!hooked || !registered) && ++tries < 120) setTimeout(attempt, 500);
+        if (!setting) setting = registerDisplaySetting();
+        if ((!hooked || !shown || !registered || !setting) && ++tries < 120) setTimeout(attempt, 500);
     };
     if (document.readyState === 'complete') attempt();
     else window.addEventListener('load', attempt, { once: true });

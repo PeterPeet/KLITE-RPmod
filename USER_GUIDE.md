@@ -324,9 +324,11 @@ to the next day, and the **season** follows the month automatically.
 **Notes**
 - Tags are applied at the **start of your next message**, so a move the AI narrates this
   turn takes effect from the next turn onward — which reads naturally in the story.
-- Tags currently remain visible in the chat text (they're read, not hidden). To have the
-  AI use them, add a line to your **World Rules** such as: *"When the scene changes
-  location, emit `<move>Name</move>`."*
+- Tags stay in the story text. To **hide them in the chat**, turn on Settings → RPmod →
+  Display → **Hide control tags in the chat**: they disappear from the chat as it is shown
+  (the game log says what they did), RPmod still reads them, and **Allow Editing** shows them.
+  To have the AI use them, add a line to your **World Rules** such as: *"When the scene
+  changes location, emit `<move>Name</move>`."*
 - Want time to pass automatically every turn? Enable it once in the console:
   `KLITE_RPMod_Worlds.config.advanceClockPerTurn = true`.
 
@@ -722,6 +724,7 @@ RPmod's options are in Esolite's own **Settings** dialog, on the **RPmod** tab (
 **Cancel** discards your changes.
 
 - **Worlds → Autosave world edits**: see *Unsaved changes* in section 4.
+- **Display → Hide control tags in the chat** (off by default): see the notes in section 6.
 - **Display → Quick replies: show the "Here" row** (on by default): see *Quick replies* in section 6a.
 - **Combat → Run enemy turns automatically** and **Zone combat** (positions without a grid, on by
   default): see *Combat* in section 6b.

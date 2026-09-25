@@ -31373,7 +31373,7 @@ ${xl.join("\n")}`;
           ["<roll>1d20+3</roll> · <attack>You->Goblin</attack>", "dice and combat"],
           ["<hp>Goblin=-4</hp> · <check>You=dex 12</check>", "hit points, checks"]
         ] },
-        { tip: 'The full list is in the User Guide, chapter "In-chat commands".' }
+        { tip: 'The full list is in the User Guide, chapter "In-chat commands". To keep the chat clean, turn on Settings → RPmod → "Hide control tags in the chat": RPmod still reads them, the game log says what they did.' }
       ],
       show: [{ label: "Chat input", run: (c) => c.highlight("#input_text", "Type tags here, like any message") }]
     },
@@ -35454,6 +35454,47 @@ OK = save and close · Cancel = close and discard them`);
     if (info.inMap) out.push({ label: "Search", text: "/search | I search the room.", send: true, kind: "search" });
     return out;
   }
+  var CONTROL_TAGS = [
+    "move",
+    "go",
+    "npcmove",
+    "mood",
+    "flag",
+    "unflag",
+    "give",
+    "take",
+    "rep",
+    "accept",
+    "turnin",
+    "buy",
+    "sell",
+    "talk",
+    "encounter",
+    "quest",
+    "time",
+    "weather",
+    "advance",
+    "action",
+    "roll",
+    "attack",
+    "hp",
+    "check",
+    "open",
+    "close",
+    "unlock",
+    "search",
+    "room",
+    "door",
+    "light"
+  ];
+  var LT = "(?:<|&lt;)";
+  var GT = "(?:>|&gt;)";
+  var NAMES = CONTROL_TAGS.join("|");
+  var PAIR_RE = new RegExp(`[ \\t]*${LT}(${NAMES})\\s*${GT}[\\s\\S]*?${LT}\\/\\1\\s*${GT}`, "gi");
+  var SINGLE_RE = new RegExp(`[ \\t]*${LT}(?:(?:${NAMES})\\s*\\/|advance\\s*\\/?|search\\s*)${GT}`, "gi");
+  function stripControlTags(text) {
+    return String(text == null ? "" : text).replace(PAIR_RE, "").replace(SINGLE_RE, "");
+  }
 
   // src/chat/quickReplies.js
   var VIEW_ID2 = "quick-replies";
@@ -36233,6 +36274,51 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       hooked = true;
       return true;
     }
+    const HIDE_TAGS = "hide_control_tags";
+    const hideTags = () => {
+      try {
+        return window.KLITE_RPMod_Settings?.get(HIDE_TAGS) === true;
+      } catch (_) {
+        return false;
+      }
+    };
+    let displayHooked = false;
+    function installDisplay() {
+      if (displayHooked) return true;
+      const orig = window.apply_display_only_regex;
+      if (typeof orig !== "function") return false;
+      const wrapped = function() {
+        const out = orig.apply(this, arguments);
+        try {
+          return hideTags() && typeof out === "string" ? stripControlTags(out) : out;
+        } catch (_) {
+          return out;
+        }
+      };
+      wrapped.__rpmod_tags = true;
+      window.apply_display_only_regex = wrapped;
+      displayHooked = true;
+      return true;
+    }
+    function registerDisplaySetting() {
+      const S2 = window.KLITE_RPMod_Settings;
+      if (!S2) return false;
+      S2.registerSetting({
+        id: HIDE_TAGS,
+        section: "Display",
+        order: 10,
+        default: false,
+        label: "Hide control tags in the chat",
+        help: "Removes <move>, <give>, <buy> and the other RPmod tags from the chat as it is shown. The story keeps them (Allow Editing shows them) and RPmod still reads them; the game log shows what they did."
+      });
+      S2.onChange(HIDE_TAGS, () => {
+        try {
+          window.render_gametext?.(false, false);
+        } catch (_) {
+        }
+      });
+      return true;
+    }
     const api = {
       commands: () => COMMANDS.map((c) => ({ name: c.name, aliases: (c.aliases || []).slice(), usage: c.usage, help: c.help, group: c.group, world: !!c.world })),
       isCommand,
@@ -36240,16 +36326,20 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       runText,
       install,
       help: () => help("").info,
-      installed: () => hooked
+      installed: () => hooked,
+      displayHooked: () => displayHooked,
+      stripControlTags
     };
     window.KLITE_RPMod_Chat = api;
     const quick = installQuickReplies(api);
     api.quickReplies = quick;
-    let tries = 0, registered = false;
+    let tries = 0, registered = false, setting = false;
     const attempt = () => {
       const hooked2 = install();
+      const shown = installDisplay();
       if (!registered && window.KLITE_RPMod_Shell) registered = quick.register();
-      if ((!hooked2 || !registered) && ++tries < 120) setTimeout(attempt, 500);
+      if (!setting) setting = registerDisplaySetting();
+      if ((!hooked2 || !shown || !registered || !setting) && ++tries < 120) setTimeout(attempt, 500);
     };
     if (document.readyState === "complete") attempt();
     else window.addEventListener("load", attempt, { once: true });
