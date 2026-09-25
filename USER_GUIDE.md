@@ -705,11 +705,25 @@ RP**, Esolite's Quick Start) stay ordinary story data you can edit.
 
 In the **World** tab:
 
-- **⬇ Import** — load a classic WorldInfo / lorebook / TavernCard `character_book` JSON.
-  Entries become **Lore** nodes you can promote to Locations/NPCs in the editor. You'll be
-  asked whether to merge into the active world or create a new one.
-- **⬆ Export** — save the world as portable **World JSON**, or down-convert to a flat
-  **WorldInfo** file compatible with vanilla Lite.
+- **Import** reads a **World JSON**, a **lorebook** (SillyTavern World Info, Lorebook V3, the
+  `character_book` of a V2/V3 card) or an **Esolite WorldInfo** file.
+  - A lorebook that RPmod exported carries the whole world. RPmod asks whether to **restore it
+    as its own world** (a copy — your existing worlds are never overwritten; the name gets
+    "(imported)" if it is taken) or to add its entries to the active world. Text you changed in
+    its entries elsewhere (e.g. in SillyTavern) is taken over; new entries become Lore.
+  - Other lorebooks: entries that start with a header like `[Location: Pier]` become that kind
+    of node (Location, Character, Faction, Object, Event, Quest); the rest become **Lore** nodes
+    with their keys (promote them in the editor). Entries that were switched off stay off (they
+    are not sent to the AI until you enable them).
+- **Export** opens a list of formats:
+  - **World JSON** — everything, for RPmod.
+  - **Lorebook (SillyTavern / Esolite)** — a World Info file: one entry per place, person,
+    faction, object, event, quest and lore node, each with its header line. SillyTavern and
+    Esolite's own WorldInfo import read it; RPmod restores the world from it.
+  - **Lorebook V3** — the same as a `lorebook_v3` file.
+  - **Esolite WorldInfo** — the flat WI array (also vanilla KoboldAI Lite).
+  - **Save to Esolite's Library** — stores the world as a *World Info* entry in Esolite's
+    Library, so Quick Start can load it into a story.
 
 Worlds are stored in your browser (IndexedDB); the per-story runtime state (where you are,
 flags, inventory, clock) is saved inside the story savefile automatically. Your saved
@@ -750,6 +764,8 @@ W.applyTags('<move>Tavern</move>');  // apply tag text directly
 W.preview();                      // the current slice, as a string
 W.exportWorld();                  // portable JSON
 W.exportWorldAsWI();              // flat WorldInfo array
+W.exportWorldAsLorebook(null, 'tavern');  // SillyTavern World Info ('v3': Lorebook V3)
+W.importLorebook(book, { merge: false });  // restore / import a lorebook
 ```
 
 ---

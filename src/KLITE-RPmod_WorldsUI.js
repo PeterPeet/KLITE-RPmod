@@ -978,25 +978,59 @@ export default function initWorldsUI() {
         if (A.hasExample() && !confirm('Reload the example world? Changes you made to it will be discarded.')) return;
         A.loadExample().then(() => { refreshPanel(); toast('Example world loaded — enabled & ready. Just start chatting!'); });
     }
+    // Import (R6 step 4): a World JSON, or a lorebook (SillyTavern / V3 / cards / Esolite WI). A
+    // lorebook RPmod exported holds its world: restore it, or add its entries to the active world.
     function importFlow() {
         const A = API();
         pickFile(async (txt, name) => {
             try {
                 const data = JSON.parse(txt);
-                const merge = A.activeWorld() ? confirm('Merge into the active world?  (Cancel = create a new world)') : false;
-                const count = await A.importLorebook(data, { merge, worldName: (name || '').replace(/\.json$/i, '') });
-                toast(`Imported ${count} lore entr${count === 1 ? 'y' : 'ies'}`);
+                if (data && !Array.isArray(data) && Array.isArray(data.locations) && !data.entries && !data.spec) {
+                    const taken = data.id && A.listWorlds().some(x => x.id === data.id);
+                    if (taken && !confirm(`A world with this id is already in your library ("${data.name || data.id}"). Import this one as a copy?`)) return;
+                    if (taken) { delete data.id; data.name = `${data.name || 'World'} (imported)`; }
+                    await A.importWorld(data);
+                    toast(`Imported the world "${A.activeWorld().name}"`);
+                } else {
+                    const book = A.readLorebook(data);
+                    const merge = book.world
+                        ? (A.activeWorld() ? !confirm(`This lorebook holds the RPmod world "${book.world.name || 'World'}".\nOK = restore it as its own world.\nCancel = add its entries to the active world.`) : false)
+                        : (A.activeWorld() ? confirm('Merge into the active world?  (Cancel = create a new world)') : false);
+                    const count = await A.importLorebook(data, { merge, worldName: (name || '').replace(/\.json$/i, '') });
+                    toast(book.world && !merge ? `Restored the world "${A.activeWorld().name}" (${count} entries)` : `Imported ${count} entr${count === 1 ? 'y' : 'ies'}`);
+                }
                 refreshPanel();
                 if (S.root) { reloadGraph(); fit(); draw(); renderInspector(); }
             } catch (e) { toast('Import failed: ' + (e.message || e), true); }
         });
     }
+    // Export (R6 step 4): the World tab shows the formats under the Export button.
+    let exportOpen = false;
+    const EXPORTS = [
+        { id: 'world', label: 'World JSON', help: 'Everything, for RPmod', run: (A, base) => download(base + '.world.json', JSON.stringify(A.exportWorld(), null, 2)) },
+        { id: 'tavern', label: 'Lorebook (SillyTavern / Esolite)', help: 'World Info file; re-importing restores the world', run: (A, base) => download(base + '.lorebook.json', JSON.stringify(A.exportWorldAsLorebook(null, 'tavern'), null, 2)) },
+        { id: 'v3', label: 'Lorebook V3', help: 'spec lorebook_v3', run: (A, base) => download(base + '.lorebook_v3.json', JSON.stringify(A.exportWorldAsLorebook(null, 'v3'), null, 2)) },
+        { id: 'wi', label: 'Esolite WorldInfo', help: 'flat WI array (also vanilla Lite)', run: (A, base) => download(base + '.worldinfo.json', JSON.stringify(A.exportWorldAsWI(), null, 2)) },
+        { id: 'library', label: "Save to Esolite's Library", help: 'as a World Info entry, for Quick Start', run: (A) => saveToEsoliteLibrary(A) },
+    ];
+    function saveToEsoliteLibrary(A) {
+        const w = A.activeWorld();
+        if (typeof window.saveLorebookToIndexDB !== 'function') { toast("This Esolite cannot store lorebooks in its Library", true); return; }
+        const wi = A.exportWorldAsWI().map(e => Object.assign(e, { wigroup: w.name || 'World' }));
+        window.saveLorebookToIndexDB(w.name || 'World', wi, A.exportWorldAsLorebook(null, 'tavern'));
+        toast(`Saved "${w.name}" to Esolite's Library (World Info)`);
+    }
     function exportFlow() {
-        const A = API(); const w = A.activeWorld(); if (!w) { toast('No active world', true); return; }
-        const base = (w.name || 'world').replace(/[^\w-]+/g, '_');
-        const choice = confirm('OK = export as World JSON.\nCancel = export as flat WorldInfo (vanilla-Lite).');
-        if (choice) download(base + '.world.json', JSON.stringify(A.exportWorld(), null, 2));
-        else download(base + '.worldinfo.json', JSON.stringify(A.exportWorldAsWI(), null, 2));
+        const A = API(); if (!A.activeWorld()) { toast('No active world', true); return; }
+        exportOpen = !exportOpen; refreshPanel();
+    }
+    function exportCard(A) {
+        const w = A.activeWorld(); const base = (w.name || 'world').replace(/[^\w-]+/g, '_');
+        return el('div', { class: 'rpm-card', 'data-export': 'formats', style: 'margin:0 0 8px' }, [
+            el('div', { class: 'rpm-muted', style: 'margin-bottom:4px', text: 'Export this world as:' }),
+            ...EXPORTS.filter(x => x.id !== 'library' || typeof window.saveLorebookToIndexDB === 'function').map(x =>
+                uiBtn(x.label, () => { exportOpen = false; x.run(A, base); refreshPanel(); }, { block: true, title: x.help, style: 'margin-top:4px', id: 'export-' + x.id })),
+        ]);
     }
 
     function toast(msg, isErr) {
@@ -1162,6 +1196,7 @@ export default function initWorldsUI() {
             uiBtn('Import', () => importFlow(), { icon: 'upload', grow: true }),
             uiBtn('Export', () => exportFlow(), { icon: 'download', grow: true })
         ], 'margin:6px 0 8px'));
+        if (exportOpen && A.activeWorld()) body.appendChild(exportCard(A));
 
         if (unsaved() && !autosave()) {
             body.appendChild(el('div', { class: 'rpm-card rpm-unsaved-card', 'data-unsaved': 'world', style: 'margin:0 0 8px' }, [

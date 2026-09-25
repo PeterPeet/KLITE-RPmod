@@ -19,6 +19,7 @@
 | `data/srd52-compendium.js` | (import) | Rules Glossary, magic items, tools and adventuring gear (generated: `extract-srd.py compendium`, ~315 KB) (§5c) |
 | `compendium/rules.js`, `compendium.js` | `window.KLITE_RPMod_Compendium` | R3 Compendium: search index over all SRD data (pure) and the Compendium window (§5c) |
 | `chat/chat-rules.js`, `chat/slash.js`, `chat/quickReplies.js` | `window.KLITE_RPMod_Chat` | R6 slash commands and quick replies: input parsing (pure) and the commands, run through the Worlds engine; wraps `prepare_submit_generation`; left-dock section "Quick replies" (§5d) |
+| `game/lorebook-rules.js` | (import) | R6 lorebook round trip (pure): world ↔ SillyTavern World Info / Lorebook V3 / cards / Esolite WI (§3.10) |
 | `game/combat-rules.js`, `game/combatView.js` | (import) | Combat rules (pure) and the Combat window (§3.7) |
 | `game/zone-rules.js`, `game/zoneBoard.js` | (import) | R7 zone combat rules (pure) and the zone board drawing (§3.7) |
 | `characters/builder-rules.js`, `builder.js` | `window.KLITE_RPMod_Builder` | Character builder (levels 1–20) + level up (§5b) |
@@ -559,6 +560,29 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   Editor: toolbar **Generate** → inspector panel `data-panel="generate"` (`data-gen` size/theme/
   encounters/seed/reseed/go, town `data-place` checkboxes); map info warns `data-noway` without a
   way out.
+
+### 3.10 Import / export, lorebooks (R6) — rules in `src/game/lorebook-rules.js` (pure)
+- **Export:** `exportWorld()` (World JSON; linked characters get a `characterSnapshot`),
+  `exportWorldAsWI()` (flat Esolite WI array), `exportWorldAsLorebook(id, 'tavern'|'v3')`.
+  A lorebook has one entry per location, person, faction, object, event, quest and lore node:
+  content `[Location: Name]\n<text>` (lore: its text), keys = the name (lore: its keys and
+  secondary keys, `always` → `constant`, `disabled` → `disable`), `extensions.rpmod = { kind, id,
+  field }` (`field` = where the text lives, e.g. an NPC's `personality`); the book carries the
+  world in `extensions.rpmod.world`. The SillyTavern form keys entries by `uid` and writes both
+  `key`/`keys` and `keysecondary`/`secondary_keys`, so Esolite's `load_tavern_wi` reads it (tested
+  with Esolite's own function from the clone).
+- **Import:** `importLorebook(data, { merge, worldName })` → `readBook` accepts every shape. A
+  book with an embedded world and no `merge` restores that world as a **new** library entry
+  (new id if the id is taken, "(imported)" if the name is), then `applyEntryEdits` writes entry
+  texts that changed back to the entity field named by `extensions.rpmod` (never deletes); the
+  remaining entries are added. Otherwise each entry is added as a node, typed by
+  `extensions.rpmod.kind` or its header, else a Lore node (`disabled: true` when it was off; the
+  slice skips disabled lore — additive field). The World tab's Import also takes World JSON
+  (`importWorld`, a copy when the id is taken).
+- **Esolite's Library:** "Save to Esolite's Library" calls Esolite's `saveLorebookToIndexDB(name,
+  wiArray, original)` (record type "World Info"; entries grouped under the world's name; the
+  original = the SillyTavern book).
+- Tests: `tests/lorebook.test.js`, `tests/engine.test.js`.
 
 ## 4a. App shell (`src/shell/`)
 - **Layout:** `#rpm-shell` is one fixed layer at **z-index 2** (below Esolite popups, z 3)

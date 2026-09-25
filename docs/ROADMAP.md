@@ -70,7 +70,7 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 | | Leveling / XP | ✅ level up 1–20; XP from quest rewards and fights is paid to the persona's sheet |
 | SillyTavern | Character cards V1/V2/V3 | ✅ V2, 🟡 V3 (ALPHA) |
 | | Personas, group chat | ✅ ALPHA |
-| | World Info / lorebooks | ✅ Esolite + Worlds graph |
+| | World Info / lorebooks | ✅ Esolite + Worlds graph; round trip SillyTavern / V3 / Esolite (R6 step 4) |
 | | Quick replies | ✅ R6 step 2: left dock, editor, world-aware "Here" row |
 | | Slash commands | ✅ R6 step 1: `/go`, `/buy`, `/accept`, `/check` … through the engine |
 | | RAG, TTS, image gen, summaries | ✅ mostly Esolite/ALPHA |
@@ -633,6 +633,11 @@ commands / custom tools, display pipeline, summaries and lorebook import work; d
 - [x] **Step 3 — hide control tags** (2026-09-25, known issue 2): a Display setting; wrapper on Esolite's
       `apply_display_only_regex`, so only the shown chat changes (Allow Editing shows the tags, the engine reads them).
       Tests `tests/hideTags.test.js`.
+- [x] **Step 4 — lorebook round trip** (2026-09-25): export as SillyTavern World Info (read by SillyTavern and by
+      Esolite's own `load_tavern_wi` — tested with Esolite's function), Lorebook V3, Esolite WI, or into Esolite's
+      Library; each entry has a `[Location: …]` header and `extensions.rpmod`, the book carries the world. Import
+      restores that world as a copy with edits made elsewhere, or types entries by their header; other entries become
+      Lore (disabled ones stay off). The World tab's Import also reads World JSON. Tests `tests/lorebook.test.js`.
 - Quick replies panel; slash commands (`/roll`, `/move`, `/give`, …) mapped to the engine.
 - Optional stripping of control tags from displayed chat (known issue 2).
 - Lorebook round-trip (Worlds ↔ WI V2/V3); summaries / memory.

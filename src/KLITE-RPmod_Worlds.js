@@ -26,6 +26,7 @@ import * as MR from './game/map-rules.js';
 import * as MT from './game/map-tags.js';
 import * as MG from './game/map-gen.js';
 import * as ZR from './game/zone-rules.js';
+import * as LB from './game/lorebook-rules.js';
 import { derive as deriveSheet } from './characters/sheet.js';
 import * as SP from './characters/spell-rules.js';
 
@@ -2735,7 +2736,7 @@ export default function initWorlds() {
         const ctx = recentContext().toLowerCase();
         for (const gl of asArray(world.globalLore)) {
             const content = norm(typeof gl === 'string' ? gl : gl.content);
-            if (!content) continue;
+            if (!content || (gl && gl.disabled)) continue;   // disabled: an imported lorebook entry that was off (R6)
             const always = (gl && (gl.always || gl.constant));
             const keys = asArray(gl && gl.keys).map(k => norm(k).toLowerCase()).filter(Boolean);
             const hit = always || (keys.length && keys.some(k => ctx.includes(k)));
@@ -3142,51 +3143,54 @@ export default function initWorlds() {
     // =======================================================================
     //  IMPORT / EXPORT (Phase 7)
     // =======================================================================
-    // Normalise one entry from any supported WI/lorebook shape.
-    function normWiEntry(e) {
-        if (!e || typeof e !== 'object') return null;
-        const keys = Array.isArray(e.keys) ? e.keys : Array.isArray(e.key) ? e.key : (typeof e.key === 'string' ? e.key.split(',') : []);
-        const sec = Array.isArray(e.secondary_keys) ? e.secondary_keys : (typeof e.keysecondary === 'string' ? e.keysecondary.split(',') : []);
-        const content = norm(e.content);
-        if (!content) return null;
-        return {
-            keys: keys.map(norm).filter(Boolean), secondary: sec.map(norm).filter(Boolean),
-            content, comment: norm(e.comment || e.name || ''), constant: !!e.constant, wigroup: norm(e.wigroup || '')
-        };
-    }
-    // Accepts: Esolite current_wi array, TavernCard character_book {entries:[]|{}},
-    // {character_book}, {data:{character_book}}, or a raw {entries} lorebook.
-    function wiEntriesFrom(data) {
-        if (!data) return [];
-        if (typeof data === 'string') { try { data = JSON.parse(data); } catch (_) { return []; } }
-        if (Array.isArray(data)) return data.map(normWiEntry).filter(Boolean);
-        if (data.entries) { const es = Array.isArray(data.entries) ? data.entries : Object.values(data.entries); return es.map(normWiEntry).filter(Boolean); }
-        if (data.character_book) return wiEntriesFrom(data.character_book);
-        if (data.data && data.data.character_book) return wiEntriesFrom(data.data.character_book);
-        return [];
-    }
-
-    // Import classic WorldInfo / lorebook entries as globalLore nodes. Each becomes
-    // a Lore node (promotable to Location/NPC in the editor). Creates a new world
-    // unless opts.merge and a world is active.
-    async function importLorebook(data, opts = {}) {
-        const entries = wiEntriesFrom(data);
-        if (!entries.length) throw new Error('no WorldInfo / lorebook entries found');
-        let world = opts.merge ? activeWorld() : null;
-        if (!world) { await createWorld(opts.worldName || (data && (data.name || (data.data && data.data.name))) || 'Imported World'); world = activeWorld(); }
-        world.globalLore = asArray(world.globalLore);
-        let gy = 120;
-        for (const e of entries) {
-            world.globalLore.push({
-                id: uid('lore'), content: e.content, keys: e.keys, secondary: e.secondary,
-                label: e.comment || e.keys[0] || 'Lore', always: e.constant, wigroup: e.wigroup,
-                ui: { x: 700, y: gy }
-            });
-            gy += 60;
+    // Import a lorebook (R6 step 4, src/game/lorebook-rules.js): SillyTavern World Info, Lorebook
+    // V3, V2/V3 cards' character_book, Esolite's WI array. A book RPmod exported carries its world:
+    // without opts.merge that world is restored (a new id when the id is taken — never overwrite a
+    // world) and text edits made to its entries elsewhere are applied. Other entries become nodes:
+    // typed by their RPmod data or "[Location: …]" header, else Lore. Returns the entry count.
+    function addBookEntry(world, e, y) {
+        const t = LB.typedEntry(e);
+        if (t.kind === 'lore') {
+            const gl = { id: uid('lore'), content: t.text, keys: e.keys, secondary: e.secondary, label: e.comment || e.keys[0] || 'Lore', always: e.constant, wigroup: e.wigroup, ui: { x: 700, y } };
+            if (!e.enabled) gl.disabled = true;
+            world.globalLore.push(gl);
+            return;
         }
+        const n = { id: uid(t.kind), ui: { x: 300, y } };
+        if (t.kind === 'quest') n.title = t.name || 'Quest'; else n.name = t.name || ('New ' + t.kind);
+        n[LB.TEXT_FIELD[t.kind]] = t.text;
+        world[LB.KINDS[t.kind]].push(n);
+    }
+    async function importLorebook(data, opts = {}) {
+        const book = LB.readBook(data);
+        if (!book.entries.length && !book.world) throw new Error('no WorldInfo / lorebook entries found');
+        if (book.world && !opts.merge) {
+            const w = deepClone(book.world);
+            if (!w.id || W.library[w.id]) w.id = uid('world');
+            const names = new Set(Object.values(W.library).map(x => norm(x.name).toLowerCase()));
+            if (names.has(norm(w.name).toLowerCase())) w.name = `${norm(w.name) || 'World'} (imported)`;
+            normalizeWorld(w);
+            const { edited, extra } = LB.applyEntryEdits(w, book.entries);
+            let gy = 120; for (const e of extra) { addBookEntry(w, e, gy); gy += 60; }
+            W.library[w.id] = w;
+            await saveLibrary();
+            W.activeWorldId = w.id; ensureRuntime(); syncLive();
+            dbg('lorebook: restored world', w.id, 'edited', edited, 'added', extra.length);
+            return book.entries.length;
+        }
+        let world = opts.merge ? activeWorld() : null;
+        if (!world) { await createWorld(opts.worldName || book.name || 'Imported World'); world = activeWorld(); }
+        normalizeWorld(world);
+        let gy = 120;
+        for (const e of book.entries) { addBookEntry(world, e, gy); gy += 60; }
         await saveLibrary(); syncLive();
-        dbg('imported', entries.length, 'lore entries');
-        return entries.length;
+        dbg('imported', book.entries.length, 'lorebook entries');
+        return book.entries.length;
+    }
+    // Export as a lorebook: 'tavern' (SillyTavern World Info / Esolite) or 'v3' (Lorebook V3).
+    function exportWorldAsLorebook(worldId, format) {
+        const w = exportWorld(worldId); if (!w) return null;
+        return format === 'v3' ? LB.toV3(w) : LB.toTavern(w);
     }
 
     // Export the world as portable JSON (deep clone). Embeds a snapshot of each
@@ -3527,7 +3531,7 @@ export default function initWorlds() {
         hasExample() { return !!W.library['world_example']; },
 
         // ----- import / export -----
-        importLorebook, exportWorld, exportWorldAsWI,
+        importLorebook, exportWorld, exportWorldAsWI, exportWorldAsLorebook, readLorebook: (data) => LB.readBook(data),
 
         // ----- world library -----
         async importWorld(world, { activate = true } = {}) {
