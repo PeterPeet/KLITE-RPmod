@@ -52,9 +52,10 @@ if (inline) {
         `if(document.readyState==='complete')setTimeout(boot,0);else window.addEventListener('load',boot);})();</script>\n`;
 } else {
     // External include: copy the bundle next to index.html and load it after 'load'.
-    // A ?v=<build time> query busts the browser cache on every rebuild.
+    // A ?v=<hash of the bundle> query busts the browser cache whenever the bundle changes
+    // (and only then, so an unchanged rebuild gives an identical index — see deploy-pages.js).
     fs.copyFileSync(BUNDLE, path.join(ESO_DIR, 'KLITE-RPmod.js'));
-    const ver = Date.now();
+    const ver = require('crypto').createHash('sha256').update(fs.readFileSync(BUNDLE)).digest('hex').slice(0, 12);
     injection =
         `<!-- KLITE RPmod (auto-loaded after Esolite init) -->\n` +
         `<script>(function(){function boot(){var s=document.createElement('script');s.src='KLITE-RPmod.js?v=${ver}';document.head.appendChild(s);}` +

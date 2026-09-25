@@ -103,6 +103,14 @@ Gotchas:
   `embd_res/`, it contains unmerged changes of the checked-out branch (our Esobold PRs).
 - Then `npm run build:index` and `npm run serve` (or the preview config `esolite-rpmod`,
   which runs python directly: the preview runner may not start node inside iCloud).
+- **Online (rp-lite.koboldai.net):** `npm run deploy:pages` (`scripts/deploy-pages.js`) builds
+  the site from a *released* Esobold ref (`ESOBOLD_REF`, default `origin/remoteManagement`) in a
+  temporary worktree of the clone, runs `npm test` against it, and commits it to branch
+  `redirect` of the pages clone `../rp-lite.koboldai.net` (`PAGES_DIR`; GitHub Pages serves its
+  root): `index.html` = Esolite + RPmod, `esolite.html` = plain Esolite, `static/`,
+  `KLITE-RPmod.js`, `esobold-version.txt`, `.nojekyll`; `CNAME` and `.github/` stay. `-- --push`
+  publishes (https GitHub remotes are pushed via SSH). The bundle's `?v=` is a hash of its
+  content, so an unchanged rebuild commits nothing.
 - After switching the host build on the same port, the browser may keep old Esolite scripts
   cached (they have no `?v=`): hard-reload (Cmd+Shift+R) if something looks old.
 - Updating: `git pull` in the clone, `npm run build:host`, diff the globals in the table

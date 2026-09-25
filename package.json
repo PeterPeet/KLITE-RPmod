@@ -9,6 +9,7 @@
     "build:host": "node scripts/build-host.js",
     "build:index": "node scripts/build-integrated-index.js",
     "serve": "node scripts/serve-host.js",
+    "deploy:pages": "node scripts/deploy-pages.js",
     "test": "npm run build && node scripts/run-tests.js",
     "icons": "node scripts/build-icons.js"
   },

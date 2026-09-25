@@ -20,6 +20,7 @@ npm run build        # src/* -> KLITE-RPmod.js (the file users load)
 npm run build:host   # Esobold clone (../esobold) -> Esolite site in ~/.cache/klite-rpmod/esolite
 npm run build:index  # -> index.rpmod.html in that site, autoloads the mod
 npm run serve        # serve it: http://localhost:8747/index.rpmod.html (preview: "esolite-rpmod")
+npm run deploy:pages # build released Esobold + mod, test, commit to ../rp-lite.koboldai.net (redirect branch = rp-lite.koboldai.net); add -- --push to publish
 npm test             # rebuilds, then runs all tests (node:test + jsdom); needs the Esobold clone
 npm run icons        # after changing the icon list: regenerates src/shell/icons.js (Lucide)
 ```

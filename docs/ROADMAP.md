@@ -54,7 +54,8 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 - **UI (in the app shell):** World tab, Party + Quests sections, Quest log / Combat /
   World editor (node graph) windows; Creator/Player lens.
 - **Delivery:** usermod bundle, or `index.rpmod.html` that autoloads the mod after
-  Esolite's `load` event.
+  Esolite's `load` event; online at https://rp-lite.koboldai.net (released Esobold + RPmod,
+  published with `npm run deploy:pages -- --push`; first deploy 2026-09-25).
 - **Credits:** the exact SRD 5.2.1 attribution, the Ultimate Dungeon Terrain credit (zone combat idea)
   and Lucide appear in the Guide's **Credits** chapter, the header of `KLITE-RPmod.js` (taken verbatim
   from `src/data/srd52.js` at build time) and USER_GUIDE "Credits"; the SRD text also under every
