@@ -110,3 +110,38 @@ test('bundle: Tools persona/character and group-chat speaker reach the prompt vi
     } finally { R.panels.ROLES.enabled = false; }
     assert.equal(w.current_wi.filter(e => e && e.wigroup === '__rpmod__').length, 0, 'cleaned up');
 });
+
+// Known issue 4: after Start RP (or Esolite's own character import) a card's text is in World
+// Info as "<name>_imported_memory" entries, which Esolite uses for the persona (wigroup =
+// chatname) and the current speaker. The context then sends only the sheet, not the card again.
+test('bundle: no second copy of a card that World Info already carries (imported_memory)', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.load('bundle');
+    await h.ready();
+    const w = h.window; const R = w.KLITE_RPMod;
+    const sheets = { Lia: 'Bard 2 — HP 9/9', Mira: 'Ranger 3 — HP 20/24' };
+    w.KLITE_RPMod_Characters.summaryFor = (n) => sheets[n] || '';
+    w.localsettings.chatname = 'Mira';
+    Object.assign(R.panels.TOOLS, { personaEnabled: true, selectedPersona: { name: 'Mira', description: 'A ranger from the north.' } });
+    Object.assign(R.panels.ROLES, { enabled: true, activeChars: [{ name: 'Bram', description: 'Innkeeper.' }, { name: 'Lia', description: 'Bard.' }], currentSpeaker: 1 });
+    const mem = (group, content, extra) => Object.assign({ key: group, keysecondary: '', content, comment: `${group}_imported_memory`, wigroup: group, folder: group, widisabled: false }, extra);
+    try {
+        w.current_wi = [mem('Lia', 'Bard.'), mem('Mira', 'A ranger from the north.')];
+        await w.prepare_submit_generation();
+        assert.match(h.prompt, /\[Character: Lia\]\nCharacter sheet: Bard 2/, 'the sheet still comes from the context');
+        assert.match(h.prompt, /\[User Character: Mira\]\nCharacter sheet: Ranger 3/);
+        assert.doesNotMatch(h.prompt, /Description: Bard\.|Description: A ranger/, 'no second copy of the card text');
+
+        // a disabled entry does not count; without WI the card is sent as before
+        w.current_wi = [mem('Lia', 'Bard.', { widisabled: true })];
+        await w.prepare_submit_generation();
+        assert.match(h.prompt, /\[Character: Lia\]\nDescription: Bard\./);
+        assert.match(h.prompt, /\[User Character: Mira\]\nDescription: A ranger from the north\./);
+
+        // a character without a sheet and with WI adds nothing of its own
+        sheets.Lia = '';
+        w.current_wi = [mem('Lia', 'Bard.')];
+        await w.prepare_submit_generation();
+        assert.doesNotMatch(h.prompt, /\[Character: Lia\]/);
+    } finally { R.panels.ROLES.enabled = false; }
+});

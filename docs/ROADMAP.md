@@ -6,13 +6,14 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-25 (R1 cleanup step 3: RP panels on the shell's classes)
+> Last updated: 2026-09-25 (R2 carry-overs: known issues 4 and 15)
 
 ## Current state
 
-**Now: R1 cleanup of the old panel code** ("ALPHA" — see R1 below; steps 1–3 done, next step 4:
-top-bar icons, known issue 6), then the open R2 items (known issues 4, 15), spells in the Combat window (R5) and the
-real-backend play test (known issue 5). R7 is done (✅ 2026-09-25, acceptance passed).
+**Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
+is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). Next:
+spells in the Combat window (R5), then R3 (compendium) or the R4 extras. The real-backend play
+test (known issue 5) is postponed (owner, 2026-09-25). R7 is done (✅ 2026-09-25, acceptance passed).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
 issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
 combat: zones of the room, moving/fleeing, cover, hiding, Guide tab) are done.
@@ -30,7 +31,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 268 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 271 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -84,12 +85,12 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
    never an ally; victory = every enemy down).
 2. **Chat tags remain visible** in the chat text (parsed, not stripped) (R6).
 3. ~~Worlds panel overlaps ALPHA's right panel~~ — fixed by the shell (2026-09-23).
-4. ~~Two systems inject character data~~ — one owner since 2026-09-23 (`src/context/`).
-   Left for R2: the Scenario panel's **Start RP** still writes per-character WI entries
-   (`<name>_imported_memory`, keyword-triggered) and "load as scenario" writes Memory. These
-   are deliberate, user-editable story data, so the context module does not touch them.
-   With group chat on, a speaker can therefore appear twice (card from the context +
-   keyword-triggered WI). The R2 character model decides which one stays.
+4. ~~Two systems inject character data~~ — one owner since 2026-09-23 (`src/context/`); the
+   remaining double card (Start RP's `<name>_imported_memory` WI + the context's copy) fixed
+   2026-09-25, owner's decision: **Esolite's WI carries the card text** (Esolite already picks
+   the persona's and the current speaker's entries each turn); the context then adds only the
+   d20 sheet. Without such entries the context sends the card as before. Live-checked: the
+   captured prompt holds the card once. "Load as scenario" still writes Memory (story data).
 5. **Never play-tested with a real AI backend** (only headless + page load).
 6. `index.rpmod.html` boots the bundle at `window.load` (later than the usermod path); verify
    top-bar icon layout matches the usermod install.
@@ -128,14 +129,17 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
     supported host version has the hooks.
 15. ~~Two character libraries~~ — decided: Esolite's Library is the master; the RP core's
     `KLITE_RPMod.characters` is a gallery view rebuilt from it (plus RPmod-only rating/
-    talkativeness/tag cache in `characters_v3`). Remaining (R2): gallery ids are list
-    positions — key RPmod extras and links by the Library `id`; the RP core still polls every
-    5 s (`rebuildFromEsolite`) instead of only reacting to Esolite's events. (the old own gallery
-    grid, the fallback without the gallery, was removed in the R1 cleanup.)
+    talkativeness/tag cache in `characters_v3`). Finished 2026-09-25: entries are keyed by the
+    **Library id** (extras survive add/delete/rename; old position ids matched by name once;
+    saved group participants, persona and AI character relinked), and the 5 s poll is replaced
+    by wrapping Esolite's `updateCharacterListFromAll` + `upsertCharacterMetadata` (Esolite has
+    no Library events; the poll stays only as a fallback without them). Live-checked: a new
+    character shows up in ~50 ms; rename keeps id and rating; delete is picked up.
 16. **Esolite 1.35 Library internals used by RPmod** (`resolveCharacterNameAndId`,
     `upsertCharacterMetadata`, `updateCharacterListFromAll`, `findCharacterMetaByName`,
-    `getNextAutoincrementName`, `STORAGE_PREFIX`, `allCharacterNames`): recheck on every host
-    upgrade; a small official save/delete API would be a good next proposal to Jaxxks.
+    `getNextAutoincrementName`, `STORAGE_PREFIX`, `allCharacterNames`; the two list functions are also
+    wrapped for syncing, issue 15): recheck on every host upgrade; a small official save/delete API
+    with a "Library changed" event would be a good next proposal to Jaxxks.
 17. ~~Combat HP and sheet HP are separate~~ — the fight starts at the persona sheet's current HP
     and writes HP/XP back (R5, owner's decision). Companions (world persons) still start at full HP.
 18. ~~Flaky test seen once (2026-09-23)~~: "Combat window: build an encounter…" failed in one full
@@ -433,7 +437,8 @@ play test with a real backend, owner's decision 2026-09-23).
   export and re-import as a card without data loss") met, incl. the SillyTavern round trip.
   Carried over (not blocking): casting a spell at a higher level (Cast uses the lowest free slot),
   ritual casting and copying spells into a wizard's spellbook are narrated; spells in the Combat
-  window come with R5; ALPHA's card code still in the monolith (known issues 8, 10, 15).
+  window come with R5. Done since: the old card code split out of the monolith (known issues 8,
+  10) and the character list on Library ids / one copy of a card (known issues 15, 4; 2026-09-25).
 - One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,
   background, abilities, proficiencies, skills, saves, AC, HP, speed, equipment,
   inventory, spells, features). Migration from existing `characterRef` + `stats`.

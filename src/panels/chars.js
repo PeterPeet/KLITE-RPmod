@@ -1490,7 +1490,7 @@ export function installCharsPanel(S) {
             )}
           
                ${t.section('Tags',
-                `<div id="tags-container-${char.id}" class="rpm-wrap rpm-mb">
+                `<div id="tags-container-${KLITE_RPMod.escapeHtml(char.id)}" class="rpm-wrap rpm-mb">
                         ${(effectiveTags || []).map(tag => {
                             const t = KLITE_RPMod.panels.CHARS.escapeHTML(String(tag || ''));
                             return `
@@ -1498,13 +1498,13 @@ export function installCharsPanel(S) {
                         }).join(' ')}
                     </div>
                     <div class="rpm-row">
-                        <button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.addTag(${char.id})">Add Tag</button>
-                        <button class="btn btn-primary rpm-btn rpm-danger disabled" id="remove-tag-btn-${char.id}" onclick="KLITE_RPMod.panels.CHARS.removeSelectedTags(${char.id})" disabled>✕ Remove Selected</button>
+                        <button class="btn btn-primary rpm-btn" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" onclick="KLITE_RPMod.panels.CHARS.addTag(this.dataset.charId)">Add Tag</button>
+                        <button class="btn btn-primary rpm-btn rpm-danger disabled" id="remove-tag-btn-${KLITE_RPMod.escapeHtml(char.id)}" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" onclick="KLITE_RPMod.panels.CHARS.removeSelectedTags(this.dataset.charId)" disabled>✕ Remove Selected</button>
                     </div>`
             )}
                 
                 ${t.section('Rating',
-                `<select class="form-control rpm-input" onchange="KLITE_RPMod.panels.CHARS.updateCharacterRating(${char.id}, this.value)">
+                `<select class="form-control rpm-input" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" onchange="KLITE_RPMod.panels.CHARS.updateCharacterRating(this.dataset.charId, this.value)">
                         <option value="0" ${char.rating === 0 ? 'selected' : ''}>☆ Unrated</option>
                         <option value="1" ${char.rating === 1 ? 'selected' : ''}>★☆☆☆☆</option>
                         <option value="2" ${char.rating === 2 ? 'selected' : ''}>★★☆☆☆</option>
@@ -1516,11 +1516,11 @@ export function installCharsPanel(S) {
                 
                 ${t.section('Actions',
                 `<div class="rpm-stack">
-                        <button class="btn btn-primary rpm-btn" data-action="export-char-json" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${char.id}">Export as JSON</button>
-                        <button class="btn btn-primary rpm-btn" data-action="export-char-png" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${char.id}">Export as V2 PNG</button>
-                        <button class="btn btn-primary rpm-btn" data-action="edit-character" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">✏️ Edit</button>
-                        <button class="btn btn-primary rpm-btn" data-action="clone-character" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">📄 Clone</button>
-                        <button class="btn btn-primary rpm-btn rpm-danger" data-action="delete-char-modal" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">Delete Character</button>
+                        <button class="btn btn-primary rpm-btn" data-action="export-char-json" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}">Export as JSON</button>
+                        <button class="btn btn-primary rpm-btn" data-action="export-char-png" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}">Export as V2 PNG</button>
+                        <button class="btn btn-primary rpm-btn" data-action="edit-character" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">✏️ Edit</button>
+                        <button class="btn btn-primary rpm-btn" data-action="clone-character" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">📄 Clone</button>
+                        <button class="btn btn-primary rpm-btn rpm-danger" data-action="delete-char-modal" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">Delete Character</button>
                     </div>`
             )}
                 
@@ -1539,7 +1539,7 @@ export function installCharsPanel(S) {
                         <div class="klite-entry ${greeting.index === (char.activeGreeting ?? -1) ? 'klite-entry-active' : ''}">
                             <div class="klite-entry-head">
                                 <strong>${greeting.label} ${greeting.index === (char.activeGreeting ?? -1) ? '(Active)' : ''}</strong>
-                                ${greeting.index !== (char.activeGreeting ?? -1) ? `<button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.setActiveGreeting(${char.id}, ${greeting.index})">Set</button>` : ''}
+                                ${greeting.index !== (char.activeGreeting ?? -1) ? `<button class="btn btn-primary rpm-btn" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" onclick="KLITE_RPMod.panels.CHARS.setActiveGreeting(this.dataset.charId, ${Number(greeting.index)})">Set</button>` : ''}
                             </div>
                             <div class="klite-pre">${KLITE_RPMod.escapeHtml(greeting.content || '')}</div>
                         </div>
@@ -1848,29 +1848,35 @@ export function installCharsPanel(S) {
             // Rebuild characters from esolite immediately, then hook updates
             this.rebuildFromEsolite?.();
 
-            // Hook into Esolite's list updater if available
-            try {
-                const origUpd = window.updateCharacterListFromAll;
-                if (typeof origUpd === 'function' && !origUpd.__klite_rpmod_wrapped) {
-                    window.updateCharacterListFromAll = async function() {
-                        try { await origUpd.apply(this, arguments); } catch(_) {}
-                        try { KLITE_RPMod?.panels?.CHARS?.rebuildFromEsolite?.(); } catch(_) {}
+            // Known issue 15: Esolite fires no Library events, so wrap the functions that change its
+            // list — updateCharacterListFromAll (rebuild/merge) and upsertCharacterMetadata (every
+            // add/update, also the debounced ones that call the original list updater) — and
+            // rebuild shortly after (cheap no-op when nothing changed). Deletes go through
+            // updateCharacterListFromAll. Only a host without these hooks gets the old 5 s poll.
+            const schedule = () => {
+                if (this._esoliteSyncPending) return;
+                this._esoliteSyncPending = setTimeout(() => {
+                    this._esoliteSyncPending = null;
+                    try { this.rebuildFromEsolite?.(); } catch(_) {}
+                }, 150);
+            };
+            let hooked = 0;
+            for (const fnName of ['updateCharacterListFromAll', 'upsertCharacterMetadata']) {
+                try {
+                    const orig = window[fnName];
+                    if (typeof orig !== 'function') continue;
+                    if (orig.__klite_rpmod_wrapped) { hooked++; continue; }
+                    const wrapped = function() {
+                        const res = orig.apply(this, arguments);
+                        if (res && typeof res.then === 'function') res.then(schedule, schedule); else schedule();
+                        return res;
                     };
-                    window.updateCharacterListFromAll.__klite_rpmod_wrapped = true;
-                }
-            } catch(_) {}
-
-            // Also listen for explicit esolite events so we sync on initial load and debounced saves
-            try {
-                const onSync = () => { try { KLITE_RPMod?.panels?.CHARS?.rebuildFromEsolite?.(); } catch(_) {} };
-                document.removeEventListener('esolite:characterListUpdated', onSync);
-                document.removeEventListener('esolite:characterListLoaded', onSync);
-                document.addEventListener('esolite:characterListUpdated', onSync);
-                document.addEventListener('esolite:characterListLoaded', onSync);
-            } catch(_) {}
-
-            // Periodic safety sync (in case external code bypasses wrapper)
-            if (!this._esoliteSyncTimer) {
+                    wrapped.__klite_rpmod_wrapped = true;
+                    window[fnName] = wrapped;
+                    hooked++;
+                } catch(_) {}
+            }
+            if (hooked < 2 && !this._esoliteSyncTimer) {
                 this._esoliteSyncTimer = setInterval(() => {
                     try { this.rebuildFromEsolite?.(); } catch(_) {}
                 }, 5000);
@@ -1942,6 +1948,33 @@ export function installCharsPanel(S) {
         },
 
 
+        // Selections saved in the story (group participants, persona, AI character) carry the id
+        // the character had then; point them at the Library id of the character with that name
+        // (also moves the group avatar). Custom group characters keep their own ids.
+        relinkSelections(list) {
+            const byId = new Set(list.map(c => String(c.id)));
+            const byName = new Map(list.map(c => [String(c.name), c]));
+            const relink = (sel) => {
+                if (!sel || sel.isCustom || sel.type === 'worldinfo' || !sel.name) return false;
+                if (sel.idSource === 'library' && byId.has(String(sel.id))) return false;
+                const hit = byName.get(String(sel.name));
+                if (!hit || (String(sel.id) === hit.id && sel.idSource === 'library')) return false;
+                const old = sel.id;
+                sel.id = hit.id; sel.idSource = 'library';
+                try {
+                    const av = KLITE_RPMod.groupAvatars;
+                    if (av && typeof av.has === 'function' && av.has(old) && !av.has(hit.id)) { av.set(hit.id, av.get(old)); av.delete(old); }
+                } catch(_) {}
+                return true;
+            };
+            const roles = KLITE_RPMod.panels.ROLES, tools = KLITE_RPMod.panels.TOOLS;
+            let changed = false;
+            for (const c of (Array.isArray(roles?.activeChars) ? roles.activeChars : [])) changed = relink(c) || changed;
+            if (tools) { changed = relink(tools.selectedPersona) || changed; changed = relink(tools.selectedCharacter) || changed; }
+            if (changed) { try { roles?.saveSettings?.(); } catch(_) {} }
+            return changed;
+        },
+
         async rebuildFromEsolite() {
             if (this._rebuilding) return;
             this._rebuilding = true;
@@ -1951,7 +1984,7 @@ export function installCharsPanel(S) {
                 const charMetas = list.filter(m => (m?.type || 'Character') === 'Character');
 
                 // Fast no-op: if names unchanged and counts equal, skip heavy re-render
-                const namesKey = charMetas.map(m => (m?.name || '')).join('\u0001');
+                const namesKey = charMetas.map(m => `${m?.id ?? ''}\u0002${m?.name || ''}`).join('\u0001');
                 if (this._lastNamesKey === namesKey && this._esoliteLastCount === charMetas.length && Array.isArray(KLITE_RPMod.characters) && KLITE_RPMod.characters.length === charMetas.length) {
                     return;
                 }
@@ -1960,20 +1993,27 @@ export function installCharsPanel(S) {
                 this._lastNamesKey = namesKey;
 
                 // Build lightweight view model only from metadata; defer heavy loads
-                // Merge persisted fields (rating, tags, talkativeness, keywords) from existing list
+                // Merge persisted fields (rating, tags, talkativeness, keywords) from existing list.
+                // Known issue 15: entries are keyed by the Library id (stable when characters are
+                // added, deleted or renamed); entries saved before that had list positions as ids
+                // and are matched by name once (idSource marks the new ones).
                 const built = [];
-                let existingByName = new Map();
+                const existingById = new Map(), existingByName = new Map();
                 try {
-                    if (Array.isArray(KLITE_RPMod.characters)) {
-                        existingByName = new Map(KLITE_RPMod.characters.map(c => [String(c?.name || ''), c]));
+                    for (const c of (Array.isArray(KLITE_RPMod.characters) ? KLITE_RPMod.characters : [])) {
+                        if (!c) continue;
+                        if (c.idSource === 'library' && c.id != null) existingById.set(String(c.id), c);
+                        else if (c.name) existingByName.set(String(c.name), c);
                     }
                 } catch(_) {}
                 for (let i = 0; i < charMetas.length; i++) {
                     const meta = charMetas[i];
                     if (!meta?.name) continue;
-                    const prev = existingByName.get(String(meta.name)) || {};
+                    const id = String(meta.id ?? meta.name);
+                    const prev = existingById.get(id) || existingByName.get(String(meta.name)) || {};
                     built.push({
-                        id: i + 1,
+                        id,
+                        idSource: 'library',
                         name: meta.name,
                         created: (typeof meta?.created === 'number' ? meta.created : (typeof prev?.created === 'number' ? prev.created : i)),
                         // Lightweight fields; details loaded on demand
@@ -1990,6 +2030,7 @@ export function installCharsPanel(S) {
                     });
                 }
                 KLITE_RPMod.characters = built;
+                try { this.relinkSelections(built); } catch(_) {}
                 this.refreshGallery?.();
                 try { this.refreshTagDropdown?.(); } catch(_) {}
                 // Avoid re-entrant loop: do not refresh ROLES while ROLES is initializing

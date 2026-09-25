@@ -3385,6 +3385,8 @@ export function installCore(S) {
         // =============================================
 
         showUnifiedCharacterModal(mode = 'multi-select', onSelectCallback = null) {
+            // pick up Library changes the hooks may not have seen yet (no-op when unchanged)
+            try { this.panels.CHARS?.rebuildFromEsolite?.(); } catch(_) {}
             // Create unified modal for character selection
             const modal = document.createElement('div');
             modal.className = 'klite-modal rpm-themed';

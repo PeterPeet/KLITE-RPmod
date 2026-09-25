@@ -188,6 +188,11 @@ All per-turn prompt context of RPmod goes through **`KLITE_RPMod_Context`**:
 - **Setup data is not context:** the RP core's Start RP WI entries (`<name>_imported_memory`),
   "load as scenario" Memory and Esolite's Quick Start write ordinary story data on
   purpose; the context module does not manage them.
+- **One copy of a card (known issue 4, 2026-09-25):** Esolite itself uses the enabled
+  `<name>_imported_memory` WI entries of the persona (`wigroup` = `chatname`) and of the current
+  chat opponent each turn (keys match the name, which ends the chat-mode prompt). When such
+  entries exist, the `characters` provider sends no card text for that character, only its
+  d20 sheet summary (nothing when it has no sheet); without them it sends the card as before.
 
 Worlds' part: each turn `computeActiveSlice()` builds the sections.
 Sections (priority, high first): World premise (100, `world.description`), World Rules
@@ -618,7 +623,16 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   Manager). `updateCharacterListFromAll()` **drops entries without an id**.
 - **RPmod view:** the RP core's `KLITE_RPMod.characters` is rebuilt from `allCharacterNames`
   (`rebuildFromEsolite`) and adds rating/talkativeness/tag cache (`characters_v3`).
-  Gallery ids are list positions (not stable) — link by name / Library id.
+  Since 2026-09-25 (known issue 15) its `id` is the **Library id** (`idSource: 'library'`), so
+  extras survive adding, deleting and renaming; entries saved earlier (list positions) are
+  matched by name once, and `relinkSelections` points saved group participants, persona and
+  AI character (and group avatars) at the Library id by name. Ids are untrusted strings: markup
+  carries them escaped in `data-char-id`, handlers read `this.dataset.charId`.
+- **Sync:** Esolite fires no Library events. RPmod wraps `updateCharacterListFromAll` and
+  `upsertCharacterMetadata` (every add/update, including Esolite's debounced list updates,
+  which call the unwrapped updater; deletes are followed by the updater) and rebuilds 150 ms
+  later (no-op when ids/names are unchanged); the selection modal also rebuilds when it opens.
+  The 5 s poll runs only on a host without those functions.
 - **Writes:** `saveCharacter({ inner, image, oldName })` — with `oldName` an edit of that
   entry (id and favorite kept, rename keeps the id; clash → `getNextAutoincrementName`),
   without it a new entry via Esolite's `resolveCharacterNameAndId` (taken name → `Name_1`
@@ -766,8 +780,8 @@ Right-side panels; character gallery/import (TavernCard V2, partial V3) and edit
 personas; group chat (speaker modes, round robin, talkativeness); quick actions; chapters;
 image generation panel. Saves its own state under savefile key **`rpmod`**. Per-turn
 persona/character context is its `characters` provider (§3.3). Setup actions still write
-story data: Start RP → WI entries with comment suffix `_imported_memory`; load as scenario
-→ Memory (R2 decides with the character model). Security helpers: `KLITE_RPMod.escapeHtml`,
+story data: Start RP → WI entries with comment suffix `_imported_memory` (Esolite then
+carries the card text; the provider adds only the sheet, §3.3); load as scenario → Memory. Security helpers: `KLITE_RPMod.escapeHtml`,
 `KLITE_RPMod.safeImageHTML`. Debug: `KLITE_RPDebug.on('worlds,chat,…')`.
 
 ## 6. Tests (`tests/`)

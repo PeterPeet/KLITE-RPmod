@@ -1812,11 +1812,16 @@ ${s.text}` : s.text : `[${s.title}]`;
       if (scen) lines.push("Scenario: " + scen);
       return lines.join("\n");
     }
+    function hasImportedMemory(...names) {
+      const wi = Array.isArray(window.current_wi) ? window.current_wi : [];
+      const want = new Set(names.map((n) => String(n || "").trim()).filter(Boolean));
+      return wi.some((e) => e && !e.widisabled && e.content && want.has(e.wigroup) && typeof e.comment === "string" && e.comment === `${e.wigroup}_imported_memory`);
+    }
     function collectCharacterContext(ctx) {
       const P = window.KLITE_RPMod && window.KLITE_RPMod.panels || {};
       const tools = P.TOOLS, roles = P.ROLES;
       const out = [];
-      const add = (c, label2, priority) => {
+      const add = (c, label2, priority, wiNames) => {
         const name = cardField(c, "name");
         if (!name || ctx.isDescribed(name)) return;
         let sheet = "";
@@ -1824,10 +1829,13 @@ ${s.text}` : s.text : `[${s.title}]`;
           sheet = window.KLITE_RPMod_Characters?.summaryFor(name) || "";
         } catch (_) {
         }
-        out.push({ title: `${label2}: ${name}`, priority, text: [characterContextText(c), sheet && "Character sheet: " + sheet].filter(Boolean).join("\n") });
+        const card = hasImportedMemory(name, ...wiNames) ? "" : characterContextText(c);
+        const text = [card, sheet && "Character sheet: " + sheet].filter(Boolean).join("\n");
+        if (text) out.push({ title: `${label2}: ${name}`, priority, text });
         ctx.describe(name);
       };
-      if (tools?.personaEnabled && tools.selectedPersona) add(tools.selectedPersona, "User Character", 88);
+      const chatname = window.localsettings?.chatname;
+      if (tools?.personaEnabled && tools.selectedPersona) add(tools.selectedPersona, "User Character", 88, [chatname]);
       let aiChar = null;
       if (roles?.enabled) {
         try {
@@ -1835,7 +1843,7 @@ ${s.text}` : s.text : `[${s.title}]`;
         } catch (_) {
         }
       } else if (tools?.characterEnabled && tools.selectedCharacter) aiChar = tools.selectedCharacter;
-      if (aiChar) add(aiChar, "Character", 87);
+      if (aiChar) add(aiChar, "Character", 87, []);
       return out;
     }
     try {
@@ -5345,6 +5353,10 @@ ${s.text}` : s.text : `[${s.title}]`;
       // UNIFIED CHARACTER SELECTION MODAL
       // =============================================
       showUnifiedCharacterModal(mode2 = "multi-select", onSelectCallback = null) {
+        try {
+          this.panels.CHARS?.rebuildFromEsolite?.();
+        } catch (_) {
+        }
         const modal = document.createElement("div");
         modal.className = "klite-modal rpm-themed";
         const isMultiSelect = mode2 === "multi-select";
@@ -11453,7 +11465,7 @@ ${char.mes_example}
           
                ${t.section(
           "Tags",
-          `<div id="tags-container-${char.id}" class="rpm-wrap rpm-mb">
+          `<div id="tags-container-${KLITE_RPMod.escapeHtml(char.id)}" class="rpm-wrap rpm-mb">
                         ${(effectiveTags || []).map((tag) => {
             const t2 = KLITE_RPMod.panels.CHARS.escapeHTML(String(tag || ""));
             return `
@@ -11461,14 +11473,14 @@ ${char.mes_example}
           }).join(" ")}
                     </div>
                     <div class="rpm-row">
-                        <button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.addTag(${char.id})">Add Tag</button>
-                        <button class="btn btn-primary rpm-btn rpm-danger disabled" id="remove-tag-btn-${char.id}" onclick="KLITE_RPMod.panels.CHARS.removeSelectedTags(${char.id})" disabled>✕ Remove Selected</button>
+                        <button class="btn btn-primary rpm-btn" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" onclick="KLITE_RPMod.panels.CHARS.addTag(this.dataset.charId)">Add Tag</button>
+                        <button class="btn btn-primary rpm-btn rpm-danger disabled" id="remove-tag-btn-${KLITE_RPMod.escapeHtml(char.id)}" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" onclick="KLITE_RPMod.panels.CHARS.removeSelectedTags(this.dataset.charId)" disabled>✕ Remove Selected</button>
                     </div>`
         )}
                 
                 ${t.section(
           "Rating",
-          `<select class="form-control rpm-input" onchange="KLITE_RPMod.panels.CHARS.updateCharacterRating(${char.id}, this.value)">
+          `<select class="form-control rpm-input" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" onchange="KLITE_RPMod.panels.CHARS.updateCharacterRating(this.dataset.charId, this.value)">
                         <option value="0" ${char.rating === 0 ? "selected" : ""}>☆ Unrated</option>
                         <option value="1" ${char.rating === 1 ? "selected" : ""}>★☆☆☆☆</option>
                         <option value="2" ${char.rating === 2 ? "selected" : ""}>★★☆☆☆</option>
@@ -11481,11 +11493,11 @@ ${char.mes_example}
                 ${t.section(
           "Actions",
           `<div class="rpm-stack">
-                        <button class="btn btn-primary rpm-btn" data-action="export-char-json" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${char.id}">Export as JSON</button>
-                        <button class="btn btn-primary rpm-btn" data-action="export-char-png" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${char.id}">Export as V2 PNG</button>
-                        <button class="btn btn-primary rpm-btn" data-action="edit-character" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">✏️ Edit</button>
-                        <button class="btn btn-primary rpm-btn" data-action="clone-character" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">📄 Clone</button>
-                        <button class="btn btn-primary rpm-btn rpm-danger" data-action="delete-char-modal" data-char-id="${char.id}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">Delete Character</button>
+                        <button class="btn btn-primary rpm-btn" data-action="export-char-json" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}">Export as JSON</button>
+                        <button class="btn btn-primary rpm-btn" data-action="export-char-png" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}">Export as V2 PNG</button>
+                        <button class="btn btn-primary rpm-btn" data-action="edit-character" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">✏️ Edit</button>
+                        <button class="btn btn-primary rpm-btn" data-action="clone-character" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">📄 Clone</button>
+                        <button class="btn btn-primary rpm-btn rpm-danger" data-action="delete-char-modal" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" data-char-name="${KLITE_RPMod.panels.CHARS.escapeHTML(char.name)}">Delete Character</button>
                     </div>`
         )}
                 
@@ -11505,7 +11517,7 @@ ${char.mes_example}
                         <div class="klite-entry ${greeting.index === (char.activeGreeting ?? -1) ? "klite-entry-active" : ""}">
                             <div class="klite-entry-head">
                                 <strong>${greeting.label} ${greeting.index === (char.activeGreeting ?? -1) ? "(Active)" : ""}</strong>
-                                ${greeting.index !== (char.activeGreeting ?? -1) ? `<button class="btn btn-primary rpm-btn" onclick="KLITE_RPMod.panels.CHARS.setActiveGreeting(${char.id}, ${greeting.index})">Set</button>` : ""}
+                                ${greeting.index !== (char.activeGreeting ?? -1) ? `<button class="btn btn-primary rpm-btn" data-char-id="${KLITE_RPMod.escapeHtml(char.id)}" onclick="KLITE_RPMod.panels.CHARS.setActiveGreeting(this.dataset.charId, ${Number(greeting.index)})">Set</button>` : ""}
                             </div>
                             <div class="klite-pre">${KLITE_RPMod.escapeHtml(greeting.content || "")}</div>
                         </div>
@@ -11752,37 +11764,38 @@ ${char.mes_example}
       // ==============================
       installEsoliteAdapter() {
         this.rebuildFromEsolite?.();
-        try {
-          const origUpd = window.updateCharacterListFromAll;
-          if (typeof origUpd === "function" && !origUpd.__klite_rpmod_wrapped) {
-            window.updateCharacterListFromAll = async function() {
-              try {
-                await origUpd.apply(this, arguments);
-              } catch (_) {
-              }
-              try {
-                KLITE_RPMod?.panels?.CHARS?.rebuildFromEsolite?.();
-              } catch (_) {
-              }
-            };
-            window.updateCharacterListFromAll.__klite_rpmod_wrapped = true;
-          }
-        } catch (_) {
-        }
-        try {
-          const onSync = () => {
+        const schedule = () => {
+          if (this._esoliteSyncPending) return;
+          this._esoliteSyncPending = setTimeout(() => {
+            this._esoliteSyncPending = null;
             try {
-              KLITE_RPMod?.panels?.CHARS?.rebuildFromEsolite?.();
+              this.rebuildFromEsolite?.();
             } catch (_) {
             }
-          };
-          document.removeEventListener("esolite:characterListUpdated", onSync);
-          document.removeEventListener("esolite:characterListLoaded", onSync);
-          document.addEventListener("esolite:characterListUpdated", onSync);
-          document.addEventListener("esolite:characterListLoaded", onSync);
-        } catch (_) {
+          }, 150);
+        };
+        let hooked = 0;
+        for (const fnName of ["updateCharacterListFromAll", "upsertCharacterMetadata"]) {
+          try {
+            const orig = window[fnName];
+            if (typeof orig !== "function") continue;
+            if (orig.__klite_rpmod_wrapped) {
+              hooked++;
+              continue;
+            }
+            const wrapped = function() {
+              const res = orig.apply(this, arguments);
+              if (res && typeof res.then === "function") res.then(schedule, schedule);
+              else schedule();
+              return res;
+            };
+            wrapped.__klite_rpmod_wrapped = true;
+            window[fnName] = wrapped;
+            hooked++;
+          } catch (_) {
+          }
         }
-        if (!this._esoliteSyncTimer) {
+        if (hooked < 2 && !this._esoliteSyncTimer) {
           this._esoliteSyncTimer = setInterval(() => {
             try {
               this.rebuildFromEsolite?.();
@@ -11859,32 +11872,75 @@ ${char.mes_example}
         }
         return [];
       },
+      // Selections saved in the story (group participants, persona, AI character) carry the id
+      // the character had then; point them at the Library id of the character with that name
+      // (also moves the group avatar). Custom group characters keep their own ids.
+      relinkSelections(list2) {
+        const byId = new Set(list2.map((c) => String(c.id)));
+        const byName = new Map(list2.map((c) => [String(c.name), c]));
+        const relink = (sel2) => {
+          if (!sel2 || sel2.isCustom || sel2.type === "worldinfo" || !sel2.name) return false;
+          if (sel2.idSource === "library" && byId.has(String(sel2.id))) return false;
+          const hit = byName.get(String(sel2.name));
+          if (!hit || String(sel2.id) === hit.id && sel2.idSource === "library") return false;
+          const old = sel2.id;
+          sel2.id = hit.id;
+          sel2.idSource = "library";
+          try {
+            const av = KLITE_RPMod.groupAvatars;
+            if (av && typeof av.has === "function" && av.has(old) && !av.has(hit.id)) {
+              av.set(hit.id, av.get(old));
+              av.delete(old);
+            }
+          } catch (_) {
+          }
+          return true;
+        };
+        const roles = KLITE_RPMod.panels.ROLES, tools = KLITE_RPMod.panels.TOOLS;
+        let changed = false;
+        for (const c of Array.isArray(roles?.activeChars) ? roles.activeChars : []) changed = relink(c) || changed;
+        if (tools) {
+          changed = relink(tools.selectedPersona) || changed;
+          changed = relink(tools.selectedCharacter) || changed;
+        }
+        if (changed) {
+          try {
+            roles?.saveSettings?.();
+          } catch (_) {
+          }
+        }
+        return changed;
+      },
       async rebuildFromEsolite() {
         if (this._rebuilding) return;
         this._rebuilding = true;
         try {
           const list2 = await this.fetchEsoliteCharacterList();
           const charMetas = list2.filter((m) => (m?.type || "Character") === "Character");
-          const namesKey = charMetas.map((m) => m?.name || "").join("");
+          const namesKey = charMetas.map((m) => `${m?.id ?? ""}${m?.name || ""}`).join("");
           if (this._lastNamesKey === namesKey && this._esoliteLastCount === charMetas.length && Array.isArray(KLITE_RPMod.characters) && KLITE_RPMod.characters.length === charMetas.length) {
             return;
           }
           this._esoliteLastCount = charMetas.length;
           this._lastNamesKey = namesKey;
           const built = [];
-          let existingByName = /* @__PURE__ */ new Map();
+          const existingById = /* @__PURE__ */ new Map(), existingByName = /* @__PURE__ */ new Map();
           try {
-            if (Array.isArray(KLITE_RPMod.characters)) {
-              existingByName = new Map(KLITE_RPMod.characters.map((c) => [String(c?.name || ""), c]));
+            for (const c of Array.isArray(KLITE_RPMod.characters) ? KLITE_RPMod.characters : []) {
+              if (!c) continue;
+              if (c.idSource === "library" && c.id != null) existingById.set(String(c.id), c);
+              else if (c.name) existingByName.set(String(c.name), c);
             }
           } catch (_) {
           }
           for (let i = 0; i < charMetas.length; i++) {
             const meta = charMetas[i];
             if (!meta?.name) continue;
-            const prev = existingByName.get(String(meta.name)) || {};
+            const id = String(meta.id ?? meta.name);
+            const prev = existingById.get(id) || existingByName.get(String(meta.name)) || {};
             built.push({
-              id: i + 1,
+              id,
+              idSource: "library",
               name: meta.name,
               created: typeof meta?.created === "number" ? meta.created : typeof prev?.created === "number" ? prev.created : i,
               // Lightweight fields; details loaded on demand
@@ -11901,6 +11957,10 @@ ${char.mes_example}
             });
           }
           KLITE_RPMod.characters = built;
+          try {
+            this.relinkSelections(built);
+          } catch (_) {
+          }
           this.refreshGallery?.();
           try {
             this.refreshTagDropdown?.();
