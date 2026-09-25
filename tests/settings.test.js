@@ -157,13 +157,13 @@ test('worlds: closing the editor with unsaved changes asks; leaving the page war
     assert.equal(ev2.defaultPrevented, false);
 });
 
-test('bundle: ALPHA\'s options sit in the RPmod tab; the old overlay option is gone', async (t) => {
+test('bundle: the RP core\'s options sit in the RPmod tab; the old overlay option is gone', async (t) => {
     const h = createHost(); t.after(h.close);
     h.installFakeSettingsDialog();
     h.load('bundle');
     await h.ready();
     const w = h.window;
-    // ALPHA's full start-up needs the real Esolite page; call its settings hook directly
+    // the RP core's full start-up needs the real Esolite page; call its settings hook directly
     // (live-checked in Esolite that start-up installs it).
     w.KLITE_RPMod.installSettingsEnhancer();
     w.display_settings();
@@ -171,7 +171,7 @@ test('bundle: ALPHA\'s options sit in the RPmod tab; the old overlay option is g
     const pane = $(w, '#settingsmenurpmod');
     assert.ok(pane, 'RPmod tab');
     assert.ok(pane.querySelector('#rpmodset_worlds_autosave'), 'Worlds autosave option');
-    assert.ok(pane.querySelector('#rpmod-settings-alpha #rpmod-debug-settings'), 'ALPHA debug options moved here');
+    assert.ok(pane.querySelector('#rpmod-settings-rp-panels #rpmod-debug-settings'), 'the RP core\'s debug options moved here');
     assert.equal($(w, '#settingsmenuadvanced #rpmod-settings-wrapper'), null, 'not in Misc any more');
     assert.equal($(w, '#rpmod-overlay-sidepanel'), null, 'obsolete overlay option removed');
     w.display_settings(); await sleep(150);

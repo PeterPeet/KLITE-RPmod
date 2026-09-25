@@ -39,7 +39,7 @@ if (at < 0) { console.error(`! injection marker not found ("${MARKER}") — Esol
 // Esolite executes a usermod late in its boot (inside a post-load
 // `Promise.all([indexeddb_load…]).then()`), by which point DOMContentLoaded has
 // fired and the top bar is fully built. The mod's sub-modules bootstrap on early
-// signals (GuidedRP on DOMContentLoaded; ALPHA hooks the top bar), so a plain
+// signals (GuidedRP on DOMContentLoaded; the RP core hooks the top bar), so a plain
 // parse-time <script> would init into a half-built UI (misplaced icons).
 // Deferring to window 'load' reproduces the usermod's "runs late" timing.
 let injection;

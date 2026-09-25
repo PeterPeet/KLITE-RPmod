@@ -85,7 +85,7 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 2. **Chat tags remain visible** in the chat text (parsed, not stripped) (R6).
 3. ~~Worlds panel overlaps ALPHA's right panel~~ — fixed by the shell (2026-09-23).
 4. ~~Two systems inject character data~~ — one owner since 2026-09-23 (`src/context/`).
-   Left for R2: ALPHA's **Start RP** still writes per-character WI entries
+   Left for R2: the Scenario panel's **Start RP** still writes per-character WI entries
    (`<name>_imported_memory`, keyword-triggered) and "load as scenario" writes Memory. These
    are deliberate, user-editable story data, so the context module does not touch them.
    With group chat on, a speaker can therefore appear twice (card from the context +
@@ -94,7 +94,11 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 6. `index.rpmod.html` boots the bundle at `window.load` (later than the usermod path); verify
    top-bar icon layout matches the usermod install.
 7. ~~Monster presets are SRD 5.1~~ — replaced by the 330 SRD 5.2.1 monsters (R5, 2026-09-23).
-8. ALPHA is a 17.7k-line monolith (its panels now live in the shell, its code does not yet).
+8. ~~ALPHA is a 17.7k-line monolith~~ — split 2026-09-25 (R1 cleanup, step 2) into `src/rpmod/`
+   (core, host helpers, templates, styles, RP mode, boot), `src/panels/` (tools, context, scenario,
+   roles, chars) and `src/characters/cardEditor.js`, moving code without rewriting it; the
+   "ALPHA" name is gone from the code. Still large: `rpmod/core.js` (one object literal, ~4k
+   lines) and `panels/chars.js` (~2.5k).
 9. `<take>Item</take>` **without a count removes the whole stack**, while `<give>Item</give>`
    adds one — asymmetric; decide the intended semantics (R4 or R6). Covered by a test.
 10. ~~Six duplicate object keys in ALPHA~~ — removed 2026-09-25 (R1 cleanup, step 1): the dead
@@ -113,7 +117,7 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 12. ~~World state changed by AI chat tags reaches the UI only at the next send~~ — fixed in R7
     step 2: tags are parsed when the reply arrives (wrapper around Esolite's
     `handle_incoming_text`); the per-turn clock step stays at generation.
-13. **ALPHA inner markup** still carries many inline styles (sizes/spacing); colours follow
+13. **The RP panels' inner markup** still carries many inline styles (sizes/spacing); colours follow
     the theme via its variables, but spacing is not yet on the shell's scale.
 14. **Quick Start adapter depends on Esolite internals** (`showQuickStartPopup`,
     `applyQuickStartSelection`, `clearAllQuickStartSelections`, `popupUtils.contentElem`).
@@ -122,11 +126,11 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
     `QuickStartExtension`), which RPmod prefers (2026-09-24). The same holds for RPmod's
     own settings tab (hook: #66) and guide window (hook: #67). Drop the fallbacks once the
     supported host version has the hooks.
-15. ~~Two character libraries~~ — decided: Esolite's Library is the master; ALPHA's
+15. ~~Two character libraries~~ — decided: Esolite's Library is the master; the RP core's
     `KLITE_RPMod.characters` is a gallery view rebuilt from it (plus RPmod-only rating/
     talkativeness/tag cache in `characters_v3`). Remaining (R2): gallery ids are list
-    positions — key RPmod extras and links by the Library `id`; ALPHA still polls every
-    5 s (`rebuildFromEsolite`) instead of only reacting to Esolite's events. (ALPHA's own gallery
+    positions — key RPmod extras and links by the Library `id`; the RP core still polls every
+    5 s (`rebuildFromEsolite`) instead of only reacting to Esolite's events. (the old own gallery
     grid, the fallback without the gallery, was removed in the R1 cleanup.)
 16. **Esolite 1.35 Library internals used by RPmod** (`resolveCharacterNameAndId`,
     `upsertCharacterMetadata`, `updateCharacterListFromAll`, `findCharacterMetaByName`,
@@ -268,9 +272,17 @@ Goal: one coherent application inside Esolite instead of three overlapping UIs.
         fallback gallery grid removed; regression tests `tests/rpmodPanels.test.js` (`rpmod` save
         round trip, all panels render); found and fixed on the way: known issue 18 (double
         start-up closed open windows).
-  - [ ] Step 2: split into `src/rpmod/` (core, host helpers, styles, formatting, boot),
-        `src/panels/` (tools, context, scenario, roles, chars, image) and `src/characters/`
-        (picker, card editor), moving code without rewriting it; drop the ALPHA naming (issue 8).
+  - [x] Step 2 (2026-09-25): split into `src/rpmod/` (index, debug, characterContext, host,
+        templates, liteApi, styles, core, rpMode, boot), `src/panels/` (tools, context, scenario,
+        roles, chars) and `src/characters/cardEditor.js` — each part an `install…(S)` holding its
+        old section unchanged, started in the old order (issue 8). Also removed: the 2,700-line
+        overlay stylesheet `STYLES`, never injected (only `STYLES_PANELS_ONLY` is); the syntax
+        test's legacy exemption (the new files pass the strict check). The "ALPHA" name is gone
+        from code, tests and CLAUDE.md/ARCHITECTURE (kept in history notes); settings block id
+        `alpha` → `rp-panels` (a DOM id, no stored data). Bundle 2.64 → 2.40 MB. Not split
+        further: the image panel and the character selection modal live inside `core.js`'s
+        object literal (moving them would mean rewriting). Live-checked in Esolite: all panels,
+        New Character editor, context calculation, dice, gallery, `rpmod` save/load.
   - [ ] Step 3: inline styles onto the shell's classes and spacing, panel by panel, and the old
         overlay CSS (issue 13).
   - [ ] Step 4: top-bar icons, usermod install vs `index.rpmod.html` (issue 6).

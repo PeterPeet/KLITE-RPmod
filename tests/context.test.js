@@ -1,7 +1,7 @@
 'use strict';
 // src/context/context.js — the single owner of RPmod's per-turn prompt context:
 // providers, ordering/dedupe, the one prepare_submit_generation wrapper, direct-submit
-// turns (run), transient cleanup, save stripping; plus ALPHA's 'characters' provider.
+// turns (run), transient cleanup, save stripping; plus the RP core's 'characters' provider.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createHost } = require('./helpers/host');
@@ -86,12 +86,12 @@ test('context: run() makes a direct submit a turn; nested prepare injects once; 
     assert.equal(before, 2); assert.doesNotMatch(h.prompt, /\[X\]/);
 });
 
-test('bundle: ALPHA persona/character and group-chat speaker reach the prompt via the context', async (t) => {
+test('bundle: Tools persona/character and group-chat speaker reach the prompt via the context', async (t) => {
     const h = createHost(); t.after(h.close);
     h.load('bundle');
     await h.ready();
     const w = h.window; const R = w.KLITE_RPMod; const C = w.KLITE_RPMod_Context;
-    assert.deepEqual([...C.providers()].sort(), ['characters'], 'Worlds is disabled, ALPHA provides characters');
+    assert.deepEqual([...C.providers()].sort(), ['characters'], 'Worlds is disabled, the RP core provides characters');
     Object.assign(R.panels.TOOLS, {
         personaEnabled: true, selectedPersona: { name: 'Mira', description: 'A ranger from the north.' },
         characterEnabled: true, selectedCharacter: { name: 'Captain Rowan', data: { description: 'Captain of the guard.', personality: 'stern' } },

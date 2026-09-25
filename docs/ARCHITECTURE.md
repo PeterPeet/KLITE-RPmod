@@ -8,7 +8,7 @@
 
 | Source (`src/`) | Namespace | Role |
 |---|---|---|
-| `KLITE-RPmod_ALPHA.js` (~17.7k lines) | `window.KLITE_RPMod` | Original mod: right-side panels CHARS / ROLES / TOOLS / CONTEXT / IMAGES, character gallery & editor, personas, group chat, save-bundle embedding, debug system |
+| `rpmod/` (`index.js` + parts), `panels/` (tools, context, scenario, roles, chars), `characters/cardEditor.js` | `window.KLITE_RPMod` | The RP core and its right-side panels (formerly the single file "ALPHA"): CHARS / ROLES / SCENARIO / TOOLS / CONTEXT / IMAGE, card editor, personas, group chat, the `rpmod` save block, debug system (§5) |
 | `KLITE-RPmod_Worlds.js` (~1.6k) | `window.KLITE_RPMod_Worlds` | Worlds engine: world graph, retrieval, injection, runtime state, quests, triggers, combat |
 | `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds views for the shell (World tab, Party/Quests sections, Quest log/Combat/World editor windows) |
 | `context/context.js` | `window.KLITE_RPMod_Context` | **Single owner of per-turn prompt context**: providers, the one `prepare_submit_generation` wrapper, managed WI entries, save stripping (§3.3) |
@@ -33,7 +33,7 @@
 
 - **Sources are ES modules** (strict mode). Each exports one default init function
   (`initShell`, `initAlpha`, `initWorlds`, `initWorldsUI`, `initOnboarding`); cross-module
-  access is via `window.*` only — except `context/context.js`, which ALPHA and Worlds
+  access is via `window.*` only — except `context/context.js`, which the RP core and Worlds
   import (`getContext()`); it is a `window.KLITE_RPMod_Context` singleton, so separately
   bundled copies (tests) share one instance. `src/main.js` imports them and calls them (shell first), each in its own `try{…}catch` so one module's runtime error
   cannot stop the others.
@@ -48,7 +48,7 @@
   `npm run build:index`): writes `index.rpmod.html` into the built host site (original
   `index.html` untouched) and copies the bundle next to it. The injected loader appends
   `KLITE-RPmod.js?v=<build time>` **after `window.load`** — a parse-time `<script>` would
-  run before Esolite's init and break top-bar placement (ALPHA hooks the top bar). The `?v=` query busts the browser cache.
+  run before Esolite's init and break top-bar placement (the RP core hooks the top bar). The `?v=` query busts the browser cache.
   Injection point: before the **last** `<!-- EsoLite modifications end -->` marker (it
   occurs twice). Both outputs are generated and git-ignored.
 
@@ -86,7 +86,7 @@ Gotchas:
   register RPmod slash commands as such custom tools instead of parsing its own.
 - **Group chat (1.35+):** speaker choice goes through `groupchat_reply_order(names)` and
   names through `sanitize_groupchat_participant_name`; memory gains
-  `get_groupchat_context_memory()`. Relevant when ALPHA's speaker modes are migrated.
+  `get_groupchat_context_memory()`. Relevant when the RP core's speaker modes are migrated.
 
 ### Running and updating the host
 
@@ -108,9 +108,9 @@ Gotchas:
   (Esolite code is not copied into this repo).
 - Esolite has a global CSS rule `pre{background-color:#f5f5f5}` — always set explicit
   backgrounds on our `<pre>` elements.
-- ALPHA installs a **consent `Proxy` on `window.localsettings`**
-  (`installWriteGuards`, `src/KLITE-RPmod_ALPHA.js` ~l.4170): writes are silently dropped
-  until the user grants consent. Relevant when testing/writing `localsettings` with ALPHA
+- The RP core installs a **consent `Proxy` on `window.localsettings`**
+  (`installWriteGuards`, `src/rpmod/core.js`): writes are silently dropped
+  until the user grants consent. Relevant when testing/writing `localsettings` with the RP core
   loaded.
 
 ## 3. Worlds engine (`src/KLITE-RPmod_Worlds.js`)
@@ -174,18 +174,18 @@ All per-turn prompt context of RPmod goes through **`KLITE_RPMod_Context`**:
   priority (high first, stable) and become `constant:true` WI entries
   (`wigroup:'__rpmod__'`, `comment:'__rpmod__:<provider>'`) in `current_wi`, so Esolite's
   own engine injects them (size cap, context meter, insert position).
-- **Current providers:** `characters` (ALPHA, order 10: persona 88, AI character /
+- **Current providers:** `characters` (the RP core, order 10: persona 88, AI character /
   group-chat speaker 87) and `worlds` (order 50, the slice below; its NPC line skips the
   blurb for a described character).
 - **Why not `pending_context_preinjection`:** Esolite treats it as the start of the AI's
   reply (printed into the output; overwritten in chat mode) — not a context channel.
 - **Turn:** the one wrapper around `prepare_submit_generation` (skipped for host slash
   commands): `beforeTurn` hooks → `inject({mutate:true})` → host → cleanup → `afterTurn`.
-  `run(fn)` does the same for direct submits (ALPHA group chat); nested turns inject
+  `run(fn)` does the same for direct submits (the RP core's group chat); nested turns inject
   once (depth counter). `install()` is idempotent (other wrappers may sit on top).
 - API: `register/unregister/providers/compose/preview/inject/remove/sync/run/install/
   inTurn/isManaged`.
-- **Setup data is not context:** ALPHA's Start RP WI entries (`<name>_imported_memory`),
+- **Setup data is not context:** the RP core's Start RP WI entries (`<name>_imported_memory`),
   "load as scenario" Memory and Esolite's Quick Start write ordinary story data on
   purpose; the context module does not manage them.
 
@@ -517,11 +517,11 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   `_danger`, `_success`, `_info` get defaults on `:root`; Esolite's "Theme colours" editor
   lists every `--theme_*` variable, so users can edit them and they are saved with a
   custom theme (`localsettings.customThemeColours`).
-- **ALPHA adoption:** the shell moves ALPHA's `#panel-right` (built async) into a hidden
-  stash at once, hides ALPHA's own tab bar, and registers four tabs **Chars / Roles /
+- **RP panel adoption:** the shell moves the RP core's `#panel-right` (built async) into a hidden
+  stash at once, hides the RP core's own tab bar, and registers four tabs **Chars / Roles /
   Scenario / Tools**; a view's `show()` hook moves the panel into the shown tab and calls
-  `KLITE_RPMod.switchTab('right', KEY)`. ALPHA's event delegation
-  (`closest('#panel-right')`) keeps working. ALPHA's panels-only CSS binds its `--bg/--text/
+  `KLITE_RPMod.switchTab('right', KEY)`. The RP core's event delegation
+  (`closest('#panel-right')`) keeps working. The RP core's panels-only CSS binds its `--bg/--text/
   --primary…` to the same Esolite variables and styles its buttons, inputs, sections and
   modals like Esolite's (`.klite-modal` now fully styled in panels-only mode).
 - **Top bar:** one `#rpm-navbtn` in `#navbarNavDropdown > ul` toggles the docks.
@@ -583,8 +583,8 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   wrapped `display_settings`, written in the wrapped `confirm_settings` (which saves), so OK
   applies and Cancel discards — like Esolite's options.
 - API: `registerSetting({ id, section, label, help, default, order })` (checkbox),
-  `registerBlock({ id, section, mount })` (free-form; ALPHA's debug block = `alpha`, which
-  ALPHA fills into `#rpmod-settings-alpha` and which applies immediately),
+  `registerBlock({ id, section, mount })` (free-form; the RP core's debug block = `rp-panels`,
+  which it fills into `#rpmod-settings-rp-panels` and which applies immediately),
   `get/set/onChange/open`.
 - **Worlds autosave** (`worlds_autosave`, default off): the Worlds API wraps every authoring
   method (add/update/delete entity, connect, positions, stats, links, player combat, AI
@@ -617,7 +617,7 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   `{ id, name, thumbnail?, type, favorite }` saved as `characterList`. The same keys hold
   every Library item type (Character, Save, Autosave, World Info, Scenario, Document,
   Manager). `updateCharacterListFromAll()` **drops entries without an id**.
-- **RPmod view:** ALPHA's `KLITE_RPMod.characters` is rebuilt from `allCharacterNames`
+- **RPmod view:** the RP core's `KLITE_RPMod.characters` is rebuilt from `allCharacterNames`
   (`rebuildFromEsolite`) and adds rating/talkativeness/tag cache (`characters_v3`).
   Gallery ids are list positions (not stable) — link by name / Library id.
 - **Writes:** `saveCharacter({ inner, image, oldName })` — with `oldName` an edit of that
@@ -644,7 +644,7 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   `klite:library-change` ({ name, oldName, deleted }) after every RPmod write/delete; the store
   drops those names. Worlds warms the linked cards of the active world on every
   `klite:worlds-change` so the next turn's slice has them.
-- **Persona:** ALPHA's `panels.TOOLS.selectedPersona/personaEnabled` are accessors that fire
+- **Persona:** the RP core's `panels.TOOLS.selectedPersona/personaEnabled` are accessors that fire
   `klite:persona-change` ({ name }) when the effective persona changes;
   `KLITE_RPMod_Characters.personaName()` = the enabled persona's name (Worlds' player sheet and
   the Party section use it). **Party** (left dock, WorldsUI `renderPersona`): name, species ·
@@ -654,7 +654,7 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   tEXt chunks (Esolite's `injectTextChunk` only appends; readers take the first) and embeds
   a V2 card (spec + data, V1 fields mirrored) with Esolite's `tavernTool.embedIntoPng`.
   `v2Card` completes the required V2 `data` fields with empty values and drops a non-object
-  `character_book` (ALPHA stores a WI group name there); only the exported copy changes.
+  `character_book` (the RP core stores a WI group name there); only the exported copy changes.
 - **Window** `sheet` (`characters.js`): draft vs saved, Save/Revert, setting
   `sheets_autosave` (Characters), `beforeClose` asks; re-render keeps focus + selection;
   one-line inputs carry `fullScreenTextEditExclude` (Esolite's full-screen edit button stays
@@ -670,18 +670,18 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   first sentence, tags, token estimate chars/4, sheet class/level) cached in
   `localStorage['KLITE.gallery.index']`; prefs `KLITE.gallery`. Untrusted text:
   `plainText` (DOMParser, script/style removed) + `textContent`; images only data:/blob:/
-  http(s). Actions: ALPHA `TOOLS.usePersona/useCharacter`, `CHARS.setEditMode('edit')`,
+  http(s). Actions: the RP core's `TOOLS.usePersona/useCharacter`, `CHARS.setEditMode('edit')`,
   Esolite `toggleCharacterFavorite`, `getDownloadDataFromManager` + `downloadB64URL`, Library
   `deleteCharacter`. Opens maximized unless the user sized it (`userSized` in window geometry).
-  **Import** (`importCards`): Esolite's `promptUserForLocalFile` + ALPHA's
+  **Import** (`importCards`): Esolite's `promptUserForLocalFile` + the RP core's
   `CHARS.processEsoliteImportResult` (Esolite's `convertTavernPng`/`getTavernExifJSON`/
   `saveCharacterDataToIndexDB`); Esolite saves asynchronously, so the gallery watches the list
   (≤10 s) and re-renders. `klite:library-change` refreshes the edited card (or re-renders on
   add/rename/delete).
-- **ALPHA's Chars tab** points to the gallery: with `KLITE_RPMod_Gallery` present it renders
-  import/backup, **New Character** (ALPHA's card editor) and `renderGalleryLauncher()` (count +
+- **The Chars panel** points to the gallery: with `KLITE_RPMod_Gallery` present it renders
+  import/backup, **New Character** (the card editor) and `renderGalleryLauncher()` (count +
   up to 12 Library names, favorites first, from `KLITE_RPMod_Library.characterList()`; action
-  `open-gallery`) — always (the gallery module starts first; ALPHA's own grid was removed). The tab
+  `open-gallery`) — always (the gallery module starts first; the old grid was removed). The tab
   re-renders on `klite:library-change`.
 - **SRD data** (`src/data/srd52.js`, generated, ~250 KB): `SRD.{attribution, classes, backgrounds,
   species, feats, weapons, armor, xp, standardArray, pointBuy, languages, alignments}`.
@@ -727,13 +727,29 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   applied in `derive` (initiative + PB; skills + ⌊PB/2⌋ when not proficient; + max(1, mod) for the
   listed skills). Protector/Warden → `weaponProficient(…, martial)` and the proficiencies text;
   Thaumaturge/Magician → `spellLimits` +1 cantrip. `validate` requires the order.
-- **Uses:** ALPHA's `characters` provider appends the sheet summary; Worlds'
+- **Uses:** the RP core's `characters` provider appends the sheet summary; Worlds'
   `combatantStats`/slice fall back to the linked card's sheet (`cardSheetStats`) and the
   persona sheet for the player (`personaSheetStats`); `personBlurb` falls back to the card's
   text (`blurbFor`: personality, else description; `{{char}}` replaced, markup stripped, 160 chars); Worlds' character lookup falls back to
-  Esolite's Library names when ALPHA's gallery is empty.
+  Esolite's Library names when the RP core's gallery is empty.
 
-## 5. ALPHA core (`src/KLITE-RPmod_ALPHA.js`) — overview
+## 5. RP core and panels (`src/rpmod/`, `src/panels/`) — overview
+Formerly one 17.5k-line file `KLITE-RPmod_ALPHA.js` ("ALPHA" was a version label). R1 cleanup
+(2026-09-25): dead code removed (duplicate keys, 69 unreferenced methods, the never-injected
+2,700-line overlay stylesheet), then split by **moving code, not rewriting it**: each part is an
+`install…(S)` function holding its old section unchanged; `src/rpmod/index.js` (`initRpmod`, the
+duplicate-load guard and default config) calls them in the old order. The parts talk through the
+global `window.KLITE_RPMod` as before; the few closure helpers they share travel in `S`
+(`t` template helpers, `LiteAPI`, `DOMUtil`, `STYLES_PANELS_ONLY`).
+- `rpmod/debug.js` (topics, `KLITE_RPDebug`, opt-in console restoration) ·
+  `characterContext.js` (context provider `characters`) · `host.js` (avatar globals, theme-variable
+  alias shim) · `templates.js` (`t`) · `liteApi.js` (`LiteAPI`, `RPmodHostAdapter`, `DOMUtil`, also
+  on window) · `styles.js` (the injected panel CSS) · `core.js` (`window.KLITE_RPMod`: state, init,
+  hooks, save bundle, hotkeys, avatars, character selection modal, image panel — still one object
+  literal, ~4k lines) · `rpMode.js` (RP formatting, chat/avatar helpers) · `boot.js` (start-up).
+- `panels/tools.js` (+ `klite:persona-change`), `context.js`, `scenario.js`, `roles.js`,
+  `chars.js`; `characters/cardEditor.js` (the card editor added to CHARS).
+
 Right-side panels; character gallery/import (TavernCard V2, partial V3) and editor;
 personas; group chat (speaker modes, round robin, talkativeness); quick actions; chapters;
 image generation panel. Saves its own state under savefile key **`rpmod`**. Per-turn

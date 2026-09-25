@@ -25,7 +25,7 @@ npm run icons        # after changing the icon list: regenerates src/shell/icons
 ```
 
 ## Layout
-- `src/` — ES-module sources: `shell/` (app shell), ALPHA core, Worlds engine, Worlds UI,
+- `src/` — ES-module sources: `shell/` (app shell), `rpmod/` + `panels/` (RP core and its panels), Worlds engine, Worlds UI,
   `game/` (rules + combat/log), `map/` (R7 dungeon/town editor), `characters/`, `onboarding/`
   (Quick Start extension + Guide) + `main.js` entry; esbuild bundles them
   into one file. **Edit here.**
@@ -62,5 +62,5 @@ npm run icons        # after changing the icon list: regenerates src/shell/icons
   its tool loop; websearch makes the submit chain async.
 - Code that runs at page parse time is too early — Esolite builds its UI in an async
   init; defer to `window.load` (as the integrated loader does) or poll for globals.
-- ALPHA wraps `localsettings` in a consent `Proxy`: writes are dropped until consent.
+- The RP core (`src/rpmod/core.js`) wraps `localsettings` in a consent `Proxy`: writes are dropped until consent.
 - Esolite's global CSS sets `pre{background:#f5f5f5}` — style our elements explicitly.

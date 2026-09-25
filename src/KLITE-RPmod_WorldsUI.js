@@ -1030,7 +1030,7 @@ export default function initWorldsUI() {
         bar.appendChild(el('span', { style: `width:${pct}%;background:${pct > 50 ? 'var(--rpm-success)' : pct > 25 ? 'var(--rpm-quest)' : 'var(--rpm-danger)'}` }));
         return bar;
     }
-    // The player character = the persona chosen in the Characters tab (ALPHA Tools).
+    // The player character = the persona chosen in the Tools panel.
     // Sheet values come from the card; during combat the tracker's HP is authoritative.
     function renderPersona(box, player, cb) {
         const C = window.KLITE_RPMod_Characters;

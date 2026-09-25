@@ -548,7 +548,7 @@ body.rpm-docked #maincontainer {
     transition: margin .18s ease;
 }
 
-/* ---- ALPHA's right panel, adopted into the right dock ---- */
+/* ---- the RP panels' right panel, adopted into the right dock ---- */
 #rpm-shell #panel-right.klite-panel {
     position: static !important; transform: none !important; width: auto !important; height: 100% !important;
     top: auto !important; right: auto !important; bottom: auto !important; left: auto !important;
@@ -556,6 +556,6 @@ body.rpm-docked #maincontainer {
     visibility: visible !important; background: transparent !important;
 }
 #rpm-shell #panel-right .klite-handle,
-#rpm-shell #panel-right > .klite-tabs { display: none !important; }   /* shell tabs replace ALPHA's tab bar */
+#rpm-shell #panel-right > .klite-tabs { display: none !important; }   /* shell tabs replace its own tab bar */
 #rpm-shell #panel-right .klite-content { flex: 1 1 auto; max-height: none !important; padding: var(--rpm-s3); }
 `;

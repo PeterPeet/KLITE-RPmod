@@ -875,8 +875,8 @@ export default function initWorlds() {
     // =======================================================================
     // A Person (npc) may reference a character from the host library
     // (KLITE_RPMod.characters) via characterRef, and/or carry a d20 stat block.
-    // ALPHA's gallery view of the Library; Esolite's Library itself (names) when the gallery
-    // is empty (ALPHA not loaded yet or at all).
+    // The RP panels' gallery view of the Library; Esolite's Library itself (names) when the gallery
+    // is empty (the RP core not loaded yet or at all).
     function characterLibrary() {
         try {
             const gallery = asArray(window.KLITE_RPMod && window.KLITE_RPMod.characters);
@@ -907,7 +907,7 @@ export default function initWorlds() {
     function cardSheetStats(person) {
         try { const C = window.KLITE_RPMod_Characters; const ref = person && person.characterRef; return C && ref && ref.name ? C.combatStatsFor(ref.name) : null; } catch (_) { return null; }
     }
-    // The player's persona sheet (ALPHA Tools persona) when the world sets no player stats.
+    // The player's persona sheet (Tools panel persona) when the world sets no player stats.
     function personaSheetStats() {
         try { const C = window.KLITE_RPMod_Characters; const n = C && C.personaName ? C.personaName() : ''; return n ? C.combatStatsFor(n) : null; } catch (_) { return null; }
     }

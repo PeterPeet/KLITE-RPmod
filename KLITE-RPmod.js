@@ -547,7 +547,7 @@ body.rpm-docked #maincontainer {
     transition: margin .18s ease;
 }
 
-/* ---- ALPHA's right panel, adopted into the right dock ---- */
+/* ---- the RP panels' right panel, adopted into the right dock ---- */
 #rpm-shell #panel-right.klite-panel {
     position: static !important; transform: none !important; width: auto !important; height: 100% !important;
     top: auto !important; right: auto !important; bottom: auto !important; left: auto !important;
@@ -555,7 +555,7 @@ body.rpm-docked #maincontainer {
     visibility: visible !important; background: transparent !important;
 }
 #rpm-shell #panel-right .klite-handle,
-#rpm-shell #panel-right > .klite-tabs { display: none !important; }   /* shell tabs replace ALPHA's tab bar */
+#rpm-shell #panel-right > .klite-tabs { display: none !important; }   /* shell tabs replace its own tab bar */
 #rpm-shell #panel-right .klite-content { flex: 1 1 auto; max-height: none !important; padding: var(--rpm-s3); }
 `;
 
@@ -1279,7 +1279,7 @@ body.rpm-docked #maincontainer {
         applyLayout();
       });
       installNavButton();
-      adoptAlphaPanel();
+      adoptRpPanels();
     }
     const dockActions = [];
     function addDockAction(side, action) {
@@ -1334,13 +1334,13 @@ body.rpm-docked #maincontainer {
         if (attempt() || ++tries > 120) clearInterval(timer);
       }, 500);
     }
-    const ALPHA_TABS = [
+    const RP_PANEL_TABS = [
       { key: "CHARS", id: "chars", title: "Chars", order: 50 },
       { key: "ROLES", id: "roles", title: "Roles", order: 51 },
       { key: "SCENARIO", id: "scenario", title: "Scenario", order: 52 },
       { key: "TOOLS", id: "tools", title: "Tools", order: 53 }
     ];
-    function adoptAlphaPanel() {
+    function adoptRpPanels() {
       let tries = 0;
       const attempt = () => {
         const panel = document.getElementById("panel-right");
@@ -1350,8 +1350,8 @@ body.rpm-docked #maincontainer {
         dom.root.appendChild(stash);
         stash.appendChild(panel);
         panel.classList.remove("collapsed");
-        const alpha = () => window.KLITE_RPMod;
-        for (const tab of ALPHA_TABS) {
+        const rp = () => window.KLITE_RPMod;
+        for (const tab of RP_PANEL_TABS) {
           registerView({
             id: tab.id,
             title: tab.title,
@@ -1361,10 +1361,10 @@ body.rpm-docked #maincontainer {
             },
             update() {
             },
-            // ALPHA renders itself
+            // the RP core renders itself
             show(container) {
               if (panel.parentNode !== container) container.appendChild(panel);
-              const A = alpha();
+              const A = rp();
               const current = A && A.state && A.state.tabs && A.state.tabs.right;
               if (A && typeof A.switchTab === "function" && current !== tab.key) A.switchTab("right", tab.key);
             }
@@ -1400,6 +1400,158 @@ body.rpm-docked #maincontainer {
     window.KLITE_RPMod_Shell = api;
     if (document.readyState === "complete") mount2();
     else window.addEventListener("load", mount2, { once: true });
+  }
+
+  // src/rpmod/debug.js
+  function installDebug(S2) {
+    (function() {
+      try {
+        const cfgEnabled = !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.enableConsoleRestore);
+        const lsEnabled = typeof localStorage !== "undefined" && localStorage.getItem("rpmod_enable_console_restore") === "1";
+        if (!(cfgEnabled || lsEnabled)) return;
+        const consoleFrame = document.createElement("iframe");
+        consoleFrame.style.display = "none";
+        document.body.appendChild(consoleFrame);
+        if (consoleFrame.contentWindow && consoleFrame.contentWindow.console) {
+          window.console = consoleFrame.contentWindow.console;
+          try {
+            window.console.log("[KLITE RPMod] Console access restored via iframe");
+          } catch (_) {
+          }
+        }
+      } catch (e) {
+      }
+    })();
+    (function setupRpmodDebugCore() {
+      try {
+        let applyTopicsFromLocalStorage = function() {
+          try {
+            const raw = localStorage.getItem("KLITE.debug.topics") || "";
+            const off2 = localStorage.getItem("KLITE.debug.off") || "";
+            const dbg = localStorage.getItem("KLITE.debug.enabled");
+            if (dbg != null) {
+              window.KLITE_RPMod = window.KLITE_RPMod || {};
+              window.KLITE_RPMod.debug = dbg === "1" || /^true$/i.test(dbg);
+            }
+            const onAll = /(\*|^all$)/i.test(raw.trim());
+            const offAll = /(\*|^all$)/i.test(off2.trim());
+            const onSet = new Set(raw.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean));
+            const offSet = new Set(off2.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean));
+            const levels = window.KLITE_RPMod.debugLevels || {};
+            const keys = Object.keys(levels);
+            keys.forEach((k2) => {
+              if (offAll) {
+                levels[k2] = false;
+                return;
+              }
+              if (onAll) {
+                levels[k2] = true;
+                return;
+              }
+              if (onSet.size > 0) levels[k2] = onSet.has(k2);
+              if (offSet.has(k2)) levels[k2] = false;
+            });
+            try {
+              console.log("[KLITE RPMod][DEBUG] topics applied:", Object.entries(levels).filter(([k2, v]) => v).map(([k2]) => k2).join(", "));
+            } catch (_) {
+            }
+          } catch (_) {
+          }
+        }, setTopics = function(topicsStr) {
+          try {
+            localStorage.setItem("KLITE.debug.topics", topicsStr || "");
+            applyTopicsFromLocalStorage();
+          } catch (_) {
+          }
+        }, setTopicsOff = function(topicsStr) {
+          try {
+            localStorage.setItem("KLITE.debug.off", topicsStr || "");
+            applyTopicsFromLocalStorage();
+          } catch (_) {
+          }
+        }, setEnabled = function(enabled) {
+          try {
+            localStorage.setItem("KLITE.debug.enabled", enabled ? "1" : "0");
+            applyTopicsFromLocalStorage();
+          } catch (_) {
+          }
+        }, on = function() {
+          setTopics(Array.from(arguments).join(","));
+          setTopicsOff("");
+        }, off = function() {
+          setTopics("");
+          setTopicsOff(Array.from(arguments).join(","));
+        }, all = function() {
+          setTopics("all");
+          setTopicsOff("");
+        }, none = function() {
+          setTopics("");
+          setTopicsOff("all");
+        }, list2 = function() {
+          try {
+            const lv = window.KLITE_RPMod.debugLevels || {};
+            console.log("[KLITE RPMod][DEBUG] topics:", lv);
+          } catch (_) {
+          }
+        }, restoreConsole = function() {
+          try {
+            const consoleFrame = document.createElement("iframe");
+            consoleFrame.style.display = "none";
+            document.body.appendChild(consoleFrame);
+            if (consoleFrame.contentWindow && consoleFrame.contentWindow.console) {
+              window.console = consoleFrame.contentWindow.console;
+              try {
+                window.console.log("[KLITE RPMod] Console access restored via iframe");
+              } catch (_) {
+              }
+            }
+          } catch (_) {
+          }
+        };
+        const TOPICS_DEFAULTS = {
+          essential: true,
+          init: false,
+          panels: false,
+          group: true,
+          avatars: true,
+          chars: false,
+          generation: false,
+          state: false,
+          integration: false,
+          hotkeys: false,
+          debug: false,
+          errors: true,
+          chat: false,
+          mobile: false,
+          status: false,
+          // Added topics
+          storage: false,
+          network: false,
+          esolite: false,
+          hooks: false,
+          ui: false,
+          narrator: false
+        };
+        try {
+          if (!window.KLITE_RPMod) window.KLITE_RPMod = {};
+          if (!window.KLITE_RPMod.debugLevels) window.KLITE_RPMod.debugLevels = {};
+          for (const k2 of Object.keys(TOPICS_DEFAULTS)) {
+            if (typeof window.KLITE_RPMod.debugLevels[k2] === "undefined") {
+              window.KLITE_RPMod.debugLevels[k2] = TOPICS_DEFAULTS[k2];
+            }
+          }
+          if (typeof window.KLITE_RPMod.debug !== "boolean") window.KLITE_RPMod.debug = true;
+        } catch (_) {
+        }
+        try {
+          window.KLITE_RPDebug = window.KLITE_RPDebug || {};
+          Object.assign(window.KLITE_RPDebug, { setTopics, setTopicsOff, setEnabled, on, off, all, none, list: list2, applyTopicsFromLocalStorage, restoreConsole });
+        } catch (_) {
+        }
+        applyTopicsFromLocalStorage();
+      } catch (_) {
+      }
+    })();
   }
 
   // src/context/context.js
@@ -1616,492 +1768,8 @@ ${s.text}` : s.text : `[${s.title}]`;
     return api;
   }
 
-  // src/onboarding/hostGlobals.js
-  var IDENT = /^[A-Za-z_$][\w$]*$/;
-  function hostGet(name) {
-    if (!IDENT.test(name)) return void 0;
-    try {
-      return new Function(`return typeof ${name} === 'undefined' ? undefined : ${name};`)();
-    } catch (_) {
-      return void 0;
-    }
-  }
-  function hostSet(name, value) {
-    if (!IDENT.test(name) || hostGet(name) === void 0) return false;
-    try {
-      new Function("v", `${name} = v;`)(value);
-      if (Object.prototype.hasOwnProperty.call(window, name)) window[name] = value;
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-  function esoExtensionClass(className, typeName) {
-    const registry = window.eso && window.eso.extensions;
-    const cls = hostGet(className), types = hostGet("EsoExtensionType");
-    if (!registry || typeof registry.register !== "function" || typeof cls !== "function" || !types || !types[typeName]) return null;
-    return cls;
-  }
-
-  // src/library/esoliteLibrary.js
-  var fn = (name) => typeof window[name] === "function" ? window[name] : hostGet(name);
-  var TAVERN_FIELDS = ["description", "personality", "scenario", "first_mes", "mes_example"];
-  function normalizeName(name, fallback = "Untitled") {
-    const host = fn("normalizeCharacterStorageName");
-    if (typeof host === "function") return host(name, fallback);
-    const n = `${name || ""}`.replaceAll(/[^\w()_\-'",!\[\].]/g, " ").replaceAll(/\s+/g, " ").trim();
-    return n || fallback;
-  }
-  function list() {
-    const l = hostGet("allCharacterNames");
-    return Array.isArray(l) ? l : [];
-  }
-  function findMetaByName(name) {
-    const host = fn("findCharacterMetaByName");
-    if (typeof host === "function") return host(name);
-    const n = normalizeName(name);
-    return list().find((m) => normalizeName(m && m.name) === n);
-  }
-  var storageKey = (id) => `character_${id}`;
-  var CARD_KEYS = /* @__PURE__ */ new Set(["chara", "ccv3", "chara_encoding", "chara_spec"]);
-  var V2_DEFAULTS = {
-    name: "",
-    description: "",
-    personality: "",
-    scenario: "",
-    first_mes: "",
-    mes_example: "",
-    creator_notes: "",
-    system_prompt: "",
-    post_history_instructions: "",
-    alternate_greetings: [],
-    tags: [],
-    creator: "",
-    character_version: "",
-    extensions: {}
-  };
-  function v2Card(inner) {
-    const src = inner && typeof inner === "object" ? inner : {};
-    const d = Object.assign({}, src);
-    for (const [k2, v] of Object.entries(V2_DEFAULTS)) {
-      const ok = Array.isArray(v) ? Array.isArray(d[k2]) : v && typeof v === "object" ? d[k2] && typeof d[k2] === "object" && !Array.isArray(d[k2]) : typeof d[k2] === "string";
-      if (!ok) d[k2] = Array.isArray(v) ? [] : v && typeof v === "object" ? {} : d[k2] == null ? "" : String(d[k2]);
-    }
-    if ("character_book" in d && !(d.character_book && typeof d.character_book === "object" && !Array.isArray(d.character_book))) delete d.character_book;
-    return {
-      spec: "chara_card_v2",
-      spec_version: "2.0",
-      name: d.name || "",
-      description: d.description || "",
-      personality: d.personality || "",
-      scenario: d.scenario || "",
-      first_mes: d.first_mes || "",
-      mes_example: d.mes_example || "",
-      data: d
-    };
-  }
-  function stripCardChunks(bytes) {
-    const SIG = 8;
-    if (!bytes || bytes.length < SIG) return bytes;
-    const parts = [bytes.subarray(0, SIG)];
-    let pos = SIG, total = SIG;
-    while (pos + 12 <= bytes.length) {
-      const len = (bytes[pos] << 24 | bytes[pos + 1] << 16 | bytes[pos + 2] << 8 | bytes[pos + 3]) >>> 0;
-      const end = pos + 12 + len;
-      if (end > bytes.length) break;
-      const type = String.fromCharCode(bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]);
-      let drop = false;
-      if (type === "tEXt") {
-        let k2 = pos + 8, key = "";
-        while (k2 < pos + 8 + len && bytes[k2] !== 0 && key.length < 80) key += String.fromCharCode(bytes[k2++]);
-        drop = CARD_KEYS.has(key);
-      }
-      if (!drop) {
-        parts.push(bytes.subarray(pos, end));
-        total += end - pos;
-      }
-      pos = end;
-      if (type === "IEND") break;
-    }
-    const out = new Uint8Array(total);
-    let o = 0;
-    for (const p of parts) {
-      out.set(p, o);
-      o += p.length;
-    }
-    return out;
-  }
-  var PNG_PREFIX = "data:image/png;base64,";
-  function embedCardInImage(image, inner) {
-    const tool = window.tavernTool;
-    if (typeof image !== "string" || !image.startsWith(PNG_PREFIX) || !tool || typeof tool.embedIntoPng !== "function") return image;
-    try {
-      const bin = atob(image.slice(PNG_PREFIX.length));
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      const out = tool.embedIntoPng(stripCardChunks(bytes), v2Card(inner));
-      let text = "";
-      for (let i = 0; i < out.length; i += 32768) text += String.fromCharCode.apply(null, out.subarray(i, Math.min(i + 32768, out.length)));
-      return PNG_PREFIX + btoa(text);
-    } catch (e) {
-      console.error("[RPmod library] could not embed the card into the portrait", e);
-      return image;
-    }
-  }
-  async function thumbnailFor(image) {
-    const gen = fn("generateThumbnail");
-    if (!image || typeof gen !== "function") return void 0;
-    try {
-      return await gen(image, [256, 256]);
-    } catch (_) {
-      return void 0;
-    }
-  }
-  async function saveList() {
-    const upd = fn("updateCharacterListFromAll");
-    if (typeof upd === "function") {
-      await upd();
-      return;
-    }
-    await window.indexeddb_save?.("characterList", JSON.stringify(list()));
-  }
-  function upsertMeta(meta) {
-    const host = fn("upsertCharacterMetadata");
-    if (typeof host === "function") {
-      host(meta);
-      return;
-    }
-    const next = list().filter((m) => `${m && m.id || ""}` !== `${meta.id}`);
-    next.push(meta);
-    hostSet("allCharacterNames", next);
-  }
-  async function saveCharacter({ inner, image, oldName }) {
-    const rawName = inner && inner.name || "";
-    if (!String(rawName).trim()) throw new Error("Character must have a name.");
-    let existing = oldName ? findMetaByName(oldName) : null;
-    if (existing && existing.type && existing.type !== "Character") existing = null;
-    let name = normalizeName(rawName, "No character name");
-    let id;
-    if (existing) {
-      id = existing.id || normalizeName(existing.name);
-      const clash = findMetaByName(name);
-      if (clash && `${clash.id}` !== `${id}`) {
-        const next = fn("getNextAutoincrementName");
-        name = typeof next === "function" ? next(name) : `${name}_1`;
-      }
-    } else {
-      const resolve = fn("resolveCharacterNameAndId");
-      const r = typeof resolve === "function" ? resolve(rawName, "No character name") : { name, id: name };
-      name = r.name;
-      id = r.id;
-    }
-    const record = { id, name, data: Object.assign({}, inner, { name: normalizeName(rawName, "No character name") }) };
-    let img = image;
-    if (!img) {
-      try {
-        const prev = JSON.parse(await window.indexeddb_load?.(storageKey(id), "{}") || "{}");
-        if (prev && prev.image) img = prev.image;
-      } catch (_) {
-      }
-    }
-    if (img) record.image = embedCardInImage(img, record.data);
-    await window.indexeddb_save?.(storageKey(id), JSON.stringify(record));
-    const thumbnail = image ? await thumbnailFor(image) : existing && existing.thumbnail;
-    upsertMeta(Object.assign({}, existing || {}, { id, name, type: "Character", favorite: !!(existing && existing.favorite) }, thumbnail ? { thumbnail } : {}));
-    await saveList();
-    libraryChanged({ name, oldName: oldName || null });
-    return { id, name };
-  }
-  function libraryChanged(detail) {
-    try {
-      window.dispatchEvent(new CustomEvent("klite:library-change", { detail }));
-    } catch (_) {
-    }
-  }
-  async function loadCharacter(name) {
-    const get = fn("getCharacterData");
-    if (typeof get !== "function" || !name) return null;
-    try {
-      let r = await get(name);
-      if (typeof r === "string") r = JSON.parse(r || "{}");
-      return r && r.data && typeof r.data === "object" && !Array.isArray(r.data) ? r : null;
-    } catch (_) {
-      return null;
-    }
-  }
-  function characterList() {
-    return list().filter((m) => m && m.name && (m.type || "Character") === "Character");
-  }
-  function characterNames() {
-    return characterList().map((m) => m.name);
-  }
-  async function deleteCharacter(name) {
-    const meta = findMetaByName(name);
-    const id = meta && meta.id || normalizeName(name);
-    await window.indexeddb_save?.(storageKey(id));
-    hostSet("allCharacterNames", list().filter((m) => meta ? `${m && m.id || ""}` !== `${meta.id}` : normalizeName(m && m.name) !== normalizeName(name)));
-    await saveList();
-    libraryChanged({ name, oldName: null, deleted: true });
-  }
-  function storagePrefix() {
-    const p = hostGet("STORAGE_PREFIX");
-    return typeof p === "string" ? p : null;
-  }
-  function isOrphanRecord(record) {
-    if (!record || typeof record !== "object" || record.id != null || record.dataType) return false;
-    const d = record.data;
-    return !!(d && typeof d === "object" && !Array.isArray(d) && typeof d.name === "string" && d.name.trim() && TAVERN_FIELDS.some((f) => f in d));
-  }
-  async function findOrphans() {
-    const prefix = storagePrefix();
-    if (prefix == null || typeof window.indexeddb_load !== "function") return [];
-    let stored = [];
-    try {
-      stored = JSON.parse(await window.indexeddb_load("characterList", "[]") || "[]");
-    } catch (_) {
-      return [];
-    }
-    if (!Array.isArray(stored) || stored.some((m) => m && !m.id)) return [];
-    const referenced = new Set([...stored, ...list()].map((m) => m && `${m.id}`).filter(Boolean));
-    const keys = [];
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k2 = localStorage.key(i);
-        if (k2 && k2.startsWith(prefix + "character_")) keys.push(k2.slice(prefix.length));
-      }
-    } catch (_) {
-      return [];
-    }
-    const out = [];
-    for (const key of keys) {
-      const id = key.slice("character_".length);
-      if (!id || referenced.has(id)) continue;
-      let record = null;
-      try {
-        record = JSON.parse(await window.indexeddb_load(key, "") || "null");
-      } catch (_) {
-        continue;
-      }
-      if (isOrphanRecord(record)) out.push({ key, id, record });
-    }
-    return out;
-  }
-  async function recoverOrphans() {
-    const orphans = await findOrphans();
-    const names = [];
-    for (const { key, id, record } of orphans) {
-      let name = normalizeName(record.name || record.data.name, "Recovered character");
-      const clash = findMetaByName(name);
-      if (clash) {
-        const next = fn("getNextAutoincrementName");
-        name = typeof next === "function" ? next(name) : `${name}_recovered`;
-      }
-      const fixed = Object.assign({}, record, { id, name });
-      await window.indexeddb_save(key, JSON.stringify(fixed));
-      const thumbnail = await thumbnailFor(record.image);
-      upsertMeta(Object.assign({ id, name, type: "Character", favorite: false }, thumbnail ? { thumbnail } : {}));
-      names.push(name);
-    }
-    if (names.length) await saveList();
-    return names;
-  }
-  function initLibrary() {
-    "use strict";
-    if (window.KLITE_RPMod_Library) return;
-    const api = { saveCharacter, deleteCharacter, loadCharacter, characterNames, characterList, findOrphans, recoverOrphans, isOrphanRecord, embedCardInImage, stripCardChunks, v2Card };
-    window.KLITE_RPMod_Library = api;
-    let tries = 0;
-    const attempt = async () => {
-      tries++;
-      const listReady = list().length > 0 ? list().every((m) => m && m.id) : tries >= 6;
-      const ready = typeof window.indexeddb_load === "function" && storagePrefix() != null && listReady;
-      if (!ready) {
-        if (tries < 40) setTimeout(attempt, 1500);
-        return;
-      }
-      try {
-        const names = await recoverOrphans();
-        if (names.length) {
-          console.warn("[RPmod library] re-listed characters that an older RPmod version had hidden:", names);
-          try {
-            window.KLITE_RPMod?.panels?.CHARS?.rebuildFromEsolite?.();
-          } catch (_) {
-          }
-          try {
-            window.dispatchEvent(new CustomEvent("klite:library-recovered", { detail: { names } }));
-          } catch (_) {
-          }
-        }
-      } catch (e) {
-        console.error("[RPmod library] recovery failed", e);
-      }
-    };
-    const start = () => setTimeout(attempt, 1500);
-    if (document.readyState === "complete") start();
-    else window.addEventListener("load", start, { once: true });
-  }
-
-  // src/KLITE-RPmod_ALPHA.js
-  function initAlpha() {
-    "use strict";
-    if (window.KLITE_RPMod_LOADED) {
-      console.warn("[KLITE RPMod] Already loaded, skipping duplicate load");
-      return;
-    }
-    window.KLITE_RPMod_LOADED = true;
-    window.KLITE_RPMod_Config = window.KLITE_RPMod_Config || {};
-    window.KLITE_RPMod_Config.panelsOnly = true;
-    window.KLITE_RPMod_Config.embedInSave = true;
-    window.KLITE_RPMod_Config.rpmodAutosave = false;
-    window.KLITE_RPMod_Config.enableConsoleRestore = false;
-    (function() {
-      try {
-        const cfgEnabled = !!(window.KLITE_RPMod_Config && window.KLITE_RPMod_Config.enableConsoleRestore);
-        const lsEnabled = typeof localStorage !== "undefined" && localStorage.getItem("rpmod_enable_console_restore") === "1";
-        if (!(cfgEnabled || lsEnabled)) return;
-        const consoleFrame = document.createElement("iframe");
-        consoleFrame.style.display = "none";
-        document.body.appendChild(consoleFrame);
-        if (consoleFrame.contentWindow && consoleFrame.contentWindow.console) {
-          window.console = consoleFrame.contentWindow.console;
-          try {
-            window.console.log("[KLITE RPMod] Console access restored via iframe");
-          } catch (_) {
-          }
-        }
-      } catch (e) {
-      }
-    })();
-    (function setupRpmodDebugCore() {
-      try {
-        let applyTopicsFromLocalStorage = function() {
-          try {
-            const raw = localStorage.getItem("KLITE.debug.topics") || "";
-            const off2 = localStorage.getItem("KLITE.debug.off") || "";
-            const dbg = localStorage.getItem("KLITE.debug.enabled");
-            if (dbg != null) {
-              window.KLITE_RPMod = window.KLITE_RPMod || {};
-              window.KLITE_RPMod.debug = dbg === "1" || /^true$/i.test(dbg);
-            }
-            const onAll = /(\*|^all$)/i.test(raw.trim());
-            const offAll = /(\*|^all$)/i.test(off2.trim());
-            const onSet = new Set(raw.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean));
-            const offSet = new Set(off2.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean));
-            const levels = window.KLITE_RPMod.debugLevels || {};
-            const keys = Object.keys(levels);
-            keys.forEach((k2) => {
-              if (offAll) {
-                levels[k2] = false;
-                return;
-              }
-              if (onAll) {
-                levels[k2] = true;
-                return;
-              }
-              if (onSet.size > 0) levels[k2] = onSet.has(k2);
-              if (offSet.has(k2)) levels[k2] = false;
-            });
-            try {
-              console.log("[KLITE RPMod][DEBUG] topics applied:", Object.entries(levels).filter(([k2, v]) => v).map(([k2]) => k2).join(", "));
-            } catch (_) {
-            }
-          } catch (_) {
-          }
-        }, setTopics = function(topicsStr) {
-          try {
-            localStorage.setItem("KLITE.debug.topics", topicsStr || "");
-            applyTopicsFromLocalStorage();
-          } catch (_) {
-          }
-        }, setTopicsOff = function(topicsStr) {
-          try {
-            localStorage.setItem("KLITE.debug.off", topicsStr || "");
-            applyTopicsFromLocalStorage();
-          } catch (_) {
-          }
-        }, setEnabled = function(enabled) {
-          try {
-            localStorage.setItem("KLITE.debug.enabled", enabled ? "1" : "0");
-            applyTopicsFromLocalStorage();
-          } catch (_) {
-          }
-        }, on = function() {
-          setTopics(Array.from(arguments).join(","));
-          setTopicsOff("");
-        }, off = function() {
-          setTopics("");
-          setTopicsOff(Array.from(arguments).join(","));
-        }, all = function() {
-          setTopics("all");
-          setTopicsOff("");
-        }, none = function() {
-          setTopics("");
-          setTopicsOff("all");
-        }, list2 = function() {
-          try {
-            const lv = window.KLITE_RPMod.debugLevels || {};
-            console.log("[KLITE RPMod][DEBUG] topics:", lv);
-          } catch (_) {
-          }
-        }, restoreConsole = function() {
-          try {
-            const consoleFrame = document.createElement("iframe");
-            consoleFrame.style.display = "none";
-            document.body.appendChild(consoleFrame);
-            if (consoleFrame.contentWindow && consoleFrame.contentWindow.console) {
-              window.console = consoleFrame.contentWindow.console;
-              try {
-                window.console.log("[KLITE RPMod] Console access restored via iframe");
-              } catch (_) {
-              }
-            }
-          } catch (_) {
-          }
-        };
-        const TOPICS_DEFAULTS = {
-          essential: true,
-          init: false,
-          panels: false,
-          group: true,
-          avatars: true,
-          chars: false,
-          generation: false,
-          state: false,
-          integration: false,
-          hotkeys: false,
-          debug: false,
-          errors: true,
-          chat: false,
-          mobile: false,
-          status: false,
-          // Added topics
-          storage: false,
-          network: false,
-          esolite: false,
-          hooks: false,
-          ui: false,
-          narrator: false
-        };
-        try {
-          if (!window.KLITE_RPMod) window.KLITE_RPMod = {};
-          if (!window.KLITE_RPMod.debugLevels) window.KLITE_RPMod.debugLevels = {};
-          for (const k2 of Object.keys(TOPICS_DEFAULTS)) {
-            if (typeof window.KLITE_RPMod.debugLevels[k2] === "undefined") {
-              window.KLITE_RPMod.debugLevels[k2] = TOPICS_DEFAULTS[k2];
-            }
-          }
-          if (typeof window.KLITE_RPMod.debug !== "boolean") window.KLITE_RPMod.debug = true;
-        } catch (_) {
-        }
-        try {
-          window.KLITE_RPDebug = window.KLITE_RPDebug || {};
-          Object.assign(window.KLITE_RPDebug, { setTopics, setTopicsOff, setEnabled, on, off, all, none, list: list2, applyTopicsFromLocalStorage, restoreConsole });
-        } catch (_) {
-        }
-        applyTopicsFromLocalStorage();
-      } catch (_) {
-      }
-    })();
+  // src/rpmod/characterContext.js
+  function installCharacterContext(S2) {
     function cardField(c, f) {
       if (!c) return "";
       const v = c[f] ?? c.data?.[f] ?? c.rawData?.data?.[f];
@@ -2148,6 +1816,10 @@ ${s.text}` : s.text : `[${s.title}]`;
     } catch (e) {
       console.warn("[RPMod] context provider registration failed:", e);
     }
+  }
+
+  // src/rpmod/host.js
+  function installHostCompat(S2) {
     try {
       if (typeof window.niko_square === "undefined") window.niko_square = "";
     } catch (_) {
@@ -2188,2718 +1860,10 @@ ${s.text}` : s.text : `[${s.title}]`;
       } catch (_) {
       }
     })();
-    const STYLES2 = `
-        /* Map RPmod internal tokens to Esolite theme variables */
-        :root {
-            /* Background layers */
-            --bg: var(--theme_color_bg_outer);
-            --bg2: var(--theme_color_bg);
-            --bg3: var(--theme_color_bg_dark);
+  }
 
-            /* Text colors */
-            --text: var(--theme_color_text);
-            --glowtext: var(--theme_color_glow_text);
-            --muted: var(--theme_color_placeholder_text);
-
-            /* Borders and accents */
-            --border: var(--theme_color_border);
-            --border-highlight: var(--theme_color_border_highlight);
-            --accent: var(--theme_color_highlight);
-
-            /* Buttons and states */
-            --primary: var(--theme_color_button_bg);
-            --primary-text: var(--theme_color_button_text);
-            --danger: #d9534f;
-            --success: #5cb85c;
-            --warning: #f0ad4e;
-        }
-        
-        /* In full overlay mode, host UI is hidden via .klite-active (panelsOnly disables this) */
-        .klite-active #gamecontainer,
-        .klite-active #main_container,
-        .klite-active #inputrow { display: none !important; }
-
-        hr {
-            height: 0 !important;
-            border: none !important;
-            border-top: 1px solid rgba(68, 68, 68, 0.3) !important;
-            margin: 12px 0 !important;
-            background: transparent !important;
-        }
-        
-        /* Container */
-        .klite-container {
-            position: fixed;
-            inset: 0;
-            background: var(--bg);
-            color: var(--text);
-            font-family: system-ui, sans-serif;
-            z-index: 1;
-        }
-    
-        /* Panels */
-        .klite-panel {
-            position: fixed;
-            background: var(--bg2);
-            transition: transform 0.3s ease;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-        }
-        
-        /* UNUSED overlay/left UI START: left panel rules */
-        .klite-panel-left {
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 350px;
-            border-right: 1px solid var(--border);
-            z-index: 2;
-        }
-        
-        .klite-panel-left.collapsed { transform: translateX(-350px); }
-        /* UNUSED overlay/left UI END */
-        
-        .klite-panel-right {
-            right: 0;
-            top: 0;
-            bottom: 0;
-            width: 350px;
-            border-left: 1px solid var(--border);
-            z-index: 2;
-        }
-        
-        .klite-panel-right.collapsed { transform: translateX(350px); }
-        
-        /* UNUSED overlay/left UI START: top panel rules */
-        .klite-panel-top {
-            top: 0;
-            left: 350px;
-            right: 350px;
-            height: auto;
-            border-bottom: 1px solid var(--border);
-            transition: all 0.3s ease;
-            z-index: 2;
-        }
-
-        /* When maincontent is fullscreen, top panel should also adjust */
-        .klite-maincontent.fullscreen ~ .klite-panel-top,
-        /* Fallback for browsers without :has() support: class is toggled on container */
-        .klite-container.klite-fullscreen .klite-panel-top,
-        .klite-container:has(.klite-maincontent.fullscreen) .klite-panel-top {
-            left: 0 !important;
-            right: 0 !important;
-        }
-        
-        .klite-panel-top.collapsed { transform: translateY(-100%); }
-        
-        /* Responsive */
-        @media (max-width: 1400px) {
-            .klite-panel-top { left: 0; right: 0; }
-            .klite-maincontent { left: 0 !important; right: 0 !important; }
-            
-            /* Hide fullscreen button in iPad mode (768-1400px) - already fullscreen */
-            .klite-desktop-quick-buttons .klite-quick-btn[data-action="fullscreen"] {
-                display: none;
-            }
-        }
-        
-        /* Hide tablet sidepanel button by default */
-        .klite-desktop-quick-buttons .klite-quick-btn[data-action="tablet-sidepanel"] {
-            display: none;
-        }
-
-        /* Hide mode switch buttons across desktop and mobile */
-        .klite-quick-btn[data-action="mode-1"],
-        .klite-quick-btn[data-action="mode-2"],
-        .klite-quick-btn[data-action="mode-3"],
-        .klite-quick-btn[data-action="mode-4"] {
-            display: none !important;
-        }
-        
-        /* Show tablet sidepanel button only in tablet mode (768-1400px) */
-        @media (min-width: 768px) and (max-width: 1400px) {
-            .klite-desktop-quick-buttons .klite-quick-btn[data-action="tablet-sidepanel"] {
-                display: block;
-            }
-            
-            /* Active state for tablet sidepanel button */
-            .klite-desktop-quick-buttons .klite-quick-btn[data-action="tablet-sidepanel"].active {
-                background: var(--success) !important;
-                color: white !important;
-            }
-        }
-        
-        /* Active state for fullscreen button (shows in desktop mode) */
-        .klite-desktop-quick-buttons .klite-quick-btn[data-action="fullscreen"].active {
-            background: var(--success) !important;
-            color: white !important;
-        }
-        /* Tablet sidepanel classes are overlay-only */
-        @media (min-width: 768px) and (max-width: 1400px) {
-            /* Tablet sidepanel mode classes - only apply in tablet mode */
-            .klite-container.tablet-sidepanel-both .klite-panel-top,
-            .klite-container.tablet-sidepanel-both .klite-maincontent {
-                left: 0 !important;
-                right: 0 !important;
-            }
-            
-            .klite-container.tablet-sidepanel-left .klite-panel-top,
-            .klite-container.tablet-sidepanel-left .klite-maincontent {
-                left: 350px !important;
-                right: 0 !important;
-            }
-            
-            .klite-container.tablet-sidepanel-right .klite-panel-top,
-            .klite-container.tablet-sidepanel-right .klite-maincontent {
-                left: 0 !important;
-                right: 350px !important;
-            }
-            
-            .klite-container.tablet-sidepanel-none .klite-panel-top,
-            .klite-container.tablet-sidepanel-none .klite-maincontent {
-                left: 0 !important;
-                right: 0 !important;
-            }
-        }
-        
-        /* Fullscreen mode overrides tablet sidepanel mode */
-        .klite-maincontent.fullscreen { 
-            left: 0 !important; 
-            right: 0 !important; 
-        }
-        /* UNUSED overlay/left UI END: top panel rules */
-        
-        @media (max-width: 768px) {
-            .klite-panel-left, .klite-panel-right { display: none; }
-            .klite-maincontent { left: 0 !important; right: 0 !important; }
-        }
-        
-        /* Override media query for mobile mode - panels should be available via arrows */
-        .klite-mobile .klite-panel-left,
-        .klite-mobile .klite-panel-right {
-            display: block !important; /* Override the media query display: none */
-        }
-        
-        /* Collapse handles */
-        .klite-handle {
-            position: absolute;
-            background: var(--bg2);
-            border: 1px solid var(--border);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #888;
-            font-size: 12px;
-            z-index: 2;
-        }
-        
-        .klite-handle:hover { background: var(--bg3); color: var(--text); }
-        
-        /* UNUSED overlay/left UI: left handle */
-        .klite-panel-left .klite-handle {
-            right: -15px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 15px;
-            height: 50px;
-            border-radius: 0 5px 5px 0;
-        }
-        
-        .klite-panel-right .klite-handle {
-            left: -15px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 15px;
-            height: 50px;
-            border-radius: 5px 0 0 5px;
-        }
-        
-        /* UNUSED overlay/left UI: top handle */
-        .klite-panel-top .klite-handle {
-            bottom: -15px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 50px;
-            height: 15px;
-            border-radius: 0 0 5px 5px;
-        }
-        
-        /* UNUSED overlay/left UI START: maincontent */
-        .klite-maincontent {
-            position: fixed;
-            top: 0;
-            bottom: 0;
-            display: flex;
-            flex-direction: column;
-            transition: all 0.3s ease;
-            /* Default desktop layout */
-            left: 350px;
-            right: 350px;
-        }
-
-        /* When top panel is expanded */
-        .klite-maincontent.top-expanded { 
-            top: 26px; 
-        }
-
-        /* Fullscreen mode */
-        .klite-maincontent.fullscreen { 
-            left: 0 !important; 
-            right: 0 !important; 
-        }
-
-        /* Chat display (overlay-only) */
-        .klite-chat {
-            flex: 1;
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding: 20px;
-            margin: 25px 0 34px 0;
-        }
-        
-        /* Input area (overlay-only) */
-        .klite-input-area {
-            display: flex;
-            padding: 0 15px 15px;
-            gap: 10px;
-            position: relative;
-        }
-        /* UNUSED overlay/left UI END: maincontent */
-        
-        /* Tabs */
-        .klite-tabs {
-            display: flex;
-            gap: 5px;
-            padding: 10px;
-            background: var(--theme_color_tabs);
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .klite-tab {
-            padding: 6px 12px;
-            border: 1px solid transparent;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: bold;
-            min-width: 56px;
-            white-space: normal; /* allow two-line labels */
-            line-height: 1.1;
-            min-height: 34px; /* approximate two-row height */
-            text-align: center;
-        }
-        /* Make klite-tab look like action buttons */
-        .klite-tab.btn.btn-primary {
-            background-color: var(--theme_color_button_bg) !important;
-            color: var(--theme_color_button_text) !important;
-            border-color: var(--theme_color_border) !important;
-        }
-        .klite-tab.btn.btn-primary:hover { background-color: var(--theme_color_topbtn_highlight) !important; }
-        .klite-tab.btn.btn-primary.active { background-color: var(--theme_color_tabs_highlight) !important; }
-
-        /* Make right-panel tabs fixed 80px and distribute leftover as 29px/5 spaces */
-        .klite-panel-right .klite-tabs {
-            display: flex;
-            justify-content: space-evenly; /* creates 5 equal spaces for 4 items */
-            align-items: stretch;
-            gap: 0 !important;
-            padding: 10px 0; /* vertical padding only */
-            width: calc(100% - 1px); /* 349px when panel is 350px wide */
-            box-sizing: content-box;
-        }
-        .klite-panel-right .klite-tab {
-            width: 80px;
-            flex: 0 0 80px;
-        }
-        
-        /* Content */
-        .klite-content {
-            flex: 1;
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding: 15px;
-            max-height: calc(100vh - 60px);
-        }
-        
-        /* Panel-specific styles for Memory and TextDB - not needed anymore */
-        
-        /* Sections */
-        .klite-section {
-            margin-bottom: 20px;
-            background: var(--bg);
-            border-radius: 5px;
-            overflow: hidden;
-        }
-        
-        
-        .klite-section-header {
-            padding: 10px 15px;
-            background: var(--bg3);
-            cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            user-select: none;
-            color: var(--glowtext);
-        }
-        
-        .klite-section-header:hover { background: var(--bg3); }
-        .klite-section.collapsed .klite-section-content { display: none; }
-        
-        .klite-section-content {
-            padding: 15px;
-        }
-        
-        /* Forms */
-        .klite-input, .klite-textarea, .klite-select {
-            width: 100%;
-            padding: 8px;
-            background: var(--theme_color_input_bg);
-            border: 1px solid var(--theme_color_border);
-            border-radius: 4px;
-            color: var(--theme_color_input_text);
-            font: inherit;
-        }
-        
-        /* Default input height for desktop/tablet */
-        .klite-textarea { resize: vertical; min-height: 80px; }
-        /* Double-height input toggle (mobile-only) */
-        .klite-container { --mobile-input-bottom: 212px; }
-        .klite-textarea-fullheight { 
-            resize: vertical; 
-            min-height: 200px; 
-            flex: 1; 
-            height: 0; /* Important: allows flex to grow */
-        }
-        
-        .klite-input:focus, .klite-textarea:focus, .klite-select:focus {
-            outline: none;
-            border-color: var(--border-highlight);
-            box-shadow: none;
-        }
-        
-        /* Buttons */
-        .klite-btn {
-            padding: 4px 8px;
-            background: var(--primary);
-            border: 1px solid var(--theme_color_border);
-            border-radius: 4px;
-            color: var(--primary-text);
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-        }
-        .klite-btn:hover { background: var(--theme_color_topbtn_highlight); }
-        /* When paired with Bootstrap classes, force theme colours */
-        .klite-btn.btn.btn-primary {
-            background-color: var(--theme_color_button_bg) !important;
-            color: var(--theme_color_button_text) !important;
-            border-color: var(--theme_color_border) !important;
-        }
-        
-        /* Non-overlay mode: shift host content so panel doesn't overlap */
-        body.klite-panels-nonoverlay-right { padding-right: 350px !important; box-sizing: border-box; }
-        /* In case site uses common wrappers, nudge them too */
-        body.klite-panels-nonoverlay-right #main,
-        body.klite-panels-nonoverlay-right .container,
-        body.klite-panels-nonoverlay-right .content,
-        body.klite-panels-nonoverlay-right #content,
-        body.klite-panels-nonoverlay-right .wrapper { padding-right: 350px; box-sizing: border-box; }
-        .klite-btn.danger { background: var(--danger); border-color: var(--theme_color_border); }
-        .klite-btn.danger:hover { filter: brightness(0.95); }
-        .klite-btn.success { background: var(--success); border-color: var(--theme_color_border); }
-        .klite-btn.warning { background: var(--warning); border-color: var(--theme_color_border); }
-        .klite-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .klite-btn.danger:disabled { background: var(--theme_color_disabled_bg); border-color: var(--theme_color_border); color: var(--muted); }
-        
-        .klite-btn-xs {
-            font-size: 10px;
-            padding: 2px 6px;
-            min-height: 22px;
-        }
-        
-        .klite-btn-sm {
-            font-size: 12px;
-            padding: 3px 6px;
-            min-width: 26px;
-            text-align: center;
-        }
-        
-        /* Input area specifics */
-        .klite-left-btns, .klite-right-btns {
-            display: flex;
-            flex-direction: column;
-            gap: 1px;
-        }
-        
-        .klite-left-btns { width: 80px; }
-        .klite-right-btns { width: 120px; }
-        
-        .klite-bottom-btn {
-            flex: 1;
-            min-height: 26px;
-            font-size: 11px;
-            padding: 2px;
-        }
-        
-        .klite-bottom-btn.adventure-active {
-            background: var(--success) !important;
-            color: white !important;
-            box-shadow: 0 0 10px rgba(92, 184, 92, 0.5);
-        }
-        
-        .klite-submit-btn {
-            flex: 2;
-            font-size: 16px;
-            font-weight: 500;
-        }
-        
-        .klite-action-btns {
-            display: flex;
-            gap: 1px;
-            flex: 1;
-        }
-        
-        .klite-action-btn {
-            flex: 1;
-            font-size: 18px;
-            padding: 0;
-        }
-        
-        /* Quick buttons */
-        .klite-quick-btn {
-            width: 26px;
-            height: 26px;
-            padding: 0;
-            font-size: 14px;
-            background: var(--theme_color_topbtn);
-        }
-        
-        /* Info line */
-        .klite-info {
-            display: flex;
-            justify-content: space-between;
-            color: var(--muted);
-            font-size: 12px;
-            margin-top: 2px !important;
-        }
-        
-        /* Utilities */
-        .klite-row { 
-            display: flex; 
-            gap: 2px; 
-            align-items: center;
-        }
-        
-        /* Button alignment utilities */
-        .klite-buttons-left {
-            display: flex;
-            gap: 2px;
-            justify-content: flex-start;
-        }
-        
-        .klite-buttons-center {
-            display: flex;
-            gap: 2px;
-            justify-content: center;
-        }
-        
-        .klite-buttons-right {
-            display: flex;
-            gap: 2px;
-            justify-content: flex-end;
-        }
-        
-        .klite-buttons-spread {
-            display: flex;
-            gap: 2px;
-            justify-content: space-between;
-        }
-        
-        .klite-buttons-fill {
-            display: flex;
-            gap: 2px;
-        }
-        
-        .klite-buttons-fill .klite-btn {
-            flex: 1;
-        }
-        
-        .klite-buttons-grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2px;
-        }
-        
-        .klite-buttons-grid-3 {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 2px;
-        }
-        .klite-muted { color: var(--muted); }
-        .klite-center { text-align: center; }
-        
-        /* Tabs also look good using nav-link/mainnav; these ensure theme vars apply */
-        .klite-tab.nav-link.mainnav { 
-            color: var(--theme_color_topmenu_text);
-            background-color: var(--theme_color_topbtn);
-            border-color: var(--theme_color_border);
-        }
-        .klite-tab.nav-link.mainnav:hover { background-color: var(--theme_color_topbtn_highlight); }
-        .klite-tab.nav-link.mainnav.active { background-color: var(--theme_color_tabs_highlight); }
-        .klite-center { text-align: center; }
-        .klite-mt { margin-top: 10px; }
-        .active { background: var(--success) !important; }
-        
-        /* Panel-specific styles */
-        
-        /* Control groups */
-        .klite-control-group {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 5px;
-            padding: 15px;
-            margin-bottom: 15px;
-            position: relative;
-        }
-        
-        /* Sliders */
-        .klite-slider {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 6px;
-            background: var(--bg3);
-            border-radius: 3px;
-            outline: none;
-        }
-        
-        .klite-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 16px;
-            height: 16px;
-            background: var(--accent);
-            border-radius: 50%;
-            cursor: pointer;
-        }
-        
-        /* Timeline */
-        .klite-timeline {
-            background: rgba(0,0,0,0.3);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 8px;
-            min-height: 200px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        
-        .klite-timeline-item {
-            padding: 8px;
-            margin-bottom: 4px;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: background 0.2s;
-        }
-        
-        .klite-timeline-item:hover { background: var(--bg3); }
-        
-        /* Gametext Array Styling - targeting actual Lite elements */
-        .klite-active #gametext {
-            background: var(--bg) !important;
-            padding: 15px !important;
-            border-radius: 8px !important;
-            border: 1px solid var(--border) !important;
-            color: var(--text) !important;
-        }
-        
-        .klite-active #gametext hr {
-            height: 0 !important;
-            border: none !important;
-            border-top: 1px solid rgba(68, 68, 68, 0.3) !important;
-            margin: 12px 0 !important;
-            background: transparent !important;
-        }
-        
-        .klite-active #gametext chunk,
-        .klite-active #gametext .message,
-        .klite-active #gametext p {
-            background: var(--bg2) !important;
-            padding: 12px 15px !important;
-            margin: 8px 0 !important;
-            border-radius: 6px !important;
-            border: 1px solid var(--border) !important;
-            color: var(--text) !important;
-            line-height: 1.5 !important;
-            position: relative !important;
-            display: block !important;
-        }
-
-        .klite-active #gametext > span:has(img) {
-            background: var(--bg2) !important;
-            padding: 12px 15px !important;
-            margin: 8px 0 !important;
-            border-radius: 6px !important;
-            border: 1px solid var(--border) !important;
-            color: var(--text) !important;
-            line-height: 1.5 !important;
-            position: relative !important;
-            display: block !important;
-        }
-        
-        .klite-active #gametext chunk:hover,
-        .klite-active #gametext .message:hover,
-        .klite-active #gametext p:hover {
-            background: var(--bg3) !important;
-            border-color: var(--border-highlight) !important;
-        }
-
-        /* Character Avatar in Chat */
-        .klite-chat-avatar {
-            width: 96px;
-            height: 96px;
-            border-radius: 50%;
-            display: block;
-            margin: 0 0 8px 0;
-            background: var(--bg3);
-        }
-        
-        /* Character list */
-        .klite-character-item {
-            display: flex;
-            align-items: center;
-            padding: 6px;
-            margin-bottom: 4px;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: background 0.2s;
-        }
-        
-        .klite-character-item:hover { background: var(--bg3); }
-        .klite-character-item.selected { background: var(--bg3); border: 1px solid var(--border-highlight); }
-        .klite-character-item.current-speaker { 
-            border-color: #4CAF50;
-            background: rgba(76, 175, 80, 0.1);
-        }
-        
-        /* Upload zone */
-        .klite-upload-zone {
-            border: 2px dashed var(--border);
-            border-radius: 8px;
-            padding: 40px 20px;
-            text-align: center;
-            color: var(--muted);
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .klite-upload-zone:hover {
-            border-color: var(--accent);
-            background: rgba(74, 158, 255, 0.05);
-            color: var(--text);
-        }
-        
-        .klite-upload-zone.dragover {
-            border-color: var(--accent);
-            background: rgba(74, 158, 255, 0.1);
-            color: var(--accent);
-        }
-        
-        /* Character overview - 3 columns for better name visibility */
-        .klite-character-overview {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 6px;
-            width: 100%;
-        }
-        
-        /* Character grid - 2 columns exactly */
-        .klite-character-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            width: 100%;
-        }
-        /* Reduce image height in 2-column grid for better fit */
-        .klite-character-grid .klite-char-image img {
-            height: 180px;
-            width: 100%;
-            object-fit: cover;
-            aspect-ratio: auto;
-        }
-        
-        /* Detail view: allow full image scaling */
-        .klite-character-detail .klite-char-image img {
-            height: auto;
-            width: 100%;
-            aspect-ratio: 2/3;
-        }
-        
-        .klite-character-card {
-            background: var(--bg2);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 8px;
-        }
-        
-        .klite-character-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            border-color: var(--accent);
-        }
-        
-        /* Character image with 2:3 aspect ratio */
-        .klite-char-image img {
-            width: 100%;
-            aspect-ratio: 2/3;
-            object-fit: cover;
-            border-radius: 4px;
-        }
-        
-        .klite-char-placeholder {
-            width: 100%;
-            aspect-ratio: 2/3;
-            background: var(--bg3);
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-            color: var(--muted);
-        }
-        
-        /* Character name and creator with text wrapping */
-        .klite-char-name {
-            width: 100%;
-            text-align: center;
-            font-weight: bold;
-            margin: 8px 0 4px 0;
-            overflow-wrap: break-word;
-            hyphens: auto;
-            font-size: 14px;
-        }
-        
-        .klite-char-creator {
-            width: 100%;
-            text-align: center;
-            color: var(--muted);
-            font-size: 11px;
-            margin-bottom: 8px;
-            overflow-wrap: break-word;
-            hyphens: auto;
-        }
-        
-        .klite-char-stats {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-        }
-        
-        /* Filter layout - full width elements */
-        .klite-filter-section {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            width: 100%;
-        }
-        
-        .klite-filter-input,
-        .klite-filter-dropdown {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            background: var(--bg2);
-            color: var(--text);
-        }
-        
-        /* Character fullscreen modal layout */
-        .klite-char-modal-layout {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-        
-        .klite-char-modal-left {
-            min-width: 250px;
-        }
-        
-        .klite-char-modal-image img {
-            height: 375px;
-            width: auto;
-            aspect-ratio: 2/3;
-            object-fit: cover;
-            border-radius: 8px;
-        }
-        
-        .klite-char-placeholder-large {
-            height: 375px;
-            width: 250px;
-            background: var(--bg3);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 64px;
-            color: var(--muted);
-        }
-        
-        .klite-char-modal-info {
-            margin-top: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .klite-char-modal-right {
-            flex: 1;
-        }
-        
-        .klite-char-modal-section {
-            margin-bottom: 20px;
-            padding: 15px;
-            background: var(--bg3);
-            border-radius: 8px;
-        }
-        
-        .klite-char-modal-section h3 {
-            color: var(--accent);
-            margin: 0 0 10px 0;
-            font-size: 16px;
-        }
-        
-        .klite-char-modal-text {
-            line-height: 1.5;
-            color: var(--text);
-        }
-        
-        /* Character tags */
-        .klite-tag {
-            display: inline-block;
-            background: var(--border);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 11px;
-            margin-right: 4px;
-            margin-bottom: 2px;
-        }
-        
-        .klite-tag-pill {
-            display: inline-block;
-            padding: 6px 12px;
-            margin: 3px;
-            background: var(--border) !important;
-            color: var(--text) !important;
-            border: 1px solid var(--bg2) !important;
-            border-radius: 20px !important;
-            cursor: pointer;
-            font-size: 12px;
-            user-select: none;
-            transition: all 0.2s;
-        }
-        
-        .klite-tag-pill:hover {
-            background: var(--bg3) !important;
-            border-color: var(--accent) !important;
-        }
-        
-        .klite-tag-pill.selected {
-            background: var(--accent) !important;
-            color: white !important;
-            border-color: var(--accent) !important;
-        }
-        
-        /* Tools Panel Styles */
-        .klite-stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: repeat(4, 1fr);
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .klite-stat-card {
-            background: rgba(255,255,255,0.02);
-            border-radius: 4px;
-            padding: 10px;
-            text-align: center;
-        }
-        
-        .klite-stat-label {
-            font-size: 10px;
-            color: var(--muted);
-            text-transform: uppercase;
-        }
-        
-        .klite-stat-value {
-            font-size: 18px;
-            font-weight: bold;
-            color: var(--text);
-        }
-        
-        .klite-token-bar-container {
-            margin-bottom: 10px;
-        }
-        
-        .klite-token-bar {
-            display: flex;
-            height: 20px;
-            background: var(--bg3);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        
-        .klite-token-segment {
-            height: 100%;
-            transition: width 0.3s ease;
-        }
-        
-        .klite-memory-segment { background: #5bc0de; }
-        .klite-wi-segment { background: #5cb85c; }
-        .klite-story-segment { background: #f0ad4e; }
-        .klite-anote-segment { background: #d9534f; }
-        .klite-free-segment { background: var(--bg3); }
-        
-        .klite-token-legend {
-            margin-bottom: 10px;
-            font-size: 11px;
-        }
-        
-        .klite-token-legend-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 4px;
-        }
-        
-        .klite-token-legend-item {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        
-        .klite-token-legend-color {
-            width: 12px;
-            height: 12px;
-            border-radius: 2px;
-        }
-        
-        .klite-token-legend-label {
-            color: var(--muted);
-        }
-        
-        .klite-token-legend-value {
-            color: var(--text);
-            font-weight: bold;
-        }
-        
-        /* Dice */
-        .klite-dice-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 5px;
-            margin-bottom: 10px;
-        }
-        
-        .klite-dice-btn {
-            padding: 10px;
-            background: var(--bg3);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            color: var(--text);
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .klite-dice-btn:hover { background: var(--bg3); border-color: var(--border-highlight); }
-        
-        .klite-dice-result { background: var(--bg3); border-radius: 4px; padding: 15px; text-align: center; min-height: 80px; }
-        
-        .klite-analytics-tab {
-            font-size: 12px;
-            padding: 6px 8px;
-        }
-        
-        .klite-analytics-tab.active {
-            background: var(--accent);
-        }
-        
-        .klite-analytics-content {
-            min-height: 200px;
-            background: rgba(0,0,0,0.1);
-            border-radius: 4px;
-            padding: 10px;
-        }
-        
-        .klite-analytics-metric {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 4px 0;
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .klite-analytics-metric:last-child {
-            border-bottom: none;
-        }
-        
-        .klite-analytics-chart {
-            height: 100px;
-            background: var(--bg3);
-            border-radius: 4px;
-            margin: 8px 0;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .metric-value {
-            font-size: 18px;
-            font-weight: bold;
-            color: var(--accent);
-        }
-        
-        .metric-label {
-            font-size: 10px;
-            color: var(--muted);
-            margin-top: 2px;
-        }
-        
-        .klite-trend-item {
-            padding: 8px;
-            background: rgba(0,0,0,0.1);
-            border-radius: 4px;
-        }
-        
-        .trend-indicator {
-            font-weight: bold;
-            font-size: 12px;
-        }
-        
-        .trend-indicator.positive {
-            color: var(--success);
-        }
-        
-        .trend-indicator.negative {
-            color: var(--danger);
-        }
-        
-        .trend-indicator.neutral {
-            color: var(--muted);
-        }
-        
-        .klite-quality-metric {
-            padding: 8px;
-            background: rgba(0,0,0,0.1);
-            border-radius: 4px;
-        }
-        
-        .quality-bar {
-            width: 60px;
-            height: 8px;
-            background: rgba(0,0,0,0.2);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        
-        .quality-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--danger) 0%, var(--warning) 50%, var(--success) 100%);
-            transition: width 0.3s ease;
-        }
-        
-        /* WI Panel */
-        .klite-wi-groups {
-            display: flex;
-            gap: 5px;
-            flex-wrap: wrap;
-            margin: 15px 0;
-        }
-        
-        .klite-wi-entry {
-            background: var(--bg2);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 10px;
-            margin-bottom: 10px;
-        }
-        
-        .klite-wi-entry.disabled { opacity: 0.5; }
-        
-        /* Scene controls */
-        .klite-scene-control-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        
-        .klite-scene-label {
-            min-width: 70px;
-            font-size: 12px;
-            color: var(--muted);
-        }
-        
-        /* Help features */
-        .klite-help-feature {
-            display: flex;
-            gap: 12px;
-            padding: 12px;
-            background: rgba(255,255,255,0.02);
-            border-radius: 6px;
-            margin-bottom: 12px;
-        }
-        
-        .klite-help-feature-icon { font-size: 24px; line-height: 1; }
-        .klite-help-feature-content { flex: 1; }
-        .klite-help-feature-title { font-weight: bold; margin-bottom: 4px; }
-        .klite-help-feature-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
-        
-        /* klite-message styles removed - showMessage system eliminated */
-        
-        
-        /* Collapsible Sections */
-        .klite-char-section {
-            background: var(--bg2);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        
-        .klite-char-section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 16px;
-            background: var(--bg3);
-            cursor: pointer;
-            user-select: none;
-            transition: background-color 0.2s ease;
-        }
-        
-        .klite-char-section-header:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-        
-        .klite-char-section-title {
-            font-weight: 600;
-            color: var(--text);
-        }
-        
-        .klite-char-section-toggle {
-            color: var(--muted);
-            font-size: 14px;
-            transition: transform 0.2s ease;
-        }
-        
-        .klite-char-section.collapsed .klite-char-section-toggle {
-            transform: rotate(-90deg);
-        }
-        
-        .klite-char-section-content {
-            padding: 16px;
-            max-height: 1000px;
-            overflow: hidden;
-            transition: max-height 0.3s ease, padding 0.3s ease;
-        }
-        
-        .klite-char-section.collapsed .klite-char-section-content {
-            max-height: 0;
-            padding: 0 16px;
-        }
-        
-        
-        .klite-modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .klite-modal-header h3 {
-            margin: 0;
-            color: var(--text);
-        }
-        
-        .klite-modal-close {
-            background: none;
-            border: none;
-            color: var(--muted);
-            font-size: 24px;
-            cursor: pointer;
-            padding: 0;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 4px;
-        }
-        
-        .klite-modal-close:hover {
-            background: var(--border);
-            color: var(--text);
-        }
-        
-        .klite-modal-body {
-            flex: 1;
-            overflow-y: auto;
-        }
-        
-        .klite-modal-footer {
-            display: flex;
-            gap: 2px;
-            margin-top: 15px;
-            padding-top: 10px;
-            border-top: 1px solid var(--border);
-        }
-        
-        .klite-modal-footer .klite-btn {
-            flex: 1;
-        }
-        
-        /* Animations */
-        @keyframes fadeInOut {
-            0% { opacity: 0; transform: translateY(20px); }
-            10% { opacity: 1; transform: translateY(0); }
-            90% { opacity: 1; transform: translateY(0); }
-            100% { opacity: 0; transform: translateY(-20px); }
-        }
-        
-        /* =============================================
-           ENHANCED CHARS PANEL STYLES
-           ============================================= */
-        
-        /* Character Management Controls */
-        .klite-char-management {
-            background: var(--bg3);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 15px;
-        }
-        
-        .klite-char-management-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .klite-char-management-title {
-            font-size: 14px;
-            font-weight: bold;
-            color: var(--text);
-        }
-        
-        .klite-char-management-controls {
-            display: flex;
-            gap: 2px;
-        }
-        
-        .klite-char-view-toggle {
-            display: flex;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        
-        .klite-char-view-btn {
-            padding: 6px 12px;
-            background: transparent;
-            border: none;
-            color: var(--muted);
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s;
-        }
-        
-        .klite-char-view-btn:hover {
-            background: var(--bg2);
-            color: var(--text);
-        }
-        
-        .klite-char-view-btn.active {
-            background: var(--accent);
-            color: white;
-        }
-        
-        /* Search and Filter Controls */
-        .klite-char-search-filter {
-            display: flex;
-            gap: 2px;
-            margin-bottom: 15px;
-        }
-        
-        .klite-char-search {
-            flex: 1;
-            padding: 8px 12px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            color: var(--text);
-            font-size: 12px;
-        }
-        
-        .klite-char-search:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-        
-        .klite-char-search::placeholder {
-            color: var(--muted);
-        }
-        
-        .klite-char-filter {
-            padding: 8px 12px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            color: var(--text);
-            font-size: 12px;
-            min-width: 120px;
-        }
-        
-        .klite-char-filter:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-        
-        /* Character Cards - Grid View */
-        .klite-chars-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 12px;
-            margin-bottom: 15px;
-        }
-        
-        .klite-char-card {
-            background: var(--bg2);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: all 0.2s;
-            position: relative;
-        }
-        
-        .klite-char-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-            border-color: var(--border-highlight);
-        }
-        
-        .klite-char-card.selected {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 2px rgba(74,158,255,0.3);
-        }
-        
-        .klite-char-card-avatar {
-            width: 100%;
-            height: 120px;
-            background: var(--bg3);
-            background-size: cover;
-            background-position: center;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--muted);
-            font-size: 48px;
-        }
-        
-        .klite-char-card-content {
-            padding: 12px;
-        }
-        
-        .klite-char-card-name {
-            font-size: 13px;
-            font-weight: bold;
-            color: var(--text);
-            margin-bottom: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .klite-char-card-description {
-            font-size: 11px;
-            color: var(--muted);
-            line-height: 1.3;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-        
-        .klite-char-card-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 8px;
-        }
-        
-        .klite-char-card-actions {
-            display: flex;
-            gap: 2px;
-        }
-        
-        .klite-char-card-action {
-            width: 20px;
-            height: 20px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 3px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 10px;
-            color: var(--muted);
-            transition: all 0.2s;
-        }
-        
-        .klite-char-card-action:hover {
-            background: var(--bg3);
-            color: var(--text);
-        }
-        
-        .klite-char-card-action.danger:hover {
-            background: var(--danger);
-            color: white;
-        }
-        
-        /* Character List - List View */
-        .klite-chars-list {
-            display: block;
-        }
-        
-        .klite-char-list-item {
-            display: flex;
-            align-items: center;
-            padding: 8px 12px;
-            background: var(--bg2);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            margin-bottom: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .klite-char-list-item:hover {
-            background: var(--bg3);
-            border-color: var(--accent);
-        }
-        
-        .klite-char-list-item.selected {
-            background: rgba(74,158,255,0.1);
-            border-color: var(--accent);
-        }
-        
-        .klite-char-list-avatar {
-            width: 40px;
-            height: 40px;
-            background: var(--bg3);
-            background-size: cover;
-            background-position: center;
-            border-radius: 50%;
-            margin-right: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--muted);
-            font-size: 16px;
-        }
-        
-        .klite-char-list-content {
-            flex: 1;
-            min-width: 0;
-        }
-        
-        .klite-char-list-name {
-            font-size: 13px;
-            font-weight: bold;
-            color: var(--text);
-            margin-bottom: 2px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .klite-char-list-description {
-            font-size: 11px;
-            color: var(--muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .klite-char-list-actions {
-            display: flex;
-            gap: 2px;
-        }
-        
-        .klite-char-list-action {
-            width: 24px;
-            height: 24px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 11px;
-            color: var(--muted);
-            transition: all 0.2s;
-        }
-        
-        .klite-char-list-action:hover {
-            background: var(--bg3);
-            color: var(--text);
-        }
-        
-        .klite-char-list-action.danger:hover {
-            background: var(--danger);
-            color: white;
-        }
-        
-        /* Character Modal */
-        .klite-char-modal {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-        
-        .klite-char-modal.hidden {
-            display: none;
-        }
-        
-        .klite-char-modal-content {
-            background: var(--bg2);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 0;
-            max-width: 800px;
-            width: 90%;
-            max-height: 90vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .klite-char-modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px 20px;
-            background: var(--bg3);
-            border-bottom: 1px solid var(--border);
-        }
-        
-        .klite-char-modal-title {
-            font-size: 16px;
-            font-weight: bold;
-            color: var(--text);
-        }
-        
-        .klite-char-modal-close {
-            background: none;
-            border: none;
-            color: var(--muted);
-            cursor: pointer;
-            font-size: 20px;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 4px;
-            transition: all 0.2s;
-        }
-        
-        .klite-char-modal-close:hover {
-            background: rgba(255,255,255,0.1);
-            color: var(--text);
-        }
-        
-        .klite-char-modal-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-        }
-        
-        .klite-char-modal-section {
-            margin-bottom: 20px;
-        }
-        
-        .klite-char-modal-section:last-child {
-            margin-bottom: 0;
-        }
-        
-        .klite-char-modal-section-title {
-            font-size: 14px;
-            font-weight: bold;
-            color: var(--text);
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .klite-char-modal-avatar {
-            width: 120px;
-            height: 120px;
-            background: var(--bg3);
-            background-size: cover;
-            background-position: center;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--muted);
-            font-size: 48px;
-        }
-        
-        .klite-char-modal-name {
-            font-size: 20px;
-            font-weight: bold;
-            color: var(--text);
-            margin-bottom: 8px;
-        }
-        
-        .klite-char-modal-description {
-            font-size: 13px;
-            color: var(--muted);
-            line-height: 1.4;
-            margin-bottom: 15px;
-        }
-        
-        .klite-char-modal-actions {
-            display: flex;
-            gap: 2px;
-            margin-top: 15px;
-        }
-        
-        /* Rating Stars */
-        .klite-rating-stars {
-            display: flex;
-            gap: 2px;
-            margin-bottom: 8px;
-        }
-        
-        .klite-rating-star {
-            cursor: pointer;
-            color: #555;
-            font-size: 16px;
-            transition: color 0.2s;
-        }
-        
-        .klite-rating-star:hover,
-        .klite-rating-star.active {
-            color: #ffd700;
-        }
-        
-        .klite-rating-star.hover {
-            color: #ffed4a;
-        }
-        
-        .klite-rating-display {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        
-        .klite-rating-display .klite-rating-star {
-            cursor: default;
-            font-size: 12px;
-        }
-        
-        .klite-rating-text {
-            font-size: 11px;
-            color: var(--muted);
-        }
-        
-        /* World Info Entries Display */
-        .klite-char-worldinfo {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 15px;
-        }
-        
-        .klite-char-worldinfo-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .klite-char-worldinfo-title {
-            font-size: 13px;
-            font-weight: bold;
-            color: var(--text);
-        }
-        
-        .klite-char-worldinfo-count {
-            font-size: 11px;
-            color: var(--muted);
-            background: var(--bg2);
-            padding: 2px 8px;
-            border-radius: 12px;
-        }
-        
-        .klite-char-worldinfo-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .klite-char-worldinfo-item {
-            background: var(--bg2);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .klite-char-worldinfo-item:hover {
-            background: var(--bg3);
-            border-color: var(--accent);
-        }
-        
-        .klite-char-worldinfo-item.disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .klite-char-worldinfo-item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 4px;
-        }
-        
-        .klite-char-worldinfo-item-key {
-            font-size: 12px;
-            font-weight: bold;
-            color: var(--text);
-            font-family: monospace;
-        }
-        
-        .klite-char-worldinfo-item-enabled {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 10px;
-            color: var(--muted);
-        }
-        
-        .klite-char-worldinfo-item-enabled.active {
-            color: var(--success);
-        }
-        
-        .klite-char-worldinfo-item-content {
-            font-size: 11px;
-            color: var(--muted);
-            line-height: 1.3;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-        
-        /* Greeting Items Display */
-        .klite-char-greetings {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 15px;
-        }
-        
-        .klite-char-greetings-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .klite-char-greetings-title {
-            font-size: 13px;
-            font-weight: bold;
-            color: var(--text);
-        }
-        
-        .klite-char-greetings-count {
-            font-size: 11px;
-            color: var(--muted);
-            background: var(--bg2);
-            padding: 2px 8px;
-            border-radius: 12px;
-        }
-        
-        .klite-char-greetings-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .klite-char-greeting-item {
-            background: var(--bg2);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .klite-char-greeting-item:hover {
-            background: var(--bg3);
-            border-color: var(--accent);
-        }
-        
-        .klite-char-greeting-item.selected {
-            border-color: var(--accent);
-            background: rgba(74,158,255,0.1);
-        }
-        
-        .klite-char-greeting-item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-        }
-        
-        .klite-char-greeting-item-label {
-            font-size: 12px;
-            font-weight: bold;
-            color: var(--text);
-        }
-        
-        .klite-char-greeting-item-actions {
-            display: flex;
-            gap: 2px;
-        }
-        
-        .klite-char-greeting-item-action {
-            width: 20px;
-            height: 20px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 3px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 10px;
-            color: var(--muted);
-            transition: all 0.2s;
-        }
-        
-        .klite-char-greeting-item-action:hover {
-            background: var(--bg3);
-            color: var(--text);
-        }
-        
-        .klite-char-greeting-item-action.primary:hover {
-            background: var(--primary);
-            color: white;
-        }
-        
-        .klite-char-greeting-item-content {
-            font-size: 11px;
-            color: var(--muted);
-            line-height: 1.4;
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-        }
-        
-        /* Character Statistics */
-        .klite-char-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-            gap: 8px;
-            margin-bottom: 15px;
-        }
-        
-        .klite-char-stat {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            padding: 8px;
-            text-align: center;
-        }
-        
-        .klite-char-stat-value {
-            font-size: 16px;
-            font-weight: bold;
-            color: var(--text);
-            margin-bottom: 2px;
-        }
-        
-        .klite-char-stat-label {
-            font-size: 10px;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        /* Empty States */
-        .klite-chars-empty {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--muted);
-        }
-        
-        .klite-chars-empty-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-            opacity: 0.5;
-        }
-        
-        .klite-chars-empty-text {
-            font-size: 14px;
-            margin-bottom: 16px;
-        }
-        
-        .klite-chars-empty-action {
-            padding: 8px 16px;
-            background: var(--primary);
-            border: 1px solid var(--theme_color_border);
-            border-radius: 4px;
-            color: var(--primary-text);
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s;
-        }
-        
-        .klite-chars-empty-action:hover { background: var(--theme_color_topbtn_highlight); }
-        
-        /* Loading States */
-        .klite-chars-loading {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--muted);
-        }
-        
-        .klite-chars-loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 2px solid var(--border);
-            border-top: 2px solid var(--accent);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 12px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .klite-chars-loading-text {
-            font-size: 12px;
-        }
-        
-        /* HELP Panel Search Styles */
-        .klite-help-search-section {
-            margin-bottom: 20px;
-        }
-        
-        .klite-help-database-selector {
-            display: flex;
-            gap: 2px;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-        }
-        
-        .klite-help-db-btn {
-            padding: 8px 16px;
-            background: var(--bg3);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            color: var(--text);
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-size: 12px;
-        }
-        
-        .klite-help-db-btn:hover { background: var(--bg2); border-color: var(--border-highlight); }
-        
-        .klite-help-db-btn.active {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: white;
-        }
-        
-        .klite-help-search-input-container {
-            position: relative;
-            margin-bottom: 15px;
-        }
-        
-        .klite-help-search-input {
-            width: 100%;
-            padding: 10px 40px 10px 12px;
-            background: var(--theme_color_input_bg);
-            border: 1px solid var(--theme_color_border);
-            border-radius: 4px;
-            color: var(--theme_color_input_text);
-            font-size: 14px;
-            transition: all 0.2s ease;
-        }
-        
-        .klite-help-search-input:focus { outline: none; border-color: var(--border-highlight); box-shadow: none; }
-        
-        .klite-help-search-clear {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: var(--muted);
-            cursor: pointer;
-            font-size: 18px;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .klite-help-search-clear:hover {
-            color: var(--text);
-        }
-        
-        .klite-help-search-results { background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; max-height: 400px; overflow-y: auto; }
-        
-        .klite-help-search-placeholder,
-        .klite-help-no-results {
-            padding: 20px;
-            text-align: center;
-            color: var(--muted);
-            font-style: italic;
-        }
-        
-        .klite-help-search-result {
-            padding: 12px;
-            border-bottom: 1px solid var(--border);
-            cursor: pointer;
-            transition: background 0.2s ease;
-        }
-        
-        .klite-help-search-result:last-child {
-            border-bottom: none;
-        }
-        
-        .klite-help-search-result:hover { background: var(--bg2); }
-        
-        .klite-help-result-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 8px;
-        }
-        
-        .klite-help-result-title {
-            margin: 0;
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text);
-        }
-        
-        .klite-help-result-category { font-size: 10px; color: var(--muted); background: var(--bg2); padding: 2px 6px; border-radius: 2px; white-space: nowrap; }
-        
-        .klite-help-result-content {
-            color: var(--muted);
-            font-size: 12px;
-            line-height: 1.4;
-            margin-bottom: 6px;
-        }
-        
-        .klite-help-result-score {
-            font-size: 10px;
-            color: var(--muted);
-            text-align: right;
-        }
-        
-        /* Search term highlighting */
-        .klite-help-search-result mark {
-            background: var(--accent);
-            color: white;
-            padding: 1px 2px;
-            border-radius: 2px;
-        }
-        
-        /* Modal styles for detailed entry view */
-        .klite-help-modal-category {
-            font-size: 12px;
-            color: var(--accent);
-            margin-bottom: 15px;
-            font-weight: 600;
-        }
-        
-        .klite-help-modal-content {
-            line-height: 1.6;
-            margin-bottom: 20px;
-        }
-        
-        .klite-help-modal-keywords { font-size: 12px; color: var(--muted); padding: 10px; background: var(--bg3); border-radius: 4px; border-left: 3px solid var(--border-highlight); }
-        
-        /* Help feature styles (existing, enhanced) */
-        .klite-help-feature { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
-        
-        .klite-help-feature:last-child {
-            border-bottom: none;
-        }
-        
-        .klite-help-feature-icon {
-            font-size: 20px;
-            flex-shrink: 0;
-        }
-        
-        .klite-help-feature-content {
-            flex: 1;
-        }
-        
-        .klite-help-feature-title {
-            font-weight: 600;
-            margin-bottom: 4px;
-            color: var(--text);
-        }
-        
-        .klite-help-feature-desc {
-            font-size: 12px;
-            color: var(--muted);
-            line-height: 1.4;
-        }
-
-        /* Behavioral Analysis Styles */
-        .klite-char-behavioral {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 15px;
-        }
-        
-        .klite-char-behavioral-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .klite-char-behavioral-title {
-            font-size: 13px;
-            font-weight: bold;
-            color: var(--text);
-        }
-        
-        .klite-char-behavioral-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-        }
-        
-        .klite-char-behavioral-item {
-            background: var(--bg2);
-            border-radius: 4px;
-            padding: 8px;
-            text-align: center;
-        }
-        
-        .klite-char-behavioral-label {
-            font-size: 10px;
-            color: var(--muted);
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }
-        
-        .klite-char-behavioral-value {
-            font-size: 14px;
-            font-weight: bold;
-            color: var(--text);
-        }
-        
-        .klite-char-behavioral-keywords {
-            margin-top: 10px;
-            padding: 8px;
-            background: var(--bg2);
-            border-radius: 4px;
-        }
-        
-        .klite-char-behavioral-keywords-title {
-            font-size: 11px;
-            color: var(--muted);
-            margin-bottom: 6px;
-        }
-        
-        .klite-char-behavioral-keywords-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-        }
-        
-        .klite-char-behavioral-keyword {
-            background: var(--accent);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 10px;
-        }
-        
-        /* Character Version Info Styles */
-        .klite-char-version {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 12px;
-            margin-bottom: 15px;
-        }
-        
-        .klite-char-version-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        
-        .klite-char-version-title {
-            font-size: 13px;
-            font-weight: bold;
-            color: var(--text);
-        }
-        
-        .klite-char-version-info {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-        }
-        
-        .klite-char-version-item {
-            background: var(--bg2);
-            border-radius: 4px;
-            padding: 8px;
-        }
-        
-        .klite-char-version-label {
-            font-size: 10px;
-            color: var(--muted);
-            text-transform: uppercase;
-            margin-bottom: 4px;
-        }
-        
-        .klite-char-version-value {
-            font-size: 12px;
-            color: var(--text);
-            font-family: monospace;
-        }
-        
-        /* WorldInfo Import Button Styles */
-        .klite-char-worldinfo-actions {
-            display: flex;
-            gap: 2px;
-            margin-top: 10px;
-        }
-        
-        .klite-char-worldinfo-action {
-            flex: 1;
-            padding: 6px 12px;
-            background: var(--primary);
-            border: 1px solid var(--theme_color_border);
-            border-radius: 4px;
-            color: var(--primary-text);
-            cursor: pointer;
-            font-size: 11px;
-            text-align: center;
-            transition: all 0.2s;
-        }
-        
-        .klite-char-worldinfo-action:hover { background: var(--theme_color_topbtn_highlight); }
-        
-        .klite-char-worldinfo-action.secondary {
-            background: var(--bg3);
-            border-color: var(--border);
-            color: var(--text);
-        }
-        
-        .klite-char-worldinfo-action.secondary:hover {
-            background: var(--bg2);
-            border-color: var(--accent);
-        }
-        
-        /* Character Action Button Styles */
-        .klite-char-modal-footer {
-            padding: 16px 20px;
-            background: var(--bg3);
-            border-top: 1px solid var(--border);
-            display: flex;
-            gap: 2px;
-            justify-content: flex-end;
-        }
-        
-        .klite-char-action-btn {
-            padding: 8px 16px;
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s;
-        }
-        
-        .klite-char-action-btn.primary {
-            background: var(--primary);
-            border-color: var(--theme_color_border);
-            color: var(--primary-text);
-        }
-        
-        .klite-char-action-btn.primary:hover { background: var(--theme_color_topbtn_highlight); }
-        
-        .klite-char-action-btn.secondary {
-            background: var(--bg2);
-            color: var(--text);
-        }
-        
-        .klite-char-action-btn.secondary:hover {
-            background: var(--bg3);
-            border-color: var(--accent);
-        }
-        
-        /* Responsive adjustments for character panels */
-        @media (max-width: 768px) {
-            .klite-chars-grid {
-                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-                gap: 8px;
-            }
-            
-            .klite-char-card-avatar {
-                height: 100px;
-            }
-            
-            .klite-char-card-content {
-                padding: 10px;
-            }
-            
-            .klite-char-modal-content {
-                width: 95%;
-                max-height: 95vh;
-            }
-            
-            .klite-char-modal-body {
-                padding: 15px;
-            }
-            
-            .klite-char-stats {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            
-            .klite-char-behavioral-grid,
-            .klite-char-version-info {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        /* =============================================
-           MOBILE MODE STYLES
-           ============================================= */
-        
-        /* Button visibility swapping */
-        .klite-desktop-btn {
-            display: block;
-        }
-        
-        .klite-mobile-btn {
-            display: none;
-        }
-        
-        /* Hide desktop buttons in mobile mode */
-        .klite-mobile .klite-desktop-btn {
-            display: none !important;
-        }
-        
-        /* Show mobile buttons in mobile mode */
-        .klite-mobile .klite-mobile-btn {
-            display: block !important;
-        }
-
-        /* Mobile button sets - hide mode-specific buttons by default */
-        .klite-mobile .klite-mobile-story,
-        .klite-mobile .klite-mobile-adventure,
-        .klite-mobile .klite-mobile-chat {
-            display: none !important;
-        }
-        
-        
-        /* Show correct mobile button set based on mode */
-        .klite-mobile.mode-1 .klite-mobile-story {
-            display: block !important;
-        }
-        
-        .klite-mobile.mode-2 .klite-mobile-adventure {
-            display: block !important;
-        }
-        
-        .klite-mobile.mode-3 .klite-mobile-chat,
-        .klite-mobile.mode-4 .klite-mobile-chat {
-            display: block !important;
-        }
-        
-        /* Mobile input area - maximized layout with relative positioning */
-        .klite-mobile .klite-input-area {
-            gap: 4px !important;
-            padding: 8px !important;
-            position: relative !important;
-        }
-        
-        /* Mobile textarea - maximize space */
-        .klite-mobile .klite-textarea {
-            min-height: 122px !important;
-            flex: 1 !important;
-        }
-        /* Double-height input toggle for mobile */
-        .klite-mobile .klite-container.input-2x .klite-textarea { min-height: 244px !important; }
-        .klite-mobile .klite-container.input-2x .klite-mobile-quick-buttons { bottom: var(--mobile-input-bottom) !important; }
-        .klite-mobile .klite-container.input-2x .klite-mobile-edit-btn { bottom: var(--mobile-input-bottom) !important; }
-        
-        .klite-mobile .klite-textarea-container {
-            flex: 1 !important;
-        }
-        
-        /* Mobile left buttons - make them narrower and input area larger */
-        .klite-mobile .klite-left-btns {
-            width: 32px !important; /* Fixed narrow width for mobile */
-            flex: none !important;
-            flex-direction: column !important; /* Stack buttons vertically */
-            gap: 1px !important;
-        }
-        
-        /* Mobile right buttons - restructured layout */
-        .klite-mobile .klite-right-btns {
-            width: 32px !important;
-            flex: none !important;
-            display: flex !important;
-            flex-direction: column !important;
-            gap: 1px !important;
-            position: relative !important;
-            padding-bottom: 20px !important; /* Leave room for action buttons anchored at bottom */
-        }
-        
-        .klite-mobile .klite-submit-btn {
-            width: 32px !important;
-            height: 100% !important; /* Fill column height above action buttons */
-            font-size: 14px !important;
-            flex: none !important;
-            align-self: stretch !important;
-        }
-        
-        /* Position action buttons outside the right column */
-        .klite-mobile .klite-action-btns {
-            height: 16px !important;
-            flex: none !important;
-            display: flex !important;
-            gap: 1px !important;
-            position: absolute !important;
-            bottom: 0px !important;
-            right: 0px !important;
-            width: 100px !important;
-            z-index: 10 !important;
-        }
-        
-        .klite-mobile .klite-action-btn {
-            height: 19px !important;
-            font-size: 12px !important;
-            flex: 1 !important;
-            border: 1px solid var(--border) !important;
-            padding-top: 0px !important;
-        }
-        
-        /* Mobile info area - make space for action buttons */
-        .klite-mobile .klite-info {
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            gap: 8px !important;
-            padding-right: 4px !important;
-            font-size: 11px !important;
-            background: transparent !important;
-        }
-        
-        .klite-mobile .klite-info span:first-child {
-            flex: 1 !important;
-        }
-        
-        .klite-mobile .klite-info span:last-child {
-            flex: 1 !important;
-            text-align: right !important;
-        }
-        
-        .klite-mobile .klite-mobile-btn {
-            width: 32px !important;
-            min-width: 32px !important;
-            height: 25px !important;
-            padding: 0 !important;
-            font-size: 14px !important;
-        }
-        
-        /* Mobile - keep quick buttons and edit button visible */
-        
-        /* Mobile panel fullscreen display - only when not collapsed */
-        .klite-mobile .klite-panel-left:not(.collapsed),
-        .klite-mobile .klite-panel-right:not(.collapsed) {
-            width: 100% !important;
-            height: 100% !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
-            bottom: 0 !important;
-            z-index: 32768 !important;
-        }
-        
-        /* Mobile collapsed panels - override fullscreen when collapsed */
-        .klite-mobile .klite-panel-left.collapsed {
-            transform: translateX(-100%) !important;
-        }
-        
-        .klite-mobile .klite-panel-right.collapsed {
-            transform: translateX(100%) !important;
-        }
-        
-        /* Mobile expanded panels - no transform when not collapsed */
-        .klite-mobile .klite-panel-left:not(.collapsed) {
-            transform: translateX(0) !important;
-        }
-        
-        .klite-mobile .klite-panel-right:not(.collapsed) {
-            transform: translateX(0) !important;
-        }
-        
-        /* Hide desktop-specific elements in mobile */
-        .klite-mobile .klite-tabs {
-            display: none !important;
-        }
-        
-        /* Mobile: show and reposition side handles so they remain usable */
-        .klite-mobile .klite-panel-left .klite-handle,
-        .klite-mobile .klite-panel-right .klite-handle {
-            display: flex !important;
-        }
-        /* Left panel: keep handle visible in both states */
-        .klite-mobile .klite-panel-left:not(.collapsed) .klite-handle { left: 0 !important; right: auto !important; }
-        .klite-mobile .klite-panel-left.collapsed .klite-handle { right: -15px !important; left: auto !important; }
-        /* Right panel: keep handle visible in both states */
-        .klite-mobile .klite-panel-right:not(.collapsed) .klite-handle { right: 0 !important; left: auto !important; }
-        .klite-mobile .klite-panel-right.collapsed .klite-handle { left: -15px !important; right: auto !important; }
-        
-        /* Default state: Show desktop buttons, hide mobile buttons */
-        .klite-desktop-quick-buttons,
-        .klite-desktop-mode-buttons {
-            display: flex;
-        }
-        
-        .klite-desktop-edit-btn {
-            display: block;
-        }
-        
-        .klite-mobile-quick-buttons,
-        .klite-mobile-edit-btn {
-            display: none !important;
-        }
-        
-        /* Mobile mode: Hide desktop buttons, show mobile buttons */
-        .klite-mobile .klite-desktop-quick-buttons,
-        .klite-mobile .klite-desktop-mode-buttons {
-            display: none !important;
-        }
-        
-        .klite-mobile .klite-desktop-edit-btn {
-            display: none !important;
-        }
-        
-        .klite-mobile .klite-mobile-quick-buttons {
-            display: flex !important;
-        }
-        
-        .klite-mobile .klite-mobile-edit-btn {
-            display: block !important;
-            height: 30px !important;
-            width: 64px !important;
-            bottom: 155px !important;
-        }
-        
-        /* Mobile content adjustments */
-        .klite-mobile .klite-content {
-            padding-top: 20px !important;
-        }
-        
-        /* Quick buttons positioning for mobile */
-        .klite-mobile .klite-quick-btn {
-            width: 30px !important;
-            height: 30px !important;
-            font-size: 14px !important;
-        }
-        
-        /* Ensure active state works in mobile mode */
-        .klite-mobile .klite-quick-btn.active {
-            background: var(--success) !important;
-            color: white !important;
-        }
-        
-        /* Mobile quick button container positioning */
-        .klite-mobile .klite-mobile-quick-buttons {
-            bottom: 155px !important;
-        }
-        
-        /* Connection info repositioning for mobile */
-        .klite-mobile .klite-info {
-            font-size: 12px !important;
-        }
-        
-        .klite-mobile .klite-info span:has(#prompt-tokens),
-        .klite-mobile .klite-info span:has(#story-tokens) {
-            display: none !important; /* Hide token counter text in mobile */
-        }
-        
-        .klite-mobile .klite-info span:last-child {
-            text-align: left !important; /* Left align connection/queue/timer */
-        }
-        
-        /* Mobile navigation button theme integration */
-        .klite-mobile-nav-btn {
-            background: var(--primary) !important;
-            border: 1px solid var(--theme_color_border) !important;
-        }
-        
-        .klite-mobile-nav-btn:hover {
-            background: var(--accent) !important;
-        }
-        
-        .klite-mobile-nav-btn:disabled,
-        .klite-mobile-nav-btn[style*="opacity: 0.5"] {
-            background: var(--muted) !important;
-            color: var(--border) !important;
-        }
-    `;
+  // src/rpmod/templates.js
+  function installTemplates(S2) {
     const t = {
       // Collapsible section with a header and content
       section: (title, content, collapsed = false) => `
@@ -4969,6 +1933,11 @@ ${s.text}` : s.text : `[${s.title}]`;
       });
     } catch (_) {
     }
+    S2.t = t;
+  }
+
+  // src/rpmod/liteApi.js
+  function installLiteApi(S2) {
     const LiteAPI = {
       get settings() {
         return window.localsettings || null;
@@ -5004,6 +1973,56 @@ ${s.text}` : s.text : `[${s.title}]`;
         }
       }
     };
+    window.RPmodHostAdapter = {
+      get settings() {
+        return window.localsettings || null;
+      },
+      get theme() {
+        return window.aestheticInstructUISettings || null;
+      },
+      async save(key, data) {
+        if (!LiteAPI.storage.save) throw new Error("Host storage.save unavailable");
+        return LiteAPI.storage.save(key, data);
+      },
+      async load(key) {
+        if (!LiteAPI.storage.load) throw new Error("Host storage.load unavailable");
+        return LiteAPI.storage.load(key, null);
+      },
+      setMode(opmode, subMode) {
+        if (!window.localsettings) return false;
+        window.localsettings.opmode = opmode;
+        if (typeof subMode === "number") window.localsettings.adventure_switch_mode = subMode;
+        return true;
+      },
+      applyCharacter(char, opts = {}) {
+        if (!char || !window.localsettings) return false;
+        window.localsettings.chatopponent = char.name || window.localsettings.chatopponent || "AI";
+        try {
+          if (window.aestheticInstructUISettings && (char.avatar || char.image)) {
+            window.aestheticInstructUISettings.AI_portrait = char.avatar || char.image;
+          }
+        } catch (_) {
+        }
+        return true;
+      }
+    };
+    const DOMUtil = {
+      safeGet(selector, context = document) {
+        const element = context.getElementById ? context.getElementById(selector) : context.querySelector(`#${selector}`);
+        if (!element) {
+          console.warn(`[KLITE RPMod] Element not found: ${selector}`);
+        }
+        return element;
+      }
+    };
+    window.LiteAPI = LiteAPI;
+    window.DOMUtil = DOMUtil;
+    S2.LiteAPI = LiteAPI;
+    S2.DOMUtil = DOMUtil;
+  }
+
+  // src/rpmod/styles.js
+  function installStyles(S2) {
     const STYLES_PANELS_ONLY = `
         :root {
             --bg: var(--theme_color_bg_outer, #182330);
@@ -5033,7 +2052,7 @@ ${s.text}` : s.text : `[${s.title}]`;
         .klite-handle { position: absolute; background: var(--bg2); border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 12px; z-index: 9; pointer-events: auto; }
         .klite-handle:hover { background: var(--bg3); color: var(--text); }
         .klite-panel-right .klite-handle { left: -15px; top: 50%; transform: translateY(-50%); width: 15px; height: 50px; border-radius: 5px 0 0 5px; }
-        /* ALPHA's own tab bar (hidden inside the RPmod shell, which has its own tabs) */
+        /* the panel's own tab bar (hidden inside the RPmod shell, which has its own tabs) */
         .klite-tabs { display: flex; gap: 3px; padding: 6px 8px; background: var(--theme_color_topmenu); border-bottom: 1px solid var(--border); }
         .klite-tab { flex: 1; padding: 6px 4px; border: 1px solid var(--border); border-radius: 5px; color: var(--primary-text); cursor: pointer; font-size: var(--theme_font_size_small, 9pt); font-weight: bold; text-align: center; background: var(--theme_color_topbtn, var(--primary)); line-height: 1.1; }
         .klite-tab:hover, .klite-tab.active { background: var(--theme_color_accent_bg_highlight); border-color: var(--border-highlight); color: var(--theme_color_accent_fg_highlight, var(--primary-text)); }
@@ -5103,50 +2122,12 @@ ${s.text}` : s.text : `[${s.title}]`;
         .klite-timeline-item { padding: 8px; margin-bottom: 4px; cursor: pointer; border-radius: 4px; transition: background 0.2s; }
         .klite-timeline-item:hover { background: var(--bg3); }
     `;
-    window.RPmodHostAdapter = {
-      get settings() {
-        return window.localsettings || null;
-      },
-      get theme() {
-        return window.aestheticInstructUISettings || null;
-      },
-      async save(key, data) {
-        if (!LiteAPI.storage.save) throw new Error("Host storage.save unavailable");
-        return LiteAPI.storage.save(key, data);
-      },
-      async load(key) {
-        if (!LiteAPI.storage.load) throw new Error("Host storage.load unavailable");
-        return LiteAPI.storage.load(key, null);
-      },
-      setMode(opmode, subMode) {
-        if (!window.localsettings) return false;
-        window.localsettings.opmode = opmode;
-        if (typeof subMode === "number") window.localsettings.adventure_switch_mode = subMode;
-        return true;
-      },
-      applyCharacter(char, opts = {}) {
-        if (!char || !window.localsettings) return false;
-        window.localsettings.chatopponent = char.name || window.localsettings.chatopponent || "AI";
-        try {
-          if (window.aestheticInstructUISettings && (char.avatar || char.image)) {
-            window.aestheticInstructUISettings.AI_portrait = char.avatar || char.image;
-          }
-        } catch (_) {
-        }
-        return true;
-      }
-    };
-    const DOMUtil = {
-      safeGet(selector, context = document) {
-        const element = context.getElementById ? context.getElementById(selector) : context.querySelector(`#${selector}`);
-        if (!element) {
-          console.warn(`[KLITE RPMod] Element not found: ${selector}`);
-        }
-        return element;
-      }
-    };
-    window.LiteAPI = LiteAPI;
-    window.DOMUtil = DOMUtil;
+    S2.STYLES_PANELS_ONLY = STYLES_PANELS_ONLY;
+  }
+
+  // src/rpmod/core.js
+  function installCore(S2) {
+    const { STYLES_PANELS_ONLY, t, LiteAPI } = S2;
     window.KLITE_RPMod = {
       // Populate Create Scenario panel fields (if present) from a character
       async populateScenarioFromCharacter(charObj) {
@@ -6481,7 +3462,7 @@ ${s.text}` : s.text : `[${s.title}]`;
         try {
           if (this._settingsEnhanced) return;
           try {
-            window.KLITE_RPMod_Settings?.registerBlock({ id: "alpha", section: "Debug & compatibility", order: 50, mount() {
+            window.KLITE_RPMod_Settings?.registerBlock({ id: "rp-panels", section: "Debug & compatibility", order: 50, mount() {
             } });
           } catch (_) {
           }
@@ -6523,7 +3504,7 @@ ${s.text}` : s.text : `[${s.title}]`;
       },
       injectOverlayCheckboxIntoSettings() {
         try {
-          let pane = document.getElementById("rpmod-settings-alpha") || document.querySelector("#settingsmenuadvanced") || document.querySelector("#advanced") || document.querySelector("#settings-advanced");
+          let pane = document.getElementById("rpmod-settings-rp-panels") || document.querySelector("#settingsmenuadvanced") || document.querySelector("#advanced") || document.querySelector("#settings-advanced");
           if (!pane) {
             const links = Array.from(document.querySelectorAll(".settingsnav a, .nav-tabs a"));
             const advLink = links.find((a) => /advanced/i.test(a.textContent || ""));
@@ -8932,6 +5913,10 @@ ${s.text}` : s.text : `[${s.title}]`;
         }
       }
     };
+  }
+
+  // src/rpmod/rpMode.js
+  function installRpMode(S2) {
     KLITE_RPMod.onRPModeEnter = function() {
       this.log("rp", "Entering RP mode - applying roleplay formatting");
       this.updateRPStyle();
@@ -9256,6 +6241,11 @@ ${s.text}` : s.text : `[${s.title}]`;
       } catch (_) {
       }
     };
+  }
+
+  // src/panels/tools.js
+  function installToolsPanel(S2) {
+    const { t, LiteAPI } = S2;
     KLITE_RPMod.panels.TOOLS = {
       // The AI's character (1:1 chat) / the user's persona — used by the selection dialogs
       // and by the RPmod character gallery (src/characters/gallery.js).
@@ -10941,6 +7931,11 @@ ${s.text}` : s.text : `[${s.title}]`;
         });
       }
     })(KLITE_RPMod.panels.TOOLS);
+  }
+
+  // src/panels/context.js
+  function installContextPanel(S2) {
+    const { t, LiteAPI } = S2;
     KLITE_RPMod.panels.CONTEXT = {
       // State
       analysisWindow: null,
@@ -11687,6 +8682,11 @@ ${wi.content}
         return hash3;
       }
     };
+  }
+
+  // src/panels/scenario.js
+  function installScenarioPanel(S2) {
+    const { t } = S2;
     KLITE_RPMod.panels.SCENARIO = {
       getSourceCharacter() {
         try {
@@ -12036,6 +9036,11 @@ ${examples}`;
         }
       }
     };
+  }
+
+  // src/panels/roles.js
+  function installRolesPanel(S2) {
+    const { t } = S2;
     KLITE_RPMod.panels.ROLES = {
       enabled: false,
       activeChars: [],
@@ -12910,6 +9915,336 @@ ${examples}`;
         }
       }
     };
+  }
+
+  // src/onboarding/hostGlobals.js
+  var IDENT = /^[A-Za-z_$][\w$]*$/;
+  function hostGet(name) {
+    if (!IDENT.test(name)) return void 0;
+    try {
+      return new Function(`return typeof ${name} === 'undefined' ? undefined : ${name};`)();
+    } catch (_) {
+      return void 0;
+    }
+  }
+  function hostSet(name, value) {
+    if (!IDENT.test(name) || hostGet(name) === void 0) return false;
+    try {
+      new Function("v", `${name} = v;`)(value);
+      if (Object.prototype.hasOwnProperty.call(window, name)) window[name] = value;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+  function esoExtensionClass(className, typeName) {
+    const registry = window.eso && window.eso.extensions;
+    const cls = hostGet(className), types = hostGet("EsoExtensionType");
+    if (!registry || typeof registry.register !== "function" || typeof cls !== "function" || !types || !types[typeName]) return null;
+    return cls;
+  }
+
+  // src/library/esoliteLibrary.js
+  var fn = (name) => typeof window[name] === "function" ? window[name] : hostGet(name);
+  var TAVERN_FIELDS = ["description", "personality", "scenario", "first_mes", "mes_example"];
+  function normalizeName(name, fallback = "Untitled") {
+    const host = fn("normalizeCharacterStorageName");
+    if (typeof host === "function") return host(name, fallback);
+    const n = `${name || ""}`.replaceAll(/[^\w()_\-'",!\[\].]/g, " ").replaceAll(/\s+/g, " ").trim();
+    return n || fallback;
+  }
+  function list() {
+    const l = hostGet("allCharacterNames");
+    return Array.isArray(l) ? l : [];
+  }
+  function findMetaByName(name) {
+    const host = fn("findCharacterMetaByName");
+    if (typeof host === "function") return host(name);
+    const n = normalizeName(name);
+    return list().find((m) => normalizeName(m && m.name) === n);
+  }
+  var storageKey = (id) => `character_${id}`;
+  var CARD_KEYS = /* @__PURE__ */ new Set(["chara", "ccv3", "chara_encoding", "chara_spec"]);
+  var V2_DEFAULTS = {
+    name: "",
+    description: "",
+    personality: "",
+    scenario: "",
+    first_mes: "",
+    mes_example: "",
+    creator_notes: "",
+    system_prompt: "",
+    post_history_instructions: "",
+    alternate_greetings: [],
+    tags: [],
+    creator: "",
+    character_version: "",
+    extensions: {}
+  };
+  function v2Card(inner) {
+    const src = inner && typeof inner === "object" ? inner : {};
+    const d = Object.assign({}, src);
+    for (const [k2, v] of Object.entries(V2_DEFAULTS)) {
+      const ok = Array.isArray(v) ? Array.isArray(d[k2]) : v && typeof v === "object" ? d[k2] && typeof d[k2] === "object" && !Array.isArray(d[k2]) : typeof d[k2] === "string";
+      if (!ok) d[k2] = Array.isArray(v) ? [] : v && typeof v === "object" ? {} : d[k2] == null ? "" : String(d[k2]);
+    }
+    if ("character_book" in d && !(d.character_book && typeof d.character_book === "object" && !Array.isArray(d.character_book))) delete d.character_book;
+    return {
+      spec: "chara_card_v2",
+      spec_version: "2.0",
+      name: d.name || "",
+      description: d.description || "",
+      personality: d.personality || "",
+      scenario: d.scenario || "",
+      first_mes: d.first_mes || "",
+      mes_example: d.mes_example || "",
+      data: d
+    };
+  }
+  function stripCardChunks(bytes) {
+    const SIG = 8;
+    if (!bytes || bytes.length < SIG) return bytes;
+    const parts = [bytes.subarray(0, SIG)];
+    let pos = SIG, total = SIG;
+    while (pos + 12 <= bytes.length) {
+      const len = (bytes[pos] << 24 | bytes[pos + 1] << 16 | bytes[pos + 2] << 8 | bytes[pos + 3]) >>> 0;
+      const end = pos + 12 + len;
+      if (end > bytes.length) break;
+      const type = String.fromCharCode(bytes[pos + 4], bytes[pos + 5], bytes[pos + 6], bytes[pos + 7]);
+      let drop = false;
+      if (type === "tEXt") {
+        let k2 = pos + 8, key = "";
+        while (k2 < pos + 8 + len && bytes[k2] !== 0 && key.length < 80) key += String.fromCharCode(bytes[k2++]);
+        drop = CARD_KEYS.has(key);
+      }
+      if (!drop) {
+        parts.push(bytes.subarray(pos, end));
+        total += end - pos;
+      }
+      pos = end;
+      if (type === "IEND") break;
+    }
+    const out = new Uint8Array(total);
+    let o = 0;
+    for (const p of parts) {
+      out.set(p, o);
+      o += p.length;
+    }
+    return out;
+  }
+  var PNG_PREFIX = "data:image/png;base64,";
+  function embedCardInImage(image, inner) {
+    const tool = window.tavernTool;
+    if (typeof image !== "string" || !image.startsWith(PNG_PREFIX) || !tool || typeof tool.embedIntoPng !== "function") return image;
+    try {
+      const bin = atob(image.slice(PNG_PREFIX.length));
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const out = tool.embedIntoPng(stripCardChunks(bytes), v2Card(inner));
+      let text = "";
+      for (let i = 0; i < out.length; i += 32768) text += String.fromCharCode.apply(null, out.subarray(i, Math.min(i + 32768, out.length)));
+      return PNG_PREFIX + btoa(text);
+    } catch (e) {
+      console.error("[RPmod library] could not embed the card into the portrait", e);
+      return image;
+    }
+  }
+  async function thumbnailFor(image) {
+    const gen = fn("generateThumbnail");
+    if (!image || typeof gen !== "function") return void 0;
+    try {
+      return await gen(image, [256, 256]);
+    } catch (_) {
+      return void 0;
+    }
+  }
+  async function saveList() {
+    const upd = fn("updateCharacterListFromAll");
+    if (typeof upd === "function") {
+      await upd();
+      return;
+    }
+    await window.indexeddb_save?.("characterList", JSON.stringify(list()));
+  }
+  function upsertMeta(meta) {
+    const host = fn("upsertCharacterMetadata");
+    if (typeof host === "function") {
+      host(meta);
+      return;
+    }
+    const next = list().filter((m) => `${m && m.id || ""}` !== `${meta.id}`);
+    next.push(meta);
+    hostSet("allCharacterNames", next);
+  }
+  async function saveCharacter({ inner, image, oldName }) {
+    const rawName = inner && inner.name || "";
+    if (!String(rawName).trim()) throw new Error("Character must have a name.");
+    let existing = oldName ? findMetaByName(oldName) : null;
+    if (existing && existing.type && existing.type !== "Character") existing = null;
+    let name = normalizeName(rawName, "No character name");
+    let id;
+    if (existing) {
+      id = existing.id || normalizeName(existing.name);
+      const clash = findMetaByName(name);
+      if (clash && `${clash.id}` !== `${id}`) {
+        const next = fn("getNextAutoincrementName");
+        name = typeof next === "function" ? next(name) : `${name}_1`;
+      }
+    } else {
+      const resolve = fn("resolveCharacterNameAndId");
+      const r = typeof resolve === "function" ? resolve(rawName, "No character name") : { name, id: name };
+      name = r.name;
+      id = r.id;
+    }
+    const record = { id, name, data: Object.assign({}, inner, { name: normalizeName(rawName, "No character name") }) };
+    let img = image;
+    if (!img) {
+      try {
+        const prev = JSON.parse(await window.indexeddb_load?.(storageKey(id), "{}") || "{}");
+        if (prev && prev.image) img = prev.image;
+      } catch (_) {
+      }
+    }
+    if (img) record.image = embedCardInImage(img, record.data);
+    await window.indexeddb_save?.(storageKey(id), JSON.stringify(record));
+    const thumbnail = image ? await thumbnailFor(image) : existing && existing.thumbnail;
+    upsertMeta(Object.assign({}, existing || {}, { id, name, type: "Character", favorite: !!(existing && existing.favorite) }, thumbnail ? { thumbnail } : {}));
+    await saveList();
+    libraryChanged({ name, oldName: oldName || null });
+    return { id, name };
+  }
+  function libraryChanged(detail) {
+    try {
+      window.dispatchEvent(new CustomEvent("klite:library-change", { detail }));
+    } catch (_) {
+    }
+  }
+  async function loadCharacter(name) {
+    const get = fn("getCharacterData");
+    if (typeof get !== "function" || !name) return null;
+    try {
+      let r = await get(name);
+      if (typeof r === "string") r = JSON.parse(r || "{}");
+      return r && r.data && typeof r.data === "object" && !Array.isArray(r.data) ? r : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function characterList() {
+    return list().filter((m) => m && m.name && (m.type || "Character") === "Character");
+  }
+  function characterNames() {
+    return characterList().map((m) => m.name);
+  }
+  async function deleteCharacter(name) {
+    const meta = findMetaByName(name);
+    const id = meta && meta.id || normalizeName(name);
+    await window.indexeddb_save?.(storageKey(id));
+    hostSet("allCharacterNames", list().filter((m) => meta ? `${m && m.id || ""}` !== `${meta.id}` : normalizeName(m && m.name) !== normalizeName(name)));
+    await saveList();
+    libraryChanged({ name, oldName: null, deleted: true });
+  }
+  function storagePrefix() {
+    const p = hostGet("STORAGE_PREFIX");
+    return typeof p === "string" ? p : null;
+  }
+  function isOrphanRecord(record) {
+    if (!record || typeof record !== "object" || record.id != null || record.dataType) return false;
+    const d = record.data;
+    return !!(d && typeof d === "object" && !Array.isArray(d) && typeof d.name === "string" && d.name.trim() && TAVERN_FIELDS.some((f) => f in d));
+  }
+  async function findOrphans() {
+    const prefix = storagePrefix();
+    if (prefix == null || typeof window.indexeddb_load !== "function") return [];
+    let stored = [];
+    try {
+      stored = JSON.parse(await window.indexeddb_load("characterList", "[]") || "[]");
+    } catch (_) {
+      return [];
+    }
+    if (!Array.isArray(stored) || stored.some((m) => m && !m.id)) return [];
+    const referenced = new Set([...stored, ...list()].map((m) => m && `${m.id}`).filter(Boolean));
+    const keys = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k2 = localStorage.key(i);
+        if (k2 && k2.startsWith(prefix + "character_")) keys.push(k2.slice(prefix.length));
+      }
+    } catch (_) {
+      return [];
+    }
+    const out = [];
+    for (const key of keys) {
+      const id = key.slice("character_".length);
+      if (!id || referenced.has(id)) continue;
+      let record = null;
+      try {
+        record = JSON.parse(await window.indexeddb_load(key, "") || "null");
+      } catch (_) {
+        continue;
+      }
+      if (isOrphanRecord(record)) out.push({ key, id, record });
+    }
+    return out;
+  }
+  async function recoverOrphans() {
+    const orphans = await findOrphans();
+    const names = [];
+    for (const { key, id, record } of orphans) {
+      let name = normalizeName(record.name || record.data.name, "Recovered character");
+      const clash = findMetaByName(name);
+      if (clash) {
+        const next = fn("getNextAutoincrementName");
+        name = typeof next === "function" ? next(name) : `${name}_recovered`;
+      }
+      const fixed = Object.assign({}, record, { id, name });
+      await window.indexeddb_save(key, JSON.stringify(fixed));
+      const thumbnail = await thumbnailFor(record.image);
+      upsertMeta(Object.assign({ id, name, type: "Character", favorite: false }, thumbnail ? { thumbnail } : {}));
+      names.push(name);
+    }
+    if (names.length) await saveList();
+    return names;
+  }
+  function initLibrary() {
+    "use strict";
+    if (window.KLITE_RPMod_Library) return;
+    const api = { saveCharacter, deleteCharacter, loadCharacter, characterNames, characterList, findOrphans, recoverOrphans, isOrphanRecord, embedCardInImage, stripCardChunks, v2Card };
+    window.KLITE_RPMod_Library = api;
+    let tries = 0;
+    const attempt = async () => {
+      tries++;
+      const listReady = list().length > 0 ? list().every((m) => m && m.id) : tries >= 6;
+      const ready = typeof window.indexeddb_load === "function" && storagePrefix() != null && listReady;
+      if (!ready) {
+        if (tries < 40) setTimeout(attempt, 1500);
+        return;
+      }
+      try {
+        const names = await recoverOrphans();
+        if (names.length) {
+          console.warn("[RPmod library] re-listed characters that an older RPmod version had hidden:", names);
+          try {
+            window.KLITE_RPMod?.panels?.CHARS?.rebuildFromEsolite?.();
+          } catch (_) {
+          }
+          try {
+            window.dispatchEvent(new CustomEvent("klite:library-recovered", { detail: { names } }));
+          } catch (_) {
+          }
+        }
+      } catch (e) {
+        console.error("[RPmod library] recovery failed", e);
+      }
+    };
+    const start = () => setTimeout(attempt, 1500);
+    if (document.readyState === "complete") start();
+    else window.addEventListener("load", start, { once: true });
+  }
+
+  // src/panels/chars.js
+  function installCharsPanel(S2) {
+    const { t } = S2;
     KLITE_RPMod.panels.CHARS = {
       fileInput: null,
       currentFilter: "",
@@ -15212,6 +12547,11 @@ ${char.mes_example}
         }
       }
     };
+  }
+
+  // src/characters/cardEditor.js
+  function installCardEditor(S2) {
+    const { t } = S2;
     KLITE_RPMod.panels.CHARS.editMode = "none";
     KLITE_RPMod.panels.CHARS.editData = null;
     KLITE_RPMod.panels.CHARS.abortEdit = function() {
@@ -15438,6 +12778,10 @@ ${char.mes_example}
         this.abortEdit?.();
       };
     }
+  }
+
+  // src/rpmod/boot.js
+  function installBoot(S2) {
     function waitForKobold() {
       KLITE_RPMod.log("init", "Checking for KoboldAI Lite readiness...");
       if (document.getElementById("gametext") && document.getElementById("input_text") && typeof submit_generation_button === "function" && document.readyState !== "loading") {
@@ -15778,6 +13122,37 @@ ${char.mes_example}
         }
       })();
     })();
+  }
+
+  // src/rpmod/index.js
+  function initRpmod() {
+    "use strict";
+    if (window.KLITE_RPMod_LOADED) {
+      console.warn("[KLITE RPMod] Already loaded, skipping duplicate load");
+      return;
+    }
+    window.KLITE_RPMod_LOADED = true;
+    window.KLITE_RPMod_Config = window.KLITE_RPMod_Config || {};
+    window.KLITE_RPMod_Config.panelsOnly = true;
+    window.KLITE_RPMod_Config.embedInSave = true;
+    window.KLITE_RPMod_Config.rpmodAutosave = false;
+    window.KLITE_RPMod_Config.enableConsoleRestore = false;
+    const S2 = {};
+    installDebug(S2);
+    installCharacterContext(S2);
+    installHostCompat(S2);
+    installTemplates(S2);
+    installLiteApi(S2);
+    installStyles(S2);
+    installCore(S2);
+    installRpMode(S2);
+    installToolsPanel(S2);
+    installContextPanel(S2);
+    installScenarioPanel(S2);
+    installRolesPanel(S2);
+    installCharsPanel(S2);
+    installCardEditor(S2);
+    installBoot(S2);
   }
 
   // src/data/srd52.js
@@ -35305,7 +32680,7 @@ OK = save and close · Cancel = close and discard them`);
       blurbFor,
       updateSheet,
       flushSheet,
-      // the player's persona (ALPHA Tools): name when chosen and enabled, else ''
+      // the player's persona (Tools panel): name when chosen and enabled, else ''
       personaName: () => {
         try {
           const T = window.KLITE_RPMod?.panels?.TOOLS;
@@ -36421,7 +33796,7 @@ OK = save and close · Cancel = close and discard them`);
     ["characters/characters.js", initCharacters],
     ["characters/gallery.js", initGallery],
     ["characters/builder.js", initBuilder],
-    ["KLITE-RPmod_ALPHA.js", initAlpha],
+    ["rpmod/index.js", initRpmod],
     ["KLITE-RPmod_Worlds.js", initWorlds],
     ["KLITE-RPmod_WorldsUI.js", initWorldsUI],
     ["onboarding/onboarding.js", initOnboarding]

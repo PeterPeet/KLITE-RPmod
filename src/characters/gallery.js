@@ -3,7 +3,7 @@
 // -----------------------------------------------------------------------------
 // A view on Esolite's Library (the master store) made for looking at your characters:
 // big portrait cards with name, creator, tagline, tags and stats laid over the image,
-// four sizes (large / medium / small / list, like ALPHA's views), search, sort, tag
+// four sizes (large / medium / small / list, like the old Chars panel views), search, sort, tag
 // chips, and a detail page with the full card and actions (persona, chat, sheet, edit,
 // download, favorite, delete).
 //
@@ -351,7 +351,7 @@ export default function initGallery() {
     }
 
     // ---- import ------------------------------------------------------------------------
-    // Esolite's own file prompt and import functions (via ALPHA's import handler, the same
+    // Esolite's own file prompt and import functions (via the Chars panel's import handler, the same
     // path as the Chars tab). Esolite saves asynchronously, so watch the list for the result.
     const importHandler = () => window.KLITE_RPMod?.panels?.CHARS?.processEsoliteImportResult;
     const canImport = () => typeof window.promptUserForLocalFile === 'function' && typeof importHandler() === 'function';
@@ -384,7 +384,7 @@ export default function initGallery() {
         });
         sh.addDockAction('right', { id: 'gallery', title: 'Character gallery (full screen)', icon: 'layout-grid', onClick: () => api.open() });
         window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && V.detail && V.box && !document.querySelector('.popupcontainer:not(.hidden)')) closeDetail(); });
-        // RPmod wrote or deleted a card (ALPHA editor, sheet, import): drop its cached summary
+        // RPmod wrote or deleted a card (card editor, sheet, import): drop its cached summary
         window.addEventListener('klite:library-change', (e) => {
             const d = (e && e.detail) || {};
             const edit = d.name && !d.deleted && (!d.oldName || d.oldName === d.name) && V.grid && [...V.grid.children].some(c => c.getAttribute && c.getAttribute('data-name') === d.name);

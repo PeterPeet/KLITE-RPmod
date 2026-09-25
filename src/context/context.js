@@ -26,7 +26,7 @@
 //                legacy Worlds group '__worlds__').
 //
 // Character/persona setup actions that write user-visible story data on purpose
-// (ALPHA "Start RP" WI entries, "load as scenario" memory, Esolite's Quick Start) are
+// (the Scenario panel's "Start RP" WI entries, "load as scenario" memory, Esolite's Quick Start) are
 // not per-turn context and stay the user's data.
 // Public API: window.KLITE_RPMod_Context (created on first getContext() call).
 // =============================================================================
@@ -180,7 +180,7 @@ function createContext() {
     function run(fn) { return runTurn(fn, null, [], false); }
 
     // ---- host hooks -----------------------------------------------------------------
-    // Installed once: other wrappers (ALPHA's debug logger, Esolite's agent.js) may sit
+    // Installed once: other wrappers (the RP core's debug logger, Esolite's agent.js) may sit
     // on top of ours later, so the flag on window.prepare_submit_generation is not proof.
     let hooked = { prepare: false, save: false };
     function install() {

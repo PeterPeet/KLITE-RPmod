@@ -52,7 +52,7 @@ test('gallery: opens full screen; cards show name, creator, tagline, tags over t
     assert.equal(JSON.parse(w.localStorage.getItem('KLITE.gallery')).size, 'list', 'view remembered');
 });
 
-test('gallery: detail page with the full card; actions use ALPHA persona/character and the sheet', async (t) => {
+test('gallery: detail page with the full card; actions use the Tools persona/character and the sheet', async (t) => {
     const h = await galleryHost(t); const w = h.window;
     const used = [];
     w.KLITE_RPMod.panels.TOOLS.usePersona = (c) => { used.push(['persona', c.name, c.description]); w.KLITE_RPMod.panels.TOOLS.selectedPersona = c; };
@@ -81,9 +81,9 @@ test('gallery: detail page with the full card; actions use ALPHA persona/charact
 
 test('Chars tab points to the gallery; gallery imports through Esolite and follows Library writes', async (t) => {
     const h = await galleryHost(t); const w = h.window;
-    // ALPHA's Chars tab (its panel is not built in jsdom: render + action directly)
+    // the Chars panel (its panel is not built in jsdom: render + action directly)
     const CH = w.KLITE_RPMod.panels.CHARS;
-    w.KLITE_RPMod.characters = [];   // ALPHA's copy may lag; the tab reads the Library list
+    w.KLITE_RPMod.characters = [];   // the RP core's copy may lag; the tab reads the Library list
     w.__lib().find(m => m.name === 'Mira').favorite = true;
     const tab = w.document.createElement('div'); tab.innerHTML = CH.render();
     const launcher = [...tab.querySelectorAll('[data-action="open-gallery"]')];

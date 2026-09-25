@@ -2,7 +2,7 @@
 // KLITE RPmod — Esolite Library adapter
 // -----------------------------------------------------------------------------
 // Esolite's Library (index.html + static/js/characterManager.js) is the one store for
-// characters. RPmod's gallery (ALPHA's CHARS panel) is a view on it and writes through
+// characters. RPmod's gallery (the Chars panel) is a view on it and writes through
 // here, using Esolite's own functions so records look exactly like Esolite's:
 //
 //   Esolite >= 1.35: every Library entry has an `id`; the record lives under
@@ -14,7 +14,7 @@
 // entries without an id, so on 1.35 an edited or imported character disappeared from
 // the Library (the record stayed in storage). recoverOrphans() puts such records back.
 //
-// Public API: window.KLITE_RPMod_Library (also imported by ALPHA).
+// Public API: window.KLITE_RPMod_Library (also imported by the Chars panel).
 // =============================================================================
 import { hostGet, hostSet } from '../onboarding/hostGlobals.js';
 
@@ -56,7 +56,7 @@ export function v2Card(inner) {
         const ok = Array.isArray(v) ? Array.isArray(d[k]) : (v && typeof v === 'object') ? (d[k] && typeof d[k] === 'object' && !Array.isArray(d[k])) : typeof d[k] === 'string';
         if (!ok) d[k] = Array.isArray(v) ? [] : (v && typeof v === 'object') ? {} : (d[k] == null ? '' : String(d[k]));
     }
-    // optional lorebook must be an object (ALPHA's editor stores a WI group name or null here)
+    // optional lorebook must be an object (the card editor stores a WI group name or null here)
     if ('character_book' in d && !(d.character_book && typeof d.character_book === 'object' && !Array.isArray(d.character_book))) delete d.character_book;
     return { spec: 'chara_card_v2', spec_version: '2.0', name: d.name || '', description: d.description || '', personality: d.personality || '',
         scenario: d.scenario || '', first_mes: d.first_mes || '', mes_example: d.mes_example || '', data: d };

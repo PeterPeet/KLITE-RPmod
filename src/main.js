@@ -8,7 +8,7 @@
 // before its UI).
 // =============================================================================
 import initShell from './shell/shell.js';
-import initAlpha from './KLITE-RPmod_ALPHA.js';
+import initRpmod from './rpmod/index.js';
 import initWorlds from './KLITE-RPmod_Worlds.js';
 import initWorldsUI from './KLITE-RPmod_WorldsUI.js';
 import initOnboarding from './onboarding/onboarding.js';
@@ -27,7 +27,7 @@ const MODULES = [
     ['characters/characters.js', initCharacters],
     ['characters/gallery.js', initGallery],
     ['characters/builder.js', initBuilder],
-    ['KLITE-RPmod_ALPHA.js', initAlpha],
+    ['rpmod/index.js', initRpmod],
     ['KLITE-RPmod_Worlds.js', initWorlds],
     ['KLITE-RPmod_WorldsUI.js', initWorldsUI],
     ['onboarding/onboarding.js', initOnboarding],

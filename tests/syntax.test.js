@@ -40,10 +40,6 @@ for (const f of sources) {
             if (seen.has(m[1])) dups.push(`${m[1]} (lines ${seen.get(m[1])} and ${i + 1})`);
             else seen.set(m[1], i + 1);
         });
-        if (f === 'KLITE-RPmod_ALPHA.js') {
-            if (dups.length) t.diagnostic('legacy duplicates: ' + dups.join(', '));
-            return;   // legacy modules: reported, not enforced (see ROADMAP known issues)
-        }
         if (dups.length) throw new Error('duplicate function declarations: ' + dups.join(', '));
     });
 }
