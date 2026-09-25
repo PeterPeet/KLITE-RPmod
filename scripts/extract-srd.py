@@ -11,7 +11,8 @@
 # text scrambles (core class traits, spell progression, backgrounds, weapons, armor) are
 # transcribed here by hand from that same text and checked against it.
 #
-# Usage:  python3 scripts/extract-srd.py   (writes src/data/srd52.js)
+# Usage:  python3 scripts/extract-srd.py              (writes srd52.js, srd52-monsters.js, srd52-spells.js)
+#         python3 scripts/extract-srd.py compendium   (writes srd52-compendium.js)
 # =============================================================================
 import json, os, re, sys
 
@@ -20,6 +21,7 @@ PDF = os.path.join(ROOT, 'docs', 'reference', 'SRD_CC_v5.2.1.pdf')
 OUT = os.path.join(ROOT, 'src', 'data', 'srd52.js')
 MONSTERS_OUT = os.path.join(ROOT, 'src', 'data', 'srd52-monsters.js')
 SPELLS_OUT = os.path.join(ROOT, 'src', 'data', 'srd52-spells.js')
+COMPENDIUM_OUT = os.path.join(ROOT, 'src', 'data', 'srd52-compendium.js')
 
 ATTRIBUTION = ('This work includes material from the System Reference Document 5.2.1 ("SRD 5.2.1") by Wizards of '
                'the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the '
@@ -624,6 +626,176 @@ def grants_to_keys(grants, spells, txt):
         return out
     return conv(grants)
 
+
+# ---- R3 compendium: rules glossary, magic items, tools and adventuring gear ------------------------
+# Parsed from the page text (with the running headers): glossary entries are the headings that form
+# the glossary's alphabetical chain (lists inside entries break it); magic items start at a category
+# + rarity line; tools and gear at "Name (cost)" headings (weights from the Adventuring Gear table).
+def comp_pages(T, a, b):
+    out = []
+    for n in range(a, b + 1):
+        m = re.search(rf'=====PAGE {n}=====\n(.*?)(?======PAGE |\Z)', T, re.S)
+        body = m.group(1).split('\n')
+        if body and body[0].startswith('System Reference Document'):
+            body = body[1:]
+        if body and body[0].strip() == str(n):
+            body = body[1:]
+        out += body
+    return out
+
+
+def comp_fix(p):
+    p = re.sub(r'\s+', ' ', p).replace(' ,', ',').replace(' .', '.')
+    for a, b in (('’', "'"), ('‘', "'"), ('“', '"'), ('”', '"')):
+        p = p.replace(a, b)
+    return p.strip()
+
+
+def comp_join(lines):
+    # an indented line starts a paragraph (as extract-srd.clean()); "ar -\nmor" is rejoined
+    paras, cur = [], ''
+    for ln in lines:
+        if not ln.strip():
+            continue
+        if (ln.startswith(' ') or ln.startswith('•')) and cur:
+            paras.append(cur); cur = ''
+        s = ln.strip()
+        if cur.endswith(' -') and s[:1].islower():
+            cur = cur[:-2] + s
+        elif cur.endswith('-') and s[:1].islower() and not cur.endswith('—'):
+            cur = cur[:-1] + s
+        else:
+            cur += (' ' if cur else '') + s
+    if cur:
+        paras.append(cur)
+    return [comp_fix(p) for p in paras if comp_fix(p)]
+
+
+def comp_key(name):
+    return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+
+
+# ---- rules glossary (pp. 176-191) ----
+def extract_glossary(T):
+    L = comp_pages(T, 176, 191)
+    i = next(k for k, l in enumerate(L) if l.strip() == 'Rules Definitions') + 2
+    L = L[i:]
+    title = re.compile(r"^[A-Z0-9][A-Za-z0-9'’ \-]+( \[[A-Za-z ]+\])?$")
+
+    def cand(k):
+        s = L[k].strip()
+        return bool(s) and len(s) <= 42 and not L[k].startswith(' ') and bool(title.match(s))
+    cands = [k for k in range(len(L) - 1) if cand(k) and len(L[k + 1].strip()) > 30]
+    key = lambda k: re.sub(r'[^a-z0-9]', '', re.sub(r' \[.*\]$', '', L[k].strip()).lower())   # letter by letter, as the SRD sorts
+    # the glossary is alphabetical: keep the longest alphabetical chain of candidates (drops lists inside entries)
+    n = len(cands); best = [1] * n; prev = [-1] * n
+    for a in range(n):
+        for b in range(a):
+            if key(cands[b]) < key(cands[a]) and best[b] + 1 > best[a]:
+                best[a], prev[a] = best[b] + 1, b
+    a = max(range(n), key=lambda x: best[x]); chain = []
+    while a >= 0:
+        chain.append(cands[a]); a = prev[a]
+    heads = sorted(chain)
+    out = {}
+    for m_, k in enumerate(heads):
+        end = heads[m_ + 1] if m_ + 1 < len(heads) else len(L)
+        m = re.match(r'^(.*?)(?: \[(.+)\])?$', L[k].strip())
+        name, tag = m.group(1).replace('’', "'"), m.group(2) or ''
+        out[comp_key(name)] = dict(name=name, tag=tag, text=comp_join(L[k + 1:end]))
+    return out
+
+
+# ---- magic items A-Z (pp. 209-253) ----
+CATS = r'(Armor|Weapon|Wondrous Item|Potion|Ring|Rod|Scroll|Staff|Wand)'
+RARITY = r'(Very Rare|Uncommon|Common|Rare|Legendary|Artifact|Varies)'
+
+
+def extract_magic_items(T):
+    L = comp_pages(T, 209, 253)
+    i = next(k for k, l in enumerate(L) if l.strip() == 'Magic Items A–Z') + 1
+    L = L[i:]
+    typ = re.compile(r'^' + CATS + r'( \(|,)')
+    starts = []
+    k = 0
+    while k < len(L):
+        s = L[k].strip()
+        nxt = L[k + 1].strip() if k + 1 < len(L) else ''
+        is_name = typ.match(nxt) is not None   # "Armor, +1, +2, or +3" is a name when the category line follows
+        if k > 0 and not L[k].startswith(' ') and typ.match(s) and not is_name and re.search(RARITY, ' '.join(x.strip() for x in L[k:k + 3])):
+            j = k
+            # the type line may wrap: "…, Rare" / "(+2), or Very Rare (+3)" / "(Requires" / "Attunement)"
+            while j + 1 < len(L) and len(L[j + 1].strip()) < 60 and (L[j].rstrip().endswith(',') or L[j].rstrip().endswith('(Requires') or re.match(r'^(\(|or |Attunement|by a |Rare|Very|Uncommon|Legendary)', L[j + 1].strip())):
+                j += 1
+            n0 = k - 1
+            if k >= 2 and L[k - 1].strip()[:1].islower() and len(L[k - 2].strip()) < 45:
+                n0 = k - 2   # the name wraps: "Amulet of Proof against Detection" / "and Location"
+            starts.append((n0, k, j))
+            k = j + 1
+        else:
+            k += 1
+    out = {}
+    for m_, (n0, k, j) in enumerate(starts):
+        end = starts[m_ + 1][0] if m_ + 1 < len(starts) else len(L)
+        name = comp_fix(' '.join(x.strip() for x in L[n0:k]))
+        line = comp_fix(' '.join(x.strip() for x in L[k:j + 1]))
+        cat = re.match(CATS, line).group(1)
+        rar = re.findall(RARITY, line)
+        att = re.search(r'\(Requires Attunement([^)]*)\)', line)
+        out[comp_key(name)] = dict(name=name, category=cat, type=line, rarity=rar[0] if rar else '',
+                                 attunement=(att.group(1).strip() or True) if att else False, text=comp_join(L[j + 1:end]))
+    return out
+
+
+# ---- equipment: tools (p. 93-94) and adventuring gear (pp. 95-99) ----
+def extract_gear(T):
+    L = comp_pages(T, 93, 100)
+    L = L[:next(k for k, l in enumerate(L) if l.strip() == 'Mounts and Vehicles')]
+    head = re.compile(r"^([A-Z][A-Za-z'’ ,\-]+?) \(((?:\d[\d,]* (?:GP|SP|CP|EP|PP))|Varies)\)$")
+    # weights from the Adventuring Gear table: "Name weight cost"
+    weights = {}
+    for ln in L:
+        m = re.match(r"^([A-Z][A-Za-z'’ ,\-]+?) ((?:[\d½/]+ lb\.)|—|Varies) ((?:\d[\d,]* (?:GP|SP|CP))|Varies)$", ln.strip())
+        if m:
+            weights[comp_fix(m.group(1))] = m.group(2)
+    starts = [k for k, l in enumerate(L) if head.match(l.strip()) and not l.startswith(' ')]
+    out = {}
+    tools_end = next(k for k, l in enumerate(L) if l.strip() == 'Adventuring Gear')
+    for m_, k in enumerate(starts):
+        end = starts[m_ + 1] if m_ + 1 < len(starts) else len(L)
+        # a section heading ("Other Tools", "Arcane Focuses" table…) ends the body; tables stay text
+        body = L[k + 1:end]
+        for b_, ln in enumerate(body):
+            if ln.strip() in ('Other Tools', 'Adventuring Gear', 'Mounts and Vehicles'):
+                body = body[:b_]; break
+        m = head.match(L[k].strip())
+        name = comp_fix(m.group(1))
+        text = comp_join(body)
+        kind = 'tool' if k < tools_end else 'gear'
+        e = dict(name=name, kind=kind, cost=m.group(2), text=text)
+        if kind == 'tool':
+            text = [t for p in text for t in re.split(r' (?=(?:Weight|Utilize|Craft|Variants): )', p)]
+            e['text'] = text
+            ab = re.search(r'Ability: (\w+)', ' '.join(text)); wt = re.search(r'Weight: ([^ ]+(?: lb\.)?)', ' '.join(text))
+            if ab: e['ability'] = ab.group(1)
+            if wt: e['weight'] = wt.group(1)
+        elif name in weights:
+            e['weight'] = weights[name]
+        out[comp_key(name)] = e
+    return out
+
+
+
+def write_compendium():
+    T = pdf_text()
+    data = dict(glossary=extract_glossary(T), magicItems=extract_magic_items(T), gear=extract_gear(T))
+    js = ('// GENERATED by scripts/extract-srd.py compendium from the SRD 5.2.1 PDF — do not edit; re-run the script.\n'
+          '// ' + ATTRIBUTION + '\n'
+          '// Compendium (R3): the Rules Glossary, Magic Items A–Z and Equipment (tools, adventuring gear).\n'
+          'export const COMPENDIUM = ' + json.dumps(data, ensure_ascii=False, separators=(',', ':')) + ';\n')
+    open(COMPENDIUM_OUT, 'w').write(js)
+    print('= wrote', os.path.relpath(COMPENDIUM_OUT, ROOT), f"({len(js) // 1024} KB: {len(data['glossary'])} glossary entries, {len(data['magicItems'])} magic items, {len(data['gear'])} tools and gear)")
+
 def main():
     # page breaks → plain line breaks (headers "System Reference Document 5.2.1" + page number)
     txt = re.sub(r'\n=====PAGE \d+=====\nSystem Reference Document 5\.2\.1\s*\n\d+\n', '\n', pdf_text())
@@ -698,4 +870,4 @@ def main():
     print('  feats:', ', '.join(data['feats']))
 
 if __name__ == '__main__':
-    main()
+    write_compendium() if sys.argv[1:] == ['compendium'] else main()

@@ -243,6 +243,39 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .btn.rpm-btn.rpm-warning { border-color: var(--rpm-quest); box-shadow: inset 3px 0 0 var(--rpm-quest); }
 .btn.rpm-btn:disabled, .btn.rpm-btn.disabled { opacity: .5; cursor: not-allowed; }
 
+/* ---- Compendium window (R3): list | entry; one column in a narrow window ---- */
+.rpm-cmp-scroll { flex: 1 1 auto; min-height: 0; display: flex; container-type: inline-size; }
+.rpm-cmp { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(240px, 320px) 1fr; }
+.rpm-cmp-side { display: flex; flex-direction: column; min-height: 0; padding: var(--rpm-s3); border-right: 1px solid var(--rpm-border); }
+.rpm-cmp-list { flex: 1 1 auto; min-height: 0; overflow: auto; margin-top: var(--rpm-s2); display: flex; flex-direction: column; gap: 2px; }
+.rpm-cmp-hit { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; text-align: left; padding: var(--rpm-s1) var(--rpm-s2);
+    border: 1px solid transparent; border-radius: var(--rpm-radius); background: transparent; color: var(--rpm-fg); cursor: pointer; }
+.rpm-cmp-hit:hover { background: var(--rpm-bg-alt); }
+.rpm-cmp-hit.rpm-on { background: var(--rpm-accent-bg-hi); border-color: var(--rpm-border-hi); color: var(--rpm-accent-fg-hi); }
+.rpm-cmp-hit .rpm-muted { font-size: var(--rpm-fs-sm); }
+.rpm-cmp-hit-name { font-weight: bold; }
+.rpm-cmp-main { min-width: 0; min-height: 0; overflow: auto; padding: var(--rpm-s3); line-height: 1.5; }
+.rpm-cmp-head { margin-bottom: var(--rpm-s1); }
+.rpm-cmp-head h2 { margin: 0; }
+#rpm-shell .btn.rpm-btn.rpm-cmp-back { display: none; }   /* only in one-column mode */
+.rpm-cmp-stats { display: flex; flex-wrap: wrap; gap: var(--rpm-s1) var(--rpm-s3); margin: var(--rpm-s2) 0; }
+.rpm-cmp-line { margin: 2px 0; }
+.rpm-cmp-abil { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--rpm-s1); margin: var(--rpm-s2) 0; text-align: center; }
+.rpm-cmp-abil > div { background: var(--rpm-bg-alt); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); padding: var(--rpm-s1); }
+.rpm-cmp-sec { margin: var(--rpm-s3) 0 var(--rpm-s1); padding-bottom: 2px; border-bottom: 1px solid var(--rpm-border); font-weight: bold; color: var(--rpm-fg-hi); }
+.rpm-cmp-p { margin: 0 0 var(--rpm-s2); }
+.rpm-cmp-enc { margin-top: var(--rpm-s3); }
+.rpm-cmp-attr { margin-top: var(--rpm-s3); font-size: var(--rpm-fs-sm); }
+.rpm-chip.rpm-chip-off { background: transparent; color: var(--rpm-fg-muted); }
+@container (max-width: 620px) {
+    .rpm-cmp { grid-template-columns: 1fr; }
+    .rpm-cmp-side { border-right: 0; }
+    .rpm-cmp.rpm-cmp-has-sel .rpm-cmp-side { display: none; }
+    .rpm-cmp:not(.rpm-cmp-has-sel) .rpm-cmp-main { display: none; }
+    #rpm-shell .btn.rpm-btn.rpm-cmp-back { display: inline-flex; }
+    .rpm-cmp-abil { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 /* ---- RPmod Guide window ---- */
 .rpm-guide { display: grid; grid-template-columns: 180px 1fr; gap: 14px; min-height: 100%; }
 .rpm-guide-toc { display: flex; flex-direction: column; gap: 3px; border-right: 1px solid var(--rpm-border); padding-right: 10px; }

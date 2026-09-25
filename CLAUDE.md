@@ -26,7 +26,7 @@ npm run icons        # after changing the icon list: regenerates src/shell/icons
 
 ## Layout
 - `src/` — ES-module sources: `shell/` (app shell), `rpmod/` + `panels/` (RP core and its panels), Worlds engine, Worlds UI,
-  `game/` (rules + combat/log), `map/` (R7 dungeon/town editor), `characters/`, `onboarding/`
+  `game/` (rules + combat/log), `map/` (R7 dungeon/town editor), `characters/`, `compendium/` (R3), `onboarding/`
   (Quick Start extension + Guide) + `main.js` entry; esbuild bundles them
   into one file. **Edit here.**
 - `KLITE-RPmod.js` — **generated** bundle (committed for users). Never hand-edit.

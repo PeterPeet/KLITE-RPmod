@@ -40,6 +40,7 @@ const NAMES = {
     'swords': 'combat',
     'moon': 'long rest (Party section)',
     'wand-sparkles': 'cast a spell (Combat window)',
+    'book-marked': 'Compendium (right dock)',
     'workflow': 'world editor (node graph)',
     'trash-2': 'delete',
     'lock': 'hidden',

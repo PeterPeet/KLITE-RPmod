@@ -329,6 +329,15 @@ to the next day, and the **season** follows the month automatically.
 
 ## 6b. Tabletop-RPG systems
 
+**Compendium (SRD 5.2.1).** The book button in the right panel's header opens the
+**Compendium**: every monster, spell, magic item, piece of equipment (weapons, armor, tools,
+adventuring gear) and rules term (the Rules Glossary: conditions, actions, hazards, …) of the
+System Reference Document 5.2.1. Search by name, by what the summary says (`cr 1/4`, `wizard`)
+or — with four letters or more — by the text; narrow it with the chips. A monster shows its stat
+block with **Add** (to one of your world's saved encounters, or a new one) and **Fight it now**.
+Spell texts on the sheet and in the builder have an *In the compendium* link; the Combat window
+and the encounter inspector have a book button next to each monster.
+
 **Character gallery.** The grid button in the right panel's header opens your whole
 Library **full screen**: big portrait cards with name, creator, tagline, tags and size
 (tokens) on the image, badges for *You* (your persona), *AI* and a sheet's class and level.

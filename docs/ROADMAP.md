@@ -6,20 +6,20 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-25 (R5 done: Encounter node)
+> Last updated: 2026-09-25 (R3 done: Compendium)
 
 ## Current state
 
 **Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
 is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). R5 is done
-(✅ 2026-09-25: spells in the Combat window, companions' HP, Long rest, the Encounter node). Next:
-R3 (compendium), then the R4 extras and R6. The real-backend play
+(✅ 2026-09-25: spells in the Combat window, companions' HP, Long rest, the Encounter node), and
+R3 too (✅ 2026-09-25: the SRD 5.2.1 Compendium). Next: the R4 extras, then R6. The real-backend play
 test (known issue 5) is postponed (owner, 2026-09-25). R7 is done (✅ 2026-09-25, acceptance passed).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
 issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
 combat: zones of the room, moving/fleeing, cover, hiding, Guide tab) are done.
-Done since R1: R2 characters (✅ 2026-09-25), R5 combat (✅ 2026-09-25), R4 quests & world (✅), R7 world map (✅ 2026-09-25). R3
-(compendium window; monster and spell data already bundled) and R6 (chat power features) are still to do.
+Done since R1: R2 characters (✅ 2026-09-25), R5 combat (✅ 2026-09-25), R4 quests & world (✅), R7 world map (✅ 2026-09-25), R3 compendium
+(✅ 2026-09-25). R6 (chat power features) is still to do.
 
 Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
 Supported host: **current Esobold** (esolithe/esobold `remoteManagement`), run from the local
@@ -32,7 +32,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 280 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 290 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -62,7 +62,7 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 |---|---|---|
 | D&D Beyond | Step-by-step character builder | ✅ levels 1–20 with spells (SRD 5.2.1) |
 | | Interactive sheet (modifiers, saves, skills, AC) | ✅ click-to-roll, stored in the card |
-| | Rules compendium | 🟡 data: 330 SRD 5.2.1 monsters, 339 spells, conditions; no compendium window yet (R3) |
+| | Rules compendium | ✅ Compendium window (R3): 330 monsters, 339 spells, 258 magic items, equipment, 155 rules terms |
 | | Encounter builder with difficulty | ✅ SRD XP budget, 330 monsters, saved encounters |
 | | Combat tracker | ✅ sides, conditions, death saves, auto enemy turns (spell slots not used in combat) |
 | | Click-to-roll + game log | ✅ dice log the AI sees (combat log separate) |
@@ -457,10 +457,20 @@ play test with a real backend, owner's decision 2026-09-23).
 Acceptance: build a level-1 character end to end, roll from the sheet, level up, export
 and re-import as a card without data loss.
 
-### R3 — Compendium (SRD 5.2) ⬜
-- Bundled SRD 5.2 data (monsters and spells already done in R5/R2): magic items, equipment, rules
-  glossary; attribution page. Replace SRD 5.1 presets.
-- Searchable compendium window; cross-links from sheets, encounters and chat.
+### R3 — Compendium (SRD 5.2) ✅ (2026-09-25)
+- [x] **Data** (2026-09-25): `scripts/extract-srd.py compendium` → `src/data/srd52-compendium.js`
+      (~315 KB): the **Rules Glossary** (155 entries with their tags: conditions, actions, areas of
+      effect, attitudes, hazards), **Magic Items A–Z** (258: category, rarity, attunement, text) and
+      **tools + adventuring gear** (105: cost, weight, ability, text); monsters, spells, weapons and
+      armor were already bundled. SRD 5.1 presets were replaced in R5 (known issue 7).
+- [x] **Compendium window** (2026-09-25): search over all 1,237 entries (names, summaries, full
+      text), kind chips, entry views (monster stat block, spell, item, equipment, rule), monsters →
+      **Add** to a saved encounter / **Fight it now**; the exact SRD attribution under every entry;
+      one column with Back on narrow windows and phones. Cross-links from spell texts (sheet,
+      builder), the Combat window's monster list and the encounter inspector.
+      Tests `tests/compendium.test.js`; live-checked (desktop and phone).
+- **R3 done** — acceptance ("search any SRD monster/spell, open it, add a monster to an encounter")
+  met. Carried over: links from the chat (e.g. a `/lookup` command — R6 slash commands).
 Acceptance: search any SRD monster/spell, open it, add a monster to an encounter.
 
 ### R4 — Quests & world (WoW) ✅ (2026-09-23)

@@ -7,12 +7,19 @@
 // Data: src/data/srd52-spells.js (SRD 5.2.1, CC-BY-4.0).
 // =============================================================================
 import { el } from '../shell/dom.js';
-import { spellLine, levelSchool } from './spell-rules.js';
+import { spellLine, levelSchool, spellKey } from './spell-rules.js';
 
 const para = (t) => el('p', { class: 'rpm-bld-p', text: t });
 export function spellDetails(s) {
     return el('div', { class: 'rpm-bld-text' }, [el('p', { class: 'rpm-muted', text: `${levelSchool(s)} · ${spellLine(s)}` }), ...s.text.map(para),
-        s.higher ? para('At higher levels: ' + s.higher) : null, s.upgrade ? para('Cantrip upgrade: ' + s.upgrade) : null]);
+        s.higher ? para('At higher levels: ' + s.higher) : null, s.upgrade ? para('Cantrip upgrade: ' + s.upgrade) : null,
+        compendiumLink('spell', spellKey(s.name))]);
+}
+// "In the compendium" (R3): opens the entry in the Compendium window when it is loaded.
+export function compendiumLink(kind, key, text = 'In the compendium') {
+    if (!window.KLITE_RPMod_Compendium) return null;
+    return el('button', { type: 'button', class: 'rpm-linkbtn', 'data-compendium': `${kind}:${key}`, text,
+        onclick: (ev) => { ev.preventDefault(); window.KLITE_RPMod_Compendium.open({ kind, key }); } });
 }
 export function spellTags(s) { return [s.level ? `L${s.level}` : 'cantrip', s.school, s.concentration ? 'C' : '', s.ritual ? 'R' : ''].filter(Boolean).join(' · '); }
 // opts.search: an object that keeps the search text per label across re-renders

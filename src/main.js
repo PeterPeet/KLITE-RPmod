@@ -18,6 +18,7 @@ import initGameLog from './game/log.js';
 import initCharacters from './characters/characters.js';
 import initGallery from './characters/gallery.js';
 import initBuilder from './characters/builder.js';
+import initCompendium from './compendium/compendium.js';
 
 const MODULES = [
     ['shell/shell.js', initShell],
@@ -27,6 +28,7 @@ const MODULES = [
     ['characters/characters.js', initCharacters],
     ['characters/gallery.js', initGallery],
     ['characters/builder.js', initBuilder],
+    ['compendium/compendium.js', initCompendium],
     ['rpmod/index.js', initRpmod],
     ['KLITE-RPmod_Worlds.js', initWorlds],
     ['KLITE-RPmod_WorldsUI.js', initWorldsUI],

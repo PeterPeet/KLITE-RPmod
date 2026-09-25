@@ -548,6 +548,7 @@ export default function initWorldsUI() {
         if (!mons.length) box.appendChild(el('div', { class: 'rpm-muted', text: 'None yet — search below.' }));
         mons.forEach((m, i) => box.appendChild(el('div', { class: 'rpm-row', 'data-enc-monster': m.key, style: 'margin-top:2px' }, [
             el('span', { class: 'rpm-grow', text: `${m.count} × ${nameOf(m.key)}` }),
+            window.KLITE_RPMod_Compendium ? el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-sm rpm-btn-icon', 'aria-label': nameOf(m.key) + ' in the compendium', title: 'In the compendium', onclick: () => window.KLITE_RPMod_Compendium.open({ kind: 'monster', key: m.key }) }, [icon('book-marked', 14)]) : null,
             el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-sm', 'aria-label': 'One less', text: '−', onclick: () => setCount(i, m.count - 1) }),
             el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-sm', 'aria-label': 'One more', text: '+', onclick: () => setCount(i, Math.min(20, m.count + 1)) }),
         ])));

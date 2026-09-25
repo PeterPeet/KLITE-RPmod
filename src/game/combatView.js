@@ -114,6 +114,7 @@ function renderBuilder(box, A, refresh) {
         for (const m of hits.slice(0, 40)) {
             list.appendChild(el('div', { class: 'rpm-cb-item', 'data-monster': m.key }, [
                 el('span', { class: 'rpm-grow' }, [el('b', { text: m.name }), el('span', { class: 'rpm-muted', text: ` · CR ${m.cr} · ${m.xp} XP · ${m.type.split(',')[0]}` })]),
+                window.KLITE_RPMod_Compendium ? btn('', () => window.KLITE_RPMod_Compendium.open({ kind: 'monster', key: m.key }), { icon: 'book-marked', label: m.name + ' in the compendium', id: 'info-' + m.key }) : null,
                 btn('Add', () => { U.monsters[m.key] = (U.monsters[m.key] || 0) + 1; refresh(); }, { label: 'Add ' + m.name, id: 'add-' + m.key }),
             ]));
         }
