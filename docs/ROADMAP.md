@@ -43,7 +43,8 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 - **Two-slot runtime** (base/working) with reset/commit/swap; saved in the story file.
 - **Persons** linked to library characters (`KLITE_RPMod.characters`) + optional d20 stats.
 - **Quests:** giver/turn-in, yellow `!`/`?` markers, quest log, hidden/discovered,
-  per-world `aiMode` (gm/player).
+  per-world `aiMode` (gm/player); repeatable/daily quests, the giver's words (R4 extras).
+- **Vendors:** shops on persons, SRD prices, reputation prices, Shop window (R4 extras).
 - **Trigger bus:** event triggers/conditions/effects with chains; faction HQs.
 - **Combat:** dice, initiative, attack vs AC, HP, checks, 330 SRD 5.2.1 monsters; **zone combat**
   (R7 step 5): positions in zones of the room, moving/fleeing with opportunity attacks, reach and
@@ -78,7 +79,8 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 | | Chains & prerequisites | ✅ level/quest/flag/reputation, item-started |
 | | Rewards XP/gold/choose-one | ✅ paid to the persona's sheet |
 | | Zones/subzones, hubs, phasing | ✅ |
-| | Factions & reputation | ✅ tiers; effects narrated (no vendors yet) |
+| | Factions & reputation | ✅ tiers, faction phases, standing lost for defeating members, vendor prices |
+| | Vendors, repeatable/daily quests, quest-giver dialogue | ✅ R4 extras (2026-09-25) |
 | Map | Places room by room, board, fog, zone combat (no VTT) | ✅ R7: dungeon/town editor, mini-map with fog, moving with door rules, AI map tags, doors/Search checks, seeded generator, zone combat with cover and hiding |
 
 ### Known issues / tech debt
