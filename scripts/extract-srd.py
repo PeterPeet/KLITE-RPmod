@@ -180,6 +180,23 @@ ARMOR = {
     'Hide Armor': ('medium', 12, 2), 'Chain Shirt': ('medium', 13, 2), 'Scale Mail': ('medium', 14, 2), 'Breastplate': ('medium', 14, 2),
     'Half Plate Armor': ('medium', 15, 2), 'Ring Mail': ('heavy', 14, 0), 'Chain Mail': ('heavy', 16, 0), 'Splint Armor': ('heavy', 17, 0), 'Plate Armor': ('heavy', 18, 0),
 }
+# name -> cost (weapons and armor tables; checked against the PDF text by check_costs)
+COSTS = {
+    'Club': '1 SP', 'Dagger': '2 GP', 'Greatclub': '2 SP', 'Handaxe': '5 GP', 'Javelin': '5 SP', 'Light Hammer': '2 GP', 'Mace': '5 GP',
+    'Quarterstaff': '2 SP', 'Sickle': '1 GP', 'Spear': '1 GP', 'Dart': '5 CP', 'Light Crossbow': '25 GP', 'Shortbow': '25 GP', 'Sling': '1 SP',
+    'Battleaxe': '10 GP', 'Flail': '10 GP', 'Glaive': '20 GP', 'Greataxe': '30 GP', 'Greatsword': '50 GP', 'Halberd': '20 GP', 'Lance': '10 GP',
+    'Longsword': '15 GP', 'Maul': '10 GP', 'Morningstar': '15 GP', 'Pike': '5 GP', 'Rapier': '25 GP', 'Scimitar': '25 GP', 'Shortsword': '10 GP',
+    'Trident': '5 GP', 'Warhammer': '15 GP', 'War Pick': '5 GP', 'Whip': '2 GP', 'Blowgun': '10 GP', 'Hand Crossbow': '75 GP',
+    'Heavy Crossbow': '50 GP', 'Longbow': '50 GP', 'Musket': '500 GP', 'Pistol': '250 GP',
+    'Padded Armor': '5 GP', 'Leather Armor': '10 GP', 'Studded Leather Armor': '45 GP', 'Hide Armor': '10 GP', 'Chain Shirt': '50 GP',
+    'Scale Mail': '50 GP', 'Breastplate': '400 GP', 'Half Plate Armor': '750 GP', 'Ring Mail': '30 GP', 'Chain Mail': '75 GP',
+    'Splint Armor': '200 GP', 'Plate Armor': '1,500 GP', 'Shield': '10 GP',
+}
+def check_costs(txt):
+    lines = txt.split('\n')
+    for name, cost in COSTS.items():
+        ok = any(l.startswith(name + ' ') and any(cost in x for x in lines[i:i + 4]) for i, l in enumerate(lines))
+        if not ok: raise SystemExit(f'cost of {name} ({cost}) not found in the SRD text')
 
 # Columns of each "<Class> Features" table after the feature names: (key, number of tokens).
 # 'slots' = the spell slot columns (9 for full casters, 5 for half casters).
@@ -799,6 +816,7 @@ def write_compendium():
 def main():
     # page breaks → plain line breaks (headers "System Reference Document 5.2.1" + page number)
     txt = re.sub(r'\n=====PAGE \d+=====\nSystem Reference Document 5\.2\.1\s*\n\d+\n', '\n', pdf_text())
+    check_costs(txt)
     data = dict(
         attribution=ATTRIBUTION, source='SRD 5.2.1',
         standardArray=[15, 14, 13, 12, 10, 8], pointBuy=dict(budget=27, costs={8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}),
@@ -807,8 +825,9 @@ def main():
                        rare=['Abyssal', 'Celestial', 'Deep Speech', 'Druidic', 'Infernal', 'Primordial', 'Sylvan', "Thieves' Cant", 'Undercommon']),
         alignments=['Lawful Good', 'Neutral Good', 'Chaotic Good', 'Lawful Neutral', 'Neutral', 'Chaotic Neutral', 'Lawful Evil', 'Neutral Evil', 'Chaotic Evil'],
         classes={}, backgrounds=BACKGROUNDS, species=extract_species(txt), feats=extract_feats(txt),
-        weapons={k: dict(damage=v[0], type=v[1], properties=v[2], mastery=v[3], category=v[4]) for k, v in WEAPONS.items()},
-        armor={k: dict(category=v[0], base=v[1], dexCap=v[2]) for k, v in ARMOR.items()},
+        weapons={k: dict(damage=v[0], type=v[1], properties=v[2], mastery=v[3], category=v[4], cost=COSTS[k]) for k, v in WEAPONS.items()},
+        armor={k: dict(category=v[0], base=v[1], dexCap=v[2], cost=COSTS[k]) for k, v in ARMOR.items()},
+        shieldCost=COSTS['Shield'],
         xpBudget={l: dict(low=v[0], moderate=v[1], high=v[2]) for l, v in XP_BUDGET.items()},
         conditions=extract_conditions(txt),
     )

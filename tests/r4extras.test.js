@@ -172,3 +172,125 @@ test('editor and Quest log: repeat and the giver\'s words', async (t) => {
     w.KLITE_RPMod_Shell.refresh(); await sleep(30);
     assert.ok(doc.querySelector('[data-window="questlog"] [data-repeat="q_patrol"]'), 'the daily chip');
 });
+
+// ---- vendors / shops ----
+const esbuild = require('esbuild');
+const path = require('path');
+const { ROOT } = require('./helpers/host');
+function requireSrc(rel) {
+    const out = esbuild.buildSync({ entryPoints: [path.join(ROOT, rel)], bundle: true, format: 'cjs', platform: 'neutral', write: false, logLevel: 'error' });
+    const m = { exports: {} }; new Function('module', 'exports', out.outputFiles[0].text)(m, m.exports);
+    return m.exports;
+}
+
+test('shop rules: prices, SRD list prices, reputation factor, paying with change', () => {
+    const SH = requireSrc('src/game/shop-rules.js');
+    assert.equal(SH.parsePrice('15 GP'), 1500); assert.equal(SH.parsePrice('1,500 gp'), 150000);
+    assert.equal(SH.parsePrice('2 gp 5 sp'), 250); assert.equal(SH.parsePrice('4 cp'), 4); assert.equal(SH.parsePrice(2.5), 250);
+    assert.equal(SH.parsePrice(''), null); assert.equal(SH.parsePrice('Varies'), null);
+    assert.equal(SH.formatPrice(250), '2 gp 5 sp'); assert.equal(SH.formatPrice(0), '0 gp'); assert.equal(SH.formatPrice(150000), '1,500 gp');
+    assert.equal(SH.srdPrice('Longsword'), 1500); assert.equal(SH.srdPrice('Plate Armor'), 150000); assert.equal(SH.srdPrice('Shield'), 1000);
+    assert.equal(SH.srdPrice('Torch'), 1); assert.equal(SH.srdPrice('torches'), 1, 'plural'); assert.equal(SH.srdPrice("Traveler's Clothes"), 200);
+    assert.equal(SH.srdPrice('Dragon Egg'), null);
+    assert.equal(SH.buyPrice(1500, 'Friendly'), 1425); assert.equal(SH.buyPrice(1500, 'Exalted'), 1200); assert.equal(SH.buyPrice(1500, 'Unfriendly'), 1875);
+    assert.equal(SH.canTrade('Hostile'), false); assert.equal(SH.canTrade('Unfriendly'), true);
+    assert.equal(SH.sellPrice(1500), 750);
+    // small coins first, a larger coin is broken and the change comes back
+    assert.deepEqual(SH.payCoins({ cp: 5, sp: 0, gp: 3, pp: 0 }, 250), { cp: 5, sp: 5, gp: 0, pp: 0 });
+    assert.equal(SH.wealthCp(SH.payCoins({ pp: 1, sp: 3 }, 50)), 980);
+    assert.equal(SH.payCoins({ gp: 1 }, 101), null, 'not enough');
+    assert.deepEqual(SH.addCoins({ gp: 1 }, 256), { gp: 3, sp: 5, cp: 6 });
+});
+
+test('vendors: buy and sell through the rules — purse on the sheet, reputation prices, stock restocks daily', async (t) => {
+    const { w, W, C } = await exampleWorld(t, { persona: true, gp: 150 });
+    const L = w.KLITE_RPMod_Log;
+    W.moveTo('The Crooked Kettle');
+    assert.deepEqual(plain(W.vendorsHere()), ['npc_bram']);
+    const v = W.shopView('npc_bram');
+    assert.equal(v.items.find(i => i.item === 'Torch').priceText, '1 cp');
+    assert.equal(v.items.find(i => i.item === 'Potion of Healing').left, 2);
+    assert.deepEqual(plain(W.buy('npc_bram', 'Torch', 3)), { ok: true, cost: 3 });
+    await C.flushSheet('Kara');
+    let s = await C.loadSheet('Kara');
+    assert.ok(s.inventory.some(i => i.name === 'Torch' && i.qty === 3));
+    assert.equal(SHwealth(s.coins), 15000 - 3);
+    assert.ok(L.entries().some(e => /Bought Torch ×3 from Innkeeper Bram for 3 cp\./.test(e.what)));
+    // stock: two potions a day
+    assert.equal(W.buy('npc_bram', 'Potion of Healing', 2).ok, true);
+    assert.equal(W.buy('npc_bram', 'Potion of Healing', 1).ok, false);
+    assert.ok(L.entries().some(e => /does not sell Potion of Healing: sold out until tomorrow/.test(e.what)));
+    W.setClock({ day: 2 });
+    assert.equal(W.shopView('npc_bram').items.find(i => i.item === 'Potion of Healing').left, 2, 'restocked');
+    // money
+    const r = W.buy('npc_bram', 'Potion of Healing', 2);
+    assert.equal(r.ok, false); assert.match(r.reason, /costs 100 gp and the player has/);
+    // selling: half price, SRD items only (Rope is SRD gear, 1 gp)
+    assert.ok(W.shopView('npc_bram').sell.some(x => x.item === 'Rope' && x.price === 50));
+    assert.equal(W.sell('npc_bram', 'Rope').ok, true);
+    await C.flushSheet('Kara'); s = await C.loadSheet('Kara');
+    assert.ok(!s.inventory.some(i => i.name === 'Rope'));
+    assert.equal(SHwealth(s.coins), 15000 - 3 - 10000 + 50, 'purse after two potions and a sold rope');
+});
+function SHwealth(c) { return (c.cp || 0) + (c.sp || 0) * 10 + (c.ep || 0) * 50 + (c.gp || 0) * 100 + (c.pp || 0) * 1000; }
+
+test('vendors: the faction standing sets prices and refusals; tags <buy>/<sell>; the AI\'s Trade section', async (t) => {
+    const { w, W } = await exampleWorld(t);   // no persona: the story keeps the purse
+    const L = w.KLITE_RPMod_Log;
+    W.moveTo('Royal Watchtower');
+    let p = W.preview();
+    assert.match(p, /\[Trade\]\n- Quartermaster Wren sells: Longsword 15 gp, Shield 10 gp, Chain Mail 75 gp \(1 left\), Shortbow 25 gp, Arrows 5 cp; buys items at half price\. Friends of the Guard pay less\./);
+    assert.match(p, /The player's purse: 0 gp\. When the player buys or sells, write <buy>/);
+    W.applyTags('<buy>Arrows x20</buy>');
+    assert.ok(L.entries().some(e => /costs 1 gp and the player has 0 gp/.test(e.what)), 'no money: refused and logged');
+    W.runtime.coins = { gp: 30 };
+    W.changeReputation('fac_guard', 500);   // Honored: 10% off
+    p = W.preview();
+    assert.match(p, /Longsword 13 gp 5 sp/); assert.match(p, /prices 10% lower \(Royal Guard: Honored\)/);
+    W.applyTags('<buy>Wren: Longsword</buy><buy>Arrows x20</buy>');
+    assert.equal(W.itemCount('Longsword'), 1); assert.equal(W.itemCount('Arrows'), 20);
+    assert.equal(SHwealth(W.runtime.coins), 3000 - 1350 - 100, 'the price per arrow is rounded: 4.5 → 5 cp');
+    W.applyTags('<sell>Longsword</sell>');
+    assert.equal(W.itemCount('Longsword'), 0);
+    assert.equal(SHwealth(W.runtime.coins), 3000 - 1350 - 100 + 750, 'half of the listed base price');
+    // Hostile: no trade
+    W.changeReputation('fac_guard', -1000);   // 500 − 1000 = −500: Hostile
+    assert.match(W.preview(), /Quartermaster Wren refuses to trade with the player \(Royal Guard: Hostile\)/);
+    assert.equal(W.buy('npc_wren', 'Shield').ok, false);
+    // nobody here
+    W.moveTo('Forest Road');
+    W.applyTags('<buy>Torch</buy>');
+    assert.ok(L.entries().some(e => /No one here trades/.test(e.what)));
+    assert.doesNotMatch(W.preview(), /\[Trade\]/);
+});
+
+test('Shop window and the vendor editor', async (t) => {
+    const { h, w, W } = await exampleWorld(t, { persona: true, gp: 20 });
+    const doc = w.document;
+    W.moveTo('The Crooked Kettle');
+    w.KLITE_RPMod_Shell.open('world'); await sleep(30);
+    assert.equal(doc.querySelector('[data-vendors-here]').textContent, 'Trade here: Innkeeper Bram');
+    w.KLITE_RPMod_Shell.open('shop'); await sleep(30);
+    const win = doc.querySelector('[data-window="shop"]');
+    assert.ok(win.querySelector('[data-vendor="npc_bram"]'));
+    win.querySelector('[data-ware="Ale"] [data-trade="buy"]').click(); await sleep(30);
+    assert.equal(W.itemCount('Ale'), 1);
+    assert.match(doc.querySelector('[data-window="shop"] [data-shop="purse"]').textContent, /19 gp 9 sp 6 cp/);
+    assert.ok(doc.querySelector('[data-window="shop"] [data-trade="sell"][data-item="Rope"]'), 'Rope can be sold here');
+    // editor: make Finn a vendor, add a ware with the SRD price, stock
+    h.ui().openEditor(); await sleep(20);
+    selectNode(h, 'npc_courier');
+    const on = doc.querySelector('[data-shop-edit="vendor"]');
+    on.checked = true; on.dispatchEvent(new w.Event('change'));
+    assert.deepEqual(plain(W.entityById('npc_courier').shop), { items: [], buys: true });
+    const add = doc.querySelector('[data-shop-edit="add"]'); add.value = 'Map';
+    doc.querySelector('[data-shop-edit="add-btn"]').click();
+    assert.equal(W.entityById('npc_courier').shop.items[0].item, 'Map');
+    const price = doc.querySelector('[aria-label="Price of Map"]');
+    assert.equal(price.getAttribute('placeholder'), '1 gp', 'the SRD price as a hint');
+    const stock = doc.querySelector('[aria-label="Stock of Map"]'); stock.value = '3'; stock.dispatchEvent(new w.Event('change'));
+    assert.equal(W.entityById('npc_courier').shop.items[0].stock, 3);
+    const buys = doc.querySelector('[data-shop-edit="buys"]'); buys.checked = false; buys.dispatchEvent(new w.Event('change'));
+    assert.equal(W.entityById('npc_courier').shop.buys, false);
+    assert.equal(W.entityById('npc_courier').shop.items.length, 1, 'items kept');
+});

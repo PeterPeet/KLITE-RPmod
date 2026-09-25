@@ -21,6 +21,7 @@
 import { getContext } from './context/context.js';
 import * as CR from './game/combat-rules.js';
 import * as QR from './game/quest-rules.js';
+import * as SH from './game/shop-rules.js';
 import * as MR from './game/map-rules.js';
 import * as MT from './game/map-tags.js';
 import * as MG from './game/map-gen.js';
@@ -77,6 +78,8 @@ export default function initWorlds() {
             coins: { gp: 0 },        // story gold (no persona)
             xp: 0,                   // story XP (no persona)
             rewardsPaid: {},         // { [questId]: { at, choice } } — each quest pays once
+            // (added when needed, R4 extras) questRepeats: { [questId]: { count, day } },
+            //   shops: { [personId]: { day, sold: { [item lower-case]: n } } } — bought today (restock daily)
             reputation: {},          // { [factionId]: number }
             questState: {},          // { [questId]: 'available'|'active'|'complete'|'turnedin'|'failed' }
             questObjectives: {},     // { [questId]: { [objId]: true } }
@@ -1408,16 +1411,117 @@ export default function initWorlds() {
     function inventoryView() {
         const sh = sheetOwner() && personaSheet();
         const story = asArray(rt() && rt().inventory);
-        if (sh) return { source: 'sheet', owner: personaName(), items: asArray(sh.inventory).concat(story), gp: Number(sh.coins && sh.coins.gp) || 0, xp: Number(sh.xp) || 0 };
-        return { source: 'story', owner: '', items: story, gp: Number(rt() && rt().coins && rt().coins.gp) || 0, xp: Number(rt() && rt().xp) || 0 };
+        if (sh) return { source: 'sheet', owner: personaName(), items: asArray(sh.inventory).concat(story), gp: Number(sh.coins && sh.coins.gp) || 0, xp: Number(sh.xp) || 0, purseText: SH.formatPrice(SH.wealthCp(sh.coins)) };
+        return { source: 'story', owner: '', items: story, gp: Number(rt() && rt().coins && rt().coins.gp) || 0, xp: Number(rt() && rt().xp) || 0, purseText: SH.formatPrice(SH.wealthCp(rt() && rt().coins)) };
     }
     function gameLog(what, kind) { try { window.KLITE_RPMod_Log?.add({ what, kind: kind || 'quest' }); } catch (_) {} dbg(kind || 'quest', what); }
+
+    // ---- vendors / shops (R4 extra; rules: src/game/shop-rules.js) ----
+    // person.shop = { items: [{ item, price: '15 gp' | '' (SRD price), stock: n | null }], buys, note }.
+    // RPmod adjudicates: price × the standing with the vendor's faction, stock left today, the
+    // player's purse (the persona's coins, else the story's); the AI narrates the log line.
+    function purse() { const sh = sheetOwner() && personaSheet(); return Object.assign({}, sh ? sh.coins : (rt() && rt().coins) || { gp: 0 }); }
+    function changePurse(fn) { withSheet(s => { s.coins = fn(s.coins || {}); }, () => { rt().coins = fn(rt().coins || { gp: 0 }); }); }
+    function isVendor(p) { return !!(p && p.shop && typeof p.shop === 'object'); }
+    function vendorOf(idOrName) { const w = activeWorld(); if (!w) return null; const p = findById(w.npcs, idOrName) || findNpcByName(w, idOrName); return isVendor(p) ? p : null; }
+    function vendorsHere() {
+        const w = activeWorld(); const here = rt() && rt().playerLocationId; if (!w || !here) return [];
+        const loc = findById(w.locations, here);
+        return asArray(w.npcs).filter(p => isVendor(p) && !phasedEntity(p).gone && (resolveNpcLocationId(p) === here || asArray(loc && loc.npcIds).includes(p.id)));
+    }
+    function vendorTier(p) { return p && p.factionId ? QR.tierOf(repValue(p.factionId)) : 'Neutral'; }
+    const itemKey = (item) => norm(item).toLowerCase();
+    function soldToday(p, item) {
+        const st = rt() && rt().shops && rt().shops[p.id];
+        if (!st || st.day !== QR.absoluteDay(rt().clock)) return 0;
+        const k = Object.keys(st.sold || {}).find(x => QR.sameName(x, item));
+        return k ? Number(st.sold[k]) || 0 : 0;
+    }
+    function markSold(p, item, qty) {
+        rt().shops = rt().shops || {}; const today = QR.absoluteDay(rt().clock);
+        let st = rt().shops[p.id]; if (!st || st.day !== today) st = rt().shops[p.id] = { day: today, sold: {} };   // a new day: restocked
+        const k = Object.keys(st.sold).find(x => QR.sameName(x, item)) || itemKey(item);
+        st.sold[k] = (Number(st.sold[k]) || 0) + qty;
+    }
+    // Everything a shop window (or the AI) needs about one vendor, right now.
+    function shopView(idOrName) {
+        const p = vendorOf(idOrName); if (!p) return null;
+        const tier = vendorTier(p), wealth = SH.wealthCp(purse());
+        const items = SH.shopItems(p.shop).map(i => {
+            const left = i.stock == null ? null : Math.max(0, i.stock - soldToday(p, i.item));
+            const price = i.base == null ? null : SH.buyPrice(i.base, tier);
+            return { item: i.item, price, priceText: price == null ? 'no price' : SH.formatPrice(price), left };
+        });
+        const buys = p.shop.buys !== false, seen = new Set(), sell = [];
+        if (buys) for (const it of inventoryView().items) {
+            const n = norm(it && it.name); if (!n || seen.has(n.toLowerCase())) continue; seen.add(n.toLowerCase());
+            const base = SH.sellBase(p.shop, n); const price = base ? SH.sellPrice(base) : 0;
+            if (price > 0) sell.push({ item: n, qty: itemCount(n), price, priceText: SH.formatPrice(price) });
+        }
+        return { id: p.id, name: personName(p), faction: p.factionId ? factionName(p.factionId) : '', tier, trade: SH.canTrade(tier),
+            factor: SH.priceFactor(tier), note: norm(p.shop.note), items, buys, sell, purse: wealth, purseText: SH.formatPrice(wealth),
+            here: vendorsHere().some(v => v.id === p.id) };
+    }
+    function buyItem(idOrName, item, qty) {
+        const p = vendorOf(idOrName), v = shopView(idOrName); if (!v) return { ok: false, reason: 'no such vendor' };
+        qty = Math.max(1, Math.floor(Number(qty) || 1)); const what = `${norm(item)}${qty > 1 ? ' ×' + qty : ''}`;
+        const refuse = (why) => { gameLog(`${v.name} does not sell ${what}: ${why}.`); return { ok: false, reason: why }; };
+        if (!v.trade) return refuse(`${v.faction} is ${v.tier} towards the player`);
+        const it = v.items.find(i => QR.sameName(i.item, item)); if (!it) return refuse('not for sale here');
+        if (it.price == null) return refuse('it has no price');
+        if (it.left != null && it.left < qty) return refuse(it.left ? `only ${it.left} left today` : 'sold out until tomorrow');
+        const cost = it.price * qty;
+        if (v.purse < cost) return refuse(`it costs ${SH.formatPrice(cost)} and the player has ${v.purseText}`);
+        changePurse(c => SH.payCoins(c, cost) || c);
+        inventoryAdd(it.item, qty);
+        if (it.left != null) markSold(p, it.item, qty);
+        gameLog(`Bought ${it.item}${qty > 1 ? ' ×' + qty : ''} from ${v.name} for ${SH.formatPrice(cost)}.`);
+        return { ok: true, cost };
+    }
+    function sellItem(idOrName, item, qty) {
+        const p = vendorOf(idOrName), v = shopView(idOrName); if (!v) return { ok: false, reason: 'no such vendor' };
+        qty = Math.max(1, Math.floor(Number(qty) || 1)); const what = `${norm(item)}${qty > 1 ? ' ×' + qty : ''}`;
+        const refuse = (why) => { gameLog(`${v.name} does not buy ${what}: ${why}.`); return { ok: false, reason: why }; };
+        if (!v.trade) return refuse(`${v.faction} is ${v.tier} towards the player`);
+        if (!v.buys) return refuse('this vendor only sells');
+        const have = itemCount(item); if (have < qty) return refuse(have ? `the player has only ${have}` : 'the player does not have it');
+        const base = SH.sellBase(p.shop, item); const each = base ? SH.sellPrice(base) : 0;
+        if (each <= 0) return refuse('not interested (no known price)');
+        const held = inventoryView().items.find(i => QR.sameName(i.name, item)); const name = held ? norm(held.name) : norm(item);
+        inventoryRemove(name, qty);
+        changePurse(c => SH.addCoins(c, each * qty));
+        gameLog(`Sold ${name}${qty > 1 ? ' ×' + qty : ''} to ${v.name} for ${SH.formatPrice(each * qty)}.`);
+        return { ok: true, paid: each * qty };
+    }
+    // <buy>Torch x2</buy> / <sell>Wolf Pelt x3</sell> (optionally "Bram: Torch"): a vendor here.
+    function tradeTag(kind, text) {
+        const m = /^([^:]+):\s*(.+)$/.exec(norm(text));
+        const { item, qty } = SH.parseQty(m ? m[2] : text);
+        const here = vendorsHere();
+        let v = m ? here.find(p => QR.sameName(personName(p), m[1]) || personName(p).toLowerCase().includes(norm(m[1]).toLowerCase())) : null;
+        if (!v) v = kind === 'buy' ? here.find(p => SH.shopItems(p.shop).some(i => QR.sameName(i.item, item))) || here[0] : here.find(p => p.shop.buys !== false && SH.sellBase(p.shop, item)) || here[0];
+        if (!v) { gameLog(`No one here trades (${kind} ${item}).`); return false; }
+        return (kind === 'buy' ? buyItem(v.id, item, qty) : sellItem(v.id, item, qty)).ok;
+    }
+    function shopText() {
+        const lines = [];
+        for (const p of vendorsHere()) {
+            const v = shopView(p.id); if (!v) continue;
+            if (!v.trade) { lines.push(`- ${v.name} refuses to trade with the player (${v.faction}: ${v.tier}).`); continue; }
+            const wares = v.items.filter(i => i.price != null).map(i => `${i.item} ${i.priceText}${i.left != null ? ` (${i.left} left)` : ''}`);
+            const adj = v.factor !== 1 ? ` — prices ${v.factor < 1 ? Math.round((1 - v.factor) * 100) + '% lower' : Math.round((v.factor - 1) * 100) + '% higher'} (${v.faction}: ${v.tier})` : '';
+            lines.push(`- ${v.name} sells: ${wares.length ? wares.join(', ') : 'nothing right now'}${adj}${v.buys ? '; buys items at half price' : ''}${v.note ? `. ${v.note}` : ''}`);
+        }
+        if (!lines.length) return '';
+        return lines.join('\n') + `\nThe player's purse: ${SH.formatPrice(SH.wealthCp(purse()))}. When the player buys or sells, write <buy>item x2</buy> or <sell>item</sell>; RPmod checks the price, the stock and the purse and logs the result — narrate only what the log says.`;
+    }
 
     // Parse explicit control tags out of one message. Returns true if state changed.
     // Supported: <move>/<go> and the other map tags (applyMapTag), <npcmove>NPC=Loc, <mood>NPC=Mood, <flag>k=v, <unflag>k,
     //            <give>Item [xN], <take>Item [xN|x all], <quest>id=state,
     //            <time>slot, <weather>desc, <advance> (advance clock one slot),
-    //            <accept>quest</accept>, <turnin>quest</turnin> (R4 extras; the rules decide)
+    //            <accept>quest</accept>, <turnin>quest</turnin>, <buy>item xN</buy>, <sell>item xN</sell>
+    //            (R4 extras; the rules decide)
     function parseMutations(text) {
         const world = activeWorld(); if (!world || !rt()) return false;
         let changed = false;
@@ -1444,6 +1548,9 @@ export default function initWorlds() {
         // <accept>Bandit Bounty</accept> / <turnin>Bandit Bounty</turnin>: the player takes / hands in a quest
         scan(/<accept>\s*([^<>]+?)\s*<\/accept>/gi, m => tagAccept(m[1]));
         scan(/<turnin>\s*([^<>]+?)\s*<\/turnin>/gi, m => tagTurnIn(m[1]));
+        // <buy>Torch x2</buy> / <sell>Wolf Pelt</sell>: trading with a vendor here (R4 extra)
+        scan(/<buy>\s*([^<>]+?)\s*<\/buy>/gi, m => tradeTag('buy', m[1]));
+        scan(/<sell>\s*([^<>]+?)\s*<\/sell>/gi, m => tradeTag('sell', m[1]));
         // <talk>Captain Rowan</talk>: the player spoke with this person (quest "talk" objectives)
         scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, m => { const npc = findNpcByName(world, m[1]); if (!npc) return false; questEvent('talk', { personId: npc.id }); return true; });
         // <encounter>Wolf Pack</encounter> (a saved encounter) or <encounter>2 Wolf, Goblin Warrior</encounter>
@@ -2459,7 +2566,7 @@ export default function initWorlds() {
         const stateBits = [];
         const inv = asArray(rt().inventory).filter(i => i && norm(i.name));
         if (inv.length) stateBits.push((sheetOwner() && personaSheet() ? 'Story items: ' : 'Inventory: ') + inv.map(i => norm(i.name) + ((Number(i.qty) || 1) > 1 ? ` x${i.qty}` : '')).join(', '));
-        if (!(sheetOwner() && personaSheet())) { const gp = Number(rt().coins && rt().coins.gp) || 0, xp = Number(rt().xp) || 0; if (gp || xp) stateBits.push(`Gold: ${gp}, XP: ${xp}`); }
+        if (!(sheetOwner() && personaSheet())) { const cp = SH.wealthCp(rt().coins), xp = Number(rt().xp) || 0; if (cp || xp) stateBits.push(`Gold: ${SH.formatPrice(cp)}, XP: ${xp}`); }
         const party = asArray(rt().party).map(id => (findById(world.npcs, id) || {}).name).filter(Boolean);
         if (party.length) stateBits.push('Party: ' + party.map(norm).join(', '));
         push('Player State', 85, stateBits.join('\n'));
@@ -2536,6 +2643,9 @@ export default function initWorlds() {
         const giverLines = questGiverLines(npcsHere.filter(n => !phasedEntity(n).gone).map(n => n.id), mode);
         if (giverLines.length) push('Quest givers here', 66, giverLines.join('\n') +
             '\nSpeak the offers in the giver\'s voice. When the player agrees to a quest, write <accept>quest title</accept>; when they hand in a finished one, <turnin>quest title</turnin>. RPmod checks the requirements and pays the rewards.');
+
+        // 4c. Vendors here (R4 extra): wares with prices after reputation, stock, the purse
+        push('Trade', 62, shopText());
 
         // 5. Nearby objects
         const objsHere = asArray(world.objects).filter(o => (o.locationId === loc.id || asArray(loc.objectIds).includes(o.id)) && featureVisible(o));
@@ -3096,7 +3206,10 @@ export default function initWorlds() {
               phases: [{ id: 'ph_abandoned', label: 'Abandoned', conditions: [{ type: 'quest', questId: 'q_bounty', state: 'turnedin' }], name: 'Abandoned Camp', description: 'Cold fire pits and torn red banners; the Red Hand is gone.', atmosphere: 'eerie' }] }
         ],
         npcs: [
-            { id: 'npc_bram', name: 'Innkeeper Bram', personality: 'friendly, gossipy, knows everyone in town', homeLocationId: 'loc_tavern', factionId: 'fac_town', mood: 'cheerful', ui: { x: 200, y: 150 } },
+            { id: 'npc_bram', name: 'Innkeeper Bram', personality: 'friendly, gossipy, knows everyone in town', homeLocationId: 'loc_tavern', factionId: 'fac_town', mood: 'cheerful', ui: { x: 200, y: 150 },
+              shop: { items: [{ item: 'Rations', price: '' }, { item: 'Torch', price: '' }, { item: 'Waterskin', price: '' }, { item: 'Ale', price: '4 cp' }, { item: 'Potion of Healing', price: '', stock: 2 }], buys: true, note: 'A room for the night is 5 sp.' } },
+            { id: 'npc_wren', name: 'Quartermaster Wren', personality: 'brisk, counts every arrow twice', homeLocationId: 'loc_watchtower', factionId: 'fac_guard', mood: 'busy', ui: { x: 1240, y: 20 },
+              shop: { items: [{ item: 'Longsword', price: '' }, { item: 'Shield', price: '' }, { item: 'Chain Mail', price: '', stock: 1 }, { item: 'Shortbow', price: '' }, { item: 'Arrows', price: '5 cp' }], buys: true, note: 'Friends of the Guard pay less.' } },
             { id: 'npc_rowan', name: 'Captain Rowan', personality: 'stern, dutiful veteran of the Royal Guard', homeLocationId: 'loc_watchtower', factionId: 'fac_guard', mood: 'watchful',
               phases: [{ id: 'ph_grateful', label: 'Grateful', conditions: [{ type: 'quest', questId: 'q_bounty', state: 'turnedin' }], mood: 'grateful, relaxed' }], stats: { abilities: { str: 15, dex: 12, con: 14, int: 10, wis: 12, cha: 11 }, ac: 18, hpMax: 22, proficiency: 2, attacks: [{ name: 'Longsword', toHit: 4, damage: '1d8+2' }] }, ui: { x: 1080, y: 170 } },
             { id: 'npc_courier', name: 'Courier Finn', personality: 'nervous, always out of breath', homeLocationId: 'loc_village', ui: { x: 200, y: 320 } },
@@ -3224,6 +3337,13 @@ export default function initWorlds() {
         // ----- Quests (Phase D) -----
         listQuests(mode) { return listQuests(mode || aiMode()); },
         inventory: () => inventoryView(),
+        // ----- vendors / shops (R4 extra) -----
+        shopRules: SH,
+        vendorsHere: () => vendorsHere().map(p => p.id),
+        shopView: (id) => shopView(id),
+        buy(vendor, item, qty) { ensureRuntime(); const r = buyItem(vendor, item, qty); syncLive(); return r; },
+        sell(vendor, item, qty) { ensureRuntime(); const r = sellItem(vendor, item, qty); syncLive(); return r; },
+        purse: () => purse(),
         itemCount: (name) => itemCount(name),
         rewardText: (r) => QR.formatReward(r, factionName),
         parseReward: (text) => QR.parseReward(text, (n) => { const f = asArray(activeWorld() && activeWorld().factions).find(x => QR.sameName(x.name, n) || x.id === n); return f ? f.id : null; }),

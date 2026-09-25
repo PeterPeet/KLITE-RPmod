@@ -57,6 +57,8 @@ test('search: names first, then summaries, then the text; entries; attribution',
     assert.equal(CP.find('fire bolt').key, 'fire-bolt');
     assert.equal(CP.entry('monster', 'goblin-warrior').data.ac, 15);
     assert.equal(CP.entry('equipment', 'weapon:Longsword').data.damage, '1d8');
+    assert.equal(CP.entry('equipment', 'weapon:Longsword').data.cost, '15 GP', 'SRD cost (R4 extras: shops)');
+    assert.equal(CP.entry('equipment', 'armor:Plate Armor').data.cost, '1,500 GP');
     assert.equal(CP.entry('equipment', 'gear:acid').name, 'Acid');
     assert.equal(CP.entry('spell', 'nope'), null);
     assert.equal(CP.ATTRIBUTION, SRD.attribution);

@@ -13,7 +13,7 @@
 **Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
 is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). R5 is done
 (✅ 2026-09-25: spells in the Combat window, companions' HP, Long rest, the Encounter node), and
-R3 too (✅ 2026-09-25: the SRD 5.2.1 Compendium). Next: the R4 extras (started 2026-09-25; done: `<take>` semantics, faction phases, kill reputation, repeatable/daily quests, quest-giver dialogue; open: vendors/shops), then R6. The real-backend play
+R3 too (✅ 2026-09-25: the SRD 5.2.1 Compendium). The R4 extras are done too (2026-09-25: `<take>` semantics, faction phases, kill reputation, repeatable/daily quests, quest-giver dialogue, vendors/shops). Next: R6. The real-backend play
 test (known issue 5) is postponed (owner, 2026-09-25). R7 is done (✅ 2026-09-25, acceptance passed).
 R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
 issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
@@ -541,8 +541,16 @@ world's state slots does not take them back).
         Quest log shows them, the AI gets a *Quest givers here* section and the new tags
         `<accept>quest</accept>` / `<turnin>quest</turnin>` (through the rules; a choose-one
         reward stays with the Quest log).
-  - [ ] **Vendors/shops**.
-  Tests `tests/r4extras.test.js`.
+  - [x] **Vendors/shops**: a person with a shop (editor: wares, price — empty = SRD 5.2.1 list
+        price —, daily stock, buys or not, a note); Shop window where the player stands; prices ×
+        reputation factor of the vendor's faction (Friendly −5 % … Exalted −20 %, Unfriendly
+        +25 %, Hostile: no trade — our own numbers); the vendor buys at half price; the purse is
+        the persona's coins (small coins first, change back); tags `<buy>`/`<sell>`; AI section
+        *Trade*. SRD weapon and armor costs added to `srd52.js` (extractor checks them against
+        the PDF) and shown in the Compendium. Example: Innkeeper Bram, Quartermaster Wren.
+        Decisions: sell price is not changed by reputation; no buy-back list; stock refills daily.
+  Tests `tests/r4extras.test.js` (+ Compendium costs); live-checked in Esolite (Shop window,
+  buying, the vendor editor).
 - Full marker set (yellow/grey `!`, yellow/grey `?`).
 - Prerequisites (level, previous quest, flag, reputation); chains; item-started quests.
 - Objective types with counters (kill/collect/talk/visit), auto-progress from tags/events.

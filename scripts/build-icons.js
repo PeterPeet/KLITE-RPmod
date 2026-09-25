@@ -38,6 +38,8 @@ const NAMES = {
     'download': 'export',
     'scroll-text': 'quest log',
     'swords': 'combat',
+    'store': 'shop (vendors, R4 extras)',
+    'coins': 'sell to a vendor / purse',
     'moon': 'long rest (Party section)',
     'wand-sparkles': 'cast a spell (Combat window)',
     'book-marked': 'Compendium (right dock)',

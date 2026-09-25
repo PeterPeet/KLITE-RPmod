@@ -6589,330 +6589,381 @@ export const SRD = {
    "type": "Bludgeoning",
    "properties": "Light",
    "mastery": "Slow",
-   "category": "simple melee"
+   "category": "simple melee",
+   "cost": "1 SP"
   },
   "Dagger": {
    "damage": "1d4",
    "type": "Piercing",
    "properties": "Finesse, Light, Thrown (Range 20/60)",
    "mastery": "Nick",
-   "category": "simple melee"
+   "category": "simple melee",
+   "cost": "2 GP"
   },
   "Greatclub": {
    "damage": "1d8",
    "type": "Bludgeoning",
    "properties": "Two-Handed",
    "mastery": "Push",
-   "category": "simple melee"
+   "category": "simple melee",
+   "cost": "2 SP"
   },
   "Handaxe": {
    "damage": "1d6",
    "type": "Slashing",
    "properties": "Light, Thrown (Range 20/60)",
    "mastery": "Vex",
-   "category": "simple melee"
+   "category": "simple melee",
+   "cost": "5 GP"
   },
   "Javelin": {
    "damage": "1d6",
    "type": "Piercing",
    "properties": "Thrown (Range 30/120)",
    "mastery": "Slow",
-   "category": "simple melee"
+   "category": "simple melee",
+   "cost": "5 SP"
   },
   "Light Hammer": {
    "damage": "1d4",
    "type": "Bludgeoning",
    "properties": "Light, Thrown (Range 20/60)",
    "mastery": "Nick",
-   "category": "simple melee"
+   "category": "simple melee",
+   "cost": "2 GP"
   },
   "Mace": {
    "damage": "1d6",
    "type": "Bludgeoning",
    "properties": "",
    "mastery": "Sap",
-   "category": "simple melee"
+   "category": "simple melee",
+   "cost": "5 GP"
   },
   "Quarterstaff": {
    "damage": "1d6",
    "type": "Bludgeoning",
    "properties": "Versatile (1d8)",
    "mastery": "Topple",
-   "category": "simple melee"
+   "category": "simple melee",
+   "cost": "2 SP"
   },
   "Sickle": {
    "damage": "1d4",
    "type": "Slashing",
    "properties": "Light",
    "mastery": "Nick",
-   "category": "simple melee"
+   "category": "simple melee",
+   "cost": "1 GP"
   },
   "Spear": {
    "damage": "1d6",
    "type": "Piercing",
    "properties": "Thrown (Range 20/60), Versatile (1d8)",
    "mastery": "Sap",
-   "category": "simple melee"
+   "category": "simple melee",
+   "cost": "1 GP"
   },
   "Dart": {
    "damage": "1d4",
    "type": "Piercing",
    "properties": "Finesse, Thrown (Range 20/60)",
    "mastery": "Vex",
-   "category": "simple ranged"
+   "category": "simple ranged",
+   "cost": "5 CP"
   },
   "Light Crossbow": {
    "damage": "1d8",
    "type": "Piercing",
    "properties": "Ammunition (Range 80/320; Bolt), Loading, Two-Handed",
    "mastery": "Slow",
-   "category": "simple ranged"
+   "category": "simple ranged",
+   "cost": "25 GP"
   },
   "Shortbow": {
    "damage": "1d6",
    "type": "Piercing",
    "properties": "Ammunition (Range 80/320; Arrow), Two-Handed",
    "mastery": "Vex",
-   "category": "simple ranged"
+   "category": "simple ranged",
+   "cost": "25 GP"
   },
   "Sling": {
    "damage": "1d4",
    "type": "Bludgeoning",
    "properties": "Ammunition (Range 30/120; Bullet)",
    "mastery": "Slow",
-   "category": "simple ranged"
+   "category": "simple ranged",
+   "cost": "1 SP"
   },
   "Battleaxe": {
    "damage": "1d8",
    "type": "Slashing",
    "properties": "Versatile (1d10)",
    "mastery": "Topple",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "10 GP"
   },
   "Flail": {
    "damage": "1d8",
    "type": "Bludgeoning",
    "properties": "",
    "mastery": "Sap",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "10 GP"
   },
   "Glaive": {
    "damage": "1d10",
    "type": "Slashing",
    "properties": "Heavy, Reach, Two-Handed",
    "mastery": "Graze",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "20 GP"
   },
   "Greataxe": {
    "damage": "1d12",
    "type": "Slashing",
    "properties": "Heavy, Two-Handed",
    "mastery": "Cleave",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "30 GP"
   },
   "Greatsword": {
    "damage": "2d6",
    "type": "Slashing",
    "properties": "Heavy, Two-Handed",
    "mastery": "Graze",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "50 GP"
   },
   "Halberd": {
    "damage": "1d10",
    "type": "Slashing",
    "properties": "Heavy, Reach, Two-Handed",
    "mastery": "Cleave",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "20 GP"
   },
   "Lance": {
    "damage": "1d10",
    "type": "Piercing",
    "properties": "Heavy, Reach, Two-Handed (unless mounted)",
    "mastery": "Topple",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "10 GP"
   },
   "Longsword": {
    "damage": "1d8",
    "type": "Slashing",
    "properties": "Versatile (1d10)",
    "mastery": "Sap",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "15 GP"
   },
   "Maul": {
    "damage": "2d6",
    "type": "Bludgeoning",
    "properties": "Heavy, Two-Handed",
    "mastery": "Topple",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "10 GP"
   },
   "Morningstar": {
    "damage": "1d8",
    "type": "Piercing",
    "properties": "",
    "mastery": "Sap",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "15 GP"
   },
   "Pike": {
    "damage": "1d10",
    "type": "Piercing",
    "properties": "Heavy, Reach, Two-Handed",
    "mastery": "Push",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "5 GP"
   },
   "Rapier": {
    "damage": "1d8",
    "type": "Piercing",
    "properties": "Finesse",
    "mastery": "Vex",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "25 GP"
   },
   "Scimitar": {
    "damage": "1d6",
    "type": "Slashing",
    "properties": "Finesse, Light",
    "mastery": "Nick",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "25 GP"
   },
   "Shortsword": {
    "damage": "1d6",
    "type": "Piercing",
    "properties": "Finesse, Light",
    "mastery": "Vex",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "10 GP"
   },
   "Trident": {
    "damage": "1d8",
    "type": "Piercing",
    "properties": "Thrown (Range 20/60), Versatile (1d10)",
    "mastery": "Topple",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "5 GP"
   },
   "Warhammer": {
    "damage": "1d8",
    "type": "Bludgeoning",
    "properties": "Versatile (1d10)",
    "mastery": "Push",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "15 GP"
   },
   "War Pick": {
    "damage": "1d8",
    "type": "Piercing",
    "properties": "Versatile (1d10)",
    "mastery": "Sap",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "5 GP"
   },
   "Whip": {
    "damage": "1d4",
    "type": "Slashing",
    "properties": "Finesse, Reach",
    "mastery": "Slow",
-   "category": "martial melee"
+   "category": "martial melee",
+   "cost": "2 GP"
   },
   "Blowgun": {
    "damage": "1",
    "type": "Piercing",
    "properties": "Ammunition (Range 25/100; Needle), Loading",
    "mastery": "Vex",
-   "category": "martial ranged"
+   "category": "martial ranged",
+   "cost": "10 GP"
   },
   "Hand Crossbow": {
    "damage": "1d6",
    "type": "Piercing",
    "properties": "Ammunition (Range 30/120; Bolt), Light, Loading",
    "mastery": "Vex",
-   "category": "martial ranged"
+   "category": "martial ranged",
+   "cost": "75 GP"
   },
   "Heavy Crossbow": {
    "damage": "1d10",
    "type": "Piercing",
    "properties": "Ammunition (Range 100/400; Bolt), Heavy, Loading, Two-Handed",
    "mastery": "Push",
-   "category": "martial ranged"
+   "category": "martial ranged",
+   "cost": "50 GP"
   },
   "Longbow": {
    "damage": "1d8",
    "type": "Piercing",
    "properties": "Ammunition (Range 150/600; Arrow), Heavy, Two-Handed",
    "mastery": "Slow",
-   "category": "martial ranged"
+   "category": "martial ranged",
+   "cost": "50 GP"
   },
   "Musket": {
    "damage": "1d12",
    "type": "Piercing",
    "properties": "Ammunition (Range 40/120; Bullet), Loading, Two-Handed",
    "mastery": "Slow",
-   "category": "martial ranged"
+   "category": "martial ranged",
+   "cost": "500 GP"
   },
   "Pistol": {
    "damage": "1d10",
    "type": "Piercing",
    "properties": "Ammunition (Range 30/90; Bullet), Loading",
    "mastery": "Vex",
-   "category": "martial ranged"
+   "category": "martial ranged",
+   "cost": "250 GP"
   }
  },
  "armor": {
   "Padded Armor": {
    "category": "light",
    "base": 11,
-   "dexCap": null
+   "dexCap": null,
+   "cost": "5 GP"
   },
   "Leather Armor": {
    "category": "light",
    "base": 11,
-   "dexCap": null
+   "dexCap": null,
+   "cost": "10 GP"
   },
   "Studded Leather Armor": {
    "category": "light",
    "base": 12,
-   "dexCap": null
+   "dexCap": null,
+   "cost": "45 GP"
   },
   "Hide Armor": {
    "category": "medium",
    "base": 12,
-   "dexCap": 2
+   "dexCap": 2,
+   "cost": "10 GP"
   },
   "Chain Shirt": {
    "category": "medium",
    "base": 13,
-   "dexCap": 2
+   "dexCap": 2,
+   "cost": "50 GP"
   },
   "Scale Mail": {
    "category": "medium",
    "base": 14,
-   "dexCap": 2
+   "dexCap": 2,
+   "cost": "50 GP"
   },
   "Breastplate": {
    "category": "medium",
    "base": 14,
-   "dexCap": 2
+   "dexCap": 2,
+   "cost": "400 GP"
   },
   "Half Plate Armor": {
    "category": "medium",
    "base": 15,
-   "dexCap": 2
+   "dexCap": 2,
+   "cost": "750 GP"
   },
   "Ring Mail": {
    "category": "heavy",
    "base": 14,
-   "dexCap": 0
+   "dexCap": 0,
+   "cost": "30 GP"
   },
   "Chain Mail": {
    "category": "heavy",
    "base": 16,
-   "dexCap": 0
+   "dexCap": 0,
+   "cost": "75 GP"
   },
   "Splint Armor": {
    "category": "heavy",
    "base": 17,
-   "dexCap": 0
+   "dexCap": 0,
+   "cost": "200 GP"
   },
   "Plate Armor": {
    "category": "heavy",
    "base": 18,
-   "dexCap": 0
+   "dexCap": 0,
+   "cost": "1,500 GP"
   }
  },
+ "shieldCost": "10 GP",
  "xpBudget": {
   "1": {
    "low": 50,

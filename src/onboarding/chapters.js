@@ -126,6 +126,8 @@ export const CHAPTERS = [
                 ['<open>north</open> · <unlock>north</unlock> · <search/>', 'doors and searching in a dungeon (RPmod rolls)'],
                 ['<room>Bone Pit, west: old bones</room> · <door>west = locked</door>', 'the AI adds a room or locks a door'],
                 ['<give>Torch x2</give> · <take>Torch</take>', 'inventory'],
+                ['<accept>Bandit Bounty</accept> · <turnin>Bandit Bounty</turnin>', 'take or hand in a quest (RPmod checks and pays)'],
+                ['<buy>Torch x2</buy> · <sell>Rope</sell>', 'trade with a vendor here (price, stock, purse checked)'],
                 ['<quest>find_sword=active</quest>', 'quest state'],
                 ['<flag>metRowan=true</flag>', 'story flag'],
                 ['<time>evening</time> · <weather>rain</weather>', 'time and weather'],

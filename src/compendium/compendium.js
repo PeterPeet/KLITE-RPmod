@@ -84,8 +84,8 @@ export default function initCompendium() {
     }
     function equipmentDetail(e) {
         const d = e.data;
-        if (d.equipment === 'weapon') return [el('div', { class: 'rpm-muted', text: `Weapon · ${d.category}` }), el('div', { class: 'rpm-cmp-stats' }, [line('Damage', `${d.damage} ${d.type}`), line('Properties', d.properties || '—'), line('Mastery', d.mastery)])];
-        if (d.equipment === 'armor') return [el('div', { class: 'rpm-muted', text: `Armor · ${d.category}` }), el('div', { class: 'rpm-cmp-stats' }, [line('Armor Class', d.category === 'shield' ? `+${d.base}` : `${d.base}${d.dexCap === 0 ? '' : ` + Dex modifier${d.dexCap ? ` (max ${d.dexCap})` : ''}`}`)])];
+        if (d.equipment === 'weapon') return [el('div', { class: 'rpm-muted', text: `Weapon · ${d.category}` }), el('div', { class: 'rpm-cmp-stats' }, [line('Damage', `${d.damage} ${d.type}`), line('Properties', d.properties || '—'), line('Mastery', d.mastery), d.cost ? line('Cost', d.cost) : null])];
+        if (d.equipment === 'armor') return [el('div', { class: 'rpm-muted', text: `Armor · ${d.category}` }), el('div', { class: 'rpm-cmp-stats' }, [line('Armor Class', d.category === 'shield' ? `+${d.base}` : `${d.base}${d.dexCap === 0 ? '' : ` + Dex modifier${d.dexCap ? ` (max ${d.dexCap})` : ''}`}`), d.cost ? line('Cost', d.cost) : null])];
         return [el('div', { class: 'rpm-muted', text: d.kind === 'tool' ? 'Tool' : 'Adventuring gear' }), el('div', { class: 'rpm-cmp-stats' }, [line('Cost', d.cost), d.kind !== 'tool' ? line('Weight', d.weight) : null]), ...d.text.map(para)];
     }
     function ruleDetail(e) { return [el('div', { class: 'rpm-muted', text: e.data.tag || 'Rules Glossary' }), ...e.data.text.map(para)]; }

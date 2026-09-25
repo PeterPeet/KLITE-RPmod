@@ -132,7 +132,7 @@ test('inventory without a persona: the story keeps items, gold and XP', async (t
     assert.ok(W.runtime.inventory.some(i => i.name === 'Silver Ring'));
     assert.equal(W.runtime.xp, 100);
     assert.equal(W.inventory().source, 'story');
-    assert.match(W.preview(), /Inventory: Silver Ring\nGold: 20, XP: 100/);
+    assert.match(W.preview(), /Inventory: Silver Ring\nGold: 20 gp, XP: 100/);
 });
 
 test('objectives: kill (combat), collect, talk, visit and manual progress by themselves; the quest completes', async (t) => {

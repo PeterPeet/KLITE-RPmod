@@ -297,6 +297,8 @@ are applied when you send. Either way the next slice reflects them.
 | `<rep>Faction=±N</rep>` | `<rep>Royal Guard=+50</rep>` | Change the player's reputation with a faction |
 | `<accept>quest</accept>` | `<accept>Bandit Bounty</accept>` | The player takes a quest (if its requirements are met) |
 | `<turnin>quest</turnin>` | `<turnin>Bandit Bounty</turnin>` | Hand in a finished quest; rewards are paid |
+| `<buy>item</buy>` | `<buy>Torch x2</buy>`, `<buy>Wren: Shield</buy>` | Buy from a vendor here (price, stock and purse are checked) |
+| `<sell>item</sell>` | `<sell>Rope</sell>` | Sell to a vendor here at half price |
 | `<encounter>…</encounter>` | `<encounter>2 Wolf, Goblin Warrior</encounter>` | Start a fight: SRD monster names with counts, or a saved encounter's name |
 
 ### Exploring dungeons and towns (map tags)
@@ -482,6 +484,18 @@ are hostile to you, friends give favours) and quests or events can require a tie
 **Defeating a member** of a faction lowers your standing with it: a person of the faction, or a
 monster of an encounter linked to it (−25 each unless the faction's inspector says otherwise;
 0 turns it off).
+
+**Vendors.** Any person can run a shop: in the editor tick **Vendor** in the person's inspector
+and add wares — leave the price empty to use the SRD price (shown in grey), or type one such as
+`4 cp` or `2 gp 5 sp`; a **stock** limits how many they sell per in-game day (it refills the next
+day). Where a vendor stands, the World tab shows **Trade here … Shop**: the **Shop** window lists
+the wares with prices and a **Sell** list of your items the vendor wants (at half price). Your
+standing with the vendor's faction changes the prices (Friendly −5 %, Honored −10 %, Revered
+−15 %, Exalted −20 %, Unfriendly +25 %); a Hostile faction's vendor will not trade with you. You
+pay from your persona's purse (small coins first; you get change). In the chat the AI uses
+`<buy>Torch x2</buy>` and `<sell>Rope</sell>` — RPmod checks price, stock and purse, and the log
+says what happened. In the example world, Innkeeper Bram and Quartermaster Wren (Royal Guard)
+trade.
 
 **Zones, hubs and phasing.** In the editor a place can be **part of** another (a tavern in a
 village, a village in a valley); the AI hears "Part of: Brookvale › Millbrook Village" and which

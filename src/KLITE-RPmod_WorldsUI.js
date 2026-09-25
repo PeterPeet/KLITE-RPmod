@@ -17,6 +17,7 @@
 // =============================================================================
 import { icon, iconText } from './shell/dom.js';
 import { renderCombat, AUTO_TURNS_SETTING } from './game/combatView.js';
+import { renderShop } from './game/shopView.js';
 import { registerMapEditor, openMapEditor, closeMapEditor } from './map/mapEditor.js';
 import { registerMinimap, MINIMAP_VIEWS } from './map/minimap.js';
 
@@ -302,7 +303,7 @@ export default function initWorldsUI() {
             box.appendChild(input);
         }
         if (type === 'world') renderWorldExtras(box, ent);
-        if (type === 'npc') { renderPersonExtras(box, ent); renderPhases(box, ent, 'npc'); }
+        if (type === 'npc') { renderPersonExtras(box, ent); renderShopEditor(box, ent); renderPhases(box, ent, 'npc'); }
         if (type === 'location') { renderLocationExtras(box, ent); renderPhases(box, ent, 'location'); }
         if (type === 'quest') { renderQuestExtras(box, ent); renderQuestPrereqs(box, ent); }
         if (type === 'event') renderEventExtras(box, ent);
@@ -392,6 +393,49 @@ export default function initWorldsUI() {
         mon.addEventListener('change', () => { A.setStats(S.selectedId, { isMonster: mon.checked }); });
         monWrap.appendChild(mon); monWrap.appendChild(document.createTextNode('Monster / NPC combatant'));
         box.appendChild(monWrap);
+    }
+
+    // Person as a vendor (R4 extra): wares with price (empty = the SRD price) and daily stock,
+    // whether they buy the player's items (at half price), a note for the AI.
+    function renderShopEditor(box, ent) {
+        const A = API(); const SR = A.shopRules;
+        box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);font-weight:bold;margin:14px 0 4px;display:flex;align-items:center;gap:4px' }, [icon('store', 13), 'Shop']));
+        const onW = el('label', { style: 'display:flex;align-items:center;gap:6px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer' });
+        const on = el('input', { type: 'checkbox', 'data-shop-edit': 'vendor' }); on.checked = !!ent.shop;
+        on.addEventListener('change', () => { A.updateEntity(S.selectedId, { shop: on.checked ? { items: [], buys: true } : undefined }); renderInspector(); });
+        onW.appendChild(on); onW.appendChild(document.createTextNode('Vendor: sells things to the player'));
+        box.appendChild(onW);
+        if (!ent.shop) return;
+        const shop = Object.assign({ items: [], buys: true }, ent.shop);
+        const items = asArrayU(shop.items);
+        const save = (patch, rerender) => { A.updateEntity(S.selectedId, { shop: Object.assign({}, shop, { items }, patch || {}) }); if (rerender) renderInspector(); };
+        items.forEach((it, i) => {
+            const srd = SR.srdPrice(it.item);
+            const price = el('input', { type: 'text', value: it.price || '', placeholder: srd != null ? SR.formatPrice(srd) : 'price, e.g. 2 gp', style: inputCss(false) + ';width:6.5em', 'aria-label': `Price of ${it.item}`, title: 'Empty = the SRD price' });
+            price.addEventListener('change', () => { items[i] = Object.assign({}, it, { price: price.value.trim() }); save(); });
+            const stock = el('input', { type: 'number', min: '0', value: it.stock == null ? '' : it.stock, placeholder: '∞', style: inputCss(false) + ';width:4em', 'aria-label': `Stock of ${it.item}`, title: 'How many per day (empty = unlimited)' });
+            stock.addEventListener('change', () => { items[i] = Object.assign({}, it, { stock: stock.value === '' ? null : Math.max(0, Number(stock.value) || 0) }); save(); });
+            box.appendChild(el('div', { class: 'rpm-row', 'data-shop-item': it.item, style: 'margin-top:3px' }, [
+                el('span', { class: 'rpm-grow', style: 'font-size:var(--rpm-fs-sm)', text: it.item }), price, stock,
+                el('span', { style: 'cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs)', text: '×', title: 'Remove', onclick: () => { items.splice(i, 1); save(null, true); } })
+            ]));
+        });
+        const listId = 'rpm-srd-items';
+        if (!document.getElementById(listId)) { const dl = el('datalist', { id: listId }); for (const n of SR.srdItemNames()) dl.appendChild(el('option', { value: n })); document.body.appendChild(dl); }
+        const add = el('input', { type: 'text', list: listId, placeholder: 'Add an item (SRD items have a price)', style: inputCss(false), 'aria-label': 'Add a ware', 'data-shop-edit': 'add' });
+        const doAdd = () => { const n = add.value.trim(); if (!n) return; items.push({ item: n, price: '', stock: null }); save(null, true); };
+        add.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
+        box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px' }, [add,
+            el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', title: 'Add ware', 'aria-label': 'Add ware', 'data-shop-edit': 'add-btn', onclick: doAdd }, [icon('plus', 15)])]));
+        const bW = el('label', { style: 'display:flex;align-items:center;gap:6px;margin-top:5px;color:var(--rpm-fg-muted);font-size:var(--rpm-fs-sm);cursor:pointer' });
+        const buys = el('input', { type: 'checkbox', 'data-shop-edit': 'buys' }); buys.checked = shop.buys !== false;
+        buys.addEventListener('change', () => save({ buys: buys.checked }));
+        bW.appendChild(buys); bW.appendChild(document.createTextNode('Buys the player\'s items (half the price)'));
+        box.appendChild(bW);
+        const note = el('input', { type: 'text', value: shop.note || '', placeholder: 'Note for the AI, e.g. "A room for the night is 5 sp."', style: inputCss(false) + ';margin-top:5px', 'aria-label': 'Shop note' });
+        note.addEventListener('change', () => save({ note: note.value.trim() || undefined }));
+        box.appendChild(note);
+        box.appendChild(el('div', { class: 'rpm-muted', style: 'margin-top:4px', text: 'Prices change with the player\'s standing with this person\'s faction (Friendly −5% … Exalted −20%, Unfriendly +25%; Hostile: no trade). Stock refills every in-game day.' }));
     }
 
     // Quest-only inspector extras: hidden flag, giver/turn-in persons, rewards, objectives.
@@ -1056,7 +1100,7 @@ export default function initWorldsUI() {
     // =======================================================================
     let panelEl = null;
     const TIME_SLOTS_UI = ['morning', 'noon', 'afternoon', 'evening', 'night'];
-    const VIEW_IDS = ['world', 'party', 'quest-tracker', 'questlog', 'combat', ...MINIMAP_VIEWS];
+    const VIEW_IDS = ['world', 'party', 'quest-tracker', 'questlog', 'combat', 'shop', ...MINIMAP_VIEWS];
 
     // ---- themed control helpers ----
     // opts.icon: a Lucide name (src/shell/icons.js); icon-only buttons take opts.title as label
@@ -1384,6 +1428,11 @@ export default function initWorldsUI() {
             msel.addEventListener('change', () => { try { if (msel.value) A.moveTo(msel.value); refreshPanel(); } catch (_) {} });
             box.appendChild(msel);
         } else box.appendChild(muted('No locations yet — add some in the editor.'));
+        const vendors = A.vendorsHere();
+        if (vendors.length) box.appendChild(row([
+            el('span', { class: 'rpm-muted rpm-grow', 'data-vendors-here': String(vendors.length), text: 'Trade here: ' + vendors.map(id => A.personName(id)).join(', ') }),
+            uiBtn('Shop', () => openView('shop'), { icon: 'store', title: 'Buy and sell' })
+        ], 'margin-top:5px'));
 
         // ---- time / weather ----
         const c = (A.runtime && A.runtime.clock) || {};
@@ -1415,7 +1464,7 @@ export default function initWorldsUI() {
         // ---- inventory: the persona's sheet (plus any story items), else the story's ----
         const iv = A.inventory();
         box.appendChild(lbl(iv.source === 'sheet' ? `Inventory — ${iv.owner}` : 'Inventory (story)'));
-        box.appendChild(muted(`${iv.gp} gold · ${iv.xp} XP${iv.source === 'sheet' ? ' · saved on the character sheet' : ' · choose a persona to keep them on its sheet'}`, { 'data-inv': 'summary' }));
+        box.appendChild(muted(`${iv.purseText} · ${iv.xp} XP${iv.source === 'sheet' ? ' · saved on the character sheet' : ' · choose a persona to keep them on its sheet'}`, { 'data-inv': 'summary' }));
         const inv = iv.items;
         if (!inv.length) box.appendChild(muted('empty'));
         for (const it of inv) {
@@ -1443,6 +1492,10 @@ export default function initWorldsUI() {
         sh.registerView(Object.assign({ id: 'quest-tracker', title: 'Quests', place: 'left', order: 20 }, view(renderQuestTracker)));
         sh.registerView(Object.assign({ id: 'questlog', title: 'Quest log', place: 'window', window: { width: 380, height: 520 } }, view((c) => {
             if (API().activeWorld()) { renderQuestsTab(c); renderReputation(c); } else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
+        })));
+        sh.registerView(Object.assign({ id: 'shop', title: 'Shop', place: 'window', window: { width: 400, height: 520, minWidth: 300 } }, view((c) => {
+            if (API().activeWorld()) renderShop(c, () => refreshPanel());
+            else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
         })));
         sh.registerView(Object.assign({ id: 'combat', title: 'Combat', place: 'window', window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
             if (API().activeWorld()) renderCombatTab(c);

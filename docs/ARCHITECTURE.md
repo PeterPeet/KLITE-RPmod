@@ -128,7 +128,11 @@ locations[], npcs[], factions[], objects[], events[], quests[], encounters[], gl
 - object: … + R7 feature fields when inside a room: `kind: furniture|container|trap|light, contains[],
   trapDC, lit`
 - npc (person): `name, description, personality, mood, homeLocationId, factionId,
-  schedule[{time,locationId}], characterRef{source,id,name}, characterSnapshot, stats, phases[]`
+  schedule[{time,locationId}], characterRef{source,id,name}, characterSnapshot, stats, phases[]`,
+  `shop{ items[{item, price, stock}], buys, note }` (a vendor, §3.6b)
+- faction: `name, description, hqLocationId, startReputation, killReputation, phases[]`
+- quest (R4 extras): `repeat, offerText, progressText, completionText` besides §3.6's fields;
+  encounter: `factionId` (its monsters belong to the faction)
 - phases (location/person): `[{ id, label, conditions[], name?, description?, atmosphere?, mood?,
   homeLocationId?, gone? }]` — the LAST phase whose conditions all hold overrides those fields
   (`quest-rules.phased`); `gone` hides a person. Used by the slice, NPC placement and the UI.
@@ -215,7 +219,7 @@ side-effect free.
 ### 3.4 Chat tags (`parseMutations`)
 `<move>`, `<npcmove>N=L`, `<mood>N=M`, `<flag>k=v`, `<unflag>`, `<give>Item xN`,
 `<take>Item xN` (default one, like `<give>`; `x all` removes the stack), `<quest>id=state`, `<time>`,
-`<weather>`, `<advance>`, `<action>` (fires `action:` signal), `<accept>quest`, `<turnin>quest` (R4 extras), `<roll>expr`,
+`<weather>`, `<advance>`, `<action>` (fires `action:` signal), `<accept>quest`, `<turnin>quest`, `<buy>item`, `<sell>item` (R4 extras), `<roll>expr`,
 `<attack>A->B`, `<hp>N=±n`, `<check>N=abi DC`. Parsed from new `gametext_arr` messages
 (`lastParsedIndex`) **when the AI's reply arrives** (R7: wrapper around Esolite's
 `handle_incoming_text`, which pushes the reply synchronously — Esolite wraps it the same way in
@@ -285,6 +289,22 @@ the game log (`kind: 'quest'`), so the AI narrates them.
   headquarters), `gone` (disbanded: not in the AI's Reputation section; standing kept) —
   `factionHq(f)`, `factionName` and `reputationList` use the phased faction.
 - Visibility: `gm`/`creator` see all; `player` sees non-hidden or discovered.
+
+### 3.6b Vendors / shops (R4 extra) — rules in `src/game/shop-rules.js` (pure), window `src/game/shopView.js`
+A person with `shop` is a vendor. Prices are copper internally (`parsePrice` "15 gp" / "2 gp 5 sp",
+`formatPrice`); a ware's empty price = the SRD 5.2.1 list price (`srdPrice`: weapons and armor
+`cost` — added to `srd52.js` by `scripts/extract-srd.py`, checked against the PDF — and the
+compendium's gear). Sell price to the player = base × `PRICE_FACTOR[tier]` of the player's
+standing with the vendor's faction (Unfriendly 1.25 … Exalted 0.8; Hostile/Hated: no trade);
+the vendor buys at half the base (its own price for the item, else the SRD price; nothing
+without a price). The purse = the persona sheet's `coins{cp,sp,ep,gp,pp}` (else `rt().coins`):
+`payCoins` spends small coins first and gives change, `addCoins` pays out in gp/sp/cp.
+Stock: `stock` per day; `rt().shops[personId] = { day, sold{} }` (reset on a new in-game day).
+Engine: `vendorsHere`, `shopView`, `buyItem`, `sellItem` (refusals and results go to the game
+log), tags `<buy>[Vendor:] item xN</buy>` / `<sell>…</sell>` (`tradeTag`: a vendor at the
+player's place), slice section "Trade" (wares with prices after reputation, stock left, the
+purse, how to use the tags). UI: window view `shop` (World tab "Trade here … Shop"), person
+inspector "Shop" (wares, price with the SRD price as placeholder, stock, buys, note).
 
 ### 3.7 Persons & combat (R5)
 Persons may reference `KLITE_RPMod.characters` (by id, then name); export embeds a
@@ -419,8 +439,9 @@ outcome: null|'victory'|'defeat', xp, persona, synced, encounter, difficulty }`.
     Cover/Zone.
 
 ### 3.8 Example world
-`EXAMPLE_WORLD` ("Eldoria (Example)") + `loadExample()`: 5 locations, 4 persons, 3
-factions (2 HQs), 3 quests (one hidden), 3 events (courier chain on quest accept, night
+`EXAMPLE_WORLD` ("Eldoria (Example)") + `loadExample()`: 6 locations, 5 persons (2 vendors:
+Bram, Quartermaster Wren), 3 factions (2 HQs; the Red Hand has a phase), 4 quests (one hidden,
+one daily), a saved encounter linked to the Red Hand, 3 events (courier chain on quest accept, night
 ambush, hidden omen). Sets the authored start as the base slot and enables the world.
 
 ### 3.9 Dungeons & towns, room by room (R7) — rules in `src/game/map-rules.js` (pure)
