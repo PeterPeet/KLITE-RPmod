@@ -25,3 +25,14 @@ test('bundle: all modules attach and the Worlds pipeline works end to end', asyn
     assert.ok(save.rpmod_worlds, 'Worlds state embedded in save');
     assert.ok(!save.worldinfo.some(e => e.wigroup === '__rpmod__' || e.wigroup === '__worlds__'), 'no temp WI in save');
 });
+
+test('bundle: the header credits SRD 5.2.1 (exact attribution), UDT and Lucide', () => {
+    const fs = require('fs'); const path = require('path');
+    const root = path.join(__dirname, '..');
+    const attribution = fs.readFileSync(path.join(root, 'src', 'data', 'srd52.js'), 'utf8').split('\n')[1].replace(/^\/\/ /, '');
+    assert.match(attribution, /^This work includes material from the System Reference Document 5\.2\.1/);
+    const header = fs.readFileSync(path.join(root, 'KLITE-RPmod.js'), 'utf8').split('(() => {')[0];
+    assert.ok(header.includes('// ' + attribution), 'exact SRD attribution in the bundle header');
+    assert.match(header, /Ultimate Dungeon Terrain \(Dungeon Craft\)/);
+    assert.match(header, /Lucide/);
+});

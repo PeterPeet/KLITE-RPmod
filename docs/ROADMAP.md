@@ -34,7 +34,7 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 331 tests)
+### What works (verified headless 2026-09-25 — `npm test`, 332 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -55,6 +55,10 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
   World editor (node graph) windows; Creator/Player lens.
 - **Delivery:** usermod bundle, or `index.rpmod.html` that autoloads the mod after
   Esolite's `load` event.
+- **Credits:** the exact SRD 5.2.1 attribution, the Ultimate Dungeon Terrain credit (zone combat idea)
+  and Lucide appear in the Guide's **Credits** chapter, the header of `KLITE-RPmod.js` (taken verbatim
+  from `src/data/srd52.js` at build time) and USER_GUIDE "Credits"; the SRD text also under every
+  Compendium entry and in the Character builder.
 - **Chat power (R6):** slash commands through the engine (`/go`, `/buy`, `/accept`, `/check` …, `/help`), quick
   replies with a world-aware Here row, optional hiding of control tags, lorebook round trip (SillyTavern / V3 /
   Esolite WI / Esolite's Library), `/summary` = Esolite's AutoGenerate Memory.

@@ -1666,7 +1666,7 @@ export default function initWorlds() {
 
     // =======================================================================
     //  DICE + COMBAT — deterministic d20 engine (Phase F)
-    //  Rules based on the SRD 5.1 (WotC, CC-BY-4.0). The mod is authoritative for
+    //  Rules based on the SRD 5.2.1 (CC-BY-4.0; attribution: SRD.attribution in src/data/srd52.js). The mod is authoritative for
     //  rolls/HP/initiative; the AI narrates the injected outcomes.
     // =======================================================================
     function rollDie(sides) { return 1 + Math.floor(Math.random() * Math.max(1, Number(sides) || 20)); }

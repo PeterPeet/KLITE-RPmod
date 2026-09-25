@@ -5,6 +5,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createHost, click, findButton, texts, sleep } = require('./helpers/host');
 
+// The exact attribution statement, from the generated SRD data file (line 2).
+function srdAttribution() {
+    const fs = require('fs'); const path = require('path');
+    return fs.readFileSync(path.join(__dirname, '..', 'src', 'data', 'srd52.js'), 'utf8').split('\n')[1].replace(/^\/\/ /, '');
+}
+
 async function until(fn, ms = 3000) {
     const end = Date.now() + ms;
     while (Date.now() < end) { const v = fn(); if (v) return v; await sleep(25); }
@@ -120,6 +126,13 @@ test('Guide: with Esolite\'s Guide the chapters become its RPmod tab; Show me wo
     assert.ok(chapters.length >= 10);
     assert.equal(chapters[0].id, 'welcome');
     assert.ok(chapters.every(c => c.title && Array.isArray(c.blocks)));
+    // Credits chapter: the exact SRD 5.2.1 attribution (CC-BY-4.0 requires it) and UDT
+    const credits = chapters.find(c => c.id === 'credits');
+    assert.ok(credits, 'Guide has a Credits chapter');
+    const creditText = credits.blocks.map(b => b.p || '').join('\n');
+    assert.ok(creditText.includes(srdAttribution()), 'exact SRD attribution in the Guide');
+    assert.match(creditText, /Ultimate Dungeon Terrain \(Dungeon Craft\)/);
+    assert.match(creditText, /Lucide/);
     await sleep(150);
     assert.ok(!h.shell().views().includes('guide'), 'no second guide window');
 

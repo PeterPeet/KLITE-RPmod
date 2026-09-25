@@ -40,7 +40,8 @@ Worlds editor).
   buttons that open and highlight the part of the screen being explained. Reopen it any time
   with the **?** button in the Adventure panel's header. With a newer Esolite that has its
   own **Guide** in the top bar, RPmod's chapters are the **RPmod** tab of that Guide (next
-  to Esolite's own chapters), and the **?** button opens it there.
+  to Esolite's own chapters), and the **?** button opens it there. The last chapter,
+  **Credits**, lists the sources RPmod builds on (see [Credits](#credits)).
 - **▶ Quick Start** — Esolite's own session starter. RPmod adds an **RPmod world** section
   to it: choose a world (for example **Eldoria**, the ready-made example) together with
   characters from your Library, press **Confirm**, and you start in that world.

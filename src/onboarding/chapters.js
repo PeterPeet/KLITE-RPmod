@@ -7,6 +7,8 @@
 //              { tip: 'text' } highlighted hint.
 // show: [{ label, run(ctx) }] — ctx: { open(viewId), highlight(target, note), hostCall(fn), navLink(text), zoneGuide(), show(viewId) = open a window (Esolite's Guide closes first) }
 
+import { SRD } from '../data/srd52.js';
+
 export const CHAPTERS = [
     {
         id: 'welcome', title: 'Welcome',
@@ -207,5 +209,13 @@ export const CHAPTERS = [
             { p: 'In Esolite\'s theme colour editor you will also find RPmod\'s own colours: Rpmod quest, danger, success and info.' },
         ],
         show: [{ label: 'Settings', run: (c) => c.highlight('#btn_settings', 'Esolite settings and themes') }],
+    },
+    {
+        id: 'credits', title: 'Credits',
+        blocks: [
+            { p: SRD.attribution },
+            { p: 'Zone combat: the idea of zones instead of a grid comes from the zone combat house rules of Ultimate Dungeon Terrain (Dungeon Craft); RPmod implements its own rules, nothing is copied.' },
+            { p: 'Icons: Lucide (ISC license; some icons derived from Feather, MIT license).' },
+        ],
     },
 ];
