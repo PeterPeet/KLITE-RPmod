@@ -844,11 +844,19 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
 - [x] (owner, during the fix) Quick travel through several places must stop when something happens on the way —
   done 2026-09-26: every place on a routed way is really entered; an event or a fight there stops the journey
   ("Quick travel to Lanternport stops at …: a fight starts here"); no quick travel during a fight.
-- [ ] Starting the adventure with a character already selected in Roles does not replace the persona with the pregen.
-- [ ] Esolite's **New Session** keeps the player character (persona) in the Party section; RPmod should reset to a
-  blank state (persona, party, world state for the story).
-- [ ] Esolite's **Settings → Misc → Reset ALL Settings** should also reset RPmod's Guide state, so the "New here?"
-  section shows again.
+- [x] Starting the adventure with a character already selected in Roles does not replace the persona with the pregen.
+  — fixed 2026-09-26: the new session's panel reload re-read the old persona from storage (the Tools panel's
+  `loadSettings` runs on every panel load and raced the pregen's save). Storage is now read once per page, and a
+  choice made while the read is pending wins.
+- [x] Esolite's **New Session** keeps the player character (persona) in the Party section; RPmod should reset to a
+  blank state (persona, party, world state for the story). — fixed 2026-09-26: the reset existed but was not
+  saved (the old persona came back from storage, as above); the Worlds engine now clears the story's world state
+  on `restart_new_game` too (no world, no runtime, no party); RPmod's own restarts (adventure start, game over)
+  choose their world again right after.
+- [x] Esolite's **Settings → Misc → Reset ALL Settings** should also reset RPmod's Guide state, so the "New here?"
+  section shows again. — done 2026-09-26 (`klite:reset-all`). Found on the way: RPmod cleared its stored settings
+  when Reset ALL was **clicked**, even when the user then cancelled; now only the confirmed reset clears them.
+  Tests for all open items: `tests/openItemsR8.test.js`.
 
 **Next: play vs. build split + character sheet overhaul (owner, 2026-09-26)** — agreed; do after the open
 items above and before R8 step 5. Principle: the **left panel (Adventure) is everything a player needs**; the

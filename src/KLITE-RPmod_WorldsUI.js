@@ -1641,8 +1641,12 @@ export default function initWorldsUI() {
             if (what === 'choose') { Shell()?.close('gameover'); adv.open(); }
             else if (adv) await adv.restart(Object.assign({ resetPregens: GO.reset }, heroName ? { hero: heroName } : {}));
             else {
+                // the new session clears the story's world state (R8), so remember the world and
+                // heal the party first, then begin that world at its start
+                const wid = A.activeWorld() && A.activeWorld().id;
+                try { A.reviveParty(); } catch (_) {}
                 try { if (typeof window.restart_new_game === 'function') window.restart_new_game(false); } catch (_) {}
-                A.restartAtStart();
+                if (wid) { A.useWorld(wid, { fresh: true }); A.enable(); }
                 if (heroName) {
                     const T = window.KLITE_RPMod && window.KLITE_RPMod.panels && window.KLITE_RPMod.panels.TOOLS;
                     if (T && T.usePersona) T.usePersona({ name: heroName });

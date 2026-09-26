@@ -2994,6 +2994,13 @@ export default function initWorlds() {
         } catch (_) {}
     }
 
+    // The story's world state back to nothing (a story without RPmod world data).
+    function resetStoryState() {
+        W.config.enabled = false; W.activeWorldId = null; W.runtime = null; W.parked = {};
+        removeWorldsEntries();
+        syncLive();
+    }
+
     // Defensive: even though temp entries are removed synchronously, strip them
     // from any savefile object as belt-and-suspenders, and embed our runtime.
     function installSaveWrappers() {
@@ -3015,6 +3022,20 @@ export default function initWorlds() {
             window.generate_savefile = wrappedGen;
             dbg('generate_savefile wrapped');
         }
+        // restart_new_game (Esolite's New Session, and RPmod's own restarts): a new story starts
+        // blank — no world, no game state, no party (R8, owner's play test). Starting an adventure
+        // or restarting after a game over chooses the world again right after.
+        if (typeof window.restart_new_game === 'function' && !window.restart_new_game.__worlds_wrapped) {
+            const origRestart = window.restart_new_game;
+            const wrappedRestart = function () {
+                const res = origRestart.apply(this, arguments);
+                try { resetStoryState(); } catch (e) { err('new session reset failed', e); }
+                return res;
+            };
+            wrappedRestart.__worlds_wrapped = true;
+            window.restart_new_game = wrappedRestart;
+            dbg('restart_new_game wrapped');
+        }
         // kai_json_load: restore worlds state after host load
         if (typeof window.kai_json_load === 'function' && !window.kai_json_load.__worlds_wrapped) {
             const origLoad = window.kai_json_load;
@@ -3030,11 +3051,7 @@ export default function initWorlds() {
                         try { if (rt() && Array.isArray(window.gametext_arr)) rt().lastParsedIndex = window.gametext_arr.length; } catch (_) {}
                         syncLive();
                     }
-                    else {
-                        // story without worlds data: ensure no stale managed state leaks in
-                        W.config.enabled = false; W.activeWorldId = null; W.runtime = null; W.parked = {};
-                        removeWorldsEntries();
-                    }
+                    else resetStoryState();   // story without worlds data: ensure no stale managed state leaks in
                 } catch (e) { err('restore failed', e); }
                 return res;
             };

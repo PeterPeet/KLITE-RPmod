@@ -35,7 +35,9 @@ The mod ships as a single file, `KLITE-RPmod.js`.
 That's it — one file contains everything (panels, the Guide, the Worlds engine, and the
 Worlds editor).
 
-**New here?** The Adventure panel shows a **New here?** card on your first visit:
+**New here?** The Adventure panel shows a **New here?** card on your first visit (again after
+Esolite's **Settings → Reset ALL Settings**, which also resets RPmod's Guide and settings;
+Esolite's **New Session** starts a blank story: no persona, no party, no world until you choose one):
 - **📖 Open the Guide** — short chapters on everything RPmod does, each with **Show me**
   buttons that open and highlight the part of the screen being explained. Reopen it any time
   with the **?** button in the Adventure panel's header. With a newer Esolite that has its
@@ -275,8 +277,16 @@ Darkness or dim light shows as a chip below the map.
 - **Quick travel** (the checkbox under the map; remembered in this browser): with it ticked, a
   click on a neighbouring room or place moves you there at once — the rules still apply, and the
   AI is told you skipped the journey and should describe your arrival. Refusals show under the map.
+  When the way leads **through** other places (out of a town, or through rooms you know), you really
+  pass them: if something happens on the way — an event, an ambush, a fight — the journey **stops
+  there** and you are in it. No quick travel during a fight.
+- **Regional map:** inside a dungeon or town the Map shows the region around it first (the places
+  you know, the town or dungeon as "you are here"), then the local board below.
 - Going to a dungeon or town from outside puts you in its entrance room (the room with the way
-  out to where you stand). From inside you leave only through a way out.
+  out to where you stand). In a **town** you can head for a place outside from anywhere in it —
+  you walk out through its streets ("Goes via Village Green to Forest Road"), and the Here row offers
+  those ways. A **dungeon** you leave only through its way out (or the entrance room, when the
+  dungeon itself is linked in the world editor).
 - Click the small map (or the map icon) to open the large **Map** window; it works the same.
 - **Doors:** `/open`, `/close`, `/unlock` (the Here row offers *Unlock* for a locked door). A locked door
   opens with its **key** if you carry it; otherwise, with **thieves' tools** in your inventory,

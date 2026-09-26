@@ -15,7 +15,7 @@
 // Public API: window.KLITE_RPMod_Onboarding
 // =============================================================================
 import { el, iconText } from '../shell/dom.js';
-import { createGuideView, highlight, clearHighlight } from './guide.js';
+import { createGuideView, highlight, clearHighlight, resetGuideStorage } from './guide.js';
 import { CHAPTERS } from './chapters.js';
 import { ZONE_CHAPTERS } from './zoneChapters.js';
 import { createZoneDemoView } from './zoneDemo.js';
@@ -68,7 +68,20 @@ export default function initOnboarding() {
         sh.registerView(createZoneDemoView());
         sh.addDockAction('left', { id: 'guide', title: 'RPmod Guide', label: '?', icon: 'circle-help', onClick: () => api.openGuide() });
         if (!welcomeDismissed()) sh.registerView(welcomeView(sh, api));
+        installResetAllHook(() => {
+            try { localStorage.removeItem(WELCOME_KEY); } catch (_) {}
+            resetGuideStorage();
+            if (guide) guide.goTo(CHAPTERS[0].id, 'rpmod');
+            sh.registerView(welcomeView(sh, api));
+        });
     }, 100);
+    api.resetGuide = () => { try { localStorage.removeItem(WELCOME_KEY); } catch (_) {} resetGuideStorage(); };
+}
+
+// Esolite's Settings → Reset ALL Settings resets RPmod's Guide too, so "New here?" shows again
+// (R8, owner's play test). The confirmed reset is detected in src/rpmod/boot.js ('klite:reset-all').
+function installResetAllHook(onReset) {
+    window.addEventListener('klite:reset-all', () => { try { onReset(); } catch (_) {} });
 }
 
 // ---- Esolite's Guide: RPmod chapters as its "RPmod" tab ------------------------------

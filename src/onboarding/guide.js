@@ -11,6 +11,8 @@ function savedChapter() { try { return localStorage.getItem(STORE_KEY); } catch 
 function saveChapter(id) { try { localStorage.setItem(STORE_KEY, id); } catch (_) {} }
 function savedBook() { try { return localStorage.getItem(BOOK_KEY); } catch (_) { return null; } }
 function saveBook(id) { try { localStorage.setItem(BOOK_KEY, id); } catch (_) {} }
+// Forget where the reader was (Esolite's Reset ALL Settings, R8).
+export function resetGuideStorage() { try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(BOOK_KEY); } catch (_) {} }
 
 // ---- spotlight: ring around a UI element + a short note ------------------------
 let spot = null;

@@ -104,3 +104,77 @@ test('world editor: the inspector shows a new connection right after linking', a
     down(node('loc_tavern')); down(node('loc_watchtower'));
     assert.match(insp(), /Royal Watchtower/, 'listed without re-selecting');
 });
+
+// A host with Esolite's New Session / Reset ALL and a slow IndexedDB (reads and writes take a while,
+// as in the browser), set up before the bundle loads so every wrapper is installed; the RP core's
+// host hooks are installed directly.
+async function sessionHost(t, stored) {
+    const h = createHost(); t.after(h.close);
+    const w = h.window;
+    // RPmod reloads its panels after a new session; each panel load re-inits the Tools panel, which
+    // reads its stored settings (the fake host has no panel containers, so do it here as loadPanel does)
+    const toolsInit = () => setTimeout(() => { try { w.KLITE_RPMod.panels.TOOLS.loadSettings(); } catch (_) {} }, 0);
+    w.restart_new_game = function () { w.gametext_arr = []; toolsInit(); };
+    w.reset_all_settings = function () { w.restart_new_game(); };   // as Esolite's, once confirmed
+    w.submit_generation_button = function () {};                   // setupHooks wraps this
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    for (const [k, v] of Object.entries(stored || {})) w.__idb.set(k, v);
+    const save0 = w.indexeddb_save, load0 = w.indexeddb_load;
+    w.indexeddb_save = (k, v) => new Promise(r => setTimeout(() => r(save0(k, v)), 30));
+    w.indexeddb_load = (k, d) => new Promise(r => setTimeout(() => r(load0(k, d)), 30));
+    h.load('bundle'); await h.ready({ ui: true });
+    const ADV = w.KLITE_RPMod_Adventures;
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    w.KLITE_RPMod.setupHooks();                          // the core's host hooks (New Session reset), without its full start
+    await w.KLITE_RPMod.panels.TOOLS.loadSettings();     // the Tools panel's first read of its settings
+    const db = { get rpmod_playrp_settings() { return w.__idb.get('rpmod_playrp_settings'); } };
+    return { h, w, db, ADV, T: () => w.KLITE_RPMod.panels.TOOLS };
+}
+
+test('adventure start: the pregen replaces a persona chosen before (not read back from storage)', async (t) => {
+    const stored = { rpmod_playrp_settings: JSON.stringify({ selectedPersona: { name: 'Tove Emberfall' }, personaEnabled: true }) };
+    const { h, ADV, T } = await sessionHost(t, stored);
+    assert.equal(T().selectedPersona && T().selectedPersona.name, 'Tove Emberfall', 'the stored persona at boot');
+    await ADV.start('drowned-lantern', { pregen: 'kasimir', confirm: false });
+    await sleep(200);   // panel reloads and pending storage reads
+    assert.equal(T().selectedPersona && T().selectedPersona.name, 'Kasimir Adeyemi');
+    assert.ok(T().personaEnabled);
+    assert.equal(h.window.localsettings.chatname, 'Kasimir Adeyemi');
+});
+
+test('New Session: RPmod starts blank — no persona, no world, no party', async (t) => {
+    const { h, w, db, ADV, T } = await sessionHost(t);
+    const W = h.api();
+    await ADV.start('drowned-lantern', { pregen: 'oona', confirm: false });
+    await sleep(80);
+    assert.ok(W.joinParty('npc_tove').ok !== false);
+    assert.ok(W.activeWorld() && W.config.enabled);
+    w.restart_new_game(true, false);   // Esolite's New Session
+    await sleep(200);
+    assert.equal(T().selectedPersona, null, 'no persona');
+    assert.equal(T().personaEnabled, false);
+    assert.equal(W.activeWorld(), null, 'no world for the new story');
+    assert.equal(W.config.enabled, false);
+    assert.equal(W.runtime, null, 'no game state, no party');
+    assert.equal(JSON.parse(db.rpmod_playrp_settings).selectedPersona, null, 'the blank persona is saved');
+    // the adventure can be started again after that
+    await ADV.start('drowned-lantern', { pregen: 'pell', confirm: false });
+    await sleep(80);
+    assert.equal(W.runtime.playerLocationId, 'bw_heron');
+    assert.equal(T().selectedPersona.name, 'Pell Marrow');
+});
+
+test('Reset ALL Settings resets the Guide: "New here?" shows again; a New Session does not', async (t) => {
+    const { h, w } = await sessionHost(t);
+    const doc = w.document;
+    w.localStorage.setItem('KLITE.onboarding.welcome', 'dismissed');
+    w.localStorage.setItem('KLITE.guide.chapter', 'combat');
+    w.KLITE_RPMod_Shell.unregisterView('welcome');
+    w.restart_new_game(true, false);
+    assert.equal(w.localStorage.getItem('KLITE.onboarding.welcome'), 'dismissed', 'New Session keeps the Guide');
+    w.reset_all_settings();
+    await sleep(40);
+    assert.equal(w.localStorage.getItem('KLITE.onboarding.welcome'), null);
+    assert.ok([null, 'welcome'].includes(w.localStorage.getItem('KLITE.guide.chapter')), 'the Guide opens at its first chapter again');
+    assert.ok(doc.querySelector('[data-section="welcome"]'), '"New here?" is back');
+});

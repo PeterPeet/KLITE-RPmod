@@ -2641,6 +2641,10 @@ export function installCore(S) {
                 if (!keepMemory) {
                     this.panels.TOOLS.rules = '';
                 }
+                // R8: a new session is blank — persist it, or the next panel load reads the old persona back
+                this.panels.TOOLS._selectionGen = (this.panels.TOOLS._selectionGen || 0) + 1;
+                try { this.panels.TOOLS.saveSettings?.(); } catch (_) {}
+                try { this.updateUserAvatar?.(null); } catch (_) {}
 
                 this.log('init', 'Reset TOOLS panel character selections');
             }

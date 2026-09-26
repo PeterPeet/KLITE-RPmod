@@ -203,15 +203,36 @@ export function installBoot(S) {
                 } catch(_) {}
             };
 
+            // Esolite asks first ("Reset ALL settings …?"); only the confirmed reset calls
+            // restart_new_game() without arguments while the reset is pending (New Session and RPmod
+            // pass arguments). Then RPmod's stored settings are cleared (before R8 they were cleared
+            // on the click, even when the reset was cancelled) and 'klite:reset-all' tells the other
+            // modules (the Guide shows "New here?" again).
+            let resetPending = false;
             const wrapResetAll = () => {
                 try {
                     const origReset = window.reset_all_settings;
                     if (typeof origReset === 'function' && !origReset.__rpmod_reset_wrapped) {
                         window.reset_all_settings = function(...args) {
-                            try { KLITE_RPMod._clearAllPersistent?.(); } catch(_) {}
+                            resetPending = true;
                             return origReset.apply(this, args);
                         };
                         window.reset_all_settings.__rpmod_reset_wrapped = true;
+                    }
+                    const origRestart = window.restart_new_game;
+                    if (typeof origRestart === 'function' && !origRestart.__rpmod_resetall_wrapped) {
+                        const restart = function(...args) {
+                            const res = origRestart.apply(this, args);
+                            if (resetPending && args.length === 0) {
+                                resetPending = false;
+                                try { KLITE_RPMod._clearAllPersistent?.(); } catch(_) {}
+                                try { window.dispatchEvent(new CustomEvent('klite:reset-all')); } catch(_) {}
+                            }
+                            return res;
+                        };
+                        for (const k of Object.keys(origRestart)) restart[k] = origRestart[k];   // other wrappers' marks
+                        restart.__rpmod_resetall_wrapped = true;
+                        window.restart_new_game = restart;
                     }
                 } catch(_) {}
             };

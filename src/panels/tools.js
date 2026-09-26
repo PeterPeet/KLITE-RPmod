@@ -34,6 +34,7 @@ export function installToolsPanel(S) {
         },
         usePersona(char) {
             const tools = this;
+            tools._selectionGen++;
             tools.selectedPersona = char;
             tools.personaEnabled = true;
 
@@ -759,16 +760,28 @@ export function installToolsPanel(S) {
             }
         },
 
+        // Storage is read once per page (panel init runs again on every panel load): afterwards the
+        // panel's own state is newer. A choice made while the read was pending (usePersona, a New
+        // Session's reset) wins over the stored one (R8: the adventure's pregen was replaced by the
+        // persona read back from storage).
+        _settingsLoaded: false,
+        _selectionGen: 0,
         async loadSettings() {
+            if (this._settingsLoaded) return;
+            const gen = this._selectionGen;
             try {
                 const raw = await KLITE_RPMod.loadFromLiteStorage('rpmod_playrp_settings');
+                this._settingsLoaded = true;
                 if (raw && raw !== 'offload_to_indexeddb') {
                     const s = JSON.parse(raw);
+                    const chosen = gen !== this._selectionGen;
                     this.rules = typeof s.rules === 'string' ? s.rules : this.rules;
-                    this.selectedCharacter = s.selectedCharacter || this.selectedCharacter;
-                    this.characterEnabled = !!s.characterEnabled;
-                    this.selectedPersona = s.selectedPersona || this.selectedPersona;
-                    this.personaEnabled = !!s.personaEnabled;
+                    if (!chosen) {
+                        this.selectedCharacter = s.selectedCharacter || this.selectedCharacter;
+                        this.characterEnabled = !!s.characterEnabled;
+                        this.selectedPersona = s.selectedPersona || this.selectedPersona;
+                        this.personaEnabled = !!s.personaEnabled;
+                    }
                     if (s.autoSender) this.autoSender = { ...this.autoSender, ...s.autoSender };
                     KLITE_RPMod.log('panels', 'TOOLS (RP) settings loaded');
                 }
@@ -776,6 +789,7 @@ export function installToolsPanel(S) {
         },
 
         saveSettings() {
+            this._selectionGen++;   // a choice made now is newer than a pending read (loadSettings)
             try {
                 const s = {
                     rules: this.rules || '',

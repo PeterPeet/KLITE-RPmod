@@ -4863,6 +4863,15 @@ ${s.text}` : s.text : `[${s.title}]`;
           if (!keepMemory) {
             this.panels.TOOLS.rules = "";
           }
+          this.panels.TOOLS._selectionGen = (this.panels.TOOLS._selectionGen || 0) + 1;
+          try {
+            this.panels.TOOLS.saveSettings?.();
+          } catch (_) {
+          }
+          try {
+            this.updateUserAvatar?.(null);
+          } catch (_) {
+          }
           this.log("init", "Reset TOOLS panel character selections");
         }
         if (this.groupAvatars) {
@@ -6347,6 +6356,7 @@ ${s.text}` : s.text : `[${s.title}]`;
       },
       usePersona(char) {
         const tools = this;
+        tools._selectionGen++;
         tools.selectedPersona = char;
         tools.personaEnabled = true;
         try {
@@ -7107,16 +7117,28 @@ ${s.text}` : s.text : `[${s.title}]`;
           KLITE_RPMod.log("panels", "RP rules loaded from storage");
         }
       },
+      // Storage is read once per page (panel init runs again on every panel load): afterwards the
+      // panel's own state is newer. A choice made while the read was pending (usePersona, a New
+      // Session's reset) wins over the stored one (R8: the adventure's pregen was replaced by the
+      // persona read back from storage).
+      _settingsLoaded: false,
+      _selectionGen: 0,
       async loadSettings() {
+        if (this._settingsLoaded) return;
+        const gen = this._selectionGen;
         try {
           const raw = await KLITE_RPMod.loadFromLiteStorage("rpmod_playrp_settings");
+          this._settingsLoaded = true;
           if (raw && raw !== "offload_to_indexeddb") {
             const s = JSON.parse(raw);
+            const chosen = gen !== this._selectionGen;
             this.rules = typeof s.rules === "string" ? s.rules : this.rules;
-            this.selectedCharacter = s.selectedCharacter || this.selectedCharacter;
-            this.characterEnabled = !!s.characterEnabled;
-            this.selectedPersona = s.selectedPersona || this.selectedPersona;
-            this.personaEnabled = !!s.personaEnabled;
+            if (!chosen) {
+              this.selectedCharacter = s.selectedCharacter || this.selectedCharacter;
+              this.characterEnabled = !!s.characterEnabled;
+              this.selectedPersona = s.selectedPersona || this.selectedPersona;
+              this.personaEnabled = !!s.personaEnabled;
+            }
             if (s.autoSender) this.autoSender = { ...this.autoSender, ...s.autoSender };
             KLITE_RPMod.log("panels", "TOOLS (RP) settings loaded");
           }
@@ -7125,6 +7147,7 @@ ${s.text}` : s.text : `[${s.title}]`;
         }
       },
       saveSettings() {
+        this._selectionGen++;
         try {
           const s = {
             rules: this.rules || "",
@@ -12830,18 +12853,37 @@ ${char.mes_example}
           } catch (_) {
           }
         };
+        let resetPending = false;
         const wrapResetAll = () => {
           try {
             const origReset = window.reset_all_settings;
             if (typeof origReset === "function" && !origReset.__rpmod_reset_wrapped) {
               window.reset_all_settings = function(...args) {
-                try {
-                  KLITE_RPMod._clearAllPersistent?.();
-                } catch (_) {
-                }
+                resetPending = true;
                 return origReset.apply(this, args);
               };
               window.reset_all_settings.__rpmod_reset_wrapped = true;
+            }
+            const origRestart = window.restart_new_game;
+            if (typeof origRestart === "function" && !origRestart.__rpmod_resetall_wrapped) {
+              const restart = function(...args) {
+                const res = origRestart.apply(this, args);
+                if (resetPending && args.length === 0) {
+                  resetPending = false;
+                  try {
+                    KLITE_RPMod._clearAllPersistent?.();
+                  } catch (_) {
+                  }
+                  try {
+                    window.dispatchEvent(new CustomEvent("klite:reset-all"));
+                  } catch (_) {
+                  }
+                }
+                return res;
+              };
+              for (const k2 of Object.keys(origRestart)) restart[k2] = origRestart[k2];
+              restart.__rpmod_resetall_wrapped = true;
+              window.restart_new_game = restart;
             }
           } catch (_) {
           }
@@ -26147,6 +26189,14 @@ ${xl.join("\n")}`;
       } catch (_) {
       }
     }
+    function resetStoryState() {
+      W.config.enabled = false;
+      W.activeWorldId = null;
+      W.runtime = null;
+      W.parked = {};
+      removeWorldsEntries();
+      syncLive();
+    }
     function installSaveWrappers() {
       if (typeof window.generate_savefile === "function" && !window.generate_savefile.__worlds_wrapped) {
         const origGen = window.generate_savefile;
@@ -26167,6 +26217,21 @@ ${xl.join("\n")}`;
         window.generate_savefile = wrappedGen;
         dbg("generate_savefile wrapped");
       }
+      if (typeof window.restart_new_game === "function" && !window.restart_new_game.__worlds_wrapped) {
+        const origRestart = window.restart_new_game;
+        const wrappedRestart = function() {
+          const res = origRestart.apply(this, arguments);
+          try {
+            resetStoryState();
+          } catch (e) {
+            err("new session reset failed", e);
+          }
+          return res;
+        };
+        wrappedRestart.__worlds_wrapped = true;
+        window.restart_new_game = wrappedRestart;
+        dbg("restart_new_game wrapped");
+      }
       if (typeof window.kai_json_load === "function" && !window.kai_json_load.__worlds_wrapped) {
         const origLoad = window.kai_json_load;
         const wrappedLoad = function() {
@@ -26185,13 +26250,7 @@ ${xl.join("\n")}`;
               } catch (_) {
               }
               syncLive();
-            } else {
-              W.config.enabled = false;
-              W.activeWorldId = null;
-              W.runtime = null;
-              W.parked = {};
-              removeWorldsEntries();
-            }
+            } else resetStoryState();
           } catch (e) {
             err("restore failed", e);
           }
@@ -31972,11 +32031,19 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           adv.open();
         } else if (adv) await adv.restart(Object.assign({ resetPregens: GO.reset }, heroName ? { hero: heroName } : {}));
         else {
+          const wid = A.activeWorld() && A.activeWorld().id;
+          try {
+            A.reviveParty();
+          } catch (_) {
+          }
           try {
             if (typeof window.restart_new_game === "function") window.restart_new_game(false);
           } catch (_) {
           }
-          A.restartAtStart();
+          if (wid) {
+            A.useWorld(wid, { fresh: true });
+            A.enable();
+          }
           if (heroName) {
             const T = window.KLITE_RPMod && window.KLITE_RPMod.panels && window.KLITE_RPMod.panels.TOOLS;
             if (T && T.usePersona) T.usePersona({ name: heroName });
@@ -32482,6 +32549,13 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
   function saveBook(id) {
     try {
       localStorage.setItem(BOOK_KEY, id);
+    } catch (_) {
+    }
+  }
+  function resetGuideStorage() {
+    try {
+      localStorage.removeItem(STORE_KEY2);
+      localStorage.removeItem(BOOK_KEY);
     } catch (_) {
     }
   }
@@ -33037,7 +33111,31 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       sh.registerView(createZoneDemoView());
       sh.addDockAction("left", { id: "guide", title: "RPmod Guide", label: "?", icon: "circle-help", onClick: () => api.openGuide() });
       if (!welcomeDismissed()) sh.registerView(welcomeView(sh, api));
+      installResetAllHook(() => {
+        try {
+          localStorage.removeItem(WELCOME_KEY);
+        } catch (_) {
+        }
+        resetGuideStorage();
+        if (guide) guide.goTo(CHAPTERS[0].id, "rpmod");
+        sh.registerView(welcomeView(sh, api));
+      });
     }, 100);
+    api.resetGuide = () => {
+      try {
+        localStorage.removeItem(WELCOME_KEY);
+      } catch (_) {
+      }
+      resetGuideStorage();
+    };
+  }
+  function installResetAllHook(onReset) {
+    window.addEventListener("klite:reset-all", () => {
+      try {
+        onReset();
+      } catch (_) {
+      }
+    });
   }
   function registerEsoGuide() {
     const GuideExtension = esoExtensionClass("GuideExtension", "GUIDE");
