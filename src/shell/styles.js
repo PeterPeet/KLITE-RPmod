@@ -86,10 +86,21 @@ ${Object.entries(RPMOD_THEME_DEFAULTS).map(([k, v]) => `    ${k}: ${v};`).join('
 }
 .rpm-dock-head .rpm-title { flex: 1; padding-left: var(--rpm-s1); }
 .rpm-dock-actions { display: flex; gap: 2px; }
-/* right dock: the tabs need the whole strip, so its icon buttons get their own row below them */
-.rpm-dock-right .rpm-dock-head { flex-wrap: wrap; row-gap: 4px; }
-.rpm-dock-right .rpm-dock-actions { flex-basis: 100%; justify-content: flex-end; }
+/* right dock: three named rows (RP tabs, Adventure tabs, Quick Links) beside the close button */
+.rpm-dock-right .rpm-dock-head { align-items: flex-start; }
 .rpm-dock-right .rpm-dock-actions:empty { display: none; }
+.rpm-tabrows { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 6px; align-items: center; }
+.rpm-tabrow { display: contents; }
+.rpm-tabrow[hidden] { display: none; }
+.rpm-tabrow-label { font-size: var(--rpm-fs-sm); font-weight: normal; opacity: .8; white-space: nowrap; }
+.rpm-tabrows .rpm-tabs { flex-wrap: wrap; overflow: visible; }
+.rpm-links { display: flex; flex-wrap: wrap; gap: 3px; }
+.rpm-link {
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--rpm-border); background: transparent; color: var(--rpm-accent-fg);
+    font-size: var(--rpm-fs-sm); font-weight: normal; white-space: nowrap;
+}
+.rpm-link:hover { background: var(--rpm-accent-bg-hi); border-color: var(--rpm-border-hi); color: var(--rpm-accent-fg-hi); }
 .rpm-iconbtn {
     display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
     width: 28px; height: 28px; padding: 0; border-radius: var(--rpm-radius);
@@ -270,6 +281,7 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 
 /* ---- Compendium window (R3): list | entry; one column in a narrow window ---- */
 .rpm-cmp-scroll { flex: 1 1 auto; min-height: 0; display: flex; container-type: inline-size; }
+.rpm-cmp-docked .rpm-cmp-list { max-height: 60vh; }
 .rpm-cmp { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(240px, 320px) 1fr; }
 .rpm-cmp-side { display: flex; flex-direction: column; min-height: 0; padding: var(--rpm-s3); border-right: 1px solid var(--rpm-border); }
 .rpm-cmp-list { flex: 1 1 auto; min-height: 0; overflow: auto; margin-top: var(--rpm-s2); display: flex; flex-direction: column; gap: 2px; }

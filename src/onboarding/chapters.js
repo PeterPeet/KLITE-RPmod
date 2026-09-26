@@ -40,15 +40,15 @@ export const CHAPTERS = [
         id: 'panels', title: 'The RPmod panels',
         blocks: [
             { list: [
-                'Left, "Adventure": your party (your persona with HP and AC, place, time, combat status) and the quests you are on.',
-                'Right: tabs World, Chars, Roles, Scenario and Tools.',
+                'Left, "Adventure": everything you need to play — your party (persona with HP and AC, place, time, combat status), inventory, map, quests, reputation and dice. The book button next to the ? opens the Compendium.',
+                'Right, for creators and the RP tools, in three rows: RP (Chars, Roles, Tools) · Adventure (World Management, World Creation, D&D Compendium) · Quick Links (Guide, Gallery, Compendium, Editor, Quest editor), which open their window directly. You can build a world with only the right panel open, for example on an iPad.',
                 'Bigger views such as the Quest log and Combat open as windows: drag them by the title bar, resize them at the bottom-right corner.',
             ] },
             { p: 'On small screens the panels slide over the chat, one at a time; use the tabs at the screen edges to bring them back.' },
         ],
         show: [
             { label: 'Adventure panel', run: (c) => { c.open('party'); c.highlight('#rpm-dock-left', 'Party and quests'); } },
-            { label: 'Tools panel', run: (c) => { c.open('world'); c.highlight('#rpm-dock-right .rpm-tabs', 'World, Chars, Roles, Scenario, Tools'); } },
+            { label: 'Right panel', run: (c) => { c.open('world'); c.highlight('#rpm-dock-right .rpm-tabrows', 'RP tabs, Adventure tabs, Quick Links'); } },
         ],
     },
     {
@@ -56,21 +56,22 @@ export const CHAPTERS = [
         blocks: [
             { p: 'A world is a map of places, people, factions, objects, events and lore. Each turn RPmod tells the AI only what matters right now: where you are, who is there, what is happening. Distant places stay out of the prompt.' },
             { list: [
-                'Pick or load a world in the World tab, then "Enable for this story".',
-                'Set your current location and the time of day; RPmod tracks both as you play.',
-                'The Map section on the left shows where you are: the places you know as points, or the rooms of a dungeon or town. Walk, search and open doors with the quick replies\' "Here" row, so the AI narrates it. Tick Quick travel to move by clicking the map instead.',
+                'Pick, create or import a world in World Management (right panel), then "Enable for this story". Premade worlds: the built-in adventure and a small example world.',
+                'World Creation holds the creator\'s tools: the Creator / Player view, the editor, the quest editor, and the State editor for place, time and flags. RPmod tracks place and time as you play.',
+                'The Map section on the left shows where you are: the places you know as points, or the rooms of a dungeon or town. Walk, search and open doors with the quick replies\' "Here" row, so the AI narrates it. Tick Quick travel to move by clicking the map instead — if something happens on the way, the journey stops there.',
                 'Game state: RPmod keeps the live game and a start state you can go back to (next chapter).',
             ] },
         ],
         show: [
-            { label: 'World tab', run: (c) => { c.open('world'); c.highlight('#wm-panel', 'Your world and its live state'); } },
+            { label: 'World Management', run: (c) => { c.open('world'); c.highlight('#wm-panel', 'Your worlds and the game state'); } },
+            { label: 'World Creation', run: (c) => { c.open('worldcreate'); c.highlight('#wm-create', 'Creator tools and the State editor'); } },
         ],
     },
     {
         id: 'game-state', title: 'Game state: start and live game',
         blocks: [
             { p: 'For every story, RPmod keeps two copies of the world\'s state: the live game you are playing, and a start state you can return to. The example world brings its opening as the start state; in a world of your own, set up the opening (place, time) and press "Save as start".' },
-            { p: 'The state is where you are, the time and weather, quests and their objectives, flags, reputation, rooms you explored, doors, companions and the story inventory. Both copies are saved with your story and its export.' },
+            { p: 'The state is where you are, the time and weather, quests and their objectives, flags, reputation, rooms you explored, doors, companions and the story inventory. Both copies are saved with your story and its export. The buttons are in World Management.' },
             { table: [
                 ['Button', 'What it does'],
                 ['Back to start', 'The world returns to the start state, for example to replay an adventure or undo a wrong turn.'],
@@ -94,9 +95,9 @@ export const CHAPTERS = [
         blocks: [
             { p: 'People in the world give quests, like in an MMO: a yellow ! marks someone with a quest for you, a yellow ? someone you can hand a finished quest to. Grey marks mean "later" (level too low) or "in progress".' },
             { list: [
-                'The Quest log (World tab) lists the quests you accepted — track, turn in, abandon — with objectives like "Defeat 3 Wolf (1/3)" that count by themselves. Quests offered by the people where you are show there too, to accept.',
+                'The Quest log (the Quests section on the left) lists the quests you accepted — track, turn in, abandon — with objectives like "Defeat 3 Wolf (1/3)" that count by themselves. Quests offered by the people where you are show there too, to accept.',
                 'Rewards (XP, gold, items, reputation) go to your persona\'s character sheet when you turn a quest in; some let you choose one item.',
-                'Your standing with each faction you have met (Hated … Exalted) is in the Reputation window (World tab). Creators find every quest in the Quest editor.',
+                'Your standing with each faction you have met (Hated … Exalted) is in the Reputation section on the left. Creators find every quest and faction in World Creation (Creator view) and the Quest editor.',
                 'The Quests section on the left shows what you are working on.',
                 'Hidden quests read "???" until you discover them.',
             ] },
@@ -138,7 +139,7 @@ export const CHAPTERS = [
             ] },
         ],
         show: [
-            { label: 'Editor button', run: (c) => { c.open('world'); c.highlight('#wm-panel button[title="Build your world as a node graph"]', 'Opens the world editor'); } },
+            { label: 'Editor button', run: (c) => { c.open('worldcreate'); c.highlight('#wm-create button[title="Build your world as a node graph"]', 'Opens the world editor (also a Quick Link)'); } },
             { label: 'Editor window', run: (c) => { c.open('editor'); c.highlight('[data-window="editor"] [data-winbtn="max"]', 'Maximize for more room; drag the title bar to move it'); } },
         ],
     },
@@ -190,10 +191,10 @@ export const CHAPTERS = [
     {
         id: 'ai-view', title: 'What the AI sees',
         blocks: [
-            { p: 'Curious what the game master knows right now? "Preview what the AI sees" in the World tab shows the exact text RPmod adds to this turn: your persona and the AI\'s character (when enabled in Tools), location, people present, active events, quests and combat.' },
+            { p: 'Curious what the game master knows right now? "Preview what the AI sees" in World Creation shows the exact text RPmod adds to this turn: your persona and the AI\'s character (when enabled in Tools), location, people present, active events, quests and combat.' },
             { p: 'If the AI forgets something, check here first: whatever is not in the preview, the AI cannot know.' },
         ],
-        show: [{ label: 'Preview button', run: (c) => { c.open('world'); c.highlight(() => [...document.querySelectorAll('#wm-panel button')].find(b => /Preview what the AI sees/.test(b.textContent)), 'Shows the AI\'s view of this turn'); } }],
+        show: [{ label: 'Preview button', run: (c) => { c.open('worldcreate'); c.highlight(() => [...document.querySelectorAll('#wm-create button')].find(b => /Preview what the AI sees/.test(b.textContent)), 'Shows the AI\'s view of this turn'); } }],
     },
     {
         id: 'characters', title: 'Characters, roles & tools',
@@ -201,16 +202,16 @@ export const CHAPTERS = [
             { list: [
                 'Chars — import cards and jump into your character gallery (full screen: browse, search, play, edit).',
                 'Roles — who plays whom: your persona and the AI\'s character(s), including group chats.',
-                'Scenario — set up the scene for a story.',
+                'Setting up a scene (scenario, example dialogue, first message) is the "RPmod role play" section of Esolite\'s Quick Start.',
                 'Tools — context analysis, image generation, memory and more.',
             ] },
         ],
-        show: [{ label: 'Chars tab', run: (c) => { c.open('chars'); c.highlight('#rpm-dock-right', 'Characters, roles, scenario and tools'); } }],
+        show: [{ label: 'Chars tab', run: (c) => { c.open('chars'); c.highlight('#rpm-dock-right', 'Characters, roles and tools'); } }],
     },
     {
         id: 'sheet', title: 'Characters, sheets & dice',
         blocks: [
-            { p: 'The Character gallery shows your whole Library full screen, with big portraits: open it with the grid button in the right panel\'s header. Filter by tag, search, sort, and switch between large, medium, small and list views. Click a character for the full card and to play as them, let the AI play them, open their sheet, edit, download or favorite them.' },
+            { p: 'The Character gallery shows your whole Library full screen, with big portraits: open it with "Gallery" in the right panel\'s Quick Links. Filter by tag, search, sort, and switch between large, medium, small and list views. Click a character for the full card and to play as them, let the AI play them, open their sheet, edit, download or favorite them.' },
             { p: 'Every character in your Library can have a character sheet: abilities, saving throws, skills, armor class, hit points, attacks, inventory and coins. The sheet is stored inside the character card, so it travels with the card when you export it.' },
             { list: [
                 'Open it with "Character sheet" in the Party section (it starts with your persona) and pick any character at the top.',
@@ -223,7 +224,7 @@ export const CHAPTERS = [
             { tip: 'Your persona\'s sheet (level, class, HP, AC, skills, inventory) is part of what the AI knows about you.' },
         ],
         show: [
-            { label: 'Character gallery', run: (c) => { c.highlight('[data-action="gallery"]', 'Opens your characters full screen'); } },
+            { label: 'Character gallery', run: (c) => { c.highlight('[data-link="gallery"]', 'Opens your characters full screen'); } },
             { label: 'Character sheet', run: (c) => { c.open('sheet'); c.highlight('[data-window="sheet"]', 'Click a bonus to roll'); } },
         ],
     },

@@ -91,10 +91,21 @@ ${Object.entries(RPMOD_THEME_DEFAULTS).map(([k2, v]) => `    ${k2}: ${v};`).join
 }
 .rpm-dock-head .rpm-title { flex: 1; padding-left: var(--rpm-s1); }
 .rpm-dock-actions { display: flex; gap: 2px; }
-/* right dock: the tabs need the whole strip, so its icon buttons get their own row below them */
-.rpm-dock-right .rpm-dock-head { flex-wrap: wrap; row-gap: 4px; }
-.rpm-dock-right .rpm-dock-actions { flex-basis: 100%; justify-content: flex-end; }
+/* right dock: three named rows (RP tabs, Adventure tabs, Quick Links) beside the close button */
+.rpm-dock-right .rpm-dock-head { align-items: flex-start; }
 .rpm-dock-right .rpm-dock-actions:empty { display: none; }
+.rpm-tabrows { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 6px; align-items: center; }
+.rpm-tabrow { display: contents; }
+.rpm-tabrow[hidden] { display: none; }
+.rpm-tabrow-label { font-size: var(--rpm-fs-sm); font-weight: normal; opacity: .8; white-space: nowrap; }
+.rpm-tabrows .rpm-tabs { flex-wrap: wrap; overflow: visible; }
+.rpm-links { display: flex; flex-wrap: wrap; gap: 3px; }
+.rpm-link {
+    display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--rpm-border); background: transparent; color: var(--rpm-accent-fg);
+    font-size: var(--rpm-fs-sm); font-weight: normal; white-space: nowrap;
+}
+.rpm-link:hover { background: var(--rpm-accent-bg-hi); border-color: var(--rpm-border-hi); color: var(--rpm-accent-fg-hi); }
 .rpm-iconbtn {
     display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
     width: 28px; height: 28px; padding: 0; border-radius: var(--rpm-radius);
@@ -275,6 +286,7 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 
 /* ---- Compendium window (R3): list | entry; one column in a narrow window ---- */
 .rpm-cmp-scroll { flex: 1 1 auto; min-height: 0; display: flex; container-type: inline-size; }
+.rpm-cmp-docked .rpm-cmp-list { max-height: 60vh; }
 .rpm-cmp { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(240px, 320px) 1fr; }
 .rpm-cmp-side { display: flex; flex-direction: column; min-height: 0; padding: var(--rpm-s3); border-right: 1px solid var(--rpm-border); }
 .rpm-cmp-list { flex: 1 1 auto; min-height: 0; overflow: auto; margin-top: var(--rpm-s2); display: flex; flex-direction: column; gap: 2px; }
@@ -1083,6 +1095,7 @@ body.rpm-docked #maincontainer {
     let wm = null;
     let shownTab = null;
     const PLACES = /* @__PURE__ */ new Set(["left", "right", "window"]);
+    const TAB_GROUPS = [{ id: "rp", label: "RP" }, { id: "adventure", label: "Adventure" }];
     function sortedViews(place2) {
       return [...views.values()].filter((v) => v.def.place === place2).sort((a, b) => (a.def.order ?? 100) - (b.def.order ?? 100) || String(a.def.id).localeCompare(String(b.def.id)));
     }
@@ -1163,19 +1176,50 @@ body.rpm-docked #maincontainer {
       const list3 = sortedViews("right");
       return list3.some((v) => v.def.id === layout.right.tab) ? layout.right.tab : list3.length ? list3[0].def.id : null;
     }
+    const groupOf = (v) => TAB_GROUPS.some((g) => g.id === v.def.group) ? v.def.group : "adventure";
     function renderTabs() {
-      clear(dom.tabs);
+      for (const g of TAB_GROUPS) clear(dom.tabs[g.id]);
       const list3 = sortedViews("right");
       const active = currentTab();
       for (const v of list3) {
         const sel2 = v.def.id === active;
         v.tab = el("button", { class: "rpm-tab", type: "button", role: "tab", "aria-selected": String(sel2), "aria-controls": "rpm-view-" + v.def.id, "data-tab": v.def.id, text: v.def.title || v.def.id });
         v.tab.addEventListener("click", () => selectTab(v.def.id));
-        dom.tabs.appendChild(v.tab);
+        dom.tabs[groupOf(v)].appendChild(v.tab);
         v.container.classList.toggle("rpm-active", sel2);
         if (sel2 && (!v.mounted || v.dirty)) mountOrUpdate(v);
         if (sel2 && v.def.id !== shownTab) callShow(v);
       }
+      for (const g of TAB_GROUPS) dom.tabRows[g.id].hidden = !dom.tabs[g.id].childNodes.length;
+    }
+    const quickLinks = [];
+    function addQuickLink(link) {
+      if (!link || !link.id || typeof link.onClick !== "function" || quickLinks.some((l) => l.id === link.id)) return;
+      quickLinks.push(link);
+      quickLinks.sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+      renderLinks();
+    }
+    function renderLinks() {
+      if (!dom) return;
+      clear(dom.links);
+      for (const l of quickLinks) {
+        let show = true;
+        try {
+          show = typeof l.visible === "function" ? l.visible() !== false : true;
+        } catch (_) {
+        }
+        if (!show) continue;
+        const b = el("button", { class: "rpm-link", type: "button", title: l.help || l.title, "data-link": l.id }, [l.icon ? icon(l.icon, 14) : null, el("span", { text: l.title })]);
+        b.addEventListener("click", () => {
+          try {
+            l.onClick();
+          } catch (e) {
+            console.error("[RPmod shell] quick link failed:", l.id, e);
+          }
+        });
+        dom.links.appendChild(b);
+      }
+      dom.linkRow.hidden = !dom.links.childNodes.length;
     }
     function callShow(v) {
       shownTab = v.def.id;
@@ -1334,19 +1378,30 @@ body.rpm-docked #maincontainer {
       const head = el("div", { class: "rpm-dock-head" });
       const body = el("div", { class: "rpm-dock-body" });
       const dock = el("aside", { class: "rpm-dock rpm-dock-" + side, id: "rpm-dock-" + side, "aria-label": side === "left" ? "RPmod adventure panel" : "RPmod tools panel" }, [head, body]);
-      let tabs = null;
+      let tabs = null, tabRows = null, links = null, linkRow = null;
       const actions = el("div", { class: "rpm-dock-actions" });
       if (side === "left") {
         head.appendChild(el("span", { class: "rpm-title", text: "Adventure" }));
         head.appendChild(actions);
         head.appendChild(closeBtn);
       } else {
+        head.classList.add("rpm-dock-head-rows");
         head.appendChild(closeBtn);
-        tabs = el("div", { class: "rpm-tabs", role: "tablist", "aria-label": "RPmod tools" });
-        head.appendChild(tabs);
+        const rows = el("div", { class: "rpm-tabrows" });
+        tabs = {};
+        tabRows = {};
+        for (const g of TAB_GROUPS) {
+          tabs[g.id] = el("div", { class: "rpm-tabs", role: "tablist", "aria-label": g.label });
+          tabRows[g.id] = el("div", { class: "rpm-tabrow", "data-group": g.id }, [el("span", { class: "rpm-tabrow-label", text: g.label }), tabs[g.id]]);
+          rows.appendChild(tabRows[g.id]);
+        }
+        links = el("div", { class: "rpm-links", role: "toolbar", "aria-label": "Quick Links" });
+        linkRow = el("div", { class: "rpm-tabrow", "data-group": "links", hidden: true }, [el("span", { class: "rpm-tabrow-label", text: "Quick Links" }), links]);
+        rows.appendChild(linkRow);
+        head.appendChild(rows);
         head.appendChild(actions);
       }
-      return { dock, body, tabs, actions };
+      return { dock, body, tabs, tabRows, links, linkRow, actions };
     }
     function mount2() {
       if (dom || !document.body) return;
@@ -1361,8 +1416,9 @@ body.rpm-docked #maincontainer {
       const layer = el("div", { class: "rpm-windows" });
       const root = el("div", { id: "rpm-shell" }, [L.dock, R.dock, hl, hr, layer]);
       document.body.appendChild(root);
-      dom = { root, left: L.dock, right: R.dock, leftBody: L.body, rightBody: R.body, tabs: R.tabs, actions_left: L.actions, actions_right: R.actions, handle_left: hl, handle_right: hr, layer, navBtn: null };
+      dom = { root, left: L.dock, right: R.dock, leftBody: L.body, rightBody: R.body, tabs: R.tabs, tabRows: R.tabRows, links: R.links, linkRow: R.linkRow, actions_left: L.actions, actions_right: R.actions, handle_left: hl, handle_right: hr, layer, navBtn: null };
       for (const a of dockActions) renderDockAction(a);
+      renderLinks();
       wm = createWindowManager({
         layer,
         getGeom: (id) => layout.windows[id] || null,
@@ -1464,7 +1520,6 @@ body.rpm-docked #maincontainer {
     const RP_PANEL_TABS = [
       { key: "CHARS", id: "chars", title: "Chars", order: 50 },
       { key: "ROLES", id: "roles", title: "Roles", order: 51 },
-      { key: "SCENARIO", id: "scenario", title: "Scenario", order: 52 },
       { key: "TOOLS", id: "tools", title: "Tools", order: 53 }
     ];
     function adoptRpPanels() {
@@ -1484,6 +1539,7 @@ body.rpm-docked #maincontainer {
             title: tab.title,
             place: "right",
             order: tab.order,
+            group: "rp",
             mount() {
             },
             update() {
@@ -1518,6 +1574,8 @@ body.rpm-docked #maincontainer {
       setDockOpen,
       toggleDock,
       addDockAction,
+      addQuickLink,
+      refreshLinks: renderLinks,
       dockOpen: (side) => !!open[side],
       mode: () => mode2,
       views: () => [...views.keys()],
@@ -8811,299 +8869,309 @@ ${wi.content}
             `;
       },
       actions: {
-        "scenario-start-roleplay": async () => {
-          try {
-            const getSelectedNames = () => {
-              const names = [];
-              try {
-                if (KLITE_RPMod.panels.ROLES?.enabled && Array.isArray(KLITE_RPMod.panels.ROLES.activeChars) && KLITE_RPMod.panels.ROLES.activeChars.length > 0) {
-                  KLITE_RPMod.panels.ROLES.activeChars.forEach((c) => {
-                    if (c?.name) names.push(c.name);
-                  });
-                } else if (KLITE_RPMod.panels.TOOLS?.selectedCharacter?.name) {
-                  names.push(KLITE_RPMod.panels.TOOLS.selectedCharacter.name);
-                } else if (window.localsettings?.chatopponent) {
-                  names.push(...window.localsettings.chatopponent.split("||$||").filter(Boolean).map((s) => s.trim()));
-                }
-              } catch (_) {
-              }
-              return [...new Set(names.filter(Boolean))];
-            };
-            const scenarioText = (document.getElementById("scenario-text")?.value || "").trim();
-            const firstMessageText = (document.getElementById("scenario-first-message")?.value || "").trim();
-            const selectedNames = getSelectedNames();
-            if (selectedNames.length === 0) {
-              KLITE_RPMod.log("status", "Start RP aborted: no characters selected");
-              return;
-            }
+        "scenario-start-roleplay": () => KLITE_RPMod.panels.SCENARIO.startRoleplay()
+      },
+      // Start Role Play: the selected characters (Roles, else the AI character, else Esolite's
+      // chat opponents), the persona, the scenario, example dialogue and first message go into
+      // World Info / the chat. vals = { scenario, example, first } (default: this panel's fields);
+      // opts.quiet: no alert (R8: Esolite's Quick Start runs it — src/onboarding/roleplayQuickStart.js).
+      // → { ok, participants, reason? }
+      async startRoleplay(vals, opts = {}) {
+        const field = (id) => (document.getElementById(id)?.value || "").trim();
+        vals = vals || { scenario: field("scenario-text"), example: field("scenario-example"), first: field("scenario-first-message") };
+        try {
+          const getSelectedNames = () => {
+            const names = [];
             try {
-              if (window.localsettings) {
-                window.localsettings.opmode = 3;
-                window.localsettings.multiline_replies = true;
-                window.save_settings?.();
+              if (KLITE_RPMod.panels.ROLES?.enabled && Array.isArray(KLITE_RPMod.panels.ROLES.activeChars) && KLITE_RPMod.panels.ROLES.activeChars.length > 0) {
+                KLITE_RPMod.panels.ROLES.activeChars.forEach((c) => {
+                  if (c?.name) names.push(c.name);
+                });
+              } else if (KLITE_RPMod.panels.TOOLS?.selectedCharacter?.name) {
+                names.push(KLITE_RPMod.panels.TOOLS.selectedCharacter.name);
+              } else if (window.localsettings?.chatopponent) {
+                names.push(...window.localsettings.chatopponent.split("||$||").filter(Boolean).map((s) => s.trim()));
               }
             } catch (_) {
             }
+            return [...new Set(names.filter(Boolean))];
+          };
+          const scenarioText = String(vals.scenario || "").trim();
+          const firstMessageText = String(vals.first || "").trim();
+          const selectedNames = getSelectedNames();
+          if (selectedNames.length === 0) {
+            KLITE_RPMod.log("status", "Start RP aborted: no characters selected");
+            return { ok: false, participants: [], reason: "no characters selected" };
+          }
+          try {
+            if (window.localsettings) {
+              window.localsettings.opmode = 3;
+              window.localsettings.multiline_replies = true;
+              window.save_settings?.();
+            }
+          } catch (_) {
+          }
+          for (const name of selectedNames) {
+            try {
+              await window.loadByCharacterNameIntoWI?.(name);
+            } catch (e) {
+              KLITE_RPMod.log("integration", `loadByCharacterNameIntoWI failed for ${name}: ${e?.message || e}`);
+            }
+          }
+          try {
+            if (!Array.isArray(window.current_wi)) window.current_wi = [];
             for (const name of selectedNames) {
               try {
-                await window.loadByCharacterNameIntoWI?.(name);
-              } catch (e) {
-                KLITE_RPMod.log("integration", `loadByCharacterNameIntoWI failed for ${name}: ${e?.message || e}`);
-              }
-            }
-            try {
-              if (!Array.isArray(window.current_wi)) window.current_wi = [];
-              for (const name of selectedNames) {
+                const data = await window.getCharacterData?.(name);
+                const raw = data?.data || {};
+                const description = String(raw.description || "").trim();
+                const personality = String(raw.personality || "").trim();
+                let examples = String(raw.mes_example || "").trim();
                 try {
-                  const data = await window.getCharacterData?.(name);
-                  const raw = data?.data || {};
-                  const description = String(raw.description || "").trim();
-                  const personality = String(raw.personality || "").trim();
-                  let examples = String(raw.mes_example || "").trim();
-                  try {
-                    if (examples && typeof window.formatExampleMessages === "function") examples = window.formatExampleMessages(examples);
-                  } catch (_) {
-                  }
-                  window.current_wi = window.current_wi.filter((wi) => !(wi?.wigroup === name && wi?.comment && wi.comment.endsWith("_imported_memory")));
-                  const base = { key: name, keyanti: "", folder: name, selective: false, constant: false, probability: 100, wigroup: name, widisabled: false, comment: `${name}_imported_memory` };
-                  if (description) {
-                    window.current_wi.push({ ...base, keysecondary: `${name} description, appearance`, content: description });
-                  }
-                  if (personality) {
-                    window.current_wi.push({ ...base, keysecondary: `${name} personality, traits`, content: personality });
-                  }
-                  if (examples) {
-                    window.current_wi.push({ ...base, keysecondary: `${name} examples, dialogue`, content: examples, widisabled: true });
-                  }
-                  try {
-                    const isOurDesc = (wi) => wi?.wigroup === name && wi?.comment?.endsWith("_imported_memory") && /description, appearance$/.test(wi?.keysecondary || "");
-                    const isOurPers = (wi) => wi?.wigroup === name && wi?.comment?.endsWith("_imported_memory") && /personality, traits$/.test(wi?.keysecondary || "");
-                    const isOurEx = (wi) => wi?.wigroup === name && wi?.comment?.endsWith("_imported_memory") && /examples, dialogue$/.test(wi?.keysecondary || "");
-                    const groupEntries = window.current_wi.filter((wi) => wi?.wigroup === name);
-                    const others = groupEntries.filter((wi) => !isOurDesc(wi) && !isOurPers(wi) && !isOurEx(wi));
-                    const desc = groupEntries.find(isOurDesc);
-                    const pers = groupEntries.find(isOurPers);
-                    const ex = groupEntries.find(isOurEx);
-                    const reordered = [];
-                    if (desc) reordered.push(desc);
-                    if (pers) reordered.push(pers);
-                    if (ex) reordered.push(ex);
-                    reordered.push(...others);
-                    window.current_wi = window.current_wi.filter((wi) => wi?.wigroup !== name).concat(reordered);
-                  } catch (_) {
-                  }
-                } catch (e) {
-                  KLITE_RPMod.log("integration", `Failed to enrich WI for ${name}: ${e?.message || e}`);
+                  if (examples && typeof window.formatExampleMessages === "function") examples = window.formatExampleMessages(examples);
+                } catch (_) {
                 }
-              }
-            } catch (_) {
-            }
-            try {
-              const tools = KLITE_RPMod.panels.TOOLS;
-              const chatname = (window.localsettings?.chatname || "User").trim();
-              if (tools?.personaEnabled && tools?.selectedPersona?.name && chatname) {
-                const personaCardName = tools.selectedPersona.name;
-                let description = "", personality = "", examples = "";
+                window.current_wi = window.current_wi.filter((wi) => !(wi?.wigroup === name && wi?.comment && wi.comment.endsWith("_imported_memory")));
+                const base = { key: name, keyanti: "", folder: name, selective: false, constant: false, probability: 100, wigroup: name, widisabled: false, comment: `${name}_imported_memory` };
+                if (description) {
+                  window.current_wi.push({ ...base, keysecondary: `${name} description, appearance`, content: description });
+                }
+                if (personality) {
+                  window.current_wi.push({ ...base, keysecondary: `${name} personality, traits`, content: personality });
+                }
+                if (examples) {
+                  window.current_wi.push({ ...base, keysecondary: `${name} examples, dialogue`, content: examples, widisabled: true });
+                }
                 try {
-                  const data = await window.getCharacterData?.(personaCardName);
-                  const raw = data?.data || {};
-                  description = String(raw.description || "").trim();
-                  personality = String(raw.personality || "").trim();
-                  examples = String(raw.mes_example || "").trim();
-                  if (examples) {
-                    try {
-                      if (typeof window.formatExampleMessages === "function") {
-                        examples = window.formatExampleMessages(examples);
-                      } else {
-                        examples = `Example messages:
-
-${examples}`;
-                      }
-                    } catch (_) {
+                  const isOurDesc = (wi) => wi?.wigroup === name && wi?.comment?.endsWith("_imported_memory") && /description, appearance$/.test(wi?.keysecondary || "");
+                  const isOurPers = (wi) => wi?.wigroup === name && wi?.comment?.endsWith("_imported_memory") && /personality, traits$/.test(wi?.keysecondary || "");
+                  const isOurEx = (wi) => wi?.wigroup === name && wi?.comment?.endsWith("_imported_memory") && /examples, dialogue$/.test(wi?.keysecondary || "");
+                  const groupEntries = window.current_wi.filter((wi) => wi?.wigroup === name);
+                  const others = groupEntries.filter((wi) => !isOurDesc(wi) && !isOurPers(wi) && !isOurEx(wi));
+                  const desc = groupEntries.find(isOurDesc);
+                  const pers = groupEntries.find(isOurPers);
+                  const ex = groupEntries.find(isOurEx);
+                  const reordered = [];
+                  if (desc) reordered.push(desc);
+                  if (pers) reordered.push(pers);
+                  if (ex) reordered.push(ex);
+                  reordered.push(...others);
+                  window.current_wi = window.current_wi.filter((wi) => wi?.wigroup !== name).concat(reordered);
+                } catch (_) {
+                }
+              } catch (e) {
+                KLITE_RPMod.log("integration", `Failed to enrich WI for ${name}: ${e?.message || e}`);
+              }
+            }
+          } catch (_) {
+          }
+          try {
+            const tools = KLITE_RPMod.panels.TOOLS;
+            const chatname = (window.localsettings?.chatname || "User").trim();
+            if (tools?.personaEnabled && tools?.selectedPersona?.name && chatname) {
+              const personaCardName = tools.selectedPersona.name;
+              let description = "", personality = "", examples = "";
+              try {
+                const data = await window.getCharacterData?.(personaCardName);
+                const raw = data?.data || {};
+                description = String(raw.description || "").trim();
+                personality = String(raw.personality || "").trim();
+                examples = String(raw.mes_example || "").trim();
+                if (examples) {
+                  try {
+                    if (typeof window.formatExampleMessages === "function") {
+                      examples = window.formatExampleMessages(examples);
+                    } else {
                       examples = `Example messages:
 
 ${examples}`;
                     }
-                  }
-                } catch (_) {
-                }
-                window.current_wi = window.current_wi.filter((wi) => !(wi?.wigroup === chatname && wi?.comment && wi.comment.endsWith("_imported_memory")));
-                const userBase = {
-                  key: chatname,
-                  keysecondary: "",
-                  keyanti: "",
-                  folder: chatname,
-                  selective: false,
-                  constant: false,
-                  probability: 100,
-                  wigroup: chatname,
-                  widisabled: false,
-                  comment: `${chatname}_imported_memory`
-                };
-                if (description) {
-                  window.current_wi.push({ ...userBase, keysecondary: `${chatname} description, appearance`, content: description });
-                }
-                if (personality) {
-                  window.current_wi.push({ ...userBase, keysecondary: `${chatname} personality, traits`, content: personality });
-                }
-                if (examples) {
-                  window.current_wi.push({ ...userBase, keysecondary: `${chatname} examples, dialogue`, content: examples, widisabled: true });
-                }
-              }
-            } catch (_) {
-            }
-            try {
-              if (scenarioText) {
-                if (!Array.isArray(window.current_wi)) window.current_wi = [];
-                const scenarioWI = {
-                  key: "Scenario",
-                  keysecondary: "Group scenario, setting",
-                  keyanti: "",
-                  content: scenarioText,
-                  comment: "GroupScenario_active",
-                  folder: "GroupScenario",
-                  selective: false,
-                  constant: true,
-                  // always include as active scenario
-                  probability: 100,
-                  wigroup: "GroupScenario",
-                  widisabled: false
-                };
-                window.current_wi = window.current_wi.filter((wi) => wi?.comment !== scenarioWI.comment);
-                window.current_wi.push(scenarioWI);
-                KLITE_RPMod.log("storage", "Scenario imported into WI (active)", { len: scenarioText.length });
-              }
-            } catch (e) {
-              KLITE_RPMod.log("storage", "Failed to add scenario WI:", e?.message || e);
-            }
-            try {
-              for (const name of selectedNames) {
-                try {
-                  const data = await window.getCharacterData?.(name);
-                  const raw = data?.data || {};
-                  const charScenario = (raw.scenario || "").trim();
-                  if (charScenario) {
-                    const charScenarioWI = {
-                      key: name,
-                      keysecondary: `${name} scenario, background`,
-                      keyanti: "",
-                      content: charScenario,
-                      comment: `${name}_imported_scenario`,
-                      folder: name,
-                      selective: false,
-                      constant: false,
-                      probability: 100,
-                      wigroup: "GroupScenario",
-                      widisabled: true
-                    };
-                    window.current_wi = window.current_wi.filter((wi) => wi?.comment !== charScenarioWI.comment);
-                    window.current_wi.push(charScenarioWI);
-                  }
-                } catch (_) {
-                }
-              }
-            } catch (_) {
-            }
-            try {
-              const exampleGroupText = (document.getElementById("scenario-example")?.value || "").trim();
-              if (exampleGroupText) {
-                const groupExamplesWI = {
-                  key: "Group Example Dialogue",
-                  keysecondary: "Example dialogue for group",
-                  keyanti: "",
-                  content: exampleGroupText,
-                  comment: "GroupScenario_examples",
-                  folder: "GroupScenario",
-                  selective: false,
-                  constant: false,
-                  probability: 100,
-                  wigroup: "GroupScenario",
-                  widisabled: true
-                };
-                window.current_wi = window.current_wi.filter((wi) => wi?.comment !== groupExamplesWI.comment);
-                window.current_wi.push(groupExamplesWI);
-              }
-            } catch (_) {
-            }
-            try {
-              const tools = KLITE_RPMod.panels.TOOLS;
-              const chatname = (window.localsettings?.chatname || "User").trim();
-              if (tools?.selectedPersona && chatname) {
-                const sel2 = tools.selectedPersona;
-                const personaCardName = sel2.name;
-                let userScenario = "";
-                try {
-                  userScenario = String(sel2.scenario || sel2.rawData?.data?.scenario || sel2.data?.scenario || "").trim();
-                } catch (_) {
-                }
-                if (!userScenario && personaCardName) {
-                  try {
-                    const data = await window.getCharacterData?.(personaCardName);
-                    const raw = data?.data || {};
-                    userScenario = String(raw.scenario || "").trim();
                   } catch (_) {
+                    examples = `Example messages:
+
+${examples}`;
                   }
                 }
-                if (userScenario) {
-                  const userScenarioWI = {
-                    key: chatname,
-                    keysecondary: `${chatname} scenario, background`,
+              } catch (_) {
+              }
+              window.current_wi = window.current_wi.filter((wi) => !(wi?.wigroup === chatname && wi?.comment && wi.comment.endsWith("_imported_memory")));
+              const userBase = {
+                key: chatname,
+                keysecondary: "",
+                keyanti: "",
+                folder: chatname,
+                selective: false,
+                constant: false,
+                probability: 100,
+                wigroup: chatname,
+                widisabled: false,
+                comment: `${chatname}_imported_memory`
+              };
+              if (description) {
+                window.current_wi.push({ ...userBase, keysecondary: `${chatname} description, appearance`, content: description });
+              }
+              if (personality) {
+                window.current_wi.push({ ...userBase, keysecondary: `${chatname} personality, traits`, content: personality });
+              }
+              if (examples) {
+                window.current_wi.push({ ...userBase, keysecondary: `${chatname} examples, dialogue`, content: examples, widisabled: true });
+              }
+            }
+          } catch (_) {
+          }
+          try {
+            if (scenarioText) {
+              if (!Array.isArray(window.current_wi)) window.current_wi = [];
+              const scenarioWI = {
+                key: "Scenario",
+                keysecondary: "Group scenario, setting",
+                keyanti: "",
+                content: scenarioText,
+                comment: "GroupScenario_active",
+                folder: "GroupScenario",
+                selective: false,
+                constant: true,
+                // always include as active scenario
+                probability: 100,
+                wigroup: "GroupScenario",
+                widisabled: false
+              };
+              window.current_wi = window.current_wi.filter((wi) => wi?.comment !== scenarioWI.comment);
+              window.current_wi.push(scenarioWI);
+              KLITE_RPMod.log("storage", "Scenario imported into WI (active)", { len: scenarioText.length });
+            }
+          } catch (e) {
+            KLITE_RPMod.log("storage", "Failed to add scenario WI:", e?.message || e);
+          }
+          try {
+            for (const name of selectedNames) {
+              try {
+                const data = await window.getCharacterData?.(name);
+                const raw = data?.data || {};
+                const charScenario = (raw.scenario || "").trim();
+                if (charScenario) {
+                  const charScenarioWI = {
+                    key: name,
+                    keysecondary: `${name} scenario, background`,
                     keyanti: "",
-                    content: userScenario,
-                    comment: `${chatname}_imported_scenario`,
-                    folder: chatname,
+                    content: charScenario,
+                    comment: `${name}_imported_scenario`,
+                    folder: name,
                     selective: false,
                     constant: false,
                     probability: 100,
                     wigroup: "GroupScenario",
                     widisabled: true
                   };
-                  window.current_wi = window.current_wi.filter((wi) => wi?.comment !== userScenarioWI.comment);
-                  window.current_wi.push(userScenarioWI);
+                  window.current_wi = window.current_wi.filter((wi) => wi?.comment !== charScenarioWI.comment);
+                  window.current_wi.push(charScenarioWI);
                 }
+              } catch (_) {
               }
-            } catch (_) {
             }
-            try {
-              if (firstMessageText) {
-                if (!Array.isArray(window.gametext_arr)) window.gametext_arr = [];
-                const firstSpeaker = selectedNames[0] || (window.localsettings?.chatopponent || "AI");
-                const inInstruct = window.localsettings?.opmode === 4 && !!window.localsettings?.inject_chatnames_instruct;
-                const prefix = inInstruct ? window.get_instructendplaceholder?.() || "" : "\n";
-                const line = `${prefix}${firstSpeaker}: ${firstMessageText}`;
-                const beforeCount = window.gametext_arr.length;
-                window.gametext_arr.push(line);
-                KLITE_RPMod.log("chat", "First message inserted", { speaker: firstSpeaker, len: line.length, chat_count_before: beforeCount, chat_count_after: window.gametext_arr.length });
+          } catch (_) {
+          }
+          try {
+            const exampleGroupText = String(vals.example || "").trim();
+            if (exampleGroupText) {
+              const groupExamplesWI = {
+                key: "Group Example Dialogue",
+                keysecondary: "Example dialogue for group",
+                keyanti: "",
+                content: exampleGroupText,
+                comment: "GroupScenario_examples",
+                folder: "GroupScenario",
+                selective: false,
+                constant: false,
+                probability: 100,
+                wigroup: "GroupScenario",
+                widisabled: true
+              };
+              window.current_wi = window.current_wi.filter((wi) => wi?.comment !== groupExamplesWI.comment);
+              window.current_wi.push(groupExamplesWI);
+            }
+          } catch (_) {
+          }
+          try {
+            const tools = KLITE_RPMod.panels.TOOLS;
+            const chatname = (window.localsettings?.chatname || "User").trim();
+            if (tools?.selectedPersona && chatname) {
+              const sel2 = tools.selectedPersona;
+              const personaCardName = sel2.name;
+              let userScenario = "";
+              try {
+                userScenario = String(sel2.scenario || sel2.rawData?.data?.scenario || sel2.data?.scenario || "").trim();
+              } catch (_) {
+              }
+              if (!userScenario && personaCardName) {
                 try {
-                  window.render_gametext?.(true);
+                  const data = await window.getCharacterData?.(personaCardName);
+                  const raw = data?.data || {};
+                  userScenario = String(raw.scenario || "").trim();
                 } catch (_) {
                 }
               }
-            } catch (e) {
-              KLITE_RPMod.log("chat", "Failed to insert first message:", e?.message || e);
-            }
-            try {
-              if (window.localsettings) {
-                const existing = (window.localsettings.chatopponent || "").split("||$||").filter(Boolean).map((s) => s.trim());
-                const merged = [.../* @__PURE__ */ new Set([...existing, ...selectedNames])];
-                window.localsettings.chatopponent = merged.join("||$||");
-                window.save_settings?.();
-                window.handle_bot_name_onchange?.();
+              if (userScenario) {
+                const userScenarioWI = {
+                  key: chatname,
+                  keysecondary: `${chatname} scenario, background`,
+                  keyanti: "",
+                  content: userScenario,
+                  comment: `${chatname}_imported_scenario`,
+                  folder: chatname,
+                  selective: false,
+                  constant: false,
+                  probability: 100,
+                  wigroup: "GroupScenario",
+                  widisabled: true
+                };
+                window.current_wi = window.current_wi.filter((wi) => wi?.comment !== userScenarioWI.comment);
+                window.current_wi.push(userScenarioWI);
               }
-            } catch (_) {
             }
-            try {
-              window.autosave?.();
-            } catch (_) {
-            }
-            KLITE_RPMod.log("status", "Role play initialized", { participants: selectedNames });
-            try {
-              alert("Role Play data configured in WorldInfo. Have fun!");
-            } catch (_) {
+          } catch (_) {
+          }
+          try {
+            if (firstMessageText) {
+              if (!Array.isArray(window.gametext_arr)) window.gametext_arr = [];
+              const firstSpeaker = selectedNames[0] || (window.localsettings?.chatopponent || "AI");
+              const inInstruct = window.localsettings?.opmode === 4 && !!window.localsettings?.inject_chatnames_instruct;
+              const prefix = inInstruct ? window.get_instructendplaceholder?.() || "" : "\n";
+              const line = `${prefix}${firstSpeaker}: ${firstMessageText}`;
+              const beforeCount = window.gametext_arr.length;
+              window.gametext_arr.push(line);
+              KLITE_RPMod.log("chat", "First message inserted", { speaker: firstSpeaker, len: line.length, chat_count_before: beforeCount, chat_count_after: window.gametext_arr.length });
+              try {
+                window.render_gametext?.(true);
+              } catch (_) {
+              }
             }
           } catch (e) {
-            KLITE_RPMod.log("errors", "scenario-start-roleplay handler error:", e?.message || e);
+            KLITE_RPMod.log("chat", "Failed to insert first message:", e?.message || e);
           }
+          try {
+            if (window.localsettings) {
+              const existing = (window.localsettings.chatopponent || "").split("||$||").filter(Boolean).map((s) => s.trim());
+              const merged = [.../* @__PURE__ */ new Set([...existing, ...selectedNames])];
+              window.localsettings.chatopponent = merged.join("||$||");
+              window.save_settings?.();
+              window.handle_bot_name_onchange?.();
+            }
+          } catch (_) {
+          }
+          try {
+            window.autosave?.();
+          } catch (_) {
+          }
+          KLITE_RPMod.log("status", "Role play initialized", { participants: selectedNames });
+          if (!opts.quiet) try {
+            alert("Role Play data configured in WorldInfo. Have fun!");
+          } catch (_) {
+          }
+          return { ok: true, participants: selectedNames };
+        } catch (e) {
+          KLITE_RPMod.log("errors", "scenario-start-roleplay handler error:", e?.message || e);
+          return { ok: false, participants: [], reason: String(e?.message || e) };
         }
       }
     };
@@ -27588,6 +27656,16 @@ ${xl.join("\n")}`;
         syncLive();
         return id;
       },
+      // R8 (World Management): a new name for the active world (saved like any world edit)
+      renameWorld(name) {
+        const w = activeWorld();
+        name = norm5(name);
+        if (!w || !name) return null;
+        w.name = name;
+        markDirty();
+        syncLive();
+        return name;
+      },
       loadExample() {
         return loadExample();
       },
@@ -29710,12 +29788,12 @@ ${xl.join("\n")}`;
     const root = el("div", { class: "rpm-map rpm-map-player" + (large ? " rpm-map-large" : ""), "data-map-view": large ? "window" : "dock" });
     box.appendChild(root);
     if (!A || !A.activeWorld()) {
-      root.appendChild(el("div", { class: "rpm-muted", text: "No world loaded. Load one (or the example) in the World tab." }));
+      root.appendChild(el("div", { class: "rpm-muted", text: "No world loaded. Choose one in World Management (right panel)." }));
       return;
     }
     const hereId = A.runtime && A.runtime.playerLocationId;
     if (!hereId || !A.entityById(hereId)) {
-      root.appendChild(el("div", { class: "rpm-muted", text: "Nowhere yet — choose a starting place in the World tab." }));
+      root.appendChild(el("div", { class: "rpm-muted", text: "Nowhere yet — choose a starting place in World Creation (State editor)." }));
       return;
     }
     const R = A.mapRules;
@@ -31301,7 +31379,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       const A = API3();
       if (!A || !A.activeWorld()) {
         container.appendChild(el2("div", { class: "rpm-view-pad" }, [
-          el2("p", { class: "rpm-muted", text: "No world loaded. Create one or load the example from the World tab." }),
+          el2("p", { class: "rpm-muted", text: "No world loaded. Create one or load a premade world in World Management." }),
           uiBtn("Create a world", () => openEditor())
         ]));
         return;
@@ -31402,7 +31480,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     }
     let panelEl = null;
     const TIME_SLOTS_UI = ["morning", "noon", "afternoon", "evening", "night"];
-    const VIEW_IDS = ["world", "party", "quest-tracker", "rep-tracker", "questlog", "reputation", "questeditor", "combat", "shop", ...MINIMAP_VIEWS];
+    const VIEW_IDS = ["world", "worldcreate", "party", "inventory", "quest-tracker", "rep-tracker", "questlog", "questlog-all", "reputation", "repeditor", "questeditor", "combat", "shop", ...MINIMAP_VIEWS];
     function uiBtn(text, onclick, opts) {
       opts = opts || {};
       const cls = "btn btn-primary rpm-btn" + (opts.block ? " rpm-block" : "") + (opts.grow ? " rpm-grow" : "") + (opts.variant ? " rpm-" + opts.variant : "") + (opts.lg ? " rpm-lg" : "") + (opts.icon ? " rpm-btn-icon" : "");
@@ -31441,6 +31519,10 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         localStorage.setItem("KLITE.worlds.uiMode", m);
       } catch (_) {
       }
+      try {
+        Shell2()?.refreshLinks?.();
+      } catch (_) {
+      }
     }
     function applyWorldView(worldId) {
       try {
@@ -31471,27 +31553,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       const A = API3();
       const body = panelEl;
       clear2(body);
-      const mode2 = uiMode();
-      body.appendChild(row2([
-        el2("span", { class: "rpm-heading rpm-grow", text: "Worlds" }),
-        el2("span", {
-          role: "button",
-          tabindex: "0",
-          title: "Toggle Creator / Player view",
-          class: "rpm-chip " + (mode2 === "creator" ? "rpm-chip-quest" : "rpm-chip-info"),
-          text: mode2 === "creator" ? "Creator" : "Player",
-          onclick: () => {
-            setUiMode(mode2 === "creator" ? "player" : "creator");
-            refreshPanel();
-          },
-          onkeydown: (e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              e.target.click();
-            }
-          }
-        })
-      ], "margin-bottom:8px"));
+      body.appendChild(row2([el2("span", { class: "rpm-heading rpm-grow", text: "Worlds" })], "margin-bottom:8px"));
       const worlds = A.listWorlds();
       const sel2 = uiSelect({ "aria-label": "Active world" });
       sel2.appendChild(el2("option", { value: "", text: worlds.length ? "— select world —" : "(no worlds yet)" }));
@@ -31508,18 +31570,26 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         }
       });
       body.appendChild(sel2);
+      const renameBtn = uiBtn("Rename", () => {
+        const w = A.activeWorld();
+        if (!w) return;
+        const n = prompt("Rename the world:", w.name || "");
+        if (n != null && n.trim()) {
+          A.renameWorld(n.trim());
+          refreshPanel();
+        }
+      }, { icon: "pencil", grow: true, id: "rename-world", title: "Give the active world a new name" });
+      if (!A.activeWorld()) renameBtn.disabled = true;
       body.appendChild(row2([
         uiBtn("New", () => {
           const n = prompt("New world name:", "New World");
           if (n != null) A.newWorld(n).then(refreshPanel);
         }, { icon: "plus", grow: true }),
-        uiBtn("Example", () => loadExampleFlow(), { icon: "sparkles", grow: true, title: "Load the ready-to-play example world" }),
+        renameBtn,
         uiBtn("Import", () => importFlow(), { icon: "upload", grow: true }),
         uiBtn("Export", () => exportFlow(), { icon: "download", grow: true })
-      ], "margin:6px 0 8px"));
+      ], "margin:6px 0 8px;flex-wrap:wrap"));
       if (exportOpen && A.activeWorld()) body.appendChild(exportCard(A));
-      const ADV = window.KLITE_RPMod_Adventures;
-      if (ADV && ADV.list().length) body.appendChild(uiBtn("Play an adventure", () => ADV.open(), { icon: "play", block: true, id: "play-adventure", style: "margin:0 0 8px", title: "Start a ready-made adventure with a pregenerated character" }));
       if (unsaved() && !autosave()) {
         body.appendChild(el2("div", { class: "rpm-card rpm-unsaved-card", "data-unsaved": "world", style: "margin:0 0 8px" }, [
           el2("div", { style: "font-weight:bold;margin-bottom:4px", text: "Unsaved world changes" }),
@@ -31529,22 +31599,106 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           ])
         ]));
       }
+      if (A.activeWorld()) {
+        const enabled = A.isEnabled();
+        body.appendChild(uiBtn(enabled ? "● Enabled for this story" : "○ Enable for this story", () => {
+          enabled ? A.disable() : A.enable();
+          refreshPanel();
+        }, { block: true, variant: enabled ? "on" : null, style: "margin-bottom:8px" }));
+        renderGameState(body);
+      } else body.appendChild(muted2("New here? Play the built-in adventure, or load the small example world and just start chatting.", { style: "margin:0 0 8px" }));
+      const ADV = window.KLITE_RPMod_Adventures;
+      const pre = el2("div", { class: "rpm-card", "data-ui": "premade", style: "margin-top:8px" }, [el2("div", { class: "rpm-muted", style: "margin-bottom:6px", text: "Premade worlds" })]);
+      if (ADV && ADV.list().length) pre.appendChild(uiBtn("Play the built-in adventure", () => ADV.open(), { icon: "play", block: true, id: "play-adventure", title: "Start a ready-made adventure with a pregenerated character" }));
+      pre.appendChild(uiBtn("Load minimal example world", () => loadExampleFlow(), { icon: "sparkles", block: true, id: "load-example", style: "margin-top:4px", title: 'The small example world "Eldoria", enabled and ready' }));
+      body.appendChild(pre);
+    }
+    function renderGameState(box) {
+      const A = API3();
+      const slot = A.activeSlot || "working";
+      const slotBox = el2("div", { class: "rpm-card", style: "margin-bottom:6px", "data-ui": "game-state" });
+      slotBox.appendChild(row2([
+        el2("span", { class: "rpm-muted rpm-grow", text: "Game state" }),
+        el2("span", { class: "rpm-chip " + (slot === "working" ? "rpm-chip-info" : "rpm-chip-quest"), text: slot === "working" ? "Live game" : "Editing start state" })
+      ], "margin-bottom:6px"));
+      if (slot === "working") {
+        slotBox.appendChild(row2([
+          uiBtn("Back to start", () => {
+            if (confirm("Go back to the start state? The world (place, time, quests, flags, explored rooms) returns to the start. The chat is not rewound, and your character sheet keeps its HP, XP and items.")) {
+              A.resetToBase();
+              refreshPanel();
+            }
+          }, { icon: "rotate-ccw", grow: true, id: "slot-reset", title: "Return the world to the start state" }),
+          uiBtn("Save as start", () => {
+            if (confirm("Make the current state the new start state?")) {
+              A.commitToBase();
+              refreshPanel();
+            }
+          }, { icon: "check", grow: true, id: "slot-commit", title: "The world as it is now becomes the start state" })
+        ]));
+        if (uiMode() === "creator") slotBox.appendChild(uiBtn("Edit start state", () => {
+          A.swapActive();
+          refreshPanel();
+        }, { icon: "pencil", block: true, id: "slot-edit-start", style: "margin-top:6px", title: "Changes you make now go to the start state, not the live game" }));
+      } else {
+        slotBox.appendChild(muted2("Changes now go to the start state. The live game waits until you switch back.", { style: "margin-bottom:6px" }));
+        slotBox.appendChild(uiBtn("Back to the live game", () => {
+          A.swapActive();
+          refreshPanel();
+        }, { icon: "play", block: true, id: "slot-live", title: "Continue the live game" }));
+      }
+      box.appendChild(slotBox);
+    }
+    let createEl = null;
+    function mountCreate(container) {
+      createEl = el2("div", { id: "wm-create", class: "rpm-view-pad" });
+      container.appendChild(createEl);
+      renderCreate();
+    }
+    function renderCreate() {
+      if (!createEl) return;
+      const A = API3();
+      const body = createEl;
+      clear2(body);
+      const mode2 = uiMode();
+      const lens = (m, text, help) => el2("button", {
+        type: "button",
+        class: "btn btn-primary rpm-btn rpm-grow" + (mode2 === m ? " rpm-on" : ""),
+        "aria-pressed": String(mode2 === m),
+        "data-lens": m,
+        title: help,
+        text,
+        onclick: () => {
+          if (uiMode() !== m) {
+            setUiMode(m);
+            refreshPanel();
+          }
+        }
+      });
+      body.appendChild(el2("div", { class: "rpm-row", role: "group", "aria-label": "View", "data-ui": "lens" }, [
+        lens("creator", "Creator view", "Build the world: everything, hidden content included"),
+        lens("player", "Player view", "See it as the player does, without leaving this panel")
+      ]));
+      body.appendChild(muted2(mode2 === "creator" ? "Creator view: every quest and faction, hidden content included, and the State editor." : "Player view: what the player sees (the Adventure panel shows the same).", { style: "margin:4px 0 8px" }));
       if (!A.activeWorld()) {
-        body.appendChild(muted2("New here? Load the ready-to-play example and just start chatting.", { style: "margin:6px 0 8px" }));
-        body.appendChild(uiBtn("Load example world", () => loadExampleFlow(), { icon: "sparkles", block: true, lg: true }));
+        body.appendChild(muted2("No world loaded."));
+        body.appendChild(uiBtn("World Management", () => openView("world"), { icon: "globe", block: true, style: "margin-top:8px", title: "Choose, create or import a world" }));
         return;
       }
+      const creator = mode2 === "creator";
       body.appendChild(row2([
-        uiBtn("Quest log", () => openView("questlog"), { icon: "scroll-text", grow: true, id: "open-questlog", title: "Your accepted quests" }),
-        uiBtn("Reputation", () => openView("reputation"), { icon: "shield", grow: true, id: "open-reputation", title: "Your standing with the factions you have met" })
+        uiBtn("Quest log", () => openView(creator ? "questlog-all" : "questlog"), { icon: "scroll-text", grow: true, id: "open-questlog", title: creator ? "Every quest of the world" : "The player's quest log" }),
+        uiBtn("Reputation", () => openView(creator ? "repeditor" : "reputation"), { icon: "shield", grow: true, id: "open-reputation", title: creator ? "Every faction; change the standing" : "The factions the player has met" })
       ]));
       body.appendChild(row2([
         uiBtn("Combat", () => openView("combat"), { icon: "swords", grow: true }),
         uiBtn("Editor", () => openEditor(), { icon: "workflow", grow: true, title: "Build your world as a node graph" })
       ], "margin-top:4px"));
-      if (uiMode() === "creator") body.appendChild(uiBtn("Quest editor", () => openView("questeditor"), { icon: "pencil", block: true, id: "open-questeditor", style: "margin-top:4px", title: "Every quest of the world: states, details, edit (Creator view)" }));
+      if (creator) body.appendChild(uiBtn("Quest editor", () => openView("questeditor"), { icon: "pencil", block: true, id: "open-questeditor", style: "margin-top:4px", title: "Every quest of the world: states, details, edit (Creator view)" }));
+      body.appendChild(uiBtn("Preview what the AI sees", () => showPreview(), { icon: "eye", block: true, style: "margin-top:4px" }));
       body.appendChild(el2("hr", { class: "rpm-divider" }));
-      renderPlayTab(body);
+      if (creator) renderStateEditor(body);
+      else body.appendChild(muted2("The State editor (place, time, flags) is part of the Creator view."));
     }
     function hpBar2(cur, max) {
       const pct = max > 0 ? Math.max(0, Math.min(100, Math.round(cur / max * 100))) : 0;
@@ -31694,7 +31848,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     function renderQuestsTab(box, opts = {}) {
       const A = API3();
       const editor = !!opts.editor;
-      const mode2 = editor ? "creator" : uiMode() === "player" ? "player" : "creator";
+      const mode2 = editor || opts.all ? "creator" : "player";
       if (editor) {
         const aiSel = uiSelect({ "aria-label": "What the AI sees", style: "width:auto" });
         for (const [v, t] of [["gm", "GM (all)"], ["player", "Player (visible only)"]]) {
@@ -31712,13 +31866,13 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         }, { icon: "plus", block: true, id: "new-quest", style: "margin-bottom:8px", title: "Adds a quest and opens it in the editor" }));
       }
       const all = A.listQuests(mode2);
-      const offered = new Set(editor ? [] : ((A.here() || {}).quests || []).filter((q) => q.action === "accept").map((q) => q.id));
-      const quests = editor ? all : all.filter((q) => q.state !== "available" || offered.has(q.id));
+      const offered = new Set(mode2 === "creator" ? [] : ((A.here() || {}).quests || []).filter((q) => q.action === "accept").map((q) => q.id));
+      const quests = mode2 === "creator" ? all : all.filter((q) => q.state !== "available" || offered.has(q.id));
       if (!quests.length) {
         box.appendChild(muted2(editor ? 'No quests yet. Add one with "New quest" or a Quest node in the editor.' : "No quests yet. People with a yellow ! offer you one — talk to them."));
         return;
       }
-      const groups = editor ? [["available", "Available"], ["active", "Active"], ["complete", "Ready to turn in"], ["turnedin", "Completed"], ["failed", "Failed"]] : [["available", "Offered here"], ["active", "Active"], ["complete", "Ready to turn in"], ["turnedin", "Completed"], ["failed", "Failed"]];
+      const groups = mode2 === "creator" ? [["available", "Available"], ["active", "Active"], ["complete", "Ready to turn in"], ["turnedin", "Completed"], ["failed", "Failed"]] : [["available", "Offered here"], ["active", "Active"], ["complete", "Ready to turn in"], ["turnedin", "Completed"], ["failed", "Failed"]];
       for (const [st, label2] of groups) {
         const inGroup = quests.filter((q) => q.state === st);
         if (!inGroup.length) continue;
@@ -31831,9 +31985,9 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         }
       }
     }
-    function renderReputation(box) {
+    function renderReputation(box, opts = {}) {
       const A = API3();
-      const creator = uiMode() !== "player";
+      const creator = !!opts.all;
       const list3 = A.reputation(creator ? void 0 : { encountered: true });
       if (!list3.length) {
         box.appendChild(muted2(creator ? "This world has no factions yet." : "You have not met any faction yet."));
@@ -31849,7 +32003,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         bar.appendChild(el2("span", { style: `width:${pct}%;background:${r.hostile ? "var(--rpm-danger)" : "var(--rpm-info)"}` }));
         card.appendChild(bar);
         if (r.effect) card.appendChild(muted2(r.effect));
-        if (uiMode() !== "player") card.appendChild(row2([
+        if (creator) card.appendChild(row2([
           uiBtn("−50", () => {
             A.changeReputation(r.id, -50);
             refreshPanel();
@@ -31865,47 +32019,10 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     function renderCombatTab(box) {
       renderCombat(box, () => refreshPanel());
     }
-    function renderPlayTab(box) {
+    function renderStateEditor(box) {
       const A = API3();
-      const enabled = A.isEnabled();
-      box.appendChild(uiBtn(enabled ? "● Enabled for this story" : "○ Enable for this story", () => {
-        enabled ? A.disable() : A.enable();
-        refreshPanel();
-      }, { block: true, variant: enabled ? "on" : null, style: "margin-bottom:10px" }));
-      const slot = A.activeSlot || "working";
-      const slotBox = el2("div", { class: "rpm-card", style: "margin-bottom:6px", "data-ui": "game-state" });
-      slotBox.appendChild(row2([
-        el2("span", { class: "rpm-muted rpm-grow", text: "Game state" }),
-        el2("span", { class: "rpm-chip " + (slot === "working" ? "rpm-chip-info" : "rpm-chip-quest"), text: slot === "working" ? "Live game" : "Editing start state" })
-      ], "margin-bottom:6px"));
-      if (slot === "working") {
-        const btns = [
-          uiBtn("Back to start", () => {
-            if (confirm("Go back to the start state? The world (place, time, quests, flags, explored rooms) returns to the start. The chat is not rewound, and your character sheet keeps its HP, XP and items.")) {
-              A.resetToBase();
-              refreshPanel();
-            }
-          }, { icon: "rotate-ccw", grow: true, id: "slot-reset", title: "Return the world to the start state" }),
-          uiBtn("Save as start", () => {
-            if (confirm("Make the current state the new start state?")) {
-              A.commitToBase();
-              refreshPanel();
-            }
-          }, { icon: "check", grow: true, id: "slot-commit", title: "The world as it is now becomes the start state" })
-        ];
-        slotBox.appendChild(row2(btns));
-        if (uiMode() === "creator") slotBox.appendChild(uiBtn("Edit start state", () => {
-          A.swapActive();
-          refreshPanel();
-        }, { icon: "pencil", block: true, id: "slot-edit-start", style: "margin-top:6px", title: "Changes you make now go to the start state, not the live game" }));
-      } else {
-        slotBox.appendChild(muted2("Changes now go to the start state. The live game waits until you switch back.", { style: "margin-bottom:6px" }));
-        slotBox.appendChild(uiBtn("Back to the live game", () => {
-          A.swapActive();
-          refreshPanel();
-        }, { icon: "play", block: true, id: "slot-live", title: "Continue the live game" }));
-      }
-      box.appendChild(slotBox);
+      box.appendChild(el2("div", { class: "rpm-heading", "data-ui": "state-editor", text: "State editor" }));
+      box.appendChild(muted2("The game as it is now. Items and coins: the Inventory in the Adventure panel.", { style: "margin:2px 0 4px" }));
       const g = A.getGraph();
       const locs = g.nodes.filter((n) => n.type === "location");
       box.appendChild(lbl2("Current location"));
@@ -31974,8 +32091,15 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         A.setFlag(k2, parseVal(fv.value));
         refreshPanel();
       }, { icon: "plus", title: "Set flag" })], "margin-top:5px"));
+    }
+    function renderInventory(box) {
+      const A = API3();
+      if (!A.activeWorld()) {
+        box.appendChild(muted2("No world loaded."));
+        return;
+      }
       const iv = A.inventory();
-      box.appendChild(lbl2(iv.source === "sheet" ? `Inventory — ${iv.owner}` : "Inventory (story)"));
+      box.appendChild(el2("div", { style: "font-weight:bold", "data-inv": "owner", text: iv.source === "sheet" ? iv.owner : "Story inventory" }));
       box.appendChild(muted2(`${iv.purseText} · ${iv.xp} XP${iv.source === "sheet" ? " · saved on the character sheet" : " · choose a persona to keep them on its sheet"}`, { "data-inv": "summary" }));
       const inv = iv.items;
       if (!inv.length) box.appendChild(muted2("empty"));
@@ -31999,7 +32123,6 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         A.giveItem(n, 1);
         refreshPanel();
       }, { icon: "plus", title: "Give item" })], "margin-top:5px"));
-      box.appendChild(uiBtn("Preview what the AI sees", () => showPreview(), { icon: "eye", block: true, style: "margin-top:12px" }));
     }
     function parseVal(raw) {
       const v = String(raw || "").trim();
@@ -32106,17 +32229,28 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         clear2(c);
         render(c);
       } });
-      sh.registerView({ id: "world", title: "World", place: "right", order: 10, mount: mountPanel, update: () => renderPanel() });
+      sh.registerView({ id: "world", title: "World Management", place: "right", group: "adventure", order: 10, mount: mountPanel, update: () => renderPanel() });
+      sh.registerView({ id: "worldcreate", title: "World Creation", place: "right", group: "adventure", order: 20, mount: mountCreate, update: () => renderCreate() });
       sh.registerView(Object.assign({ id: "party", title: "Party", place: "left", order: 10 }, view(renderParty)));
+      sh.registerView(Object.assign({ id: "inventory", title: "Inventory", place: "left", order: 12 }, view(renderInventory)));
       sh.registerView(Object.assign({ id: "quest-tracker", title: "Quests", place: "left", order: 20 }, view(renderQuestTracker)));
       sh.registerView(Object.assign({ id: "rep-tracker", title: "Reputation", place: "left", order: 25 }, view(renderRepTracker)));
+      const noWorld = (c) => c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
       sh.registerView(Object.assign({ id: "questlog", title: "Quest log", place: "window", window: { width: 380, height: 520 } }, view((c) => {
         if (API3().activeWorld()) renderQuestsTab(c);
-        else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
+        else noWorld(c);
+      })));
+      sh.registerView(Object.assign({ id: "questlog-all", title: "Quest log (all quests)", place: "window", window: { width: 380, height: 520 } }, view((c) => {
+        if (API3().activeWorld()) renderQuestsTab(c, { all: true });
+        else noWorld(c);
       })));
       sh.registerView(Object.assign({ id: "reputation", title: "Reputation", place: "window", window: { width: 360, height: 460 } }, view((c) => {
         if (API3().activeWorld()) renderReputation(c);
-        else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
+        else noWorld(c);
+      })));
+      sh.registerView(Object.assign({ id: "repeditor", title: "Reputation (all factions)", place: "window", window: { width: 360, height: 460 } }, view((c) => {
+        if (API3().activeWorld()) renderReputation(c, { all: true });
+        else noWorld(c);
       })));
       sh.registerView(Object.assign({ id: "questeditor", title: "Quest editor", place: "window", window: { width: 420, height: 600 } }, view((c) => {
         if (API3().activeWorld()) renderQuestsTab(c, { editor: true });
@@ -32130,8 +32264,8 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       sh.registerView(Object.assign({ id: "combat", title: "Combat", place: "window", window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
         if (API3().activeWorld()) renderCombatTab(c);
         else {
-          c.appendChild(el2("div", { class: "rpm-muted", text: "Fights happen in a world. Load one (or the example) in the World tab." }));
-          c.appendChild(uiBtn("Open the World tab", () => openView("world"), { block: true, style: "margin-top:8px" }));
+          c.appendChild(el2("div", { class: "rpm-muted", text: "Fights happen in a world. Choose one (or the example) in World Management." }));
+          c.appendChild(uiBtn("World Management", () => openView("world"), { block: true, style: "margin-top:8px" }));
         }
       })));
       try {
@@ -32154,6 +32288,10 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         unmount: unmountEditor,
         beforeClose: editorBeforeClose
       });
+      if (sh.addQuickLink) {
+        sh.addQuickLink({ id: "editor", title: "Editor", help: "World editor (node graph)", icon: "workflow", order: 40, onClick: () => openEditor() });
+        sh.addQuickLink({ id: "questeditor", title: "Quest editor", help: "Every quest of the world (Creator view)", icon: "pencil", order: 50, onClick: () => openView("questeditor"), visible: () => uiMode() === "creator" });
+      }
       registerMinimap(sh);
       registerMapEditor(sh, { toast, onClose: () => {
         if (S2.root) {
@@ -32265,8 +32403,8 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       title: "The RPmod panels",
       blocks: [
         { list: [
-          'Left, "Adventure": your party (your persona with HP and AC, place, time, combat status) and the quests you are on.',
-          "Right: tabs World, Chars, Roles, Scenario and Tools.",
+          'Left, "Adventure": everything you need to play — your party (persona with HP and AC, place, time, combat status), inventory, map, quests, reputation and dice. The book button next to the ? opens the Compendium.',
+          "Right, for creators and the RP tools, in three rows: RP (Chars, Roles, Tools) · Adventure (World Management, World Creation, D&D Compendium) · Quick Links (Guide, Gallery, Compendium, Editor, Quest editor), which open their window directly. You can build a world with only the right panel open, for example on an iPad.",
           "Bigger views such as the Quest log and Combat open as windows: drag them by the title bar, resize them at the bottom-right corner."
         ] },
         { p: "On small screens the panels slide over the chat, one at a time; use the tabs at the screen edges to bring them back." }
@@ -32276,9 +32414,9 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           c.open("party");
           c.highlight("#rpm-dock-left", "Party and quests");
         } },
-        { label: "Tools panel", run: (c) => {
+        { label: "Right panel", run: (c) => {
           c.open("world");
-          c.highlight("#rpm-dock-right .rpm-tabs", "World, Chars, Roles, Scenario, Tools");
+          c.highlight("#rpm-dock-right .rpm-tabrows", "RP tabs, Adventure tabs, Quick Links");
         } }
       ]
     },
@@ -32288,16 +32426,20 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       blocks: [
         { p: "A world is a map of places, people, factions, objects, events and lore. Each turn RPmod tells the AI only what matters right now: where you are, who is there, what is happening. Distant places stay out of the prompt." },
         { list: [
-          'Pick or load a world in the World tab, then "Enable for this story".',
-          "Set your current location and the time of day; RPmod tracks both as you play.",
-          `The Map section on the left shows where you are: the places you know as points, or the rooms of a dungeon or town. Walk, search and open doors with the quick replies' "Here" row, so the AI narrates it. Tick Quick travel to move by clicking the map instead.`,
+          'Pick, create or import a world in World Management (right panel), then "Enable for this story". Premade worlds: the built-in adventure and a small example world.',
+          "World Creation holds the creator's tools: the Creator / Player view, the editor, the quest editor, and the State editor for place, time and flags. RPmod tracks place and time as you play.",
+          `The Map section on the left shows where you are: the places you know as points, or the rooms of a dungeon or town. Walk, search and open doors with the quick replies' "Here" row, so the AI narrates it. Tick Quick travel to move by clicking the map instead — if something happens on the way, the journey stops there.`,
           "Game state: RPmod keeps the live game and a start state you can go back to (next chapter)."
         ] }
       ],
       show: [
-        { label: "World tab", run: (c) => {
+        { label: "World Management", run: (c) => {
           c.open("world");
-          c.highlight("#wm-panel", "Your world and its live state");
+          c.highlight("#wm-panel", "Your worlds and the game state");
+        } },
+        { label: "World Creation", run: (c) => {
+          c.open("worldcreate");
+          c.highlight("#wm-create", "Creator tools and the State editor");
         } }
       ]
     },
@@ -32306,7 +32448,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       title: "Game state: start and live game",
       blocks: [
         { p: `For every story, RPmod keeps two copies of the world's state: the live game you are playing, and a start state you can return to. The example world brings its opening as the start state; in a world of your own, set up the opening (place, time) and press "Save as start".` },
-        { p: "The state is where you are, the time and weather, quests and their objectives, flags, reputation, rooms you explored, doors, companions and the story inventory. Both copies are saved with your story and its export." },
+        { p: "The state is where you are, the time and weather, quests and their objectives, flags, reputation, rooms you explored, doors, companions and the story inventory. Both copies are saved with your story and its export. The buttons are in World Management." },
         { table: [
           ["Button", "What it does"],
           ["Back to start", "The world returns to the start state, for example to replay an adventure or undo a wrong turn."],
@@ -32334,9 +32476,9 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       blocks: [
         { p: 'People in the world give quests, like in an MMO: a yellow ! marks someone with a quest for you, a yellow ? someone you can hand a finished quest to. Grey marks mean "later" (level too low) or "in progress".' },
         { list: [
-          'The Quest log (World tab) lists the quests you accepted — track, turn in, abandon — with objectives like "Defeat 3 Wolf (1/3)" that count by themselves. Quests offered by the people where you are show there too, to accept.',
+          'The Quest log (the Quests section on the left) lists the quests you accepted — track, turn in, abandon — with objectives like "Defeat 3 Wolf (1/3)" that count by themselves. Quests offered by the people where you are show there too, to accept.',
           "Rewards (XP, gold, items, reputation) go to your persona's character sheet when you turn a quest in; some let you choose one item.",
-          "Your standing with each faction you have met (Hated … Exalted) is in the Reputation window (World tab). Creators find every quest in the Quest editor.",
+          "Your standing with each faction you have met (Hated … Exalted) is in the Reputation section on the left. Creators find every quest and faction in World Creation (Creator view) and the Quest editor.",
           "The Quests section on the left shows what you are working on.",
           'Hidden quests read "???" until you discover them.'
         ] }
@@ -32390,8 +32532,8 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       ],
       show: [
         { label: "Editor button", run: (c) => {
-          c.open("world");
-          c.highlight('#wm-panel button[title="Build your world as a node graph"]', "Opens the world editor");
+          c.open("worldcreate");
+          c.highlight('#wm-create button[title="Build your world as a node graph"]', "Opens the world editor (also a Quick Link)");
         } },
         { label: "Editor window", run: (c) => {
           c.open("editor");
@@ -32453,12 +32595,12 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       id: "ai-view",
       title: "What the AI sees",
       blocks: [
-        { p: `Curious what the game master knows right now? "Preview what the AI sees" in the World tab shows the exact text RPmod adds to this turn: your persona and the AI's character (when enabled in Tools), location, people present, active events, quests and combat.` },
+        { p: `Curious what the game master knows right now? "Preview what the AI sees" in World Creation shows the exact text RPmod adds to this turn: your persona and the AI's character (when enabled in Tools), location, people present, active events, quests and combat.` },
         { p: "If the AI forgets something, check here first: whatever is not in the preview, the AI cannot know." }
       ],
       show: [{ label: "Preview button", run: (c) => {
-        c.open("world");
-        c.highlight(() => [...document.querySelectorAll("#wm-panel button")].find((b) => /Preview what the AI sees/.test(b.textContent)), "Shows the AI's view of this turn");
+        c.open("worldcreate");
+        c.highlight(() => [...document.querySelectorAll("#wm-create button")].find((b) => /Preview what the AI sees/.test(b.textContent)), "Shows the AI's view of this turn");
       } }]
     },
     {
@@ -32468,20 +32610,20 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         { list: [
           "Chars — import cards and jump into your character gallery (full screen: browse, search, play, edit).",
           "Roles — who plays whom: your persona and the AI's character(s), including group chats.",
-          "Scenario — set up the scene for a story.",
+          `Setting up a scene (scenario, example dialogue, first message) is the "RPmod role play" section of Esolite's Quick Start.`,
           "Tools — context analysis, image generation, memory and more."
         ] }
       ],
       show: [{ label: "Chars tab", run: (c) => {
         c.open("chars");
-        c.highlight("#rpm-dock-right", "Characters, roles, scenario and tools");
+        c.highlight("#rpm-dock-right", "Characters, roles and tools");
       } }]
     },
     {
       id: "sheet",
       title: "Characters, sheets & dice",
       blocks: [
-        { p: "The Character gallery shows your whole Library full screen, with big portraits: open it with the grid button in the right panel's header. Filter by tag, search, sort, and switch between large, medium, small and list views. Click a character for the full card and to play as them, let the AI play them, open their sheet, edit, download or favorite them." },
+        { p: `The Character gallery shows your whole Library full screen, with big portraits: open it with "Gallery" in the right panel's Quick Links. Filter by tag, search, sort, and switch between large, medium, small and list views. Click a character for the full card and to play as them, let the AI play them, open their sheet, edit, download or favorite them.` },
         { p: "Every character in your Library can have a character sheet: abilities, saving throws, skills, armor class, hit points, attacks, inventory and coins. The sheet is stored inside the character card, so it travels with the card when you export it." },
         { list: [
           'Open it with "Character sheet" in the Party section (it starts with your persona) and pick any character at the top.',
@@ -32495,7 +32637,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       ],
       show: [
         { label: "Character gallery", run: (c) => {
-          c.highlight('[data-action="gallery"]', "Opens your characters full screen");
+          c.highlight('[data-link="gallery"]', "Opens your characters full screen");
         } },
         { label: "Character sheet", run: (c) => {
           c.open("sheet");
@@ -33050,6 +33192,49 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     return tile;
   }
 
+  // src/onboarding/roleplayQuickStart.js
+  function roleplayExtension() {
+    const blank = () => ({ on: false, scenario: "", example: "", first: "" });
+    let st = blank();
+    const field = (key, label2, placeholder, rows) => {
+      const ta = el("textarea", { class: "form-control", rows: String(rows), placeholder, "aria-label": label2, "data-rp-qs": key, style: "width:100%;margin-top:2px" });
+      ta.value = st[key];
+      ta.addEventListener("input", () => {
+        st[key] = ta.value;
+      });
+      return el("label", { style: "display:block;margin-top:6px" }, [el("span", { text: label2 }), ta]);
+    };
+    return {
+      id: "rpmod-roleplay",
+      label: "RPmod role play (optional)",
+      helpText: "Set up a role play with the characters chosen above: their cards, your player character and the scenario go into World Info, and the first message starts the chat (formerly the Scenario tab).",
+      hasSelection: () => st.on,
+      clear: () => {
+        st = blank();
+      },
+      render(body, rerender) {
+        const cb = el("input", { type: "checkbox", "data-rp-qs": "on" });
+        cb.checked = st.on;
+        cb.addEventListener("change", () => {
+          st.on = cb.checked;
+          rerender();
+        });
+        body.appendChild(el("label", { style: "display:flex;align-items:center;gap:6px" }, [cb, el("span", { text: "Set up role play" })]));
+        if (!st.on) return;
+        body.appendChild(field("scenario", "Scenario", "Describe the world, setting and background.", 3));
+        body.appendChild(field("example", "Example dialogue", "Example dialogue lines (kept disabled in World Info).", 2));
+        body.appendChild(field("first", "First message", "The first message of the chat.", 3));
+      },
+      async apply() {
+        const P = window.KLITE_RPMod && window.KLITE_RPMod.panels && window.KLITE_RPMod.panels.SCENARIO;
+        if (!P || typeof P.startRoleplay !== "function") throw new Error("RPmod role play is not available");
+        const r = await P.startRoleplay({ scenario: st.scenario, example: st.example, first: st.first }, { quiet: true });
+        st = blank();
+        if (r && r.ok === false) throw new Error("Role play: " + (r.reason || "could not be set up") + " — choose a main character above.");
+      }
+    };
+  }
+
   // src/onboarding/onboarding.js
   var GUIDE_TAB = "rpmod-guide";
   var ZONES_TAB = "rpmod-zones";
@@ -33092,6 +33277,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     window.KLITE_RPMod_Onboarding = api;
     installLegacySavePassthrough();
     registerQuickStartExtension(rpmodWorldExtension());
+    registerQuickStartExtension(roleplayExtension());
     let qsTries = 0;
     const qsTimer = setInterval(() => {
       if (installQuickStartHooks() || ++qsTries > 240) clearInterval(qsTimer);
@@ -33110,6 +33296,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       }
       sh.registerView(createZoneDemoView());
       sh.addDockAction("left", { id: "guide", title: "RPmod Guide", label: "?", icon: "circle-help", onClick: () => api.openGuide() });
+      if (sh.addQuickLink) sh.addQuickLink({ id: "guide", title: "Guide", help: "RPmod Guide", icon: "circle-help", order: 10, onClick: () => api.openGuide() });
       if (!welcomeDismissed()) sh.registerView(welcomeView(sh, api));
       installResetAllHook(() => {
         try {
@@ -35566,7 +35753,7 @@ OK = save and close · Cancel = close and discard them`);
           V.queue = [];
         }
       });
-      sh.addDockAction("right", { id: "gallery", title: "Character gallery (full screen)", icon: "layout-grid", onClick: () => api.open() });
+      if (sh.addQuickLink) sh.addQuickLink({ id: "gallery", title: "Gallery", help: "Character gallery (full screen)", icon: "layout-grid", order: 20, onClick: () => api.open() });
       window.addEventListener("keydown", (e) => {
         if (e.key === "Escape" && V.detail && V.box && !document.querySelector(".popupcontainer:not(.hidden)")) closeDetail();
       });
@@ -36265,7 +36452,7 @@ OK = save and close · Cancel = close and discard them`);
   // src/compendium/compendium.js
   function initCompendium() {
     if (window.KLITE_RPMod_Compendium) return;
-    const V = { box: null, q: "", kind: "", sel: null, msg: "" };
+    const V = { boxes: /* @__PURE__ */ new Set(), q: "", kind: "", sel: null, msg: "" };
     const Shell2 = () => window.KLITE_RPMod_Shell;
     const Worlds = () => window.KLITE_RPMod_Worlds;
     const btn3 = (text, onclick, opts = {}) => el("button", { type: "button", class: "btn btn-primary rpm-btn" + (opts.icon ? " rpm-btn-icon" : "") + (opts.cls ? " " + opts.cls : ""), "data-cmp": opts.id, title: opts.title, onclick }, opts.icon ? [iconText(opts.icon, text)] : [text]);
@@ -36303,7 +36490,7 @@ OK = save and close · Cancel = close and discard them`);
       const A = Worlds();
       const box = el("div", { class: "rpm-card rpm-cmp-enc", "data-cmp": "encounter-box" });
       if (!A || !A.activeWorld || !A.activeWorld()) {
-        box.appendChild(el("div", { class: "rpm-muted", text: "Load a world (World tab) to add this monster to its encounters." }));
+        box.appendChild(el("div", { class: "rpm-muted", text: "Load a world (World Management) to add this monster to its encounters." }));
         return box;
       }
       const encs = A.listEncounters();
@@ -36360,10 +36547,12 @@ OK = save and close · Cancel = close and discard them`);
     }
     const DETAIL = { monster: monsterDetail, spell: spellDetail, item: itemDetail, equipment: equipmentDetail, rule: ruleDetail };
     function render() {
-      if (!V.box) return;
-      clear(V.box);
+      for (const box of V.boxes) renderInto(box);
+    }
+    function renderInto(box) {
+      clear(box);
       const root = el("div", { class: "rpm-cmp" + (V.sel ? " rpm-cmp-has-sel" : "") });
-      V.box.appendChild(root);
+      box.appendChild(root);
       const side = el("div", { class: "rpm-cmp-side" });
       const q = el("input", { type: "search", class: "form-control rpm-input", placeholder: "Search monsters, spells, items, rules…", "aria-label": "Search the compendium", "data-cmp": "search" });
       q.value = V.q;
@@ -36419,7 +36608,7 @@ OK = save and close · Cancel = close and discard them`);
       }
       main.appendChild(el("p", { class: "rpm-muted rpm-cmp-attr", "data-cmp": "attribution", text: ATTRIBUTION }));
       root.appendChild(main);
-      if (document.activeElement === document.body && !V.sel) try {
+      if (document.activeElement === document.body && !V.sel && box.dataset.cmpWhere === "window") try {
         q.focus({ preventScroll: true });
       } catch (_) {
       }
@@ -36456,15 +36645,33 @@ OK = save and close · Cancel = close and discard them`);
         place: "window",
         window: { large: true, flush: true, minWidth: 320, minHeight: 320, restore: false },
         mount: (c) => {
-          V.box = el("div", { class: "rpm-cmp-scroll" });
-          c.appendChild(V.box);
-          render();
+          const box = el("div", { class: "rpm-cmp-scroll", "data-cmp-where": "window" });
+          V.boxes.add(box);
+          c.appendChild(box);
+          renderInto(box);
         },
-        unmount: () => {
-          V.box = null;
+        unmount: (c) => {
+          for (const b of [...V.boxes]) if (c.contains(b)) V.boxes.delete(b);
         }
       });
-      sh.addDockAction("right", { id: "compendium", title: "Compendium (SRD monsters, spells, items, rules)", icon: "book-marked", onClick: () => open() });
+      sh.registerView({
+        id: "dnd-compendium",
+        title: "D&D Compendium",
+        place: "right",
+        group: "adventure",
+        order: 30,
+        mount: (c) => {
+          const box = el("div", { class: "rpm-cmp-scroll rpm-cmp-docked", "data-cmp-where": "dock" });
+          V.boxes.add(box);
+          c.appendChild(box);
+          renderInto(box);
+        },
+        update: () => {
+        }
+      });
+      const help = "Compendium (SRD monsters, spells, items, rules)";
+      if (sh.addQuickLink) sh.addQuickLink({ id: "compendium", title: "Compendium", help, icon: "book-marked", order: 30, onClick: () => open() });
+      sh.addDockAction("left", { id: "compendium", title: help, icon: "book-marked", onClick: () => open() });
       return true;
     }
     let tries = 0;
@@ -37269,7 +37476,7 @@ Purse: ${iv.purseText}`);
       { name: "summary", group: "Windows & tools", usage: "/summary", help: "Esolite's AutoGenerate Memory: summarises the story into Memory (confirm with OK).", run: () => summary() },
       { name: "help", aliases: ["commands"], group: "Windows & tools", usage: "/help [command]", help: "This list, or one command.", run: (a) => help(cleanArg(a)) }
     ];
-    const NO_WORLD = "No world is active. Load one in the World tab (or the example world) and enable it.";
+    const NO_WORLD = "No world is active. Choose one in World Management (right panel) — or a premade world — and enable it.";
     const byName = /* @__PURE__ */ new Map();
     for (const c of COMMANDS) {
       byName.set(c.name, c);

@@ -14,11 +14,17 @@ The mod ships as a single file, `KLITE-RPmod.js`.
 1. In Esolite, open the **mod manager** (settings → user mod).
 2. Load / paste `KLITE-RPmod.js` and enable it. Reload when prompted.
 3. After it loads, RPmod sits around the chat:
-   - **Left panel (Adventure)** — *Party* (your persona with class, HP bar, AC and speed from
-     its sheet; where, what time; combat status)
-     and *Quests* (your active quests, `?` when ready to turn in).
-   - **Right panel (tools)** — tabs **World** (the Worlds panel), **Chars**, **Roles**,
-     **Scenario** and **Tools**.
+   - **Left panel (Adventure)** — everything a player needs: *Party* (your persona with class,
+     HP bar, AC and speed from its sheet; where, what time; combat status), *Inventory*, *Map*,
+     *Quests* (your active quests, `?` when ready to turn in), *Reputation* and the *Dice log*. The
+     header has the **Compendium** (book) and the **Guide** (**?**) buttons.
+   - **Right panel (for creators and the RP tools)** — three named rows:
+     **RP** — tabs **Chars**, **Roles**, **Tools**;
+     **Adventure** — tabs **World Management**, **World Creation**, **D&D Compendium** (a docked
+     rules reference);
+     **Quick Links** — **Guide**, **Gallery**, **Compendium**, **Editor**, **Quest editor** (Creator
+     view only): each opens its window directly (full screen on a phone). You can build a world
+     with only the right panel open, for example on an iPad.
    - Bigger views — **Quest log**, **Combat**, **World editor**, **Guide** — open as
      **floating windows** you can drag (title bar), resize (bottom-right corner), maximize
      (square button or double-click the title bar) and close; they remember where you left
@@ -44,11 +50,15 @@ Esolite's **New Session** starts a blank story: no persona, no party, no world u
   own **Guide** in the top bar, RPmod's chapters are the **RPmod** tab of that Guide (next
   to Esolite's own chapters), and the **?** button opens it there. The last chapter,
   **Credits**, lists the sources RPmod builds on (see [Credits](#credits)).
-- **▶ Quick Start** — Esolite's own session starter. RPmod adds an **RPmod world** section
-  to it: choose a world (for example **Eldoria**, the ready-made example) together with
-  characters from your Library, press **Confirm**, and you start in that world.
+- **▶ Quick Start** — Esolite's own session starter. RPmod adds two sections to it:
+  **RPmod world** — choose a world (for example **Eldoria**, the ready-made example) together with
+  characters from your Library, press **Confirm**, and you start in that world; and **RPmod role
+  play** — tick *Set up role play* and write a scenario, example dialogue and a first message: the
+  characters you chose, your player character and the scenario go into World Info and the first
+  message starts the chat (this was the Scenario tab).
 
-**Try it in one click.** In the right panel's **World** tab, press **🎁 Load example world** — it
+**Try it in one click.** In the right panel's **World Management** tab, press **Load minimal example
+world** (under *Premade worlds*) — it
 loads a ready-to-play world (a village, a tavern, a guarded frontier road, quests with
 givers, an event chain, and a bandit encounter), enables it, and drops you in. Just start
 chatting. Everything below explains how to build your own.
@@ -57,8 +67,8 @@ chatting. Everything below explains how to build your own.
 
 ## 2. What you get
 
-- **Chars / Roles / Scenario / Tools tabs** (right panel): manage characters, personas and
-  groups, scenarios, context tools, and image generation.
+- **Chars / Roles / Tools tabs** (right panel, RP row): manage characters, personas and
+  groups, context tools, and image generation. Scenes are set up in Quick Start (above).
 - **Your characters live in Esolite's Library.** The **Chars** tab imports cards (drop zone),
   makes a backup, creates a card with **New Character** and lists your characters (favorites
   first); **Open character gallery** or a name opens the full-screen gallery (below), where you
@@ -72,7 +82,7 @@ chatting. Everything below explains how to build your own.
 - **Worlds** — the focus of this guide, below.
 - **The starter adventure "The Drowned Lantern"** — a ready-made adventure for one character
   and a companion (levels 1–5 when complete). Click **Play a starter adventure** on the *New
-  here?* card or **Play an adventure** in the World tab, choose one of four characters and
+  here?* card or **Play the built-in adventure** in World Management, choose one of four characters and
   start. It is being built in layers; playable now: the village of **Brindlewick**, the Forest
   Road, the goblins of the **Hollow Oak** and the old coin; then the two roads to Lanternport —
   over **Windgap Pass** (a campfire, a ruined watchtower with a prisoner) or along the **Meadow
@@ -111,7 +121,7 @@ WorldInfo pipeline — you don't have to manage any of that; it's automatic.
 
 ## 4. Building a world (the editor)
 
-Open the editor with **✎ Editor** in the right panel's **World** tab.
+Open the editor with **Editor** in the right panel's **World Creation** tab or its Quick Links.
 (No world yet? It'll offer to create one.) It opens as a large window over the chat —
 maximize it for the most room, or make it smaller and keep playing next to it. On narrow
 screens the palette becomes a strip on top and the inspector moves below the canvas.
@@ -132,7 +142,7 @@ screens the palette becomes a strip on top and the inspector moves below the can
   and **view** (Player or Creator) a new story in this world begins with. **Use the live
   game's place and time** copies them from where you are now. Choosing the world for a new
   session (Quick Start) starts there, and **Back to start** returns there.
-- **Unsaved changes:** until you save, the button reads **Save •** and the World tab shows
+- **Unsaved changes:** until you save, the button reads **Save •** and World Management shows
   *Unsaved world changes*. **Revert** undoes everything since the last save, including
   deletions. Closing the editor asks whether to save, keep the changes unsaved or revert,
   and the browser warns before you leave the page.
@@ -234,20 +244,23 @@ locked door its **lock DC** (each 15 when empty). A door's **key** item unlocks 
 
 ## 5. Playing with a world
 
-From the **World** tab in the right panel:
+From **World Management** in the right panel:
 
-- Pick a world from the dropdown (or **＋ New**). Each world keeps its own game in the story:
+- Pick a world from the dropdown (or **＋ New**; **Rename**, **Import** and **Export** next to it).
+  Each world keeps its own game in the story:
   switching to another world and back continues where you left off; a world you pick for
   the first time begins at its start (and in its view, if it sets one).
-- **Play an adventure** (shown when a ready-made adventure is installed) — choose one of its
+- **Play the built-in adventure** (under *Premade worlds*, with **Load minimal example world**) — choose one of its
   pregenerated characters and start: RPmod adds the characters that are not in your Library
   yet (characters already there are never changed), begins a new session with the
   adventure's opening, starts its world in the Player view and makes your choice your
   persona; the others can join you as companions.
 - **Enable for this story** — turns the world on for the current chat. (Off = Esolite
   behaves normally; nothing is injected.)
-- **Current location** — set where the player is; the slice follows it.
-- **Clock** — shows day / time / season, with **⏭** to advance time.
+- In **World Creation → State editor** (Creator view): **Current location** — set where the
+  player is; the slice follows it. **Clock** — day / time / season, with **⏭** to advance time.
+  **Flags**. Everything of this play except the inventory, which is the **Inventory** section in
+  the Adventure panel.
 
 Now just chat. Each turn, the AI receives your current location, the NPCs and objects
 there, active events, and relevant lore — and nothing from the far side of the map.
@@ -304,7 +317,7 @@ Darkness or dim light shows as a chip below the map.
   same rules, as if you had clicked.
 - Optional: **Settings → RPmod → Map → Send a small text map to the AI** adds a tiny map of
   the explored rooms (off by default; helps bigger models, may confuse small ones).
-- The World tab's **Current location** is the creator's shortcut: it puts you anywhere,
+- The State editor's **Current location** is the creator's shortcut: it puts you anywhere,
   without the rules.
 
 ---
@@ -453,16 +466,18 @@ you can play a whole session by clicking. Switch the row off in Settings → RPm
 
 ## 6b. Tabletop-RPG systems
 
-**Compendium (SRD 5.2.1).** The book button in the right panel's header opens the
+**Compendium (SRD 5.2.1).** The book button in the Adventure panel's header (or **Compendium**
+in the right panel's Quick Links) opens the
 **Compendium**: every monster, spell, magic item, piece of equipment (weapons, armor, tools,
 adventuring gear) and rules term (the Rules Glossary: conditions, actions, hazards, …) of the
 System Reference Document 5.2.1. Search by name, by what the summary says (`cr 1/4`, `wizard`)
 or — with four letters or more — by the text; narrow it with the chips. A monster shows its stat
 block with **Add** (to one of your world's saved encounters, or a new one) and **Fight it now**.
 Spell texts on the sheet and in the builder have an *In the compendium* link; the Combat window
-and the encounter inspector have a book button next to each monster.
+and the encounter inspector have a book button next to each monster. The right panel's **D&D
+Compendium** tab is the same compendium docked beside the chat, as a rules reference.
 
-**Character gallery.** The grid button in the right panel's header opens your whole
+**Character gallery.** **Gallery** in the right panel's Quick Links opens your whole
 Library **full screen**: big portrait cards with name, creator, tagline, tags and size
 (tokens) on the image, badges for *You* (your persona), *AI* and a sheet's class and level.
 Filter with the tag chips, search, sort (favorites, name, rating, has sheet, size) and switch
@@ -547,9 +562,13 @@ passive Perception are calculated for you.
   of the prompt. A world person linked to a card uses that card's sheet in combat if it has
   no stat block of its own.
 
-The **World** tab shows the live game state (enable, game state, location, time, flags,
-inventory) and has buttons for the **Quest log** and **Combat** windows and the **Editor**,
-plus a **Creator ⇄ Player** lens in its header.
+**World Management** chooses the world (new, rename, import, export), enables it for the story and
+holds the **Game state** buttons and the **Premade worlds**. **World Creation** has the **Creator
+view / Player view** switch, the **Quest log**, **Reputation**, **Combat** and **Editor** buttons
+(in the Creator view the quest log and reputation show every quest and faction; the Player view
+shows the player's versions, so you can check the player's side without leaving the right panel),
+the **Quest editor** (Creator view), **Preview what the AI sees** and the **State editor**. The
+player's own Quest log, Reputation and Inventory are in the Adventure panel.
 
 **Game state: start and live game.** For every story RPmod keeps two copies of the world's
 state — where you are, time and weather, quests and objectives, flags, reputation, explored rooms,
@@ -584,17 +603,18 @@ they stay where you parted. Only people marked this way can join; monsters never
 **Quests.** Add **Quest** nodes with a **giver** and a **turn-in** person. Markers show on
 persons: yellow **!** = a quest you can accept, yellow **?** = a finished quest to hand in here,
 grey **?** = a quest in progress that goes back to this person, grey **!** = a quest for later
-(your level is too low). The **Quest log** (World tab) is your log: the quests you **accepted** —
+(your level is too low). The **Quest log** (Quests section on the left) is your log: the quests you **accepted** —
 active, ready to turn in, completed, failed — with track, complete, turn in and **abandon**; under
 *Offered here* it also lists the quests the people at your place offer, to accept. Quests you have
 not been offered do not appear there; hidden quests read `???` until discovered. The **Quest
-editor** (World tab, Creator view only) lists **every** quest of the world: change its state, reveal
+editor** (World Creation or Quick Links, Creator view only) lists **every** quest of the world: change its state, reveal
 a hidden one, **Edit in the editor**, or add a **New quest**; it also holds the per-world switch
 for whether the **AI** (as GM) sees hidden content.
 
-**Reputation** has its own window (World tab → **Reputation**): in the Player view it lists only
-the factions you have **met** — your standing with them changed, you met one of their people,
-visited their headquarters or fought one of their encounters. The Creator view shows all. The left
+**Reputation** has its own window (Reputation section on the left → **Open reputation**): it lists
+only the factions you have **met** — your standing with them changed, you met one of their people,
+visited their headquarters or fought one of their encounters. World Creation → **Reputation** in the
+Creator view shows all factions and lets you change the standing. The left
 panel's **Reputation** section (between Quests and the Dice log) shows the same factions at a glance,
 with an **Open reputation** button.
 
@@ -637,7 +657,7 @@ monster of an encounter linked to it (−25 each unless the faction's inspector 
 **Vendors.** Any person can run a shop: in the editor tick **Vendor** in the person's inspector
 and add wares — leave the price empty to use the SRD price (shown in grey), or type one such as
 `4 cp` or `2 gp 5 sp`; a **stock** limits how many they sell per in-game day (it refills the next
-day). Where a vendor stands, the World tab shows **Trade here … Shop**: the **Shop** window lists
+day). Where a vendor stands, the quick replies' Here row (and the State editor) show **Shop**: the **Shop** window lists
 the wares with prices and a **Sell** list of your items the vendor wants (at half price). Your
 standing with the vendor's faction changes the prices (Friendly −5 %, Honored −10 %, Revered
 −15 %, Exalted −20 %, Unfriendly +25 %); a Hostile faction's vendor will not trade with you. You
@@ -772,7 +792,7 @@ turn: the world slice, plus your **persona** and the **AI character** when you'v
 them in the **Tools** tab (in group chat, the character whose turn it is). A character
 described there in full is only *listed* under Nearby NPCs, not repeated.
 
-Click **👁 Preview what the AI sees** in the World tab (or **Preview** in the editor, or
+Click **👁 Preview what the AI sees** in World Creation (or **Preview** in the editor, or
 run `KLITE_RPMod_Context.preview()` in the console) to see it all, e.g.:
 
 ```

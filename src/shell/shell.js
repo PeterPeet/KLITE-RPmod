@@ -3,7 +3,10 @@
 // -----------------------------------------------------------------------------
 // One coherent UI around Esolite's chat:
 //   • left dock  — stacked collapsible sections (party/character, quest tracker)
-//   • right dock — tabbed tools (World, Characters, …)
+//   • right dock — for creators and the RP tools: tabs in named rows (RP: Chars/Roles/Tools ·
+//     Adventure: World Management/World Creation/D&D Compendium) and a Quick Links row that
+//     opens windows (R8 play/build split: the left dock is everything a player needs, the right
+//     one must work alone, e.g. on an iPad)
 //   • floating windows — bigger views (quest log, combat, sheet, compendium, …)
 //   • one button in Esolite's top bar that shows/hides the docks
 //
@@ -54,6 +57,7 @@ export default function initShell() {
     let shownTab = null;       // right-dock view whose show() ran last
 
     const PLACES = new Set(['left', 'right', 'window']);
+    const TAB_GROUPS = [{ id: 'rp', label: 'RP' }, { id: 'adventure', label: 'Adventure' }];   // right-dock header rows
     function sortedViews(place) {
         return [...views.values()].filter(v => v.def.place === place)
             .sort((a, b) => (a.def.order ?? 100) - (b.def.order ?? 100) || String(a.def.id).localeCompare(String(b.def.id)));
@@ -66,6 +70,7 @@ export default function initShell() {
     //         eager?: true — right-dock view mounts at once instead of on first show,
     //         show?(container, api) — called every time a right-dock view becomes the
     //         selected tab (after mount/update),
+    //         group?: 'rp'|'adventure' — right-dock views: the header row of its tab (default adventure),
     //         unmount?(container, api) — window views: called when the window closes
     //         (remove global listeners etc.),
     //         beforeClose?(container, api) — window views: return false to keep the window
@@ -141,19 +146,44 @@ export default function initShell() {
         return list.some(v => v.def.id === layout.right.tab) ? layout.right.tab : (list.length ? list[0].def.id : null);
     }
 
+    const groupOf = (v) => (TAB_GROUPS.some(g => g.id === v.def.group) ? v.def.group : 'adventure');
     function renderTabs() {
-        clear(dom.tabs);
+        for (const g of TAB_GROUPS) clear(dom.tabs[g.id]);
         const list = sortedViews('right');
         const active = currentTab();
         for (const v of list) {
             const sel = v.def.id === active;
             v.tab = el('button', { class: 'rpm-tab', type: 'button', role: 'tab', 'aria-selected': String(sel), 'aria-controls': 'rpm-view-' + v.def.id, 'data-tab': v.def.id, text: v.def.title || v.def.id });
             v.tab.addEventListener('click', () => selectTab(v.def.id));
-            dom.tabs.appendChild(v.tab);
+            dom.tabs[groupOf(v)].appendChild(v.tab);
             v.container.classList.toggle('rpm-active', sel);
             if (sel && (!v.mounted || v.dirty)) mountOrUpdate(v);
             if (sel && v.def.id !== shownTab) callShow(v);
         }
+        for (const g of TAB_GROUPS) dom.tabRows[g.id].hidden = !dom.tabs[g.id].childNodes.length;
+    }
+
+    // ---- Quick Links (right dock, third header row): open a window directly ------------
+    // link = { id, title, icon, onClick, order?, visible?: () => boolean }; refreshLinks()
+    // re-checks `visible` (e.g. the Quest editor only in the Creator view).
+    const quickLinks = [];
+    function addQuickLink(link) {
+        if (!link || !link.id || typeof link.onClick !== 'function' || quickLinks.some(l => l.id === link.id)) return;
+        quickLinks.push(link);
+        quickLinks.sort((a, b) => (a.order ?? 100) - (b.order ?? 100));
+        renderLinks();
+    }
+    function renderLinks() {
+        if (!dom) return;
+        clear(dom.links);
+        for (const l of quickLinks) {
+            let show = true; try { show = typeof l.visible === 'function' ? l.visible() !== false : true; } catch (_) {}
+            if (!show) continue;
+            const b = el('button', { class: 'rpm-link', type: 'button', title: l.help || l.title, 'data-link': l.id }, [l.icon ? icon(l.icon, 14) : null, el('span', { text: l.title })]);
+            b.addEventListener('click', () => { try { l.onClick(); } catch (e) { console.error('[RPmod shell] quick link failed:', l.id, e); } });
+            dom.links.appendChild(b);
+        }
+        dom.linkRow.hidden = !dom.links.childNodes.length;
     }
 
     function callShow(v) {
@@ -288,19 +318,30 @@ export default function initShell() {
         const head = el('div', { class: 'rpm-dock-head' });
         const body = el('div', { class: 'rpm-dock-body' });
         const dock = el('aside', { class: 'rpm-dock rpm-dock-' + side, id: 'rpm-dock-' + side, 'aria-label': side === 'left' ? 'RPmod adventure panel' : 'RPmod tools panel' }, [head, body]);
-        let tabs = null;
+        let tabs = null, tabRows = null, links = null, linkRow = null;
         const actions = el('div', { class: 'rpm-dock-actions' });
         if (side === 'left') {
             head.appendChild(el('span', { class: 'rpm-title', text: 'Adventure' }));
             head.appendChild(actions);
             head.appendChild(closeBtn);
         } else {
+            // three named rows: RP tabs, Adventure tabs, Quick Links (R8)
+            head.classList.add('rpm-dock-head-rows');
             head.appendChild(closeBtn);
-            tabs = el('div', { class: 'rpm-tabs', role: 'tablist', 'aria-label': 'RPmod tools' });
-            head.appendChild(tabs);
+            const rows = el('div', { class: 'rpm-tabrows' });
+            tabs = {}; tabRows = {};
+            for (const g of TAB_GROUPS) {
+                tabs[g.id] = el('div', { class: 'rpm-tabs', role: 'tablist', 'aria-label': g.label });
+                tabRows[g.id] = el('div', { class: 'rpm-tabrow', 'data-group': g.id }, [el('span', { class: 'rpm-tabrow-label', text: g.label }), tabs[g.id]]);
+                rows.appendChild(tabRows[g.id]);
+            }
+            links = el('div', { class: 'rpm-links', role: 'toolbar', 'aria-label': 'Quick Links' });
+            linkRow = el('div', { class: 'rpm-tabrow', 'data-group': 'links', hidden: true }, [el('span', { class: 'rpm-tabrow-label', text: 'Quick Links' }), links]);
+            rows.appendChild(linkRow);
+            head.appendChild(rows);
             head.appendChild(actions);
         }
-        return { dock, body, tabs, actions };
+        return { dock, body, tabs, tabRows, links, linkRow, actions };
     }
 
     function mount() {
@@ -317,8 +358,9 @@ export default function initShell() {
         const root = el('div', { id: 'rpm-shell' }, [L.dock, R.dock, hl, hr, layer]);
         document.body.appendChild(root);
 
-        dom = { root, left: L.dock, right: R.dock, leftBody: L.body, rightBody: R.body, tabs: R.tabs, actions_left: L.actions, actions_right: R.actions, handle_left: hl, handle_right: hr, layer, navBtn: null };
+        dom = { root, left: L.dock, right: R.dock, leftBody: L.body, rightBody: R.body, tabs: R.tabs, tabRows: R.tabRows, links: R.links, linkRow: R.linkRow, actions_left: L.actions, actions_right: R.actions, handle_left: hl, handle_right: hr, layer, navBtn: null };
         for (const a of dockActions) renderDockAction(a);
+        renderLinks();
         wm = createWindowManager({
             layer,
             getGeom: (id) => layout.windows[id] || null,
@@ -403,10 +445,10 @@ export default function initShell() {
     // stash, so it never floats over the page), hide its own tab bar, and register one
     // shell tab per sub-tab: showing a tab moves the panel into it and asks the RP core to
     // render that sub-tab. Its event delegation (closest('#panel-right')) keeps working.
+    // R8: the Scenario sub-tab is gone — its "Start Role Play" is a section of Esolite's Quick Start.
     const RP_PANEL_TABS = [
         { key: 'CHARS', id: 'chars', title: 'Chars', order: 50 },
         { key: 'ROLES', id: 'roles', title: 'Roles', order: 51 },
-        { key: 'SCENARIO', id: 'scenario', title: 'Scenario', order: 52 },
         { key: 'TOOLS', id: 'tools', title: 'Tools', order: 53 },
     ];
     function adoptRpPanels() {
@@ -422,7 +464,7 @@ export default function initShell() {
             const rp = () => window.KLITE_RPMod;
             for (const tab of RP_PANEL_TABS) {
                 registerView({
-                    id: tab.id, title: tab.title, place: 'right', order: tab.order,
+                    id: tab.id, title: tab.title, place: 'right', order: tab.order, group: 'rp',
                     mount() {}, update() {},   // the RP core renders itself
                     show(container) {
                         if (panel.parentNode !== container) container.appendChild(panel);
@@ -444,7 +486,7 @@ export default function initShell() {
         open: openView, close: closeView, refresh,
         isOpen: (id) => { const v = views.get(id); return !!(v && isVisible(v) && (v.def.place !== 'right' || open.right) && (v.def.place !== 'left' || open.left)); },
         maximize: (id, on = true) => !!(wm && wm.maximize(id, on)),
-        setDockOpen, toggleDock, addDockAction,
+        setDockOpen, toggleDock, addDockAction, addQuickLink, refreshLinks: renderLinks,
         dockOpen: (side) => !!open[side],
         mode: () => mode,
         views: () => [...views.keys()],

@@ -1,5 +1,7 @@
 // =============================================================================
 // KLITE RPmod — Scenario panel (KLITE_RPMod.panels.SCENARIO): set up a scene / Start Role Play.
+// R8: no longer a tab of the right panel — "Start Role Play" is the "RPmod role play" section of
+// Esolite's Quick Start (src/onboarding/roleplayQuickStart.js), which calls startRoleplay().
 // -----------------------------------------------------------------------------
 // Part of the RP core and its panels (the former single file "KLITE-RPmod_ALPHA.js", split
 // 2026-09-25 without rewriting). Started in order by src/rpmod/index.js; the parts share the
@@ -63,7 +65,17 @@ export function installScenarioPanel(S) {
             `;
         },
         actions: {
-            'scenario-start-roleplay': async () => {
+            'scenario-start-roleplay': () => KLITE_RPMod.panels.SCENARIO.startRoleplay(),
+        },
+
+        // Start Role Play: the selected characters (Roles, else the AI character, else Esolite's
+        // chat opponents), the persona, the scenario, example dialogue and first message go into
+        // World Info / the chat. vals = { scenario, example, first } (default: this panel's fields);
+        // opts.quiet: no alert (R8: Esolite's Quick Start runs it — src/onboarding/roleplayQuickStart.js).
+        // → { ok, participants, reason? }
+        async startRoleplay(vals, opts = {}) {
+                const field = (id) => (document.getElementById(id)?.value || '').trim();
+                vals = vals || { scenario: field('scenario-text'), example: field('scenario-example'), first: field('scenario-first-message') };
                 try {
                     // Gather selected character names from ROLES panel or fallbacks
                     const getSelectedNames = () => {
@@ -80,13 +92,13 @@ export function installScenarioPanel(S) {
                         return [...new Set(names.filter(Boolean))];
                     }
 
-                    const scenarioText = (document.getElementById('scenario-text')?.value || '').trim();
-                    const firstMessageText = (document.getElementById('scenario-first-message')?.value || '').trim();
+                    const scenarioText = String(vals.scenario || '').trim();
+                    const firstMessageText = String(vals.first || '').trim();
                     const selectedNames = getSelectedNames();
 
                     if (selectedNames.length === 0) {
                         KLITE_RPMod.log('status', 'Start RP aborted: no characters selected');
-                        return;
+                        return { ok: false, participants: [], reason: 'no characters selected' };
                     }
 
                     // Prefer Chat Mode so group chat works without instruct tags
@@ -260,7 +272,7 @@ export function installScenarioPanel(S) {
 
                     // Add Group Example Dialogue under GroupScenario as DISABLED entry (below Scenario)
                     try {
-                        const exampleGroupText = (document.getElementById('scenario-example')?.value || '').trim();
+                        const exampleGroupText = String(vals.example || '').trim();
                         if (exampleGroupText) {
                             const groupExamplesWI = {
                                 key: 'Group Example Dialogue',
@@ -350,11 +362,12 @@ export function installScenarioPanel(S) {
                     try { window.autosave?.(); } catch(_) {}
 
                     KLITE_RPMod.log('status', 'Role play initialized', { participants: selectedNames });
-                    try { alert('Role Play data configured in WorldInfo. Have fun!'); } catch(_) {}
+                    if (!opts.quiet) try { alert('Role Play data configured in WorldInfo. Have fun!'); } catch(_) {}
+                    return { ok: true, participants: selectedNames };
                 } catch(e) {
                     KLITE_RPMod.log('errors', 'scenario-start-roleplay handler error:', e?.message||e);
+                    return { ok: false, participants: [], reason: String(e?.message || e) };
                 }
-            }
         }
     };
 

@@ -190,7 +190,7 @@ export default function initChat() {
         { name: 'summary', group: 'Windows & tools', usage: '/summary', help: 'Esolite\'s AutoGenerate Memory: summarises the story into Memory (confirm with OK).', run: () => summary() },
         { name: 'help', aliases: ['commands'], group: 'Windows & tools', usage: '/help [command]', help: 'This list, or one command.', run: (a) => help(cleanArg(a)) },
     ];
-    const NO_WORLD = 'No world is active. Load one in the World tab (or the example world) and enable it.';
+    const NO_WORLD = 'No world is active. Choose one in World Management (right panel) — or a premade world — and enable it.';
     const byName = new Map();
     for (const c of COMMANDS) { byName.set(c.name, c); for (const al of c.aliases || []) byName.set(al, c); }
     const known = (name) => byName.has(String(name || '').toLowerCase());

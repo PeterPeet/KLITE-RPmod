@@ -10,7 +10,7 @@
 |---|---|---|
 | `rpmod/` (`index.js` + parts), `panels/` (tools, context, scenario, roles, chars), `characters/cardEditor.js` | `window.KLITE_RPMod` | The RP core and its right-side panels (formerly the single file "ALPHA"): CHARS / ROLES / SCENARIO / TOOLS / CONTEXT / IMAGE, card editor, personas, group chat, the `rpmod` save block, debug system (§5) |
 | `KLITE-RPmod_Worlds.js` (~1.6k) | `window.KLITE_RPMod_Worlds` | Worlds engine: world graph, retrieval, injection, runtime state, quests, triggers, combat |
-| `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds views for the shell (World tab, Party/Quests sections, Quest log/Combat/World editor windows) |
+| `KLITE-RPmod_WorldsUI.js` (~1.0k) | `window.KLITE_RPMod_WorldsUI` | Worlds views for the shell (World Management + World Creation tabs, Party/Inventory/Quests/Reputation sections, Quest log/Combat/World editor windows) |
 | `context/context.js` | `window.KLITE_RPMod_Context` | **Single owner of per-turn prompt context**: providers, the one `prepare_submit_generation` wrapper, managed WI entries, save stripping (§3.3) |
 | `characters/sheet.js`, `store.js`, `characters.js` | `window.KLITE_RPMod_Characters` | d20 sheet model (pure), load/save on the card, Character sheet window (§5b) |
 | `characters/gallery.js` | `window.KLITE_RPMod_Gallery` | Full-screen character gallery over Esolite's Library (§5b) |
@@ -186,7 +186,7 @@ it fresh with `startRuntime(world)` at **`world.start`** `{ locationId, clock, v
 start is the base). A runtime without a world (older stories) is adopted by the first world chosen;
 deleting the active world drops its runtime. API `worldStart/setWorldStart/setWorldStartFromLive/
 parkedWorlds`; editor: world node → "Start of a new game"; WorldsUI `applyWorldView` sets the lens
-from `start.view` when a world is chosen (World tab, Quick Start).
+from `start.view` when a world is chosen (World Management, Quick Start).
 `toRuntimeContainer()` migrates old flat saves. Saved in the story file under key
 **`rpmod_worlds`** (wrapped `generate_savefile` / `kai_json_load`). `API.runtime` returns
 the active snapshot (back-compat); `API.runtimeSlots` the container.
@@ -312,10 +312,12 @@ the game log (`kind: 'quest'`), so the AI narrates them.
 - Visibility: `gm`/`creator` see all; `player` sees non-hidden or discovered.
 - **Quest log / Quest editor / Reputation (R8 play test):** window `questlog` = the accepted quests
   (active, complete, turned in, failed) + *Offered here* (`here().quests` with `accept`); window
-  `questeditor` (World tab, Creator view only) = every quest with the AI-mode switch, a state select
-  (`setQuestState`), *Edit in the editor* (`openEditorAt`) and *New quest*; window `reputation` —
-  the Player view lists only factions met (`reputation({ encountered: true })`: standing changed, a
-  member in `knownNpcIds`, HQ visited, or one of its encounters started), the Creator view all.
+  `questeditor` (World Creation / Quick Links, Creator view only) = every quest with the AI-mode switch, a state select
+  (`setQuestState`), *Edit in the editor* (`openEditorAt`) and *New quest*; window `reputation` lists
+  only factions met (`reputation({ encountered: true })`: standing changed, a member in `knownNpcIds`,
+  HQ visited, or one of its encounters started). R8 play/build split: `questlog` and `reputation` are
+  always the player's (opened from the Adventure panel); World Creation opens them in the Player
+  view, and in the Creator view `questlog-all` (every quest) and `repeditor` (every faction, ±50).
 
 ### 3.6b Vendors / shops (R4 extra) — rules in `src/game/shop-rules.js` (pure), window `src/game/shopView.js`
 A person with `shop` is a vendor. Prices are copper internally (`parsePrice` "15 gp" / "2 gp 5 sp",
@@ -330,7 +332,7 @@ Stock: `stock` per day; `rt().shops[personId] = { day, sold{} }` (reset on a new
 Engine: `vendorsHere`, `shopView`, `buyItem`, `sellItem` (refusals and results go to the game
 log), tags `<buy>[Vendor:] item xN</buy>` / `<sell>…</sell>` (`tradeTag`: a vendor at the
 player's place), slice section "Trade" (wares with prices after reputation, stock left, the
-purse, how to use the tags). UI: window view `shop` (World tab "Trade here … Shop"), person
+purse, how to use the tags). UI: window view `shop` (State editor "Trade here … Shop", the Here row's Shop), person
 inspector "Shop" (wares, price with the SRD price as placeholder, stock, buys, note).
 
 ### 3.7 Persons & combat (R5)
@@ -549,6 +551,20 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   out to where you stand, else any way out, else the first room; from outside also without a
   drawn way); leaving only through a way out. Refusals always → game log (`kind: 'map'`); UI moves
   are logged too; `enter:` triggers fire. The creator's `moveTo` stays a teleport.
+  **R8 (open items):** without a direct exit, `routeTo(from, to, { quick })` (breadth first over
+  `routeSteps`: known, unblocked exits, plus — from any place of a town or a dungeon's entrance room —
+  the links of the town/dungeon node itself) walks through the places of a **town** (so you can leave
+  a village from any of its places: "Goes via Village Green to Forest Road"; `hereInfo` offers those
+  ways via `townWays`); **quick travel** also routes through visited world places and explored rooms.
+  Every place on the way is entered (visited, passive notice, `enter:` triggers); when an event fires
+  or a fight starts there, the move **stops at that place** (`{ ok, stopped, fight, dest, via }`, logged
+  "Quick travel to X stops at Y: a fight starts here"). No quick travel during a fight.
+- **World graph edges (R8):** `getGraph()` has **one `exit` edge per pair of graph nodes**: links
+  stored on both sides (`connectedLocationIds`) and exits of rooms inside a dungeon/town merge into one
+  edge between the nodes (`via: [{ from, to, exitId }]` lists the room exits; exits within one map are
+  not edges). `disconnect(a, b)` of two places also removes the room exits between them (not when one
+  lies inside the other). The editor's inspector names the rooms ("exit (Village Green)") and
+  re-renders after the Link tool connects two nodes.
 - **AI context in a room:** Current Location adds `Light`, `Hazards`, and `Exits:` one per line
   (`- south: Ossuary (locked iron door)`, `, leads out` for ways out); rooms seen from outside
   are named `Dungeon (Room)` (`placeName`); Nearby Objects hides unfound traps and `hidden`
@@ -566,6 +582,8 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   skipped the journey and is now at …" for the AI; refusals shown. Outside dungeons/towns
   `renderPlaces`: world-level locations as points (`data-place`; editor positions, else rings around
   the current place by link distance), links between them; shown = visited ∪ here ∪ the Here ways;
+  inside a dungeon/town the Map shows this **regional map** first (`data-map-region`, the dungeon/town
+  node as here) and the local board below (R8);
   the zones around the player are left out (named in the header); scaled so dots/names keep their
   screen size. `markVisitedRoom` now records every arrival in `visitedLocationIds` (before: only at a
   generation), and a world's start counts as visited.
@@ -630,7 +648,7 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
   texts that changed back to the entity field named by `extensions.klite_rpmod` (never deletes); the
   remaining entries are added. Otherwise each entry is added as a node, typed by
   `extensions.klite_rpmod.kind` or its header, else a Lore node (`disabled: true` when it was off; the
-  slice skips disabled lore — additive field). The World tab's Import also takes World JSON
+  slice skips disabled lore — additive field). World Management's Import also takes World JSON
   (`importWorld`, a copy when the id is taken).
 - **Esolite's Library:** "Save to Esolite's Library" calls Esolite's `saveLorebookToIndexDB(name,
   wiArray, original)` (record type "World Info"; entries grouped under the world's name; the
@@ -665,20 +683,28 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   person) → `commitToBase` → `enable` → persona via `KLITE_RPMod.panels.TOOLS.usePersona` (like the
   gallery's Play as) → view (`WorldsUI.setUiMode`).
 - **UI:** window view `adventure` (picker: adventure, pregen cards with initials avatars as radios,
-  Start); entry points World tab "Play an adventure" (`data-ui="play-adventure"`) and the New here?
+  Start); entry points World Management "Play the built-in adventure" (`data-ui="play-adventure"`) and the New here?
   card (`data-welcome="adventure"`), both only when an adventure is registered. Styles `.rpm-adv*`.
 - Tests: `tests/adventures.test.js` (fixture `tests/fixtures/adventure-mini.json`).
 
 ## 4a. App shell (`src/shell/`)
 - **Layout:** `#rpm-shell` is one fixed layer at **z-index 2** (below Esolite popups, z 3)
-  holding the left dock (`#rpm-dock-left`, stacked collapsible sections), the right dock
-  (`#rpm-dock-right`, tabs), edge handles and the window layer. **Docked** mode (viewport ≥
+  holding the left dock (`#rpm-dock-left`, stacked collapsible sections — everything a player
+  needs), the right dock (`#rpm-dock-right`, for creators and the RP tools; it must work alone, e.g.
+  on an iPad), edge handles and the window layer. **Docked** mode (viewport ≥
   left + right + 560 px) pushes Esolite's `#maincontainer` in via margins
   (`--rpm-push-left/right`); **overlay** mode turns docks into drawers (one at a time,
   Escape closes); **compact** (< 600 px) makes windows full-screen and does not restore
   them on load.
 - **Views:** modules call `KLITE_RPMod_Shell.registerView({ id, title, place:
-  'left'|'right'|'window', order, mount(container), update?(container), window?, eager? })`.
+  'left'|'right'|'window', order, group?, mount(container), update?(container), window?, eager? })`.
+  **Right-dock header (R8):** three named rows (`.rpm-tabrows` → `.rpm-tabrow[data-group]`, a label
+  and a tablist): **RP** (`group: 'rp'` — Chars, Roles, Tools), **Adventure** (`group: 'adventure'`,
+  the default — World Management `world`, World Creation `worldcreate`, D&D Compendium
+  `dnd-compendium`) and **Quick Links** (`addQuickLink({ id, title, help?, icon, order, onClick,
+  visible?() })`, buttons `[data-link]` that open a window; `refreshLinks()` re-checks `visible`, e.g.
+  the Quest editor only in the Creator view). A row without entries is hidden. The old right-dock
+  icon row (`addDockAction('right')`) still exists for other mods but RPmod no longer uses it.
   Right-dock views mount on first show (or at once with `eager`); hidden views are marked
   dirty by `refresh(ids)` and re-render when shown; `refresh(ids, {soft:true})` skips a view
   while the user types in it. A throwing view shows an error box, the shell keeps working.
@@ -686,7 +712,8 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   minWidth, minHeight, large, flush, restore }` — `large` opens nearly full-screen,
   `flush` drops the body padding (view lays itself out), `restore:false` never reopens it
   at startup.
-  API: `open(id)`, `close(id)`, `maximize(id, on)`, `refresh`, `setDockOpen/toggleDock/dockOpen`, `mode`, `layout`.
+  API: `open(id)`, `close(id)`, `maximize(id, on)`, `refresh`, `setDockOpen/toggleDock/dockOpen`, `mode`, `layout`,
+  `addDockAction(side, …)`, `addQuickLink`, `refreshLinks`.
 - **Windows** (`windows.js`): drag by title bar, resize by grip (min size), click raises,
   clamped so the title bar stays on screen; **maximize/restore** (button `[data-winbtn=max]`
   or title-bar double-click; the normal geometry is kept and `max` is saved); pointer
@@ -708,8 +735,8 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   lists every `--theme_*` variable, so users can edit them and they are saved with a
   custom theme (`localsettings.customThemeColours`).
 - **RP panel adoption:** the shell moves the RP core's `#panel-right` (built async) into a hidden
-  stash at once, hides the RP core's own tab bar, and registers four tabs **Chars / Roles /
-  Scenario / Tools**; a view's `show()` hook moves the panel into the shown tab and calls
+  stash at once, hides the RP core's own tab bar, and registers three tabs **Chars / Roles /
+  Tools** in the RP row (R8: the Scenario sub-tab is gone — see 4b, "RPmod role play"); a view's `show()` hook moves the panel into the shown tab and calls
   `KLITE_RPMod.switchTab('right', KEY)`. The RP core's event delegation
   (`closest('#panel-right')`) keeps working. `#panel-right` and the panels' modals carry
   `rpm-themed`, so the `--rpm-*` tokens reach them wherever they sit.
@@ -731,7 +758,7 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   `esoExtensionClass(className, typeName)` returns the class only if this host supports the
   type; each feature below uses the hook when present and its own fallback otherwise
   (Esolite 1.35.0 has none). **Ids are unique across all types** — RPmod uses
-  `rpmod-world` (Quick Start), `rpmod` (settings), `rpmod-guide` (guide).
+  `rpmod-world` and `rpmod-roleplay` (Quick Start), `rpmod` (settings), `rpmod-guide` (guide).
 - **Quick Start extension** (`quickStart.js`): extensions `{ id, label, helpText,
   render(container, rerender), hasSelection(), apply(), clear() }`. Mode `'eso'`: each is
   registered as a `QuickStartExtension`; Esolite renders, counts, clears and applies it
@@ -740,8 +767,12 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   `clearAllQuickStartSelections` through `hostGlobals.js` (`new Function` code runs in the
   page's global scope and can read/reassign such bindings — they are not on `window`).
   RPmod's apply runs after Esolite's. Section "RPmod world": choose a Worlds world or the
-  example; apply = `useWorld`/`loadExample` + `enable` + first location if none + show the
-  World tab.
+  example; apply = `useWorld`/`loadExample` + `enable` + first location if none + show World
+  Management. Section "RPmod role play" (`roleplayQuickStart.js`, R8 — the former Scenario tab):
+  *Set up role play* + scenario / example dialogue / first message; apply =
+  `KLITE_RPMod.panels.SCENARIO.startRoleplay(vals, { quiet: true })` (characters from Roles, else the
+  AI character, else Esolite's chat opponents — which Quick Start has just set; WI entries; first
+  message); `{ ok: false }` becomes an error Esolite lists.
 - **Guide** (`guide.js`, content `chapters.js`). With Esolite's Guide (`guideMode() === 'eso'`)
   the chapters are registered as its **RPmod** tab (`GuideExtension('rpmod-guide')`);
   `openGuide(id)` calls `window.eso.guide.open('rpmod-guide', id)` and each `show` action gets
@@ -754,7 +785,10 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   `localStorage['KLITE.guide.chapter']`.
 - **Entry points:** "New here?" left-dock section (dismiss →
   `localStorage['KLITE.onboarding.welcome']='dismissed'`), `?` dock action
-  (`KLITE_RPMod_Shell.addDockAction`), "What is RPmod?" in the Quick Start section.
+  (`KLITE_RPMod_Shell.addDockAction`), the **Guide** Quick Link, "What is RPmod?" in the Quick
+  Start section. Esolite's **Reset ALL Settings** (confirmed) clears RPmod's stored settings and
+  fires `klite:reset-all` (`rpmod/boot.js`); the Guide then forgets the dismissal and the chapter
+  and shows "New here?" again.
 - **GuidedRP save passthrough:** remembers `guided_rp` from a loaded save and re-attaches
   it on `generate_savefile` so old stories keep it.
 

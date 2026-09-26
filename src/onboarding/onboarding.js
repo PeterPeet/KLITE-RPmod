@@ -21,6 +21,7 @@ import { ZONE_CHAPTERS } from './zoneChapters.js';
 import { createZoneDemoView } from './zoneDemo.js';
 import { registerQuickStartExtension, installQuickStartHooks, quickStartMode, quickStartTile } from './quickStart.js';
 import { hostGet, esoExtensionClass } from './hostGlobals.js';
+import { roleplayExtension } from './roleplayQuickStart.js';
 
 const GUIDE_TAB = 'rpmod-guide';   // ids are unique across all extension types; 'rpmod' is the settings tab
 const ZONES_TAB = 'rpmod-zones';   // Guide tab "Zone combat" (R7 step 5)
@@ -53,6 +54,7 @@ export default function initOnboarding() {
 
     installLegacySavePassthrough();
     registerQuickStartExtension(rpmodWorldExtension());
+    registerQuickStartExtension(roleplayExtension());   // R8: the former Scenario tab's "Start Role Play"
 
     // Quick Start lives in Esolite's characterManager.js; wait until it exists.
     let qsTries = 0;
@@ -67,6 +69,7 @@ export default function initOnboarding() {
         if (!esoGuide) { guide = createGuideView(sh, [{ id: 'rpmod', label: 'RPmod', chapters: CHAPTERS }, { id: 'zones', label: 'Zone combat', chapters: ZONE_CHAPTERS }]); sh.registerView(guide); }
         sh.registerView(createZoneDemoView());
         sh.addDockAction('left', { id: 'guide', title: 'RPmod Guide', label: '?', icon: 'circle-help', onClick: () => api.openGuide() });
+        if (sh.addQuickLink) sh.addQuickLink({ id: 'guide', title: 'Guide', help: 'RPmod Guide', icon: 'circle-help', order: 10, onClick: () => api.openGuide() });
         if (!welcomeDismissed()) sh.registerView(welcomeView(sh, api));
         installResetAllHook(() => {
             try { localStorage.removeItem(WELCOME_KEY); } catch (_) {}

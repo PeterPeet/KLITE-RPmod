@@ -20,6 +20,7 @@ async function uiWorld(t, view = 'player') {
     h.window.localStorage.setItem('KLITE.worlds.uiMode', view);
     h.load('shell', 'gamelog', 'worlds', 'worldsUI'); await h.ready({ ui: true });
     await h.api().loadExample(); h.ui().refreshPanel(); await sleep(20);
+    h.window.KLITE_RPMod_Shell.open('worldcreate'); await sleep(20);   // R8: the window launchers live in World Creation
     return h;
 }
 const cards = (win) => [...win.querySelectorAll('[data-quest]')].map(c => c.getAttribute('data-quest'));
@@ -39,10 +40,12 @@ test('Quest log: accepted quests only, plus the ones offered by people here', as
     W.moveTo('Millbrook Village'); w.KLITE_RPMod_Shell.refresh(); await sleep(30);
     assert.deepEqual(cards(win()), ['q_merchant'], 'accepted quests stay in the log anywhere');
     assert.equal(doc.querySelector('[data-ui="open-questeditor"]'), null, 'no Quest editor in the Player view');
+    assert.equal(doc.querySelector('[data-link="questeditor"]'), null, 'nor among the Quick Links');
 });
 
 test('Quest editor (Creator view): every quest, its state, edit in the editor, a new quest', async (t) => {
     const h = await uiWorld(t, 'creator'); const w = h.window; const doc = w.document; const W = h.api();
+    assert.ok(doc.querySelector('[data-link="questeditor"]'), 'a Quick Link in the Creator view');
     click(doc.querySelector('[data-ui="open-questeditor"]'), w); await sleep(30);
     const win = () => doc.querySelector('[data-window="questeditor"]');
     assert.deepEqual(cards(win()).sort(), ['q_bounty', 'q_delivery', 'q_merchant', 'q_patrol']);

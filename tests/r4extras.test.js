@@ -269,7 +269,7 @@ test('Shop window and the vendor editor', async (t) => {
     const { h, w, W } = await exampleWorld(t, { persona: true, gp: 20 });
     const doc = w.document;
     W.moveTo('The Crooked Kettle');
-    w.KLITE_RPMod_Shell.open('world'); await sleep(30);
+    w.KLITE_RPMod_Shell.open('worldcreate'); await sleep(30);   // R8: the State editor (World Creation)
     assert.equal(doc.querySelector('[data-vendors-here]').textContent, 'Trade here: Innkeeper Bram');
     w.KLITE_RPMod_Shell.open('shop'); await sleep(30);
     const win = doc.querySelector('[data-window="shop"]');

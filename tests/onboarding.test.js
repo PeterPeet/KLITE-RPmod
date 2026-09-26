@@ -80,7 +80,7 @@ test('Quick Start: registers a QuickStartExtension when Esolite has mod hooks (n
     const w = h.window; const W = h.api();
     await until(() => w.KLITE_RPMod_Onboarding.quickStartMode() === 'eso');
     const exts = h.eval('window.eso.extensions.getByType(EsoExtensionType.QUICK_START)');
-    assert.deepEqual(Array.from(exts, e => e.id), ['rpmod-world']);
+    assert.deepEqual(Array.from(exts, e => e.id), ['rpmod-world', 'rpmod-roleplay']);   // R8: + the former Scenario tab
     assert.ok(h.eval('window.eso.extensions.getByType(EsoExtensionType.QUICK_START)[0] instanceof QuickStartExtension'));
     assert.equal(exts[0].label, 'RPmod world (optional)');
     assert.match(exts[0].helpText, /Eldoria/);
@@ -106,6 +106,48 @@ test('Quick Start: registers a QuickStartExtension when Esolite has mod hooks (n
     click(findButton(box, /Eldoria/), w);
     ext.clear();
     assert.equal(ext.hasSelection(), false, 'Clear all clears it');
+});
+
+test('Quick Start: the "RPmod role play" section (the former Scenario tab) runs Start Role Play after Esolite\'s choices', async (t) => {
+    const h = await fullHost(t, { before: (hh) => hh.installFakeEsoHooks({ quickStart: true }) });
+    const w = h.window;
+    await until(() => w.KLITE_RPMod_Onboarding.quickStartMode() === 'eso');
+    const ext = h.eval('window.eso.extensions.getByType(EsoExtensionType.QUICK_START)').find(e => e.id === 'rpmod-roleplay');
+    assert.equal(ext.label, 'RPmod role play (optional)');
+    const box = w.document.createElement('div'); w.document.body.appendChild(box);
+    const rerender = () => { box.replaceChildren(); ext.render(box, rerender); };
+    rerender();
+    assert.equal(ext.hasSelection(), false);
+    assert.equal(box.querySelector('[data-rp-qs="scenario"]'), null, 'fields only once ticked');
+    const on = box.querySelector('[data-rp-qs="on"]'); on.checked = true; on.dispatchEvent(new w.Event('change'));
+    assert.equal(ext.hasSelection(), true);
+    const fill = (k, v) => { const ta = box.querySelector(`[data-rp-qs="${k}"]`); ta.value = v; ta.dispatchEvent(new w.Event('input')); };
+    fill('scenario', 'A rainy harbour town.'); fill('first', 'The bell rings twice.');
+    // the RP core's Start Role Play (stand-in: records what Quick Start hands over)
+    const calls = [];
+    w.KLITE_RPMod = { panels: { SCENARIO: { startRoleplay: async (vals, opts) => { calls.push([vals, opts]); return { ok: true, participants: ['Bram'] }; } } } };
+    await ext.apply();
+    assert.deepEqual(JSON.parse(JSON.stringify(calls)), [[{ scenario: 'A rainy harbour town.', example: '', first: 'The bell rings twice.' }, { quiet: true }]]);
+    assert.equal(ext.hasSelection(), false, 'used up by apply');
+    // no character chosen: Esolite reports the error
+    on.checked = true; rerender(); box.querySelector('[data-rp-qs="on"]').checked = true; box.querySelector('[data-rp-qs="on"]').dispatchEvent(new w.Event('change'));
+    w.KLITE_RPMod.panels.SCENARIO.startRoleplay = async () => ({ ok: false, participants: [], reason: 'no characters selected' });
+    await assert.rejects(() => ext.apply(), /no characters selected/);
+});
+
+test('Start Role Play (RP core) takes its values as arguments: scenario into World Info, first message into the chat', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window;
+    await until(() => w.KLITE_RPMod && w.KLITE_RPMod.panels && w.KLITE_RPMod.panels.SCENARIO);
+    w.localsettings.chatopponent = 'Bram'; w.localsettings.opmode = 3;
+    w.current_wi = []; w.gametext_arr = [];
+    const r = await w.KLITE_RPMod.panels.SCENARIO.startRoleplay({ scenario: 'A rainy harbour town.', example: '', first: 'The bell rings twice.' }, { quiet: true });
+    assert.equal(r.ok, true); assert.deepEqual(Array.from(r.participants), ['Bram']);
+    const wi = w.current_wi.find(e => e.comment === 'GroupScenario_active');
+    assert.ok(wi && wi.constant && wi.content === 'A rainy harbour town.');
+    assert.match(w.gametext_arr[w.gametext_arr.length - 1], /Bram: The bell rings twice\./);
 });
 
 test('Quick Start: an older host without mod hooks keeps the adapter', async (t) => {

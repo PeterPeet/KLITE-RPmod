@@ -56,20 +56,27 @@ test('shell: docks, top-bar button, tabs in order, lazy mount', async (t) => {
     assert.match($(h, '[data-section="side"]').textContent, /side view/);
 });
 
-test('shell: right-dock icon buttons sit on their own row, not in the tab strip', async (t) => {
-    const h = await shellHost(t); const sh = h.shell();
+test('shell: the right panel has three named header rows — RP tabs, Adventure tabs, Quick Links (R8)', async (t) => {
+    const h = await shellHost(t); const sh = h.shell(); const w = h.window;
     addViews(sh);
-    const actions = $(h, '#rpm-dock-right .rpm-dock-actions');
-    assert.equal(actions.getAttribute('style'), null, 'no inline display: the CSS decides the row');
-    assert.equal(actions.children.length, 0);
-    sh.addDockAction('right', { id: 'x', title: 'X', icon: 'layout-grid', onClick: () => {} });
-    assert.ok(actions.querySelector('[data-action="x"]'));
-    assert.ok(!$(h, '#rpm-dock-right .rpm-tabs').contains(actions), 'not inside the tabs');
-    // jsdom has no layout: check the rules that put the actions on a full-width row below the tabs
+    sh.registerView({ id: 'rp1', title: 'Chars', place: 'right', group: 'rp', order: 50, mount: (c) => { c.textContent = 'rp one'; } });
+    const rows = $$(h, '#rpm-dock-right .rpm-tabrow').map(r => [r.getAttribute('data-group'), r.querySelector('.rpm-tabrow-label').textContent, r.hidden]);
+    assert.deepEqual(rows, [['rp', 'RP', false], ['adventure', 'Adventure', false], ['links', 'Quick Links', true]], 'no links yet: that row is hidden');
+    assert.ok($(h, '.rpm-tabrow[data-group="rp"] [data-tab="rp1"]'), 'a view of group rp is in the RP row');
+    assert.ok($(h, '.rpm-tabrow[data-group="adventure"] [data-tab="a"]'), 'no group: the Adventure row');
+    // Quick Links open things directly; a link can hide itself (e.g. the Quest editor in the Player view)
+    let opened = 0, show = true;
+    sh.addQuickLink({ id: 'guide', title: 'Guide', icon: 'circle-help', order: 10, onClick: () => { opened++; } });
+    sh.addQuickLink({ id: 'qe', title: 'Quest editor', order: 50, onClick: () => {}, visible: () => show });
+    assert.equal($(h, '.rpm-tabrow[data-group="links"]').hidden, false);
+    assert.deepEqual($$(h, '#rpm-dock-right [data-link]').map(b => b.textContent), ['Guide', 'Quest editor']);
+    click($(h, '[data-link="guide"]'), w); assert.equal(opened, 1);
+    show = false; sh.refreshLinks();
+    assert.deepEqual($$(h, '#rpm-dock-right [data-link]').map(b => b.getAttribute('data-link')), ['guide']);
+    // the old icon row: empty and hidden (addDockAction('right') still works for other mods)
     const css = $(h, '#rpm-shell-styles').textContent;
-    assert.match(css, /\.rpm-dock-right \.rpm-dock-head \{ flex-wrap: wrap;/);
-    assert.match(css, /\.rpm-dock-right \.rpm-dock-actions \{ flex-basis: 100%; justify-content: flex-end; \}/);
     assert.match(css, /\.rpm-dock-right \.rpm-dock-actions:empty \{ display: none; \}/);
+    assert.match(css, /\.rpm-tabrow\[hidden\] \{ display: none; \}/);
 });
 
 test('shell: docked mode pushes Esolite in; top-bar button hides both docks', async (t) => {
@@ -231,7 +238,7 @@ test('a failing view shows a message instead of breaking the shell', async (t) =
     assert.throws(() => sh.registerView({ id: 'x', place: 'nowhere', mount() {} }));
 });
 
-test("the RP panels are adopted and split into four shell tabs (Chars/Roles/Scenario/Tools)", async (t) => {
+test("the RP panels are adopted and split into three shell tabs in the RP row (Chars/Roles/Tools)", async (t) => {
     const h = await shellHost(t); const doc = h.window.document; const w = h.window;
     h.shell().registerView({ id: 'first', title: 'First', place: 'right', order: 1, mount: () => {} });
     // stand-in for the RP core's API: switchTab re-renders the requested sub-tab
@@ -246,7 +253,8 @@ test("the RP panels are adopted and split into four shell tabs (Chars/Roles/Scen
     assert.ok(panel.closest('#rpm-shell'), 'moved into the shell at once (never floats over the page)');
     assert.ok(panel.closest('.rpm-stash'), 'parked hidden while no RP panel tab is shown');
     assert.ok(!panel.classList.contains('collapsed'), 'the old collapse state neutralised');
-    assert.deepEqual($$(h, '#rpm-dock-right [role=tab]').map(b => b.textContent), ['First', 'Chars', 'Roles', 'Scenario', 'Tools']);
+    assert.deepEqual($$(h, '#rpm-dock-right [role=tab]').map(b => b.textContent), ['Chars', 'Roles', 'Tools', 'First'], 'the RP row comes first');
+    assert.deepEqual($$(h, '.rpm-tabrow[data-group="rp"] [role=tab]').map(b => b.textContent), ['Chars', 'Roles', 'Tools']);
 
     click($(h, '[data-tab="tools"]'), w);
     assert.ok(panel.closest('#rpm-view-tools'), 'panel moved into the Tools tab');

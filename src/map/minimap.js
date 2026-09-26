@@ -96,9 +96,9 @@ export function renderMap(box, large) {
     const A = API();
     const root = el('div', { class: 'rpm-map rpm-map-player' + (large ? ' rpm-map-large' : ''), 'data-map-view': large ? 'window' : 'dock' });
     box.appendChild(root);
-    if (!A || !A.activeWorld()) { root.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded. Load one (or the example) in the World tab.' })); return; }
+    if (!A || !A.activeWorld()) { root.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded. Choose one in World Management (right panel).' })); return; }
     const hereId = A.runtime && A.runtime.playerLocationId;
-    if (!hereId || !A.entityById(hereId)) { root.appendChild(el('div', { class: 'rpm-muted', text: 'Nowhere yet — choose a starting place in the World tab.' })); return; }
+    if (!hereId || !A.entityById(hereId)) { root.appendChild(el('div', { class: 'rpm-muted', text: 'Nowhere yet — choose a starting place in World Creation (State editor).' })); return; }
     const R = A.mapRules;
     const mapId = A.mapOf(hereId);
     const quick = quickTravel();

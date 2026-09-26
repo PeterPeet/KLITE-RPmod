@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-26 (R8 step 4: layer 2 — the roads and the Outpost)
+> Last updated: 2026-09-26 (open items fixed; play/build split of the panels)
 
 ## Current state
 
@@ -862,7 +862,12 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
 items above and before R8 step 5. Principle: the **left panel (Adventure) is everything a player needs**; the
 **right panel is for creators** (and the RP tools). A creator must be able to build with only the right panel
 open (e.g. on an iPad, where the left panel is closed).
-- [ ] **Right panel header: three named rows** (replaces the old "step B": four tabs with icons in the tab row).
+- [x] **Right panel header: three named rows** (replaces the old "step B": four tabs with icons in the tab row).
+  — done 2026-09-26: shell view `group` (`rp`/`adventure`) + `addQuickLink` (Guide, Gallery, Compendium, Editor,
+  Quest editor — hidden in the Player view); the right icon row is gone; Scenario → the **RPmod role play**
+  section of Quick Start (`roleplayQuickStart.js`, `SCENARIO.startRoleplay(vals)`); D&D Compendium = the
+  compendium docked (`dnd-compendium`). Checked in the browser at desktop and phone width (rows wrap; Quick
+  Links open full screen).
   The Scenario tab goes away; its "Start Role Play" folds into Esolite's Quick Start. The extra header row goes.
   ```
   RP           [Chars] [Roles] [Tools]
@@ -873,17 +878,18 @@ open (e.g. on an iPad, where the left panel is closed).
   docked rules reference). Quick Links open their element directly as an undocked window; in mobile mode full
   screen. The Guide stays reachable from the left panel's "?" too. The Quest editor link is hidden in the
   Player view.
-- [ ] **World Management** (from the World panel): world selection; New / **Rename** (replaces Example) /
+- [x] **World Management** (from the World panel; view id stays `world`): world selection; New / **Rename** (replaces Example) /
   Import / Export; the save-slot part of Game State (Back to start, Save as start, Edit start state);
   **Premade worlds**: "Play the built-in adventure", "Load minimal example world".
-- [ ] **World Creation** (from the World panel): Creator view / Player view switch (renamed; the Player view is
+- [x] **World Creation** (from the World panel; view `worldcreate`; creator windows `questlog-all`, `repeditor`): Creator view / Player view switch (renamed; the Player view is
   a comfort feature to check the player's side without leaving the right panel); Quest log, Reputation (the
   creator versions: all quests/factions, editable); Combat; Editor; Quest editor (Creator view only); Preview
   what the AI sees; **State editor** — all adventure data editable (place, time, flags, …) **except the
   inventory**.
-- [ ] **Inventory only in the left panel:** a new Inventory section in the Adventure panel (same list as the
+- [x] **Inventory only in the left panel:** a new Inventory section in the Adventure panel (same list as the
   sheet — `giveItem` already writes to the sheet).
-- [ ] Left panel header: a **Compendium** button next to the "?".
+- [x] Left panel header: a **Compendium** button next to the "?". (All five done 2026-09-26; tests in
+  `ui`, `shell`, `onboarding`, `compendium`, `questlogR8`.)
 - [ ] **Character sheet overhaul:** tabs like Esolite's Settings dialog (split like the builder): Overview
   (abilities, saves, skills) · Combat (AC, HP, attacks) · Spells · Inventory · Features · Notes.
   - Attacks: **SRD autocomplete** (typing "Lo" offers Longsword…); picking a weapon fills damage and ability

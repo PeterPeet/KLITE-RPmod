@@ -78,8 +78,9 @@ const win = (doc) => doc.querySelector('[data-window="compendium"]');
 test('Compendium window: search a monster, open it, add it to an encounter, fight it; spells and rules', async (t) => {
     const { h, w, W, doc } = await host(t);
     await W.newWorld('T'); W.addEntity('location', { name: 'Road' }); W.enable(); W.moveTo('Road');
-    const dock = doc.querySelector('[data-action="compendium"], [data-dock-action="compendium"]');
-    assert.ok(dock, 'a right-dock button');
+    const dock = doc.querySelector('#rpm-dock-left [data-action="compendium"]');
+    assert.ok(dock, 'a button next to the Adventure panel\'s "?" (R8)');
+    assert.ok(doc.querySelector('#rpm-dock-right [data-link="compendium"]'), 'and a Quick Link in the right panel');
     click(dock, w); await sleep(20);
     assert.ok(win(doc), 'the window opens');
     const $ = (s) => win(doc).querySelector(s);
@@ -109,6 +110,23 @@ test('Compendium window: search a monster, open it, add it to an encounter, figh
     assert.match($('[data-cmp="detail"]').textContent, /Wondrous Item, Uncommon/);
     // untrusted-free: all text, no markup from the data
     assert.equal(win(doc).querySelectorAll('script').length, 0);
+});
+
+test('D&D Compendium tab (right panel, Adventure row): the same compendium, docked', async (t) => {
+    const { h, w, doc } = await host(t);
+    assert.ok(doc.querySelector('.rpm-tabrow[data-group="adventure"] [data-tab="dnd-compendium"]'));
+    h.shell().open('dnd-compendium'); await sleep(20);
+    const tab = () => doc.querySelector('#rpm-view-dnd-compendium');
+    const q = tab().querySelector('[data-cmp="search"]'); q.value = 'fireball'; q.dispatchEvent(new w.Event('input'));
+    click(tab().querySelector('[data-cmp-hit="spell:fireball"]'), w); await sleep(10);
+    assert.match(tab().querySelector('[data-cmp="detail"]').textContent, /Fireball/);
+    assert.match(tab().querySelector('[data-cmp="attribution"]').textContent, /Creative Commons Attribution 4\.0/);
+    // the window shows the same entry; closing it leaves the tab working
+    w.KLITE_RPMod_Compendium.open(); await sleep(10);
+    assert.match(win(doc).querySelector('[data-cmp="detail"]').textContent, /Fireball/);
+    h.shell().close('compendium'); await sleep(10);
+    click(tab().querySelector('[data-cmp="back"]'), w); await sleep(10);
+    assert.ok(tab().querySelector('[data-cmp="results"]'));
 });
 
 test('cross-links: sheet spells and the monster list of the Combat window open the compendium', async (t) => {

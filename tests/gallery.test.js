@@ -22,7 +22,7 @@ const $$ = (w, s) => [...w.document.querySelectorAll(s)];
 
 test('gallery: opens full screen; cards show name, creator, tagline, tags over the image; untrusted HTML is only text', async (t) => {
     const h = await galleryHost(t); const w = h.window;
-    click($(w, '[data-action="gallery"]'), w);          // right-dock action
+    click($(w, '[data-link="gallery"]'), w);            // right panel: Quick Links
     await sleep(80);
     const win = $(w, '[data-window="gallery"]');
     assert.ok(win && win.classList.contains('rpm-maximized'), 'full screen by default');

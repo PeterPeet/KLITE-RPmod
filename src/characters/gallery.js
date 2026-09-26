@@ -382,7 +382,7 @@ export default function initGallery() {
             mount: (c) => { V.box = el('div', { class: 'rpm-gal-scroll' }); c.appendChild(V.box); render(); },
             unmount: () => { if (V.observer) V.observer.disconnect(); V.observer = null; V.box = null; V.grid = null; V.detail = null; V.queue = []; },
         });
-        sh.addDockAction('right', { id: 'gallery', title: 'Character gallery (full screen)', icon: 'layout-grid', onClick: () => api.open() });
+        if (sh.addQuickLink) sh.addQuickLink({ id: 'gallery', title: 'Gallery', help: 'Character gallery (full screen)', icon: 'layout-grid', order: 20, onClick: () => api.open() });
         window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && V.detail && V.box && !document.querySelector('.popupcontainer:not(.hidden)')) closeDetail(); });
         // RPmod wrote or deleted a card (card editor, sheet, import): drop its cached summary
         window.addEventListener('klite:library-change', (e) => {

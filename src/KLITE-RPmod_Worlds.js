@@ -3799,6 +3799,8 @@ export default function initWorlds() {
         entityType(id) { return entityType(activeWorld(), id); },
         async saveActiveWorld() { await saveLibrary(); syncLive(); return true; },
         async newWorld(name) { const id = await createWorld(name); syncLive(); return id; },
+        // R8 (World Management): a new name for the active world (saved like any world edit)
+        renameWorld(name) { const w = activeWorld(); name = norm(name); if (!w || !name) return null; w.name = name; markDirty(); syncLive(); return name; },
         loadExample() { return loadExample(); },
         hasExample() { return !!W.library['world_example']; },
 

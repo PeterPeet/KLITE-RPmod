@@ -1038,7 +1038,7 @@ export default function initWorldsUI() {
             } catch (e) { toast('Import failed: ' + (e.message || e), true); }
         });
     }
-    // Export (R6 step 4): the World tab shows the formats under the Export button.
+    // Export (R6 step 4): World Management shows the formats under the Export button.
     let exportOpen = false;
     const EXPORTS = [
         { id: 'world', label: 'World JSON', help: 'Everything, for RPmod', run: (A, base) => download(base + '.world.json', JSON.stringify(A.exportWorld(), null, 2)) },
@@ -1098,7 +1098,7 @@ export default function initWorldsUI() {
         const A = API();
         if (!A || !A.activeWorld()) {
             container.appendChild(el('div', { class: 'rpm-view-pad' }, [
-                el('p', { class: 'rpm-muted', text: 'No world loaded. Create one or load the example from the World tab.' }),
+                el('p', { class: 'rpm-muted', text: 'No world loaded. Create one or load a premade world in World Management.' }),
                 uiBtn('Create a world', () => openEditor())
             ]));
             return;
@@ -1170,7 +1170,7 @@ export default function initWorldsUI() {
     // =======================================================================
     let panelEl = null;
     const TIME_SLOTS_UI = ['morning', 'noon', 'afternoon', 'evening', 'night'];
-    const VIEW_IDS = ['world', 'party', 'quest-tracker', 'rep-tracker', 'questlog', 'reputation', 'questeditor', 'combat', 'shop', ...MINIMAP_VIEWS];
+    const VIEW_IDS = ['world', 'worldcreate', 'party', 'inventory', 'quest-tracker', 'rep-tracker', 'questlog', 'questlog-all', 'reputation', 'repeditor', 'questeditor', 'combat', 'shop', ...MINIMAP_VIEWS];
 
     // ---- themed control helpers ----
     // opts.icon: a Lucide name (src/shell/icons.js); icon-only buttons take opts.title as label
@@ -1188,7 +1188,7 @@ export default function initWorldsUI() {
     function row(kids, style) { return el('div', { class: 'rpm-row', style }, kids); }
 
     function uiMode() { if (!S.uiMode) { try { S.uiMode = localStorage.getItem('KLITE.worlds.uiMode') || 'creator'; } catch (_) { S.uiMode = 'creator'; } } return S.uiMode; }
-    function setUiMode(m) { S.uiMode = m; try { localStorage.setItem('KLITE.worlds.uiMode', m); } catch (_) {} }
+    function setUiMode(m) { S.uiMode = m; try { localStorage.setItem('KLITE.worlds.uiMode', m); } catch (_) {} try { Shell()?.refreshLinks?.(); } catch (_) {} }
     // R8: a world may set the view it starts in (world.start.view); applied when it is chosen
     function applyWorldView(worldId) {
         try { const st = API().worldStart(worldId); if (st && (st.view === 'player' || st.view === 'creator')) setUiMode(st.view); } catch (_) {}
@@ -1206,39 +1206,30 @@ export default function initWorldsUI() {
         renderPanel();
     }
 
+    // ---- right dock, Adventure row (R8 play/build split): World Management and World Creation ----
+    // World Management: which world, its file (new, rename, import, export), whether it runs in this
+    // story, the save slots of the game (live game / start state) and the premade worlds.
     function renderPanel() {
         if (!panelEl) return;
         const A = API(); const body = panelEl; clear(body);
+        body.appendChild(row([el('span', { class: 'rpm-heading rpm-grow', text: 'Worlds' })], 'margin-bottom:8px'));
 
-        // ---- header: creator/player lens ----
-        const mode = uiMode();
-        body.appendChild(row([
-            el('span', { class: 'rpm-heading rpm-grow', text: 'Worlds' }),
-            el('span', {
-                role: 'button', tabindex: '0', title: 'Toggle Creator / Player view',
-                class: 'rpm-chip ' + (mode === 'creator' ? 'rpm-chip-quest' : 'rpm-chip-info'),
-                text: mode === 'creator' ? 'Creator' : 'Player',
-                onclick: () => { setUiMode(mode === 'creator' ? 'player' : 'creator'); refreshPanel(); },
-                onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.target.click(); } }
-            })
-        ], 'margin-bottom:8px'));
-
-        // ---- world selector + new ----
+        // ---- world selector + file ----
         const worlds = A.listWorlds();
         const sel = uiSelect({ 'aria-label': 'Active world' });
         sel.appendChild(el('option', { value: '', text: worlds.length ? '— select world —' : '(no worlds yet)' }));
         for (const w of worlds) { const o = el('option', { value: w.id, text: w.name || w.id }); if (A.activeWorld() && A.activeWorld().id === w.id) o.selected = true; sel.appendChild(o); }
         sel.addEventListener('change', () => { if (sel.value) { A.useWorld(sel.value); applyWorldView(sel.value); refreshPanel(); } });
         body.appendChild(sel);
+        const renameBtn = uiBtn('Rename', () => { const w = A.activeWorld(); if (!w) return; const n = prompt('Rename the world:', w.name || ''); if (n != null && n.trim()) { A.renameWorld(n.trim()); refreshPanel(); } }, { icon: 'pencil', grow: true, id: 'rename-world', title: 'Give the active world a new name' });
+        if (!A.activeWorld()) renameBtn.disabled = true;
         body.appendChild(row([
             uiBtn('New', () => { const n = prompt('New world name:', 'New World'); if (n != null) A.newWorld(n).then(refreshPanel); }, { icon: 'plus', grow: true }),
-            uiBtn('Example', () => loadExampleFlow(), { icon: 'sparkles', grow: true, title: 'Load the ready-to-play example world' }),
+            renameBtn,
             uiBtn('Import', () => importFlow(), { icon: 'upload', grow: true }),
             uiBtn('Export', () => exportFlow(), { icon: 'download', grow: true })
-        ], 'margin:6px 0 8px'));
+        ], 'margin:6px 0 8px;flex-wrap:wrap'));
         if (exportOpen && A.activeWorld()) body.appendChild(exportCard(A));
-        const ADV = window.KLITE_RPMod_Adventures;
-        if (ADV && ADV.list().length) body.appendChild(uiBtn('Play an adventure', () => ADV.open(), { icon: 'play', block: true, id: 'play-adventure', style: 'margin:0 0 8px', title: 'Start a ready-made adventure with a pregenerated character' }));
 
         if (unsaved() && !autosave()) {
             body.appendChild(el('div', { class: 'rpm-card rpm-unsaved-card', 'data-unsaved': 'world', style: 'margin:0 0 8px' }, [
@@ -1248,24 +1239,80 @@ export default function initWorldsUI() {
             ]));
         }
 
+        if (A.activeWorld()) {
+            const enabled = A.isEnabled();
+            body.appendChild(uiBtn(enabled ? '● Enabled for this story' : '○ Enable for this story', () => { enabled ? A.disable() : A.enable(); refreshPanel(); }, { block: true, variant: enabled ? 'on' : null, style: 'margin-bottom:8px' }));
+            renderGameState(body);
+        } else body.appendChild(muted('New here? Play the built-in adventure, or load the small example world and just start chatting.', { style: 'margin:0 0 8px' }));
+
+        // ---- premade worlds ----
+        const ADV = window.KLITE_RPMod_Adventures;
+        const pre = el('div', { class: 'rpm-card', 'data-ui': 'premade', style: 'margin-top:8px' }, [el('div', { class: 'rpm-muted', style: 'margin-bottom:6px', text: 'Premade worlds' })]);
+        if (ADV && ADV.list().length) pre.appendChild(uiBtn('Play the built-in adventure', () => ADV.open(), { icon: 'play', block: true, id: 'play-adventure', title: 'Start a ready-made adventure with a pregenerated character' }));
+        pre.appendChild(uiBtn('Load minimal example world', () => loadExampleFlow(), { icon: 'sparkles', block: true, id: 'load-example', style: 'margin-top:4px', title: 'The small example world "Eldoria", enabled and ready' }));
+        body.appendChild(pre);
+    }
+    // The game's save slots (engine: working / base): Back to start, Save as start, Edit start state.
+    function renderGameState(box) {
+        const A = API();
+        const slot = A.activeSlot || 'working';
+        const slotBox = el('div', { class: 'rpm-card', style: 'margin-bottom:6px', 'data-ui': 'game-state' });
+        slotBox.appendChild(row([
+            el('span', { class: 'rpm-muted rpm-grow', text: 'Game state' }),
+            el('span', { class: 'rpm-chip ' + (slot === 'working' ? 'rpm-chip-info' : 'rpm-chip-quest'), text: slot === 'working' ? 'Live game' : 'Editing start state' })
+        ], 'margin-bottom:6px'));
+        if (slot === 'working') {
+            slotBox.appendChild(row([
+                uiBtn('Back to start', () => { if (confirm('Go back to the start state? The world (place, time, quests, flags, explored rooms) returns to the start. The chat is not rewound, and your character sheet keeps its HP, XP and items.')) { A.resetToBase(); refreshPanel(); } }, { icon: 'rotate-ccw', grow: true, id: 'slot-reset', title: 'Return the world to the start state' }),
+                uiBtn('Save as start', () => { if (confirm('Make the current state the new start state?')) { A.commitToBase(); refreshPanel(); } }, { icon: 'check', grow: true, id: 'slot-commit', title: 'The world as it is now becomes the start state' })
+            ]));
+            // editing the start state is an authoring tool: Creator view only
+            if (uiMode() === 'creator') slotBox.appendChild(uiBtn('Edit start state', () => { A.swapActive(); refreshPanel(); }, { icon: 'pencil', block: true, id: 'slot-edit-start', style: 'margin-top:6px', title: 'Changes you make now go to the start state, not the live game' }));
+        } else {
+            slotBox.appendChild(muted('Changes now go to the start state. The live game waits until you switch back.', { style: 'margin-bottom:6px' }));
+            slotBox.appendChild(uiBtn('Back to the live game', () => { A.swapActive(); refreshPanel(); }, { icon: 'play', block: true, id: 'slot-live', title: 'Continue the live game' }));
+        }
+        box.appendChild(slotBox);
+    }
+
+    // World Creation: the Creator / Player view, the creator's windows (quest log and reputation
+    // with every quest and faction, combat, editor, quest editor) and the State editor.
+    let createEl = null;
+    function mountCreate(container) {
+        createEl = el('div', { id: 'wm-create', class: 'rpm-view-pad' });
+        container.appendChild(createEl);
+        renderCreate();
+    }
+    function renderCreate() {
+        if (!createEl) return;
+        const A = API(); const body = createEl; clear(body);
+        const mode = uiMode();
+        const lens = (m, text, help) => el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-grow' + (mode === m ? ' rpm-on' : ''), 'aria-pressed': String(mode === m), 'data-lens': m, title: help, text,
+            onclick: () => { if (uiMode() !== m) { setUiMode(m); refreshPanel(); } } });
+        body.appendChild(el('div', { class: 'rpm-row', role: 'group', 'aria-label': 'View', 'data-ui': 'lens' }, [
+            lens('creator', 'Creator view', 'Build the world: everything, hidden content included'),
+            lens('player', 'Player view', 'See it as the player does, without leaving this panel'),
+        ]));
+        body.appendChild(muted(mode === 'creator' ? 'Creator view: every quest and faction, hidden content included, and the State editor.' : 'Player view: what the player sees (the Adventure panel shows the same).', { style: 'margin:4px 0 8px' }));
         if (!A.activeWorld()) {
-            body.appendChild(muted('New here? Load the ready-to-play example and just start chatting.', { style: 'margin:6px 0 8px' }));
-            body.appendChild(uiBtn('Load example world', () => loadExampleFlow(), { icon: 'sparkles', block: true, lg: true }));
+            body.appendChild(muted('No world loaded.'));
+            body.appendChild(uiBtn('World Management', () => openView('world'), { icon: 'globe', block: true, style: 'margin-top:8px', title: 'Choose, create or import a world' }));
             return;
         }
-
-        // ---- bigger views open as floating windows / the editor overlay ----
+        const creator = mode === 'creator';
         body.appendChild(row([
-            uiBtn('Quest log', () => openView('questlog'), { icon: 'scroll-text', grow: true, id: 'open-questlog', title: 'Your accepted quests' }),
-            uiBtn('Reputation', () => openView('reputation'), { icon: 'shield', grow: true, id: 'open-reputation', title: 'Your standing with the factions you have met' }),
+            uiBtn('Quest log', () => openView(creator ? 'questlog-all' : 'questlog'), { icon: 'scroll-text', grow: true, id: 'open-questlog', title: creator ? 'Every quest of the world' : 'The player\'s quest log' }),
+            uiBtn('Reputation', () => openView(creator ? 'repeditor' : 'reputation'), { icon: 'shield', grow: true, id: 'open-reputation', title: creator ? 'Every faction; change the standing' : 'The factions the player has met' }),
         ]));
         body.appendChild(row([
             uiBtn('Combat', () => openView('combat'), { icon: 'swords', grow: true }),
             uiBtn('Editor', () => openEditor(), { icon: 'workflow', grow: true, title: 'Build your world as a node graph' }),
         ], 'margin-top:4px'));
-        if (uiMode() === 'creator') body.appendChild(uiBtn('Quest editor', () => openView('questeditor'), { icon: 'pencil', block: true, id: 'open-questeditor', style: 'margin-top:4px', title: 'Every quest of the world: states, details, edit (Creator view)' }));
+        if (creator) body.appendChild(uiBtn('Quest editor', () => openView('questeditor'), { icon: 'pencil', block: true, id: 'open-questeditor', style: 'margin-top:4px', title: 'Every quest of the world: states, details, edit (Creator view)' }));
+        body.appendChild(uiBtn('Preview what the AI sees', () => showPreview(), { icon: 'eye', block: true, style: 'margin-top:4px' }));
         body.appendChild(el('hr', { class: 'rpm-divider' }));
-        renderPlayTab(body);
+        if (creator) renderStateEditor(body);
+        else body.appendChild(muted('The State editor (place, time, flags) is part of the Creator view.'));
     }
 
     // ---- left dock: party (persona + HP/AC, place, time, combat status) ----
@@ -1411,7 +1458,8 @@ export default function initWorldsUI() {
     function renderQuestsTab(box, opts = {}) {
         const A = API();
         const editor = !!opts.editor;
-        const mode = editor ? 'creator' : (uiMode() === 'player' ? 'player' : 'creator');
+        // R8: the quest log is the player's (Adventure panel); opts.all = the creator's version with every quest
+        const mode = editor || opts.all ? 'creator' : 'player';
         if (editor) {
             // per-world AI mode selector (gm vs player-facing)
             const aiSel = uiSelect({ 'aria-label': 'What the AI sees', style: 'width:auto' });
@@ -1421,10 +1469,10 @@ export default function initWorldsUI() {
             box.appendChild(uiBtn('New quest', () => { const q = A.addEntity('quest', { name: 'New quest' }); if (q) openEditorAt(q.id); }, { icon: 'plus', block: true, id: 'new-quest', style: 'margin-bottom:8px', title: 'Adds a quest and opens it in the editor' }));
         }
         const all = A.listQuests(mode);
-        const offered = new Set(editor ? [] : ((A.here() || {}).quests || []).filter(q => q.action === 'accept').map(q => q.id));
-        const quests = editor ? all : all.filter(q => q.state !== 'available' || offered.has(q.id));
+        const offered = new Set(mode === 'creator' ? [] : ((A.here() || {}).quests || []).filter(q => q.action === 'accept').map(q => q.id));
+        const quests = mode === 'creator' ? all : all.filter(q => q.state !== 'available' || offered.has(q.id));
         if (!quests.length) { box.appendChild(muted(editor ? 'No quests yet. Add one with "New quest" or a Quest node in the editor.' : 'No quests yet. People with a yellow ! offer you one — talk to them.')); return; }
-        const groups = editor ? [['available', 'Available'], ['active', 'Active'], ['complete', 'Ready to turn in'], ['turnedin', 'Completed'], ['failed', 'Failed']]
+        const groups = mode === 'creator' ? [['available', 'Available'], ['active', 'Active'], ['complete', 'Ready to turn in'], ['turnedin', 'Completed'], ['failed', 'Failed']]
             : [['available', 'Offered here'], ['active', 'Active'], ['complete', 'Ready to turn in'], ['turnedin', 'Completed'], ['failed', 'Failed']];
         for (const [st, label] of groups) {
             const inGroup = quests.filter(q => q.state === st);
@@ -1506,9 +1554,10 @@ export default function initWorldsUI() {
         }
     }
 
-    // Standing with every faction of the world (bar within the tier; creator lens can adjust).
-    function renderReputation(box) {
-        const A = API(); const creator = uiMode() !== 'player';
+    // Standing with the factions: the player's window shows those met; opts.all (World Creation,
+    // Creator view) every faction, adjustable.
+    function renderReputation(box, opts = {}) {
+        const A = API(); const creator = !!opts.all;
         const list = A.reputation(creator ? undefined : { encountered: true });
         if (!list.length) { box.appendChild(muted(creator ? 'This world has no factions yet.' : 'You have not met any faction yet.')); return; }
         box.appendChild(muted(creator ? 'Creator view: every faction of the world. The Player view shows only those you have met.' : 'The factions you have met.', { style: 'margin-bottom:6px' }));
@@ -1521,7 +1570,7 @@ export default function initWorldsUI() {
             bar.appendChild(el('span', { style: `width:${pct}%;background:${r.hostile ? 'var(--rpm-danger)' : 'var(--rpm-info)'}` }));
             card.appendChild(bar);
             if (r.effect) card.appendChild(muted(r.effect));
-            if (uiMode() !== 'player') card.appendChild(row([
+            if (creator) card.appendChild(row([
                 uiBtn('−50', () => { A.changeReputation(r.id, -50); refreshPanel(); }, { title: 'Lower the standing (creator)' }),
                 uiBtn('+50', () => { A.changeReputation(r.id, 50); refreshPanel(); }, { title: 'Raise the standing (creator)' }),
             ], 'margin-top:4px'));
@@ -1531,33 +1580,12 @@ export default function initWorldsUI() {
     // Combat window: src/game/combatView.js (encounter builder + fight).
     function renderCombatTab(box) { renderCombat(box, () => refreshPanel()); }
 
-    function renderPlayTab(box) {
+    // State editor (World Creation, Creator view): the adventure's data of this play — place,
+    // time and weather, flags — everything except the inventory (Adventure panel → Inventory).
+    function renderStateEditor(box) {
         const A = API();
-        // enable toggle
-        const enabled = A.isEnabled();
-        box.appendChild(uiBtn(enabled ? '● Enabled for this story' : '○ Enable for this story', () => { enabled ? A.disable() : A.enable(); refreshPanel(); }, { block: true, variant: enabled ? 'on' : null, style: 'margin-bottom:10px' }));
-
-        // ---- game state: the live game and its start state (engine: working / base slots) ----
-        const slot = A.activeSlot || 'working';
-        const slotBox = el('div', { class: 'rpm-card', style: 'margin-bottom:6px', 'data-ui': 'game-state' });
-        slotBox.appendChild(row([
-            el('span', { class: 'rpm-muted rpm-grow', text: 'Game state' }),
-            el('span', { class: 'rpm-chip ' + (slot === 'working' ? 'rpm-chip-info' : 'rpm-chip-quest'), text: slot === 'working' ? 'Live game' : 'Editing start state' })
-        ], 'margin-bottom:6px'));
-        if (slot === 'working') {
-            const btns = [
-                uiBtn('Back to start', () => { if (confirm('Go back to the start state? The world (place, time, quests, flags, explored rooms) returns to the start. The chat is not rewound, and your character sheet keeps its HP, XP and items.')) { A.resetToBase(); refreshPanel(); } }, { icon: 'rotate-ccw', grow: true, id: 'slot-reset', title: 'Return the world to the start state' }),
-                uiBtn('Save as start', () => { if (confirm('Make the current state the new start state?')) { A.commitToBase(); refreshPanel(); } }, { icon: 'check', grow: true, id: 'slot-commit', title: 'The world as it is now becomes the start state' })
-            ];
-            slotBox.appendChild(row(btns));
-            // editing the start state is an authoring tool: Creator view only
-            if (uiMode() === 'creator') slotBox.appendChild(uiBtn('Edit start state', () => { A.swapActive(); refreshPanel(); }, { icon: 'pencil', block: true, id: 'slot-edit-start', style: 'margin-top:6px', title: 'Changes you make now go to the start state, not the live game' }));
-        } else {
-            slotBox.appendChild(muted('Changes now go to the start state. The live game waits until you switch back.', { style: 'margin-bottom:6px' }));
-            slotBox.appendChild(uiBtn('Back to the live game', () => { A.swapActive(); refreshPanel(); }, { icon: 'play', block: true, id: 'slot-live', title: 'Continue the live game' }));
-        }
-        box.appendChild(slotBox);
-
+        box.appendChild(el('div', { class: 'rpm-heading', 'data-ui': 'state-editor', text: 'State editor' }));
+        box.appendChild(muted('The game as it is now. Items and coins: the Inventory in the Adventure panel.', { style: 'margin:2px 0 4px' }));
         // ---- location ----
         const g = A.getGraph();
         const locs = g.nodes.filter(n => n.type === 'location');
@@ -1601,10 +1629,13 @@ export default function initWorldsUI() {
         const fk = uiInput({ placeholder: 'key', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Flag name' });
         const fv = uiInput({ placeholder: 'value', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Flag value' });
         box.appendChild(row([fk, fv, uiBtn('', () => { const k = fk.value.trim(); if (!k) return; A.setFlag(k, parseVal(fv.value)); refreshPanel(); }, { icon: 'plus', title: 'Set flag' })], 'margin-top:5px'));
-
-        // ---- inventory: the persona's sheet (plus any story items), else the story's ----
+    }
+    // ---- left dock: Inventory — the persona's sheet (plus any story items), else the story's ----
+    function renderInventory(box) {
+        const A = API();
+        if (!A.activeWorld()) { box.appendChild(muted('No world loaded.')); return; }
         const iv = A.inventory();
-        box.appendChild(lbl(iv.source === 'sheet' ? `Inventory — ${iv.owner}` : 'Inventory (story)'));
+        box.appendChild(el('div', { style: 'font-weight:bold', 'data-inv': 'owner', text: iv.source === 'sheet' ? iv.owner : 'Story inventory' }));
         box.appendChild(muted(`${iv.purseText} · ${iv.xp} XP${iv.source === 'sheet' ? ' · saved on the character sheet' : ' · choose a persona to keep them on its sheet'}`, { 'data-inv': 'summary' }));
         const inv = iv.items;
         if (!inv.length) box.appendChild(muted('empty'));
@@ -1617,9 +1648,6 @@ export default function initWorldsUI() {
         }
         const iIn = uiInput({ placeholder: 'item name', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Item name' });
         box.appendChild(row([iIn, uiBtn('', () => { const n = iIn.value.trim(); if (!n) return; A.giveItem(n, 1); refreshPanel(); }, { icon: 'plus', title: 'Give item' })], 'margin-top:5px'));
-
-        // ---- what the AI sees ----
-        box.appendChild(uiBtn('Preview what the AI sees', () => showPreview(), { icon: 'eye', block: true, style: 'margin-top:12px' }));
     }
     function parseVal(raw) { const v = String(raw || '').trim(); if (v === '') return true; if (/^(true|false)$/i.test(v)) return /true/i.test(v); if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v); return v; }
 
@@ -1690,15 +1718,25 @@ export default function initWorldsUI() {
     // =======================================================================
     function registerViews(sh) {
         const view = (render) => ({ mount: render, update: (c) => { clear(c); render(c); } });
-        sh.registerView({ id: 'world', title: 'World', place: 'right', order: 10, mount: mountPanel, update: () => renderPanel() });
+        // R8: the Adventure row of the right panel (the D&D Compendium tab: src/compendium/compendium.js)
+        sh.registerView({ id: 'world', title: 'World Management', place: 'right', group: 'adventure', order: 10, mount: mountPanel, update: () => renderPanel() });
+        sh.registerView({ id: 'worldcreate', title: 'World Creation', place: 'right', group: 'adventure', order: 20, mount: mountCreate, update: () => renderCreate() });
         sh.registerView(Object.assign({ id: 'party', title: 'Party', place: 'left', order: 10 }, view(renderParty)));
+        sh.registerView(Object.assign({ id: 'inventory', title: 'Inventory', place: 'left', order: 12 }, view(renderInventory)));
         sh.registerView(Object.assign({ id: 'quest-tracker', title: 'Quests', place: 'left', order: 20 }, view(renderQuestTracker)));
         sh.registerView(Object.assign({ id: 'rep-tracker', title: 'Reputation', place: 'left', order: 25 }, view(renderRepTracker)));
+        const noWorld = (c) => c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
         sh.registerView(Object.assign({ id: 'questlog', title: 'Quest log', place: 'window', window: { width: 380, height: 520 } }, view((c) => {
-            if (API().activeWorld()) renderQuestsTab(c); else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
+            if (API().activeWorld()) renderQuestsTab(c); else noWorld(c);
+        })));
+        sh.registerView(Object.assign({ id: 'questlog-all', title: 'Quest log (all quests)', place: 'window', window: { width: 380, height: 520 } }, view((c) => {
+            if (API().activeWorld()) renderQuestsTab(c, { all: true }); else noWorld(c);
         })));
         sh.registerView(Object.assign({ id: 'reputation', title: 'Reputation', place: 'window', window: { width: 360, height: 460 } }, view((c) => {
-            if (API().activeWorld()) renderReputation(c); else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
+            if (API().activeWorld()) renderReputation(c); else noWorld(c);
+        })));
+        sh.registerView(Object.assign({ id: 'repeditor', title: 'Reputation (all factions)', place: 'window', window: { width: 360, height: 460 } }, view((c) => {
+            if (API().activeWorld()) renderReputation(c, { all: true }); else noWorld(c);
         })));
         sh.registerView(Object.assign({ id: 'questeditor', title: 'Quest editor', place: 'window', window: { width: 420, height: 600 } }, view((c) => {
             if (API().activeWorld()) renderQuestsTab(c, { editor: true }); else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
@@ -1710,7 +1748,7 @@ export default function initWorldsUI() {
         sh.registerView(Object.assign({ id: 'gameover', title: 'Game over', place: 'window', window: { width: 420, height: 460, minWidth: 300, restore: false } }, view(renderGameOver)));
         sh.registerView(Object.assign({ id: 'combat', title: 'Combat', place: 'window', window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
             if (API().activeWorld()) renderCombatTab(c);
-            else { c.appendChild(el('div', { class: 'rpm-muted', text: 'Fights happen in a world. Load one (or the example) in the World tab.' })); c.appendChild(uiBtn('Open the World tab', () => openView('world'), { block: true, style: 'margin-top:8px' })); }
+            else { c.appendChild(el('div', { class: 'rpm-muted', text: 'Fights happen in a world. Choose one (or the example) in World Management.' })); c.appendChild(uiBtn('World Management', () => openView('world'), { block: true, style: 'margin-top:8px' })); }
         })));
         try {
             window.KLITE_RPMod_Settings?.registerSetting({ id: AUTO_TURNS_SETTING, section: 'Combat', order: 10, default: true, label: 'Run enemy turns automatically',
@@ -1720,6 +1758,11 @@ export default function initWorldsUI() {
         sh.registerView({ id: 'editor', title: 'World editor', place: 'window', window: { large: true, flush: true, minWidth: 320, minHeight: 300, restore: false },
             mount: mountEditor, unmount: unmountEditor, beforeClose: editorBeforeClose });
         // map edits (room counts, kinds, ways out) show in the world graph once it closes
+        // Quick Links (right panel): the world editor, and the quest editor in the Creator view
+        if (sh.addQuickLink) {
+            sh.addQuickLink({ id: 'editor', title: 'Editor', help: 'World editor (node graph)', icon: 'workflow', order: 40, onClick: () => openEditor() });
+            sh.addQuickLink({ id: 'questeditor', title: 'Quest editor', help: 'Every quest of the world (Creator view)', icon: 'pencil', order: 50, onClick: () => openView('questeditor'), visible: () => uiMode() === 'creator' });
+        }
         registerMinimap(sh);   // R7: left-dock "Map" + the Map window
         registerMapEditor(sh, { toast, onClose: () => { if (S.root) { reloadGraph(); draw(); renderInspector(); } } });
     }

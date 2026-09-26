@@ -13,16 +13,23 @@ async function uiHost(t) {
     return h;
 }
 
-test('World tab: example button, window launchers, creator/player lens, state slots', async (t) => {
+test('World Management: premade worlds, rename, enable, state slots; World Creation: launchers, lens, State editor (R8)', async (t) => {
     const h = await uiHost(t); const w = h.window; const doc = w.document; const W = h.api();
     assert.ok(doc.getElementById('rpm-navbtn'), 'single shell entry in the top bar');
     assert.equal(doc.getElementById('wm-navbtn'), null, 'no separate Worlds navbar button');
     const panel = () => doc.getElementById('wm-panel');
-    assert.ok(panel().closest('#rpm-dock-right'), 'World view lives in the right dock');
-    click(findButton(panel(), /Load example world/), w);
+    assert.ok(panel().closest('#rpm-dock-right'), 'World Management lives in the right dock');
+    assert.deepEqual([...doc.querySelectorAll('.rpm-tabrow[data-group="adventure"] [role=tab]')].map(b => b.textContent), ['World Management', 'World Creation']);
+    assert.ok(findButton(panel(), /Rename/).disabled, 'nothing to rename yet');
+    click(findButton(panel().querySelector('[data-ui="premade"]'), /Load minimal example world/), w);
     await sleep(80);
     assert.ok(W.activeWorld() && W.isEnabled(), 'example loaded + enabled');
-    for (const b of [/Quest log/, /Combat/, /Editor/]) assert.ok(findButton(panel(), b), String(b));
+    assert.ok(!findButton(panel(), /^Example$/), 'the Example button became Rename');
+    const origPrompt = w.prompt; w.prompt = () => 'Eldoria Reborn';
+    click(findButton(panel(), /Rename/), w);
+    w.prompt = origPrompt;
+    assert.equal(W.activeWorld().name, 'Eldoria Reborn');
+    for (const b of [/Quest log/, /Combat/, /^Editor$/]) assert.ok(!findButton(panel(), b), 'no creator windows in World Management: ' + b);
     // game state (engine: working / base slots)
     const gs = () => panel().querySelector('[data-ui="game-state"]');
     assert.ok(texts(gs()).includes('Live game'));
@@ -39,12 +46,35 @@ test('World tab: example button, window launchers, creator/player lens, state sl
     w.confirm = origConfirm;
     assert.equal(W.runtime.playerLocationId, 'loc_village', 'Back to start resets the live game');
 
-    const chip = [...panel().querySelectorAll('span')].find(s => s.textContent === 'Creator');
-    click(chip, w);
-    assert.ok([...panel().querySelectorAll('span')].some(s => s.textContent === 'Player'));
+    // World Creation
+    h.shell().open('worldcreate'); await sleep(20);
+    const cr = () => doc.getElementById('wm-create');
+    for (const b of [/Quest log/, /Reputation/, /Combat/, /^Editor$/, /Quest editor/, /Preview what the AI sees/]) assert.ok(findButton(cr(), b), String(b));
+    assert.ok(cr().querySelector('[data-ui="state-editor"]'), 'State editor (Creator view)');
+    assert.ok(cr().querySelector('[aria-label="Current location"]') && cr().querySelector('[aria-label="Time of day"]') && cr().querySelector('[aria-label="Flag name"]'));
+    assert.equal(cr().querySelector('[aria-label="Item name"]'), null, 'no inventory in the State editor');
+    click(cr().querySelector('[data-lens="player"]'), w);
     assert.equal(w.localStorage.getItem('KLITE.worlds.uiMode'), 'player');
+    assert.equal(cr().querySelector('[data-lens="player"]').getAttribute('aria-pressed'), 'true');
+    assert.ok(!findButton(cr(), /Quest editor/), 'Player view: no Quest editor');
+    assert.equal(cr().querySelector('[data-ui="state-editor"]'), null, 'Player view: no State editor');
+    h.shell().open('world'); await sleep(20);
     assert.ok(!findButton(gs(), /Edit start state/), 'Player view: no start-state editing');
     assert.ok(findButton(gs(), /Back to start/), 'Player view keeps Back to start');
+});
+
+test('Adventure panel: the Inventory section (the persona\'s items; R8 moved it out of the World tab)', async (t) => {
+    const h = await uiHost(t); const w = h.window; const doc = w.document; const W = h.api();
+    await W.loadExample(); h.ui().refreshPanel(); await sleep(20);
+    const sec = () => doc.querySelector('#rpm-dock-left [data-section="inventory"]');
+    assert.ok(sec(), 'a left-dock section');
+    const ids = [...doc.querySelectorAll('#rpm-dock-left [data-section]')].map(e => e.getAttribute('data-section'));
+    assert.equal(ids[ids.indexOf('party') + 1], 'inventory', 'right below the Party');
+    const inp = sec().querySelector('[aria-label="Item name"]'); inp.value = 'Lantern';
+    click(findButton(sec(), /Give item/) || sec().querySelector('button[title="Give item"]'), w);
+    assert.equal(W.itemCount('Lantern'), 1);
+    await sleep(30);
+    assert.ok(texts(sec()).some(t => /Lantern/.test(t)));
 });
 
 test('quest log + combat windows, quest tracker and party sections stay in sync', async (t) => {
@@ -55,7 +85,11 @@ test('quest log + combat windows, quest tracker and party sections stay in sync'
     const tracker = () => doc.querySelector('[data-section="quest-tracker"]');
 
     W.moveTo('The Crooked Kettle'); h.ui().refreshPanel();   // R8: the log offers the quests of the people here
-    click(findButton(panel(), /Quest log/), w);
+    h.shell().open('worldcreate'); await sleep(20);
+    const create = () => doc.getElementById('wm-create');
+    click(findButton(create(), /Quest log/), w);   // Creator view: every quest
+    assert.ok(win('questlog-all'), 'quest log window (all quests)');
+    w.KLITE_RPMod_Shell.open('questlog');           // the player's log (Adventure panel)
     assert.ok(win('questlog'), 'quest log window');
     assert.ok(texts(win('questlog')).some(s => /The Missing Merchant/.test(s)));
     assert.ok(!texts(tracker()).some(s => /The Missing Merchant/.test(s)), 'not tracked before accepting');
@@ -63,7 +97,7 @@ test('quest log + combat windows, quest tracker and party sections stay in sync'
     assert.equal(W.questState('q_merchant'), 'active');
     assert.ok(tracker().querySelector('[data-quest="q_merchant"]'), 'tracker shows the accepted quest');
 
-    click(findButton(panel(), /Combat/), w);
+    click(findButton(create(), /Combat/), w);
     assert.ok(findButton(win('combat'), /Start encounter/));
     W.startEncounter(['npc_kell']); h.ui().refreshPanel();
     assert.ok(texts(win('combat')).some(s => /Round 1/.test(s)));
@@ -181,8 +215,11 @@ test('editor: opens as a large shell window, reopens without duplicates, cleans 
     // listeners removed: a stray mouse move after close must not throw
     w.dispatchEvent(new w.MouseEvent('mousemove', { clientX: 5, clientY: 5 }));
 
-    // World tab button opens it too
-    h.shell().open('world');
-    click(findButton(doc.getElementById('wm-panel'), /Editor/), w);
+    // World Creation's button opens it too, and so does the Quick Link
+    h.shell().open('worldcreate');
+    click(findButton(doc.getElementById('wm-create'), /^Editor$/), w);
+    assert.ok(doc.querySelector('[data-window="editor"]'));
+    h.ui().closeEditor();
+    click(doc.querySelector('[data-link="editor"]'), w);
     assert.ok(doc.querySelector('[data-window="editor"]'));
 });

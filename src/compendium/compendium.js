@@ -4,7 +4,8 @@
 // -----------------------------------------------------------------------------
 // A large shell window "compendium": search box, kind chips and the result list on the left,
 // the entry on the right (one column with a Back button in a narrow window or on a phone).
-// Opened from the right dock (book icon) and cross-linked from the character sheet (spells),
+// Opened from the Quick Links, the Adventure panel's book button, docked as the right panel's
+// "D&D Compendium" tab (R8), and cross-linked from the character sheet (spells),
 // the Combat window and the encounter inspector (monsters): KLITE_RPMod_Compendium.open().
 // Data is bundled (src/compendium/rules.js); everything is built with textContent.
 // SRD 5.2.1 by Wizards of the Coast LLC, CC-BY-4.0: the exact attribution is shown in the window.
@@ -14,7 +15,9 @@ import * as CP from './rules.js';
 
 export default function initCompendium() {
     if (window.KLITE_RPMod_Compendium) return;
-    const V = { box: null, q: '', kind: '', sel: null, msg: '' };
+    // boxes: where it is shown — the window and/or the docked "D&D Compendium" tab (R8); both
+    // show the same search and entry
+    const V = { boxes: new Set(), q: '', kind: '', sel: null, msg: '' };
     const Shell = () => window.KLITE_RPMod_Shell;
     const Worlds = () => window.KLITE_RPMod_Worlds;
 
@@ -46,7 +49,7 @@ export default function initCompendium() {
     // "Add to encounter" (a saved encounter of the active world, or a new one) and "Fight it now"
     function encounterBox(key) {
         const A = Worlds(); const box = el('div', { class: 'rpm-card rpm-cmp-enc', 'data-cmp': 'encounter-box' });
-        if (!A || !A.activeWorld || !A.activeWorld()) { box.appendChild(el('div', { class: 'rpm-muted', text: 'Load a world (World tab) to add this monster to its encounters.' })); return box; }
+        if (!A || !A.activeWorld || !A.activeWorld()) { box.appendChild(el('div', { class: 'rpm-muted', text: 'Load a world (World Management) to add this monster to its encounters.' })); return box; }
         const encs = A.listEncounters();
         const s = el('select', { class: 'form-control rpm-input rpm-grow', 'aria-label': 'Encounter', 'data-cmp': 'encounter' });
         s.appendChild(el('option', { value: '', text: 'New encounter' }));
@@ -92,11 +95,11 @@ export default function initCompendium() {
     const DETAIL = { monster: monsterDetail, spell: spellDetail, item: itemDetail, equipment: equipmentDetail, rule: ruleDetail };
 
     // ---- window ------------------------------------------------------------------------
-    function render() {
-        if (!V.box) return;
-        clear(V.box);
+    function render() { for (const box of V.boxes) renderInto(box); }
+    function renderInto(box) {
+        clear(box);
         const root = el('div', { class: 'rpm-cmp' + (V.sel ? ' rpm-cmp-has-sel' : '') });
-        V.box.appendChild(root);
+        box.appendChild(root);
         // left: search, kinds, results
         const side = el('div', { class: 'rpm-cmp-side' });
         const q = el('input', { type: 'search', class: 'form-control rpm-input', placeholder: 'Search monsters, spells, items, rules…', 'aria-label': 'Search the compendium', 'data-cmp': 'search' });
@@ -138,7 +141,7 @@ export default function initCompendium() {
         }
         main.appendChild(el('p', { class: 'rpm-muted rpm-cmp-attr', 'data-cmp': 'attribution', text: CP.ATTRIBUTION }));
         root.appendChild(main);
-        if (document.activeElement === document.body && !V.sel) try { q.focus({ preventScroll: true }); } catch (_) {}
+        if (document.activeElement === document.body && !V.sel && box.dataset.cmpWhere === 'window') try { q.focus({ preventScroll: true }); } catch (_) {}
     }
 
     // open(): the window; open('Fireball') / open({ kind, key }) shows that entry
@@ -158,10 +161,19 @@ export default function initCompendium() {
         const sh = Shell(); if (!sh) return false;
         sh.registerView({
             id: 'compendium', title: 'Compendium', place: 'window', window: { large: true, flush: true, minWidth: 320, minHeight: 320, restore: false },
-            mount: (c) => { V.box = el('div', { class: 'rpm-cmp-scroll' }); c.appendChild(V.box); render(); },
-            unmount: () => { V.box = null; },
+            mount: (c) => { const box = el('div', { class: 'rpm-cmp-scroll', 'data-cmp-where': 'window' }); V.boxes.add(box); c.appendChild(box); renderInto(box); },
+            unmount: (c) => { for (const b of [...V.boxes]) if (c.contains(b)) V.boxes.delete(b); },
         });
-        sh.addDockAction('right', { id: 'compendium', title: 'Compendium (SRD monsters, spells, items, rules)', icon: 'book-marked', onClick: () => open() });
+        // R8: a docked rules reference in the right panel (Adventure row) — the same compendium
+        sh.registerView({
+            id: 'dnd-compendium', title: 'D&D Compendium', place: 'right', group: 'adventure', order: 30,
+            mount: (c) => { const box = el('div', { class: 'rpm-cmp-scroll rpm-cmp-docked', 'data-cmp-where': 'dock' }); V.boxes.add(box); c.appendChild(box); renderInto(box); },
+            update: () => {},
+        });
+        // Quick Links (right panel) and a button next to the Adventure panel's "?"
+        const help = 'Compendium (SRD monsters, spells, items, rules)';
+        if (sh.addQuickLink) sh.addQuickLink({ id: 'compendium', title: 'Compendium', help, icon: 'book-marked', order: 30, onClick: () => open() });
+        sh.addDockAction('left', { id: 'compendium', title: help, icon: 'book-marked', onClick: () => open() });
         return true;
     }
     let tries = 0;

@@ -38,9 +38,10 @@ test('RP core: the story save carries the rpmod block and a loaded story restore
     assert.deepEqual(Array.from(G.activeChars, c => [c.name, c.talkativeness]), [['Bram', 70]]);
 });
 
-test('RP panels: Chars, Roles, Scenario and Tools render in the shell', async (t) => {
+test('RP panels: Chars, Roles and Tools render in the shell (R8: Scenario is part of Quick Start)', async (t) => {
     const h = await bundleHost(t); const w = h.window; const doc = w.document;
-    for (const [id, key] of [['chars', 'CHARS'], ['roles', 'ROLES'], ['scenario', 'SCENARIO'], ['tools', 'TOOLS']]) {
+    assert.ok(!h.shell().views().includes('scenario'), 'no Scenario tab');
+    for (const [id, key] of [['chars', 'CHARS'], ['roles', 'ROLES'], ['tools', 'TOOLS']]) {
         h.shell().open(id);
         await until(() => w.KLITE_RPMod.state.tabs.right === key);
         const panel = doc.getElementById('panel-right');
@@ -88,7 +89,7 @@ test('RP panels: no inline styles or old control classes (shell classes, spacing
     R.panels.TOOLS.selectedCharacter = aria; R.panels.TOOLS.characterEnabled = true;
     R.panels.ROLES.enabled = true; R.panels.ROLES.activeChars = [aria, borin]; R.panels.ROLES.currentSpeaker = 0; R.panels.ROLES.lastSpeaker = 1;
     const panel = () => doc.getElementById('panel-right');
-    for (const [id, key] of [['chars', 'CHARS'], ['roles', 'ROLES'], ['scenario', 'SCENARIO'], ['tools', 'TOOLS']]) {
+    for (const [id, key] of [['chars', 'CHARS'], ['roles', 'ROLES'], ['tools', 'TOOLS']]) {
         h.shell().open(id);
         await until(() => R.state.tabs.right === key && panel().textContent.trim().length > 40);
         R.loadPanel('right', key);
@@ -128,11 +129,9 @@ test('RP panels: character names and fields from cards stay text', async (t) => 
     assert.equal(R.escapeHtml('a"b\'c<d>&'), 'a&quot;b&#39;c&lt;d&gt;&amp;');
     R.panels.ROLES.enabled = true; R.panels.ROLES.activeChars = [{ id: 'x', name: evil }];
     R.state.scenario = { scenario: `</textarea>${evil}`, example: '', first: '' };
-    for (const [id, key] of [['roles', 'ROLES'], ['scenario', 'SCENARIO']]) {
-        h.shell().open(id);
-        await until(() => R.state.tabs.right === key);
-        R.loadPanel('right', key);
-    }
+    h.shell().open('roles');
+    await until(() => R.state.tabs.right === 'ROLES');
+    R.loadPanel('right', 'ROLES');
     R.panels.ROLES.showCustomCharacterModal({ id: 'x', name: evil, description: `</textarea>${evil}`, keywords: [evil] });
     await sleep(50);
     assert.equal(doc.querySelectorAll('img[src="x"]').length, 0, 'no injected element');
