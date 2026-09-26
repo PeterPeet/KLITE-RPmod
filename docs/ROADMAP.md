@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-26 (open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 step 5: Lanternport and the Lantern Fair)
+> Last updated: 2026-09-26 (open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–6: Lanternport and the Lantern Fair, the south shore)
 
 ## Current state
 
@@ -37,10 +37,11 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 **2026-09-26 (this session):** the owner's play-test items are fixed (connections, town travel, regional map,
 inspector, persona on start, New Session, Reset ALL), the panels are split into play (left) and build (right, three
 named header rows), the character sheet has tabs, SRD autocomplete, in hand vs. backpack, Features and notes, a page
-reload keeps the story's world state (known issue 26), and R8 step 5 (Lanternport, the Lantern Fair) is built. Next:
-R8 step 6 (hidden beach, sea cave, Old dam; the "follow the thieves" branch), then the real-backend play test.
+reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternport, the Lantern Fair) and 6 (the south
+shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) are built. Next: R8 step 7
+(the Lost Chapel, the endings, the XP balance to level 5), then the real-backend play test.
 
-### What works (verified headless 2026-09-26 — `npm test`, 402 tests)
+### What works (verified headless 2026-09-26 — `npm test`, 404 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -850,9 +851,28 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   contests end with the fair via the new `prerequisites.notFlags`). Content version 4. Found on the way: going to a
   town from inside another one entered by the first room with any way out — now the room whose way out leads to
   where you come from. Playthrough test (`tests/adventureContent.test.js`), mechanics `tests/contestsR8.test.js`.
-  Still open for layer 4: the "let them steal it and follow" branch of the last night (the thieves lead to the sea
-  cave) and the boat from the docks to the hidden beach.
-- [ ] Steps 6–7: content layer by layer (lake/sea cave → Lost Chapel)
+- [x] Step 6 (2026-09-26): layer 4 — the **south shore**: the **Hidden Beach** (a hidden way from the River Ford, DC 14:
+  found by a Search or by passive Perception — Pell notices it — or shown by Odo when he gives *Follow the River*;
+  giant crabs by day, a giant toad and frogs at night), the **Sea Cave** (dungeon, 10 rooms: cave mouth, hidden dock,
+  lookout ledge, the captain's cabin with a secret bolt-hole (DC 17), stolen stores, grotto pool, bunkroom, galley
+  with Brisco the cook, the sorting room of dredged relics behind a locked grille (brass key), the flooded passage
+  that dives under the lake — step 7 continues it), the **Old Dam** (3 rooms: crest with Reedcloak dredgers, sluice
+  house, the keeper's undercroft with the wall of names). Quests: A4 *Follow the River*, A5 *The Reedcloaks' Cave*
+  (Captain Vesna Kral = Bandit Captain; the ledger names "the stablemaster", "the lord on the hill" and "Mother R.",
+  and now also unlocks *The Stablemaster* — its prerequisite is the flag `stablemaster_suspected`, set by the
+  Watchtower or by the ledger), the side quest *The Sluice* (bring back the keeper's crank; opening the gates for
+  low water — at the cost of Brindlewick's mill — comes with step 7, where it leads somewhere), *A Boat for Hire*
+  (buy a passage from Ines Calder at the docks → the boat to the hidden beach), and B4's other way *Let Them Run*
+  (accepting it or *The Last Night* closes the other: flags `stop_plan`/`follow_plan`; the thieves take the Lantern
+  on the third night — `lantern_stolen`, the fair ends, the plinth is empty, Dahl's watch boat waits — "Slate" (Spy)
+  and his crew are in the sorting room with it; returning it: `lantern_recovered` + `lantern_saved`, more gold and a
+  better prize, less standing than stopping it). Engine: the event effect **`reveal`** (a secret exit/room or a
+  hidden feature becomes known; in the editor's effect list), hidden features shown once revealed, a feature phase
+  with `gone` (the stolen Lantern), a secret way that is no door is found as "a hidden way". Content version 5. XP
+  estimate 6,275 per character (both branches of the last night counted). Playthrough tests in
+  `tests/adventureContent.test.js` (south shore; the "let them run" branch). Checked in the browser (map at the ford
+  and in the cave, phone width, the effect editor).
+- [ ] Step 7: layer 5 — the Lost Chapel, the endings (incl. opening the sluice for low water), XP balance to level 5
 - [ ] Step 8: real-backend play test (known issue 5), then the World Building guide
 
 **Open items (owner's play test, 2026-09-26)** — not done yet:

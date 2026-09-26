@@ -23482,7 +23482,8 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       return asciiMap(b.rooms.map((x) => ({ id: x.id, name: x.named ? x.name : "unexplored", rect: x.rect })), b.exits.map((e) => [e.from, e.to]), b.here);
     }
     function featureVisible(o) {
-      if (o.hidden) return false;
+      if (phasedEntity(o).gone) return false;
+      if (o.hidden) return asArray5(foundState().secrets).includes(o.id);
       return o.kind !== "trap" || asArray5(foundState().traps).includes(o.id);
     }
     const isDoorExit = (e) => !!e && (e.type === "door" || e.type === "secret");
@@ -23609,7 +23610,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       for (const e of exitsOfLoc(locId)) {
         const to = locOf(e.to);
         const dirTxt = e.dir ? ` (${dirName(e.dir)})` : "";
-        if (isSecret(e) && !asArray5(f.secrets).includes(e.id)) out.push({ kind: "secret", id: e.id, dc: Number(e.secretDC) || DEFAULT_DC, label: `a secret door${dirTxt}`, room: to && to.secret && !roomFound(to) ? to.id : null, exit: e });
+        if (isSecret(e) && !asArray5(f.secrets).includes(e.id)) out.push({ kind: "secret", id: e.id, dc: Number(e.secretDC) || DEFAULT_DC, label: `${isDoorExit(e) ? "a secret door" : "a hidden way"}${dirTxt}`, room: to && to.secret && !roomFound(to) ? to.id : null, exit: e });
         else if (to && to.secret && !roomFound(to) && visibleExit(e, f)) out.push({ kind: "room", id: to.id, dc: Number(to.secretDC) || DEFAULT_DC, label: `a hidden way${dirTxt}`, exit: e });
       }
       for (const o of asArray5(activeWorld() && activeWorld().objects)) {
@@ -25028,6 +25029,15 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         case "reputation": {
           const fid = factionIdOf(effect.factionId);
           if (fid) changeReputation(fid, Number(effect.amount) || 0, "event");
+          break;
+        }
+        // R8: a secret exit or room, or a hidden feature, becomes known (someone shows the way; a boat is hired)
+        case "reveal": {
+          const id = norm5(effect.id);
+          if (!id) break;
+          normalizeExploration(rt());
+          if (!rt().found.secrets.includes(id)) rt().found.secrets.push(id);
+          sigs.push("reveal:" + id);
           break;
         }
         default:
@@ -31265,7 +31275,9 @@ ${xl.join("\n")}`;
       fireEvent: [["eventId", "event"]],
       encounter: [["value", "encounter"]],
       // a saved encounter (id; older effects: its name or "2 Wolf, Goblin Warrior")
-      reputation: [["factionId", "faction"], ["amount", "number"]]
+      reputation: [["factionId", "faction"], ["amount", "number"]],
+      reveal: [["id", "text"]]
+      // R8: id of a secret exit/room or a hidden feature
     };
     function paramInput(kind, value, onChange) {
       const A = API3();
@@ -32970,7 +32982,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         { p: "The world editor is a node graph. Add places, people, factions, objects, events, quests and lore from the palette, then connect them with the Link tool; the connection type follows from what you link (a person linked to a place lives there)." },
         { list: [
           "Select a node to edit it in the inspector on the right.",
-          "Events have triggers (entering a place, a time, a quest state…) and effects (flags, items, quests, moving people), and can chain.",
+          "Events have triggers (entering a place, a time, a quest state…) and effects (flags, items, quests, moving people, a fight, revealing a secret way or a hidden object), and can chain.",
           "A person can reuse a character card from your library.",
           'A dungeon or town is one node; double-click it (or "Open dungeon editor") to build its rooms and places on a grid, connect them with doors, and add features, inhabitants and encounters. Secret doors stay hidden from the AI until found.',
           "Or press Generate: a seeded dungeon (size, theme, encounters) or a town from the places you tick. Connect the dungeon to a place in the world first, so it gets a way out."
@@ -38608,7 +38620,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
 
   // src/adventures/content/drowned-lantern.js
   var ID = "drowned-lantern";
-  var VERSION = 4;
+  var VERSION = 5;
   var place = (id, name, description, extra = {}) => Object.assign({ id, name, description }, extra);
   var room = (id, name, parentId, [x, y], description, extra = {}) => Object.assign({ id, name, parentId, map: { x, y, w: 4, h: 3 }, description }, extra);
   var exit = (id, to, dir, type = "open", extra = {}) => Object.assign({ id, to, dir, type }, extra);
@@ -39324,7 +39336,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         mood: "weak, desperate",
         canJoin: true,
         ui: { x: 1480, y: 40 },
-        phases: [{ id: "ph_home", label: "Home again", conditions: [questIs("q_stablemaster", "turnedin")], name: "Corwin Lark", homeLocationId: "op_stables", mood: "grateful, recovering" }]
+        phases: [{ id: "ph_home", label: "Home again", conditions: [questIs("q_watchtower", "turnedin"), questIs("q_stablemaster", "turnedin")], name: "Corwin Lark", homeLocationId: "op_stables", mood: "grateful, recovering" }]
       },
       { id: "npc_harrowfield", name: "Old Harrowfield", personality: 'A shepherd (he/him), eighty if a day, who has lost six sheep and a lamb to "a bear with a beak" and will tell you all their names.', homeLocationId: "loc_meadow_road", mood: "grieving, stubborn", ui: { x: 1e3, y: 640 } }
     );
@@ -39397,17 +39409,18 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         objectives: [{ id: "o1", kind: "visit", target: "wt_hall", text: "Search the Watchtower Ruin on Windgap Pass" }, { id: "o2", kind: "talk", target: "npc_prisoner", text: "Find out who is held in the cellar" }],
         rewards: [{ type: "xp", xp: 150 }, { type: "reputation", factionId: "fac_outpost", amount: 50 }]
       },
+      // unlocked by finding the real Corwin in the Watchtower, or by the Reedcloaks' ledger (layer 4)
       {
         id: "q_stablemaster",
         title: "The Stablemaster",
         giverPersonId: "npc_hedda",
         turninPersonId: "npc_hedda",
-        prerequisites: { quests: ["q_watchtower"] },
+        prerequisites: { flags: ["stablemaster_suspected"] },
         ui: { x: 1560, y: 780 },
-        description: "The real Corwin Lark was chained in the watchtower. Something wearing his face works in the Outpost stables.",
-        offerText: "Pip told me. If Corwin is in that tower, then what is in my stables? …I have a crossbow and a very bad temper. Go and face it with me.",
+        description: "Something wearing the stablemaster's face works in the Outpost stables and tells the smugglers which carts to hit.",
+        offerText: 'Pip swears Mr Lark came back from the pass wrong — and now I hear the smugglers have "the stablemaster" in their pay. If that is not Corwin in my stables, what is it? …I have a crossbow and a very bad temper. Go and face it with me.',
         progressText: "It is still in the stables.",
-        completionText: "A shapechanger. In my stables, for a whole season, telling smugglers our carts. Corwin is home now — and you have a room here for as long as you live.",
+        completionText: "A shapechanger. In my stables, for a whole season, telling smugglers our carts. You have a room here for as long as you live.",
         objectives: [{ id: "o1", kind: "kill", target: "Doppelganger", count: 1, text: "Unmask the false stablemaster" }],
         rewards: [
           { type: "xp", xp: 300 },
@@ -39447,6 +39460,16 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         effects: [{ type: "encounter", value: "enc_night_raid" }],
         repeatable: false,
         ui: { x: 1560, y: 380 }
+      },
+      {
+        id: "ev_suspect_tower",
+        name: "Corwin is alive",
+        description: "The real Corwin Lark is alive — so who works in the Outpost stables?",
+        triggers: [{ type: "onQuestState", questId: "q_watchtower", state: "turnedin" }],
+        conditions: [],
+        effects: [{ type: "flag", key: "stablemaster_suspected", value: true }],
+        repeatable: false,
+        ui: { x: 1640, y: 700 }
       },
       {
         id: "ev_unmask",
@@ -39776,12 +39799,13 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         rewards: [{ type: "xp", xp: 200 }, { type: "gold", gold: 20 }, { type: "reputation", factionId: "fac_lanternport", amount: 100 }]
       },
       // B4
+      // B4 "stop it"; the other way, "Let Them Run" (follow the thieves), comes with layer 4 — accepting one closes the other
       {
         id: "q_last_night",
         title: "The Last Night",
         giverPersonId: "npc_dahl",
         turninPersonId: "npc_dahl",
-        prerequisites: { quests: ["q_whispers"] },
+        prerequisites: { quests: ["q_whispers"], notFlags: ["follow_plan"] },
         ui: { x: 2180, y: 540 },
         description: "On the fair's last night, when the fireworks go up, thieves will come for the Founders' Lantern in the guildhall.",
         offerText: "The last night of the fair. The fireworks start at nightfall; the guildhall will be half empty, and Ashcombe's friends know the watch plan. Be in the guildhall when the sky lights up. I will be there too.",
@@ -39890,6 +39914,420 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
     );
     return w;
   }
+  var notFlag = (key) => ({ field: "flag." + key, op: "!=", value: true });
+  function layer4(w) {
+    const at = (id) => w.locations.find((l) => l.id === id);
+    at("loc_river_ford").exits = [exit("ex_ford_beach", "loc_hidden_beach", "s", "open", { secretDC: 14 })];
+    at("lp_docks").exits.push(exit("ex_lp_docks_boat", "loc_hidden_beach", "s", "open", { secretDC: 99, note: "by boat, once hired" }));
+    at("loc_river_ford").description += " Downstream, past the ferry, the reeds grow so thick that the river seems to end.";
+    at("loc_lanternport").phases.splice(1, 0, { id: "ph_robbed", label: "The Lantern stolen", conditions: [flagIs("lantern_stolen")], atmosphere: "shocked, angry, full of rumours" });
+    at("lp_guildhall").phases = [{
+      id: "ph_empty",
+      label: "The plinth is empty",
+      conditions: [flagIs("lantern_stolen"), notFlag("lantern_recovered")],
+      description: "The merchants' hall, quiet and ashamed: the plinth where the Founders' Lantern stood is empty, a broken window boarded up behind it, and two guards watch nothing."
+    }];
+    w.objects.find((o) => o.id === "obj_founders_lantern").phases = [{ id: "ph_stolen", label: "Stolen", conditions: [flagIs("lantern_stolen"), notFlag("lantern_recovered")], gone: true }];
+    w.factions.find((f) => f.id === "fac_reedcloaks").phases = [{
+      id: "ph_scattered",
+      label: "Scattered",
+      conditions: [questIs("q_reedcloak_cave", "turnedin")],
+      description: "Smugglers in reed-green cloaks. Their captain has fallen and their cave is taken; the crews that are left row at night for whoever pays."
+    }];
+    const ash = w.npcs.find((n) => n.id === "npc_ashcombe");
+    ash.phases.unshift({ id: "ph_named", label: "Named in the ledger", conditions: [flagIs("ledger_read")], mood: "frightened; the watch has questions about a ledger" });
+    w.locations.push(
+      // --- the world graph ---
+      place(
+        "loc_hidden_beach",
+        "Hidden Beach",
+        "A crescent of grey shingle on the south shore of Stillwater Mere, walled in by reeds and cliffs, where the Brindle river slips into the lake. Keel marks and boot prints lead to a dark cave in the cliff; a path climbs east along the shore to the old dam. Giant crabs bask here by day; at night the frogs sing.",
+        { atmosphere: "secretive", ui: { x: 450, y: 700 } }
+      ),
+      place(
+        "loc_sea_cave",
+        "The Sea Cave",
+        "A sea cave in the cliffs above the hidden beach, big enough to row a boat into — the Reedcloaks' base: a hidden dock, their stores and bunks, and passages that run down under the lake.",
+        { kind: "dungeon", mapStyle: "stone", atmosphere: "tense", ui: { x: 300, y: 860 } }
+      ),
+      place(
+        "loc_old_dam",
+        "The Old Dam",
+        "The great grey dam at the lake's outflow, two hundred years old, that raised the water and drowned Old Brindle. A sluice house squats on top; somebody still keeps it.",
+        { kind: "dungeon", mapStyle: "stone", atmosphere: "melancholy", ui: { x: 620, y: 860 } }
+      ),
+      // --- the Sea Cave (dungeon map): the dock in the middle, stores and the captain above, the deep passages behind ---
+      room(
+        "sc_mouth",
+        "Cave Mouth",
+        "loc_sea_cave",
+        [0, 4],
+        "The tide-worn mouth of the cave: slick rocks, knee-deep water at the edges and the smell of tar. The beach is a bright arch behind you.",
+        { light: "dim", hazards: ["slick rocks", "knee-deep water"], exits: [exit("ex_sc_out", "loc_hidden_beach", "w"), exit("ex_sc_mouth_dock", "sc_dock", "e", "corridor")] }
+      ),
+      room(
+        "sc_dock",
+        "Hidden Dock",
+        "loc_sea_cave",
+        [5, 4],
+        "A plank jetty on tarred posts in a cavern of black water. Two long rowing boats are tied up, reed-green cloth over their cargo. Lanterns hang low, hooded towards the wall.",
+        { light: "dim", exits: [exit("ex_sc_dock_lookout", "sc_lookout", "n", "stairs"), exit("ex_sc_dock_stores", "sc_stores", "e", "door", { door: { state: "closed", material: "tarred plank" } }), exit("ex_sc_dock_bunks", "sc_bunks", "s", "corridor")] }
+      ),
+      room(
+        "sc_lookout",
+        "Lookout Ledge",
+        "loc_sea_cave",
+        [5, 0],
+        "A ledge high in the cliff with a slit over the lake and a bell on a rope. Whoever stands here sees every boat on the south shore.",
+        { light: "dim", hazards: ["a long drop to the water"], exits: [exit("ex_sc_lookout_cabin", "sc_captain", "e", "secret", { secretDC: 17, door: { state: "closed", material: "plank behind a sailcloth" } })] }
+      ),
+      room(
+        "sc_captain",
+        "Captain's Cabin",
+        "loc_sea_cave",
+        [10, 0],
+        "A cabin built into a dry cave: a real bed, a chart table with the lake drawn in red ink, a strongbox, and a bottle of good wine. Captain Vesna Kral does not live like her crews.",
+        { light: "dim", exits: [exit("ex_sc_cabin_stores", "sc_stores", "s", "door", { door: { state: "closed", material: "iron-bound oak" } })] }
+      ),
+      room(
+        "sc_stores",
+        "Stolen Stores",
+        "loc_sea_cave",
+        [10, 4],
+        "Crates, barrels and sacks from a season of missing carts, stacked to the roof — Brindlewick's mill stamp, the Outpost's brand, Lanternport's guild seal. Tools on pegs by the door.",
+        { light: "dark", exits: [exit("ex_sc_stores_grotto", "sc_grotto", "e", "corridor"), exit("ex_sc_stores_relics", "sc_relics", "s", "door", { door: { state: "locked", material: "iron grille", lockDC: 14, keyItem: "Brass Key" } })] }
+      ),
+      room(
+        "sc_grotto",
+        "Grotto Pool",
+        "loc_sea_cave",
+        [15, 4],
+        "A round grotto around a pool of still, dark water. The Reedcloaks throw their scraps in here, and something big has learned to wait for them.",
+        { light: "dark", hazards: ["deep water at the edge"], exits: [exit("ex_sc_grotto_flooded", "sc_flooded", "s", "corridor")] }
+      ),
+      room(
+        "sc_bunks",
+        "Bunkroom",
+        "loc_sea_cave",
+        [5, 8],
+        "Hammocks, sea chests and wet boots; dice on an upturned barrel. It smells of damp wool and pipe smoke.",
+        { light: "dim", exits: [exit("ex_sc_bunks_galley", "sc_galley", "w", "open")] }
+      ),
+      room(
+        "sc_galley",
+        "Galley",
+        "loc_sea_cave",
+        [0, 8],
+        "A smoky cook-cave with a fire under a crack in the rock, a stew pot and one tired cook who does not look like a fighter.",
+        { light: "dim" }
+      ),
+      room(
+        "sc_relics",
+        "Sorting Room",
+        "loc_sea_cave",
+        [10, 8],
+        `Long tables covered in things dredged from the lake: green coins, a church bell's clapper, candlesticks, a stone saint with no face. Everything is sorted, cleaned and labelled — "for Mother R.".`,
+        { light: "dim", exits: [exit("ex_sc_relics_flooded", "sc_flooded", "e", "corridor")] }
+      ),
+      room(
+        "sc_flooded",
+        "Flooded Passage",
+        "loc_sea_cave",
+        [15, 8],
+        "The passage slopes down under the lake until black water fills it to the roof. The air is cold and smells of old stone; now and then, very far below, something rings like a bell.",
+        { light: "dark", hazards: ["deep cold water", "the passage dives under the lake"] }
+      ),
+      // --- the Old Dam (dungeon map) ---
+      room(
+        "od_crest",
+        "Dam Crest",
+        "loc_old_dam",
+        [0, 4],
+        "A broad stone walkway along the top of the dam: the Mere laps at one side, and on the other a dry gorge falls away to the millrace. A raft is moored below, with grappling hooks and nets.",
+        { exits: [exit("ex_od_out", "loc_hidden_beach", "w"), exit("ex_od_crest_sluice", "od_sluice", "e", "door", { door: { state: "closed", material: "weathered oak" } })] }
+      ),
+      room(
+        "od_sluice",
+        "Sluice House",
+        "loc_old_dam",
+        [5, 4],
+        "A stone house over the sluice gates: great winches, chains thick as an arm, and a gauge that shows how high the Mere stands. The big winch has no crank.",
+        { light: "dim", exits: [exit("ex_od_sluice_under", "od_under", "down", "stairs")] }
+      ),
+      room(
+        "od_under",
+        "Keeper's Undercroft",
+        "loc_old_dam",
+        [5, 8],
+        "A vault inside the dam where the keepers have always lived: a bunk, a stove, and on the walls the names of every family of Old Brindle, carved when the water came.",
+        { light: "dim" }
+      )
+    );
+    w.objects.push(
+      { id: "obj_keel_marks", name: "Keel marks", desc: "Fresh grooves in the shingle where boats are dragged up, and boot prints leading to a dark cave in the cliff.", locationId: "loc_hidden_beach" },
+      { id: "obj_driftwood", name: "Driftwood pile", desc: "Bleached logs piled high by the spring floods; good cover.", locationId: "loc_hidden_beach", kind: "furniture", cover: "half" },
+      { id: "obj_mouth_bell", name: "Alarm bell", desc: "A ship's bell on a rope; one pull and the whole cave knows.", locationId: "sc_lookout", kind: "furniture" },
+      { id: "obj_cave_crates", name: "Crates from the carts", desc: "Grain, cider, cloth and tools from a season of missing carts. And, on a peg by the door, a heavy iron crank.", locationId: "sc_stores", kind: "container", contains: ["Sluice Crank", "Grain Sack x2", "Rope"] },
+      { id: "obj_sea_chests", name: "Sea chests", desc: "The crews' chests, mostly unlocked: pay, pipes, letters home. One holds a small brass key on a string.", locationId: "sc_bunks", kind: "container", contains: ["Brass Key", "18 gp", "Reed-green Cloak"] },
+      { id: "obj_strongbox", name: "The captain's strongbox", desc: "Iron, bolted to the rock, unlocked with the captain's own key: coin, and a thick ledger in oilcloth.", locationId: "sc_captain", kind: "container", contains: ["Reedcloak Ledger", "85 gp", "Potion of Healing x2"] },
+      { id: "obj_chart_table", name: "Chart table", desc: `The Mere in red ink: the beach, the dam, Lanternport's docks — and in the middle of the lake a circle labelled "chapel — low water or the long swim".`, locationId: "sc_captain", kind: "furniture", cover: "half" },
+      { id: "obj_relic_tables", name: "Relic tables", desc: 'Relics of Old Brindle, cleaned and labelled "for Mother R.". A crate is packed for the next boat.', locationId: "sc_relics", kind: "container", contains: ["Lake-green Coin x3", "Bronze Candlestick"] },
+      {
+        id: "obj_stolen_lantern",
+        name: "The Founders' Lantern",
+        desc: "The Founders' Lantern, on the sorting table among the relics, its pale flame burning steadily in the dark.",
+        locationId: "sc_relics",
+        kind: "light",
+        lit: true,
+        hidden: true,
+        contains: ["Founders' Lantern"],
+        phases: [{ id: "ph_back", label: "Taken back", conditions: [flagIs("lantern_recovered")], gone: true }]
+      },
+      { id: "obj_winch", name: "The great winch", desc: "It opens the sluice gates — if it had its crank. Turning it would take a strong back even then.", locationId: "od_sluice", kind: "furniture", cover: "half" },
+      { id: "obj_names_wall", name: "The wall of names", desc: `The families of Old Brindle, carved in rows: Quill, Fenn, Holt, Wen… and above them the chapel's sign, a lantern over a church roof. At the bottom, newer letters: "The Still Water keeps them."`, locationId: "od_under", kind: "furniture" }
+    );
+    w.npcs.push(
+      {
+        id: "npc_ines",
+        name: "Ines Calder",
+        personality: "A boatwoman at Lanternport's docks (she/her): wiry, sun-browned, sixty, rows anyone anywhere on the Mere for a fair price and never asks why — though she has opinions about boats that go out without lights.",
+        factionId: "fac_lanternport",
+        homeLocationId: "lp_docks",
+        mood: "unbothered",
+        ui: { x: 1940, y: 360 },
+        shop: { items: [{ item: "Boat Passage", price: "5 gp" }, { item: "Fishing Tackle", price: "1 gp" }], buys: false, note: "Passage to the south shore is five gold; she waits an hour, not a minute more." }
+      },
+      { id: "npc_anselm", name: "Keeper Anselm Roe", personality: 'Keeper of the Old Dam (he/him): seventy, stooped, gentle and stubborn; the last of a line of keepers who swore never to open the sluice "unless the Still Water asks". Knows every name on the wall of the undercroft.', homeLocationId: "od_sluice", mood: "worried", ui: { x: 700, y: 960 } },
+      { id: "npc_brisco", name: "Brisco", personality: "The Reedcloaks' cook (he/him): big, soft-spoken, sick of smuggling and sicker of the things they have been dredging up. Will talk if nobody threatens him; knows Pell from the old days.", factionId: "fac_reedcloaks", homeLocationId: "sc_galley", mood: "weary", ui: { x: 200, y: 960 } }
+    );
+    w.quests.push(
+      // A4
+      {
+        id: "q_follow_river",
+        title: "Follow the River",
+        giverPersonId: "npc_odo",
+        turninPersonId: "npc_odo",
+        prerequisites: { quests: ["q_old_coin"] },
+        ui: { x: 500, y: 660 },
+        description: "The green coins wash down the river from the south shore, where the Brindle slips into the Mere. Odo knows a path through the reeds.",
+        offerText: "Green coins come down with the spring floods — from the south, where the river runs out into the Mere past the old dam. There's a path through the reeds the night-rowers use. I'll show you where it starts. Mind the crabs.",
+        progressText: "Found where the path goes?",
+        completionText: "A cave, boats and green cloaks. Aye — I thought as much, and I thought better of saying so. You'd best tell someone braver than me.",
+        objectives: [{ id: "o1", kind: "visit", target: "loc_hidden_beach", text: "Follow the river to the hidden beach" }],
+        rewards: [{ type: "xp", xp: 100 }, { type: "reputation", factionId: "fac_brindlewick", amount: 25 }]
+      },
+      // A5
+      {
+        id: "q_reedcloak_cave",
+        title: "The Reedcloaks' Cave",
+        giverPersonId: "npc_odo",
+        turninPersonId: "npc_maren",
+        prerequisites: { quests: ["q_follow_river"] },
+        ui: { x: 500, y: 740 },
+        description: "The smugglers in green cloaks work from a cave above the hidden beach. Take it, find out who pays them, and bring Elder Holt proof.",
+        offerText: "Those are the ones who pay goblins in drowned coins. Somebody has to go into that cave, and it won't be me. Bring the elder something with writing on it — smugglers always keep books.",
+        progressText: "The cave?",
+        completionText: '"The stablemaster: carts, days, guards." "The lord on the hill: the watch plan, against his debts." "Mother R. wants the Lantern. Only the Lantern." …There is one stablemaster on that road, Corwin Lark at the Outpost — Hedda Morrow must hear this. And who under the Mere is Mother R.?',
+        objectives: [{ id: "o1", kind: "kill", target: "Bandit Captain", count: 1, text: "Defeat the Reedcloaks' captain, Vesna Kral" }, { id: "o2", kind: "collect", target: "Reedcloak Ledger", count: 1, text: "Find the Reedcloaks' ledger" }],
+        rewards: [
+          { type: "xp", xp: 300 },
+          { type: "gold", gold: 60 },
+          { type: "reputation", factionId: "fac_brindlewick", amount: 150 },
+          { type: "reputation", factionId: "fac_reedcloaks", amount: -100 },
+          { type: "choice", options: [{ item: "Potion of Healing", qty: 3 }, { item: "Cloak of Protection", qty: 1 }, { item: "Longbow", qty: 1 }] }
+        ]
+      },
+      // side quest at the Old Dam
+      {
+        id: "q_sluice",
+        title: "The Sluice",
+        giverPersonId: "npc_anselm",
+        turninPersonId: "npc_anselm",
+        ui: { x: 700, y: 1040 },
+        description: "Men in green cloaks stole the crank of the Old Dam's great winch. Without it the keeper cannot work the sluice gates at all.",
+        offerText: "They came in a raft and asked me to open the gates — to lower the Mere, so the old village comes up out of the water. I said no, and they took my crank. Without it I can't open the gates, and I can't close them in a flood either. Bring it back. Please.",
+        progressText: "My crank?",
+        completionText: "Oh, you beauty. …You should know what this does. Open the gates and the Mere drops by a man's height; the roofs of Old Brindle come up out of the water — and the Brindle runs dry below the dam, and the mill with it, for a season. I won't do it. Unless someone gives me a very good reason.",
+        objectives: [{ id: "o1", kind: "collect", target: "Sluice Crank", count: 1, consume: true, text: "Bring back the sluice crank the Reedcloaks took" }],
+        rewards: [{ type: "xp", xp: 100 }, { type: "gold", gold: 15 }, { type: "reputation", factionId: "fac_brindlewick", amount: 50 }]
+      },
+      // the boat from Lanternport's docks
+      {
+        id: "q_hire_boat",
+        title: "A Boat for Hire",
+        giverPersonId: "npc_ines",
+        turninPersonId: "npc_ines",
+        ui: { x: 2020, y: 380 },
+        description: "Ines Calder rows anyone anywhere on the Mere — even to the smugglers' beach on the south shore — for five gold.",
+        offerText: "Anywhere on the Mere. The south shore? There's a cove there nobody fishes; the lightless boats go there. Five gold for that one — buy your passage and I'll row you whenever you like.",
+        progressText: "Five gold, love. I don't row for smiles.",
+        completionText: "Paid and done. When you want the south shore, come down to the docks and get in.",
+        objectives: [{ id: "o1", kind: "collect", target: "Boat Passage", count: 1, consume: true, text: "Buy a passage from Ines Calder" }],
+        rewards: []
+      },
+      // B4, the other way: let the thieves take the Lantern and follow them to their base
+      {
+        id: "q_follow_thieves",
+        title: "Let Them Run",
+        giverPersonId: "npc_dahl",
+        turninPersonId: "npc_dahl",
+        prerequisites: { quests: ["q_whispers"], notFlags: ["stop_plan"] },
+        ui: { x: 2180, y: 620 },
+        description: "Instead of stopping the thieves on the fair's last night, let them take the Founders' Lantern — and follow them to whoever pays them. A gamble: the town will not forgive a lost Lantern.",
+        offerText: "Or… we let them take it. Stop them in the hall and we catch the hands, never the head. Let them run with the Lantern and follow them home, and we get the lot. It is a gamble — lose the Lantern and this town will never forgive either of us. My watch boat will be waiting at the docks.",
+        progressText: "Where is the Lantern?",
+        completionText: "The Lantern! Intact, still burning — and their whole nest found. The mayor will shout at me for a week, and then she will give us both a medal. Here — you earned more than a medal.",
+        objectives: [
+          { id: "o1", kind: "visit", target: "lp_guildhall", text: "Be in the guildhall on the fair's last night — and let them take it" },
+          { id: "o2", kind: "visit", target: "loc_hidden_beach", text: "Follow the thieves' boat across the Mere" },
+          { id: "o3", kind: "kill", target: "Spy", count: 1, text: `Catch the thieves' leader, "Slate"` },
+          { id: "o4", kind: "collect", target: "Founders' Lantern", count: 1, consume: true, text: "Bring back the Founders' Lantern" }
+        ],
+        rewards: [
+          { type: "xp", xp: 350 },
+          { type: "gold", gold: 120 },
+          { type: "reputation", factionId: "fac_lanternport", amount: 100 },
+          { type: "reputation", factionId: "fac_reedcloaks", amount: -150 },
+          { type: "choice", options: [{ item: "Bag of Holding", qty: 1 }, { item: "Cloak of Protection", qty: 1 }, { item: "Potion of Healing", qty: 4 }] }
+        ]
+      }
+    );
+    w.encounters.push(
+      { id: "enc_beach_crabs", name: "Giant crabs on the beach", monsters: [{ key: "giant-crab", count: 4 }], personIds: [], start: "near" },
+      { id: "enc_beach_frogs", name: "The night chorus", monsters: [{ key: "giant-toad", count: 1 }, { key: "giant-frog", count: 2 }], personIds: [], start: "near" },
+      { id: "enc_dam_dredgers", name: "Reedcloak dredgers on the dam", monsters: [{ key: "bandit", count: 2 }, { key: "tough", count: 2 }], personIds: [], locationId: "od_crest", start: "auto", factionId: "fac_reedcloaks" },
+      { id: "enc_cave_dock", name: "Guards at the hidden dock", monsters: [{ key: "bandit", count: 2 }, { key: "tough", count: 1 }, { key: "scout", count: 1 }], personIds: [], locationId: "sc_dock", start: "auto", factionId: "fac_reedcloaks" },
+      { id: "enc_cave_lookout", name: "Lookouts on the ledge", monsters: [{ key: "scout", count: 2 }], personIds: [], locationId: "sc_lookout", start: "auto", factionId: "fac_reedcloaks" },
+      { id: "enc_cave_bunks", name: "The off-watch crew", monsters: [{ key: "bandit", count: 3 }, { key: "tough", count: 1 }], personIds: [], locationId: "sc_bunks", start: "auto", factionId: "fac_reedcloaks" },
+      { id: "enc_cave_grotto", name: "What waits in the pool", monsters: [{ key: "crocodile", count: 2 }], personIds: [], locationId: "sc_grotto", start: "auto" },
+      { id: "enc_cave_captain", name: "Captain Vesna Kral", monsters: [{ key: "bandit-captain", count: 1 }, { key: "bandit", count: 2 }], personIds: [], start: "auto", factionId: "fac_reedcloaks" },
+      { id: "enc_cave_slate", name: '"Slate" and the Lantern thieves', monsters: [{ key: "spy", count: 1 }, { key: "bandit", count: 2 }, { key: "tough", count: 1 }], personIds: [], start: "auto", factionId: "fac_reedcloaks" }
+    );
+    w.events.push(
+      {
+        id: "ev_river_path",
+        name: "Odo shows the way",
+        description: "Odo walks you down past the ferry and parts the reeds with his pole: a narrow path along the bank, heading south towards the Mere.",
+        triggers: [{ type: "onQuestState", questId: "q_follow_river", state: "active" }],
+        conditions: [],
+        effects: [{ type: "reveal", id: "ex_ford_beach" }],
+        repeatable: false,
+        ui: { x: 360, y: 660 }
+      },
+      {
+        id: "ev_beach_crabs",
+        name: "Crabs in the sun",
+        description: "The grey rocks along the waterline get up on long legs: giant crabs, claws raised, sidling towards you.",
+        triggers: [{ type: "onEnterLocation", locationId: "loc_hidden_beach" }],
+        conditions: [{ field: "time", op: "!=", value: "night" }],
+        effects: [{ type: "encounter", value: "enc_beach_crabs" }],
+        repeatable: false,
+        ui: { x: 360, y: 740 }
+      },
+      {
+        id: "ev_beach_frogs",
+        name: "The night chorus",
+        description: "The frog song stops all at once. Something huge and warty heaves itself out of the shallows, and two more follow.",
+        triggers: [{ type: "onEnterLocation", locationId: "loc_hidden_beach" }, { type: "onTime" }],
+        conditions: [{ field: "time", op: "==", value: "night" }, { field: "location", op: "==", value: "loc_hidden_beach" }],
+        effects: [{ type: "encounter", value: "enc_beach_frogs" }],
+        repeatable: false,
+        ui: { x: 360, y: 820 }
+      },
+      {
+        id: "ev_boat_hired",
+        name: "A boat for hire",
+        description: "Ines Calder will row you to the hidden beach on the south shore whenever you come down to the docks.",
+        triggers: [{ type: "onQuestState", questId: "q_hire_boat", state: "turnedin" }],
+        conditions: [],
+        effects: [{ type: "reveal", id: "ex_lp_docks_boat" }, { type: "flag", key: "boat_hired", value: true }],
+        repeatable: false,
+        ui: { x: 2020, y: 300 }
+      },
+      {
+        id: "ev_cave_captain",
+        name: "The captain's cabin",
+        description: 'Captain Vesna Kral — tall, scarred, in a reed-green coat with silver buttons — puts down her wine and draws a curved sword. "You must be the ones who have been costing me money."',
+        triggers: [{ type: "onEnterLocation", locationId: "sc_captain" }],
+        conditions: [],
+        effects: [{ type: "encounter", value: "enc_cave_captain" }],
+        repeatable: false,
+        ui: { x: 200, y: 1040 }
+      },
+      {
+        id: "ev_ledger",
+        name: "The ledger read",
+        description: `The Reedcloaks' ledger names "the stablemaster", "a lord on the hill" and "Mother R.", who wants the Lantern.`,
+        triggers: [{ type: "onQuestState", questId: "q_reedcloak_cave", state: "turnedin" }],
+        conditions: [],
+        effects: [{ type: "flag", key: "ledger_read", value: true }, { type: "flag", key: "stablemaster_suspected", value: true }],
+        repeatable: false,
+        ui: { x: 500, y: 820 }
+      },
+      // the last night, both ways: accepting one plan closes the other
+      {
+        id: "ev_plan_stop",
+        name: "Stop them in the hall",
+        description: "You and Captain Dahl will stop the thieves in the guildhall.",
+        triggers: [{ type: "onQuestState", questId: "q_last_night", state: "active" }],
+        conditions: [],
+        effects: [{ type: "flag", key: "stop_plan", value: true }],
+        repeatable: false,
+        ui: { x: 2340, y: 540 }
+      },
+      {
+        id: "ev_plan_follow",
+        name: "Let them run",
+        description: "You and Captain Dahl will let the thieves take the Lantern and follow them.",
+        triggers: [{ type: "onQuestState", questId: "q_follow_thieves", state: "active" }],
+        conditions: [],
+        effects: [{ type: "flag", key: "follow_plan", value: true }],
+        repeatable: false,
+        ui: { x: 2340, y: 620 }
+      },
+      {
+        id: "ev_heist_follow",
+        name: "The Lantern taken",
+        description: "The first rockets burst over the lake — a window shatters, and figures in dark coats snatch the Founders' Lantern and run for the docks. As agreed, nobody stops them. A boat without lights pulls away towards the south shore, and Captain Dahl's watch boat is waiting at the quay.",
+        triggers: [{ type: "onEnterLocation", locationId: "lp_guildhall" }, { type: "onTime" }],
+        conditions: [questIs("q_follow_thieves", "active"), fairDay(3), { field: "time", op: "==", value: "night" }, { field: "location", op: "==", value: "lp_guildhall" }],
+        effects: [
+          { type: "flag", key: "heist_night", value: true },
+          { type: "flag", key: "lantern_stolen", value: true },
+          { type: "flag", key: "fair_over", value: true },
+          { type: "reveal", id: "ex_lp_docks_boat" },
+          { type: "reveal", id: "obj_stolen_lantern" }
+        ],
+        repeatable: false,
+        ui: { x: 2340, y: 700 }
+      },
+      {
+        id: "ev_cave_slate",
+        name: "Slate with the Lantern",
+        description: `Among the relics, the Founders' Lantern burns on the sorting table. A man with a face you forget while you look at it — "Slate" — turns from it with a knife in each hand, and his crew close in.`,
+        triggers: [{ type: "onEnterLocation", locationId: "sc_relics" }],
+        conditions: [flagIs("lantern_stolen")],
+        effects: [{ type: "encounter", value: "enc_cave_slate" }],
+        repeatable: false,
+        ui: { x: 200, y: 1120 }
+      },
+      {
+        id: "ev_lantern_back",
+        name: "The Lantern returned",
+        description: "The Founders' Lantern is back on its plinth in the guildhall, and Lanternport cannot decide whether to cheer or to scold.",
+        triggers: [{ type: "onQuestState", questId: "q_follow_thieves", state: "turnedin" }],
+        conditions: [],
+        effects: [{ type: "flag", key: "lantern_recovered", value: true }, { type: "flag", key: "lantern_saved", value: true }],
+        repeatable: false,
+        ui: { x: 2340, y: 780 }
+      }
+    );
+    w.globalLore.push(
+      { id: "gl_old_dam", label: "The Old Dam", content: "The Old Dam at the lake's outflow was built two hundred years ago to power the mills downstream. Its sluice gates can lower the Mere by a man's height — enough to bring the roofs of Old Brindle out of the water, and to leave Brindlewick's millrace dry for a season. A keeper has always lived inside it.", keys: ["dam", "sluice", "keeper"] },
+      { id: "gl_sea_cave", label: "The south shore", content: "The south shore of Stillwater Mere is cliffs and reeds; fishermen avoid it. People say boats without lights put in at a hidden beach there.", keys: ["south shore", "beach", "cave"] }
+    );
+    return w;
+  }
   var OPENING = [
     "Mist lies over Stillwater Mere this spring morning, and it creeps up the lane into Brindlewick, beading on the thatch of the Tipsy Heron.",
     "Inside, the fire crackles, Ada Fenn is slicing bread faster than anyone can eat it, and the stuffed heron over the bar leans a little further to the left than yesterday.",
@@ -39905,7 +40343,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       summary: "Supply carts keep vanishing between the village of Brindlewick and the lakeside town of Lanternport. Follow the trail from goblin raiders to smugglers on Stillwater Mere, and to what lies under the lake. A starter adventure for one character and a companion.",
       levels: [1, 5],
       credits: [SRD.attribution],
-      world: layer3(layer2(world())),
+      world: layer4(layer3(layer2(world()))),
       characters: PREGENS.map(pregenCard),
       start: { view: "player", pregens: PREGENS.map((p) => p.id), opening: OPENING }
     };

@@ -1,6 +1,6 @@
 'use strict';
 // R8 content: the starter adventure "The Drowned Lantern" — its package is valid, its pregens follow
-// the character builder's rules, its shops can price everything, and layer 1 plays through.
+// the character builder's rules, its shops can price everything, and layers 1–4 play through.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const esbuild = require('esbuild');
@@ -341,4 +341,176 @@ test('layer 3 plays through: word to the mayor, the Lantern Fair (contests, cook
     assert.match(W.questLocks('q_contest_archery').join(), /No longer: fair_over/, 'the contests end with the fair');
     W.go('Fairground');
     assert.ok(!people().includes('npc_baba'), 'Baba went home');
+});
+
+test('layer 4 plays through: the river to the hidden beach, the sea cave and its ledger, the Old Dam, the boat', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'pell', confirm: false });
+    await sleep(50);
+    assert.equal(W.joinParty('Oona').ok, true);
+    const beat = () => { for (const o of W.getCombat().order.filter(o => o.kind === 'monster')) W.damage(o.id, 999); W.endEncounter(); };
+    const say = async (text) => { w.gametext_arr.push(text); await w.prepare_submit_generation(); await sleep(60); };
+    const ways = () => plain(W.here().ways).map(x => x.name);
+    const fighting = () => !!(W.getCombat() && W.getCombat().active && !W.getCombat().outcome);
+    const monsters = () => plain(W.getCombat().order.filter(o => o.kind === 'monster').map(o => o.name)).sort();
+
+    // A4: the path along the river is hidden until searched for — or until Odo shows it
+    for (const id of ['q_missing_carts', 'q_hollow_oak', 'q_old_coin']) W.setQuestState(id, 'turnedin');
+    // (Pell's passive Perception, 16, would notice it on arrival: she knows this shore)
+    assert.deepEqual(plain(W.hiddenIn('loc_river_ford')).map(c => c.id), ['ex_ford_beach'], 'a Search could find it');
+    assert.ok(W.acceptQuest('q_follow_river'));
+    assert.deepEqual(plain(W.hiddenIn('loc_river_ford')), [], 'Odo shows the way');
+    W.moveTo('loc_river_ford');
+    assert.ok(ways().includes('Hidden Beach'));
+    W.go('Hidden Beach');
+    assert.equal(W.runtime.playerLocationId, 'loc_hidden_beach');
+    assert.ok(fighting(), 'giant crabs by day');
+    assert.deepEqual(monsters(), ['Giant Crab 1', 'Giant Crab 2', 'Giant Crab 3', 'Giant Crab 4']);
+    beat();
+    assert.equal(W.questState('q_follow_river'), 'complete');
+    W.turnInQuest('q_follow_river');
+    W.setClock({ time: 'night' });
+    assert.ok(fighting(), 'giant frogs at night');
+    assert.deepEqual(monsters(), ['Giant Frog 1', 'Giant Frog 2', 'Giant Toad']);
+    beat();
+    W.setClock({ day: W.runtime.clock.day + 1, time: 'morning' });
+
+    // A5: the Reedcloaks' cave
+    assert.ok(W.acceptQuest('q_reedcloak_cave'));
+    assert.match(W.questLocks('q_stablemaster').join(), /stablemaster_suspected/);
+    W.go('The Sea Cave');
+    assert.equal(W.runtime.playerLocationId, 'sc_mouth');
+    W.go('east'); assert.ok(W.startSavedEncounter('enc_cave_dock')); beat();
+    W.go('south'); assert.ok(W.startSavedEncounter('enc_cave_bunks')); beat();
+    await say('In a sea chest, on a string: a small brass key. <give>Brass Key</give>');
+    W.go('north'); W.go('east');
+    assert.equal(W.runtime.playerLocationId, 'sc_stores');
+    await say('On a peg by the door hangs a heavy iron crank. <give>Sluice Crank</give>');
+    W.go('north');
+    assert.equal(W.runtime.playerLocationId, 'sc_captain');
+    assert.ok(fighting(), 'Captain Vesna Kral waits in her cabin');
+    assert.deepEqual(monsters(), ['Bandit 1', 'Bandit 2', 'Bandit Captain']);
+    beat();
+    await say('In the strongbox, wrapped in oilcloth: a ledger. <give>Reedcloak Ledger</give>');
+    assert.equal(W.questState('q_reedcloak_cave'), 'complete');
+    // the captain's bolt-hole to the lookout is a secret door
+    assert.deepEqual(plain(W.hiddenIn('sc_captain')).map(c => c.id), ['ex_sc_lookout_cabin']);
+    // the sorting room: behind a locked grille (the brass key); no Lantern there — it was never stolen
+    W.go('south'); W.go('south');
+    assert.equal(W.runtime.playerLocationId, 'sc_stores', 'the grille is locked');
+    W.door('unlock', 'south'); W.go('south');
+    assert.equal(W.runtime.playerLocationId, 'sc_relics');
+    assert.ok(!fighting(), 'nobody waits with a Lantern');
+    assert.match(W.preview(), /Relic tables/);
+    assert.doesNotMatch(W.preview(), /Founders' Lantern/, 'the hidden Lantern stays hidden');
+    W.turnInQuest('q_reedcloak_cave', 0);
+    assert.equal(W.runtime.flags.ledger_read, true);
+    assert.deepEqual(plain(W.questLocks('q_stablemaster')), [], 'the ledger names the stablemaster');
+    assert.equal(W.phased('fac_reedcloaks').phase, 'Scattered');
+    assert.equal(W.phased('npc_ashcombe').phase, 'Named in the ledger');
+
+    // The Sluice: the crank back to the keeper of the Old Dam
+    W.moveTo('loc_hidden_beach'); W.go('The Old Dam');
+    assert.equal(W.runtime.playerLocationId, 'od_crest');
+    assert.ok(W.startSavedEncounter('enc_dam_dredgers')); beat();
+    W.go('east'); assert.equal(W.runtime.playerLocationId, 'od_sluice');
+    assert.ok(plain(W.here().people).some(p => p.id === 'npc_anselm'));
+    assert.ok(W.acceptQuest('q_sluice'));
+    assert.equal(W.questState('q_sluice'), 'complete', 'the crank is already in the pack');
+    W.turnInQuest('q_sluice');
+    assert.equal(W.questState('q_sluice'), 'turnedin');
+    W.go('down'); assert.match(W.preview(), /The wall of names/);
+
+    // the boat: hired at Lanternport's docks, it rows to the hidden beach and back
+    W.moveTo('lp_docks');
+    assert.ok(!ways().includes('Hidden Beach'), 'no boat before it is hired');
+    assert.ok(W.acceptQuest('q_hire_boat'));
+    W.giveItem('Boat Passage', 1); await sleep(30);
+    assert.equal(W.questState('q_hire_boat'), 'complete');
+    W.turnInQuest('q_hire_boat');
+    assert.equal(W.runtime.flags.boat_hired, true);
+    assert.ok(ways().includes('Hidden Beach'), 'Ines rows you across');
+    W.go('Hidden Beach'); assert.equal(W.runtime.playerLocationId, 'loc_hidden_beach');
+    W.go('Lanternport'); assert.equal(W.runtime.playerLocationId, 'lp_docks', 'and back to the docks');
+});
+
+test('layer 4: the last night the other way — let the thieves take the Lantern and follow them to the sea cave', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures; const C = w.KLITE_RPMod_Characters;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'kasimir', confirm: false });
+    await sleep(50);
+    const beat = () => { for (const o of W.getCombat().order.filter(o => o.kind === 'monster')) W.damage(o.id, 999); W.endEncounter(); };
+    const say = async (text) => { w.gametext_arr.push(text); await w.prepare_submit_generation(); await sleep(60); };
+    const flag = (k) => W.runtime.flags[k];
+    const fighting = () => !!(W.getCombat() && W.getCombat().active && !W.getCombat().outcome);
+
+    // Kasimir (passive Perception 13) walks past the hidden path by the ford (DC 14)
+    W.moveTo('loc_river_ford');
+    assert.ok(!plain(W.here().ways).some(x => x.name === 'Hidden Beach'), 'the beach is not on the map');
+    h.seedRandom([0.99]);
+    assert.match(W.search().text, /found a hidden way \(south\)/, 'a path, not a "secret door"');
+    assert.ok(plain(W.here().ways).some(x => x.name === 'Hidden Beach'), 'found by searching');
+
+    // the fair is open and the whispers heard (layer 3 covers how)
+    W.setQuestState('q_fair_signup', 'turnedin');
+    assert.equal(flag('fair_day'), 1);
+    W.setQuestState('q_whispers', 'turnedin');
+    assert.equal(W.questState('q_last_night'), 'available'); assert.equal(W.questState('q_follow_thieves'), 'available');
+    // choosing one plan closes the other
+    assert.ok(W.acceptQuest('q_follow_thieves'));
+    assert.equal(flag('follow_plan'), true);
+    assert.match(W.questLocks('q_last_night').join(), /No longer: follow_plan/);
+    assert.ok(!W.acceptQuest('q_last_night'), 'Dahl does not offer both');
+
+    // the third night in the guildhall: the thieves take the Lantern, nobody fights
+    W.moveTo('lp_guildhall');
+    W.setClock({ time: 'night' }); W.setClock({ day: W.runtime.clock.day + 1, time: 'morning' });
+    W.setClock({ time: 'night' }); W.setClock({ day: W.runtime.clock.day + 1, time: 'morning' });
+    assert.equal(flag('fair_day'), 3);
+    W.setClock({ time: 'night' });
+    assert.ok(!fighting(), 'no fight in the hall');
+    assert.equal(flag('lantern_stolen'), true); assert.equal(flag('fair_over'), true);
+    assert.doesNotMatch(W.preview(), /The Founders' Lantern/, 'the plinth is empty');
+    assert.match(W.preview(), /plinth where the Founders' Lantern stood is empty/);
+    assert.equal(W.phased('loc_lanternport').phase, 'The Lantern stolen');
+    assert.match(W.questLocks('q_contest_archery').join(), /No longer: fair_over/, 'the fair ends that night');
+
+    // Dahl's watch boat: from the docks to the hidden beach, into the cave
+    W.go('Docks & Fish Market');
+    assert.ok(plain(W.here().ways).some(x => x.name === 'Hidden Beach'), 'the watch boat waits');
+    W.setClock({ day: W.runtime.clock.day + 1, time: 'morning' });
+    W.go('Hidden Beach'); if (fighting()) beat();
+    W.go('The Sea Cave'); W.go('east'); W.go('east');
+    assert.equal(W.runtime.playerLocationId, 'sc_stores');
+    W.go('east'); W.go('south'); W.go('west');   // round by the grotto and the flooded passage
+    assert.equal(W.runtime.playerLocationId, 'sc_relics');
+    assert.ok(fighting(), 'Slate and his crew, with the Lantern');
+    assert.ok(W.getCombat().order.some(o => o.name === 'Spy'));
+    assert.match(W.preview(), /The Founders' Lantern/, 'the Lantern on the sorting table');
+    beat();
+    await say('The Lantern, still burning. <give>Founders\' Lantern</give>');
+    assert.equal(W.questState('q_follow_thieves'), 'complete');
+    W.turnInQuest('q_follow_thieves', 0);
+    assert.equal(flag('lantern_recovered'), true); assert.equal(flag('lantern_saved'), true);
+    assert.equal(W.phased('loc_lanternport').phase, 'The Lantern saved');
+    assert.equal(W.phased('npc_ashcombe').phase, 'Found out');
+    await sleep(60);
+    const inv = C.cachedSheet('Kasimir Adeyemi').inventory.map(i => i.name);
+    assert.ok(inv.includes('Bag of Holding'), 'the bigger reward');
+    assert.ok(!inv.includes("Founders' Lantern"), 'the Lantern went back');
+    W.moveTo('lp_guildhall');
+    assert.match(W.preview(), /The Founders' Lantern/, 'back on its plinth');
+    // more gold and a better prize than stopping it, less standing in town
+    const reward = (id, type) => DL.drownedLantern().world.quests.find(q => q.id === id).rewards.filter(r => r.type === type);
+    assert.ok(reward('q_follow_thieves', 'gold')[0].gold > reward('q_last_night', 'gold')[0].gold);
+    assert.ok(reward('q_follow_thieves', 'reputation').find(r => r.factionId === 'fac_lanternport').amount < reward('q_last_night', 'reputation').find(r => r.factionId === 'fac_lanternport').amount);
 });

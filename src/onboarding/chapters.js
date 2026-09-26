@@ -133,7 +133,7 @@ export const CHAPTERS = [
             { p: 'The world editor is a node graph. Add places, people, factions, objects, events, quests and lore from the palette, then connect them with the Link tool; the connection type follows from what you link (a person linked to a place lives there).' },
             { list: [
                 'Select a node to edit it in the inspector on the right.',
-                'Events have triggers (entering a place, a time, a quest state…) and effects (flags, items, quests, moving people), and can chain.',
+                'Events have triggers (entering a place, a time, a quest state…) and effects (flags, items, quests, moving people, a fight, revealing a secret way or a hidden object), and can chain.',
                 'A person can reuse a character card from your library.',
                 'A dungeon or town is one node; double-click it (or "Open dungeon editor") to build its rooms and places on a grid, connect them with doors, and add features, inhabitants and encounters. Secret doors stay hidden from the AI until found.',
                 'Or press Generate: a seeded dungeon (size, theme, encounters) or a town from the places you tick. Connect the dungeon to a place in the world first, so it gets a way out.',

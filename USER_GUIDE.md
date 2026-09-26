@@ -91,8 +91,12 @@ chatting. Everything below explains how to build your own.
   the docks), with its **Lantern Fair**: sign up with the fair master, win the contests (archery,
   arm-wrestling, the riddle tent, the boat race — RPmod rolls them, once a day each), help the
   Outpost's cook win the cook-off, become champion of the fair, follow the whispers on the docks and
-  guard the Founders' Lantern on the fair's last night. The fair runs three in-game days. The lake
-  side and the drowned chapel open with the next parts.
+  guard the Founders' Lantern on the fair's last night — or let the thieves take it and follow them.
+  The fair runs three in-game days. On the **south shore** of the lake: a hidden beach (follow the
+  river from the ford — search for the path, or let the ferryman show it — or hire a boat at
+  Lanternport's docks), the smugglers' **sea cave** with their captain and their ledger, and the
+  **Old Dam**, whose keeper has lost the crank of his sluice. The drowned chapel opens with the last
+  part.
   - **The four characters:** *Oona Greycairn* (she/her), an orc fighter and old caravan guard
     with a prosthetic leg; *Tove Emberfall* (they/them), a warm, loud dwarf cleric who is very
     short-sighted and refuses glasses; *Kasimir Adeyemi* (he/him), a young human wizard studying
@@ -715,7 +719,8 @@ headquarters any more. A faction's phase can rename it, move or remove its headq
 
 **Triggers & chains.** Events have **triggers** (on enter / time / flag / quest-state / action
 / another event) and **effects** (set flags, give items, offer quests, move NPCs, fire another
-event…). Effects chain, so you can build sequences like *enter the tavern at night → a courier
+event, start a fight, change a standing, **reveal** a secret way or a hidden object…). Effects
+chain, so you can build sequences like *enter the tavern at night → a courier
 arrives → he offers a delivery quest*. Wire it all visually in the editor.
 
 **Factions & HQs.** Link a **Faction → Location** to give it a visitable **headquarters**.

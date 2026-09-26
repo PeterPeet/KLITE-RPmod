@@ -264,7 +264,11 @@ completion marking for non-repeatable events, re-entrancy queue. Signals: `turn`
 `manual:<id>`. Trigger types: `onTurn` (default), `onTime`, `onEnterLocation`, `onFlag`,
 `onQuestState`, `onEvent`, `onAction`, `manual`. Conditions `{field, op, value}` over
 clock/location/`flag.x`/`quest.x`. Effects (`applyEffect` returns follow-up signals):
-`flag, unflag, give, take, quest, discover, move, npcmove, advance, fireEvent`. Fired
+`flag, unflag, give, take, quest, discover, move, npcmove, advance, fireEvent, encounter, reputation`, and
+`reveal` (R8: an id of a secret exit or room, or of a hidden feature, joins `runtime.found.secrets` —
+someone shows the way, a boat is hired; a hidden feature is shown once revealed, and a feature phase
+with `gone` hides it, like the stolen Lantern). A secret exit that is no door (`type` open/corridor…
+with a `secretDC`) is found as "a hidden way". Fired
 from the generation turn and from discrete API mutations (moveTo, setClock, advanceClock,
 setFlag, setQuestState). Events fired since the last generation are injected; trigger-less
 /`onTurn` events are "ambient" (shown while conditions hold).

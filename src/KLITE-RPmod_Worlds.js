@@ -649,9 +649,11 @@ export default function initWorlds() {
         const b = mapBoard(m.id, { player: true }); if (!b || !b.rooms.length) return '';
         return MR.asciiMap(b.rooms.map(x => ({ id: x.id, name: x.named ? x.name : 'unexplored', rect: x.rect })), b.exits.map(e => [e.from, e.to]), b.here);
     }
-    // A feature the player can see: traps only once found, nothing marked hidden.
+    // A feature the player can see: traps only once found; one marked hidden only once revealed
+    // (a `reveal` effect, R8); none whose phase says it is gone (the Lantern, stolen).
     function featureVisible(o) {
-        if (o.hidden) return false;
+        if (phasedEntity(o).gone) return false;
+        if (o.hidden) return asArray(foundState().secrets).includes(o.id);
         return o.kind !== 'trap' || asArray(foundState().traps).includes(o.id);
     }
     // ---- R7 step 3: doors, searching, rooms and light — RPmod decides, the AI narrates ----
@@ -749,7 +751,7 @@ export default function initWorlds() {
         for (const e of exitsOfLoc(locId)) {
             const to = locOf(e.to);
             const dirTxt = e.dir ? ` (${MR.dirName(e.dir)})` : '';
-            if (MR.isSecret(e) && !asArray(f.secrets).includes(e.id)) out.push({ kind: 'secret', id: e.id, dc: Number(e.secretDC) || MR.DEFAULT_DC, label: `a secret door${dirTxt}`, room: to && to.secret && !roomFound(to) ? to.id : null, exit: e });
+            if (MR.isSecret(e) && !asArray(f.secrets).includes(e.id)) out.push({ kind: 'secret', id: e.id, dc: Number(e.secretDC) || MR.DEFAULT_DC, label: `${isDoorExit(e) ? 'a secret door' : 'a hidden way'}${dirTxt}`, room: to && to.secret && !roomFound(to) ? to.id : null, exit: e });
             else if (to && to.secret && !roomFound(to) && MR.visibleExit(e, f)) out.push({ kind: 'room', id: to.id, dc: Number(to.secretDC) || MR.DEFAULT_DC, label: `a hidden way${dirTxt}`, exit: e });
         }
         for (const o of asArray(activeWorld() && activeWorld().objects)) {
@@ -1748,6 +1750,8 @@ export default function initWorlds() {
             case 'fireEvent': if (effect.eventId) sigs.push('manual:' + norm(effect.eventId)); break;
             case 'encounter': if (effect.value || effect.encounterId) startSavedEncounter(effect.encounterId || effect.value); break;
             case 'reputation': { const fid = factionIdOf(effect.factionId); if (fid) changeReputation(fid, Number(effect.amount) || 0, 'event'); break; }
+            // R8: a secret exit or room, or a hidden feature, becomes known (someone shows the way; a boat is hired)
+            case 'reveal': { const id = norm(effect.id); if (!id) break; MR.normalizeExploration(rt()); if (!rt().found.secrets.includes(id)) rt().found.secrets.push(id); sigs.push('reveal:' + id); break; }
             default: break;
         }
         return sigs;

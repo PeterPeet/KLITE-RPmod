@@ -736,7 +736,8 @@ export default function initWorldsUI() {
         move: [['locationId', 'location']], npcmove: [['npcId', 'npc'], ['locationId', 'location']],
         advance: [['slots', 'number']], fireEvent: [['eventId', 'event']],
         encounter: [['value', 'encounter']],   // a saved encounter (id; older effects: its name or "2 Wolf, Goblin Warrior")
-        reputation: [['factionId', 'faction'], ['amount', 'number']]
+        reputation: [['factionId', 'faction'], ['amount', 'number']],
+        reveal: [['id', 'text']]   // R8: id of a secret exit/room or a hidden feature
     };
     function paramInput(kind, value, onChange) {
         const A = API();

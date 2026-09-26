@@ -1,9 +1,13 @@
 # R8 — Starter adventure "The Drowned Lantern" (design)
 
-> Status: **approved by the owner** (2026-09-25; decisions at the end). Steps 1–5 done (2026-09-26); next: step 6 (the hidden beach, the sea cave, the Old dam).
+> Status: **approved by the owner** (2026-09-25; decisions at the end). Steps 1–6 done (2026-09-26); next: step 7 (the Lost Chapel, the endings, the XP balance).
 > Step 5 as built: the fair's contests are **check objectives** (skill/ability vs DC at a place, rolled by RPmod once
 > per in-game day); the fair's three days are the flag `fair_day` (advanced by a night and the next morning after the
 > sign-up); B4 is built as "stop it" — the "let it happen and follow" branch comes with the sea cave (step 6).
+> Step 6 as built: the beach is reached by a hidden way from the ford (Search, passive Perception, or Odo shows it)
+> or by a boat hired at the docks (*A Boat for Hire*; the new event effect `reveal`); B4's other way is its own quest
+> *Let Them Run* (accepting one plan closes the other); the ledger (A5) also unlocks *The Stablemaster*; *The Sluice*
+> returns the keeper's crank — opening the gates (low water, costs the mill) is left to step 7, where it matters.
 > Related: [USERSTORY.md](../USERSTORY.md) (copyright guardrails), [ROADMAP.md](../ROADMAP.md)
 > (known issue 22), [R7-world-map.md](R7-world-map.md) (dungeons, towns, zone combat).
 
