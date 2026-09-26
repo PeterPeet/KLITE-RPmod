@@ -829,10 +829,6 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
 - [ ] Step 8: real-backend play test (known issue 5), then the World Building guide
 
 **Open items (owner's play test, 2026-09-26)** — not done yet:
-- [ ] **Tab row (step B, promised 2026-09-25, not implemented):** fold the Scenario tab's "Start Role Play" into
-  Esolite's Quick Start; then the right panel has four tabs (World, Chars, Roles, Tools) and the gallery and
-  Compendium icons move into the same row, styled like tabs (still plain buttons with a label for screen
-  readers). The extra header row from the dock fix goes away again.
 - [ ] World editor: the inspector does not refresh after linking two elements.
 - [ ] Starter adventure: the Brindlewick ↔ Forest Road connection exists twice; removing one hides both in the
   inspector, and the exit from Brindlewick to the Forest Road cannot be fixed — travel there is blocked.
@@ -844,9 +840,50 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
 - [ ] Esolite's **Settings → Misc → Reset ALL Settings** should also reset RPmod's Guide state, so the "New here?"
   section shows again.
 
-Also planned (owner, 2026-09-25): **1:1 roleplay audit** — play a 1:1 scenario with a real backend,
-fold the Scenario tab's "Start Role Play" into Esolite's Quick Start, move the gallery/Compendium
-icons into the tab row, and a per-story **play style** (Adventure with a world / Roleplay without).
+**Next: play vs. build split + character sheet overhaul (owner, 2026-09-26)** — agreed; do after the open
+items above and before R8 step 5. Principle: the **left panel (Adventure) is everything a player needs**; the
+**right panel is for creators** (and the RP tools). A creator must be able to build with only the right panel
+open (e.g. on an iPad, where the left panel is closed).
+- [ ] **Right panel header: three named rows** (replaces the old "step B": four tabs with icons in the tab row).
+  The Scenario tab goes away; its "Start Role Play" folds into Esolite's Quick Start. The extra header row goes.
+  ```
+  RP           [Chars] [Roles] [Tools]
+  Adventure    [World Management] [World Creation] [D&D Compendium]
+  Quick Links  (Guide) (Gallery) (Compendium) (Editor) (Quest editor)
+  ```
+  RP and Adventure buttons are tabs: they show their view in the right panel (the D&D Compendium tab is a
+  docked rules reference). Quick Links open their element directly as an undocked window; in mobile mode full
+  screen. The Guide stays reachable from the left panel's "?" too. The Quest editor link is hidden in the
+  Player view.
+- [ ] **World Management** (from the World panel): world selection; New / **Rename** (replaces Example) /
+  Import / Export; the save-slot part of Game State (Back to start, Save as start, Edit start state);
+  **Premade worlds**: "Play the built-in adventure", "Load minimal example world".
+- [ ] **World Creation** (from the World panel): Creator view / Player view switch (renamed; the Player view is
+  a comfort feature to check the player's side without leaving the right panel); Quest log, Reputation (the
+  creator versions: all quests/factions, editable); Combat; Editor; Quest editor (Creator view only); Preview
+  what the AI sees; **State editor** — all adventure data editable (place, time, flags, …) **except the
+  inventory**.
+- [ ] **Inventory only in the left panel:** a new Inventory section in the Adventure panel (same list as the
+  sheet — `giveItem` already writes to the sheet).
+- [ ] Left panel header: a **Compendium** button next to the "?".
+- [ ] **Character sheet overhaul:** tabs like Esolite's Settings dialog (split like the builder): Overview
+  (abilities, saves, skills) · Combat (AC, HP, attacks) · Spells · Inventory · Features · Notes.
+  - Attacks: **SRD autocomplete** (typing "Lo" offers Longsword…); picking a weapon fills damage and ability
+    (finesse → DEX).
+  - Inventory: the same SRD autocomplete (weapons, armor, gear, magic items); each item can show its SRD
+    definition.
+  - **In hand vs. backpack:** new `inHand` flag on inventory items (additive; old sheets = all in the backpack).
+    Toggle `(<-BP)` / `(->BP)` with a tooltip. Weapons in hand are highlighted green in Attacks and Inventory;
+    attacks whose weapon is stowed are dimmed. Rule (SRD): draw or stow one weapon as part of each attack;
+    other items need the Utilize action — the combat view says so; warn when more than two hands are used
+    (shield, two-handed).
+  - **Features:** a large, full-height tab, **filled automatically** with the SRD text of the character's class,
+    subclass, species, background and feat features (the rule overview), level-appropriate.
+  - **Character notes:** one text, saved in the character, permanent; Delete / Cancel / Save.
+  - **Adventure notes:** one text, saved in the adventure (world) state, wiped on a new start / Back to start;
+    Delete / Cancel / Save; a grey note under the box says so. For things that matter only in this play.
+
+Also planned (owner, 2026-09-25): **1:1 roleplay audit** — play a 1:1 scenario with a real backend, and a per-story **play style** (Adventure with a world / Roleplay without).
 
 ## Working agreement
 1. Plan the phase (or item) briefly; confirm scope with the owner when unclear.
