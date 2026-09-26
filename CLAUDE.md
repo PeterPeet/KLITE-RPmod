@@ -54,7 +54,12 @@ npm run icons        # after changing the icon list: regenerates src/shell/icons
   (details in USERSTORY.md).
 - **Enhance Esolite, don't replace it:** reuse its backends, templates, WorldInfo
   pipeline, RAG, TTS, image gen.
-- Work on branch `FeatureImplementation`; `main` is the release branch.
+- Branches: `main` ← `development` ← feature branches (now `FeatureImplementation`). Feature work
+  starts from and merges (PR) into `development`; keep a feature branch current with
+  `git rebase origin/development` (then `git push --force-with-lease`).
+- **`main` is frozen:** it holds the legacy `Guided_RPmod_esolite.js` and `KLITE-RPmod_ALPHA.js`,
+  which users fetch directly from `main` (no pinned commit). Never merge into, push to or
+  overwrite `main` until the owner says that fetch has moved.
 
 ## Esolite host constraints (details: ARCHITECTURE.md §2)
 - Hook generation via `window.prepare_submit_generation`; `submit_generation` is a
