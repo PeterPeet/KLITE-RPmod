@@ -38620,7 +38620,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
 
   // src/adventures/content/drowned-lantern.js
   var ID = "drowned-lantern";
-  var VERSION = 5;
+  var VERSION = 6;
   var place = (id, name, description, extra = {}) => Object.assign({ id, name, description }, extra);
   var room = (id, name, parentId, [x, y], description, extra = {}) => Object.assign({ id, name, parentId, map: { x, y, w: 4, h: 3 }, description }, extra);
   var exit = (id, to, dir, type = "open", extra = {}) => Object.assign({ id, to, dir, type }, extra);
@@ -40034,7 +40034,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         "Flooded Passage",
         "loc_sea_cave",
         [15, 8],
-        "The passage slopes down under the lake until black water fills it to the roof. The air is cold and smells of old stone; now and then, very far below, something rings like a bell.",
+        "The passage slopes down under the lake until black water fills it to the roof. The air is cold and smells of old stone; now and then, very far below, something rings like a bell. Old marks on the wall — a lantern over water — point down into the water.",
         { light: "dark", hazards: ["deep cold water", "the passage dives under the lake"] }
       ),
       // --- the Old Dam (dungeon map) ---
@@ -40328,6 +40328,457 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
     );
     return w;
   }
+  function layer5(w) {
+    const at = (id) => w.locations.find((l) => l.id === id);
+    const person = (id) => w.npcs.find((n) => n.id === id);
+    at("sc_flooded").exits = [exit("ex_sc_flooded_cistern", "lc_cistern", "down", "open", { secretDC: 99, note: "the long swim under the lake" })];
+    at("loc_brindlewick").phases.push(
+      { id: "ph_dry", label: "The mill runs dry", conditions: [flagIs("low_water")], atmosphere: "grumbling", description: "A mill village of thatched roofs and stone walls. The Brindle runs thin below the dam this season and the mill wheel stands still again; people know why, and they are not sure yet whether to thank you." },
+      { id: "ph_peace", label: "Peace on the road", conditions: [questIs("q_home", "turnedin")], atmosphere: "festive", description: "A mill village of thatched roofs and stone walls, busy again: carts go to Lanternport every week, and there is talk of a Brindlewick stall at next year's fair." }
+    );
+    at("loc_lanternport").phases.push({ id: "ph_peace", label: "Friends with Brindlewick", conditions: [questIs("q_home", "turnedin")], atmosphere: "relieved, generous" });
+    at("loc_hidden_beach").phases = [{ id: "ph_low", label: "Low water", conditions: [flagIs("low_water")], description: "The Mere has drawn back from the hidden beach, leaving mud, stranded reeds and — running out into the lake — a causeway of old road stones towards roofs that have not seen the sky for two hundred years." }];
+    at("loc_forest_road").phases = [{ id: "ph_safe", label: "The road is safe", conditions: [questIs("q_home", "turnedin")], atmosphere: "peaceful", description: "The old trade road east of Brindlewick, under oak and beech. Carts come and go again, and someone has set a lantern on a post where Liu Wen's cart once lay." }];
+    person("npc_tobias").phases = [{ id: "ph_dry", label: "The mill dry", conditions: [flagIs("low_water")], mood: "sulking; understands, does not forgive yet" }];
+    w.objects.find((o) => o.id === "obj_founders_lantern").phases.push(
+      { id: "ph_lent", label: "Lent to the heroes", conditions: [flagIs("lantern_lent"), notFlag("lantern_home")], gone: true }
+    );
+    const brisco = person("npc_brisco");
+    brisco.phases = [{ id: "ph_honest", label: "Honest work", conditions: [flagIs("reedcloaks_recruited")], homeLocationId: "op_kitchen", mood: "happy, peeling onions for Baba" }];
+    w.factions.find((f) => f.id === "fac_reedcloaks").phases.push({
+      id: "ph_honest",
+      label: "Honest boatmen",
+      conditions: [flagIs("reedcloaks_recruited")],
+      description: "Former smugglers who now row honest cargo for the Outpost and the fair — mostly honest, anyway."
+    });
+    w.locations.push(
+      place(
+        "loc_lost_chapel",
+        "The Lost Chapel",
+        "Old Brindle under Stillwater Mere: a drowned village of fallen roofs and mud, and its chapel of the Still Water, held dry under the lake by something that should not be there.",
+        { kind: "dungeon", mapStyle: "stone", atmosphere: "drowned, silent, cold", ui: { x: 450, y: 1040 } }
+      ),
+      // --- the drowned village ---
+      room(
+        "lc_causeway",
+        "Drowned Causeway",
+        "loc_lost_chapel",
+        [0, 4],
+        "Old road stones slick with weed, running out from the beach into the lake. Where the water ends a shimmer hangs in the air like the wall of a glass bell, and beyond it the village is dry.",
+        { light: "dim", hazards: ["slick weed on the stones"], exits: [exit("ex_lc_causeway_beach", "loc_hidden_beach", "w", "open", { secretDC: 99, note: "only at low water" }), exit("ex_lc_causeway_street", "lc_street", "e")] }
+      ),
+      room(
+        "lc_street",
+        "Old Brindle High Street",
+        "loc_lost_chapel",
+        [5, 4],
+        "A street of mud and fallen thatch under a sky of dark water. Fish flap in the doorways. Figures stand in the houses, too still, facing the chapel.",
+        { light: "dim", hazards: ["deep mud"], exits: [exit("ex_lc_street_mill", "lc_mill", "n"), exit("ex_lc_street_houses", "lc_houses", "s"), exit("ex_lc_street_square", "lc_square", "e")] }
+      ),
+      room(
+        "lc_mill",
+        "The Old Mill",
+        "loc_lost_chapel",
+        [5, 0],
+        "The Quill family's first mill, its wheel rotted to ribs. Something has been eating in here, and not grain.",
+        { light: "dark" }
+      ),
+      room(
+        "lc_houses",
+        "Drowned Houses",
+        "loc_lost_chapel",
+        [5, 8],
+        "A row of cottages with their doors open, tables laid for a supper two hundred years cold. A well in the middle of the lane.",
+        { light: "dark" }
+      ),
+      room(
+        "lc_square",
+        "Chapel Square",
+        "loc_lost_chapel",
+        [10, 4],
+        "A small square before the chapel steps, with a stone lantern post whose top is carved like the Founders' Lantern. The chapel doors are swollen oak, shut tight.",
+        { light: "dim", exits: [exit("ex_lc_square_narthex", "lc_narthex", "e", "door", { door: { state: "closed", material: "swollen oak" } })] }
+      ),
+      // --- the chapel ---
+      room(
+        "lc_narthex",
+        "Narthex",
+        "loc_lost_chapel",
+        [15, 4],
+        "The chapel porch: a font of still water that has never dried, and the sign of the Still Water — a lantern over water — worn smooth by hands.",
+        { light: "dim", exits: [exit("ex_lc_narthex_nave", "lc_nave", "e", "corridor")] }
+      ),
+      room(
+        "lc_nave",
+        "The Nave",
+        "loc_lost_chapel",
+        [20, 4],
+        "Rows of rotting pews under a vault of dripping stone. Pale shapes drift between them. Behind the altar, bronze doors with a lock shaped like a lantern.",
+        { light: "dark", exits: [
+          exit("ex_lc_nave_bell", "lc_bell", "n", "stairs"),
+          exit("ex_lc_nave_stair", "lc_crypt_stair", "s", "corridor"),
+          exit("ex_lc_nave_sanctum", "lc_sanctum", "e", "door", { door: { state: "locked", material: "bronze doors with a lantern-shaped lock", lockDC: 30, keyItem: "Founders' Lantern" } })
+        ] }
+      ),
+      room(
+        "lc_bell",
+        "Bell Tower",
+        "loc_lost_chapel",
+        [20, 0],
+        "The tower stair winds up to the bell that rings under the lake in storms. The top of the tower is inside the glass bell; above it, black water and fish.",
+        { light: "dark", exits: [exit("ex_lc_bell_vestry", "lc_vestry", "e", "door", { door: { state: "closed", material: "iron-studded" } })] }
+      ),
+      room(
+        "lc_vestry",
+        "Vestry",
+        "loc_lost_chapel",
+        [25, 0],
+        "The keepers' robing room: cupboards of mouldering vestments, and on a lectern, dry as the day it was written, the chapel's own book of prayers.",
+        { light: "dark" }
+      ),
+      room(
+        "lc_crypt_stair",
+        "Crypt Stair",
+        "loc_lost_chapel",
+        [20, 8],
+        "Narrow steps down under the nave, their edges worn into cups. The air gets colder with every step.",
+        { light: "dark", exits: [exit("ex_lc_stair_crypt", "lc_crypt", "down", "stairs")] }
+      ),
+      room(
+        "lc_crypt",
+        "The Crypt",
+        "loc_lost_chapel",
+        [20, 12],
+        "Tombs of the chapel's keepers and one knight in armour on a stone bier — Sir Aldric, who guarded the chapel when the water came, and guards it still for someone else.",
+        { light: "dark", exits: [exit("ex_lc_crypt_ossuary", "lc_ossuary", "w", "corridor")] }
+      ),
+      room(
+        "lc_ossuary",
+        "Ossuary",
+        "loc_lost_chapel",
+        [15, 12],
+        "Bones stacked in patterns along every wall, skulls in rows like pews. Some of the rows have been taken apart and eaten.",
+        { light: "dark", exits: [exit("ex_lc_ossuary_cistern", "lc_cistern", "w", "corridor")] }
+      ),
+      room(
+        "lc_cistern",
+        "Flooded Cistern",
+        "loc_lost_chapel",
+        [10, 12],
+        "The chapel's cistern, half full of black water where the long swim from the sea cave comes up. The drowned stand in the water up to their chests, waiting.",
+        { light: "dark", hazards: ["chest-deep water"] }
+      ),
+      room(
+        "lc_sanctum",
+        "The Sanctum",
+        "loc_lost_chapel",
+        [25, 4],
+        "The heart of the chapel: an altar of green stone under a hanging chain where a lantern once hung. The water of the Mere stands like a wall where the east window was — and in it, looking in, a face.",
+        { light: "dim" }
+      )
+    );
+    w.objects.push(
+      { id: "obj_lantern_post", name: "Stone lantern post", desc: "Its top is carved like the Founders' Lantern; the carving is newer than the post — the drowned keep it clean.", locationId: "lc_square", kind: "furniture", cover: "half" },
+      { id: "obj_font", name: "Font of still water", desc: "Water that has not moved in two hundred years. Anyone of the Still Water knows the blessing for it.", locationId: "lc_narthex", kind: "furniture" },
+      { id: "obj_pews", name: "Rotting pews", desc: "Rows of them, heavy and soft; good cover.", locationId: "lc_nave", kind: "furniture", cover: "half" },
+      { id: "obj_rotten_steps", name: "Rotten steps", desc: "Tower steps eaten hollow by two centuries of damp.", locationId: "lc_bell", kind: "trap", trapDC: 14 },
+      { id: "obj_prayer_book", name: "The chapel's book of prayers", desc: `The Still Water's rite for the dead, including the last prayer "that lets the light go out and the drowned sleep".`, locationId: "lc_vestry", kind: "container", contains: ["Book of the Still Water", "Potion of Healing x2", "Holy Water x2"] },
+      { id: "obj_aldric_bier", name: "Sir Aldric's bier", desc: "A stone bier with an empty hollow where the knight lay; his sword belt hangs on it.", locationId: "lc_crypt", kind: "container", contains: ["+1 Longsword", "40 gp"] },
+      { id: "obj_mill_hoard", name: "The ghouls' hoard", desc: "Among the bones: rings, buckles and coins from travellers the lake took.", locationId: "lc_mill", kind: "container", contains: ["62 gp", "Silver Ring"] },
+      { id: "obj_altar", name: "Altar of green stone", desc: "Carved with the drowned village's names and a hollow for a lantern. The hag's offerings lie on it: every relic the Reedcloaks dredged.", locationId: "lc_sanctum", kind: "container", contains: ["Lake-green Coin x12", "Periapt of Wound Closure"] }
+    );
+    w.factions.push(
+      {
+        id: "fac_drowned",
+        name: "The Drowned",
+        description: "Mother Reedwater's dead: the people of Old Brindle, kept from their rest under the lake.",
+        startReputation: -1500,
+        killReputation: 0,
+        ui: { x: 80, y: 1100 },
+        goals: "Obey Mother Reedwater; guard the chapel; wait for the Lantern."
+      }
+    );
+    w.npcs.push(
+      {
+        id: "npc_oswin",
+        name: "Brother Oswin",
+        personality: `The ghost of the chapel's last keeper (he/him), of the Still Water, a gentle old man in a grey habit who drowned ringing the bell. He is kind, sad and very tired, speaks of the villagers as "my people", and knows the Still Water's prayers — and Tove's order — by heart.`,
+        homeLocationId: "lc_narthex",
+        mood: "sorrowful, hopeful",
+        ui: { x: 300, y: 1180 },
+        phases: [{ id: "ph_rest", label: "At rest", conditions: [flagIs("lantern_doused")], gone: true }]
+      }
+    );
+    w.quests.push(
+      // C1
+      {
+        id: "q_hag_wants",
+        title: "What the Hag Wants",
+        giverPersonId: "npc_aurelio",
+        turninPersonId: "npc_aurelio",
+        prerequisites: { quests: ["q_reedcloak_cave"], flags: ["lantern_saved"] },
+        ui: { x: 300, y: 1260 },
+        description: `"Mother R. wants the Lantern." Brother Aurelio keeps the old chapel's records; the keeper of the dam and Sister Imani may know the rest.`,
+        offerText: "Mother R. … I have read that name, in a book no one has opened in a hundred years. Ask the keeper of the old dam what his vows are for, and Sister Imani in Brindlewick what the Still Water sings for the drowned. Then come back, and I will tell you what I fear.",
+        progressText: "What did they say?",
+        completionText: "Then it is as I feared. Mother Reedwater is a hag of the deep water. When the dam drowned Old Brindle, she took the chapel and its dead for her own; the Lantern was carried out, and it is the key to the sanctum. With it lit on her altar she wakes the drowned and the Mere is hers. …The mayor agrees: take the Lantern to her — and end it. The records show the monks' way in: the long swim from the cave under the south cliffs. Or ask the keeper to lower the water.",
+        objectives: [{ id: "o1", kind: "talk", target: "npc_anselm", text: "Ask Keeper Anselm Roe about his vows" }, { id: "o2", kind: "talk", target: "npc_imani", text: "Ask Sister Imani what the Still Water sings for the drowned" }],
+        rewards: [{ type: "xp", xp: 200 }, { type: "item", item: "Founders' Lantern", qty: 1 }]
+      },
+      // the low-water way (the sluice)
+      {
+        id: "q_low_water",
+        title: "Low Water",
+        giverPersonId: "npc_anselm",
+        turninPersonId: "npc_anselm",
+        prerequisites: { quests: ["q_sluice", "q_hag_wants"] },
+        ui: { x: 380, y: 1260 },
+        description: "Opening the Old Dam's sluice gates would lower the Mere and bring Old Brindle out of the water — and leave Brindlewick's mill dry for a season.",
+        offerText: 'So that is what my vows were for. "Unless the Still Water asks." …Very well. Turn the great winch with me — it takes a strong back — and the water will go down by nightfall. Brindlewick will curse us both at the mill.',
+        progressText: "The winch will not turn itself.",
+        completionText: "Listen — the water is going out. By nightfall there will be a road to Old Brindle for the first time in two hundred years. May the Still Water forgive us the mill.",
+        objectives: [{ id: "o1", kind: "check", skill: "athletics", dc: 14, at: "od_sluice", text: "Turn the great winch and open the sluice gates" }],
+        rewards: [{ type: "xp", xp: 100 }]
+      },
+      // C2
+      {
+        id: "q_into_mere",
+        title: "Into the Mere",
+        giverPersonId: "npc_aurelio",
+        turninPersonId: "npc_oswin",
+        prerequisites: { quests: ["q_hag_wants"] },
+        ui: { x: 460, y: 1260 },
+        description: "Reach the drowned chapel of Old Brindle: at low water by the causeway from the hidden beach, or by the long swim from the sea cave's flooded passage.",
+        offerText: "Go by the causeway if the keeper opens the gates, or by the long swim if you must. The chapel's keepers were called the Still Water; if any of them are still there, they will know the Lantern.",
+        progressText: "You are still dripping.",
+        completionText: "The Lantern… after two hundred years. I am Oswin, the last keeper of this chapel. Forgive me for not rising; I have been dead some time.",
+        objectives: [{ id: "o1", kind: "visit", target: "loc_lost_chapel", text: "Reach the drowned village of Old Brindle" }, { id: "o2", kind: "talk", target: "npc_oswin", text: "Find out who still keeps the chapel" }],
+        rewards: [{ type: "xp", xp: 150 }]
+      },
+      // C3
+      {
+        id: "q_drowned_light",
+        title: "The Drowned Light",
+        giverPersonId: "npc_oswin",
+        turninPersonId: "npc_oswin",
+        prerequisites: { quests: ["q_into_mere"] },
+        ui: { x: 540, y: 1260 },
+        description: "Mother Reedwater waits in the sanctum behind the bronze doors, which only the Lantern opens. Sir Aldric, the knight who guarded the chapel, guards the crypt for her now.",
+        offerText: "She keeps my people from their rest, and Sir Aldric — our knight, who died holding the doors — she bound to her in the crypt. Free him if you can. Then open the sanctum with the Lantern and face her. Do not let her touch the light.",
+        progressText: "She is still there. I can feel her.",
+        completionText: "She is gone. The water is only water again. …Now the Lantern. Its flame is the drowned light — while it burns, my people cannot sleep, but Lanternport has loved it for two hundred years. That choice is yours, not mine.",
+        objectives: [{ id: "o1", kind: "kill", target: "Wight", count: 1, text: "Free Sir Aldric in the crypt" }, { id: "o2", kind: "kill", target: "Green Hag", count: 1, text: "Defeat Mother Reedwater in the sanctum" }],
+        rewards: [{ type: "xp", xp: 400 }, { type: "gold", gold: 100 }]
+      },
+      // the choice: put out the drowned light, or carry it home burning
+      {
+        id: "q_light_rest",
+        title: "Let the Light Rest",
+        giverPersonId: "npc_oswin",
+        turninPersonId: "npc_oswin",
+        prerequisites: { quests: ["q_drowned_light"], notFlags: ["choice_home"] },
+        ui: { x: 620, y: 1220 },
+        description: "Put out the Founders' Lantern on the altar with the Still Water's last prayer, so the drowned of Old Brindle can sleep. Lanternport will lose its burning relic.",
+        offerText: "Lay it on the altar and say the last prayer with me — it is in the book in the vestry, if you do not know it. The light goes out; my people sleep; so do I. Lanternport will have a lantern that is only a lantern.",
+        progressText: "The prayer is short. The hard part is meaning it.",
+        completionText: "The light is out. Listen… the bell. It is ringing us home. Thank you. Tell Lanternport it was the kindest thing their Lantern ever did.",
+        objectives: [{ id: "o1", kind: "check", skill: "religion", dc: 12, at: "lc_sanctum", text: "Say the Still Water's last prayer at the altar" }, { id: "o2", kind: "collect", target: "Founders' Lantern", count: 1, consume: true, text: "Lay the Lantern on the altar" }],
+        rewards: [{ type: "xp", xp: 200 }, { type: "reputation", factionId: "fac_brindlewick", amount: 150 }, { type: "reputation", factionId: "fac_lanternport", amount: -100 }]
+      },
+      {
+        id: "q_light_home",
+        title: "Carry the Light Home",
+        giverPersonId: "npc_oswin",
+        turninPersonId: "npc_varga",
+        prerequisites: { quests: ["q_drowned_light"], notFlags: ["choice_rest"] },
+        ui: { x: 620, y: 1300 },
+        description: "Take the Founders' Lantern back to Lanternport still burning. Nothing will wake the drowned now that the hag is gone — but they will not sleep either.",
+        offerText: "Then take it home burning. With her gone, no one can wake them; we will only… wait, as we always have. Go on. Lanternport has loved that light longer than I was alive.",
+        progressText: "You have the Lantern?",
+        completionText: "It is still burning. …You could have put it out, and you did not. Lanternport will not forget that — and I will make sure Brindlewick hears who brought it home.",
+        objectives: [{ id: "o1", kind: "collect", target: "Founders' Lantern", count: 1, consume: true, text: "Bring the Lantern back to Mayor Varga, still burning" }],
+        rewards: [{ type: "xp", xp: 200 }, { type: "reputation", factionId: "fac_lanternport", amount: 250 }]
+      },
+      // C4
+      {
+        id: "q_home",
+        title: "Home",
+        giverPersonId: "npc_maren",
+        turninPersonId: "npc_maren",
+        prerequisites: { flags: ["chapel_done"] },
+        ui: { x: 700, y: 1260 },
+        description: "The hag is gone and the Lantern's fate decided. Brindlewick and Lanternport should hear it from you — together.",
+        offerText: "The whole lake is talking. Go to Lanternport, tell Isolde Varga what you told me, and tell her Brindlewick will be at her fair next spring — with grain, not accusations. I'll write it down so she believes you.",
+        progressText: "Did Isolde listen?",
+        completionText: "She wrote back. She WROTE BACK — a whole page, and most of it polite. The road is ours again, both ways. …Sit down. Ada is bringing supper, and nobody in this village will let you pay for anything ever again.",
+        objectives: [{ id: "o1", kind: "talk", target: "npc_varga", text: "Tell Mayor Varga what happened under the lake" }],
+        rewards: [
+          { type: "xp", xp: 400 },
+          { type: "gold", gold: 100 },
+          { type: "reputation", factionId: "fac_brindlewick", amount: 200 },
+          { type: "reputation", factionId: "fac_lanternport", amount: 200 },
+          { type: "choice", options: [{ item: "Ring of Protection", qty: 1 }, { item: "Cloak of Elvenkind", qty: 1 }, { item: "Potion of Healing", qty: 5 }] }
+        ]
+      },
+      // side quests
+      {
+        id: "q_honest_work",
+        title: "Honest Work",
+        giverPersonId: "npc_brisco",
+        turninPersonId: "npc_brisco",
+        prerequisites: { quests: ["q_reedcloak_cave"] },
+        ui: { x: 200, y: 1260 },
+        description: "With their captain gone, some of the Reedcloaks want out. Brisco asks whether anyone would give smugglers honest work.",
+        offerText: "Half of us only ever wanted to row boats and eat. The Outpost always needs hands — would Hedda Morrow take on men who used to steal her carts? Would you ask her? …Pell would have asked. Pell always did the brave, stupid thing.",
+        progressText: "Did she laugh?",
+        completionText: "She said yes? She said YES. Oars and onions, then. You have saved more of us than you killed, friend.",
+        objectives: [{ id: "o1", kind: "talk", target: "npc_hedda", text: "Ask Hedda Morrow to hire the Reedcloaks who want out" }],
+        rewards: [{ type: "xp", xp: 100 }, { type: "reputation", factionId: "fac_reedcloaks", amount: 400 }, { type: "reputation", factionId: "fac_outpost", amount: 50 }]
+      },
+      {
+        id: "q_lights",
+        title: "Lights on the Lake",
+        giverPersonId: "npc_ines",
+        turninPersonId: "npc_ines",
+        prerequisites: { quests: ["q_hire_boat"] },
+        ui: { x: 2100, y: 380 },
+        description: "Pale lights over the south shore at night lure boats onto the rocks. Ines has lost a friend to them.",
+        offerText: "There are lights over the south shore at night — not lanterns. They bob and beckon, and boats that follow them end up on the rocks. Old Gudrun followed one last month. Row over after dark and put them out, whatever they are.",
+        progressText: "The lights still dance.",
+        completionText: "Dark over the south shore last night, for the first time in a year. Gudrun would have bought you a drink. I will have to do.",
+        objectives: [{ id: "o1", kind: "kill", target: "Will-o’-Wisp", count: 1, text: "Put out the lights over the hidden beach at night" }],
+        rewards: [{ type: "xp", xp: 150 }, { type: "gold", gold: 30 }, { type: "reputation", factionId: "fac_lanternport", amount: 50 }]
+      }
+    );
+    w.encounters.push(
+      { id: "enc_lc_street", name: "The drowned in the street", monsters: [{ key: "zombie", count: 4 }], personIds: [], locationId: "lc_street", start: "auto", factionId: "fac_drowned" },
+      { id: "enc_lc_mill", name: "Ghouls in the old mill", monsters: [{ key: "ghoul", count: 2 }], personIds: [], locationId: "lc_mill", start: "auto", factionId: "fac_drowned" },
+      { id: "enc_lc_houses", name: "Supper guests", monsters: [{ key: "ghoul", count: 1 }, { key: "zombie", count: 2 }], personIds: [], locationId: "lc_houses", start: "auto", factionId: "fac_drowned" },
+      { id: "enc_lc_nave", name: "Specters in the nave", monsters: [{ key: "specter", count: 2 }], personIds: [], locationId: "lc_nave", start: "auto", factionId: "fac_drowned" },
+      { id: "enc_lc_ossuary", name: "Ghouls in the ossuary", monsters: [{ key: "ghoul", count: 2 }], personIds: [], locationId: "lc_ossuary", start: "auto", factionId: "fac_drowned" },
+      { id: "enc_lc_cistern", name: "The drowned in the cistern", monsters: [{ key: "zombie", count: 3 }], personIds: [], start: "near", factionId: "fac_drowned" },
+      { id: "enc_lc_aldric", name: "Sir Aldric", monsters: [{ key: "wight", count: 1 }, { key: "zombie", count: 2 }], personIds: [], start: "auto", factionId: "fac_drowned" },
+      { id: "enc_lc_hag", name: "Mother Reedwater", monsters: [{ key: "green-hag", count: 1 }, { key: "ghoul", count: 2 }], personIds: [], start: "auto", factionId: "fac_drowned" },
+      { id: "enc_lights", name: "Lights on the lake", monsters: [{ key: "will-o-wisp", count: 1 }], personIds: [], start: "near" }
+    );
+    w.events.push(
+      {
+        id: "ev_long_swim",
+        name: "The monks' way",
+        description: "Brother Aurelio's records show the old keepers' way under the lake: from the flooded passage of the cave below the south cliffs, a long swim up into the chapel's cistern.",
+        triggers: [{ type: "onQuestState", questId: "q_hag_wants", state: "turnedin" }],
+        conditions: [],
+        effects: [{ type: "reveal", id: "ex_sc_flooded_cistern" }, { type: "flag", key: "lantern_lent", value: true }],
+        repeatable: false,
+        ui: { x: 300, y: 1340 }
+      },
+      {
+        id: "ev_low_water",
+        name: "The water goes out",
+        description: "The sluice gates grind open. By nightfall the Mere has dropped by a man's height; the Brindle runs thin below the dam, and a causeway of old road stones rises from the hidden beach towards the roofs of Old Brindle.",
+        triggers: [{ type: "onQuestState", questId: "q_low_water", state: "turnedin" }],
+        conditions: [],
+        effects: [{ type: "flag", key: "low_water", value: true }, { type: "reveal", id: "ex_lc_causeway_beach" }, { type: "reputation", factionId: "fac_brindlewick", amount: -150 }],
+        repeatable: false,
+        ui: { x: 380, y: 1340 }
+      },
+      {
+        id: "ev_cistern",
+        name: "Up from the long swim",
+        description: "You come up gasping into black water and cold air — and the drowned standing in the cistern turn their heads towards you.",
+        triggers: [{ type: "onEnterLocation", locationId: "lc_cistern" }],
+        conditions: [],
+        effects: [{ type: "encounter", value: "enc_lc_cistern" }],
+        repeatable: false,
+        ui: { x: 460, y: 1340 }
+      },
+      {
+        id: "ev_aldric",
+        name: "Sir Aldric rises",
+        description: 'The knight on the bier sits up. His eyes are pale lights; his sword is already in his hand. "The chapel is closed," he says, in a voice like water in a pipe.',
+        triggers: [{ type: "onEnterLocation", locationId: "lc_crypt" }],
+        conditions: [],
+        effects: [{ type: "encounter", value: "enc_lc_aldric" }],
+        repeatable: false,
+        ui: { x: 540, y: 1340 }
+      },
+      {
+        id: "ev_hag",
+        name: "Mother Reedwater",
+        description: 'The face in the wall of water smiles, and steps through: tall, green, draped in weed, with hands like roots. "The Lantern," Mother Reedwater says sweetly. "How kind of you to bring it all the way down."',
+        triggers: [{ type: "onEnterLocation", locationId: "lc_sanctum" }],
+        conditions: [],
+        effects: [{ type: "encounter", value: "enc_lc_hag" }],
+        repeatable: false,
+        ui: { x: 620, y: 1380 }
+      },
+      {
+        id: "ev_choice_rest",
+        name: "Chose rest",
+        description: "You will put out the drowned light.",
+        triggers: [{ type: "onQuestState", questId: "q_light_rest", state: "active" }],
+        conditions: [],
+        effects: [{ type: "flag", key: "choice_rest", value: true }],
+        repeatable: false,
+        ui: { x: 700, y: 1180 }
+      },
+      {
+        id: "ev_choice_home",
+        name: "Chose home",
+        description: "You will carry the Lantern home burning.",
+        triggers: [{ type: "onQuestState", questId: "q_light_home", state: "active" }],
+        conditions: [],
+        effects: [{ type: "flag", key: "choice_home", value: true }],
+        repeatable: false,
+        ui: { x: 700, y: 1340 }
+      },
+      {
+        id: "ev_light_out",
+        name: "The drowned light goes out",
+        description: "The Founders' Lantern goes dark on the altar. Far above, the chapel bell rings once, and the drowned of Old Brindle lie down to sleep. Lanternport's relic is only a lantern now.",
+        triggers: [{ type: "onQuestState", questId: "q_light_rest", state: "turnedin" }],
+        conditions: [],
+        effects: [{ type: "flag", key: "lantern_doused", value: true }, { type: "flag", key: "chapel_done", value: true }],
+        repeatable: false,
+        ui: { x: 780, y: 1220 }
+      },
+      {
+        id: "ev_light_home",
+        name: "The Lantern comes home",
+        description: "The Founders' Lantern is back on its plinth in the guildhall, still burning with its pale, steady flame.",
+        triggers: [{ type: "onQuestState", questId: "q_light_home", state: "turnedin" }],
+        conditions: [],
+        effects: [{ type: "flag", key: "lantern_home", value: true }, { type: "flag", key: "chapel_done", value: true }],
+        repeatable: false,
+        ui: { x: 780, y: 1300 }
+      },
+      {
+        id: "ev_recruited",
+        name: "Oars and onions",
+        description: "The Reedcloaks who wanted out now row for the Outpost.",
+        triggers: [{ type: "onQuestState", questId: "q_honest_work", state: "turnedin" }],
+        conditions: [],
+        effects: [{ type: "flag", key: "reedcloaks_recruited", value: true }],
+        repeatable: false,
+        ui: { x: 200, y: 1340 }
+      },
+      {
+        id: "ev_lights",
+        name: "Lights over the shore",
+        description: "A pale light bobs over the rocks at the end of the beach, beckoning — and when you come close it flares cold and blue.",
+        triggers: [{ type: "onEnterLocation", locationId: "loc_hidden_beach" }, { type: "onTime" }],
+        conditions: [questIs("q_lights", "active"), { field: "time", op: "==", value: "night" }, { field: "location", op: "==", value: "loc_hidden_beach" }],
+        effects: [{ type: "encounter", value: "enc_lights" }],
+        repeatable: false,
+        ui: { x: 2100, y: 300 }
+      }
+    );
+    w.globalLore.push(
+      { id: "gl_reedwater", label: "Mother Reedwater", content: "Old stories around the Mere tell of Mother Reedwater, a green woman of the deep water who trades in drowned things and wants what shines. Children are told not to lean over the side of boats, or she will take their faces.", keys: ["Reedwater", "Mother R", "hag"] },
+      { id: "gl_aldric", label: "Sir Aldric", content: "Sir Aldric was the knight who guarded Old Brindle's chapel. When the water came he held the doors while the keepers carried the Lantern out, and he was never seen again.", keys: ["Aldric", "knight"] }
+    );
+    return w;
+  }
   var OPENING = [
     "Mist lies over Stillwater Mere this spring morning, and it creeps up the lane into Brindlewick, beading on the thatch of the Tipsy Heron.",
     "Inside, the fire crackles, Ada Fenn is slicing bread faster than anyone can eat it, and the stuffed heron over the bar leans a little further to the left than yesterday.",
@@ -40343,7 +40794,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       summary: "Supply carts keep vanishing between the village of Brindlewick and the lakeside town of Lanternport. Follow the trail from goblin raiders to smugglers on Stillwater Mere, and to what lies under the lake. A starter adventure for one character and a companion.",
       levels: [1, 5],
       credits: [SRD.attribution],
-      world: layer4(layer3(layer2(world()))),
+      world: layer5(layer4(layer3(layer2(world())))),
       characters: PREGENS.map(pregenCard),
       start: { view: "player", pregens: PREGENS.map((p) => p.id), opening: OPENING }
     };

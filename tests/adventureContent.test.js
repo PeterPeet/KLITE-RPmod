@@ -18,14 +18,13 @@ const B = requireSrc('src/characters/builder-rules.js');
 const SHOP = requireSrc('src/game/shop-rules.js');
 const plain = (v) => JSON.parse(JSON.stringify(v));
 
-test('package: valid; only the XP warning while later layers are missing', () => {
+test('package: valid, no warnings (every place reachable, enough XP for level 5)', () => {
     const pkg = DL.drownedLantern();
     const r = AR.validateAdventure(pkg);
     assert.deepEqual(r.errors, []);
-    // until R8 step 7 the adventure cannot reach level 5 yet; nothing else may warn
-    assert.deepEqual(r.warnings.filter(w => !/^XP per character/.test(w)), []);
+    assert.deepEqual(r.warnings, []);
     assert.equal(r.stats.pregens, 4);
-    assert.ok(r.stats.xp.perCharacter >= 2700, `layers 1–2 carry a character to level 4 (${r.stats.xp.perCharacter} XP)`);
+    assert.ok(r.stats.xp.perCharacter >= 6500, `all content together reaches level 5 (${r.stats.xp.perCharacter} XP)`);
     assert.equal(pkg.credits[0], requireSrc('src/data/srd52.js').SRD.attribution, 'the exact SRD attribution');
 });
 
@@ -513,4 +512,106 @@ test('layer 4: the last night the other way — let the thieves take the Lantern
     const reward = (id, type) => DL.drownedLantern().world.quests.find(q => q.id === id).rewards.filter(r => r.type === type);
     assert.ok(reward('q_follow_thieves', 'gold')[0].gold > reward('q_last_night', 'gold')[0].gold);
     assert.ok(reward('q_follow_thieves', 'reputation').find(r => r.factionId === 'fac_lanternport').amount < reward('q_last_night', 'reputation').find(r => r.factionId === 'fac_lanternport').amount);
+});
+
+test('XP balance: a typical playthrough (one companion) reaches level 5 in the Lost Chapel, not before', () => {
+    const w = DL.drownedLantern().world; const CR = requireSrc('src/game/combat-rules.js');
+    const qxp = (id) => { const q = w.quests.find(x => x.id === id); assert.ok(q, id); return q.rewards.filter(r => r.type === 'xp').reduce((a, r) => a + r.xp, 0); };
+    const exp = (id) => { const e = w.encounters.find(x => x.id === id); assert.ok(e, id); return e.monsters.reduce((a, m) => a + CR.MONSTERS[CR.findMonster(m.key)].xp * (m.count || 1), 0) / 2; };
+    const level = (xp) => { let l = 1; while (l < 20 && xp >= CR.xpForLevel(l + 1)) l++; return l; };
+    // the main line with the side quests on the way; no owlbear, no repeats, one way of each choice
+    const stages = [
+        ['layer 1', ['q_missing_carts', 'q_hollow_oak', 'q_old_coin', 'q_mill_rats'], ['enc_road_ambush', 'enc_mill_rats', 'enc_den_wolves', 'enc_den_lookout', 'enc_den_burrow', 'enc_den_rats', 'enc_den_chief'], 2],
+        ['layer 2', ['q_sick_mare', 'q_kitchen_stores', 'q_night_raid', 'q_watchtower', 'q_stablemaster'], ['enc_campfire_wolves', 'enc_tower_bats', 'enc_tower_harpies', 'enc_tower_guards', 'enc_night_raid', 'enc_doppelganger'], 3],
+        ['layer 3', ['q_word_lanternport', 'q_fair_signup', 'q_contest_archery', 'q_contest_arms', 'q_contest_riddles', 'q_contest_boats', 'q_cookoff', 'q_fair_champion', 'q_whispers', 'q_last_night'], ['enc_warehouse_toughs', 'enc_heist'], 4],
+        ['layer 4', ['q_follow_river', 'q_reedcloak_cave', 'q_sluice'], ['enc_beach_crabs', 'enc_cave_dock', 'enc_cave_lookout', 'enc_cave_bunks', 'enc_cave_grotto', 'enc_cave_captain', 'enc_dam_dredgers'], 4],
+        ['the chapel, before the hag', ['q_hag_wants', 'q_low_water', 'q_into_mere'], ['enc_lc_street', 'enc_lc_mill', 'enc_lc_houses', 'enc_lc_nave', 'enc_lc_ossuary', 'enc_lc_aldric'], 5],
+        ['the end', ['q_drowned_light', 'q_light_rest', 'q_home'], ['enc_lc_hag'], 5],
+    ];
+    let xp = 0; const table = [];
+    for (const [name, qs, es, want] of stages) {
+        xp += qs.reduce((a, id) => a + qxp(id), 0) + es.reduce((a, id) => a + exp(id), 0);
+        table.push(`${name}: ${xp} XP, level ${level(xp)}`);
+        assert.equal(level(xp), want, table.join(' · '));
+    }
+    assert.ok(xp < CR.xpForLevel(6), 'never beyond level 5');
+});
+
+test('layer 5 plays through: what the hag wants, low water, the Lost Chapel, the light put out, home', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    await sleep(50);
+    const beat = () => { for (const o of W.getCombat().order.filter(o => o.kind === 'monster')) W.damage(o.id, 999); W.endEncounter(); };
+    const say = async (text) => { w.gametext_arr.push(text); await w.prepare_submit_generation(); await sleep(60); };
+    const fighting = () => !!(W.getCombat() && W.getCombat().active && !W.getCombat().outcome);
+    const flag = (k) => W.runtime.flags[k];
+    const ways = () => plain(W.here().ways).map(x => x.name);
+
+    for (const id of ['q_reedcloak_cave', 'q_sluice', 'q_last_night']) W.setQuestState(id, 'turnedin');
+    W.setFlag('lantern_saved', true);
+    // C1: the Lantern is lent, the long swim shown
+    assert.ok(W.acceptQuest('q_hag_wants'));
+    await say('<talk>Keeper Anselm Roe</talk> <talk>Sister Imani</talk>');
+    W.turnInQuest('q_hag_wants'); await sleep(60);
+    assert.equal(flag('lantern_lent'), true);
+    assert.deepEqual(plain(W.hiddenIn('sc_flooded')), [], 'the long swim is known');
+    W.moveTo('lp_guildhall'); assert.doesNotMatch(W.preview(), /The Founders' Lantern/, 'the Lantern left the guildhall with you');
+
+    // low water: the winch at the sluice house
+    assert.ok(W.acceptQuest('q_low_water'));
+    W.moveTo('od_sluice'); h.seedRandom([0.99]);
+    assert.ok(W.tryObjective('Low Water').success);
+    W.turnInQuest('q_low_water');
+    assert.equal(flag('low_water'), true);
+    assert.equal(W.phased('loc_brindlewick').phase, 'The mill runs dry');
+    W.moveTo('loc_hidden_beach');
+    assert.ok(ways().some(n => /Lost Chapel/.test(n)), 'the causeway: ' + ways().join(', '));
+
+    // C2 + C3 through the village and the chapel
+    assert.ok(W.acceptQuest('q_into_mere'));
+    W.go('The Lost Chapel'); if (fighting()) beat();
+    assert.equal(W.runtime.playerLocationId, 'lc_causeway');
+    W.go('east'); W.go('east'); W.go('east');
+    assert.equal(W.runtime.playerLocationId, 'lc_narthex');
+    await say('A grey figure bows. <talk>Brother Oswin</talk>');
+    W.turnInQuest('q_into_mere');
+    assert.ok(W.acceptQuest('q_drowned_light'));
+    W.go('east'); W.go('south'); W.go('down');
+    assert.equal(W.runtime.playerLocationId, 'lc_crypt');
+    assert.ok(fighting() && W.getCombat().order.some(o => o.name === 'Wight'), 'Sir Aldric rises');
+    beat();
+    W.go('up'); W.go('north'); W.door('unlock', 'east'); W.go('east');
+    assert.equal(W.runtime.playerLocationId, 'lc_sanctum', 'the Lantern opens the bronze doors');
+    assert.ok(fighting() && W.getCombat().order.some(o => o.name === 'Green Hag'), 'Mother Reedwater');
+    beat();
+    assert.equal(W.questState('q_drowned_light'), 'complete');
+    W.turnInQuest('q_drowned_light');
+
+    // the choice: put out the light (closes "carry it home")
+    assert.ok(W.acceptQuest('q_light_rest'));
+    assert.ok(!W.acceptQuest('q_light_home'));
+    h.seedRandom([0.99]);
+    assert.ok(W.tryObjective('Let the Light Rest').success);
+    await sleep(30);
+    assert.equal(W.questState('q_light_rest'), 'complete');
+    W.turnInQuest('q_light_rest');
+    assert.equal(flag('lantern_doused'), true); assert.equal(flag('chapel_done'), true);
+    assert.equal(W.phased('npc_oswin').gone, true, 'Oswin rests');
+
+    // C4: home
+    assert.ok(W.acceptQuest('q_home'));
+    await say('<talk>Mayor Isolde Varga</talk>');
+    W.turnInQuest('q_home', 0);
+    assert.equal(W.phased('loc_brindlewick').phase, 'Peace on the road');
+    assert.equal(W.phased('loc_forest_road').phase, 'The road is safe');
+
+    // the other way in: the long swim comes up in the cistern, where the drowned wait
+    W.moveTo('sc_flooded'); W.go('down');
+    assert.equal(W.runtime.playerLocationId, 'lc_cistern');
+    assert.ok(fighting(), 'the drowned in the cistern');
 });

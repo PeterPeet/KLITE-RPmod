@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-26 (open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–6: Lanternport and the Lantern Fair, the south shore)
+> Last updated: 2026-09-26 (open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–7: Lanternport and the Lantern Fair, the south shore, the Lost Chapel and the endings)
 
 ## Current state
 
@@ -38,10 +38,10 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
 inspector, persona on start, New Session, Reset ALL), the panels are split into play (left) and build (right, three
 named header rows), the character sheet has tabs, SRD autocomplete, in hand vs. backpack, Features and notes, a page
 reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternport, the Lantern Fair) and 6 (the south
-shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) are built. Next: R8 step 7
-(the Lost Chapel, the endings, the XP balance to level 5), then the real-backend play test.
+shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
+the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-09-26 — `npm test`, 404 tests)
+### What works (verified headless 2026-09-26 — `npm test`, 406 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -872,7 +872,22 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   estimate 6,275 per character (both branches of the last night counted). Playthrough tests in
   `tests/adventureContent.test.js` (south shore; the "let them run" branch). Checked in the browser (map at the ford
   and in the cave, phone width, the effect editor).
-- [ ] Step 7: layer 5 — the Lost Chapel, the endings (incl. opening the sluice for low water), XP balance to level 5
+- [x] Step 7 (2026-09-26): layer 5 — **the Lost Chapel** (dungeon, 14 rooms: the drowned village — causeway, high
+  street, old mill, houses, chapel square — and the chapel — narthex, nave, bell tower, vestry, crypt stair, crypt,
+  ossuary, flooded cistern, the sanctum behind bronze doors that only the Founders' Lantern opens). Mother Reedwater's
+  magic holds the lake off Old Brindle "like a glass bell". Two ways in: **low water** (*Low Water*: Athletics DC 14 at
+  the sluice house; Brindlewick −150, the mill runs dry — phases on Brindlewick and Tobias; a causeway from the hidden
+  beach) or **the long swim** from the sea cave's flooded passage (revealed by C1; the drowned wait in the cistern).
+  Quests: C1 *What the Hag Wants* (Brother Aurelio; after A5 and either way of B4; the town lends you the Lantern),
+  C2 *Into the Mere* (to Brother Oswin, the ghost of the last keeper), C3 *The Drowned Light* (Sir Aldric = Wight,
+  Mother Reedwater = Green Hag + 2 ghouls), the choice *Let the Light Rest* (Religion DC 12 at the altar; the drowned
+  sleep, Lanternport's relic goes dark) or *Carry the Light Home* (to Mayor Varga, still burning), C4 *Home* (Elder
+  Holt → Mayor Varga; phases: peace on the road). Side quests *Lights on the Lake* (Will-o'-Wisp, from Ines) and
+  *Honest Work* (Brisco; the Reedcloaks recruited by the Outpost). Faction *The Drowned*. Content version 6.
+  **XP balance** test: a typical path (one companion, no owlbear, no repeats) is level 2 after layer 1, 3 after
+  layer 2, 4 from the fair on, 5 inside the chapel before the hag, never 6; the validator's all-content estimate is
+  10,125 per character. Playthrough test (low water → hag → light put out → home; the long swim). Not yet checked in
+  the browser — the owner's play test covers it.
 - [ ] Step 8: real-backend play test (known issue 5), then the World Building guide
 
 **Open items (owner's play test, 2026-09-26)** — not done yet:

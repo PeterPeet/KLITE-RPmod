@@ -81,7 +81,7 @@ chatting. Everything below explains how to build your own.
   Stories saved with Guided RP keep their data.
 - **Worlds** — the focus of this guide, below.
 - **The starter adventure "The Drowned Lantern"** — a ready-made adventure for one character
-  and a companion (levels 1–5 when complete). Click **Play a starter adventure** on the *New
+  and a companion (levels 1–5). Click **Play a starter adventure** on the *New
   here?* card or **Play the built-in adventure** in World Management, choose one of four characters and
   start. It is being built in layers; playable now: the village of **Brindlewick**, the Forest
   Road, the goblins of the **Hollow Oak** and the old coin; then the two roads to Lanternport —
@@ -95,8 +95,9 @@ chatting. Everything below explains how to build your own.
   The fair runs three in-game days. On the **south shore** of the lake: a hidden beach (follow the
   river from the ford — search for the path, or let the ferryman show it — or hire a boat at
   Lanternport's docks), the smugglers' **sea cave** with their captain and their ledger, and the
-  **Old Dam**, whose keeper has lost the crank of his sluice. The drowned chapel opens with the last
-  part.
+  **Old Dam**, whose keeper has lost the crank of his sluice. And under the lake, **the Lost Chapel** of
+  the drowned village — reached at low water (the keeper can open the sluice, but Brindlewick's mill
+  runs dry) or by a long swim from the cave — where the adventure ends. How it ends is your choice.
   - **The four characters:** *Oona Greycairn* (she/her), an orc fighter and old caravan guard
     with a prosthetic leg; *Tove Emberfall* (they/them), a warm, loud dwarf cleric who is very
     short-sighted and refuses glasses; *Kasimir Adeyemi* (he/him), a young human wizard studying
