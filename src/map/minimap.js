@@ -34,16 +34,17 @@ function doGo(targetId) {
 // Outside dungeons and towns: the known world places as points (R8). Known = visited, where you
 // are, and the places you can go to from here. Positions: the editor's; missing ones laid out in
 // rings around where you are.
-function renderPlaces(A, hereId, large, quick) {
+function renderPlaces(A, hereId, large, quick, region) {
     const g = A.getGraph();
-    // the regions you are in (zones around the current place) are named in the header, not drawn
-    const around = new Set((A.zonePath(hereId) || []).map(z => z.id));
+    const anchorOf = (id) => { const n = g.nodes.find(x => x.id === id); return n && n.graphId ? n.graphId : id; };
+    const cur = anchorOf(hereId);
+    // the regions you are in (zones around the current place) are named in the header, not drawn;
+    // inside a dungeon/town its node is where you are (the regional map above the local one)
+    const around = new Set((A.zonePath(hereId) || []).map(z => z.id).filter(id => id !== cur));
     const places = g.nodes.filter(n => n.type === 'location' && !n.mapId && !around.has(n.id));
     const byId = new Map(places.map(n => [n.id, n]));
     const rt = A.runtime || {};
     const visited = new Set((rt.visitedLocationIds || []).filter(id => byId.has(id)));
-    const anchorOf = (id) => { const n = g.nodes.find(x => x.id === id); return n && n.graphId ? n.graphId : id; };
-    const cur = anchorOf(hereId);
     const near = new Set(((A.here() || {}).ways || []).map(w => anchorOf(w.id)).filter(id => byId.has(id) && id !== cur));
     const shown = places.filter(n => n.id === cur || visited.has(n.id) || near.has(n.id));
     if (!shown.length) return null;
@@ -62,7 +63,7 @@ function renderPlaces(A, hereId, large, quick) {
     const xs = [...pos.values()].map(p => p.x), ys = [...pos.values()].map(p => p.y);
     const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
     const pad = 70, w = Math.max(maxX - minX, 1) + pad * 2, h = Math.max(maxY - minY, 1) + pad * 2;
-    const s = svg('svg', { class: 'rpm-map-board rpm-map-places', role: 'img', 'aria-label': 'Map of the places you know', viewBox: `${minX - pad} ${minY - pad} ${w} ${h}`, preserveAspectRatio: 'xMidYMid meet' });
+    const s = svg('svg', { class: 'rpm-map-board rpm-map-places' + (region ? ' rpm-map-regionboard' : ''), role: 'img', 'aria-label': 'Map of the places you know', viewBox: `${minX - pad} ${minY - pad} ${w} ${h}`, preserveAspectRatio: 'xMidYMid meet' });
     // units per screen pixel (the drawing is fitted into ~240×200 px in the dock, ~560×420 in the window):
     // dots and names keep their size on screen however large the world is
     const scale = Math.max(w / (large ? 560 : 240), h / (large ? 420 : 200), 0.5);
@@ -112,6 +113,17 @@ export function renderMap(box, large) {
     ]));
 
     let drawing = null;
+    // R8: inside a dungeon/town the regional map (the places around it) comes first, then the local board
+    if (mapId) {
+        const regionMap = renderPlaces(A, hereId, large, quick, true);
+        if (regionMap) {
+            root.appendChild(el('div', { class: 'rpm-map-label rpm-muted', text: 'Region' }));
+            const rw = el('div', { class: 'rpm-map-boardwrap rpm-map-region', 'data-map-region': '1', title: large ? null : 'Click to open the map' }, [regionMap]);
+            if (!large) rw.addEventListener('click', () => window.KLITE_RPMod_Shell?.open('map'));
+            root.appendChild(rw);
+            root.appendChild(el('div', { class: 'rpm-map-label rpm-muted', text: (A.phased(mapId) || {}).name || A.entityById(mapId).name }));
+        }
+    }
     if (mapId) {
         const board = A.mapBoard(mapId, { player: true });
         root.setAttribute('data-kind', board.kind); root.setAttribute('data-style', board.style);

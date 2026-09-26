@@ -829,11 +829,21 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
 - [ ] Step 8: real-backend play test (known issue 5), then the World Building guide
 
 **Open items (owner's play test, 2026-09-26)** — not done yet:
-- [ ] World editor: the inspector does not refresh after linking two elements.
-- [ ] Starter adventure: the Brindlewick ↔ Forest Road connection exists twice; removing one hides both in the
-  inspector, and the exit from Brindlewick to the Forest Road cannot be fixed — travel there is blocked.
-- [ ] Mini-map: Forest Road is not shown. Idea: a regional map above the local (dungeon/town) map, both in the
-  Adventure panel.
+- [x] World editor: the inspector does not refresh after linking two elements. — fixed 2026-09-26 (Link tool
+  re-renders the inspector).
+- [x] Starter adventure: the Brindlewick ↔ Forest Road connection exists twice; removing one hides both in the
+  inspector, and the exit from Brindlewick to the Forest Road cannot be fixed — travel there is blocked. — fixed
+  2026-09-26: the graph has **one `exit` edge per pair of nodes** (links stored on both sides and the exits of rooms
+  inside a dungeon/town merge; `via` lists the room exits; the inspector says "exit (Village Green)"); removing it
+  also removes those room exits; a link on a **town/dungeon node** is a way out (from any place of a town, from a
+  dungeon's entrance room). Travel was blocked because you could leave Brindlewick only from the Village Green:
+  now you **walk out of a town from any of its places** (routed through its places, "Goes via Village Green to
+  Forest Road"; the Here row offers the road from the inn). Content version 3 stores each connection once.
+- [x] Mini-map: Forest Road is not shown. — done 2026-09-26: inside a dungeon/town the Map section shows the
+  **regional map** (places around it, the town/dungeon as "you are here") above the local board.
+- [x] (owner, during the fix) Quick travel through several places must stop when something happens on the way —
+  done 2026-09-26: every place on a routed way is really entered; an event or a fight there stops the journey
+  ("Quick travel to Lanternport stops at …: a fight starts here"); no quick travel during a fight.
 - [ ] Starting the adventure with a character already selected in Roles does not replace the persona with the pregen.
 - [ ] Esolite's **New Session** keeps the player character (persona) in the Party section; RPmod should reset to a
   blank state (persona, party, world state for the story).

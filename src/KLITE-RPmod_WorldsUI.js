@@ -160,6 +160,11 @@ export default function initWorldsUI() {
             S.gNodes.appendChild(g);
         }
     }
+    // "exit (from Village Green)": the rooms whose exits make up a place-to-place connection (R8)
+    function viaText(e) {
+        const rooms = [...new Set((e.via || []).flatMap(v => [v.from, v.to]).filter(id => { const n = nodeById(id); return n && n.graphId; }))];
+        return rooms.length ? ` (${rooms.map(id => nodeById(id).name).join(', ')})` : '';
+    }
     function clip(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
     // =======================================================================
@@ -176,7 +181,7 @@ export default function initWorldsUI() {
             if (!S.linkSource) { S.linkSource = id; draw(); }
             else if (S.linkSource !== id) {
                 try { API().connect(S.linkSource, id); } catch (e) { toast(e.message || 'cannot connect', true); }
-                S.linkSource = null; reloadGraph(); draw();
+                S.linkSource = null; reloadGraph(); draw(); renderInspector();   // the selected node's Connections change too
             } else { S.linkSource = null; draw(); }
             return;
         }
@@ -317,7 +322,7 @@ export default function initWorldsUI() {
             const otherId = e.from === S.selectedId ? e.to : e.from;
             const other = nodeById(otherId);
             const row = el('div', { style: 'display:flex;align-items:center;justify-content:space-between;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:4px 8px;margin-top:4px' }, [
-                el('span', { style: 'font-size:var(--rpm-fs-sm);color:var(--rpm-fg)' }, [`→ ${clip(other ? other.name : otherId, 18)} `, el('span', { style: 'color:var(--rpm-fg-muted)', text: e.kind })]),
+                el('span', { style: 'font-size:var(--rpm-fs-sm);color:var(--rpm-fg)' }, [`→ ${clip(other ? other.name : otherId, 18)} `, el('span', { style: 'color:var(--rpm-fg-muted)', text: e.kind + viaText(e) })]),
                 el('span', { style: 'cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs);padding:0 4px', text: '×', onclick: () => { API().disconnect(e.from, e.to); reloadGraph(); draw(); renderInspector(); } })
             ]);
             box.appendChild(row);

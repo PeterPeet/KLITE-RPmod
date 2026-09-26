@@ -482,6 +482,63 @@ export default function initWorlds() {
         const outward = (r) => exitsOfLoc(r.id).filter(e => !isInsideLocation(e.to, mapId) && e.to !== mapId);
         return (fromId && rooms.find(r => outward(r).some(e => e.to === fromId || isInsideLocation(fromId, e.to)))) || rooms.find(r => outward(r).length) || rooms[0];
     }
+    // Ways on from a place for routing: its known exits, and — from any place of a town, or the
+    // entrance room of a dungeon — the links the town/dungeon itself has to the world outside
+    // (drawn on its node in the world editor). Locked or barred doors block.
+    function routeSteps(locId) {
+        const out = [];
+        for (const e of playerExits(locId)) if (!MR.blocksMove(MR.doorState(e, rt().doorState))) out.push({ to: e.to, exit: e });
+        const m = mapOf(locId);
+        if (m && (MR.kindOf(m) === 'town' || (entranceRoom(m.id) || {}).id === locId)) {
+            for (const e of exitsOfLoc(m.id)) {
+                if (isInsideLocation(e.to, m.id) || e.to === m.id || !MR.visibleExit(e, foundState()) || MR.blocksMove(MR.doorState(e, rt().doorState))) continue;
+                const to = locOf(e.to); if (!to) continue;
+                const dest = MR.isContainer(to) ? (entranceRoom(to.id, m.id) || to) : to;
+                if (!out.some(s => s.to === dest.id)) out.push({ to: dest.id, exit: null });
+            }
+        }
+        return out;
+    }
+    // R8: a route from `fromId` to `toId` (breadth first). Walking passes only through the places
+    // of a town (a village is crossed without naming every street); quick travel also through the
+    // places the player knows (visited world places, explored rooms). → [ids after fromId] or null.
+    function routeTo(fromId, toId, opts = {}) {
+        if (!fromId || !toId || fromId === toId) return null;
+        const r = rt(); MR.normalizeExploration(r);
+        const passable = (id) => {
+            const m = mapOf(id);
+            if (m && MR.kindOf(m) === 'town') return true;
+            if (!opts.quick) return false;
+            if (m) return MR.exploreRank((r.explored || {})[id]) >= MR.exploreRank('discovered');
+            return asArray(r.visitedLocationIds).includes(id);
+        };
+        const prev = new Map([[fromId, null]]); const todo = [fromId];
+        while (todo.length) {
+            const id = todo.shift();
+            if (id !== fromId && !passable(id)) continue;
+            for (const s of routeSteps(id)) {
+                if (prev.has(s.to)) continue;
+                prev.set(s.to, id);
+                if (s.to === toId) { const path = [toId]; let p = id; while (p && p !== fromId) { path.unshift(p); p = prev.get(p); } return path; }
+                todo.push(s.to);
+            }
+        }
+        return null;
+    }
+    // Places reachable from here by walking through a town (for the Here row and the map).
+    function townWays(locId) {
+        const m = mapOf(locId); if (!m || MR.kindOf(m) !== 'town') return [];
+        const out = [];
+        const prev = new Set([locId]); const todo = [locId];
+        while (todo.length) {
+            const id = todo.shift();
+            for (const s of routeSteps(id)) {
+                if (prev.has(s.to)) continue; prev.add(s.to);
+                if (isInsideLocation(s.to, m.id)) todo.push(s.to); else out.push(s.to);
+            }
+        }
+        return out;
+    }
     // "unexplored room" (as the AI reads an unseen exit) = that exit when it is the only one.
     function unexploredExit(exits, key, curId) {
         if (!/^unexplored( room)?$/.test(key) || !curId) return null;
@@ -510,6 +567,8 @@ export default function initWorlds() {
         MR.normalizeExploration(rt());
         const curId = rt().playerLocationId; const cur = locOf(curId);
         const refuse = (why) => { const msg = `Move to ${norm(target)} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
+        // R8: no skipping a journey in the middle of a fight
+        if (opts.source === 'quicktravel' && rt().combat && rt().combat.active) return refuse('a fight is going on');
         let dest = resolveGoTarget(target, curId);
         if (!dest) return refuse('there is no such place');
         const destIsMap = MR.isContainer(dest);
@@ -517,11 +576,34 @@ export default function initWorlds() {
         let viaEntrance = false;
         if (destIsMap) { const ent = entranceRoom(dest.id, curId); if (ent) { dest = ent; viaEntrance = true; } }
         if (cur && dest.id === curId) return { ok: true, to: dest.id, same: true };
-        let ex = null, opened = false;
+        let ex = null, opened = false, via = [];
         if (cur && (mapOf(curId) || mapOf(dest.id))) {
             ex = playerExits(curId).find(e => e.to === dest.id) || null;
-            // from the world outside you may travel to a dungeon/town's entrance without a drawn way
-            if (!ex && !(viaEntrance && !mapOf(curId))) return refuse(`there is no known way from ${placeName(curId)} to ${placeName(dest.id, curId)}`);
+            // R8: no direct way — walk through the town's places (or, with quick travel, through
+            // the places the player knows); closed doors on the way are opened. Every place on the
+            // way is really entered: when something happens there (an event fires, a fight starts)
+            // the journey stops at that place.
+            if (!ex && !(viaEntrance && !mapOf(curId))) {
+                const route = routeTo(curId, dest.id, { quick: opts.source === 'quicktravel' });
+                if (!route) return refuse(`there is no known way from ${placeName(curId)} to ${placeName(dest.id, curId)}`);
+                let at = curId;
+                for (const id of route) {
+                    const e = playerExits(at).find(x => x.to === id);
+                    if (e && MR.doorState(e, rt().doorState) === 'closed') { rt().doorState[e.id] = 'open'; opened = true; }
+                    at = id;
+                    if (id === dest.id) { ex = e || null; break; }
+                    via.push(id);
+                    rt().playerLocationId = id; markVisitedRoom(id); passiveNotice(id);
+                    let fired = [];
+                    try { fired = fireTriggers('enter:' + id); } catch (_) {}
+                    if (fired.length || (rt().combat && rt().combat.active)) {
+                        via.pop();
+                        const fight = !!(rt().combat && rt().combat.active);
+                        gameLog(`${opts.source === 'quicktravel' ? 'Quick travel' : 'The way'} to ${placeName(dest.id, curId)} stops at ${placeName(id, curId)}${via.length ? ` (via ${via.map(v => playerPlaceName(v, curId)).join(', ')})` : ''}: ${fight ? 'a fight starts here' : 'something happens here'}.`, 'map');
+                        return { ok: true, to: id, stopped: true, fight, dest: dest.id, opened, via };
+                    }
+                }
+            }
             if (ex) {
                 const st = MR.doorState(ex, rt().doorState);
                 const mat = ex.door && norm(ex.door.material);
@@ -533,12 +615,13 @@ export default function initWorlds() {
         rt().entry = ex && ZR.RING.includes(ex.dir) ? { roomId: dest.id, dir: MR.mirrorDir(ex.dir) } : null;   // zone combat: where the party stands
         markVisitedRoom(dest.id);
         passiveNotice(dest.id);
-        const dir = ex && ex.dir ? MR.dirName(ex.dir) : '';
-        if (opts.source === 'ui') gameLog(`${opened ? 'Opens the door and goes' : 'Goes'}${dir ? ' ' + dir : ''} to ${placeName(dest.id, curId)}.`, 'map');
+        const dir = ex && ex.dir && !via.length ? MR.dirName(ex.dir) : '';
+        const viaTxt = via.length ? ` via ${via.map(id => playerPlaceName(id, curId)).join(', ')}` : '';
+        if (opts.source === 'ui' || (via.length && opts.source !== 'quicktravel')) gameLog(`${opened ? 'Opens the door and goes' : 'Goes'}${dir ? ' ' + dir : ''}${viaTxt} to ${placeName(dest.id, curId)}.`, 'map');
         // R8: quick travel on the map — the journey itself is skipped; the AI describes the arrival
         if (opts.source === 'quicktravel') gameLog(`Quick travel: the player skipped the journey and is now at ${placeName(dest.id, curId)}${opened ? ' (a door was opened on the way)' : ''}. Describe the arrival briefly.`, 'map');
         try { fireTriggers('enter:' + dest.id); } catch (_) {}
-        return { ok: true, to: dest.id, dir: ex ? ex.dir : null, opened };
+        return { ok: true, to: dest.id, dir: ex ? ex.dir : null, opened, via };
     }
     // Exits of a room as the AI reads them: "- north: Ossuary (locked iron door)".
     function exitLines(locId) {
@@ -2647,6 +2730,7 @@ export default function initWorlds() {
         const mode = aiMode(); const ways = [];
         const add = (id, name, dir, door) => { name = norm(name); if (id && name && id !== loc.id && !ways.some(x => x.id === id)) ways.push({ id, name, dir: dir || null, door: door || null }); };
         for (const e of playerExits(loc.id)) add(e.to, playerPlaceName(e.to, loc.id), e.dir, (e.type === 'door' || e.type === 'secret') ? MR.doorState(e, rt().doorState) : null);
+        for (const id of townWays(loc.id)) add(id, placeName(id, loc.id));   // R8: out of a town from any of its places
         if (!mapOf(loc.id)) {
             for (const l of connectedLocations(w, loc, 1)) add(l.id, placeName(l.id, loc.id));
             for (const l of innerPlaces(loc)) add(l.id, phasedEntity(l).name);
@@ -3034,10 +3118,21 @@ export default function initWorlds() {
                 nodes.push(n);
             }
         }
+        // R8: one 'exit' edge per pair of graph nodes — links stored on both sides and exits of
+        // rooms inside a dungeon/town are drawn (and removed) as one connection of its node;
+        // `via` lists the room exits behind it. Exits between rooms of the same map are not edges.
+        const exitEdges = new Map();
+        const addExitEdge = (fromId, toId, exitId) => {
+            const a = graphAnchor(fromId), b = graphAnchor(toId); if (a === b) return;
+            const key = [a, b].sort().join('|');
+            let e = exitEdges.get(key);
+            if (!e) { e = { from: a, to: b, kind: 'exit' }; exitEdges.set(key, e); edges.push(e); }
+            if (exitId) (e.via = e.via || []).push({ from: fromId, to: toId, exitId });
+        };
         for (const l of asArray(world.locations)) {
             edges.push({ from: '__world__', to: l.id, kind: 'contains' });
-            for (const cid of asArray(l.connectedLocationIds)) if (findById(world.locations, cid)) edges.push({ from: l.id, to: cid, kind: 'exit' });
-            for (const ex of asArray(l.exits)) { const to = ex && (ex.to || ex.locationId); if (to && to !== l.id && findById(world.locations, to) && !asArray(l.connectedLocationIds).includes(to)) edges.push({ from: l.id, to, kind: 'exit', exitId: ex.id }); }
+            for (const cid of asArray(l.connectedLocationIds)) if (findById(world.locations, cid)) addExitEdge(l.id, cid);
+            for (const ex of asArray(l.exits)) { const to = ex && (ex.to || ex.locationId); if (to && to !== l.id && findById(world.locations, to)) addExitEdge(l.id, to, ex.id); }
         }
         for (const n of asArray(world.npcs)) {
             if (n.homeLocationId && findById(world.locations, n.homeLocationId)) edges.push({ from: n.id, to: n.homeLocationId, kind: 'resident' });
@@ -3184,6 +3279,12 @@ export default function initWorlds() {
         const world = activeWorld(); if (!world) return false;
         const a = entityById(world, fromId), b = entityById(world, toId);
         if (!a || !b) return false;
+        // R8: two places — also the exits between the rooms inside them (one connection in the graph)
+        if (entityType(world, fromId) === 'location' && entityType(world, toId) === 'location' && !isInsideLocation(fromId, toId) && !isInsideLocation(toId, fromId)) {
+            const inA = (id) => isInsideLocation(id, fromId), inB = (id) => isInsideLocation(id, toId);
+            for (const l of asArray(world.locations)) if (Array.isArray(l.exits) && (inA(l.id) || inB(l.id)))
+                l.exits = l.exits.filter(ex => { const to = ex && (ex.to || ex.locationId); return !to || !((inA(l.id) && inB(to)) || (inB(l.id) && inA(to))); });
+        }
         // remove any reference in either direction
         for (const [x, yId] of [[a, toId], [b, fromId]]) {
             if (Array.isArray(x.connectedLocationIds)) x.connectedLocationIds = x.connectedLocationIds.filter(v => v !== yId);

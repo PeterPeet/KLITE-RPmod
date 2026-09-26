@@ -108,7 +108,7 @@ test('engine: dungeon rooms are locations hidden from the world graph', async (t
     assert.equal(node(d.hall.id).graphId, d.crypt.id);
     assert.equal(node(d.hall.id).label, 'Old Crypt › Hall');
     assert.equal(node('loc_forest').mapId, undefined, 'ordinary locations unchanged');
-    assert.ok(g.edges.some(e => e.from === d.ent.id && e.to === 'loc_forest' && e.kind === 'exit'), 'exit to the outside is an edge');
+    assert.ok(g.edges.some(e => e.kind === 'exit' && [e.from, e.to].sort().join() === [d.crypt.id, 'loc_forest'].sort().join() && e.via.some(v => v.from === d.ent.id)), 'exit to the outside is an edge of the dungeon node (R8)');
 
     // rooms work like locations: move there, quests/visits, AI slice
     W.moveTo('Hall');

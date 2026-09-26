@@ -406,6 +406,9 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-map-large .rpm-map-boardwrap { cursor: default; }
 .rpm-map-board { display: block; width: 100%; height: auto; max-height: 220px; }
 .rpm-map-large .rpm-map-board { max-height: none; min-height: 260px; }
+.rpm-map-label { font-size: var(--rpm-fs-sm); margin-bottom: -2px; }
+.rpm-map-board.rpm-map-regionboard { max-height: 110px; }
+.rpm-map-large .rpm-map-board.rpm-map-regionboard { max-height: 240px; min-height: 160px; }
 .rpm-map-fog .rpm-map-roomrect { fill: transparent; stroke-dasharray: 4 3; opacity: .75; }
 .rpm-map-fog .rpm-map-name { fill: var(--rpm-fg-muted); }
 .rpm-map-room.rpm-here .rpm-map-roomrect { stroke: var(--rpm-quest); stroke-width: 3; }

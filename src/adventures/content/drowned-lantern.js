@@ -20,7 +20,7 @@ import { buildSheet } from '../../characters/builder-rules.js';
 import { writeSheet } from '../../characters/sheet.js';
 
 export const ID = 'drowned-lantern';
-export const VERSION = 2;   // 2: layer 2 (routes, Outpost, Watchtower, Owlbear Hollow)
+export const VERSION = 3;   // 2: layer 2 (routes, Outpost, Watchtower, Owlbear Hollow); 3: each connection stored once (links only where no room exit leads out)
 
 // ---- small helpers for the data below ----
 const place = (id, name, description, extra = {}) => Object.assign({ id, name, description }, extra);
@@ -113,13 +113,13 @@ function world() {
         locations: [
             // --- the world graph ---
             place('loc_brindlewick', 'Brindlewick', 'A mill village of thatched roofs and stone walls where the Brindle stream leaves the hills for Stillwater Mere. Everyone knows everyone, and everyone is talking about the missing carts.',
-                { kind: 'town', mapStyle: 'plots', atmosphere: 'worried', hub: true, connectedLocationIds: ['loc_forest_road'], ui: { x: 300, y: 300 },
+                { kind: 'town', mapStyle: 'plots', atmosphere: 'worried', hub: true, ui: { x: 300, y: 300 },
                   phases: [{ id: 'ph_relieved', label: 'Goblins driven off', conditions: [questIs('q_hollow_oak', 'turnedin')], atmosphere: 'relieved', description: 'A mill village of thatched roofs and stone walls. The mill wheel turns again, and people talk about the heroes of the Hollow Oak — and, more quietly, about the strange coin they found there.' }] }),
             place('loc_forest_road', 'Forest Road', 'The old trade road east of Brindlewick, under oak and beech. Ferns crowd the verges; the ruts are deep from carts that no longer come. A side track runs north to a huge dead oak, and the sound of the river comes from the south.',
-                { atmosphere: 'tense', connectedLocationIds: ['loc_brindlewick', 'loc_hollow_oak', 'loc_river_ford', 'loc_gravel_road'], ui: { x: 600, y: 300 },
+                { atmosphere: 'tense', connectedLocationIds: ['loc_river_ford', 'loc_gravel_road'], ui: { x: 600, y: 300 },
                   localLore: [{ id: 'll_cart', content: 'Liu Wen\'s cart lies overturned in the ferns a mile out of the village: the grain sacks are gone, the mule cut loose, and small bare footprints lead north towards the Hollow Oak.', keys: ['cart', 'tracks', 'footprints'] }] }),
             place('loc_hollow_oak', 'The Hollow Oak', 'A dead oak so old and vast that a whole goblin band lives in its trunk and in the burrows between its roots. It smells of smoke, wet earth and stolen bread.',
-                { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'menacing', connectedLocationIds: ['loc_forest_road'], ui: { x: 600, y: 110 } }),
+                { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'menacing', ui: { x: 600, y: 110 } }),
             place('loc_river_ford', 'River Ford', 'Where the Forest Road meets the Brindle river: a ford of flat stones for dry summers and Odo\'s rope ferry for the rest of the year. Reeds, herons, and now and then a green old coin washed out of the gravel.',
                 { atmosphere: 'calm', connectedLocationIds: ['loc_forest_road', 'loc_meadow_road'], ui: { x: 600, y: 490 } }),
 
@@ -241,19 +241,19 @@ function layer2(w) {
         place('loc_gravel_road', 'Gravel Road', 'The mountain road climbs out of the forest in loose grey switchbacks. Halfway up there is an old campfire ring under a leaning pine — the only flat, sheltered spot before the pass, and everyone who uses this road has slept there. It is the quicker way to Lanternport, about a day, if the weather holds.',
             { atmosphere: 'lonely', connectedLocationIds: ['loc_forest_road', 'loc_windgap'], ui: { x: 900, y: 180 } }),
         place('loc_windgap', 'Windgap Pass', 'A notch between two bare peaks where the wind never stops. Far below, Stillwater Mere shines like a sheet of tin, and on the far shore the roofs of Lanternport. A broken watchtower stands on the crag above the road; a shepherds\' trail drops steeply towards the meadows.',
-            { atmosphere: 'windswept', connectedLocationIds: ['loc_gravel_road', 'loc_watchtower', 'loc_lanternport', 'loc_shepherds_trail'], ui: { x: 1200, y: 180 } }),
+            { atmosphere: 'windswept', connectedLocationIds: ['loc_gravel_road', 'loc_lanternport', 'loc_shepherds_trail'], ui: { x: 1200, y: 180 } }),
         place('loc_watchtower', 'Watchtower Ruin', 'A square tower from the days of the old dam, half its roof gone. Harpies nest at the top, and lately someone has been using the rooms below.',
-            { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'eerie', connectedLocationIds: ['loc_windgap', 'loc_shepherds_trail'], ui: { x: 1200, y: 30 } }),
+            { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'eerie', ui: { x: 1200, y: 30 } }),
         place('loc_shepherds_trail', "Shepherds' Trail", 'A steep, narrow trail between the pass and the meadows, marked with cairns. Sheep use it; carts cannot.',
-            { atmosphere: 'quiet', connectedLocationIds: ['loc_windgap', 'loc_watchtower', 'loc_outpost'], ui: { x: 1200, y: 370 } }),
+            { atmosphere: 'quiet', connectedLocationIds: ['loc_windgap'], ui: { x: 1200, y: 370 } }),
         place('loc_meadow_road', 'Meadow Road', 'The valley road: wide, flat and slow, through flowering meadows along the Brindle river — two easy days to Lanternport. Old Harrowfield\'s hut stands by a sheepfold; wild garlic and feverfew grow thick along the ditches. A trampled path leads into a thicket to the south.',
-            { atmosphere: 'peaceful', connectedLocationIds: ['loc_river_ford', 'loc_outpost', 'loc_owlbear_hollow'], ui: { x: 900, y: 560 } }),
+            { atmosphere: 'peaceful', connectedLocationIds: ['loc_river_ford'], ui: { x: 900, y: 560 } }),
         place('loc_owlbear_hollow', 'Owlbear Hollow', 'A hollow in a thorn thicket, littered with wool and feathers. Something big lives here.',
-            { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'menacing', connectedLocationIds: ['loc_meadow_road'], ui: { x: 900, y: 740 } }),
+            { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'menacing', ui: { x: 900, y: 740 } }),
         place('loc_outpost', "Traveler's Outpost", 'A walled waystation where the Meadow Road meets the lake road: an inn, stables, a smithy corner and a lantern that burns all night over the gate. Carters, drovers and pilgrims to the Lantern Fair stop here.',
-            { kind: 'town', mapStyle: 'plots', atmosphere: 'busy', hub: true, connectedLocationIds: ['loc_meadow_road', 'loc_lanternport', 'loc_shepherds_trail'], ui: { x: 1200, y: 560 } }),
+            { kind: 'town', mapStyle: 'plots', atmosphere: 'busy', hub: true, ui: { x: 1200, y: 560 } }),
         place('loc_lanternport', 'Lanternport', 'The market town on the far shore of Stillwater Mere: stone quays, tall narrow houses and lanterns on every corner. In spring it prepares for its famous Lantern Fair. (Its streets open with the next part of the adventure.)',
-            { kind: 'town', mapStyle: 'streets', atmosphere: 'lively', connectedLocationIds: ['loc_windgap', 'loc_outpost'], ui: { x: 1500, y: 370 } }),
+            { kind: 'town', mapStyle: 'streets', atmosphere: 'lively', connectedLocationIds: ['loc_windgap'], ui: { x: 1500, y: 370 } }),
 
         // --- the Traveler's Outpost (town map) ---
         room('op_yard', 'Outpost Yard', 'loc_outpost', [5, 4], 'A cobbled yard with a well, a mounting block and the all-night lantern over the gate. Carts come in from the Meadow Road and leave for Lanternport.',

@@ -6,9 +6,10 @@
       "runtimeExecutable": "sh",
       "runtimeArgs": [
         "-c",
-        "exec python3 -m http.server --directory \"${ESOLITE_DIR:-$HOME/.cache/klite-rpmod/esolite}\" 8747"
+        "exec python3 -m http.server --directory \"${ESOLITE_DIR:-$HOME/.cache/klite-rpmod/esolite}\" \"${PORT:-8747}\""
       ],
-      "port": 8747
+      "port": 8747,
+      "autoPort": true
     },
     {
       "name": "rp-lite-pages",

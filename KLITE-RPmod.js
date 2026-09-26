@@ -411,6 +411,9 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-map-large .rpm-map-boardwrap { cursor: default; }
 .rpm-map-board { display: block; width: 100%; height: auto; max-height: 220px; }
 .rpm-map-large .rpm-map-board { max-height: none; min-height: 260px; }
+.rpm-map-label { font-size: var(--rpm-fs-sm); margin-bottom: -2px; }
+.rpm-map-board.rpm-map-regionboard { max-height: 110px; }
+.rpm-map-large .rpm-map-board.rpm-map-regionboard { max-height: 240px; min-height: 160px; }
 .rpm-map-fog .rpm-map-roomrect { fill: transparent; stroke-dasharray: 4 3; opacity: .75; }
 .rpm-map-fog .rpm-map-name { fill: var(--rpm-fg-muted); }
 .rpm-map-room.rpm-here .rpm-map-roomrect { stroke: var(--rpm-quest); stroke-width: 3; }
@@ -22893,6 +22896,71 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       const outward = (r) => exitsOfLoc(r.id).filter((e) => !isInsideLocation(e.to, mapId) && e.to !== mapId);
       return fromId && rooms.find((r) => outward(r).some((e) => e.to === fromId || isInsideLocation(fromId, e.to))) || rooms.find((r) => outward(r).length) || rooms[0];
     }
+    function routeSteps(locId) {
+      const out = [];
+      for (const e of playerExits(locId)) if (!blocksMove(doorState(e, rt().doorState))) out.push({ to: e.to, exit: e });
+      const m = mapOf(locId);
+      if (m && (kindOf(m) === "town" || (entranceRoom(m.id) || {}).id === locId)) {
+        for (const e of exitsOfLoc(m.id)) {
+          if (isInsideLocation(e.to, m.id) || e.to === m.id || !visibleExit(e, foundState()) || blocksMove(doorState(e, rt().doorState))) continue;
+          const to = locOf(e.to);
+          if (!to) continue;
+          const dest = isContainer(to) ? entranceRoom(to.id, m.id) || to : to;
+          if (!out.some((s) => s.to === dest.id)) out.push({ to: dest.id, exit: null });
+        }
+      }
+      return out;
+    }
+    function routeTo(fromId, toId, opts = {}) {
+      if (!fromId || !toId || fromId === toId) return null;
+      const r = rt();
+      normalizeExploration(r);
+      const passable = (id) => {
+        const m = mapOf(id);
+        if (m && kindOf(m) === "town") return true;
+        if (!opts.quick) return false;
+        if (m) return exploreRank((r.explored || {})[id]) >= exploreRank("discovered");
+        return asArray5(r.visitedLocationIds).includes(id);
+      };
+      const prev = /* @__PURE__ */ new Map([[fromId, null]]);
+      const todo = [fromId];
+      while (todo.length) {
+        const id = todo.shift();
+        if (id !== fromId && !passable(id)) continue;
+        for (const s of routeSteps(id)) {
+          if (prev.has(s.to)) continue;
+          prev.set(s.to, id);
+          if (s.to === toId) {
+            const path = [toId];
+            let p = id;
+            while (p && p !== fromId) {
+              path.unshift(p);
+              p = prev.get(p);
+            }
+            return path;
+          }
+          todo.push(s.to);
+        }
+      }
+      return null;
+    }
+    function townWays(locId) {
+      const m = mapOf(locId);
+      if (!m || kindOf(m) !== "town") return [];
+      const out = [];
+      const prev = /* @__PURE__ */ new Set([locId]);
+      const todo = [locId];
+      while (todo.length) {
+        const id = todo.shift();
+        for (const s of routeSteps(id)) {
+          if (prev.has(s.to)) continue;
+          prev.add(s.to);
+          if (isInsideLocation(s.to, m.id)) todo.push(s.to);
+          else out.push(s.to);
+        }
+      }
+      return out;
+    }
     function unexploredExit(exits, key, curId) {
       if (!/^unexplored( room)?$/.test(key) || !curId) return null;
       const u = exits.filter((e) => playerPlaceName(e.to, curId) === "unexplored room");
@@ -22927,6 +22995,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         gameLog(msg, "map");
         return { ok: false, reason: msg };
       };
+      if (opts.source === "quicktravel" && rt().combat && rt().combat.active) return refuse("a fight is going on");
       let dest = resolveGoTarget(target, curId);
       if (!dest) return refuse("there is no such place");
       const destIsMap = isContainer(dest);
@@ -22940,10 +23009,41 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         }
       }
       if (cur && dest.id === curId) return { ok: true, to: dest.id, same: true };
-      let ex = null, opened = false;
+      let ex = null, opened = false, via = [];
       if (cur && (mapOf(curId) || mapOf(dest.id))) {
         ex = playerExits(curId).find((e) => e.to === dest.id) || null;
-        if (!ex && !(viaEntrance && !mapOf(curId))) return refuse(`there is no known way from ${placeName(curId)} to ${placeName(dest.id, curId)}`);
+        if (!ex && !(viaEntrance && !mapOf(curId))) {
+          const route = routeTo(curId, dest.id, { quick: opts.source === "quicktravel" });
+          if (!route) return refuse(`there is no known way from ${placeName(curId)} to ${placeName(dest.id, curId)}`);
+          let at = curId;
+          for (const id of route) {
+            const e = playerExits(at).find((x) => x.to === id);
+            if (e && doorState(e, rt().doorState) === "closed") {
+              rt().doorState[e.id] = "open";
+              opened = true;
+            }
+            at = id;
+            if (id === dest.id) {
+              ex = e || null;
+              break;
+            }
+            via.push(id);
+            rt().playerLocationId = id;
+            markVisitedRoom(id);
+            passiveNotice(id);
+            let fired = [];
+            try {
+              fired = fireTriggers("enter:" + id);
+            } catch (_) {
+            }
+            if (fired.length || rt().combat && rt().combat.active) {
+              via.pop();
+              const fight = !!(rt().combat && rt().combat.active);
+              gameLog(`${opts.source === "quicktravel" ? "Quick travel" : "The way"} to ${placeName(dest.id, curId)} stops at ${placeName(id, curId)}${via.length ? ` (via ${via.map((v) => playerPlaceName(v, curId)).join(", ")})` : ""}: ${fight ? "a fight starts here" : "something happens here"}.`, "map");
+              return { ok: true, to: id, stopped: true, fight, dest: dest.id, opened, via };
+            }
+          }
+        }
         if (ex) {
           const st = doorState(ex, rt().doorState);
           const mat = ex.door && norm5(ex.door.material);
@@ -22958,14 +23058,15 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       rt().entry = ex && RING.includes(ex.dir) ? { roomId: dest.id, dir: mirrorDir(ex.dir) } : null;
       markVisitedRoom(dest.id);
       passiveNotice(dest.id);
-      const dir = ex && ex.dir ? dirName(ex.dir) : "";
-      if (opts.source === "ui") gameLog(`${opened ? "Opens the door and goes" : "Goes"}${dir ? " " + dir : ""} to ${placeName(dest.id, curId)}.`, "map");
+      const dir = ex && ex.dir && !via.length ? dirName(ex.dir) : "";
+      const viaTxt = via.length ? ` via ${via.map((id) => playerPlaceName(id, curId)).join(", ")}` : "";
+      if (opts.source === "ui" || via.length && opts.source !== "quicktravel") gameLog(`${opened ? "Opens the door and goes" : "Goes"}${dir ? " " + dir : ""}${viaTxt} to ${placeName(dest.id, curId)}.`, "map");
       if (opts.source === "quicktravel") gameLog(`Quick travel: the player skipped the journey and is now at ${placeName(dest.id, curId)}${opened ? " (a door was opened on the way)" : ""}. Describe the arrival briefly.`, "map");
       try {
         fireTriggers("enter:" + dest.id);
       } catch (_) {
       }
-      return { ok: true, to: dest.id, dir: ex ? ex.dir : null, opened };
+      return { ok: true, to: dest.id, dir: ex ? ex.dir : null, opened, via };
     }
     function exitLines(locId) {
       const r = rt();
@@ -25801,6 +25902,7 @@ ${recent}` : "");
         if (id && name && id !== loc.id && !ways.some((x) => x.id === id)) ways.push({ id, name, dir: dir || null, door: door || null });
       };
       for (const e of playerExits(loc.id)) add(e.to, playerPlaceName(e.to, loc.id), e.dir, e.type === "door" || e.type === "secret" ? doorState(e, rt().doorState) : null);
+      for (const id of townWays(loc.id)) add(id, placeName(id, loc.id));
       if (!mapOf(loc.id)) {
         for (const l of connectedLocations(w, loc, 1)) add(l.id, placeName(l.id, loc.id));
         for (const l of innerPlaces(loc)) add(l.id, phasedEntity(l).name);
@@ -26171,12 +26273,25 @@ ${xl.join("\n")}`;
           nodes.push(n);
         }
       }
+      const exitEdges = /* @__PURE__ */ new Map();
+      const addExitEdge = (fromId, toId, exitId) => {
+        const a = graphAnchor(fromId), b = graphAnchor(toId);
+        if (a === b) return;
+        const key = [a, b].sort().join("|");
+        let e = exitEdges.get(key);
+        if (!e) {
+          e = { from: a, to: b, kind: "exit" };
+          exitEdges.set(key, e);
+          edges.push(e);
+        }
+        if (exitId) (e.via = e.via || []).push({ from: fromId, to: toId, exitId });
+      };
       for (const l of asArray5(world2.locations)) {
         edges.push({ from: "__world__", to: l.id, kind: "contains" });
-        for (const cid of asArray5(l.connectedLocationIds)) if (findById(world2.locations, cid)) edges.push({ from: l.id, to: cid, kind: "exit" });
+        for (const cid of asArray5(l.connectedLocationIds)) if (findById(world2.locations, cid)) addExitEdge(l.id, cid);
         for (const ex of asArray5(l.exits)) {
           const to = ex && (ex.to || ex.locationId);
-          if (to && to !== l.id && findById(world2.locations, to) && !asArray5(l.connectedLocationIds).includes(to)) edges.push({ from: l.id, to, kind: "exit", exitId: ex.id });
+          if (to && to !== l.id && findById(world2.locations, to)) addExitEdge(l.id, to, ex.id);
         }
       }
       for (const n of asArray5(world2.npcs)) {
@@ -26397,6 +26512,14 @@ ${xl.join("\n")}`;
       if (!world2) return false;
       const a = entityById(world2, fromId), b = entityById(world2, toId);
       if (!a || !b) return false;
+      if (entityType(world2, fromId) === "location" && entityType(world2, toId) === "location" && !isInsideLocation(fromId, toId) && !isInsideLocation(toId, fromId)) {
+        const inA = (id) => isInsideLocation(id, fromId), inB = (id) => isInsideLocation(id, toId);
+        for (const l of asArray5(world2.locations)) if (Array.isArray(l.exits) && (inA(l.id) || inB(l.id)))
+          l.exits = l.exits.filter((ex) => {
+            const to = ex && (ex.to || ex.locationId);
+            return !to || !(inA(l.id) && inB(to) || inB(l.id) && inA(to));
+          });
+      }
       for (const [x, yId] of [[a, toId], [b, fromId]]) {
         if (Array.isArray(x.connectedLocationIds)) x.connectedLocationIds = x.connectedLocationIds.filter((v) => v !== yId);
         if (Array.isArray(x.exits)) x.exits = x.exits.filter((ex) => !ex || (ex.to || ex.locationId) !== yId);
@@ -29443,18 +29566,18 @@ ${xl.join("\n")}`;
     refresh();
     return r;
   }
-  function renderPlaces(A, hereId, large, quick) {
+  function renderPlaces(A, hereId, large, quick, region) {
     const g = A.getGraph();
-    const around = new Set((A.zonePath(hereId) || []).map((z) => z.id));
-    const places = g.nodes.filter((n) => n.type === "location" && !n.mapId && !around.has(n.id));
-    const byId = new Map(places.map((n) => [n.id, n]));
-    const rt = A.runtime || {};
-    const visited = new Set((rt.visitedLocationIds || []).filter((id) => byId.has(id)));
     const anchorOf = (id) => {
       const n = g.nodes.find((x) => x.id === id);
       return n && n.graphId ? n.graphId : id;
     };
     const cur = anchorOf(hereId);
+    const around = new Set((A.zonePath(hereId) || []).map((z) => z.id).filter((id) => id !== cur));
+    const places = g.nodes.filter((n) => n.type === "location" && !n.mapId && !around.has(n.id));
+    const byId = new Map(places.map((n) => [n.id, n]));
+    const rt = A.runtime || {};
+    const visited = new Set((rt.visitedLocationIds || []).filter((id) => byId.has(id)));
     const near = new Set(((A.here() || {}).ways || []).map((w2) => anchorOf(w2.id)).filter((id) => byId.has(id) && id !== cur));
     const shown = places.filter((n) => n.id === cur || visited.has(n.id) || near.has(n.id));
     if (!shown.length) return null;
@@ -29489,7 +29612,7 @@ ${xl.join("\n")}`;
     const xs = [...pos.values()].map((p) => p.x), ys = [...pos.values()].map((p) => p.y);
     const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
     const pad = 70, w = Math.max(maxX - minX, 1) + pad * 2, h = Math.max(maxY - minY, 1) + pad * 2;
-    const s = svg2("svg", { class: "rpm-map-board rpm-map-places", role: "img", "aria-label": "Map of the places you know", viewBox: `${minX - pad} ${minY - pad} ${w} ${h}`, preserveAspectRatio: "xMidYMid meet" });
+    const s = svg2("svg", { class: "rpm-map-board rpm-map-places" + (region ? " rpm-map-regionboard" : ""), role: "img", "aria-label": "Map of the places you know", viewBox: `${minX - pad} ${minY - pad} ${w} ${h}`, preserveAspectRatio: "xMidYMid meet" });
     const scale = Math.max(w / (large ? 560 : 240), h / (large ? 420 : 200), 0.5);
     const gl = svg2("g"), gn = svg2("g");
     s.appendChild(gl);
@@ -29548,6 +29671,16 @@ ${xl.join("\n")}`;
       large ? null : el("button", { type: "button", class: "rpm-iconbtn", title: "Open the map", "aria-label": "Open the map", "data-map-open": "1", onclick: () => window.KLITE_RPMod_Shell?.open("map") }, [iconText("map", "", 16)])
     ]));
     let drawing = null;
+    if (mapId) {
+      const regionMap = renderPlaces(A, hereId, large, quick, true);
+      if (regionMap) {
+        root.appendChild(el("div", { class: "rpm-map-label rpm-muted", text: "Region" }));
+        const rw = el("div", { class: "rpm-map-boardwrap rpm-map-region", "data-map-region": "1", title: large ? null : "Click to open the map" }, [regionMap]);
+        if (!large) rw.addEventListener("click", () => window.KLITE_RPMod_Shell?.open("map"));
+        root.appendChild(rw);
+        root.appendChild(el("div", { class: "rpm-map-label rpm-muted", text: (A.phased(mapId) || {}).name || A.entityById(mapId).name }));
+      }
+    }
     if (mapId) {
       const board = A.mapBoard(mapId, { player: true });
       root.setAttribute("data-kind", board.kind);
@@ -29758,6 +29891,13 @@ ${xl.join("\n")}`;
         S2.gNodes.appendChild(g);
       }
     }
+    function viaText(e) {
+      const rooms = [...new Set((e.via || []).flatMap((v) => [v.from, v.to]).filter((id) => {
+        const n = nodeById(id);
+        return n && n.graphId;
+      }))];
+      return rooms.length ? ` (${rooms.map((id) => nodeById(id).name).join(", ")})` : "";
+    }
     function clip2(s, n) {
       s = String(s || "");
       return s.length > n ? s.slice(0, n - 1) + "…" : s;
@@ -29781,6 +29921,7 @@ ${xl.join("\n")}`;
           S2.linkSource = null;
           reloadGraph();
           draw2();
+          renderInspector2();
         } else {
           S2.linkSource = null;
           draw2();
@@ -29962,7 +30103,7 @@ ${xl.join("\n")}`;
         const otherId = e.from === S2.selectedId ? e.to : e.from;
         const other = nodeById(otherId);
         const row3 = el2("div", { style: "display:flex;align-items:center;justify-content:space-between;background:var(--rpm-bg-alt);border:1px solid var(--rpm-border);border-radius:6px;padding:4px 8px;margin-top:4px" }, [
-          el2("span", { style: "font-size:var(--rpm-fs-sm);color:var(--rpm-fg)" }, [`→ ${clip2(other ? other.name : otherId, 18)} `, el2("span", { style: "color:var(--rpm-fg-muted)", text: e.kind })]),
+          el2("span", { style: "font-size:var(--rpm-fs-sm);color:var(--rpm-fg)" }, [`→ ${clip2(other ? other.name : otherId, 18)} `, el2("span", { style: "color:var(--rpm-fg-muted)", text: e.kind + viaText(e) })]),
           el2("span", { style: "cursor:pointer;color:var(--rpm-danger);font-size:var(--rpm-fs);padding:0 4px", text: "×", onclick: () => {
             API3().disconnect(e.from, e.to);
             reloadGraph();
@@ -37548,7 +37689,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
 
   // src/adventures/content/drowned-lantern.js
   var ID = "drowned-lantern";
-  var VERSION = 2;
+  var VERSION = 3;
   var place = (id, name, description, extra = {}) => Object.assign({ id, name, description }, extra);
   var room = (id, name, parentId, [x, y], description, extra = {}) => Object.assign({ id, name, parentId, map: { x, y, w: 4, h: 3 }, description }, extra);
   var exit = (id, to, dir, type = "open", extra = {}) => Object.assign({ id, to, dir, type }, extra);
@@ -37710,7 +37851,6 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
             mapStyle: "plots",
             atmosphere: "worried",
             hub: true,
-            connectedLocationIds: ["loc_forest_road"],
             ui: { x: 300, y: 300 },
             phases: [{ id: "ph_relieved", label: "Goblins driven off", conditions: [questIs("q_hollow_oak", "turnedin")], atmosphere: "relieved", description: "A mill village of thatched roofs and stone walls. The mill wheel turns again, and people talk about the heroes of the Hollow Oak — and, more quietly, about the strange coin they found there." }]
           }
@@ -37721,7 +37861,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
           "The old trade road east of Brindlewick, under oak and beech. Ferns crowd the verges; the ruts are deep from carts that no longer come. A side track runs north to a huge dead oak, and the sound of the river comes from the south.",
           {
             atmosphere: "tense",
-            connectedLocationIds: ["loc_brindlewick", "loc_hollow_oak", "loc_river_ford", "loc_gravel_road"],
+            connectedLocationIds: ["loc_river_ford", "loc_gravel_road"],
             ui: { x: 600, y: 300 },
             localLore: [{ id: "ll_cart", content: "Liu Wen's cart lies overturned in the ferns a mile out of the village: the grain sacks are gone, the mule cut loose, and small bare footprints lead north towards the Hollow Oak.", keys: ["cart", "tracks", "footprints"] }]
           }
@@ -37730,7 +37870,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
           "loc_hollow_oak",
           "The Hollow Oak",
           "A dead oak so old and vast that a whole goblin band lives in its trunk and in the burrows between its roots. It smells of smoke, wet earth and stolen bread.",
-          { kind: "dungeon", mapStyle: "stone", atmosphere: "menacing", connectedLocationIds: ["loc_forest_road"], ui: { x: 600, y: 110 } }
+          { kind: "dungeon", mapStyle: "stone", atmosphere: "menacing", ui: { x: 600, y: 110 } }
         ),
         place(
           "loc_river_ford",
@@ -38029,43 +38169,43 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         "loc_windgap",
         "Windgap Pass",
         "A notch between two bare peaks where the wind never stops. Far below, Stillwater Mere shines like a sheet of tin, and on the far shore the roofs of Lanternport. A broken watchtower stands on the crag above the road; a shepherds' trail drops steeply towards the meadows.",
-        { atmosphere: "windswept", connectedLocationIds: ["loc_gravel_road", "loc_watchtower", "loc_lanternport", "loc_shepherds_trail"], ui: { x: 1200, y: 180 } }
+        { atmosphere: "windswept", connectedLocationIds: ["loc_gravel_road", "loc_lanternport", "loc_shepherds_trail"], ui: { x: 1200, y: 180 } }
       ),
       place(
         "loc_watchtower",
         "Watchtower Ruin",
         "A square tower from the days of the old dam, half its roof gone. Harpies nest at the top, and lately someone has been using the rooms below.",
-        { kind: "dungeon", mapStyle: "stone", atmosphere: "eerie", connectedLocationIds: ["loc_windgap", "loc_shepherds_trail"], ui: { x: 1200, y: 30 } }
+        { kind: "dungeon", mapStyle: "stone", atmosphere: "eerie", ui: { x: 1200, y: 30 } }
       ),
       place(
         "loc_shepherds_trail",
         "Shepherds' Trail",
         "A steep, narrow trail between the pass and the meadows, marked with cairns. Sheep use it; carts cannot.",
-        { atmosphere: "quiet", connectedLocationIds: ["loc_windgap", "loc_watchtower", "loc_outpost"], ui: { x: 1200, y: 370 } }
+        { atmosphere: "quiet", connectedLocationIds: ["loc_windgap"], ui: { x: 1200, y: 370 } }
       ),
       place(
         "loc_meadow_road",
         "Meadow Road",
         "The valley road: wide, flat and slow, through flowering meadows along the Brindle river — two easy days to Lanternport. Old Harrowfield's hut stands by a sheepfold; wild garlic and feverfew grow thick along the ditches. A trampled path leads into a thicket to the south.",
-        { atmosphere: "peaceful", connectedLocationIds: ["loc_river_ford", "loc_outpost", "loc_owlbear_hollow"], ui: { x: 900, y: 560 } }
+        { atmosphere: "peaceful", connectedLocationIds: ["loc_river_ford"], ui: { x: 900, y: 560 } }
       ),
       place(
         "loc_owlbear_hollow",
         "Owlbear Hollow",
         "A hollow in a thorn thicket, littered with wool and feathers. Something big lives here.",
-        { kind: "dungeon", mapStyle: "stone", atmosphere: "menacing", connectedLocationIds: ["loc_meadow_road"], ui: { x: 900, y: 740 } }
+        { kind: "dungeon", mapStyle: "stone", atmosphere: "menacing", ui: { x: 900, y: 740 } }
       ),
       place(
         "loc_outpost",
         "Traveler's Outpost",
         "A walled waystation where the Meadow Road meets the lake road: an inn, stables, a smithy corner and a lantern that burns all night over the gate. Carters, drovers and pilgrims to the Lantern Fair stop here.",
-        { kind: "town", mapStyle: "plots", atmosphere: "busy", hub: true, connectedLocationIds: ["loc_meadow_road", "loc_lanternport", "loc_shepherds_trail"], ui: { x: 1200, y: 560 } }
+        { kind: "town", mapStyle: "plots", atmosphere: "busy", hub: true, ui: { x: 1200, y: 560 } }
       ),
       place(
         "loc_lanternport",
         "Lanternport",
         "The market town on the far shore of Stillwater Mere: stone quays, tall narrow houses and lanterns on every corner. In spring it prepares for its famous Lantern Fair. (Its streets open with the next part of the adventure.)",
-        { kind: "town", mapStyle: "streets", atmosphere: "lively", connectedLocationIds: ["loc_windgap", "loc_outpost"], ui: { x: 1500, y: 370 } }
+        { kind: "town", mapStyle: "streets", atmosphere: "lively", connectedLocationIds: ["loc_windgap"], ui: { x: 1500, y: 370 } }
       ),
       // --- the Traveler's Outpost (town map) ---
       room(
