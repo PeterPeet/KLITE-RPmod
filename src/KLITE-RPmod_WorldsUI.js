@@ -517,7 +517,7 @@ export default function initWorldsUI() {
         // new objective: kind + target (+ count) — kill/collect/talk/visit progress by themselves
         const OK = S._objKind = S._objKind || { kind: 'manual' };
         const kindSel = el('select', { style: inputCss(false) + ';width:auto', 'aria-label': 'Objective kind' });
-        for (const [v, t] of [['manual', 'Manual'], ['kill', 'Defeat'], ['collect', 'Collect'], ['talk', 'Talk to'], ['visit', 'Go to']]) { const o = el('option', { value: v, text: t }); if (OK.kind === v) o.selected = true; kindSel.appendChild(o); }
+        for (const [v, t] of [['manual', 'Manual'], ['kill', 'Defeat'], ['collect', 'Collect'], ['talk', 'Talk to'], ['visit', 'Go to'], ['check', 'Check (contest)']]) { const o = el('option', { value: v, text: t }); if (OK.kind === v) o.selected = true; kindSel.appendChild(o); }
         kindSel.addEventListener('change', () => { OK.kind = kindSel.value; OK.target = ''; renderInspector(); });
         const g = A.getGraph();
         let target = null;
@@ -525,8 +525,15 @@ export default function initWorldsUI() {
             target = el('select', { style: inputCss(false), 'aria-label': 'Objective target' });
             target.appendChild(el('option', { value: '', text: OK.kind === 'talk' ? '— person —' : '— place —' }));
             for (const n of g.nodes.filter(n => n.type === (OK.kind === 'talk' ? 'npc' : 'location'))) target.appendChild(el('option', { value: n.id, text: locLabel(n) }));
+        } else if (OK.kind === 'check') {
+            // R8: a contest — RPmod rolls the persona's skill or ability against the DC (once a day)
+            target = el('select', { style: inputCss(false), 'aria-label': 'Check skill or ability' });
+            for (const [v, t] of [['ability:str', 'Strength'], ['ability:dex', 'Dexterity'], ['ability:con', 'Constitution'], ['ability:int', 'Intelligence'], ['ability:wis', 'Wisdom'], ['ability:cha', 'Charisma'],
+                ...['acrobatics', 'animal_handling', 'arcana', 'athletics', 'deception', 'history', 'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception', 'performance', 'persuasion', 'religion', 'sleight_of_hand', 'stealth', 'survival'].map(k => ['skill:' + k, k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())])])
+                target.appendChild(el('option', { value: v, text: t }));
         } else if (OK.kind !== 'manual') target = el('input', { type: 'text', style: inputCss(false), 'aria-label': 'Objective target', placeholder: OK.kind === 'kill' ? 'monster or person name, e.g. Wolf' : 'item name, e.g. Wolf Pelt' });
-        const count = (OK.kind === 'kill' || OK.kind === 'collect') ? el('input', { type: 'number', min: '1', value: '1', style: inputCss(false) + ';width:4.5em', 'aria-label': 'Objective count' }) : null;
+        const count = (OK.kind === 'kill' || OK.kind === 'collect') ? el('input', { type: 'number', min: '1', value: '1', style: inputCss(false) + ';width:4.5em', 'aria-label': 'Objective count' })
+            : OK.kind === 'check' ? el('input', { type: 'number', min: '1', max: '30', value: '13', style: inputCss(false) + ';width:4.5em', 'aria-label': 'Check DC', title: 'DC' }) : null;
         const oIn = el('input', { type: 'text', placeholder: 'objective text (optional for kinds)', style: inputCss(false), 'aria-label': 'Objective text' });
         box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px;flex-wrap:wrap' }, [kindSel, target, count]));
         box.appendChild(el('div', { style: 'display:flex;gap:5px;margin-top:5px' }, [oIn,
@@ -534,10 +541,13 @@ export default function initWorldsUI() {
                 const tv = target ? target.value.trim() : ''; const n = count ? Math.max(1, Number(count.value) || 1) : 1;
                 if (OK.kind !== 'manual' && !tv) return;
                 const tName = target && target.tagName === 'SELECT' ? (g.nodes.find(x => x.id === tv) || {}).name : tv;
-                const auto = { kill: `Defeat ${n > 1 ? n + ' ' : ''}${tName}`, collect: `Collect ${n > 1 ? n + ' ' : ''}${tName}`, talk: `Talk to ${tName}`, visit: `Go to ${tName}` }[OK.kind];
+                const checkName = OK.kind === 'check' ? target.options[target.selectedIndex].text : '';
+                const auto = { kill: `Defeat ${n > 1 ? n + ' ' : ''}${tName}`, collect: `Collect ${n > 1 ? n + ' ' : ''}${tName}`, talk: `Talk to ${tName}`, visit: `Go to ${tName}`, check: `Pass a ${checkName} check` }[OK.kind];
                 const t = oIn.value.trim() || auto; if (!t) return;
                 const ob = asArrayU(ent.objectives);
-                ob.push(Object.assign({ id: 'obj_' + Math.random().toString(36).slice(2, 7), text: t, hidden: false }, OK.kind === 'manual' ? {} : { kind: OK.kind, target: tv }, count ? { count: n } : {}));
+                const base = { id: 'obj_' + Math.random().toString(36).slice(2, 7), text: t, hidden: false };
+                if (OK.kind === 'check') { const [how, key] = tv.split(':'); ob.push(Object.assign(base, { kind: 'check', dc: n }, how === 'skill' ? { skill: key } : { ability: key })); }
+                else ob.push(Object.assign(base, OK.kind === 'manual' ? {} : { kind: OK.kind, target: tv }, count ? { count: n } : {}));
                 A.updateEntity(S.selectedId, { objectives: ob }); renderInspector();
             } }, [icon('plus', 15)])
         ]));
@@ -1503,6 +1513,9 @@ export default function initWorldsUI() {
                             line.appendChild(cbx);
                         } else line.appendChild(el('span', { class: 'rpm-quest-tick', text: o.done ? '☑' : '☐' }));
                         line.appendChild(el('span', { text: ' ' + o.label }));
+                        // R8: a contest (check objective) that can be tried here, today
+                        if (o.kind === 'check' && !o.done && st === 'active' && ((A.here() || {}).checks || []).some(c => c.questId === q.id && c.objId === o.id))
+                            line.appendChild(uiBtn('Try', () => { A.tryObjective(`${q.id}.${o.id}`, { source: 'ui' }); refreshPanel(); }, { icon: 'dice-5', id: 'try-' + o.id, title: `Roll ${o.label}` }));
                         ol.appendChild(line);
                     }
                     card.appendChild(ol);

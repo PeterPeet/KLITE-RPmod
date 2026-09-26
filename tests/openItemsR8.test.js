@@ -69,7 +69,7 @@ test('quick travel stops where something happens on the way (the Night Raid in t
     assert.ok(r.ok && r.stopped && r.fight, JSON.stringify(r));
     assert.equal(W.runtime.playerLocationId, 'op_yard', 'stopped in the yard');
     assert.ok(W.getCombat().active, 'in the fight');
-    assert.match(logText(h), /Quick travel to Lanternport stops at .*Yard.*a fight starts here/);
+    assert.match(logText(h), /Quick travel to Lanternport \(Lake Gate & Market Square\) stops at Outpost Yard: a fight starts here/);
     const again = W.go('loc_lanternport', { source: 'quicktravel' });
     assert.equal(again.ok, false); assert.match(again.reason, /a fight is going on/);
 });

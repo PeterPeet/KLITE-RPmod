@@ -58,10 +58,19 @@ export function formatReward(r, factionName) {
 }
 
 // ---- objectives ---------------------------------------------------------------------------
-// { id, text, hidden, kind: 'manual' | 'kill' | 'collect' | 'talk' | 'visit', target, count }
+// { id, text, hidden, kind: 'manual' | 'kill' | 'collect' | 'talk' | 'visit' | 'check', target, count }
 //   kill: target = monster name or person id; collect: item name; talk: person id;
-//   visit: location id (a zone counts all its places).
-export const OBJECTIVE_KINDS = ['manual', 'kill', 'collect', 'talk', 'visit'];
+//   visit: location id (a zone counts all its places);
+//   check (R8, a contest): { skill: 'athletics' | ability: 'dex', dc, at?: location id } — RPmod rolls
+//   the persona's bonus against the DC (the Here row's "Try", /try), once per in-game day.
+export const OBJECTIVE_KINDS = ['manual', 'kill', 'collect', 'talk', 'visit', 'check'];
+const ABILITY_WORDS = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
+// "Dexterity" / "Athletics" for a check objective.
+export function checkWhat(o) {
+    if (o && o.skill) return String(o.skill).split(/[_\s]+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    return ABILITY_WORDS[o && o.ability] || 'Ability';
+}
+export const checkDC = (o) => Math.max(1, Number(o && o.dc) || 10);
 export const objectiveKind = (o) => (o && OBJECTIVE_KINDS.includes(o.kind) ? o.kind : 'manual');
 export const objectiveCount = (o) => Math.max(1, Number(o && o.count) || 1);
 // progress: stored value (true/false for manual/talk/visit, a number for kill);
@@ -75,6 +84,7 @@ export function objectiveStatus(o, progress, have) {
 }
 export function objectiveLabel(o, st) {
     const t = norm(o && o.text);
+    if (objectiveKind(o) === 'check') return `${t} (${checkWhat(o)} check, DC ${checkDC(o)})`;
     return objectiveKind(o) === 'kill' || objectiveKind(o) === 'collect' ? `${t} (${st.current}/${st.needed})` : t;
 }
 
@@ -95,13 +105,15 @@ export function repeatReady(q, rec, today) {
 }
 
 // ---- prerequisites ------------------------------------------------------------------------
-// q.prerequisites = { level, quests: [ids turned in], flags: [keys set], reputation: { factionId, tier } }
+// q.prerequisites = { level, quests: [ids turned in], flags: [keys set], notFlags: [keys not set] (R8),
+//   reputation: { factionId, tier } }
 // facts: { level, questState(id), flag(key), tierOf(factionId), questTitle(id), factionName(id) }
 export function unmetPrerequisites(q, facts) {
     const p = (q && q.prerequisites) || {}; const out = [];
     if (Number(p.level) > 1 && (Number(facts.level) || 1) < Number(p.level)) out.push(`Requires level ${p.level}`);
     for (const id of p.quests || []) if (facts.questState(id) !== 'turnedin') out.push(`Requires the quest "${(facts.questTitle && facts.questTitle(id)) || id}"`);
     for (const k of p.flags || []) if (!facts.flag(k)) out.push(`Requires: ${k}`);
+    for (const k of p.notFlags || []) if (facts.flag(k)) out.push(`No longer: ${k}`);
     if (p.reputation && p.reputation.factionId && p.reputation.tier) {
         if (!tierAtLeastOrWorse(facts.tierOf(p.reputation.factionId), p.reputation.tier)) out.push(`Requires ${p.reputation.tier}${tierIndex(p.reputation.tier) < tierIndex('Neutral') ? ' (or worse)' : ''} with ${(facts.factionName && facts.factionName(p.reputation.factionId)) || p.reputation.factionId}`);
     }

@@ -484,7 +484,12 @@ export default function initWorlds() {
     function entranceRoom(mapId, fromId) {
         const rooms = roomsOf(mapId); if (!rooms.length) return null;
         const outward = (r) => exitsOfLoc(r.id).filter(e => !isInsideLocation(e.to, mapId) && e.to !== mapId);
-        return (fromId && rooms.find(r => outward(r).some(e => e.to === fromId || isInsideLocation(fromId, e.to)))) || rooms.find(r => outward(r).length) || rooms[0];
+        // R8: coming from inside another town/dungeon, a way out into that one counts too (the Outpost's
+        // common room → Lanternport's Lake Gate, whose road leads to the Outpost Yard)
+        const fromAnchor = fromId && graphAnchor(fromId);
+        return (fromId && rooms.find(r => outward(r).some(e => e.to === fromId || isInsideLocation(fromId, e.to))))
+            || (fromAnchor && fromAnchor !== fromId && rooms.find(r => outward(r).some(e => graphAnchor(e.to) === fromAnchor)))
+            || rooms.find(r => outward(r).length) || rooms[0];
     }
     // Ways on from a place for routing: its known exits, and — from any place of a town, or the
     // entrance room of a dungeon — the links the town/dungeon itself has to the world outside
@@ -1242,6 +1247,48 @@ export default function initWorlds() {
         const w = activeWorld(); const t = o && o.target;
         const p = findById(w && w.npcs, t) || findById(w && w.locations, t);
         return p ? norm(p.name) : norm(t);
+    }
+    // R8: check objectives (contests): the active quests' undone checks the player can try here,
+    // today. → [{ questId, objId, quest, text, what, dc }]
+    function checksHere(locId) {
+        const w = activeWorld(); const r = rt(); if (!w || !r) return [];
+        const day = QR.absoluteDay(r.clock); const out = [];
+        for (const q of asArray(w.quests)) {
+            if (questStateOf(q) !== 'active') continue;
+            for (const o of asArray(q.objectives)) {
+                if (QR.objectiveKind(o) !== 'check' || o.hidden || objectiveStatusOf(q, o).done) continue;
+                if (o.at && !(locId && isInsideLocation(locId, o.at))) continue;
+                if (r.checkTries && r.checkTries[q.id + '.' + o.id] === day) continue;
+                out.push({ questId: q.id, objId: o.id, quest: questTitle(q), text: norm(o.text), what: QR.checkWhat(o), dc: QR.checkDC(o) });
+            }
+        }
+        return out;
+    }
+    // The persona's bonus for a check objective (sheet, else the world's player stats).
+    function checkBonus(o) {
+        const sh = personaSheet();
+        if (sh) { try { const d = deriveSheet(sh); const v = o.skill ? d.skills[o.skill] : d.mods[o.ability]; if (Number.isFinite(v)) return v; } catch (_) {} }
+        const st = playerStatsBlock();
+        if (o.skill && Number.isFinite(Number(st.skills[o.skill]))) return Number(st.skills[o.skill]);
+        return abilityMod(st.abilities[o.ability || SKILL_ABILITY[o.skill] || 'str']);
+    }
+    // Try a check objective here: RPmod rolls d20 + the bonus against its DC (once per in-game day);
+    // success ticks the objective. target: the objective's text, its quest's title, or "quest.obj".
+    // → { ok, success?, roll?, reason? } (refusals and results go to the game log).
+    function tryObjective(target, opts = {}) {
+        if (!activeWorld() || !ensureRuntime()) return { ok: false, reason: 'No world is active.' };
+        const here = checksHere(rt().playerLocationId);
+        const key = MR.nameKey(norm(target));
+        const c = here.find(x => `${x.questId}.${x.objId}` === norm(target)) || here.find(x => MR.nameKey(x.text) === key) || here.find(x => MR.nameKey(x.quest) === key)
+            || (here.length === 1 && !key ? here[0] : null);
+        if (!c) { const msg = `Try ${norm(target) || 'that'} refused: there is nothing like that to try here${here.length ? '' : ' (or you tried it today already)'}.`; gameLog(msg, 'quest'); return { ok: false, reason: msg }; }
+        const q = questById(c.questId); const o = asArray(q.objectives).find(x => x.id === c.objId);
+        const r = rollD20(checkBonus(o), opts.mode);
+        const success = r.total >= c.dc;
+        rt().checkTries = Object.assign({}, rt().checkTries, { [c.questId + '.' + c.objId]: QR.absoluteDay(rt().clock) });
+        gameLog(`${c.text} — ${c.what} check (DC ${c.dc}): ${rollText(r)} — ${success ? 'success' : 'not this time (try again tomorrow)'}.`, 'quest');
+        if (success) { setObjProgress(q.id, o.id, true); updateQuestProgress(); }
+        return { ok: true, success, roll: r, quest: q.id, objective: o.id };
     }
     // Something happened in the game: advance matching objectives of accepted quests.
     // kill: { key, name, personId } · talk: { personId } · visit: { locationId }
@@ -2763,7 +2810,8 @@ export default function initWorlds() {
             if (st === 'available' && ids.has(q.giverPersonId) && !questLocks(q).length) quests.push({ id: q.id, title: questTitle(q), action: 'accept' });
             else if (st === 'complete' && ids.has(q.turninPersonId)) quests.push({ id: q.id, title: questTitle(q), action: 'turnin' });
         }
-        return { place: norm(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, trade: vendorsHere().length > 0 };
+        const checks = checksHere(loc.id).map(c => ({ questId: c.questId, objId: c.objId, text: c.text, what: c.what, dc: c.dc }));
+        return { place: norm(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, trade: vendorsHere().length > 0 };
     }
     function computeActiveSlice(opts) {
         const mutate = !!(opts && opts.mutate);
@@ -2904,6 +2952,7 @@ export default function initWorlds() {
                 .map(o => { const os = objectiveStatusOf(q, o); return `    ${os.done ? '☑' : '☐'} ${QR.objectiveLabel(o, os)}`; }).filter(Boolean);
             questLines.push(`- ${title} [${st}]${track}` + (desc ? `: ${desc}` : '') + (objs.length ? '\n' + objs.join('\n') : ''));
         }
+        if (questLines.some(l => /check, DC \d+\)/.test(l))) questLines.push('(Contests and other checks are rolled by RPmod when the player tries them; narrate the result from the game log.)');
         push('Active Quests', 45, questLines.join('\n'));
         // 5c. Standing with factions (only what differs from Neutral)
         const reps = reputationList().filter(r => r.tier !== 'Neutral' && !r.gone);
@@ -3778,7 +3827,8 @@ export default function initWorlds() {
         endEncounter() { endEncounter(); syncLive(); return true; },
         getCombat, combatText, combatantStats, combatantName, resolveCombatant,
         attack(a, t, i, opts) { const r = combatAttack(a, t, i, opts || {}); syncLive(); return r; },
-        combatantSheetName: (id) => sheetNameOf(id),   // R8: the character sheet behind a combatant ('' = none)
+        combatantSheetName: (id) => sheetNameOf(id),
+        tryObjective(target, opts) { const r = tryObjective(target, opts || {}); syncLive(); return r; },   // R8: contests (check objectives)   // R8: the character sheet behind a combatant ('' = none)
         combatSpells: (id) => combatSpells(id || '__player__'),
         castSpell(id, key, opts) { const r = castSpell(id || '__player__', key, opts || {}); syncLive(); return r; },
         longRest() { const r = longRest(); syncLive(); return r; },

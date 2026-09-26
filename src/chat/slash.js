@@ -159,6 +159,8 @@ export default function initChat() {
         { name: 'quests', group: 'Quests', usage: '/quests', help: 'Open the Quest log.', run: () => opened('questlog') },
         { name: 'quest', group: 'Quests', usage: '/quest [<id>=<state>]', help: 'Without "=": the Quest log. With it: set a quest\'s state (creator).',
             run: (a) => { const p = parseAssign(cleanArg(a)); if (p.value == null) return opened('questlog'); if (!worldOn()) return fail(NO_WORLD); const r = tag('quest', `${p.key}=${p.value}`, '/quest <id>=<state>'); if (r.ok) r.log = `Quest ${p.key} is now ${p.value}.`; return r; } },
+        { name: 'try', group: 'Quests', world: true, usage: '/try <contest or task> [adv|dis]', help: 'Try a contest or another check of an accepted quest here (RPmod rolls your bonus against its DC; once a day).',
+            run: (a) => { const { rest, mode } = splitMode(cleanArg(a)); const r = W().tryObjective(rest, { source: 'ui', mode }); return r.ok ? { ok: true } : { ok: false, error: r.reason }; } },
         { name: 'rep', aliases: ['reputation'], group: 'Quests', world: true, usage: '/rep [<faction>=±n]', help: 'Your standing with the factions; with "=" change one.', run: (a) => reputation(cleanArg(a)) },
 
         { name: 'roll', aliases: ['r'], group: 'Dice & combat', usage: '/roll <dice> [adv|dis]', help: 'Roll dice (1d20+3, 2d6, d100) into the game log.',

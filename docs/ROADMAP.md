@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-26 (open items fixed; play/build split of the panels; character sheet overhaul; reload keeps the story's state)
+> Last updated: 2026-09-26 (open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 step 5: Lanternport and the Lantern Fair)
 
 ## Current state
 
@@ -34,7 +34,13 @@ without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-
 Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
 during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
 
-### What works (verified headless 2026-09-25 — `npm test`, 370 tests)
+**2026-09-26 (this session):** the owner's play-test items are fixed (connections, town travel, regional map,
+inspector, persona on start, New Session, Reset ALL), the panels are split into play (left) and build (right, three
+named header rows), the character sheet has tabs, SRD autocomplete, in hand vs. backpack, Features and notes, a page
+reload keeps the story's world state (known issue 26), and R8 step 5 (Lanternport, the Lantern Fair) is built. Next:
+R8 step 6 (hidden beach, sea cave, Old dam; the "follow the thieves" branch), then the real-backend play test.
+
+### What works (verified headless 2026-09-26 — `npm test`, 402 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -831,7 +837,22 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   valley route (Meadow Road, Owlbear Hollow: 3 rooms), the shepherds' trail, the Traveler's Outpost (town, 6 places);
   quests Kitchen Stores (daily), The Sick Mare, Night Raid, Harrowfield's Sheep, The Old Watchtower, The Stablemaster
   (the Doppelganger); factions Outpost and Reedcloaks; Lanternport as a place. Content version 2. Playthrough test.
-- [ ] Steps 5–7: content layer by layer (Lanternport fair → lake/sea cave → Lost Chapel)
+- [x] Step 5 (2026-09-26): layer 3 — **Lanternport** (town, 10 places: Hilltop, Temple of the Lantern, Lake Gate &
+  Market Square, Guildhall & Counting House, Crafts Lane, the Lamplighter, Watch House, Warehouse Row, Docks & Fish
+  Market, Fairground; the lake road from the Outpost enters at the Lake Gate, the hill road from Windgap at the
+  Hilltop), 12 people (4 vendors + Aurelio's healing shop), the faction Lanternport (phase once the truth is out);
+  the hook *Word to Lanternport* (Elder Holt → the mayor) and questline B: *A Stranger at the Fair* (sign-up opens
+  the fair), four daily **contests** (archery DEX, arm-wrestling and the boat race Athletics, the riddle tent INT)
+  as the new **check objectives** RPmod rolls (`/try`, Here row "Try", Quest log button; once per in-game day,
+  at the place), *The Great Cook-off* (Baba comes to the fairground while the fair runs), *Champion of the Fair*
+  (+1 weapon), *Whispers on the Docks* (three clues, toughs in Warehouse Row) and *The Last Night* (the thieves
+  come with the fireworks on the third night; `fair_day` 1–3 advanced by a night and the next morning; the
+  contests end with the fair via the new `prerequisites.notFlags`). Content version 4. Found on the way: going to a
+  town from inside another one entered by the first room with any way out — now the room whose way out leads to
+  where you come from. Playthrough test (`tests/adventureContent.test.js`), mechanics `tests/contestsR8.test.js`.
+  Still open for layer 4: the "let them steal it and follow" branch of the last night (the thieves lead to the sea
+  cave) and the boat from the docks to the hidden beach.
+- [ ] Steps 6–7: content layer by layer (lake/sea cave → Lost Chapel)
 - [ ] Step 8: real-backend play test (known issue 5), then the World Building guide
 
 **Open items (owner's play test, 2026-09-26)** — not done yet:

@@ -87,7 +87,12 @@ chatting. Everything below explains how to build your own.
   Road, the goblins of the **Hollow Oak** and the old coin; then the two roads to Lanternport —
   over **Windgap Pass** (a campfire, a ruined watchtower with a prisoner) or along the **Meadow
   Road** (a shepherd's lost sheep) — and the **Traveler's Outpost**, where something is wrong with
-  the stablemaster. Lanternport itself opens with the next part.
+  the stablemaster; and **Lanternport**, the town on the lake (ten places from the Hilltop down to
+  the docks), with its **Lantern Fair**: sign up with the fair master, win the contests (archery,
+  arm-wrestling, the riddle tent, the boat race — RPmod rolls them, once a day each), help the
+  Outpost's cook win the cook-off, become champion of the fair, follow the whispers on the docks and
+  guard the Founders' Lantern on the fair's last night. The fair runs three in-game days. The lake
+  side and the drowned chapel open with the next parts.
   - **The four characters:** *Oona Greycairn* (she/her), an orc fighter and old caravan guard
     with a prosthetic leg; *Tove Emberfall* (they/them), a warm, loud dwarf cleric who is very
     short-sighted and refuses glasses; *Kasimir Adeyemi* (he/him), a young human wizard studying
@@ -425,6 +430,7 @@ one.
 | `/give <item> [xN]` · `/take <item> [xN \| x all]` · `/inv` | inventory |
 | `/buy [vendor:] <item> [xN]` · `/sell …` · `/shop` | trade with a vendor here; the Shop window |
 | `/accept`, `/turnin`, `/abandon`, `/track <quest>` · `/quests` | quests; the Quest log |
+| `/try <contest> [adv\|dis]` | try a contest (a check objective) of an accepted quest here — RPmod rolls your bonus against its DC, once a day |
 | `/quest <id>=<state>` · `/rep` · `/rep <faction>=±n` | set a quest state; your standings; change one |
 | `/roll <dice> [adv\|dis]` | roll into the game log (`/roll 1d20+3`, `/r d100`) |
 | `/check <ability\|skill\|save> [DC] [adv\|dis]` | your persona rolls with its sheet bonus: `/check perception 12`, `/check dex save 14` |
@@ -458,8 +464,8 @@ Replies are kept in this browser.
 
 Below them, the **Here** row follows the world: the ways out of the current place
 (`north: Ossuary`, `→ Forest Road`), the people here (`! Talk: Innkeeper Bram` — with the quest
-marker), quests to accept or turn in here, *Shop* when someone trades, and *Search* inside a
-dungeon or town. Each one runs the command and sends a short line (`I go to Forest Road.`), so
+marker), quests to accept or turn in here, **Try** for a contest you can attempt here (see
+*Contests* under Quests), *Shop* when someone trades, and *Search* inside a dungeon or town. Each one runs the command and sends a short line (`I go to Forest Road.`), so
 you can play a whole session by clicking. Switch the row off in Settings → RPmod → Display.
 
 ---
@@ -649,12 +655,19 @@ with an **Open reputation** button.
   turn-in), *Talk to* (mention the person in the chat while they are there, or the AI writes
   `<talk>Name</talk>`), *Go to* (a place; a zone counts all places inside it) and *Manual*
   (tick it in the Quest log). When all are done the quest is ready to turn in.
+- **Contests (check objectives):** an objective can be a **check** — a skill or ability against a
+  DC, at a place (e.g. *Hit the gold at the archery butts — Dexterity, DC 13* at the fairground).
+  Where you can try it, the Here row shows **Try: …** (or type `/try …`, or press **Try** in the
+  Quest log): RPmod rolls d20 + your persona's bonus into the game log; success ticks the
+  objective, a miss can be tried again the next in-game day. In the editor choose the kind
+  *Check (contest)*, the skill or ability and the DC.
 - **Rewards** are paid when you turn in: XP, gold and items go to **your persona's character
   sheet**, plus reputation; a *choose one* reward lets you pick in the Quest log. In the editor
   type e.g. `100 xp`, `25 gold`, `Silver Ring x1`, `choose: Longsword | Shield`,
   `rep Royal Guard +100`.
 - **Chains and requirements:** a quest can require a level, earlier quests (link quest → quest in
-  the editor), flags or a reputation tier. Locked quests cannot be accepted; the player only sees
+  the editor), flags (set or, with `notFlags`, not set — e.g. contests that end with the fair) or a
+  reputation tier. Locked quests cannot be accepted; the player only sees
   the ones that wait for a level (greyed). A quest can also **start from an item** — it appears
   when you pick the item up.
 - **Repeat:** a quest can be *repeatable* (available again right after you turn it in) or

@@ -173,6 +173,16 @@ export function validateAdventure(pkg) {
         need(q.giverPersonId, 'person', `quest ${q.id} giver`);
         need(q.turninPersonId, 'person', `quest ${q.id} turn-in`);
         for (const id of asArray(q.prerequisites && q.prerequisites.quests)) need(id, 'quest', `quest ${q.id} prerequisite`);
+        for (const o of asArray(q.objectives)) {
+            if (!o || !o.id) { E(`quest ${q.id}: an objective without an id`); continue; }
+            if (o.kind === 'talk') need(o.target, 'person', `quest ${q.id} objective ${o.id}`);
+            if (o.kind === 'visit') need(o.target, 'location', `quest ${q.id} objective ${o.id}`);
+            if (o.kind === 'check') {   // R8: contests
+                need(o.at, 'location', `quest ${q.id} objective ${o.id} place`);
+                if (!CHECK_SKILLS.includes(o.skill) && !['str', 'dex', 'con', 'int', 'wis', 'cha'].includes(o.ability)) E(`quest ${q.id} objective ${o.id}: a check needs a skill or an ability`);
+                if (!(Number(o.dc) > 0)) E(`quest ${q.id} objective ${o.id}: a check needs a DC`);
+            }
+        }
     }
     for (const e of asArray(w.encounters)) {
         need(e.locationId, 'location', `encounter ${e.id} place`);
@@ -219,5 +229,6 @@ export function validateAdventure(pkg) {
     return { ok: errors.length === 0, errors, warnings, stats };
 }
 
+const CHECK_SKILLS = ['acrobatics', 'animal_handling', 'arcana', 'athletics', 'deception', 'history', 'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception', 'performance', 'persuasion', 'religion', 'sleight_of_hand', 'stealth', 'survival'];
 // For the content tests: every monster name the validator knows (SRD 5.2.1).
 export const SRD_MONSTER_COUNT = Object.keys(MONSTERS || {}).length;

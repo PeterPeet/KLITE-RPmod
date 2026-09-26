@@ -154,10 +154,15 @@ locations[], npcs[], factions[], objects[], events[], quests[], encounters[], gl
   attacks[{name,toHit,damage}], skills, saves, isMonster` (isMonster: always an enemy in combat)
 - faction: `description, goals, hqLocationId, startReputation`
 - quest: `title, description, hiddenDescription, hidden, giverPersonId, turninPersonId,
-  rewards[], objectives[], prerequisites{ level, quests[], flags[], reputation{factionId,tier} },
+  rewards[], objectives[], prerequisites{ level, quests[], flags[], notFlags[] (R8), reputation{factionId,tier} },
   startItem` — rewards `{type:'xp'|'gold'|'item'|'reputation'|'choice', …}` (legacy rewards
-  without `type` are inferred); objectives `{ id, text, hidden, kind: manual|kill|collect|talk|visit,
-  target, count, consume? }`
+  without `type` are inferred); objectives `{ id, text, hidden, kind: manual|kill|collect|talk|visit|check,
+  target, count, consume? }` — **check** (R8, contests): `{ skill | ability, dc, at? }`; the engine's
+  `tryObjective(target, { mode })` rolls d20 + the persona's bonus (sheet skill/ability, else world
+  stats) against the DC, only where `at` is (a zone counts its places) and once per in-game day
+  (`runtime.checkTries['q.o'] = absoluteDay`, additive); success = done. `hereInfo().checks` feeds the
+  Here row ("Try: …", `/try`), the Quest log has a Try button, the AI's Active Quests section notes that
+  RPmod rolls them. The validator checks talk/visit targets and a check's place, skill/ability and DC.
 - event: `name, description, hidden, repeatable, triggers[], conditions[], effects[], locationIds[]`
   (effects add `encounter`, `reputation`; triggers add `onReputation`)
 - conditions: `{ field, op, value }` (fields `time, season, weather, day, month, year, location,

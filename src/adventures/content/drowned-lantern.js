@@ -8,6 +8,10 @@
 // valley route (Meadow Road, Owlbear Hollow, the Traveler's Outpost), the shepherds' trail between
 // them, Lanternport as a place (its streets come with step 5); the Outpost quests and the
 // Doppelganger in the stables.
+// Layer 3 (step 5): Lanternport (town, 10 places) and questline B, the Lantern Fair — sign-up, daily
+// contests (check objectives RPmod rolls), the cook-off, the champion, the whispers on the docks
+// and the last night; the fair runs three in-game days (flags fair_day 1–3, advanced by events at
+// night and the next morning); a hook quest from Brindlewick to the mayor.
 // Fights started by events have no place of their own (`locationId`), so the AI is not hinted at
 // them before they happen ("waiting here").
 // Raise VERSION whenever the content changes: a player's Library then gets the new world beside
@@ -20,7 +24,7 @@ import { buildSheet } from '../../characters/builder-rules.js';
 import { writeSheet } from '../../characters/sheet.js';
 
 export const ID = 'drowned-lantern';
-export const VERSION = 3;   // 2: layer 2 (routes, Outpost, Watchtower, Owlbear Hollow); 3: each connection stored once (links only where no room exit leads out)
+export const VERSION = 4;   // 2: layer 2 (routes, Outpost, Watchtower, Owlbear Hollow); 3: each connection stored once (links only where no room exit leads out); 4: layer 3 (Lanternport, the Lantern Fair)
 
 // ---- small helpers for the data below ----
 const place = (id, name, description, extra = {}) => Object.assign({ id, name, description }, extra);
@@ -241,7 +245,7 @@ function layer2(w) {
         place('loc_gravel_road', 'Gravel Road', 'The mountain road climbs out of the forest in loose grey switchbacks. Halfway up there is an old campfire ring under a leaning pine — the only flat, sheltered spot before the pass, and everyone who uses this road has slept there. It is the quicker way to Lanternport, about a day, if the weather holds.',
             { atmosphere: 'lonely', connectedLocationIds: ['loc_forest_road', 'loc_windgap'], ui: { x: 900, y: 180 } }),
         place('loc_windgap', 'Windgap Pass', 'A notch between two bare peaks where the wind never stops. Far below, Stillwater Mere shines like a sheet of tin, and on the far shore the roofs of Lanternport. A broken watchtower stands on the crag above the road; a shepherds\' trail drops steeply towards the meadows.',
-            { atmosphere: 'windswept', connectedLocationIds: ['loc_gravel_road', 'loc_lanternport', 'loc_shepherds_trail'], ui: { x: 1200, y: 180 } }),
+            { atmosphere: 'windswept', connectedLocationIds: ['loc_gravel_road', 'loc_shepherds_trail'], ui: { x: 1200, y: 180 } }),
         place('loc_watchtower', 'Watchtower Ruin', 'A square tower from the days of the old dam, half its roof gone. Harpies nest at the top, and lately someone has been using the rooms below.',
             { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'eerie', ui: { x: 1200, y: 30 } }),
         place('loc_shepherds_trail', "Shepherds' Trail", 'A steep, narrow trail between the pass and the meadows, marked with cairns. Sheep use it; carts cannot.',
@@ -252,12 +256,14 @@ function layer2(w) {
             { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'menacing', ui: { x: 900, y: 740 } }),
         place('loc_outpost', "Traveler's Outpost", 'A walled waystation where the Meadow Road meets the lake road: an inn, stables, a smithy corner and a lantern that burns all night over the gate. Carters, drovers and pilgrims to the Lantern Fair stop here.',
             { kind: 'town', mapStyle: 'plots', atmosphere: 'busy', hub: true, ui: { x: 1200, y: 560 } }),
-        place('loc_lanternport', 'Lanternport', 'The market town on the far shore of Stillwater Mere: stone quays, tall narrow houses and lanterns on every corner. In spring it prepares for its famous Lantern Fair. (Its streets open with the next part of the adventure.)',
-            { kind: 'town', mapStyle: 'streets', atmosphere: 'lively', connectedLocationIds: ['loc_windgap'], ui: { x: 1500, y: 370 } }),
+        place('loc_lanternport', 'Lanternport', 'The market town on the far shore of Stillwater Mere: stone quays, tall narrow houses and lanterns on every corner. In spring it holds its famous Lantern Fair, when the Founders\' Lantern is shown in the guildhall.',
+            { kind: 'town', mapStyle: 'streets', atmosphere: 'lively', hub: true, ui: { x: 1500, y: 370 },
+              phases: [{ id: 'ph_fair', label: 'The Lantern Fair', conditions: [flagIs('fair_open')], atmosphere: 'festive, crowded, noisy' },
+                       { id: 'ph_saved', label: 'The Lantern saved', conditions: [flagIs('lantern_saved')], atmosphere: 'grateful, celebrating' }] }),
 
         // --- the Traveler's Outpost (town map) ---
         room('op_yard', 'Outpost Yard', 'loc_outpost', [5, 4], 'A cobbled yard with a well, a mounting block and the all-night lantern over the gate. Carts come in from the Meadow Road and leave for Lanternport.',
-            { exits: [exit('ex_op_yard_common', 'op_common', 'n'), exit('ex_op_yard_stables', 'op_stables', 's'), exit('ex_op_out_meadow', 'loc_meadow_road', 'w'), exit('ex_op_out_lanternport', 'loc_lanternport', 'e')] }),
+            { exits: [exit('ex_op_yard_common', 'op_common', 'n'), exit('ex_op_yard_stables', 'op_stables', 's'), exit('ex_op_out_meadow', 'loc_meadow_road', 'w'), exit('ex_op_out_lanternport', 'lp_gate', 'e')] }),
         room('op_common', 'Common Room', 'loc_outpost', [5, 0], 'Long tables, a roaring hearth, travellers from everywhere and a board of rooms for rent. It smells of stew and wet wool.',
             { light: 'bright', exits: [exit('ex_op_common_kitchen', 'op_kitchen', 'e'), exit('ex_op_common_rooms', 'op_rooms', 'w')] }),
         room('op_kitchen', 'Kitchen', 'loc_outpost', [10, 0], 'Baba Okafor\'s kingdom: copper pots, strings of onions, and a cook who tastes everything twice.',
@@ -385,6 +391,166 @@ function layer2(w) {
     return w;
 }
 
+// ---- layer 3 (R8 step 5): Lanternport and the Lantern Fair ------------------------------------------
+const fairDay = (n) => ({ field: 'flag.fair_day', op: '==', value: n });
+// A contest of the fair: a daily quest from the fair master, one check objective RPmod rolls.
+const contest = (id, title, at, check, text, words, ui) => ({
+    id, title, giverPersonId: 'npc_marlow', turninPersonId: 'npc_marlow', repeat: 'daily', ui,
+    prerequisites: { quests: ['q_fair_signup'], notFlags: ['fair_over'] },
+    description: words.description, offerText: words.offer, progressText: 'Go on — the crowd is waiting.', completionText: words.done,
+    objectives: [Object.assign({ id: 'o1', kind: 'check', text, at }, check)],
+    rewards: [{ type: 'xp', xp: 50 }, { type: 'gold', gold: 5 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 15 }] });
+function layer3(w) {
+    w.locations.push(
+        // --- Lanternport (town map): three columns of streets from the hill down to the shore ---
+        room('lp_hilltop', 'The Hilltop', 'loc_lanternport', [5, 0], 'The quiet top of the town: old trees, walled gardens and Ashcombe House behind its iron gate. The hill road climbs from here to Windgap Pass.',
+            { exits: [exit('ex_lp_hill_windgap', 'loc_windgap', 'n'), exit('ex_lp_hill_temple', 'lp_temple', 'e')] }),
+        room('lp_temple', 'Temple of the Lantern', 'loc_lanternport', [10, 0], 'A tall white temple with a lantern carved over the door. Inside, a hundred candles, and an empty bracket where the Founders\' Lantern hangs when it is not on show.',
+            { light: 'dim' }),
+        room('lp_gate', 'Lake Gate & Market Square', 'loc_lanternport', [5, 4], 'The lake road enters under a gate of green stone into a square of stalls, awnings and gossip. A lantern pole stands in the middle, hung with ribbons for the fair.',
+            { exits: [exit('ex_lp_gate_hill', 'lp_hilltop', 'n'), exit('ex_lp_gate_guild', 'lp_guildhall', 'e'), exit('ex_lp_gate_inn', 'lp_inn', 's')] }),
+        room('lp_guildhall', 'Guildhall & Counting House', 'loc_lanternport', [10, 4], 'The merchants\' hall: a great timbered room with the guild banners, a gallery, and behind it the counting house with its iron-bound doors. During the fair the Founders\' Lantern stands here on a plinth under guard.',
+            { light: 'bright', exits: [exit('ex_lp_guild_watch', 'lp_watch', 's', 'door', { door: { state: 'closed', material: 'oak' } })] }),
+        room('lp_crafts', 'Crafts Lane', 'loc_lanternport', [0, 8], 'A crooked lane of workshops: hammering from Dagna Holloway\'s forge, strange smells from Yara Sels\' shop of bottles.',
+            { exits: [exit('ex_lp_crafts_ware', 'lp_warehouses', 's')] }),
+        room('lp_inn', 'The Lamplighter', 'loc_lanternport', [5, 8], 'The town\'s big inn, loud and warm, with a stage for fiddlers and an arm-wrestling table everyone pretends is for dining.',
+            { light: 'bright', exits: [exit('ex_lp_inn_crafts', 'lp_crafts', 'w'), exit('ex_lp_inn_watch', 'lp_watch', 'e'), exit('ex_lp_inn_docks', 'lp_docks', 's')] }),
+        room('lp_watch', 'Watch House', 'loc_lanternport', [10, 8], 'A squat stone house with barred cells, a map of the town on the wall and a kettle that is never off the fire.',
+            { exits: [exit('ex_lp_watch_fair', 'lp_fairground', 's')] }),
+        room('lp_warehouses', 'Warehouse Row', 'loc_lanternport', [0, 12], 'Tall warehouses along a dark canal, rope and tar and gulls. Old Fisk keeps a "shop" in the last one, where nothing has a receipt.',
+            { light: 'dim', hazards: ['slick cobbles by the canal'] }),
+        room('lp_docks', 'Docks & Fish Market', 'loc_lanternport', [5, 12], 'Stone quays, fishing boats, nets drying on poles and a fish market that starts before dawn. The boat race starts and ends here.',
+            { exits: [exit('ex_lp_docks_ware', 'lp_warehouses', 'w'), exit('ex_lp_docks_fair', 'lp_fairground', 'e')] }),
+        room('lp_fairground', 'Fairground', 'loc_lanternport', [10, 12], 'The meadow on the shore, full of tents and banners: the archery butts, the riddle tent, cook fires, jugglers — and every night, lanterns on the water.',
+            { light: 'bright' }),
+    );
+    w.objects.push(
+        { id: 'obj_founders_lantern', name: "The Founders' Lantern", desc: 'A tall lantern of green bronze and old glass on a plinth, its flame pale and strangely steady. The guard says it came from the old chapel "before the water".', locationId: 'lp_guildhall', kind: 'light', lit: true },
+        { id: 'obj_fair_board', name: 'Fair programme', desc: '"THE LANTERN FAIR — three days! Archery at the butts · The Riddle Tent · Arm-wrestling at the Lamplighter · The Boat Race from the docks · The great Cook-off · Fireworks on the last night. Contestants sign up with Magpie Marlow."', locationId: 'lp_gate', kind: 'furniture' },
+        { id: 'obj_fisk_crates', name: 'Unmarked crates', desc: 'Crates stamped with the Brindlewick mill\'s mark, painted over in a hurry.', locationId: 'lp_warehouses', kind: 'container', contains: ['Grain Sack x2'] },
+        { id: 'obj_stalls', name: 'Market stalls', desc: 'Cloth, pots, sweets and fish; good cover if a fight breaks out.', locationId: 'lp_gate', kind: 'furniture', cover: 'half' },
+    );
+    w.factions.push(
+        { id: 'fac_lanternport', name: 'Lanternport', description: 'The town: its guild, its watch and its people.', hqLocationId: 'loc_lanternport', startReputation: 0, ui: { x: 1700, y: 120 },
+          goals: 'A fair without trouble; the road to Brindlewick safe again (they suspect Brindlewick of stealing the carts).',
+          phases: [{ id: 'ph_truth', label: 'The truth is out', conditions: [questIs('q_whispers', 'turnedin')], goals: 'Catch the smugglers and whoever inside the town helps them; make peace with Brindlewick.' }] },
+    );
+    w.npcs.push(
+        { id: 'npc_varga', name: 'Mayor Isolde Varga', personality: 'The mayor (she/her): fifty, brisk, elegant, carries a ledger like a shield. Blames Brindlewick for the missing carts until someone shows her better.', factionId: 'fac_lanternport', homeLocationId: 'lp_guildhall', mood: 'harried', ui: { x: 1700, y: 200 } },
+        { id: 'npc_almeer', name: 'Guildmaster Rashid Almeer', personality: 'Head of the merchants\' guild (he/him): soft-spoken, precise, knows every debt in town and hates gossip — unless it is true.', factionId: 'fac_lanternport', homeLocationId: 'lp_guildhall', mood: 'careful', ui: { x: 1780, y: 200 } },
+        { id: 'npc_dahl', name: 'Captain Sunniva Dahl', personality: 'Captain of the town watch (she/her): tall, freckled, blunt and tired; has too few guards for the fair and knows it.', factionId: 'fac_lanternport', homeLocationId: 'lp_watch', mood: 'tense', ui: { x: 1860, y: 200 } },
+        { id: 'npc_aurelio', name: 'Brother Aurelio', personality: 'Keeper of the Temple of the Lantern (he/him): old, gentle, a little deaf, and the only person in town who still reads the chapel\'s records.', factionId: 'fac_lanternport', homeLocationId: 'lp_temple', mood: 'serene', ui: { x: 1700, y: 280 },
+          shop: { items: [{ item: 'Holy Water', price: '' }, { item: "Healer's Kit", price: '' }, { item: 'Potion of Healing', price: '', stock: 2 }], buys: false, note: 'He heals the hurt for a donation, or for nothing.' } },
+        { id: 'npc_nell', name: 'Nell', personality: 'Keeper of the Lamplighter (she/her): round, quick-tongued, remembers every face and every tab.', factionId: 'fac_lanternport', homeLocationId: 'lp_inn', mood: 'busy', ui: { x: 1780, y: 280 },
+          shop: { items: [{ item: 'Hot meal', price: '4 sp' }, { item: 'Ale', price: '4 cp' }, { item: 'Rations', price: '' }, { item: 'Torch', price: '' }, { item: 'Lantern, Hooded', price: '' }, { item: 'Oil', price: '' }, { item: 'Potion of Healing', price: '', stock: 1 }], buys: true, note: 'A bed is 8 sp a night during the fair.' } },
+        { id: 'npc_tam', name: 'Tam', personality: 'Nell\'s brother (he/him): fiddler, cook and the town\'s worst liar; knows every rumour on the waterfront.', factionId: 'fac_lanternport', homeLocationId: 'lp_inn', mood: 'cheerful', ui: { x: 1860, y: 280 } },
+        { id: 'npc_greta', name: 'Greta Salt', personality: 'A fish seller at the market (she/her): loud, weather-beaten, sells the best lake fish and has opinions about the boat race.', factionId: 'fac_lanternport', homeLocationId: 'lp_docks', mood: 'loud', ui: { x: 1700, y: 360 },
+          shop: { items: [{ item: 'Lake Fish', price: '1 sp' }, { item: 'Smoked Eel', price: '3 sp' }, { item: 'Fishing Tackle', price: '1 gp' }], buys: false } },
+        { id: 'npc_jory', name: 'Jory', personality: 'A dockhand (he/him): young, strong, frightened of the wrong people; has seen boats without lights going out at night.', homeLocationId: 'lp_docks', mood: 'nervous', ui: { x: 1780, y: 360 } },
+        { id: 'npc_fisk', name: 'Old Fisk', personality: 'A "dealer in second-hand goods" in Warehouse Row (he/him): toothless, charming, a fence for anyone who pays. Knows exactly whose goods he sells and would rather not say.', homeLocationId: 'lp_warehouses', mood: 'sly', ui: { x: 1860, y: 360 },
+          shop: { items: [{ item: "Thieves' Tools", price: '' }, { item: 'Caltrops', price: '' }, { item: 'Lantern, Bullseye', price: '' }, { item: 'Reed-green Cloak', price: '2 gp' }], buys: true, note: 'He buys anything and asks nothing.' } },
+        { id: 'npc_ashcombe', name: 'Lord Percival Ashcombe', personality: 'The last of an old family (he/him): charming, beautifully dressed, deep in debt, and nervous whenever the fair or the Lantern is mentioned.', homeLocationId: 'lp_hilltop', mood: 'jittery', ui: { x: 1700, y: 440 },
+          phases: [{ id: 'ph_caught', label: 'Found out', conditions: [flagIs('lantern_saved')], mood: 'disgraced, under guard' }] },
+        { id: 'npc_marlow', name: 'Magpie Marlow', personality: 'The fair master (they/them): quick, theatrical, in a coat of a hundred patches; runs every contest and loves a good loser as much as a winner.', factionId: 'fac_lanternport', homeLocationId: 'lp_fairground', mood: 'exuberant', ui: { x: 1780, y: 440 } },
+        { id: 'npc_yara', name: 'Yara Sels', personality: 'The alchemist of Crafts Lane (she/her): precise, dry, gloves stained every colour; sells remedies and spices and sniffs every customer.', factionId: 'fac_lanternport', homeLocationId: 'lp_crafts', mood: 'focused', ui: { x: 1860, y: 440 },
+          shop: { items: [{ item: 'Potion of Healing', price: '', stock: 3 }, { item: 'Antitoxin', price: '' }, { item: "Alchemist's Fire", price: '' }, { item: 'Potion of Climbing', price: '75 gp', stock: 1 }, { item: 'Lakeshore Saffron', price: '5 sp' }], buys: true } },
+        { id: 'npc_dagna', name: 'Dagna Holloway', personality: 'The smith of Crafts Lane (she/her): huge, soot-black to the elbows, laughs like a bellows; makes the best blades on the lake.', factionId: 'fac_lanternport', homeLocationId: 'lp_crafts', mood: 'cheerful', ui: { x: 1940, y: 440 },
+          shop: { items: [{ item: 'Longsword', price: '' }, { item: 'Rapier', price: '' }, { item: 'Warhammer', price: '' }, { item: 'Longbow', price: '' }, { item: 'Light Crossbow', price: '' }, { item: 'Arrows (20)', price: '1 gp' }, { item: 'Scale Mail', price: '' }, { item: 'Chain Mail', price: '', stock: 1 }, { item: 'Shield', price: '' }], buys: true } },
+    );
+    // Baba comes to the fair for the cook-off (while it runs)
+    const baba = w.npcs.find(n => n.id === 'npc_baba');
+    baba.phases = [{ id: 'ph_fair', label: 'At the fair', conditions: [flagIs('fair_open'), { field: 'flag.fair_over', op: '!=', value: true }], homeLocationId: 'lp_fairground', mood: 'excited, competitive' }];
+    w.quests.push(
+        // the hook from Brindlewick
+        { id: 'q_word_lanternport', title: 'Word to Lanternport', giverPersonId: 'npc_maren', turninPersonId: 'npc_varga', prerequisites: { quests: ['q_hollow_oak'] }, ui: { x: 1780, y: 540 },
+          description: 'Elder Holt wants Lanternport\'s mayor to hear that goblins — not Brindlewick — took the carts, and to see the strange green coin.',
+          offerText: 'Lanternport says we steal our own carts to cheat them. Take this letter to Mayor Varga — in person — and show her that coin. Tell her about the oak. Maybe then she\'ll help with the road.',
+          progressText: 'You have a letter from Brindlewick?', completionText: 'Goblins, paid in coins from under the lake. …I owe your elder an apology, and I hate owing people apologies. Stay for the fair — and keep your eyes open.',
+          objectives: [{ id: 'o1', kind: 'visit', target: 'loc_lanternport', text: 'Go to Lanternport' }, { id: 'o2', kind: 'talk', target: 'npc_varga', text: 'Give the letter to Mayor Varga' }],
+          rewards: [{ type: 'xp', xp: 100 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 50 }, { type: 'reputation', factionId: 'fac_brindlewick', amount: 50 }] },
+        // B1
+        { id: 'q_fair_signup', title: 'A Stranger at the Fair', giverPersonId: 'npc_marlow', turninPersonId: 'npc_marlow', ui: { x: 1940, y: 540 },
+          description: 'The Lantern Fair needs contestants, and Magpie Marlow has decided you are one.',
+          offerText: 'A new face! Wonderful. The fair opens the moment I have enough fools — sorry, contestants. Get a ribbon from Nell at the Lamplighter, go and see the Lantern in the guildhall for luck, and come back to me.',
+          progressText: 'Ribbon? Lantern? Tick tock!', completionText: 'Marvellous. The Lantern Fair is OPEN! Three days, four contests, one cook-off, and fireworks on the last night. Try anything once a day — I remember every winner.',
+          objectives: [{ id: 'o1', kind: 'talk', target: 'npc_nell', text: 'Get a contestant\'s ribbon from Nell at the Lamplighter' }, { id: 'o2', kind: 'visit', target: 'lp_guildhall', text: 'See the Founders\' Lantern in the guildhall' }],
+          rewards: [{ type: 'xp', xp: 50 }, { type: 'item', item: "Contestant's Ribbon", qty: 1 }] },
+        // B2: the contests (daily) and the cook-off
+        contest('q_contest_archery', 'Archery at the Butts', 'lp_fairground', { ability: 'dex', dc: 13 }, 'Hit the gold at the archery butts',
+            { description: 'Three arrows at the painted butts on the shore.', offer: 'Three arrows, one straw man, and the whole town watching. Dexterity, darling — and do not shoot the goat.', done: 'Gold! The crowd loves you. Same time tomorrow?' }, { x: 2020, y: 460 }),
+        contest('q_contest_arms', 'Arm-Wrestling at the Lamplighter', 'lp_inn', { skill: 'athletics', dc: 13 }, 'Win a bout at the Lamplighter\'s arm-wrestling table',
+            { description: 'The Lamplighter\'s famous table, where dockhands and farmers settle arguments.', offer: 'The Lamplighter\'s table: elbow down, grip, and try not to break the furniture.', done: 'The table survived — barely. Well pulled!' }, { x: 2020, y: 540 }),
+        contest('q_contest_riddles', 'The Riddle Tent', 'lp_fairground', { ability: 'int', dc: 13 }, 'Answer the riddle-keeper\'s three riddles',
+            { description: 'A tent of silk and puzzles; the riddle-keeper never smiles.', offer: 'In the striped tent sits a woman who has never smiled. Answer her three riddles and you will see her try.', done: 'She SMILED. I owe Tam a silver piece.' }, { x: 2020, y: 620 }),
+        contest('q_contest_boats', 'The Boat Race', 'lp_docks', { skill: 'athletics', dc: 14 }, 'Row the boat race from the docks around the buoy and back',
+            { description: 'Rowing boats from the docks around the red buoy and back.', offer: 'From the docks to the red buoy and back, before the bell. Oars are provided. Swimming is discouraged.', done: 'First to the bell! The fishwives are already arguing about it.' }, { x: 2020, y: 700 }),
+        { id: 'q_cookoff', title: 'The Great Cook-off', giverPersonId: 'npc_baba', turninPersonId: 'npc_baba', prerequisites: { quests: ['q_fair_signup'], notFlags: ['fair_over'] }, ui: { x: 2100, y: 460 },
+          description: 'Baba Okafor has come to the fair to win the cook-off at last, and he needs fresh lake fish and saffron.',
+          offerText: 'Every year Lanternport\'s cooks win with fish. This year I use THEIR fish and MY spice. Two lake fish from the market and saffron from the alchemist — quickly, before they see my face!',
+          progressText: 'Fish? Saffron? My pot is waiting!', completionText: 'Taste. TASTE. …We won. Twenty years! Hedda will never believe it.',
+          objectives: [{ id: 'o1', kind: 'collect', target: 'Lake Fish', count: 2, text: 'Buy two lake fish at the fish market' }, { id: 'o2', kind: 'collect', target: 'Lakeshore Saffron', count: 1, text: 'Buy saffron from Yara Sels in Crafts Lane' }],
+          rewards: [{ type: 'xp', xp: 100 }, { type: 'gold', gold: 10 }, { type: 'reputation', factionId: 'fac_outpost', amount: 50 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 25 }] },
+        { id: 'q_fair_champion', title: 'Champion of the Fair', giverPersonId: 'npc_marlow', turninPersonId: 'npc_marlow', prerequisites: { quests: ['q_contest_archery', 'q_contest_arms', 'q_contest_riddles', 'q_contest_boats'] }, ui: { x: 2100, y: 540 },
+          description: 'You have won every contest of the fair at least once. Magpie wants to crown you.',
+          offerText: 'Archery, arms, riddles, oars — all four! Stand on the barrel, champion, and choose your prize before the guild changes its mind.',
+          progressText: 'On the barrel!', completionText: 'THE CHAMPION OF THE LANTERN FAIR! Lanternport will be singing about you for a week. Badly.',
+          objectives: [{ id: 'o1', kind: 'talk', target: 'npc_marlow', text: 'Be crowned by Magpie Marlow' }],
+          rewards: [{ type: 'xp', xp: 150 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 100 },
+                    { type: 'choice', options: [{ item: '+1 Longsword', qty: 1 }, { item: '+1 Shortbow', qty: 1 }, { item: '+1 Rapier', qty: 1 }, { item: '+1 Mace', qty: 1 }] }] },
+        // B3
+        { id: 'q_whispers', title: 'Whispers on the Docks', giverPersonId: 'npc_dahl', turninPersonId: 'npc_dahl', prerequisites: { quests: ['q_fair_signup'] }, ui: { x: 2180, y: 460 },
+          description: 'Captain Dahl has heard that someone plans to rob the fair. Three people may know more: the fence in Warehouse Row, the dockhands, and the guildmaster.',
+          offerText: 'Word on the water is that someone means to rob the fair. I have six guards and a thousand visitors. Ask Old Fisk what he is selling, ask the dockhands about boats without lights, and ask Guildmaster Almeer who in this town owes too much money.',
+          progressText: 'What have you heard?', completionText: 'Brindlewick grain in Fisk\'s shop, boats without lights, and Lord Ashcombe owing half the guild — and last week he asked to see the guildhall\'s night-watch plan. On the last night, when the fireworks go up, someone comes for the Lantern.',
+          objectives: [{ id: 'o1', kind: 'talk', target: 'npc_fisk', text: 'Ask Old Fisk what he sells in Warehouse Row' }, { id: 'o2', kind: 'talk', target: 'npc_jory', text: 'Ask the dockhands about boats at night' }, { id: 'o3', kind: 'talk', target: 'npc_almeer', text: 'Ask Guildmaster Almeer who owes too much' }],
+          rewards: [{ type: 'xp', xp: 200 }, { type: 'gold', gold: 20 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 100 }] },
+        // B4
+        { id: 'q_last_night', title: 'The Last Night', giverPersonId: 'npc_dahl', turninPersonId: 'npc_dahl', prerequisites: { quests: ['q_whispers'] }, ui: { x: 2180, y: 540 },
+          description: 'On the fair\'s last night, when the fireworks go up, thieves will come for the Founders\' Lantern in the guildhall.',
+          offerText: 'The last night of the fair. The fireworks start at nightfall; the guildhall will be half empty, and Ashcombe\'s friends know the watch plan. Be in the guildhall when the sky lights up. I will be there too.',
+          progressText: 'Tonight? Or have they come already?', completionText: 'The Lantern is safe, the thieves are in my cells, and Lord Ashcombe is explaining himself to the mayor. One of them had a green coin like yours… and a map of the lake with a cave marked on it.',
+          objectives: [{ id: 'o1', kind: 'visit', target: 'lp_guildhall', text: 'Be in the guildhall on the fair\'s last night' }, { id: 'o2', kind: 'kill', target: 'Spy', count: 1, text: 'Stop the thieves\' leader' }],
+          rewards: [{ type: 'xp', xp: 300 }, { type: 'gold', gold: 50 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 250 }, { type: 'reputation', factionId: 'fac_reedcloaks', amount: -100 },
+                    { type: 'choice', options: [{ item: 'Potion of Heroism', qty: 1 }, { item: 'Potion of Healing', qty: 3 }, { item: 'Cloak of Protection', qty: 1 }] }] },
+    );
+    w.encounters.push(
+        { id: 'enc_warehouse_toughs', name: 'Toughs in Warehouse Row', monsters: [{ key: 'tough', count: 2 }, { key: 'bandit', count: 1 }], personIds: [], start: 'near', factionId: 'fac_reedcloaks' },
+        { id: 'enc_heist', name: 'The Lantern thieves', monsters: [{ key: 'spy', count: 1 }, { key: 'bandit', count: 2 }, { key: 'scout', count: 1 }], personIds: [], start: 'near', factionId: 'fac_reedcloaks' },
+    );
+    w.events.push(
+        // the fair: opens with the sign-up and runs three days (a night, then the next morning)
+        { id: 'ev_fair_opens', name: 'The Lantern Fair opens', description: 'Drums, bunting and a hundred lanterns: the Lantern Fair of Lanternport is open, and Magpie Marlow announces the first contests.',
+          triggers: [{ type: 'onQuestState', questId: 'q_fair_signup', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'flag', key: 'fair_open', value: true }, { type: 'flag', key: 'fair_day', value: 1 }], repeatable: false, ui: { x: 2260, y: 300 } },
+        { id: 'ev_fair_night1', name: 'Lanterns on the water', description: 'The first night of the fair: lanterns float out on the lake and the Lamplighter is full until dawn.',
+          triggers: [{ type: 'onTime' }], conditions: [fairDay(1), { field: 'time', op: '==', value: 'night' }],
+          effects: [{ type: 'flag', key: 'fair_night1', value: true }], repeatable: false, ui: { x: 2260, y: 360 } },
+        { id: 'ev_fair_day2', name: 'The fair\'s second day', description: 'The second day of the Lantern Fair: the boat crews practise at the docks and the riddle tent has a queue.',
+          triggers: [{ type: 'onTime' }], conditions: [fairDay(1), flagIs('fair_night1'), { field: 'time', op: '==', value: 'morning' }],
+          effects: [{ type: 'flag', key: 'fair_day', value: 2 }], repeatable: false, ui: { x: 2260, y: 420 } },
+        { id: 'ev_fair_night2', name: 'Music at the Lamplighter', description: 'The second night of the fair: fiddles at the Lamplighter, and boats without lights slipping out from the far end of the docks.',
+          triggers: [{ type: 'onTime' }], conditions: [fairDay(2), { field: 'time', op: '==', value: 'night' }],
+          effects: [{ type: 'flag', key: 'fair_night2', value: true }], repeatable: false, ui: { x: 2260, y: 480 } },
+        { id: 'ev_fair_day3', name: 'The fair\'s last day', description: 'The last day of the Lantern Fair: the town is packed, the fireworks are stacked on the shore for tonight, and the guard at the guildhall is thin.',
+          triggers: [{ type: 'onTime' }], conditions: [fairDay(2), flagIs('fair_night2'), { field: 'time', op: '==', value: 'morning' }],
+          effects: [{ type: 'flag', key: 'fair_day', value: 3 }], repeatable: false, ui: { x: 2260, y: 540 } },
+        { id: 'ev_heist', name: 'Fireworks and broken glass', description: 'The first rockets burst over the lake — and in the guildhall a window shatters. Figures in dark coats, one with a face you would forget at once, make for the Lantern.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'lp_guildhall' }, { type: 'onTime' }], conditions: [questIs('q_last_night', 'active'), fairDay(3), { field: 'time', op: '==', value: 'night' }, { field: 'location', op: '==', value: 'lp_guildhall' }],
+          effects: [{ type: 'flag', key: 'heist_night', value: true }, { type: 'encounter', value: 'enc_heist' }], repeatable: false, ui: { x: 2260, y: 600 } },
+        { id: 'ev_fair_closes', name: 'The Lantern saved', description: 'The Founders\' Lantern is back on its plinth; the fair ends with cheering on the shore.',
+          triggers: [{ type: 'onQuestState', questId: 'q_last_night', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'flag', key: 'lantern_saved', value: true }, { type: 'flag', key: 'fair_over', value: true }], repeatable: false, ui: { x: 2260, y: 660 } },
+        { id: 'ev_warehouse_toughs', name: 'Unfriendly dockworkers', description: 'Three broad men step out of a warehouse door with cudgels: someone does not like your questions.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'lp_warehouses' }], conditions: [questIs('q_whispers', 'active')],
+          effects: [{ type: 'encounter', value: 'enc_warehouse_toughs' }], repeatable: false, ui: { x: 2260, y: 720 } },
+    );
+    w.globalLore.push(
+        { id: 'gl_lantern', label: "The Founders' Lantern", content: 'The Founders\' Lantern is Lanternport\'s relic, brought from the drowned village\'s chapel when the dam was built. Its flame is said never to have gone out. It is shown in the guildhall during the Lantern Fair.', keys: ['Lantern', 'Founders', 'relic'] },
+        { id: 'gl_fair', label: 'The Lantern Fair', content: 'The Lantern Fair lasts three days in spring: contests (archery, arm-wrestling, riddles, the boat race), a cook-off, and fireworks over the lake on the last night.', keys: ['fair', 'contest', 'fireworks'] },
+    );
+    return w;
+}
+
 export const OPENING = [
     'Mist lies over Stillwater Mere this spring morning, and it creeps up the lane into Brindlewick, beading on the thatch of the Tipsy Heron.',
     'Inside, the fire crackles, Ada Fenn is slicing bread faster than anyone can eat it, and the stuffed heron over the bar leans a little further to the left than yesterday.',
@@ -400,7 +566,7 @@ export function drownedLantern() {
         summary: 'Supply carts keep vanishing between the village of Brindlewick and the lakeside town of Lanternport. Follow the trail from goblin raiders to smugglers on Stillwater Mere, and to what lies under the lake. A starter adventure for one character and a companion.',
         levels: [1, 5],
         credits: [SRD.attribution],
-        world: layer2(world()),
+        world: layer3(layer2(world())),
         characters: PREGENS.map(pregenCard),
         start: { view: 'player', pregens: PREGENS.map(p => p.id), opening: OPENING },
     };

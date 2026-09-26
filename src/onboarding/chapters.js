@@ -97,6 +97,7 @@ export const CHAPTERS = [
             { list: [
                 'The Quest log (the Quests section on the left) lists the quests you accepted — track, turn in, abandon — with objectives like "Defeat 3 Wolf (1/3)" that count by themselves. Quests offered by the people where you are show there too, to accept.',
                 'Rewards (XP, gold, items, reputation) go to your persona\'s character sheet when you turn a quest in; some let you choose one item.',
+                'Some objectives are contests — a skill against a DC at a place, like the archery at a fair. Where you can try one, the Here row shows "Try:" (or type /try): RPmod rolls your bonus; a miss can be tried again the next day.',
                 'Your standing with each faction you have met (Hated … Exalted) is in the Reputation section on the left. Creators find every quest and faction in World Creation (Creator view) and the Quest editor.',
                 'The Quests section on the left shows what you are working on.',
                 'Hidden quests read "???" until you discover them.',

@@ -232,7 +232,113 @@ test('layer 2 plays through: the mountain road, the Watchtower, the Outpost and 
     assert.equal(W.questState('q_lost_sheep'), 'complete');
     W.turnInQuest('q_lost_sheep', 0);
 
-    // Lanternport is reachable by both roads (its streets open with the next part)
+    // Lanternport is reachable by both roads: the lake road enters at the Lake Gate (layer 3)
     W.moveTo('op_yard'); W.go('east');
-    assert.equal(W.runtime.playerLocationId, 'loc_lanternport');
+    assert.equal(W.runtime.playerLocationId, 'lp_gate');
+    W.moveTo('loc_windgap'); W.go('Lanternport');
+    assert.equal(W.runtime.playerLocationId, 'lp_hilltop', 'the hill road comes down at the Hilltop');
+});
+
+test('layer 3 plays through: word to the mayor, the Lantern Fair (contests, cook-off, champion), whispers, the last night', async (t) => {
+    const CH = requireSrc('src/chat/chat-rules.js');
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures; const C = w.KLITE_RPMod_Characters;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'oona', confirm: false });
+    await sleep(50);
+    const beat = () => { for (const o of W.getCombat().order.filter(o => o.kind === 'monster')) W.damage(o.id, 999); W.endEncounter(); };
+    const say = async (text) => { w.gametext_arr.push(text); await w.prepare_submit_generation(); await sleep(60); };
+    const log = () => w.KLITE_RPMod_Log.entries().map(e => e.what).join('\n');
+    const flag = (k) => W.runtime.flags[k];
+
+    // the hook: after the Hollow Oak, Elder Holt sends word to Lanternport's mayor
+    W.setQuestState('q_missing_carts', 'turnedin'); W.setQuestState('q_hollow_oak', 'turnedin');
+    assert.ok(W.acceptQuest('q_word_lanternport'));
+    W.moveTo('op_yard'); W.go('east');
+    assert.equal(W.runtime.playerLocationId, 'lp_gate');
+    assert.match(W.preview(), /Lake Gate & Market Square/);
+    W.go('Guildhall & Counting House');
+    await say('The mayor reads the letter. <talk>Mayor Isolde Varga</talk>');
+    assert.equal(W.questState('q_word_lanternport'), 'complete');
+    W.turnInQuest('q_word_lanternport');
+
+    // B1: sign up (a ribbon from Nell, the Lantern in the guildhall) — the fair opens
+    const r = W.go('Fairground');
+    assert.ok(r.ok && r.via.length, 'walked through the town');
+    assert.ok(W.acceptQuest('q_fair_signup'));
+    await say('<talk>Nell</talk>'); W.go('Guildhall & Counting House'); W.go('Fairground');
+    assert.equal(W.questState('q_fair_signup'), 'complete');
+    W.turnInQuest('q_fair_signup');
+    assert.equal(flag('fair_open'), true); assert.equal(flag('fair_day'), 1);
+    const people = () => plain(W.here().people).map(p => p.id);
+    assert.ok(people().includes('npc_baba'), 'Baba came to the fairground for the cook-off');
+
+    // B2: a contest is a check objective RPmod rolls here, once a day; the Here row offers "Try"
+    assert.ok(W.acceptQuest('q_contest_archery')); assert.ok(W.acceptQuest('q_contest_riddles'));
+    const tries = CH.hereReplies(plain(W.here())).filter(x => x.kind === 'check').map(x => x.label);
+    assert.deepEqual(tries.sort(), ['Try: Answer the riddle-keeper\'s three riddles (Intelligence)', 'Try: Hit the gold at the archery butts (Dexterity)']);
+    h.seedRandom([0.99]);
+    let res = W.tryObjective('Hit the gold at the archery butts');
+    assert.ok(res.ok && res.success);
+    assert.match(log(), /Hit the gold at the archery butts — Dexterity check \(DC 13\): \d+ \[d20 20[^\]]*\] — success\./);
+    assert.equal(W.questState('q_contest_archery'), 'complete');
+    W.turnInQuest('q_contest_archery');
+    h.seedRandom([0.0]);
+    res = W.tryObjective('The Riddle Tent');
+    assert.ok(res.ok && !res.success, 'a natural 1');
+    assert.equal(W.tryObjective('The Riddle Tent').ok, false, 'once a day');
+    assert.match(log(), /try again tomorrow/);
+    // the fair's days: a night, then the next morning
+    W.setClock({ time: 'night' }); assert.equal(flag('fair_night1'), true);
+    W.setClock({ day: W.runtime.clock.day + 1, time: 'morning' }); assert.equal(flag('fair_day'), 2);
+    h.seedRandom([0.99]);
+    assert.ok(W.tryObjective('The Riddle Tent').success, 'a new day, a new try');
+    W.turnInQuest('q_contest_riddles');
+    // arm-wrestling at the Lamplighter, the boat race at the docks (Athletics)
+    assert.ok(W.acceptQuest('q_contest_arms')); assert.ok(W.acceptQuest('q_contest_boats'));
+    assert.equal(W.tryObjective('Arm-Wrestling at the Lamplighter').ok, false, 'not at the fairground: at the inn');
+    W.go('The Lamplighter'); h.seedRandom([0.99]); assert.ok(W.tryObjective('Arm-Wrestling at the Lamplighter').success);
+    W.go('Docks & Fish Market'); h.seedRandom([0.99]); assert.ok(W.tryObjective('The Boat Race').success);
+    W.turnInQuest('q_contest_arms'); W.turnInQuest('q_contest_boats');
+    // the champion: every contest won once
+    assert.ok(W.acceptQuest('q_fair_champion'));
+    await say('<talk>Magpie Marlow</talk>');
+    W.turnInQuest('q_fair_champion', 0);
+    await sleep(60);
+    assert.ok(C.cachedSheet('Oona Greycairn').inventory.some(i => i.name === '+1 Longsword'), 'the champion\'s prize');
+    // the cook-off: fish from the market, saffron from the alchemist
+    assert.ok(W.acceptQuest('q_cookoff'));
+    W.giveItem('Lake Fish', 2); W.giveItem('Lakeshore Saffron', 1); await sleep(30);
+    assert.equal(W.questState('q_cookoff'), 'complete');
+    W.turnInQuest('q_cookoff');
+
+    // B3: whispers on the docks — toughs in Warehouse Row, three people to ask
+    assert.ok(W.acceptQuest('q_whispers'));
+    W.go('Warehouse Row');
+    assert.ok(W.getCombat() && W.getCombat().active, 'someone does not like your questions');
+    beat();
+    await say('<talk>Old Fisk</talk> <talk>Jory</talk> <talk>Guildmaster Rashid Almeer</talk>');
+    assert.equal(W.questState('q_whispers'), 'complete');
+    W.turnInQuest('q_whispers');
+    assert.equal(W.phased('fac_lanternport').phase, 'The truth is out');
+
+    // B4: the last night — the third day's fireworks, in the guildhall
+    assert.ok(W.acceptQuest('q_last_night'));
+    W.setClock({ time: 'night' }); W.setClock({ day: W.runtime.clock.day + 1, time: 'morning' });
+    assert.equal(flag('fair_day'), 3);
+    W.go('Guildhall & Counting House');
+    assert.ok(!(W.getCombat() && W.getCombat().active), 'not before nightfall');
+    W.setClock({ time: 'night' });
+    assert.ok(W.getCombat() && W.getCombat().active, 'the thieves come with the fireworks');
+    assert.ok(W.getCombat().order.some(o => o.name === 'Spy'));
+    beat();
+    assert.equal(W.questState('q_last_night'), 'complete');
+    W.turnInQuest('q_last_night', 1);
+    assert.equal(flag('lantern_saved'), true); assert.equal(flag('fair_over'), true);
+    assert.match(W.questLocks('q_contest_archery').join(), /No longer: fair_over/, 'the contests end with the fair');
+    W.go('Fairground');
+    assert.ok(!people().includes('npc_baba'), 'Baba went home');
 });

@@ -1,6 +1,9 @@
 # R8 — Starter adventure "The Drowned Lantern" (design)
 
-> Status: **approved by the owner** (2026-09-25; decisions at the end). Steps 1–4 done (2026-09-26); next: step 5 (Lanternport and the Lantern Fair).
+> Status: **approved by the owner** (2026-09-25; decisions at the end). Steps 1–5 done (2026-09-26); next: step 6 (the hidden beach, the sea cave, the Old dam).
+> Step 5 as built: the fair's contests are **check objectives** (skill/ability vs DC at a place, rolled by RPmod once
+> per in-game day); the fair's three days are the flag `fair_day` (advanced by a night and the next morning after the
+> sign-up); B4 is built as "stop it" — the "let it happen and follow" branch comes with the sea cave (step 6).
 > Related: [USERSTORY.md](../USERSTORY.md) (copyright guardrails), [ROADMAP.md](../ROADMAP.md)
 > (known issue 22), [R7-world-map.md](R7-world-map.md) (dungeons, towns, zone combat).
 
