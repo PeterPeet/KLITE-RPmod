@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-26 (open items fixed; play/build split of the panels)
+> Last updated: 2026-09-26 (open items fixed; play/build split of the panels; character sheet overhaul; reload keeps the story's state)
 
 ## Current state
 
@@ -208,6 +208,12 @@ during R2's SillyTavern round trip; tested with backup/restore cycles in a build
     create a new hero, choose another character; the AI ends the story); fallen-but-stable stays a
     defeat. Dying companions roll their own death saves (before, such a fight could never end).
     Tests: `tests/gameover.test.js`.
+26. ~~The story's world state and persona were lost on every page reload~~ — fixed 2026-09-26 (found while
+    checking the sheet overhaul in the browser): Esolite restores its autosaved story during its own start-up,
+    before RPmod wraps `kai_json_load`, and autosaves it again without RPmod's blocks. RPmod now keeps a side
+    copy of its blocks per chat (`src/context/storyCopy.js`) and restores it at start-up when the chat matches;
+    starting an adventure (or a game-over restart, or Quick Start with a world) also autosaves once the world is
+    chosen. Tests in `tests/openItemsR8.test.js`.
 25. ~~Play-test feedback (owner, 2026-09-26)~~ — done 2026-09-26: the AI did not notice moves/searches made
     on the mini-map. The map is now a view (places as points outside dungeons/towns, the room board
     inside); walking, doors, unlocking, searching and "Ask to join" come from the Here quick replies
@@ -890,7 +896,9 @@ open (e.g. on an iPad, where the left panel is closed).
   sheet — `giveItem` already writes to the sheet).
 - [x] Left panel header: a **Compendium** button next to the "?". (All five done 2026-09-26; tests in
   `ui`, `shell`, `onboarding`, `compendium`, `questlogR8`.)
-- [ ] **Character sheet overhaul:** tabs like Esolite's Settings dialog (split like the builder): Overview
+- [x] **Character sheet overhaul** — done 2026-09-26 (all points below; `equipment-rules.js`, the sheet's tabs,
+  `inHand` additive with tests, draw-as-part-of-the-attack in combat, Features from `featureList`, notes; tests
+  `tests/sheetR8.test.js`): tabs like Esolite's Settings dialog (split like the builder): Overview
   (abilities, saves, skills) · Combat (AC, HP, attacks) · Spells · Inventory · Features · Notes.
   - Attacks: **SRD autocomplete** (typing "Lo" offers Longsword…); picking a weapon fills damage and ability
     (finesse → DEX).

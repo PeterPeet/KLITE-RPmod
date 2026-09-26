@@ -471,6 +471,30 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-sheet-prof { width: 22px; font-size: 15px; }
 .rpm-sheet-prof[data-prof="1"], .rpm-sheet-prof[data-prof="2"] { color: var(--rpm-success); }
 .rpm-sheet-modes .rpm-btn { flex: 1; }
+/* R8 sheet overhaul: Esolite's settings tabs (ul.nav.nav-tabs.settingsnav) inside the sheet window */
+.rpm-sheet-tabs { display: flex; flex-wrap: wrap; gap: 2px; margin: 6px 0 0; padding: 0; list-style: none; border-bottom: 1px solid var(--rpm-border); }
+.rpm-sheet-tabs > li { margin-bottom: -1px; }
+.rpm-sheet-tabs > li > a { display: block; padding: 5px 10px; border: 1px solid transparent; border-radius: var(--rpm-radius) var(--rpm-radius) 0 0; color: var(--rpm-accent-fg); text-decoration: none; font-weight: bold; font-size: var(--rpm-fs-sm); }
+.rpm-sheet-tabs > li > a:hover { background: var(--rpm-accent-bg-hi); color: var(--rpm-accent-fg-hi); }
+.rpm-sheet-tabs > li.active > a { background: var(--rpm-bg-alt); border-color: var(--rpm-border); border-bottom-color: var(--rpm-bg-alt); color: var(--rpm-fg-hi); }
+.rpm-sheet-tabbody { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; min-height: 0; }
+.rpm-sheet-attack.rpm-inhand, .rpm-sheet-item.rpm-inhand > .rpm-sheet-line { box-shadow: inset 3px 0 0 var(--rpm-success); background: color-mix(in srgb, var(--rpm-success) 14%, transparent); border-radius: var(--rpm-radius); }
+.rpm-sheet-attack.rpm-inhand input:first-child, .rpm-sheet-item.rpm-inhand input[aria-label="Item name"] { color: var(--rpm-success); font-weight: bold; }
+.rpm-sheet-attack.rpm-stowed { opacity: .55; }
+.rpm-sheet-bp { width: auto; padding: 0 4px; font-size: var(--rpm-fs-sm); font-family: monospace; }
+.rpm-sheet-bp[data-bp="hand"] { color: var(--rpm-success); }
+.rpm-sheet-item { display: flex; flex-direction: column; gap: 1px; }
+.rpm-sheet-def { margin: 0 0 4px 34px; font-size: var(--rpm-fs-sm); }
+.rpm-sheet-def > summary { cursor: pointer; }
+.rpm-sheet-warn { color: var(--rpm-danger); }
+.rpm-sheet-rule { font-size: var(--rpm-fs-sm); margin-top: 4px; }
+.rpm-sheet-tab-features { flex: 1 1 auto; }
+.rpm-sheet-features { display: flex; flex-direction: column; gap: 4px; }
+.rpm-sheet-feature { border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); padding: 4px 8px; background: var(--rpm-bg-alt); }
+.rpm-sheet-feature > summary { cursor: pointer; }
+.rpm-sheet-note { min-height: 120px; }
+.rpm-sheet-notehint { font-size: var(--rpm-fs-sm); color: var(--rpm-fg-muted); }
+.rpm-sheet-notebtns { justify-content: flex-end; margin-bottom: 8px; }
 .rpm-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100002; background: var(--rpm-bg); color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi); box-shadow: inset 3px 0 0 var(--rpm-success), var(--rpm-shadow); border-radius: var(--rpm-radius-lg); padding: 8px 16px; font-family: var(--rpm-font); font-size: var(--rpm-fs); }
 .rpm-toast-err { box-shadow: inset 3px 0 0 var(--rpm-danger), var(--rpm-shadow); }
 /* R6 quick replies (left dock) */

@@ -116,13 +116,14 @@ test('inventory: <give>/<take> use the persona sheet; the World tab shows it; a 
     // the sheet window has an unsaved edit (notes); a quest reward arrives; Save keeps both
     C.open('Kara'); await sleep(30);
     const doc = w.document; const win = () => doc.querySelector('[data-window="sheet"]');
-    const notes = win().querySelector('textarea[aria-label="Notes"]');
+    win().querySelector('[data-sheet-tab="features"]').click(); await sleep(10);   // R8: a draft edit (the notes save on their own now)
+    const notes = win().querySelector('textarea[aria-label="Features and traits"]');
     notes.value = 'Owes Bram a drink.'; notes.dispatchEvent(new w.Event('change', { bubbles: true })); await sleep(10);
     W.giveItem('Silver Ring', 1); await sleep(20);
     win().querySelector('[data-save="sheet"]').click(); await sleep(40);
     await C.flushSheet('Kara');
     s = await C.loadSheet('Kara');
-    assert.equal(s.notes, 'Owes Bram a drink.');
+    assert.equal(s.features, 'Owes Bram a drink.');
     assert.ok(s.inventory.some(i => i.name === 'Silver Ring'), 'the reward survived the draft save');
 });
 

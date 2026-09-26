@@ -476,6 +476,30 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-sheet-prof { width: 22px; font-size: 15px; }
 .rpm-sheet-prof[data-prof="1"], .rpm-sheet-prof[data-prof="2"] { color: var(--rpm-success); }
 .rpm-sheet-modes .rpm-btn { flex: 1; }
+/* R8 sheet overhaul: Esolite's settings tabs (ul.nav.nav-tabs.settingsnav) inside the sheet window */
+.rpm-sheet-tabs { display: flex; flex-wrap: wrap; gap: 2px; margin: 6px 0 0; padding: 0; list-style: none; border-bottom: 1px solid var(--rpm-border); }
+.rpm-sheet-tabs > li { margin-bottom: -1px; }
+.rpm-sheet-tabs > li > a { display: block; padding: 5px 10px; border: 1px solid transparent; border-radius: var(--rpm-radius) var(--rpm-radius) 0 0; color: var(--rpm-accent-fg); text-decoration: none; font-weight: bold; font-size: var(--rpm-fs-sm); }
+.rpm-sheet-tabs > li > a:hover { background: var(--rpm-accent-bg-hi); color: var(--rpm-accent-fg-hi); }
+.rpm-sheet-tabs > li.active > a { background: var(--rpm-bg-alt); border-color: var(--rpm-border); border-bottom-color: var(--rpm-bg-alt); color: var(--rpm-fg-hi); }
+.rpm-sheet-tabbody { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; min-height: 0; }
+.rpm-sheet-attack.rpm-inhand, .rpm-sheet-item.rpm-inhand > .rpm-sheet-line { box-shadow: inset 3px 0 0 var(--rpm-success); background: color-mix(in srgb, var(--rpm-success) 14%, transparent); border-radius: var(--rpm-radius); }
+.rpm-sheet-attack.rpm-inhand input:first-child, .rpm-sheet-item.rpm-inhand input[aria-label="Item name"] { color: var(--rpm-success); font-weight: bold; }
+.rpm-sheet-attack.rpm-stowed { opacity: .55; }
+.rpm-sheet-bp { width: auto; padding: 0 4px; font-size: var(--rpm-fs-sm); font-family: monospace; }
+.rpm-sheet-bp[data-bp="hand"] { color: var(--rpm-success); }
+.rpm-sheet-item { display: flex; flex-direction: column; gap: 1px; }
+.rpm-sheet-def { margin: 0 0 4px 34px; font-size: var(--rpm-fs-sm); }
+.rpm-sheet-def > summary { cursor: pointer; }
+.rpm-sheet-warn { color: var(--rpm-danger); }
+.rpm-sheet-rule { font-size: var(--rpm-fs-sm); margin-top: 4px; }
+.rpm-sheet-tab-features { flex: 1 1 auto; }
+.rpm-sheet-features { display: flex; flex-direction: column; gap: 4px; }
+.rpm-sheet-feature { border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); padding: 4px 8px; background: var(--rpm-bg-alt); }
+.rpm-sheet-feature > summary { cursor: pointer; }
+.rpm-sheet-note { min-height: 120px; }
+.rpm-sheet-notehint { font-size: var(--rpm-fs-sm); color: var(--rpm-fg-muted); }
+.rpm-sheet-notebtns { justify-content: flex-end; margin-bottom: 8px; }
 .rpm-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100002; background: var(--rpm-bg); color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi); box-shadow: inset 3px 0 0 var(--rpm-success), var(--rpm-shadow); border-radius: var(--rpm-radius-lg); padding: 8px 16px; font-family: var(--rpm-font); font-size: var(--rpm-fs); }
 .rpm-toast-err { box-shadow: inset 3px 0 0 var(--rpm-danger), var(--rpm-shadow); }
 /* R6 quick replies (left dock) */
@@ -5436,6 +5460,7 @@ ${s.text}` : s.text : `[${s.title}]`;
             this.panels.TOOLS.characterEnabled = !!bundle.rp.characterEnabled;
             this.panels.TOOLS.selectedPersona = bundle.rp.selectedPersona || null;
             this.panels.TOOLS.personaEnabled = !!bundle.rp.personaEnabled;
+            this.panels.TOOLS._selectionGen = (this.panels.TOOLS._selectionGen || 0) + 1;
             if (bundle.rp.autoSender) this.panels.TOOLS.autoSender = { ...bundle.rp.autoSender };
             if (Array.isArray(bundle.rp.quickActions)) this.panels.TOOLS.quickActions = [...bundle.rp.quickActions];
             if (Array.isArray(bundle.rp.chapters)) this.panels.TOOLS.chapters = [...bundle.rp.chapters];
@@ -12746,6 +12771,53 @@ ${char.mes_example}
     }
   }
 
+  // src/context/storyCopy.js
+  var PREFIX = "rpmod_storycopy_";
+  var timers = {};
+  function chatFingerprint() {
+    let text = "";
+    try {
+      text = JSON.stringify(Array.isArray(window.gametext_arr) ? window.gametext_arr : []);
+    } catch (_) {
+    }
+    let h1 = 3735928559, h2 = 1103547991;
+    for (let i = 0; i < text.length; i++) {
+      const c = text.charCodeAt(i);
+      h1 = Math.imul(h1 ^ c, 2654435761);
+      h2 = Math.imul(h2 ^ c, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ h1 >>> 16, 2246822507) ^ Math.imul(h2 ^ h2 >>> 13, 3266489909);
+    h2 = Math.imul(h2 ^ h2 >>> 16, 2246822507) ^ Math.imul(h1 ^ h1 >>> 13, 3266489909);
+    return `${text.length}:${(h2 >>> 0).toString(36)}${(h1 >>> 0).toString(36)}`;
+  }
+  function saveStoryCopy(key, data) {
+    if (typeof window.indexeddb_save !== "function") return;
+    clearTimeout(timers[key]);
+    let json;
+    try {
+      json = JSON.stringify({ fp: chatFingerprint(), data: data == null ? null : data });
+    } catch (_) {
+      return;
+    }
+    timers[key] = setTimeout(() => {
+      try {
+        window.indexeddb_save(PREFIX + key, json);
+      } catch (_) {
+      }
+    }, 400);
+  }
+  async function loadStoryCopy(key) {
+    if (typeof window.indexeddb_load !== "function") return void 0;
+    try {
+      const raw = await window.indexeddb_load(PREFIX + key, "");
+      if (!raw || raw === "offload_to_indexeddb") return void 0;
+      const c = JSON.parse(raw);
+      return c && c.fp === chatFingerprint() ? c.data : void 0;
+    } catch (_) {
+      return void 0;
+    }
+  }
+
   // src/rpmod/boot.js
   function installBoot(S2) {
     function waitForKobold() {
@@ -13041,6 +13113,7 @@ ${char.mes_example}
                     try {
                       const bundle = window.KLITE_RPMod.getSaveBundle?.();
                       if (bundle) obj.rpmod = bundle;
+                      saveStoryCopy("rp", bundle || null);
                     } catch (_) {
                     }
                     return obj;
@@ -13053,6 +13126,7 @@ ${char.mes_example}
                 if (!window._rpmod_orig_kai_json_load && typeof window.kai_json_load === "function" && window.KLITE_RPMod) {
                   window._rpmod_orig_kai_json_load = window.kai_json_load;
                   window.kai_json_load = function() {
+                    window._rpmod_story_loaded = true;
                     try {
                       const storyobj = arguments[0];
                       if (storyobj && storyobj.rpmod) {
@@ -13074,6 +13148,15 @@ ${char.mes_example}
               } catch (e) {
                 console.warn("[RPMod] Load hook error:", e);
               }
+              setTimeout(async () => {
+                try {
+                  if (window._rpmod_story_loaded) return;
+                  const bundle = await loadStoryCopy("rp");
+                  if (bundle && !window._rpmod_story_loaded && window.KLITE_RPMod?.restoreFromSaveBundle) window.KLITE_RPMod.restoreFromSaveBundle(bundle);
+                } catch (e) {
+                  console.warn("[RPMod] restore after a reload failed:", e);
+                }
+              }, 200);
             }
           } catch (e) {
             console.warn("[RPMod] bootstrap init error:", e);
@@ -21155,17 +21238,17 @@ ${char.mes_example}
     for (let part of s.slice(eq + 1).split(/[,;]/)) {
       part = part.trim();
       if (!part) continue;
-      const low2 = part.toLowerCase();
+      const low3 = part.toLowerCase();
       let m;
       if (m = /^key\s*[:=]?\s*(.+)$/i.exec(part)) {
         out.keyItem = m[1].trim();
         continue;
       }
-      if (m = /^(?:lock\s*)?dc\s*(\d+)$/i.exec(low2)) {
+      if (m = /^(?:lock\s*)?dc\s*(\d+)$/i.exec(low3)) {
         out.lockDC = Number(m[1]);
         continue;
       }
-      const word = low2.replace(/\b(the|a|an|door|is|now)\b/g, " ").trim();
+      const word = low3.replace(/\b(the|a|an|door|is|now)\b/g, " ").trim();
       if (word === "unlocked" || word === "shut") {
         out.state = "closed";
         continue;
@@ -21346,8 +21429,8 @@ ${char.mes_example}
     let fit2 = pool.filter((m) => m.xp > 0 && m.xp <= target && m.xp >= target / 8);
     if (!fit2.length) fit2 = pool.filter((m) => m.xp > 0 && m.xp <= target);
     if (!fit2.length) {
-      const low2 = pool.filter((m) => m.xp > 0).sort((a, b) => a.xp - b.xp)[0];
-      return low2 ? [{ key: low2.key, count: 1 }] : [];
+      const low3 = pool.filter((m) => m.xp > 0).sort((a, b) => a.xp - b.xp)[0];
+      return low3 ? [{ key: low3.key, count: 1 }] : [];
     }
     const first = pick(R, fit2);
     const count = Math.max(1, Math.min(6, Math.floor(target / first.xp) - (chance(R, 0.4) ? 1 : 0)));
@@ -22143,11 +22226,11 @@ ${char.mes_example}
     const up = upcastStep(s, "damage");
     return up && slotLevel > up.above ? addDice(s.damage, (slotLevel - up.above) * up.count, up.sides) : s.damage;
   }
-  function castHealing(s, abilityMod3, slotLevel) {
+  function castHealing(s, abilityMod4, slotLevel) {
     if (!s || !s.heal) return "";
     const up = upcastStep(s, "healing");
     const expr = up && slotLevel > up.above ? addDice(s.heal, (slotLevel - up.above) * up.count, up.sides) : s.heal;
-    const m = Number(abilityMod3) || 0;
+    const m = Number(abilityMod4) || 0;
     return expr.replace("+mod", m ? m > 0 ? "+" + m : String(m) : "");
   }
   function dartCount(slotLevel) {
@@ -22240,7 +22323,7 @@ ${char.mes_example}
       build: null,
       // builder choices (builder-rules.js) — used for level up
       inventory: [],
-      // [{ name, qty, notes }]
+      // [{ name, qty, notes, inHand? }] — inHand (R8, additive): held or worn; missing = in the backpack
       coins: { cp: 0, sp: 0, gp: 0, pp: 0 },
       features: "",
       notes: "",
@@ -22279,7 +22362,7 @@ ${char.mes_example}
       damage: str2(a.damage),
       notes: str2(a.notes)
     }));
-    s.inventory = (Array.isArray(s.inventory) ? s.inventory : []).filter((i) => i && str2(i.name)).map((i) => ({ name: str2(i.name), qty: Math.max(1, int(i.qty, 1)), notes: str2(i.notes) }));
+    s.inventory = (Array.isArray(s.inventory) ? s.inventory : []).filter((i) => i && str2(i.name)).map((i) => Object.assign({ name: str2(i.name), qty: Math.max(1, int(i.qty, 1)), notes: str2(i.notes) }, i.inHand ? { inHand: true } : {}));
     const coins = Object.assign({}, d.coins, s.coins && typeof s.coins === "object" ? s.coins : {});
     for (const c of Object.keys(d.coins)) coins[c] = Math.max(0, int(coins[c], 0));
     s.coins = coins;
@@ -22385,11 +22468,203 @@ ${char.mes_example}
       lines.push(`Spellcasting (${sp.ability.toUpperCase()}): save DC ${sp.saveDC}, spell attack ${fmt(sp.attack)}` + (sp.slots.length ? `, slots ${sp.slots.map((n, i) => n ? `L${i + 1}×${n}` : "").filter(Boolean).join(" ")}` : "") + (chosen ? `
 Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spells}` : ""));
     }
-    if (s.inventory.length) lines.push("Inventory: " + s.inventory.map((i) => i.name + (i.qty > 1 ? ` x${i.qty}` : "")).join(", "));
+    const held = s.inventory.filter((i) => i.inHand), packed = s.inventory.filter((i) => !i.inHand);
+    const list3 = (items) => items.map((i) => i.name + (i.qty > 1 ? ` x${i.qty}` : "")).join(", ");
+    if (held.length) lines.push("In hand / worn: " + list3(held));
+    if (packed.length) lines.push((held.length ? "Backpack: " : "Inventory: ") + list3(packed));
     const coins = Object.entries(s.coins).filter(([, v]) => v > 0).map(([k2, v]) => `${v} ${k2}`);
     if (coins.length) lines.push("Coins: " + coins.join(", "));
     return lines.join("\n");
   }
+
+  // src/compendium/rules.js
+  var KINDS3 = { monster: "Monsters", spell: "Spells", item: "Magic items", equipment: "Equipment", rule: "Rules" };
+  var ATTRIBUTION = SRD.attribution;
+  var norm4 = (s) => String(s == null ? "" : s).toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, " ").trim();
+  var cap = (s) => String(s || "").replace(/\b[a-z]/g, (c) => c.toUpperCase());
+  var levelSchool2 = (s) => s.level ? `Level ${s.level} ${s.school}` : `${s.school} cantrip`;
+  var INDEX = null;
+  function index() {
+    if (INDEX) return INDEX;
+    const out = [];
+    for (const [key, m] of Object.entries(MONSTERS)) out.push({ kind: "monster", key, name: m.name, sub: `CR ${m.cr} · ${m.type}` });
+    for (const [key, s] of Object.entries(SPELLS)) out.push({ kind: "spell", key, name: s.name, sub: `${levelSchool2(s)} · ${s.classes.map(cap).join(", ")}` });
+    for (const [key, it] of Object.entries(COMPENDIUM.magicItems)) out.push({ kind: "item", key, name: it.name, sub: it.type });
+    for (const [name, w] of Object.entries(SRD.weapons)) out.push({ kind: "equipment", key: "weapon:" + name, name, sub: `Weapon · ${cap(w.category)} · ${w.damage} ${w.type}` });
+    for (const [name, a] of Object.entries(SRD.armor)) out.push({ kind: "equipment", key: "armor:" + name, name, sub: `Armor · ${cap(a.category)}` });
+    for (const [key, g] of Object.entries(COMPENDIUM.gear)) out.push({ kind: "equipment", key: "gear:" + key, name: g.name, sub: `${g.kind === "tool" ? "Tool" : "Adventuring gear"} · ${g.cost}` });
+    for (const [key, r] of Object.entries(COMPENDIUM.glossary)) out.push({ kind: "rule", key, name: r.name, sub: r.tag || "Rule" });
+    INDEX = out;
+    return out;
+  }
+  function entry(kind, key) {
+    if (kind === "monster") return MONSTERS[key] ? { kind, key, name: MONSTERS[key].name, data: MONSTERS[key] } : null;
+    if (kind === "spell") return SPELLS[key] ? { kind, key, name: SPELLS[key].name, data: SPELLS[key] } : null;
+    if (kind === "item") {
+      const d = COMPENDIUM.magicItems[key];
+      return d ? { kind, key, name: d.name, data: d } : null;
+    }
+    if (kind === "rule") {
+      const d = COMPENDIUM.glossary[key];
+      return d ? { kind, key, name: d.name, data: d } : null;
+    }
+    if (kind === "equipment") {
+      const [t, k2] = String(key).split(/:(.*)/s);
+      if (t === "weapon" && SRD.weapons[k2]) return { kind, key, name: k2, data: Object.assign({ equipment: "weapon" }, SRD.weapons[k2]) };
+      if (t === "armor" && SRD.armor[k2]) return { kind, key, name: k2, data: Object.assign({ equipment: "armor" }, SRD.armor[k2]) };
+      if (t === "gear" && COMPENDIUM.gear[k2]) return { kind, key, name: COMPENDIUM.gear[k2].name, data: Object.assign({ equipment: COMPENDIUM.gear[k2].kind }, COMPENDIUM.gear[k2]) };
+    }
+    return null;
+  }
+  var TEXT = /* @__PURE__ */ new Map();
+  function textOf(e) {
+    const id = e.kind + "|" + e.key;
+    if (!TEXT.has(id)) {
+      const r = entry(e.kind, e.key);
+      const d = r && r.data || {};
+      const parts = [];
+      const walk = (v) => {
+        if (typeof v === "string") parts.push(v);
+        else if (Array.isArray(v)) v.forEach(walk);
+        else if (v && typeof v === "object") Object.values(v).forEach(walk);
+      };
+      walk([d.text, d.higher, d.upgrade, d.traits, d.actions, d.bonusActions, d.reactions, d.legendary]);
+      TEXT.set(id, norm4(parts.join(" ")));
+    }
+    return TEXT.get(id);
+  }
+  function search(q, kind, limit = 150) {
+    const list3 = index().filter((e) => !kind || e.kind === kind);
+    const t = norm4(q);
+    if (!t) return list3.slice().sort((a, b) => a.name.localeCompare(b.name)).slice(0, limit).map((e) => Object.assign({ score: 5 }, e));
+    const words = t.split(" ");
+    const hits = [];
+    for (const e of list3) {
+      const n = norm4(e.name), s = norm4(e.sub);
+      let score = -1;
+      if (n === t) score = 0;
+      else if (n.startsWith(t)) score = 1;
+      else if (words.every((w) => n.includes(w))) score = 2;
+      else if (words.every((w) => (n + " " + s).includes(w))) score = 3;
+      else if (t.length >= 4 && textOf(e).includes(t)) score = 4;
+      if (score >= 0) hits.push(Object.assign({ score }, e));
+    }
+    return hits.sort((a, b) => a.score - b.score || a.name.localeCompare(b.name)).slice(0, limit);
+  }
+  function find(q, kind) {
+    const r = search(q, kind, 1)[0];
+    return r && r.score <= 2 ? r : null;
+  }
+  var abilityMod2 = (score) => Math.floor(((Number(score) || 10) - 10) / 2);
+  var signed = (n) => (n >= 0 ? "+" : "") + n;
+
+  // src/characters/equipment-rules.js
+  var low2 = (s) => String(s == null ? "" : s).trim().toLowerCase();
+  var abilityMod3 = (score) => Math.floor(((Number(score) || 10) - 10) / 2);
+  function baseWeapon(name) {
+    const n = low2(name).replace(/^\+\d\s+/, "").replace(/\s+\+\d$/, "");
+    const hit = Object.keys(SRD.weapons).find((w) => low2(w) === n) || Object.keys(SRD.weapons).find((w) => n.startsWith(low2(w) + " of "));
+    return hit || "";
+  }
+  function weaponOf(name) {
+    const b = baseWeapon(name);
+    return b ? Object.assign({ name: b }, SRD.weapons[b]) : null;
+  }
+  var isRangedWeapon = (w) => !!w && /ranged$/.test(w.category);
+  var isTwoHanded = (w) => !!w && /Two-Handed/i.test(w.properties || "");
+  var ITEM_NAMES = null;
+  function weaponNames() {
+    return ["Unarmed Strike", ...Object.keys(SRD.weapons).sort()];
+  }
+  function itemNames() {
+    if (ITEM_NAMES) return ITEM_NAMES;
+    const set = /* @__PURE__ */ new Set([...Object.keys(SRD.weapons), ...Object.keys(SRD.armor), "Shield"]);
+    for (const e of index()) if (e.kind === "equipment" || e.kind === "item") set.add(e.name);
+    ITEM_NAMES = [...set].sort((a, b) => a.localeCompare(b));
+    return ITEM_NAMES;
+  }
+  function itemInfo(name) {
+    const n = String(name || "").trim();
+    if (!n) return null;
+    const w = weaponOf(n);
+    if (w) {
+      const magic = low2(n) !== low2(w.name) ? magicEntry(n) : null;
+      return {
+        kind: "weapon",
+        name: w.name,
+        hands: isTwoHanded(w) ? 2 : 1,
+        summary: `${cap2(w.category)} weapon · ${w.damage} ${w.type}${w.properties ? " · " + w.properties : ""}${w.mastery ? " · Mastery: " + w.mastery : ""} · ${w.cost}`,
+        text: magic ? magic.text : [],
+        ref: magic ? magic.ref : { kind: "equipment", key: "weapon:" + w.name }
+      };
+    }
+    if (low2(n) === "shield") return { kind: "shield", name: "Shield", hands: 1, summary: `Shield · +2 AC · ${SRD.shieldCost || "10 GP"}`, text: [], ref: entry("equipment", "armor:Shield") ? { kind: "equipment", key: "armor:Shield" } : null };
+    const armorName = Object.keys(SRD.armor).find((a) => low2(a) === low2(n));
+    if (armorName) {
+      const a = SRD.armor[armorName];
+      const ac = `AC ${a.base}${a.dexCap === 0 ? "" : a.dexCap == null ? " + Dex modifier" : ` + Dex modifier (max ${a.dexCap})`}`;
+      return { kind: "armor", name: armorName, hands: 0, summary: `${cap2(a.category)} armor · ${ac} · ${a.cost}`, text: [], ref: { kind: "equipment", key: "armor:" + armorName } };
+    }
+    const eq = find(n, "equipment");
+    if (eq && low2(eq.name) === low2(n)) {
+      const e = entry(eq.kind, eq.key);
+      const d = e && e.data || {};
+      const kind = d.equipment === "tool" ? "tool" : "gear";
+      return { kind, name: e.name, hands: 1, summary: [kind === "tool" ? "Tool" : "Adventuring gear", d.weight, d.cost].filter(Boolean).join(" · "), text: (d.text || []).slice(), ref: { kind: eq.kind, key: eq.key } };
+    }
+    const m = magicEntry(n);
+    if (m) return { kind: "magic", name: m.name, hands: 1, summary: m.summary, text: m.text, ref: m.ref };
+    return null;
+  }
+  function magicEntry(n) {
+    const hit = find(n, "item");
+    if (!hit || low2(hit.name) !== low2(n)) return null;
+    const e = entry(hit.kind, hit.key);
+    const d = e && e.data || {};
+    return { name: e.name, summary: [d.type || "Magic item", d.attunement ? "requires attunement" : ""].filter(Boolean).join(" · "), text: (d.text || []).slice(), ref: { kind: hit.kind, key: hit.key } };
+  }
+  function cap2(s) {
+    s = String(s || "");
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function attackFromWeapon(name, abilities) {
+    const w = weaponOf(name);
+    if (!w) return null;
+    const ab = abilities || {};
+    const ranged = isRangedWeapon(w), finesse = /Finesse/.test(w.properties || "");
+    let ability = ranged ? "dex" : "str";
+    if (finesse && abilityMod3(ab.dex) > abilityMod3(ab.str)) ability = "dex";
+    const mod2 = abilityMod3(ab[ability]);
+    return {
+      name: String(name).trim(),
+      ability,
+      proficient: true,
+      bonus: 0,
+      damage: w.damage + (mod2 ? (mod2 > 0 ? "+" : "") + mod2 : ""),
+      notes: [w.type, w.properties, w.mastery && "Mastery: " + w.mastery].filter(Boolean).join(" · ")
+    };
+  }
+  function itemForAttack(inventory, attackName) {
+    const inv = Array.isArray(inventory) ? inventory : [];
+    const n = low2(attackName);
+    if (!n) return null;
+    return inv.find((i) => i && low2(i.name) === n) || (weaponOf(attackName) ? inv.find((i) => i && weaponOf(i.name) && low2(i.name) === n) : null) || null;
+  }
+  function attackInHand(inventory, attackName) {
+    const it = itemForAttack(inventory, attackName);
+    if (!it || !weaponOf(it.name)) return null;
+    return !!it.inHand;
+  }
+  function handsUsed(inventory) {
+    let n = 0;
+    for (const it of Array.isArray(inventory) ? inventory : []) {
+      if (!it || !it.inHand) continue;
+      const info = itemInfo(it.name);
+      n += info ? info.hands : 1;
+    }
+    return n;
+  }
+  var HAND_RULE = "SRD: you can draw or stow one weapon as part of each attack you make with it; getting out or putting away any other item takes the Utilize action.";
 
   // src/KLITE-RPmod_Worlds.js
   function initWorlds() {
@@ -22467,6 +22742,8 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         // non-repeatable events already fired
         startedEncounters: [],
         // saved encounters already started (R7: "waiting here" hint)
+        // (added when needed, R8) adventureNotes: { [character name]: text } — the character sheet's
+        //   Adventure notes: live game only (never in the start state), gone after Back to start
         lastParsedIndex: chatLength(),
         // gametext_arr index up to which tags were applied (a new state starts at the current chat: older tags are not replayed)
         // R7 exploration of dungeons/towns (map-rules.js): { [roomId]: 'known'|'discovered'|'visited' },
@@ -23243,7 +23520,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       }
       const st = playerStatsBlock();
       if (Number.isFinite(Number(st.skills[skill]))) return Number(st.skills[skill]);
-      return abilityMod3(st.abilities[SKILL_ABILITY[skill] || "wis"]);
+      return abilityMod4(st.abilities[SKILL_ABILITY[skill] || "wis"]);
     }
     function passivePerception() {
       return 10 + playerSkill("perception");
@@ -23264,7 +23541,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         } catch (_) {
         }
       }
-      return abilityMod3(playerStatsBlock().abilities.dex);
+      return abilityMod4(playerStatsBlock().abilities.dex);
     }
     function rollText(r) {
       return `${r.total} [d20 ${r.die}${r.mod ? (r.mod > 0 ? "+" : "") + r.mod : ""}]`;
@@ -23668,7 +23945,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       return t;
     }
     const ABILITIES2 = ["str", "dex", "con", "int", "wis", "cha"];
-    function abilityMod3(score) {
+    function abilityMod4(score) {
       return Math.floor(((Number(score) || 10) - 10) / 2);
     }
     function fmtMod(m) {
@@ -23704,8 +23981,8 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
     function statSummary(stats) {
       if (!stats) return "";
       const s = normalizeStats(stats);
-      const abil = ABILITIES2.map((a) => `${a.toUpperCase()} ${s.abilities[a]}(${fmtMod(abilityMod3(s.abilities[a]))})`).join(" ");
-      const init2 = s.initiativeMod || abilityMod3(s.abilities.dex);
+      const abil = ABILITIES2.map((a) => `${a.toUpperCase()} ${s.abilities[a]}(${fmtMod(abilityMod4(s.abilities[a]))})`).join(" ");
+      const init2 = s.initiativeMod || abilityMod4(s.abilities.dex);
       const atk = asArray5(s.attacks).map((a) => norm5(a && a.name)).filter(Boolean).join(", ");
       return `AC ${s.ac}, HP ${s.hpMax}, ${abil}, Init ${fmtMod(init2)}` + (atk ? `; Attacks: ${atk}` : "");
     }
@@ -24896,7 +25173,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       const statOf = (id) => stats[id] || (id === "__player__" ? normalizeStats(personaSheetStats() || playerCombatCfg().stats || {}) : combatantStatsNoCombat(id));
       const order = entries.map((e) => {
         const st = statOf(e.id);
-        const init2 = rollD20(st.initiativeMod != null ? st.initiativeMod : abilityMod3(st.abilities.dex)).total;
+        const init2 = rollD20(st.initiativeMod != null ? st.initiativeMod : abilityMod4(st.abilities.dex)).total;
         const side = e.kind === "monster" ? "enemy" : sideOf(e.id, opts);
         return { id: e.id, name: e.name || (e.id === "__player__" ? personaSheet() && personaName() || norm5(playerCombatCfg().name) || personaName() || "You" : combatantNameNoCombat(e.id)), init: init2, isPlayer: e.id === "__player__", side, kind: e.kind, key: e.key };
       });
@@ -25130,6 +25407,19 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       checkOutcome();
       return left;
     }
+    function drawForAttack(attackerId, atk, who) {
+      const n = sheetNameOf(attackerId);
+      const C2 = window.KLITE_RPMod_Characters;
+      if (!n || !C2 || !C2.cachedSheet || !C2.setItemInHand || !atk) return;
+      try {
+        const s = C2.cachedSheet(n);
+        const it = s && s.inventory.find((i) => norm5(i.name).toLowerCase() === norm5(atk.name).toLowerCase());
+        if (!it || it.inHand || !weaponOf(it.name)) return;
+        C2.setItemInHand(n, it.name, true);
+        combatLog(`${who} draws the ${it.name} as part of the attack.`);
+      } catch (_) {
+      }
+    }
     function combatAttack(attackerId, targetId, attackIndex, opts = {}) {
       const cb = getCombat();
       if (!cb) return null;
@@ -25147,7 +25437,8 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         }
       }
       const tSt = zc && zc.cover ? Object.assign({}, tSt0, { ac: tSt0.ac + coverBonus(zc.cover) }) : tSt0;
-      const toHit = (atk.toHit != null ? Number(atk.toHit) : aSt.proficiency + abilityMod3(aSt.abilities.str)) - (zc ? zc.penalty : 0);
+      if (!opts.atk) drawForAttack(attackerId, atk, A);
+      const toHit = (atk.toHit != null ? Number(atk.toHit) : aSt.proficiency + abilityMod4(aSt.abilities.str)) - (zc ? zc.penalty : 0);
       const ranged = zc ? zc.ranged : opts.atk ? !!(P && P.ranged && !P.melee) : isRanged(atk);
       const m = isV2(cb) ? attackMode(conds(attackerId), conds(targetId), ranged, opts.mode) : { mode: opts.mode || null, autoCrit: false, why: [] };
       const hit = rollD20(toHit, m.mode);
@@ -25212,7 +25503,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
     function savingThrow(id, ability, dc, opts = {}) {
       const st = combatantStats(id);
       const ab = norm5(ability).toLowerCase().slice(0, 3);
-      const mod2 = st.saves && st.saves[ab] != null && typeof st.saves[ab] === "number" ? st.saves[ab] : abilityMod3(st.abilities[ab] != null ? st.abilities[ab] : 10);
+      const mod2 = st.saves && st.saves[ab] != null && typeof st.saves[ab] === "number" ? st.saves[ab] : abilityMod4(st.abilities[ab] != null ? st.abilities[ab] : 10);
       const autoFail = (ab === "str" || ab === "dex") && cannotAct(conds(id)) && !conds(id).some((c) => c.name === "Incapacitated" && conds(id).length === 1);
       const r = rollD20(mod2, opts.mode);
       const success = !autoFail && r.total >= Number(dc);
@@ -25572,7 +25863,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
     function abilityCheck(id, ability, dc, mode2) {
       const st = combatantStats(id);
       const ab = norm5(ability).toLowerCase();
-      const mod2 = abilityMod3(st.abilities[ab] != null ? st.abilities[ab] : 10);
+      const mod2 = abilityMod4(st.abilities[ab] != null ? st.abilities[ab] : 10);
       const r = rollD20(mod2, mode2);
       const success = r.total >= Number(dc);
       combatLog(`${combatantName(id)} ${ab.toUpperCase()} check: ${r.total} vs DC ${dc} — ${success ? "success" : "fail"}`);
@@ -25617,7 +25908,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
     function attackOf(id, idx) {
       const st = combatantStats(id);
       const list3 = asArray5(st.attacks);
-      const atk = list3[Number(idx) || 0] || { name: "Unarmed Strike", toHit: st.proficiency + abilityMod3(st.abilities.str), damage: String(Math.max(1, 1 + abilityMod3(st.abilities.str))) };
+      const atk = list3[Number(idx) || 0] || { name: "Unarmed Strike", toHit: st.proficiency + abilityMod4(st.abilities.str), damage: String(Math.max(1, 1 + abilityMod4(st.abilities.str))) };
       let reach = atk.reach;
       const o = getCombat() && zOrder(getCombat(), id);
       if (!reach && o && o.key && MONSTERS[o.key]) {
@@ -25740,7 +26031,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         const p = /passive perception\s*(\d+)/i.exec(text);
         if (p) return Number(p[1]) - 10;
       }
-      return abilityMod3(st.abilities[SKILL_ABILITY[skill] || "dex"]);
+      return abilityMod4(st.abilities[SKILL_ABILITY[skill] || "dex"]);
     }
     function zoneHide(id) {
       const cb = getCombat();
@@ -26265,6 +26556,25 @@ ${xl.join("\n")}`;
       removeWorldsEntries();
       syncLive();
     }
+    let storyLoaded = false;
+    async function restoreFromAutosave() {
+      try {
+        if (storyLoaded || W.activeWorldId || W.runtime) return false;
+        const st = await loadStoryCopy("worlds");
+        if (!st || storyLoaded || W.activeWorldId) return false;
+        restoreSaveState(st);
+        try {
+          if (rt() && Array.isArray(window.gametext_arr)) rt().lastParsedIndex = window.gametext_arr.length;
+        } catch (_) {
+        }
+        syncLive();
+        dbg("world state restored after a page reload");
+        return true;
+      } catch (e) {
+        err("restore after reload failed", e);
+        return false;
+      }
+    }
     function installSaveWrappers() {
       if (typeof window.generate_savefile === "function" && !window.generate_savefile.__worlds_wrapped) {
         const origGen = window.generate_savefile;
@@ -26276,6 +26586,7 @@ ${xl.join("\n")}`;
             }
             const st = collectSaveState();
             if (obj && st) obj[SAVE_KEY2] = st;
+            saveStoryCopy("worlds", st || null);
           } catch (e) {
             err("save embed failed", e);
           }
@@ -26303,6 +26614,7 @@ ${xl.join("\n")}`;
       if (typeof window.kai_json_load === "function" && !window.kai_json_load.__worlds_wrapped) {
         const origLoad = window.kai_json_load;
         const wrappedLoad = function() {
+          storyLoaded = true;
           let pending2 = null;
           try {
             const s = arguments[0];
@@ -27007,6 +27319,7 @@ ${xl.join("\n")}`;
       if (!W.runtime) return false;
       keepChatPosition(() => {
         W.runtime.working = deepClone(W.runtime.base);
+        delete W.runtime.working.adventureNotes;
       });
       dbg("reset working <- base");
       return true;
@@ -27014,7 +27327,25 @@ ${xl.join("\n")}`;
     function commitToBase() {
       if (!W.runtime) return false;
       W.runtime.base = deepClone(W.runtime.working);
+      delete W.runtime.base.adventureNotes;
       dbg("commit base <- working");
+      return true;
+    }
+    function adventureNote(name) {
+      const r = W.runtime && W.runtime.working;
+      const n = norm5(name);
+      return r && n && r.adventureNotes && typeof r.adventureNotes[n] === "string" ? r.adventureNotes[n] : "";
+    }
+    function setAdventureNote(name, text) {
+      const n = norm5(name);
+      if (!n || !activeWorld()) return false;
+      ensureRuntime();
+      const r = W.runtime.working;
+      const t = String(text == null ? "" : text);
+      r.adventureNotes = Object.assign({}, r.adventureNotes);
+      if (t.trim()) r.adventureNotes[n] = t;
+      else delete r.adventureNotes[n];
+      if (!Object.keys(r.adventureNotes).length) delete r.adventureNotes;
       return true;
     }
     function swapActive() {
@@ -27055,6 +27386,12 @@ ${xl.join("\n")}`;
       resetToBase() {
         const ok = resetToBase();
         if (ok) syncLive();
+        return ok;
+      },
+      adventureNote,
+      setAdventureNote(name, text) {
+        const ok = setAdventureNote(name, text);
+        if (ok) notifyChange();
         return ok;
       },
       commitToBase,
@@ -27129,7 +27466,7 @@ ${xl.join("\n")}`;
         if (p) delete p.stats;
         return true;
       },
-      abilityMod: abilityMod3,
+      abilityMod: abilityMod4,
       statSummary,
       // ----- Quests (Phase D) -----
       listQuests(mode2) {
@@ -27460,6 +27797,8 @@ ${xl.join("\n")}`;
         syncLive();
         return r;
       },
+      combatantSheetName: (id) => sheetNameOf(id),
+      // R8: the character sheet behind a combatant ('' = none)
       combatSpells: (id) => combatSpells(id || "__player__"),
       castSpell(id, key, opts) {
         const r = castSpell(id || "__player__", key, opts || {});
@@ -27932,6 +28271,7 @@ ${xl.join("\n")}`;
       if (W.ready) return;
       await libraryReady();
       installSaveWrappers();
+      await restoreFromAutosave();
       installReplyHook();
       registerProvider();
       registerSettingAndGuards();
@@ -28455,6 +28795,16 @@ ${xl.join("\n")}`;
         btn("End turn", endTurn, { icon: "arrow-right", grow: true, id: "end-turn" })
       ], "margin-top:6px"));
       wrap.appendChild(muted("Then tell the AI in the chat what you do — it narrates the rolls from the log.", { style: "margin-top:4px" }));
+      const sheetName = A.combatantSheetName ? A.combatantSheetName(cur.id) : "";
+      const sheet = sheetName && window.KLITE_RPMod_Characters ? window.KLITE_RPMod_Characters.cachedSheet(sheetName) : null;
+      const chosen = (st.attacks || [])[U.atk];
+      if (sheet && chosen) {
+        const held = attackInHand(sheet.inventory, chosen.name);
+        if (held === false) wrap.appendChild(muted(`${chosen.name} is in the backpack: it is drawn as part of this attack.`, { "data-cb": "draw", style: "margin-top:4px" }));
+        const hands = handsUsed(sheet.inventory);
+        if (hands > 2) wrap.appendChild(el("div", { class: "rpm-muted", "data-cb": "hands", role: "alert", style: "margin-top:4px;color:var(--rpm-danger)", text: `${hands} hands in use — more than two. Put something away (character sheet → Inventory).` }));
+      }
+      wrap.appendChild(muted(HAND_RULE, { "data-cb": "hand-rule", style: "margin-top:4px" }));
       return;
     }
     wrap.appendChild(row([
@@ -28940,7 +29290,7 @@ ${xl.join("\n")}`;
     s = String(s || "");
     return s.length > n ? s.slice(0, n - 1) + "…" : s;
   }
-  var cap = (s) => String(s || "").charAt(0).toUpperCase() + String(s || "").slice(1);
+  var cap3 = (s) => String(s || "").charAt(0).toUpperCase() + String(s || "").slice(1);
   function openMapEditor(mapId) {
     const A = API();
     if (!A || !A.entityById(mapId)) return false;
@@ -29007,7 +29357,7 @@ ${xl.join("\n")}`;
     const root = el("div", { class: "wm-editor rpm-map", id: "rpm-map-editor" });
     M.crumbs = el("div", { class: "rpm-map-crumbs" });
     M.addBtn = btn2("Add room", () => addRoom(), { icon: "plus", data: { map: "add" } });
-    M.toolBtns = ["select", "connect"].map((t) => btn2(cap(t), () => setTool(t), { icon: t === "select" ? "mouse-pointer-2" : "link-2", data: { tool: t }, title: t === "select" ? "Select, move and resize rooms" : "Click two rooms to connect them" }));
+    M.toolBtns = ["select", "connect"].map((t) => btn2(cap3(t), () => setTool(t), { icon: t === "select" ? "mouse-pointer-2" : "link-2", data: { tool: t }, title: t === "select" ? "Select, move and resize rooms" : "Click two rooms to connect them" }));
     M.zoomLbl = el("span", { class: "rpm-map-zoom", text: "100%" });
     M.saveBtn = btn2("Save", async () => {
       await API().saveActiveWorld();
@@ -29330,7 +29680,7 @@ ${xl.join("\n")}`;
       if (GEN.level == null) GEN.level = party.level;
       if (GEN.partySize == null) GEN.partySize = party.size;
       box.appendChild(lbl("Size"));
-      box.appendChild(select(Object.entries(G.SIZES).map(([k2, n2]) => [k2, `${cap(k2)} (${n2} rooms + a secret one)`]), GEN.size, (v) => {
+      box.appendChild(select(Object.entries(G.SIZES).map(([k2, n2]) => [k2, `${cap3(k2)} (${n2} rooms + a secret one)`]), GEN.size, (v) => {
         GEN.size = v;
       }, { "aria-label": "Size", "data-gen": "size" }));
       box.appendChild(lbl("Theme"));
@@ -29413,7 +29763,7 @@ ${xl.join("\n")}`;
     box.appendChild(lbl("Description"));
     box.appendChild(input(map.description, (v) => A.updateEntity(M.mapId, { description: v }), { area: true, attrs: { "aria-label": "Map description" } }));
     box.appendChild(lbl("Style"));
-    box.appendChild(select(MR().STYLES[M.board.kind].map((s) => [s, cap(s)]), M.board.style, (v) => {
+    box.appendChild(select(MR().STYLES[M.board.kind].map((s) => [s, cap3(s)]), M.board.style, (v) => {
       A.updateEntity(M.mapId, { mapStyle: v });
       rebuild();
     }, { "aria-label": "Map style" }));
@@ -29456,7 +29806,7 @@ ${xl.join("\n")}`;
     }, { "aria-label": "Room kind" }));
     if (R.isContainer(room2)) box.appendChild(btn2(`Open ${R.kindOf(room2) === "town" ? "district" : "level"} (${A.roomsOf(id).length})`, () => openMapEditor(id), { icon: "door-open", block: true, data: { open: id } }));
     box.appendChild(lbl("Light"));
-    box.appendChild(select([["", "— not set —"], ...R.LIGHT.map((l) => [l, cap(l)])], room2.light || "", (v) => {
+    box.appendChild(select([["", "— not set —"], ...R.LIGHT.map((l) => [l, cap3(l)])], room2.light || "", (v) => {
       A.updateEntity(id, { light: v || void 0 });
       refreshAll();
     }, { "aria-label": "Light" }));
@@ -29579,13 +29929,13 @@ ${xl.join("\n")}`;
     };
     const row1 = el("div", { class: "rpm-row" }, [
       select([["", "— direction —"], ...R.DIRS.map((d) => [d, R.dirName(d)])], e.dir || "", (v) => patch({ dir: v ? mirrored ? R.mirrorDir(v) : v : null }), { "aria-label": "Direction" }),
-      select(R.EXIT_TYPES.map((t) => [t, cap(t)]), e.type || "open", (v) => patch({ type: v }), { "aria-label": "Connection type" })
+      select(R.EXIT_TYPES.map((t) => [t, cap3(t)]), e.type || "open", (v) => patch({ type: v }), { "aria-label": "Connection type" })
     ]);
     card.appendChild(row1);
     if (e.type === "door" || e.type === "secret") {
       const d = e.door || {};
       card.appendChild(el("div", { class: "rpm-row" }, [
-        select(R.DOOR_STATES.map((s) => [s, cap(s)]), d.state || "closed", (v) => patch({ door: { state: v } }), { "aria-label": "Door state" }),
+        select(R.DOOR_STATES.map((s) => [s, cap3(s)]), d.state || "closed", (v) => patch({ door: { state: v } }), { "aria-label": "Door state" }),
         input(d.material, (v) => patch({ door: { material: v || void 0 } }), { attrs: { placeholder: "material (wood, iron …)", "aria-label": "Door material" } })
       ]));
       card.appendChild(el("div", { class: "rpm-row" }, [
@@ -29616,7 +29966,7 @@ ${xl.join("\n")}`;
     const up = (p) => A.updateEntity(f.id, p);
     card.appendChild(el("div", { class: "rpm-row" }, [
       input(f.name, (v) => up({ name: v }), { attrs: { "aria-label": "Feature name", class: "form-control rpm-input rpm-grow" } }),
-      select(R.FEATURE_KINDS.map((k2) => [k2, cap(k2)]), f.kind, (v) => {
+      select(R.FEATURE_KINDS.map((k2) => [k2, cap3(k2)]), f.kind, (v) => {
         up({ kind: v });
         renderInspector();
       }, { "aria-label": "Feature kind" }),
@@ -32166,6 +32516,10 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           if (wid) {
             A.useWorld(wid, { fresh: true });
             A.enable();
+            try {
+              window.autosave?.();
+            } catch (_) {
+            }
           }
           if (heroName) {
             const T = window.KLITE_RPMod && window.KLITE_RPMod.panels && window.KLITE_RPMod.panels.TOOLS;
@@ -32625,6 +32979,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       blocks: [
         { p: `The Character gallery shows your whole Library full screen, with big portraits: open it with "Gallery" in the right panel's Quick Links. Filter by tag, search, sort, and switch between large, medium, small and list views. Click a character for the full card and to play as them, let the AI play them, open their sheet, edit, download or favorite them.` },
         { p: "Every character in your Library can have a character sheet: abilities, saving throws, skills, armor class, hit points, attacks, inventory and coins. The sheet is stored inside the character card, so it travels with the card when you export it." },
+        { p: 'The sheet has tabs: Overview, Combat, Spells, Inventory, Features and Notes. Typing an attack or an item suggests the SRD names; a weapon fills in its damage. Items are in hand or in the backpack — "(<-BP)" takes one out, "(->BP)" puts it away; weapons in hand are green, attacks with a stowed weapon dimmed (in a fight you draw a weapon as part of the attack). Features lists your SRD features automatically. Notes: Character notes stay with the character, Adventure notes only with this play of the world.' },
         { list: [
           'Open it with "Character sheet" in the Party section (it starts with your persona) and pick any character at the top.',
           "Click any bonus to roll a d20 with it; choose Advantage or Disadvantage above. Attacks roll to hit and damage.",
@@ -33477,6 +33832,10 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           window.KLITE_RPMod_Shell && window.KLITE_RPMod_Shell.open("world");
         } catch (_) {
         }
+        try {
+          if (typeof window.autosave === "function") window.autosave();
+        } catch (_) {
+        }
       }
     };
   }
@@ -33992,6 +34351,18 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     });
     return void 0;
   }
+  function setItemInHand(name, itemName, on) {
+    let result = null;
+    const n = String(itemName || "").trim().toLowerCase();
+    updateSheet(name, (s) => {
+      const it = s.inventory.find((i) => i.name.toLowerCase() === n);
+      if (!it) return;
+      if (on) it.inHand = true;
+      else delete it.inHand;
+      result = !!on;
+    });
+    return result;
+  }
   function flushSheet(name) {
     return writes.get(k(name)) || Promise.resolve();
   }
@@ -34178,8 +34549,8 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       }
     }
     if (upTo2 == null && levelOf(choices) >= 20) {
-      const cap3 = choices.class === "barbarian" ? ["str", "con"] : choices.class === "monk" ? ["dex", "wis"] : [];
-      for (const a of cap3) out[a] = Math.max(out[a], Math.min(25, out[a] + 4));
+      const cap4 = choices.class === "barbarian" ? ["str", "con"] : choices.class === "monk" ? ["dex", "wis"] : [];
+      for (const a of cap4) out[a] = Math.max(out[a], Math.min(25, out[a] + 4));
     }
     return out;
   }
@@ -34447,8 +34818,9 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       speed,
       hp: { max: hp, current: previous && previous.hp ? Math.min(hp, (Number(previous.hp.current) || 0) + (hp - (Number(previous.hp.max) || hp))) : hp, temp: 0 },
       attacks: attacksFor(abilities, gear, cls, styles, { martial: MARTIAL_ORDER.includes((orderOf(choices) || {}).value) }).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
-      // level up keeps what the character owns now; a new character gets the starting equipment
-      inventory: prevInv || items,
+      // level up keeps what the character owns now; a new character gets the starting equipment,
+      // with the armor and shield its AC counts worn (inHand, R8); weapons start in the backpack
+      inventory: prevInv || items.map((i) => (SRD.armor[i.name] || i.name === "Shield") && ac.how.includes(i.name) ? Object.assign({}, i, { inHand: true }) : i),
       coins: previous && previous.coins ? previous.coins : { cp: 0, sp: 0, gp, pp: 0 },
       features: (resources ? `${cls.name} ${level}: ${resources}
 ` : "") + feats.map((f) => `• ${f.name} (${f.source}): ${firstSentence(f.text)}`).join("\n"),
@@ -34582,12 +34954,19 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
 
   // src/characters/characters.js
   var LAST_KEY = "KLITE.sheet.last";
+  var TAB_KEY = "KLITE.sheet.tab";
+  var TABS = [["overview", "Overview"], ["combat", "Combat"], ["spells", "Spells"], ["inventory", "Inventory"], ["features", "Features"], ["notes", "Notes"]];
   var AUTOSAVE_SETTING = "sheets_autosave";
   var GAME_FIELDS = ["inventory", "coins", "xp", "hp", "spellcasting"];
   function initCharacters() {
     "use strict";
     if (window.KLITE_RPMod_Characters) return;
-    const V = { name: null, saved: null, draft: null, loading: false, error: "", mode: null, box: null, timer: null, manage: false, spellSearch: {} };
+    let savedTab = null;
+    try {
+      savedTab = localStorage.getItem(TAB_KEY);
+    } catch (_) {
+    }
+    const V = { name: null, saved: null, draft: null, loading: false, error: "", mode: null, box: null, timer: null, manage: false, spellSearch: {}, tab: savedTab || "overview", notesBuf: {} };
     const Shell2 = () => window.KLITE_RPMod_Shell;
     const Log = () => window.KLITE_RPMod_Log;
     const autosave = () => {
@@ -34625,6 +35004,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       V.draft = null;
       V.error = "";
       V.manage = false;
+      V.notesBuf = {};
       try {
         localStorage.setItem(LAST_KEY, V.name || "");
       } catch (_) {
@@ -34943,6 +35323,28 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         V.mode = m;
         render();
       } }))));
+      const tab = TABS.some(([id]) => id === V.tab) ? V.tab : "overview";
+      root.appendChild(el("ul", { class: "nav nav-tabs settingsnav rpm-sheet-tabs", role: "tablist", "aria-label": "Character sheet" }, TABS.map(([id, t]) => el("li", { class: id === tab ? "active" : "" }, [el("a", {
+        href: "#",
+        role: "tab",
+        "aria-selected": String(id === tab),
+        "data-sheet-tab": id,
+        text: t,
+        onclick: (e) => {
+          e.preventDefault();
+          V.tab = id;
+          try {
+            localStorage.setItem(TAB_KEY, id);
+          } catch (_) {
+          }
+          render();
+        }
+      })]))));
+      const body = el("div", { class: "rpm-sheet-tabbody rpm-sheet-tab-" + tab, role: "tabpanel", "data-sheet-panel": tab });
+      root.appendChild(body);
+      ({ overview: overviewTab, combat: combatTab, spells: spellsTab, inventory: inventoryTab, features: featuresTab, notes: notesTab })[tab](body, D, s, set);
+    }
+    function overviewTab(root, D, s, set) {
       root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
         field("Species", textIn(s.species, set((v) => {
           V.draft.species = v;
@@ -34972,40 +35374,6 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           V.draft.abilities[a] = v;
         }), { min: 1, max: 30, "aria-label": ABILITY_NAMES[a] + " score" })
       ]))));
-      root.appendChild(heading2("Combat"));
-      root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
-        field("Armor Class", numIn(s.ac, set((v) => {
-          V.draft.ac = v;
-        }))),
-        field("Speed", numIn(s.speed, set((v) => {
-          V.draft.speed = v;
-        }))),
-        field("Initiative", btn3(fmt(D.initiative), () => rollD20("Initiative", D.initiative, "initiative"), { roll: "initiative", title: "Roll initiative" })),
-        field("Passive Perception", el("div", { class: "rpm-sheet-static", text: String(D.passivePerception) }))
-      ]));
-      if (s.acNote) root.appendChild(el("div", { class: "rpm-muted", text: "AC: " + s.acNote }));
-      if (s.extras) {
-        const ex = s.extras, bits = [];
-        if (ex.alert) bits.push(`Alert: +${D.pb} to Initiative`);
-        if (ex.jackOfAllTrades) bits.push(`Jack of All Trades: +${Math.floor(D.pb / 2)} to skill checks without proficiency`);
-        const sb = Object.entries(ex.skillBonus || {});
-        if (sb.length) bits.push(`${sb.map(([k2]) => (SKILLS.find((x) => x.id === k2) || {}).name).join(" and ")}: +${ABILITY_NAMES[sb[0][1]]} modifier (min +1)`);
-        if (bits.length) root.appendChild(el("div", { class: "rpm-muted", "data-extras": "1", text: bits.join(" · ") }));
-      }
-      root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
-        field("HP", numIn(s.hp.current, set((v) => {
-          V.draft.hp.current = v;
-        }), { "aria-label": "Current hit points" })),
-        field("HP max", numIn(s.hp.max, set((v) => {
-          V.draft.hp.max = v;
-        }))),
-        field("Temp HP", numIn(s.hp.temp, set((v) => {
-          V.draft.hp.temp = v;
-        }))),
-        field("XP", numIn(s.xp, set((v) => {
-          V.draft.xp = v;
-        })))
-      ]));
       const profBox = (checked, onToggle, label2) => {
         const c = el("input", { type: "checkbox", "aria-label": label2 });
         c.checked = checked;
@@ -35043,7 +35411,90 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           btn3(fmt(D.skills[k2.id]), () => rollD20(k2.name + " check", D.skills[k2.id], "skill"), { roll: "skill-" + k2.id, title: "Roll " + k2.name, cls: "rpm-sheet-mod" })
         ]);
       })));
+      if (s.proficiencies) {
+        root.appendChild(heading2("Proficiencies"));
+        root.appendChild(el("div", { class: "rpm-gal-text", text: s.proficiencies }));
+      }
+    }
+    function handToggle(i) {
+      const it = V.draft.inventory[i];
+      const on = !!it.inHand;
+      return el("button", {
+        type: "button",
+        class: "rpm-iconbtn rpm-sheet-bp",
+        "data-bp": on ? "hand" : "pack",
+        "aria-pressed": String(on),
+        title: on ? `${it.name} is in hand (or worn). Put it into the backpack.` : `${it.name} is in the backpack. Take it in hand (or put it on).`,
+        "aria-label": (on ? "Put into the backpack: " : "Take in hand: ") + it.name,
+        text: on ? "(->BP)" : "(<-BP)",
+        onclick: () => {
+          if (on) delete V.draft.inventory[i].inHand;
+          else V.draft.inventory[i].inHand = true;
+          edited();
+        }
+      });
+    }
+    function handsLine(root, s) {
+      const n = handsUsed(s.inventory);
+      root.appendChild(el("div", { class: "rpm-muted rpm-sheet-hands", "data-hands": String(n) }, [
+        `Hands in use: ${n}/2`,
+        n > 2 ? el("strong", { class: "rpm-sheet-warn", role: "alert", text: " — more than two hands! Put something into the backpack." }) : null
+      ]));
+    }
+    function weaponList() {
+      return el("datalist", { id: "rpm-sheet-weapons" }, weaponNames().map((n) => el("option", { value: n })));
+    }
+    function itemList() {
+      return el("datalist", { id: "rpm-sheet-items" }, itemNames().map((n) => el("option", { value: n })));
+    }
+    function attackFor(name, s) {
+      const base = attackFromWeapon(name, s.abilities);
+      if (!base) return null;
+      const b = s.build;
+      const cls = b && SRD.classes[b.class];
+      if (b && cls) {
+        const martial = ["protector", "warden"].includes((orderOf(b) || {}).value);
+        const built = attacksFor(s.abilities, [{ name: baseWeapon(name) }], cls, fightingStyles(b), { martial })[0];
+        if (built) return Object.assign(base, { proficient: built.proficient, bonus: built.hitBonus || 0, ability: built.ability, damage: built.damage });
+      }
+      return base;
+    }
+    function combatTab(root, D, s, set) {
+      root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
+        field("Armor Class", numIn(s.ac, set((v) => {
+          V.draft.ac = v;
+        }))),
+        field("Speed", numIn(s.speed, set((v) => {
+          V.draft.speed = v;
+        }))),
+        field("Initiative", btn3(fmt(D.initiative), () => rollD20("Initiative", D.initiative, "initiative"), { roll: "initiative", title: "Roll initiative" })),
+        field("Passive Perception", el("div", { class: "rpm-sheet-static", text: String(D.passivePerception) }))
+      ]));
+      if (s.acNote) root.appendChild(el("div", { class: "rpm-muted", text: "AC: " + s.acNote }));
+      if (s.extras) {
+        const ex = s.extras, bits = [];
+        if (ex.alert) bits.push(`Alert: +${D.pb} to Initiative`);
+        if (ex.jackOfAllTrades) bits.push(`Jack of All Trades: +${Math.floor(D.pb / 2)} to skill checks without proficiency`);
+        const sb = Object.entries(ex.skillBonus || {});
+        if (sb.length) bits.push(`${sb.map(([k2]) => (SKILLS.find((x) => x.id === k2) || {}).name).join(" and ")}: +${ABILITY_NAMES[sb[0][1]]} modifier (min +1)`);
+        if (bits.length) root.appendChild(el("div", { class: "rpm-muted", "data-extras": "1", text: bits.join(" · ") }));
+      }
+      root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
+        field("HP", numIn(s.hp.current, set((v) => {
+          V.draft.hp.current = v;
+        }), { "aria-label": "Current hit points" })),
+        field("HP max", numIn(s.hp.max, set((v) => {
+          V.draft.hp.max = v;
+        }))),
+        field("Temp HP", numIn(s.hp.temp, set((v) => {
+          V.draft.hp.temp = v;
+        }))),
+        field("XP", numIn(s.xp, set((v) => {
+          V.draft.xp = v;
+        })))
+      ]));
       root.appendChild(heading2("Attacks"));
+      root.appendChild(weaponList());
       D.attacks.forEach((a, i) => {
         const abSel = el("select", { class: "form-control rpm-input", "aria-label": "Attack ability" });
         for (const ab of ABILITIES) {
@@ -35055,105 +35506,225 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           V.draft.attacks[i].ability = abSel.value;
           edited();
         });
-        root.appendChild(el("div", { class: "rpm-sheet-line rpm-sheet-attack" }, [
-          textIn(a.name, set((v) => {
-            V.draft.attacks[i].name = v;
-          }), { "aria-label": "Attack name" }),
+        const held = attackInHand(s.inventory, a.name);
+        const invIdx = held === null ? -1 : s.inventory.indexOf(itemForAttack(s.inventory, a.name));
+        const nameIn = textIn(a.name, (v) => {
+          const w = attackFor(v, V.draft);
+          if (w && v.trim().toLowerCase() !== String(V.draft.attacks[i].name).toLowerCase()) Object.assign(V.draft.attacks[i], w, { name: v.trim() });
+          else V.draft.attacks[i].name = v;
+          edited();
+        }, { "aria-label": "Attack name", list: "rpm-sheet-weapons", autocomplete: "off" });
+        root.appendChild(el("div", {
+          class: "rpm-sheet-line rpm-sheet-attack" + (held === true ? " rpm-inhand" : held === false ? " rpm-stowed" : ""),
+          "data-attack": a.name,
+          title: held === true ? "In hand" : held === false ? "In the backpack — drawn as part of the attack (SRD)" : null
+        }, [
+          nameIn,
           abSel,
           textIn(a.damage, set((v) => {
             V.draft.attacks[i].damage = v;
           }), { placeholder: "1d8+3", "aria-label": "Damage dice" }),
           btn3("Hit " + fmt(a.toHit), () => rollD20(a.name + " attack", a.toHit, "attack"), { roll: "attack-" + i, title: "Roll to hit" }),
           btn3("Dmg", () => rollExpr(a.name + " damage", a.damage || "1d4", "damage"), { roll: "damage-" + i, title: "Roll damage (" + (a.damage || "1d4") + ")" }),
+          invIdx >= 0 ? handToggle(invIdx) : null,
           el("button", { type: "button", class: "rpm-iconbtn", title: "Remove attack", "aria-label": "Remove " + a.name, onclick: () => {
             V.draft.attacks.splice(i, 1);
             edited();
           } }, [icon("trash-2", 14)])
         ]));
       });
-      const atkName = el("input", { type: "text", class: "form-control rpm-input rpm-grow", placeholder: "e.g. Longsword", "aria-label": "New attack" });
+      const atkName = el("input", { type: "text", class: "form-control rpm-input rpm-grow", placeholder: "e.g. Longsword", "aria-label": "New attack", list: "rpm-sheet-weapons", autocomplete: "off" });
+      atkName.classList.add("fullScreenTextEditExclude");
       root.appendChild(el("div", { class: "rpm-row", style: "margin-top:4px" }, [atkName, btn3("", () => {
         const n = atkName.value.trim();
         if (!n) return;
-        V.draft.attacks.push({ name: n, ability: "str", proficient: true, damage: "1d8", notes: "" });
+        V.draft.attacks.push(attackFor(n, V.draft) || { name: n, ability: "str", proficient: true, damage: "1d8", notes: "" });
         edited();
       }, { icon: "plus", title: "Add attack" })]));
-      if (D.spell) {
-        const sp = D.spell;
-        root.appendChild(heading2("Spellcasting"));
-        root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
-          field("Ability", el("div", { class: "rpm-sheet-static", text: ABILITY_NAMES[sp.ability] })),
-          field("Save DC", el("div", { class: "rpm-sheet-static", text: String(sp.saveDC) })),
-          field("Spell attack", btn3(fmt(sp.attack), () => rollD20("Spell attack", sp.attack, "attack"), { roll: "spell-attack", title: "Roll a spell attack" })),
-          field("Cantrips / prepared", el("div", { class: "rpm-sheet-static", text: `${sp.cantripsKnown.length}/${sp.cantrips} · ${sp.preparedSpells.length}/${sp.prepared}` }))
-        ]));
-        const slotRow = el("div", { class: "rpm-row", style: "flex-wrap:wrap;margin-top:4px" });
-        sp.slots.forEach((n, i) => {
-          if (!n) return;
-          const used = sp.used && sp.used[i] || 0;
-          slotRow.appendChild(el("span", { class: "rpm-label", text: `${sp.pact ? `Pact slots (level ${i + 1})` : "Level " + (i + 1)}:` }));
-          for (let k2 = 0; k2 < n; k2++) {
-            const c = el("input", { type: "checkbox", "aria-label": `${sp.pact ? "Pact" : "Level " + (i + 1)} slot ${k2 + 1} used` });
-            c.checked = k2 < used;
-            c.addEventListener("change", () => {
-              const u = V.draft.spellcasting.used = V.draft.spellcasting.used || [];
-              u[i] = [...slotRow.querySelectorAll(`input[data-slot="${i}"]`)].filter((x) => x.checked).length;
-              edited();
-            });
-            c.setAttribute("data-slot", String(i));
-            slotRow.appendChild(c);
-          }
-        });
-        if (slotRow.children.length) root.appendChild(slotRow);
-        root.appendChild(spellsSection(D, s));
-        const spells = el("textarea", { class: "form-control rpm-input", rows: 2, "aria-label": "Other spells and notes", placeholder: "Other spells and notes (e.g. from items or a scroll)" });
-        spells.value = sp.spells || "";
-        spells.addEventListener("change", () => {
-          V.draft.spellcasting.spells = spells.value;
-          edited();
-        });
-        root.appendChild(spells);
+      handsLine(root, s);
+      root.appendChild(el("div", { class: "rpm-muted rpm-sheet-rule", "data-rule": "hands", text: HAND_RULE }));
+    }
+    function spellsTab(root, D, s) {
+      if (!D.spell) {
+        root.appendChild(el("p", { class: "rpm-muted", text: "No spellcasting. Characters get spells from their class, species or a feat (Magic Initiate) — the builder sets them up." }));
+        return;
       }
-      if (s.proficiencies) {
-        root.appendChild(heading2("Proficiencies"));
-        root.appendChild(el("div", { class: "rpm-gal-text", text: s.proficiencies }));
+      const sp = D.spell;
+      root.appendChild(el("div", { class: "rpm-sheet-grid4" }, [
+        field("Ability", el("div", { class: "rpm-sheet-static", text: ABILITY_NAMES[sp.ability] })),
+        field("Save DC", el("div", { class: "rpm-sheet-static", text: String(sp.saveDC) })),
+        field("Spell attack", btn3(fmt(sp.attack), () => rollD20("Spell attack", sp.attack, "attack"), { roll: "spell-attack", title: "Roll a spell attack" })),
+        field("Cantrips / prepared", el("div", { class: "rpm-sheet-static", text: `${sp.cantripsKnown.length}/${sp.cantrips} · ${sp.preparedSpells.length}/${sp.prepared}` }))
+      ]));
+      const slotRow = el("div", { class: "rpm-row", style: "flex-wrap:wrap;margin-top:4px" });
+      sp.slots.forEach((n, i) => {
+        if (!n) return;
+        const used = sp.used && sp.used[i] || 0;
+        slotRow.appendChild(el("span", { class: "rpm-label", text: `${sp.pact ? `Pact slots (level ${i + 1})` : "Level " + (i + 1)}:` }));
+        for (let k2 = 0; k2 < n; k2++) {
+          const c = el("input", { type: "checkbox", "aria-label": `${sp.pact ? "Pact" : "Level " + (i + 1)} slot ${k2 + 1} used` });
+          c.checked = k2 < used;
+          c.addEventListener("change", () => {
+            const u = V.draft.spellcasting.used = V.draft.spellcasting.used || [];
+            u[i] = [...slotRow.querySelectorAll(`input[data-slot="${i}"]`)].filter((x) => x.checked).length;
+            edited();
+          });
+          c.setAttribute("data-slot", String(i));
+          slotRow.appendChild(c);
+        }
+      });
+      if (slotRow.children.length) root.appendChild(slotRow);
+      root.appendChild(spellsSection(D, s));
+      const spells = el("textarea", { class: "form-control rpm-input", rows: 2, "aria-label": "Other spells and notes", placeholder: "Other spells and notes (e.g. from items or a scroll)" });
+      spells.value = sp.spells || "";
+      spells.addEventListener("change", () => {
+        V.draft.spellcasting.spells = spells.value;
+        edited();
+      });
+      root.appendChild(spells);
+    }
+    function itemRow(it, i, set) {
+      const info = itemInfo(it.name);
+      const weaponHeld = it.inHand && info && info.kind === "weapon";
+      const nameIn = textIn(it.name, set((v) => {
+        V.draft.inventory[i].name = v;
+      }), { class: "form-control rpm-input rpm-grow", "aria-label": "Item name", list: "rpm-sheet-items", autocomplete: "off" });
+      const row2 = el("div", { class: "rpm-sheet-item" + (weaponHeld ? " rpm-inhand" : ""), "data-item": it.name }, [
+        el("div", { class: "rpm-sheet-line" }, [
+          handToggle(i),
+          nameIn,
+          numIn(it.qty, set((v) => {
+            V.draft.inventory[i].qty = v;
+          }), { class: "form-control rpm-input rpm-sheet-qty", min: 1, "aria-label": "Quantity" }),
+          el("button", { type: "button", class: "rpm-iconbtn", title: "Remove item", "aria-label": "Remove " + it.name, onclick: () => {
+            V.draft.inventory.splice(i, 1);
+            edited();
+          } }, [icon("trash-2", 14)])
+        ])
+      ]);
+      if (info) row2.appendChild(el("details", { class: "rpm-sheet-def", "data-def": it.name }, [
+        el("summary", { class: "rpm-muted", text: info.summary }),
+        ...info.text.slice(0, 4).map((t) => el("p", { class: "rpm-cmp-p", text: t })),
+        info.ref && window.KLITE_RPMod_Compendium ? btn3("In the compendium", () => window.KLITE_RPMod_Compendium.open(info.ref), { icon: "book-marked", title: "Open the SRD entry" }) : null
+      ]));
+      return row2;
+    }
+    function inventoryTab(root, D, s, set) {
+      root.appendChild(itemList());
+      handsLine(root, s);
+      const groups = [["In hand / worn", s.inventory.map((it, i) => [it, i]).filter(([it]) => it.inHand)], ["Backpack", s.inventory.map((it, i) => [it, i]).filter(([it]) => !it.inHand)]];
+      for (const [title, list3] of groups) {
+        root.appendChild(heading2(title));
+        if (!list3.length) root.appendChild(el("div", { class: "rpm-muted", text: title === "Backpack" ? "Empty." : 'Nothing in hand. "(<-BP)" takes an item out of the backpack.' }));
+        for (const [it, i] of list3) root.appendChild(itemRow(it, i, set));
       }
-      root.appendChild(heading2("Inventory"));
-      s.inventory.forEach((it, i) => root.appendChild(el("div", { class: "rpm-sheet-line" }, [
-        textIn(it.name, set((v) => {
-          V.draft.inventory[i].name = v;
-        }), { class: "form-control rpm-input rpm-grow", "aria-label": "Item name" }),
-        numIn(it.qty, set((v) => {
-          V.draft.inventory[i].qty = v;
-        }), { class: "form-control rpm-input rpm-sheet-qty", min: 1, "aria-label": "Quantity" }),
-        el("button", { type: "button", class: "rpm-iconbtn", title: "Remove item", "aria-label": "Remove " + it.name, onclick: () => {
-          V.draft.inventory.splice(i, 1);
-          edited();
-        } }, [icon("trash-2", 14)])
-      ])));
-      const itemName = el("input", { type: "text", class: "form-control rpm-input rpm-grow", placeholder: "Add an item", "aria-label": "New item" });
-      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:4px" }, [itemName, btn3("", () => {
+      const itemName = el("input", { type: "text", class: "form-control rpm-input rpm-grow", placeholder: "Add an item (SRD names are suggested)", "aria-label": "New item", list: "rpm-sheet-items", autocomplete: "off" });
+      itemName.classList.add("fullScreenTextEditExclude");
+      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:6px" }, [itemName, btn3("", () => {
         const n = itemName.value.trim();
         if (!n) return;
         V.draft.inventory.push({ name: n, qty: 1, notes: "" });
         edited();
       }, { icon: "plus", title: "Add item" })]));
-      root.appendChild(el("div", { class: "rpm-sheet-grid4", style: "margin-top:6px" }, ["cp", "sp", "gp", "pp"].map((c) => field(c.toUpperCase(), numIn(s.coins[c], set((v) => {
+      root.appendChild(el("div", { class: "rpm-muted rpm-sheet-rule", text: HAND_RULE }));
+      root.appendChild(heading2("Coins"));
+      root.appendChild(el("div", { class: "rpm-sheet-grid4" }, ["cp", "sp", "gp", "pp"].map((c) => field(c.toUpperCase(), numIn(s.coins[c], set((v) => {
         V.draft.coins[c] = v;
       }), { min: 0 })))));
-      root.appendChild(heading2("Features & notes"));
-      const area = (value, onChange, label2) => {
-        const t = el("textarea", { class: "form-control rpm-input", rows: 3, "aria-label": label2 });
-        t.value = value;
-        t.addEventListener("change", () => onChange(t.value));
-        return t;
-      };
-      root.appendChild(area(s.features, set((v) => {
-        V.draft.features = v;
-      }), "Features and traits"));
-      root.appendChild(area(s.notes, set((v) => {
+    }
+    function featuresTab(root, D, s, set) {
+      const list3 = srdFeatures(s);
+      const res = s.build ? classResources(s.build) : "";
+      if (res) root.appendChild(el("div", { class: "rpm-chip rpm-chip-info", "data-features": "resources", text: res }));
+      if (!list3.length) root.appendChild(el("p", { class: "rpm-muted", text: "No SRD features found: build the character with the builder, or write the class, species and background with their SRD names." }));
+      const box = el("div", { class: "rpm-sheet-features", "data-features": "srd" });
+      for (const f of list3) box.appendChild(el("details", { class: "rpm-sheet-feature", open: "" }, [
+        el("summary", {}, [el("strong", { text: f.name }), el("span", { class: "rpm-muted", text: " · " + f.source })]),
+        ...(f.text || []).map((t2) => el("p", { class: "rpm-cmp-p", text: t2 }))
+      ]));
+      root.appendChild(box);
+      if (list3.length) root.appendChild(el("div", { class: "rpm-muted rpm-cmp-attr", text: SRD.attribution }));
+      root.appendChild(heading2("Your own features & traits"));
+      const t = el("textarea", { class: "form-control rpm-input", rows: 4, "aria-label": "Features and traits" });
+      t.value = s.features;
+      t.addEventListener("change", () => {
+        V.draft.features = t.value;
+        edited();
+      });
+      root.appendChild(t);
+    }
+    function noteBox(root, key, title, stored, save2, hint) {
+      V.notesBuf = V.notesBuf || {};
+      const t = el("textarea", { class: "form-control rpm-input rpm-sheet-note", rows: 6, "aria-label": title, "data-note": key });
+      t.value = V.notesBuf[key] != null ? V.notesBuf[key] : stored;
+      t.addEventListener("input", () => {
+        V.notesBuf[key] = t.value;
+      });
+      root.appendChild(heading2(title));
+      root.appendChild(t);
+      if (hint) root.appendChild(el("div", { class: "rpm-muted rpm-sheet-notehint", text: hint }));
+      const editing = V.notesBuf[key] != null && V.notesBuf[key] !== stored;
+      root.appendChild(el("div", { class: "rpm-row rpm-sheet-notebtns" }, [
+        btn3("Delete", () => {
+          if (!stored && !t.value) return;
+          if (!confirm(`Delete the ${title.toLowerCase()}?`)) return;
+          delete V.notesBuf[key];
+          save2("");
+        }, { icon: "trash-2", variant: "danger", title: "Empty them", roll: "note-delete-" + key }),
+        btn3("Cancel", () => {
+          delete V.notesBuf[key];
+          render();
+        }, { title: "Drop the changes", roll: "note-cancel-" + key }),
+        btn3("Save", () => {
+          const v = t.value;
+          delete V.notesBuf[key];
+          save2(v);
+        }, { icon: "check", variant: "success", title: "Save them", roll: "note-save-" + key, cls: editing ? "rpm-unsaved" : "" })
+      ]));
+    }
+    function notesTab(root) {
+      const name = V.name;
+      noteBox(root, "character", "Character notes", V.draft.notes || "", (v) => {
         V.draft.notes = v;
-      }), "Notes"));
+        if (V.saved) V.saved.notes = v;
+        updateSheet(name, (sh) => {
+          sh.notes = v;
+        });
+        toast(v ? "Character notes saved" : "Character notes deleted");
+        render();
+      }, "Saved in the character card: they stay with the character in every story.");
+      const W = window.KLITE_RPMod_Worlds;
+      const w = W && W.activeWorld && W.activeWorld();
+      if (!w) {
+        root.appendChild(heading2("Adventure notes"));
+        root.appendChild(el("p", { class: "rpm-muted", "data-note": "adventure-none", text: "Load a world to keep adventure notes for this play." }));
+        return;
+      }
+      noteBox(root, "adventure", "Adventure notes", W.adventureNote(name), (v) => {
+        W.setAdventureNote(name, v);
+        toast(v ? "Adventure notes saved" : "Adventure notes deleted");
+        render();
+      }, `Saved with this play of ${w.name} — wiped when a new game starts or on Back to start. For things that matter only in this adventure.`);
+    }
+    function srdFeatures(s) {
+      if (s.build) {
+        try {
+          return featureList(s.build);
+        } catch (_) {
+          return [];
+        }
+      }
+      const key = (obj, text) => {
+        const t = String(text || "").toLowerCase();
+        return Object.keys(obj).find((k2) => t.split(/[^a-z]+/).includes(k2) || t.startsWith(String(obj[k2].name || k2).toLowerCase())) || "";
+      };
+      const choices = { class: key(SRD.classes, s.className), species: key(SRD.species, s.species), background: key(SRD.backgrounds, s.background), level: s.level };
+      if (!choices.class && !choices.species && !choices.background) return [];
+      try {
+        return featureList(choices);
+      } catch (_) {
+        return [];
+      }
     }
     function worldStatsFor(name) {
       try {
@@ -35252,6 +35823,7 @@ OK = save and close · Cancel = close and discard them`);
       combatSpellsFor,
       spendSpell,
       longRestSheet,
+      setItemInHand,
       // the player's persona (Tools panel): name when chosen and enabled, else ''
       personaName: () => {
         try {
@@ -36367,87 +36939,6 @@ OK = save and close · Cancel = close and discard them`);
     if (document.readyState === "complete") attempt();
     else window.addEventListener("load", attempt, { once: true });
   }
-
-  // src/compendium/rules.js
-  var KINDS3 = { monster: "Monsters", spell: "Spells", item: "Magic items", equipment: "Equipment", rule: "Rules" };
-  var ATTRIBUTION = SRD.attribution;
-  var norm4 = (s) => String(s == null ? "" : s).toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, " ").trim();
-  var cap2 = (s) => String(s || "").replace(/\b[a-z]/g, (c) => c.toUpperCase());
-  var levelSchool2 = (s) => s.level ? `Level ${s.level} ${s.school}` : `${s.school} cantrip`;
-  var INDEX = null;
-  function index() {
-    if (INDEX) return INDEX;
-    const out = [];
-    for (const [key, m] of Object.entries(MONSTERS)) out.push({ kind: "monster", key, name: m.name, sub: `CR ${m.cr} · ${m.type}` });
-    for (const [key, s] of Object.entries(SPELLS)) out.push({ kind: "spell", key, name: s.name, sub: `${levelSchool2(s)} · ${s.classes.map(cap2).join(", ")}` });
-    for (const [key, it] of Object.entries(COMPENDIUM.magicItems)) out.push({ kind: "item", key, name: it.name, sub: it.type });
-    for (const [name, w] of Object.entries(SRD.weapons)) out.push({ kind: "equipment", key: "weapon:" + name, name, sub: `Weapon · ${cap2(w.category)} · ${w.damage} ${w.type}` });
-    for (const [name, a] of Object.entries(SRD.armor)) out.push({ kind: "equipment", key: "armor:" + name, name, sub: `Armor · ${cap2(a.category)}` });
-    for (const [key, g] of Object.entries(COMPENDIUM.gear)) out.push({ kind: "equipment", key: "gear:" + key, name: g.name, sub: `${g.kind === "tool" ? "Tool" : "Adventuring gear"} · ${g.cost}` });
-    for (const [key, r] of Object.entries(COMPENDIUM.glossary)) out.push({ kind: "rule", key, name: r.name, sub: r.tag || "Rule" });
-    INDEX = out;
-    return out;
-  }
-  function entry(kind, key) {
-    if (kind === "monster") return MONSTERS[key] ? { kind, key, name: MONSTERS[key].name, data: MONSTERS[key] } : null;
-    if (kind === "spell") return SPELLS[key] ? { kind, key, name: SPELLS[key].name, data: SPELLS[key] } : null;
-    if (kind === "item") {
-      const d = COMPENDIUM.magicItems[key];
-      return d ? { kind, key, name: d.name, data: d } : null;
-    }
-    if (kind === "rule") {
-      const d = COMPENDIUM.glossary[key];
-      return d ? { kind, key, name: d.name, data: d } : null;
-    }
-    if (kind === "equipment") {
-      const [t, k2] = String(key).split(/:(.*)/s);
-      if (t === "weapon" && SRD.weapons[k2]) return { kind, key, name: k2, data: Object.assign({ equipment: "weapon" }, SRD.weapons[k2]) };
-      if (t === "armor" && SRD.armor[k2]) return { kind, key, name: k2, data: Object.assign({ equipment: "armor" }, SRD.armor[k2]) };
-      if (t === "gear" && COMPENDIUM.gear[k2]) return { kind, key, name: COMPENDIUM.gear[k2].name, data: Object.assign({ equipment: COMPENDIUM.gear[k2].kind }, COMPENDIUM.gear[k2]) };
-    }
-    return null;
-  }
-  var TEXT = /* @__PURE__ */ new Map();
-  function textOf(e) {
-    const id = e.kind + "|" + e.key;
-    if (!TEXT.has(id)) {
-      const r = entry(e.kind, e.key);
-      const d = r && r.data || {};
-      const parts = [];
-      const walk = (v) => {
-        if (typeof v === "string") parts.push(v);
-        else if (Array.isArray(v)) v.forEach(walk);
-        else if (v && typeof v === "object") Object.values(v).forEach(walk);
-      };
-      walk([d.text, d.higher, d.upgrade, d.traits, d.actions, d.bonusActions, d.reactions, d.legendary]);
-      TEXT.set(id, norm4(parts.join(" ")));
-    }
-    return TEXT.get(id);
-  }
-  function search(q, kind, limit = 150) {
-    const list3 = index().filter((e) => !kind || e.kind === kind);
-    const t = norm4(q);
-    if (!t) return list3.slice().sort((a, b) => a.name.localeCompare(b.name)).slice(0, limit).map((e) => Object.assign({ score: 5 }, e));
-    const words = t.split(" ");
-    const hits = [];
-    for (const e of list3) {
-      const n = norm4(e.name), s = norm4(e.sub);
-      let score = -1;
-      if (n === t) score = 0;
-      else if (n.startsWith(t)) score = 1;
-      else if (words.every((w) => n.includes(w))) score = 2;
-      else if (words.every((w) => (n + " " + s).includes(w))) score = 3;
-      else if (t.length >= 4 && textOf(e).includes(t)) score = 4;
-      if (score >= 0) hits.push(Object.assign({ score }, e));
-    }
-    return hits.sort((a, b) => a.score - b.score || a.name.localeCompare(b.name)).slice(0, limit);
-  }
-  function find(q, kind) {
-    const r = search(q, kind, 1)[0];
-    return r && r.score <= 2 ? r : null;
-  }
-  var abilityMod2 = (score) => Math.floor(((Number(score) || 10) - 10) / 2);
-  var signed = (n) => (n >= 0 ? "+" : "") + n;
 
   // src/compendium/compendium.js
   function initCompendium() {
@@ -39037,6 +39528,10 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       try {
         Shell2()?.close("adventure");
         Shell2()?.open("world");
+      } catch (_) {
+      }
+      try {
+        if (typeof window.autosave === "function") window.autosave();
       } catch (_) {
       }
       return { worldId, persona: me.name, pregens: cards };

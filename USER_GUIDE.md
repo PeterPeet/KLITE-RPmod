@@ -559,8 +559,34 @@ passive Perception are calculated for you.
   SillyTavern and Chub. Changes are a draft until you press **Save** (or turn on
   *Autosave character sheets* in Settings → RPmod); **Revert** undoes them.
 - **What the AI knows:** your persona's (and the active character's) sheet summary is part
-  of the prompt. A world person linked to a card uses that card's sheet in combat if it has
-  no stat block of its own.
+  of the prompt (what you hold or wear is listed apart from the backpack). A world person linked
+  to a card uses that card's sheet in combat if it has no stat block of its own.
+
+**Tabs.** The sheet is split into tabs, like Esolite's Settings dialog: **Overview** (identity,
+abilities, saving throws, skills, proficiencies) · **Combat** (AC, speed, initiative, HP, attacks) ·
+**Spells** · **Inventory** (items and coins) · **Features** · **Notes**. The roll mode above the tabs
+applies everywhere; the sheet remembers the tab you used last.
+
+- **SRD autocomplete:** typing an attack or an item offers the SRD 5.2.1 names (typing *Lo* offers
+  Longbow, Longsword…). Picking a weapon for an attack fills its damage and ability (a Finesse
+  weapon uses the better of STR and DEX, a ranged one DEX; a built character keeps its class's
+  weapon proficiencies). Every SRD item in the inventory has its **definition** under it (damage and
+  properties, the armor's AC, the gear's rules text), with a link into the Compendium.
+- **In hand vs. backpack:** each item is either **in hand / worn** or in the **backpack**. The
+  button before an item switches it: **(<-BP)** takes it out of the backpack, **(->BP)** puts it
+  away (the tooltip says which). Weapons in hand are green in Attacks and Inventory; an attack whose
+  weapon is in the backpack is dimmed. The SRD rule: you draw or stow one weapon as part of each
+  attack you make with it (in a fight RPmod does that for you and logs it); getting out or putting
+  away any other item takes the **Utilize** action. The sheet warns when more than two hands are in
+  use (a Two-Handed weapon takes both, a Shield one, worn armor none). Sheets from before this
+  version have everything in the backpack; new characters from the builder wear their armor.
+- **Features:** the SRD text of your class, subclass, species, background and feat features up to
+  your level, filled in automatically (built characters; for others RPmod reads the SRD class,
+  species and background names on the sheet). Your own features and traits go in the box below.
+- **Notes:** **Character notes** are saved in the character card and stay with the character in
+  every story. **Adventure notes** belong to this play of the world (saved with the story) and are
+  wiped when a new game starts or on **Back to start** — for things that matter only in this
+  adventure. Both have **Save**, **Cancel** (drop the edit) and **Delete**.
 
 **World Management** chooses the world (new, rename, import, export), enables it for the story and
 holds the **Game state** buttons and the **Premade worlds**. **World Creation** has the **Creator

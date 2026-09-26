@@ -13,6 +13,7 @@
 import { el } from '../shell/dom.js';
 import { iconText } from '../shell/dom.js';
 import { renderZoneBoard } from './zoneBoard.js';
+import * as EQ from '../characters/equipment-rules.js';
 
 export const AUTO_TURNS_SETTING = 'combat_auto_turns';
 export const ZONES_SETTING = 'combat_zones';
@@ -273,6 +274,17 @@ function renderTurn(box, cb, cur, A, refresh) {
             btn('End turn', endTurn, { icon: 'arrow-right', grow: true, id: 'end-turn' }),
         ], 'margin-top:6px'));
         wrap.appendChild(muted('Then tell the AI in the chat what you do — it narrates the rolls from the log.', { style: 'margin-top:4px' }));
+        // R8: in hand vs. backpack (the character sheet) and the SRD rule for drawing weapons
+        const sheetName = A.combatantSheetName ? A.combatantSheetName(cur.id) : '';
+        const sheet = sheetName && window.KLITE_RPMod_Characters ? window.KLITE_RPMod_Characters.cachedSheet(sheetName) : null;
+        const chosen = (st.attacks || [])[U.atk];
+        if (sheet && chosen) {
+            const held = EQ.attackInHand(sheet.inventory, chosen.name);
+            if (held === false) wrap.appendChild(muted(`${chosen.name} is in the backpack: it is drawn as part of this attack.`, { 'data-cb': 'draw', style: 'margin-top:4px' }));
+            const hands = EQ.handsUsed(sheet.inventory);
+            if (hands > 2) wrap.appendChild(el('div', { class: 'rpm-muted', 'data-cb': 'hands', role: 'alert', style: 'margin-top:4px;color:var(--rpm-danger)', text: `${hands} hands in use — more than two. Put something away (character sheet → Inventory).` }));
+        }
+        wrap.appendChild(muted(EQ.HAND_RULE, { 'data-cb': 'hand-rule', style: 'margin-top:4px' }));
         return;
     }
     wrap.appendChild(row([

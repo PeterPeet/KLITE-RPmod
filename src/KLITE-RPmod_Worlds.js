@@ -19,6 +19,7 @@
 // until a World is enabled for the current story.
 // =============================================================================
 import { getContext } from './context/context.js';
+import { saveStoryCopy, loadStoryCopy } from './context/storyCopy.js';
 import * as CR from './game/combat-rules.js';
 import * as QR from './game/quest-rules.js';
 import * as SH from './game/shop-rules.js';
@@ -29,6 +30,7 @@ import * as ZR from './game/zone-rules.js';
 import * as LB from './game/lorebook-rules.js';
 import { derive as deriveSheet } from './characters/sheet.js';
 import * as SP from './characters/spell-rules.js';
+import * as EQ from './characters/equipment-rules.js';
 
 export default function initWorlds() {
     'use strict';
@@ -93,6 +95,8 @@ export default function initWorlds() {
             npcStateOverrides: {},   // { [npcId]: { locationId, mood, ... } }
             completedEventIds: [],   // non-repeatable events already fired
             startedEncounters: [],   // saved encounters already started (R7: "waiting here" hint)
+            // (added when needed, R8) adventureNotes: { [character name]: text } — the character sheet's
+            //   Adventure notes: live game only (never in the start state), gone after Back to start
             lastParsedIndex: chatLength(), // gametext_arr index up to which tags were applied (a new state starts at the current chat: older tags are not replayed)
             // R7 exploration of dungeons/towns (map-rules.js): { [roomId]: 'known'|'discovered'|'visited' },
             // found secrets (exit/room ids) and traps, rooms searched, door states and room light
@@ -1995,6 +1999,18 @@ export default function initWorlds() {
         return left;
     }
     // Attack roll (weapon attack index of the attacker's stats). opts.mode: 'adv' | 'dis'.
+    // R8 (SRD 5.2.1): a weapon in the backpack is drawn as part of the attack made with it — the
+    // character sheet marks it as in hand and the combat log says so.
+    function drawForAttack(attackerId, atk, who) {
+        const n = sheetNameOf(attackerId); const C = window.KLITE_RPMod_Characters;
+        if (!n || !C || !C.cachedSheet || !C.setItemInHand || !atk) return;
+        try {
+            const s = C.cachedSheet(n); const it = s && s.inventory.find(i => norm(i.name).toLowerCase() === norm(atk.name).toLowerCase());
+            if (!it || it.inHand || !EQ.weaponOf(it.name)) return;
+            C.setItemInHand(n, it.name, true);
+            combatLog(`${who} draws the ${it.name} as part of the attack.`);
+        } catch (_) {}
+    }
     function combatAttack(attackerId, targetId, attackIndex, opts = {}) {
         const cb = getCombat(); if (!cb) return null;
         if (cb.outcome) return null;
@@ -2009,6 +2025,7 @@ export default function initWorlds() {
             if (!zc.ok) { combatLog(`${A} cannot attack ${T} with ${atk.name}: ${zc.reason}.`); return { hit: false, refused: zc.reason }; }
         }
         const tSt = zc && zc.cover ? Object.assign({}, tSt0, { ac: tSt0.ac + ZR.coverBonus(zc.cover) }) : tSt0;
+        if (!opts.atk) drawForAttack(attackerId, atk, A);
         const toHit = ((atk.toHit != null) ? Number(atk.toHit) : (aSt.proficiency + abilityMod(aSt.abilities.str))) - (zc ? zc.penalty : 0);
         const ranged = zc ? zc.ranged : (opts.atk ? !!(P && P.ranged && !P.melee) : CR.isRanged(atk));
         const m = isV2(cb) ? CR.attackMode(conds(attackerId), conds(targetId), ranged, opts.mode) : { mode: opts.mode || null, autoCrit: false, why: [] };
@@ -3001,6 +3018,24 @@ export default function initWorlds() {
         syncLive();
     }
 
+    // R8: Esolite restores the autosaved story during its own start-up — before RPmod has wrapped
+    // kai_json_load — and autosaves it again without RPmod's block, so the story's world state was
+    // lost on every page reload. Once, at start-up, when nothing was loaded through the hook: the
+    // side copy made with the last save (src/context/storyCopy.js), if it belongs to this chat.
+    let storyLoaded = false;
+    async function restoreFromAutosave() {
+        try {
+            if (storyLoaded || W.activeWorldId || W.runtime) return false;
+            const st = await loadStoryCopy('worlds');
+            if (!st || storyLoaded || W.activeWorldId) return false;
+            restoreSaveState(st);
+            try { if (rt() && Array.isArray(window.gametext_arr)) rt().lastParsedIndex = window.gametext_arr.length; } catch (_) {}   // the chat's tags are already in it
+            syncLive();
+            dbg('world state restored after a page reload');
+            return true;
+        } catch (e) { err('restore after reload failed', e); return false; }
+    }
+
     // Defensive: even though temp entries are removed synchronously, strip them
     // from any savefile object as belt-and-suspenders, and embed our runtime.
     function installSaveWrappers() {
@@ -3015,6 +3050,7 @@ export default function initWorlds() {
                     }
                     const st = collectSaveState();
                     if (obj && st) obj[SAVE_KEY] = st;
+                    saveStoryCopy('worlds', st || null);   // R8: survives Esolite's start-up autosave on a reload
                 } catch (e) { err('save embed failed', e); }
                 return obj;
             };
@@ -3040,6 +3076,7 @@ export default function initWorlds() {
         if (typeof window.kai_json_load === 'function' && !window.kai_json_load.__worlds_wrapped) {
             const origLoad = window.kai_json_load;
             const wrappedLoad = function () {
+                storyLoaded = true;
                 let pending = null;
                 try { const s = arguments[0]; if (s && s[SAVE_KEY]) pending = s[SAVE_KEY]; } catch (_) {}
                 const res = origLoad.apply(this, arguments);
@@ -3576,8 +3613,19 @@ export default function initWorlds() {
         if (pos != null && rt()) rt().lastParsedIndex = pos;
         return res;
     }
-    function resetToBase() { if (!W.runtime) return false; keepChatPosition(() => { W.runtime.working = deepClone(W.runtime.base); }); dbg('reset working <- base'); return true; }
-    function commitToBase() { if (!W.runtime) return false; W.runtime.base = deepClone(W.runtime.working); dbg('commit base <- working'); return true; }
+    function resetToBase() { if (!W.runtime) return false; keepChatPosition(() => { W.runtime.working = deepClone(W.runtime.base); delete W.runtime.working.adventureNotes; }); dbg('reset working <- base'); return true; }
+    function commitToBase() { if (!W.runtime) return false; W.runtime.base = deepClone(W.runtime.working); delete W.runtime.base.adventureNotes; dbg('commit base <- working'); return true; }
+    // R8: the character sheet's Adventure notes — per character, in the live game of this world only
+    function adventureNote(name) { const r = W.runtime && W.runtime.working; const n = norm(name); return (r && n && r.adventureNotes && typeof r.adventureNotes[n] === 'string') ? r.adventureNotes[n] : ''; }
+    function setAdventureNote(name, text) {
+        const n = norm(name); if (!n || !activeWorld()) return false;
+        ensureRuntime(); const r = W.runtime.working;
+        const t = String(text == null ? '' : text);
+        r.adventureNotes = Object.assign({}, r.adventureNotes);
+        if (t.trim()) r.adventureNotes[n] = t; else delete r.adventureNotes[n];
+        if (!Object.keys(r.adventureNotes).length) delete r.adventureNotes;
+        return true;
+    }
     function swapActive() { if (!W.runtime) return null; keepChatPosition(() => { W.runtime.active = (W.runtime.active === 'working' ? 'base' : 'working'); }); dbg('active slot =', W.runtime.active); return W.runtime.active; }
     function setActiveSlot(slot) { if (!W.runtime || (slot !== 'base' && slot !== 'working')) return null; keepChatPosition(() => { W.runtime.active = slot; }); return slot; }
 
@@ -3593,6 +3641,7 @@ export default function initWorlds() {
 
         // ----- base / working state -----
         resetToBase() { const ok = resetToBase(); if (ok) syncLive(); return ok; },
+        adventureNote, setAdventureNote(name, text) { const ok = setAdventureNote(name, text); if (ok) notifyChange(); return ok; },
         commitToBase, swapActive() { const s = swapActive(); syncLive(); return s; }, setActiveSlot(slot) { const s = setActiveSlot(slot); if (s) syncLive(); return s; },
 
         // ----- graph editing (for the editor UI) -----
@@ -3729,6 +3778,7 @@ export default function initWorlds() {
         endEncounter() { endEncounter(); syncLive(); return true; },
         getCombat, combatText, combatantStats, combatantName, resolveCombatant,
         attack(a, t, i, opts) { const r = combatAttack(a, t, i, opts || {}); syncLive(); return r; },
+        combatantSheetName: (id) => sheetNameOf(id),   // R8: the character sheet behind a combatant ('' = none)
         combatSpells: (id) => combatSpells(id || '__player__'),
         castSpell(id, key, opts) { const r = castSpell(id || '__player__', key, opts || {}); syncLive(); return r; },
         longRest() { const r = longRest(); syncLive(); return r; },
@@ -3920,6 +3970,7 @@ export default function initWorlds() {
         if (W.ready) return;
         await libraryReady();
         installSaveWrappers();
+        await restoreFromAutosave();
         installReplyHook();
         registerProvider();
         registerSettingAndGuards();

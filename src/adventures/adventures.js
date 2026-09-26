@@ -146,6 +146,9 @@ export default function initAdventures() {
         const view = (pkg.start && pkg.start.view) || (A.worldStart(worldId) || {}).view;
         try { if (view) window.KLITE_RPMod_WorldsUI?.setUiMode(view); } catch (_) {}
         try { Shell()?.close('adventure'); Shell()?.open('world'); } catch (_) {}
+        // Esolite autosaved the story when the opening was rendered — before the world was chosen;
+        // save again so a reload right away keeps the adventure (its world state rides in the save)
+        try { if (typeof window.autosave === 'function') window.autosave(); } catch (_) {}
         return { worldId, persona: me.name, pregens: cards };
     }
 

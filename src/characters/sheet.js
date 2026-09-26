@@ -61,7 +61,7 @@ export function defaultSheet() {
         proficiencies: '',         // weapons / armor / tools / languages (text)
         acNote: '',                // how AC is made up, e.g. "Chain Mail + Shield"
         build: null,               // builder choices (builder-rules.js) — used for level up
-        inventory: [],             // [{ name, qty, notes }]
+        inventory: [],             // [{ name, qty, notes, inHand? }] — inHand (R8, additive): held or worn; missing = in the backpack
         coins: { cp: 0, sp: 0, gp: 0, pp: 0 },
         features: '', notes: '',
         extras: null,              // { alert, jackOfAllTrades, skillBonus: { [skill]: ability } } (rules the builder applies)
@@ -92,7 +92,7 @@ export function normalizeSheet(raw) {
         name: str(a.name), ability: ABILITIES.includes(a.ability) ? a.ability : 'str', proficient: a.proficient !== false,
         bonus: int(a.bonus, 0), damage: str(a.damage), notes: str(a.notes),
     }));
-    s.inventory = (Array.isArray(s.inventory) ? s.inventory : []).filter(i => i && str(i.name)).map(i => ({ name: str(i.name), qty: Math.max(1, int(i.qty, 1)), notes: str(i.notes) }));
+    s.inventory = (Array.isArray(s.inventory) ? s.inventory : []).filter(i => i && str(i.name)).map(i => Object.assign({ name: str(i.name), qty: Math.max(1, int(i.qty, 1)), notes: str(i.notes) }, i.inHand ? { inHand: true } : {}));
     const coins = Object.assign({}, d.coins, s.coins && typeof s.coins === 'object' ? s.coins : {});
     for (const c of Object.keys(d.coins)) coins[c] = Math.max(0, int(coins[c], 0));
     s.coins = coins;
@@ -186,7 +186,11 @@ export function sheetSummary(sheet) {
         lines.push(`Spellcasting (${sp.ability.toUpperCase()}): save DC ${sp.saveDC}, spell attack ${fmt(sp.attack)}` + (sp.slots.length ? `, slots ${sp.slots.map((n, i) => n ? `L${i + 1}×${n}` : '').filter(Boolean).join(' ')}` : '') +
             (chosen ? `\nSpells: ${chosen}` : '') + (sp.spells ? `${chosen ? '; ' : '\nSpells: '}${sp.spells}` : ''));
     }
-    if (s.inventory.length) lines.push('Inventory: ' + s.inventory.map(i => i.name + (i.qty > 1 ? ` x${i.qty}` : '')).join(', '));
+    // R8: what is held or worn comes first ("In hand"), the rest is in the backpack
+    const held = s.inventory.filter(i => i.inHand), packed = s.inventory.filter(i => !i.inHand);
+    const list = (items) => items.map(i => i.name + (i.qty > 1 ? ` x${i.qty}` : '')).join(', ');
+    if (held.length) lines.push('In hand / worn: ' + list(held));
+    if (packed.length) lines.push((held.length ? 'Backpack: ' : 'Inventory: ') + list(packed));
     const coins = Object.entries(s.coins).filter(([, v]) => v > 0).map(([k, v]) => `${v} ${k}`);
     if (coins.length) lines.push('Coins: ' + coins.join(', '));
     return lines.join('\n');

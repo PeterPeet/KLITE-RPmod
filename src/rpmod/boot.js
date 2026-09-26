@@ -7,6 +7,8 @@
 // Creator: Peter Hauer | GPL-3.0 License
 // =============================================================================
 
+import { saveStoryCopy, loadStoryCopy } from '../context/storyCopy.js';
+
 export function installBoot(S) {
     // =============================================
     // 5. AUTO-INITIALIZATION
@@ -313,6 +315,7 @@ export function installBoot(S) {
                                     try {
                                         const bundle = window.KLITE_RPMod.getSaveBundle?.();
                                         if (bundle) obj.rpmod = bundle;
+                                        saveStoryCopy('rp', bundle || null);   // R8: survives Esolite's start-up autosave on a reload
                                     } catch(_) {}
                                     return obj;
                                 };
@@ -323,6 +326,7 @@ export function installBoot(S) {
                             if (!window._rpmod_orig_kai_json_load && typeof window.kai_json_load === 'function' && window.KLITE_RPMod) {
                                 window._rpmod_orig_kai_json_load = window.kai_json_load;
                                 window.kai_json_load = function(){
+                                    window._rpmod_story_loaded = true;
                                     try {
                                         const storyobj = arguments[0];
                                         if (storyobj && storyobj.rpmod) {
@@ -340,6 +344,18 @@ export function installBoot(S) {
                                 };
                             }
                         } catch(e) { console.warn('[RPMod] Load hook error:', e); }
+
+                        // R8: Esolite restores its autosaved story during its own start-up (before the hook
+                        // above exists) and autosaves it again without RPmod's block — restore that block
+                        // (persona, group chat, …) from the side copy of the last save when it belongs to
+                        // this chat, unless a story was loaded through the hook meanwhile.
+                        setTimeout(async () => {
+                            try {
+                                if (window._rpmod_story_loaded) return;
+                                const bundle = await loadStoryCopy('rp');
+                                if (bundle && !window._rpmod_story_loaded && window.KLITE_RPMod?.restoreFromSaveBundle) window.KLITE_RPMod.restoreFromSaveBundle(bundle);
+                            } catch(e) { console.warn('[RPMod] restore after a reload failed:', e); }
+                        }, 200);
                     }
                 } catch(e) { console.warn('[RPMod] bootstrap init error:', e); }
 

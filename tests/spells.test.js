@@ -161,6 +161,7 @@ test('builder Spells step + sheet: choose spells, cast (slot + log), free cast, 
 
     // the sheet: spells listed, Cast uses a slot and logs, the free cast, restore
     const sh = (s) => doc.querySelector('[data-window="sheet"] ' + s);
+    click(sh('[data-sheet-tab="spells"]'), w); await sleep(10);   // R8: the sheet's Spells tab
     assert.ok(sh('[data-spell="magic-missile"]') && sh('[data-spell="prestidigitation"]'));
     assert.match(sh('[data-spell="fire-bolt"]').textContent, /Hit \+5/);
     assert.equal(sh('[data-roll="spell-heal-magic-missile"]'), null, 'no heal button on a damage spell');

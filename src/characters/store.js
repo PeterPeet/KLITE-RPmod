@@ -125,6 +125,18 @@ export function updateSheet(name, mutate, opts) {
     loadSheet(name).then(s => { const e = cache.get(k(name)); if (s && e && e.sheet) apply(e); else if (onMissing) onMissing(); }).catch(() => { if (onMissing) onMissing(); });
     return undefined;
 }
+// R8: draw (inHand: true) or stow an inventory item — through updateSheet, so an open sheet and
+// background writes agree. → the item's new state, or null when the item is not on the sheet.
+export function setItemInHand(name, itemName, on) {
+    let result = null;
+    const n = String(itemName || '').trim().toLowerCase();
+    updateSheet(name, (s) => {
+        const it = s.inventory.find(i => i.name.toLowerCase() === n); if (!it) return;
+        if (on) it.inHand = true; else delete it.inHand;
+        result = !!on;
+    });
+    return result;
+}
 // Wait until every background write of this character is done (tests, before export).
 export function flushSheet(name) { return writes.get(k(name)) || Promise.resolve(); }
 

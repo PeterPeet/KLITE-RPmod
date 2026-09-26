@@ -251,7 +251,8 @@ test('an open sheet with unsaved edits takes the slot spent in combat; Save keep
     const { h, w, W, C } = await field(t);
     C.open('Mira'); await sleep(30);
     const doc = w.document; const win = () => doc.querySelector('[data-window="sheet"]');
-    const notes = win().querySelector('textarea[aria-label="Notes"]');
+    win().querySelector('[data-sheet-tab="features"]').click(); await sleep(10);   // R8: a draft edit (the notes save on their own now)
+    const notes = win().querySelector('textarea[aria-label="Features and traits"]');
     notes.value = 'Owes the temple a tithe.'; notes.dispatchEvent(new w.Event('change', { bubbles: true })); await sleep(10);
     h.seedRandom([0.5]);
     W.startEncounter([], { monsters: [{ key: 'wolf' }], zones: false });
@@ -259,6 +260,6 @@ test('an open sheet with unsaved edits takes the slot spent in combat; Save keep
     win().querySelector('[data-save="sheet"]').click(); await sleep(40);
     await C.flushSheet('Mira');
     const s = await C.loadSheet('Mira');
-    assert.equal(s.notes, 'Owes the temple a tithe.');
+    assert.equal(s.features, 'Owes the temple a tithe.');
     assert.deepEqual(plain(s.spellcasting.used), [1], 'the spent slot survived the draft save');
 });

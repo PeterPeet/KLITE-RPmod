@@ -213,6 +213,7 @@ export const CHAPTERS = [
         blocks: [
             { p: 'The Character gallery shows your whole Library full screen, with big portraits: open it with "Gallery" in the right panel\'s Quick Links. Filter by tag, search, sort, and switch between large, medium, small and list views. Click a character for the full card and to play as them, let the AI play them, open their sheet, edit, download or favorite them.' },
             { p: 'Every character in your Library can have a character sheet: abilities, saving throws, skills, armor class, hit points, attacks, inventory and coins. The sheet is stored inside the character card, so it travels with the card when you export it.' },
+            { p: 'The sheet has tabs: Overview, Combat, Spells, Inventory, Features and Notes. Typing an attack or an item suggests the SRD names; a weapon fills in its damage. Items are in hand or in the backpack — "(<-BP)" takes one out, "(->BP)" puts it away; weapons in hand are green, attacks with a stowed weapon dimmed (in a fight you draw a weapon as part of the attack). Features lists your SRD features automatically. Notes: Character notes stay with the character, Adventure notes only with this play of the world.' },
             { list: [
                 'Open it with "Character sheet" in the Party section (it starts with your persona) and pick any character at the top.',
                 'Click any bonus to roll a d20 with it; choose Advantage or Disadvantage above. Attacks roll to hit and damage.',

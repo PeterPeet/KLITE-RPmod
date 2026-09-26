@@ -195,6 +195,7 @@ function rpmodWorldExtension() {
             }
             selection = null;
             try { window.KLITE_RPMod_Shell && window.KLITE_RPMod_Shell.open('world'); } catch (_) {}
+            try { if (typeof window.autosave === 'function') window.autosave(); } catch (_) {}   // the story save carries the world
         },
     };
 }

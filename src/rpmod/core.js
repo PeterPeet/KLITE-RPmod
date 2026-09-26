@@ -3299,6 +3299,7 @@ export function installCore(S) {
                     this.panels.TOOLS.characterEnabled = !!bundle.rp.characterEnabled;
                     this.panels.TOOLS.selectedPersona = bundle.rp.selectedPersona || null;
                     this.panels.TOOLS.personaEnabled = !!bundle.rp.personaEnabled;
+                    this.panels.TOOLS._selectionGen = (this.panels.TOOLS._selectionGen || 0) + 1;   // the story's choice beats a pending storage read
                     if (bundle.rp.autoSender) this.panels.TOOLS.autoSender = { ...bundle.rp.autoSender };
                     if (Array.isArray(bundle.rp.quickActions)) this.panels.TOOLS.quickActions = [...bundle.rp.quickActions];
                     if (Array.isArray(bundle.rp.chapters)) this.panels.TOOLS.chapters = [...bundle.rp.chapters];

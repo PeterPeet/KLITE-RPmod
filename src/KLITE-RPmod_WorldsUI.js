@@ -1674,7 +1674,7 @@ export default function initWorldsUI() {
                 const wid = A.activeWorld() && A.activeWorld().id;
                 try { A.reviveParty(); } catch (_) {}
                 try { if (typeof window.restart_new_game === 'function') window.restart_new_game(false); } catch (_) {}
-                if (wid) { A.useWorld(wid, { fresh: true }); A.enable(); }
+                if (wid) { A.useWorld(wid, { fresh: true }); A.enable(); try { window.autosave?.(); } catch (_) {} }   // the story save carries the world
                 if (heroName) {
                     const T = window.KLITE_RPMod && window.KLITE_RPMod.panels && window.KLITE_RPMod.panels.TOOLS;
                     if (T && T.usePersona) T.usePersona({ name: heroName });

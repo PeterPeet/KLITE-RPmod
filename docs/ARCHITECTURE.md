@@ -70,7 +70,9 @@ KoboldAI Lite provides the same core globals, so the Worlds modules also run the
 | `localsettings` | object on `window` | settings (`opmode`, `agentBehaviour`, `websearch_enabled`, …) |
 | `prepare_submit_generation` | function (wrappable) | **our injection hook** — all UI generation routes through it |
 | `submit_generation` | **`const`** | reads `current_wi`; **cannot be wrapped** by usermods (by design) |
-| `generate_savefile`, `kai_json_load` | functions (wrappable) | save/load hooks |
+| `generate_savefile`, `kai_json_load` | functions (wrappable) | save/load hooks — **but** on a page reload Esolite restores its autosaved story (`indexeddb_load('story')` → `import_compressed_story`) during its own start-up, before any mod has wrapped these, and autosaves it again without RPmod's blocks. RPmod therefore keeps a side copy of each block per chat (`src/context/storyCopy.js`: IndexedDB `rpmod_storycopy_worlds` / `_rp`, with a fingerprint of `gametext_arr`) and restores it once at start-up when the restored chat matches (R8; before, every reload lost the story's world state and persona). |
+| `restart_new_game(save, keep_memory)` | function (wrappable) | New Session (`confirm_newgame` passes 2 args), RPmod's restarts (`false`), Reset ALL (**no args**, inside `reset_all_settings`'s confirm callback). Wrapped by the RP core (blank persona, saved), the Worlds engine (no world/runtime/party) and `rpmod/boot.js` (confirmed Reset ALL → `klite:reset-all`). |
+| `autosave()` | function | Esolite's settings + story autosave; RPmod calls it after it chose a world for a new story (adventure start, game-over restart, Quick Start), since the opening was autosaved before. |
 | `update_wi` | function | re-render WI editor |
 | `indexeddb_save/load` | functions | persistence (fallback: `localStorage`) |
 | `isAgentModeEnabledAndSetCorrectly` | host `let` — **not** on `window` | replicate: `opmode == 4 && agentBehaviour` |
@@ -871,7 +873,19 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   `derive` (SRD 5.2: mod = ⌊(score−10)/2⌋, PB = 2+⌊(level−1)/4⌋, saves, skills ×1/×2,
   initiative, passive Perception, attack to-hit), `readSheet/writeSheet` on the card's
   `data.extensions.klite_rpmod.sheet` (other extensions and klite_rpmod keys kept),
-  `toCombatStats/fromCombatStats` (Worlds stat block), `sheetSummary` (AI text).
+  `toCombatStats/fromCombatStats` (Worlds stat block), `sheetSummary` (AI text: "In hand / worn" and
+  "Backpack" when anything is held). **R8 save format (additive):** inventory items may carry
+  `inHand: true` (held or worn); `normalizeSheet` keeps it only when true, so sheets saved before read
+  as "everything in the backpack". The builder marks the armor and shield its AC counts as worn (new
+  characters only).
+- **Equipment** (`equipment-rules.js`, pure, SRD 5.2.1): `weaponNames/itemNames` (autocomplete:
+  weapons; weapons, armor, Shield, gear, tools, magic items from the compendium index),
+  `itemInfo(name)` → `{ kind, summary, text, hands, ref }` (the item's definition; `ref` opens the
+  Compendium), `attackFromWeapon` (finesse → the better of STR/DEX, ranged → DEX, dice + modifier),
+  `attackInHand` (true/false/null = nothing to dim), `handsUsed` (Two-Handed 2, Shield/held 1, armor
+  0), `HAND_RULE`. Combat (`Worlds combatAttack` → `drawForAttack`): a weapon in the backpack is drawn
+  as part of the attack — `setItemInHand` on the sheet (store, through `updateSheet`) + a combat-log
+  line; the Combat window states the rule, the draw and a >2 hands warning.
 - **Store** (`store.js`): `loadSheet/saveSheet` through the Library adapter; sync cache
   `cachedSheet/combatStatsFor/summaryFor/blurbFor` (loads on first use; also keeps the card's
   personality/description for `blurbFor`); `klite:sheet-change`. The Library adapter fires
@@ -893,7 +907,19 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   a V2 card (spec + data, V1 fields mirrored) with Esolite's `tavernTool.embedIntoPng`.
   `v2Card` completes the required V2 `data` fields with empty values and drops a non-object
   `character_book` (the RP core stores a WI group name there); only the exported copy changes.
-- **Window** `sheet` (`characters.js`): draft vs saved, Save/Revert, setting
+- **Window** `sheet` (`characters.js`): **tabs** (R8) in Esolite's own settings markup
+  (`ul.nav.nav-tabs.settingsnav.rpm-sheet-tabs`, `[data-sheet-tab]`, remembered in
+  `localStorage['KLITE.sheet.tab']`): Overview · Combat · Spells · Inventory · Features · Notes.
+  Attacks/items use `<datalist>`s (`rpm-sheet-weapons`, `rpm-sheet-items`); a weapon picked for an
+  attack fills damage/ability (`attackFor`: a built sheet uses `builder-rules.attacksFor` for the class's
+  proficiency); the toggle `[data-bp]` "(<-BP)"/"(->BP)"; `.rpm-inhand` (green) / `.rpm-stowed`
+  (dimmed). Features = `builder-rules.featureList(sheet.build)` (else from the SRD names on the
+  sheet), full text + the SRD attribution; the sheet's `features` text stays editable. Notes:
+  **Character notes** = `sheet.notes`, written at once with `updateSheet` (Save/Cancel/Delete; an
+  edit buffer, not the draft); **Adventure notes** = the Worlds engine's
+  `adventureNote(name)`/`setAdventureNote(name, text)` — runtime `working.adventureNotes` (additive),
+  never copied into the start state (`commitToBase`), deleted by `resetToBase`, gone in a fresh
+  runtime. Draft vs saved, Save/Revert, setting
   `sheets_autosave` (Characters), `beforeClose` asks; re-render keeps focus + selection;
   one-line inputs carry `fullScreenTextEditExclude` (Esolite's full-screen edit button stays
   on text areas). API `open(name)`, `current()`.

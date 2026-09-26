@@ -135,6 +135,7 @@ test('cross-links: sheet spells and the monster list of the Combat window open t
     await w.__addEsoCharacter('Mira', { description: 'A cleric.' });
     await C.saveSheet('Mira', { className: 'Cleric', level: 1, abilities: { wis: 14 }, spellcasting: { ability: 'wis', slots: [2], cantripsKnown: ['sacred-flame'], preparedSpells: ['bless'] } });
     C.open('Mira'); await sleep(40);
+    click(doc.querySelector('[data-window="sheet"] [data-sheet-tab="spells"]'), w); await sleep(10);   // R8: the Spells tab
     const link = doc.querySelector('[data-window="sheet"] [data-compendium="spell:sacred-flame"]');
     assert.ok(link, 'the spell text has the link');
     click(link, w); await sleep(20);

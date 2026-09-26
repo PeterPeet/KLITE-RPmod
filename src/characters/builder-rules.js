@@ -378,8 +378,9 @@ export function buildSheet(choices, previous) {
         abilities, saves: ABILITIES.filter(a => saves.has(a)), skills, ac: ac.ac, speed,
         hp: { max: hp, current: previous && previous.hp ? Math.min(hp, (Number(previous.hp.current) || 0) + (hp - (Number(previous.hp.max) || hp))) : hp, temp: 0 },
         attacks: attacksFor(abilities, gear, cls, styles, { martial: MARTIAL_ORDER.includes((orderOf(choices) || {}).value) }).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
-        // level up keeps what the character owns now; a new character gets the starting equipment
-        inventory: prevInv || items, coins: previous && previous.coins ? previous.coins : { cp: 0, sp: 0, gp, pp: 0 },
+        // level up keeps what the character owns now; a new character gets the starting equipment,
+        // with the armor and shield its AC counts worn (inHand, R8); weapons start in the backpack
+        inventory: prevInv || items.map(i => (SRD.armor[i.name] || i.name === 'Shield') && ac.how.includes(i.name) ? Object.assign({}, i, { inHand: true }) : i), coins: previous && previous.coins ? previous.coins : { cp: 0, sp: 0, gp, pp: 0 },
         features: (resources ? `${cls.name} ${level}: ${resources}\n` : '') + feats.map(f => `• ${f.name} (${f.source}): ${firstSentence(f.text)}`).join('\n'),
         notes: previous && previous.notes ? previous.notes : '',
         acNote: ac.how,

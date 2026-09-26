@@ -178,3 +178,61 @@ test('Reset ALL Settings resets the Guide: "New here?" shows again; a New Sessio
     assert.ok([null, 'welcome'].includes(w.localStorage.getItem('KLITE.guide.chapter')), 'the Guide opens at its first chapter again');
     assert.ok(doc.querySelector('[data-section="welcome"]'), '"New here?" is back');
 });
+
+test('adventure start: the story is saved again once the world is chosen (a reload keeps the adventure)', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    const saves = [];
+    h.window.autosave = () => { saves.push(h.window.generate_savefile()); };
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'oona', confirm: false });
+    const last = saves[saves.length - 1];
+    assert.ok(last && last.rpmod_worlds && last.rpmod_worlds.enabled, 'the last autosave has the world');
+    assert.equal(last.rpmod_worlds.runtime.working.playerLocationId, 'bw_heron');
+});
+
+// Esolite restores its autosaved story during its own start-up (before RPmod's hooks) and autosaves
+// it again without RPmod's blocks; RPmod keeps a side copy per chat and restores it on the reload.
+test('page reload: the story\'s world state and persona come back from RPmod\'s side copy (same chat only)', async (t) => {
+    const page = async (idb, chat) => {
+        const h = createHost(); t.after(h.close);
+        const w = h.window;
+        w.restart_new_game = function () { w.gametext_arr = []; };
+        w.submit_generation_button = function () {};
+        h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+        for (const [k, v] of idb) w.__idb.set(k, v);
+        if (chat) w.gametext_arr = chat.slice();   // what Esolite restored before RPmod started
+        h.load('bundle'); await h.ready({ ui: true });
+        for (let i = 0; i < 100 && !(w.KLITE_RPMod && w.KLITE_RPMod.panels && w.KLITE_RPMod.panels.TOOLS); i++) await sleep(20);
+        w.KLITE_RPMod.setupHooks();
+        return h;
+    };
+    const h1 = await page([]);
+    const w1 = h1.window; const ADV = w1.KLITE_RPMod_Adventures;
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'kasimir', confirm: false });
+    h1.api().go('Village Green');
+    for (let i = 0; i < 100 && !w1.generate_savefile.toString().includes('saveStoryCopy') && !w1._rpmod_orig_generate_savefile; i++) await sleep(25);
+    w1.generate_savefile(false, false, false);   // an autosave
+    await sleep(600);                            // the copy is written after a short pause
+    const idb = [...w1.__idb.entries()];
+    assert.ok(idb.some(([k]) => k === 'rpmod_storycopy_worlds'), 'side copy of the world block');
+    const chat = w1.gametext_arr.slice();
+
+    const h2 = await page(idb, chat);
+    const W2 = h2.api();
+    for (let i = 0; i < 100 && !W2.activeWorld(); i++) await sleep(20);
+    assert.equal(W2.activeWorld() && W2.activeWorld().id, 'world_drowned_lantern');
+    assert.equal(W2.runtime.playerLocationId, 'bw_green');
+    assert.equal(W2.isEnabled(), true);
+    for (let i = 0; i < 100 && !h2.window.KLITE_RPMod.panels.TOOLS.selectedPersona; i++) await sleep(20);
+    assert.equal(h2.window.KLITE_RPMod.panels.TOOLS.selectedPersona.name, 'Kasimir Adeyemi');
+
+    // another chat (a different story was restored): nothing is restored
+    const h3 = await page(idb, ['A different story.']);
+    await sleep(300);
+    assert.equal(h3.api().activeWorld(), null);
+});
