@@ -1585,7 +1585,8 @@ export default function initWorlds() {
     // here (an exit — not a locked or barred one — or a known place of the same dungeon/town) is offered in the Here
     // row; the button moves the party with the usual rules and sends nothing (the AI reads the move in the log).
     function storyPlaceIn(text, curId) {
-        const t = ' ' + stripThinking(text).replace(/<[^<>]*>/g, ' ').toLowerCase() + ' ';
+        // the text is normalised like the names (MR.nameKey drops punctuation and apostrophes; models write ’)
+        const t = ' ' + stripThinking(text).replace(/<[^<>]*>/g, ' ').toLowerCase().replace(/[’‘]/g, "'").replace(/[.,!?;:"'`]+/g, '').replace(/\s+/g, ' ') + ' ';
         const cands = new Map();
         for (const e of playerExits(curId)) {
             if (e.type === 'door' || e.type === 'secret') { const st = MR.doorState(e, rt().doorState); if (st === 'locked' || st === 'barred') continue; }

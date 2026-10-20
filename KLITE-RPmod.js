@@ -24694,7 +24694,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       return t;
     }
     function storyPlaceIn(text, curId) {
-      const t = " " + stripThinking(text).replace(/<[^<>]*>/g, " ").toLowerCase() + " ";
+      const t = " " + stripThinking(text).replace(/<[^<>]*>/g, " ").toLowerCase().replace(/[’‘]/g, "'").replace(/[.,!?;:"'`]+/g, "").replace(/\s+/g, " ") + " ";
       const cands = /* @__PURE__ */ new Map();
       for (const e of playerExits(curId)) {
         if (e.type === "door" || e.type === "secret") {

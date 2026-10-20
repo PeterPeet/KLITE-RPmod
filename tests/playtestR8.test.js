@@ -502,6 +502,10 @@ test('"Story: go to …": a reply that moved no one but walked the party somewhe
     W.moveTo("Chief's Hollow"); W.endEncounter();
     w.handle_incoming_text('Tove stares at the door to the Sleeping Burrow.');
     assert.equal(W.here().storyGo, null, 'a locked door is no way');
+    // names with an apostrophe, written with a typographic one (as models do)
+    W.moveTo('Stolen Stores'); W.endEncounter();
+    w.handle_incoming_text('They slip back through the secret door into the Chief’s Hollow.');
+    assert.deepEqual(JSON.parse(JSON.stringify(W.here().storyGo)), { id: 'ho_chief', name: "Chief's Hollow" });
 });
 
 // Owner, 2026-10-20: Branch, Allow Editing and the chat tree change the chat far back — RPmod's game state cannot
