@@ -10225,7 +10225,7 @@ ${examples}`;
     next.push(meta);
     hostSet("allCharacterNames", next);
   }
-  async function saveCharacter({ inner, image, oldName }) {
+  async function saveCharacter({ inner, image, oldName, storedImage }) {
     const rawName = inner && inner.name || "";
     if (!String(rawName).trim()) throw new Error("Character must have a name.");
     let existing = oldName ? findMetaByName(oldName) : null;
@@ -10246,8 +10246,8 @@ ${examples}`;
       id = r.id;
     }
     const record = { id, name, data: Object.assign({}, inner, { name: normalizeName(rawName, "No character name") }) };
-    let img = image;
-    if (!img) {
+    let img = image || storedImage || null;
+    if (!img && storedImage === void 0) {
       try {
         const prev = JSON.parse(await window.indexeddb_load?.(storageKey(id), "{}") || "{}");
         if (prev && prev.image) img = prev.image;
@@ -10261,6 +10261,10 @@ ${examples}`;
     await saveList();
     libraryChanged({ name, oldName: oldName || null });
     return { id, name };
+  }
+  function characterIdOf(name) {
+    const m = name ? findMetaByName(name) : null;
+    return m && m.id ? `${m.id}` : null;
   }
   function libraryChanged(detail) {
     try {
@@ -24876,7 +24880,10 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
           markDirty();
         }
         const C2 = window.KLITE_RPMod_Characters;
-        for (const [nm, js] of Object.entries(s.sheets)) if (js && sheetJson(nm) !== js && C2 && C2.saveSheet) C2.saveSheet(nm, JSON.parse(js));
+        for (const [nm, js] of Object.entries(s.sheets)) if (js && sheetJson(nm) !== js && C2) {
+          if (C2.restoreSheet) C2.restoreSheet(nm, JSON.parse(js));
+          else if (C2.saveSheet) C2.saveSheet(nm, JSON.parse(js));
+        }
         try {
           window.KLITE_RPMod_Log?.truncate?.(s.log);
         } catch (_) {
@@ -35382,8 +35389,80 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     } catch (_) {
     }
   }
+  var LIVE_PREFIX = "rpmod_sheet_";
+  var FOLD_IDLE_MS = 15e3;
+  var liveKey = (name) => LIVE_PREFIX + (characterIdOf(name) || String(name || "").trim());
+  function sheetHash(sheet) {
+    let t = "";
+    try {
+      t = JSON.stringify(sheet == null ? null : normalizeSheet(sheet));
+    } catch (_) {
+    }
+    let h = 2166136261;
+    for (let i = 0; i < t.length; i++) {
+      h ^= t.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return `${t.length}:${(h >>> 0).toString(36)}`;
+  }
+  async function readLive(name) {
+    try {
+      const v = await window.indexeddb_load?.(liveKey(name), "");
+      const o = v ? JSON.parse(v) : null;
+      return o && o.sheet && typeof o.sheet === "object" ? o : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function writeLive(entry2) {
+    try {
+      return window.indexeddb_save?.(liveKey(entry2.name), JSON.stringify({ name: entry2.name, sheet: entry2.sheet, base: entry2.cardHash || null, at: Date.now() }));
+    } catch (_) {
+      return null;
+    }
+  }
+  function dropLive(name) {
+    try {
+      return window.indexeddb_save?.(liveKey(name), "");
+    } catch (_) {
+      return null;
+    }
+  }
+  var foldTimers = /* @__PURE__ */ new Map();
+  function fightRunning() {
+    try {
+      const c = window.KLITE_RPMod_Worlds?.getCombat?.();
+      return !!(c && c.active && !c.outcome);
+    } catch (_) {
+      return false;
+    }
+  }
+  function scheduleFold(name) {
+    const key = k(name);
+    clearTimeout(foldTimers.get(key));
+    foldTimers.set(key, setTimeout(() => {
+      foldTimers.delete(key);
+      if (fightRunning()) scheduleFold(name);
+      else foldSheet(name);
+    }, FOLD_IDLE_MS));
+  }
+  function foldSheet(name) {
+    const key = k(name);
+    clearTimeout(foldTimers.get(key));
+    foldTimers.delete(key);
+    const chain = (writes.get(key) || Promise.resolve()).then(() => {
+      const latest = cache.get(key);
+      return latest && latest.sheet && dirty(latest) ? saveSheet(latest.name, latest.sheet, { rev: latest.rev }) : null;
+    }).catch(() => {
+    });
+    writes.set(key, chain);
+    return chain;
+  }
+  function foldAll() {
+    return Promise.all([...cache.values()].filter(dirty).map((e) => foldSheet(e.name)));
+  }
   async function loadSheet(name) {
-    const rec = await loadCharacter(name);
+    const [rec, live0] = await Promise.all([loadCharacter(name), readLive(name)]);
     if (!rec) throw new Error("Character not found in the Library: " + name);
     const cur = cache.get(k(name));
     if (dirty(cur)) {
@@ -35391,7 +35470,22 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       return cur.sheet;
     }
     const sheet = readSheet(rec.data);
-    cache.set(k(name), { name: rec.name || name, sheet, text: cardText(rec.data), rev: cur ? cur.rev : 0, savedRev: cur ? cur.rev : 0 });
+    const cardHash = sheetHash(sheet);
+    const live = live0 || (k(rec.name) !== k(name) ? await readLive(rec.name) : null);
+    const now = cache.get(k(name));
+    if (dirty(now)) {
+      now.text = cardText(rec.data);
+      return now.sheet;
+    }
+    if (live && live.base === cardHash) {
+      const rev = (now ? Number(now.rev) || 0 : 0) + 1;
+      cache.set(k(name), { name: rec.name || name, sheet: normalizeSheet(live.sheet), text: cardText(rec.data), rev, savedRev: rev - 1, cardHash });
+      scheduleFold(rec.name || name);
+      emit(name);
+      return cache.get(k(name)).sheet;
+    }
+    if (live) dropLive(rec.name || name);
+    cache.set(k(name), { name: rec.name || name, sheet, text: cardText(rec.data), rev: now ? now.rev : 0, savedRev: now ? now.rev : 0, cardHash });
     emit(name);
     return sheet;
   }
@@ -35431,18 +35525,23 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     if (!rec) throw new Error("Character not found in the Library: " + name);
     const inner = writeSheet(rec.data, sheet ? normalizeSheet(sheet) : null);
     const before = cache.get(k(name));
-    const res = await saveCharacter({ inner, oldName: rec.name || name });
+    const res = await saveCharacter({ inner, oldName: rec.name || name, storedImage: rec.image || null });
+    const cardHash = sheetHash(readSheet(inner));
     const cur = cache.get(k(res.name)) || cache.get(k(name)) || before;
     if (rev != null && cur && (Number(cur.rev) || 0) > rev) {
       cur.savedRev = Math.max(Number(cur.savedRev) || 0, rev);
       cur.name = res.name;
       cur.text = cardText(inner);
+      cur.cardHash = cardHash;
       cache.set(k(res.name), cur);
+      writeLive(cur);
       emit(res.name);
       return cur.sheet;
     }
     const n = cur ? Number(cur.rev) || 0 : 0;
-    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner), text: cardText(inner), rev: n, savedRev: n });
+    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner), text: cardText(inner), rev: n, savedRev: n, cardHash });
+    dropLive(res.name);
+    if (k(res.name) !== k(name)) dropLive(name);
     emit(res.name);
     return readSheet(inner);
   }
@@ -35461,10 +35560,11 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       const key = k(entry2.name);
       const chain = (writes.get(key) || Promise.resolve()).then(() => {
         const latest = cache.get(key);
-        return latest && latest.sheet && dirty(latest) ? saveSheet(latest.name, latest.sheet, { rev: latest.rev }) : null;
+        return latest && latest.sheet && dirty(latest) ? writeLive(latest) : null;
       }).catch(() => {
       });
       writes.set(key, chain);
+      scheduleFold(entry2.name);
       return entry2.sheet;
     };
     const hit = cache.get(k(name));
@@ -35494,12 +35594,29 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     });
     return result;
   }
+  function restoreSheet(name, sheet) {
+    const copy = JSON.parse(JSON.stringify(sheet));
+    return updateSheet(name, (s) => {
+      for (const key of Object.keys(s)) delete s[key];
+      Object.assign(s, copy);
+    });
+  }
   function flushSheet(name) {
-    return writes.get(k(name)) || Promise.resolve();
+    return foldSheet(name);
   }
   if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", () => {
+      foldAll();
+    });
+    try {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "hidden") foldAll();
+      });
+    } catch (_) {
+    }
     window.addEventListener("klite:library-change", (e) => {
       const d = e && e.detail || {};
+      if (d.deleted && d.name) dropLive(d.name);
       for (const n of [d.oldName, d.name]) if (n && !dirty(cache.get(k(n)))) forget(n);
     });
   }
@@ -36951,6 +37068,9 @@ OK = save and close · Cancel = close and discard them`);
       blurbFor,
       updateSheet,
       flushSheet,
+      restoreSheet,
+      foldAll,
+      forget,
       combatSpellsFor,
       spendSpell,
       longRestSheet,

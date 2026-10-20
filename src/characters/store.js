@@ -6,8 +6,19 @@
 // the card embedded in the portrait PNG. A small cache gives synchronous access for the
 // prompt context and Worlds combat (loaded on demand; `klite:sheet-change` on window when a
 // sheet is loaded, saved or removed).
+//
+// The live sheet (2026-10-20, a player's report of very high disk use): Esolite stores a
+// character as ONE IndexedDB entry with its portrait (a PNG of often several MB, base64), so
+// every game change written into the card rewrote megabytes — each HP change in a fight. Game
+// changes (updateSheet) now go into a small entry of their own, `rpmod_sheet_<character id>`
+// = { name, sheet, base, at }, written at once (nothing is lost if the browser crashes); the
+// card is written ("folded") once the changes have been quiet for FOLD_IDLE_MS and no fight
+// runs, when the page is hidden, and on flushSheet. `base` is a hash of the card's sheet the
+// live sheet started from: a card changed elsewhere since (another device's sync, an import,
+// an edit in Esolite) wins and the live sheet is dropped. Saves from the sheet window and the
+// builder (saveSheet) write the card directly, as before.
 // =============================================================================
-import { loadCharacter, saveCharacter } from '../library/esoliteLibrary.js';
+import { loadCharacter, saveCharacter, characterIdOf } from '../library/esoliteLibrary.js';
 import { readSheet, writeSheet, normalizeSheet, toCombatStats, sheetSummary, derive } from './sheet.js';
 import * as SP from './spell-rules.js';
 
@@ -22,15 +33,61 @@ const k = (name) => String(name || '').trim().toLowerCase();
 
 function emit(name) { try { window.dispatchEvent(new CustomEvent('klite:sheet-change', { detail: { name } })); } catch (_) {} }
 
+// ---- the live sheet -------------------------------------------------------------------------
+export const LIVE_PREFIX = 'rpmod_sheet_';
+export const FOLD_IDLE_MS = 15000;
+const liveKey = (name) => LIVE_PREFIX + (characterIdOf(name) || String(name || '').trim());
+function sheetHash(sheet) {
+    let t = ''; try { t = JSON.stringify(sheet == null ? null : normalizeSheet(sheet)); } catch (_) {}
+    let h = 0x811c9dc5; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return `${t.length}:${(h >>> 0).toString(36)}`;
+}
+async function readLive(name) {
+    try { const v = await window.indexeddb_load?.(liveKey(name), ''); const o = v ? JSON.parse(v) : null; return o && o.sheet && typeof o.sheet === 'object' ? o : null; } catch (_) { return null; }
+}
+function writeLive(entry) {
+    try { return window.indexeddb_save?.(liveKey(entry.name), JSON.stringify({ name: entry.name, sheet: entry.sheet, base: entry.cardHash || null, at: Date.now() })); } catch (_) { return null; }
+}
+function dropLive(name) { try { return window.indexeddb_save?.(liveKey(name), ''); } catch (_) { return null; } }   // Esolite deletes with an empty value
+const foldTimers = new Map();   // lower-case name -> timeout
+function fightRunning() { try { const c = window.KLITE_RPMod_Worlds?.getCombat?.(); return !!(c && c.active && !c.outcome); } catch (_) { return false; } }
+function scheduleFold(name) {
+    const key = k(name); clearTimeout(foldTimers.get(key));
+    foldTimers.set(key, setTimeout(() => { foldTimers.delete(key); if (fightRunning()) scheduleFold(name); else foldSheet(name); }, FOLD_IDLE_MS));
+}
+// Write the card now when the cache holds changes it does not have yet (one write at a time per character).
+export function foldSheet(name) {
+    const key = k(name); clearTimeout(foldTimers.get(key)); foldTimers.delete(key);
+    const chain = (writes.get(key) || Promise.resolve()).then(() => {
+        const latest = cache.get(key);
+        return latest && latest.sheet && dirty(latest) ? saveSheet(latest.name, latest.sheet, { rev: latest.rev }) : null;
+    }).catch(() => {});
+    writes.set(key, chain);
+    return chain;
+}
+export function foldAll() { return Promise.all([...cache.values()].filter(dirty).map(e => foldSheet(e.name))); }
+
 // Load (and cache) a character's sheet; null when the card has none. Throws if the
 // character does not exist.
 export async function loadSheet(name) {
-    const rec = await loadCharacter(name);
+    const [rec, live0] = await Promise.all([loadCharacter(name), readLive(name)]);   // in parallel: as fast as the card alone
     if (!rec) throw new Error('Character not found in the Library: ' + name);
     const cur = cache.get(k(name));
     if (dirty(cur)) { cur.text = cardText(rec.data); return cur.sheet; }   // unsaved game changes win
-    const sheet = readSheet(rec.data);
-    cache.set(k(name), { name: rec.name || name, sheet, text: cardText(rec.data), rev: cur ? cur.rev : 0, savedRev: cur ? cur.rev : 0 });
+    const sheet = readSheet(rec.data); const cardHash = sheetHash(sheet);
+    const live = live0 || (k(rec.name) !== k(name) ? await readLive(rec.name) : null);
+    const now = cache.get(k(name));
+    if (dirty(now)) { now.text = cardText(rec.data); return now.sheet; }   // a game change arrived while loading
+    if (live && live.base === cardHash) {
+        // game changes the card does not have yet (a reload before the card was written): the live sheet wins
+        const rev = (now ? Number(now.rev) || 0 : 0) + 1;
+        cache.set(k(name), { name: rec.name || name, sheet: normalizeSheet(live.sheet), text: cardText(rec.data), rev, savedRev: rev - 1, cardHash });
+        scheduleFold(rec.name || name);
+        emit(name);
+        return cache.get(k(name)).sheet;
+    }
+    if (live) dropLive(rec.name || name);   // the card changed elsewhere since: it wins
+    cache.set(k(name), { name: rec.name || name, sheet, text: cardText(rec.data), rev: now ? now.rev : 0, savedRev: now ? now.rev : 0, cardHash });
     emit(name);
     return sheet;
 }
@@ -81,17 +138,20 @@ export async function saveSheet(name, sheet, opts) {
     if (!rec) throw new Error('Character not found in the Library: ' + name);
     const inner = writeSheet(rec.data, sheet ? normalizeSheet(sheet) : null);
     const before = cache.get(k(name));
-    const res = await saveCharacter({ inner, oldName: rec.name || name });
+    const res = await saveCharacter({ inner, oldName: rec.name || name, storedImage: rec.image || null });
+    const cardHash = sheetHash(readSheet(inner));
     const cur = cache.get(k(res.name)) || cache.get(k(name)) || before;
     if (rev != null && cur && (Number(cur.rev) || 0) > rev) {
         // newer changes arrived while this save ran: keep them (their own write follows)
-        cur.savedRev = Math.max(Number(cur.savedRev) || 0, rev); cur.name = res.name; cur.text = cardText(inner);
+        cur.savedRev = Math.max(Number(cur.savedRev) || 0, rev); cur.name = res.name; cur.text = cardText(inner); cur.cardHash = cardHash;
         cache.set(k(res.name), cur);
+        writeLive(cur);   // the live sheet now starts from the card just written
         emit(res.name);
         return cur.sheet;
     }
     const n = cur ? (Number(cur.rev) || 0) : 0;
-    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner), text: cardText(inner), rev: n, savedRev: n });
+    cache.set(k(res.name), { name: res.name, sheet: readSheet(inner), text: cardText(inner), rev: n, savedRev: n, cardHash });
+    dropLive(res.name); if (k(res.name) !== k(name)) dropLive(name);
     emit(res.name);
     return readSheet(inner);
 }
@@ -112,11 +172,10 @@ export function updateSheet(name, mutate, opts) {
         entry.rev = (Number(entry.rev) || 0) + 1;
         emit(entry.name);
         const key = k(entry.name);
-        const chain = (writes.get(key) || Promise.resolve()).then(() => {
-            const latest = cache.get(key);
-            return latest && latest.sheet && dirty(latest) ? saveSheet(latest.name, latest.sheet, { rev: latest.rev }) : null;
-        }).catch(() => {});
+        // the live sheet at once (small), in the same queue as the card writes; the card later (scheduleFold)
+        const chain = (writes.get(key) || Promise.resolve()).then(() => { const latest = cache.get(key); return latest && latest.sheet && dirty(latest) ? writeLive(latest) : null; }).catch(() => {});
         writes.set(key, chain);
+        scheduleFold(entry.name);
         return entry.sheet;
     };
     const hit = cache.get(k(name));
@@ -137,14 +196,23 @@ export function setItemInHand(name, itemName, on) {
     });
     return result;
 }
-// Wait until every background write of this character is done (tests, before export).
-export function flushSheet(name) { return writes.get(k(name)) || Promise.resolve(); }
+// Retry/Undo of a reply puts a sheet back as it was: a game change like any other (live sheet, card later).
+export function restoreSheet(name, sheet) {
+    const copy = JSON.parse(JSON.stringify(sheet));
+    return updateSheet(name, (s) => { for (const key of Object.keys(s)) delete s[key]; Object.assign(s, copy); });
+}
+// Write the card now and wait until every write of this character is done (tests, before export).
+export function flushSheet(name) { return foldSheet(name); }
 
 // A card written elsewhere (gallery editor, import, delete) may have new text or a new sheet.
 // (saveSheet refills the cache right after its own write.)
 if (typeof window !== 'undefined') {
+    // leaving the page: write the cards (the live sheets are there in case this does not finish)
+    window.addEventListener('pagehide', () => { foldAll(); });
+    try { document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') foldAll(); }); } catch (_) {}
     window.addEventListener('klite:library-change', (e) => {
         const d = (e && e.detail) || {};
+        if (d.deleted && d.name) dropLive(d.name);
         for (const n of [d.oldName, d.name]) if (n && !dirty(cache.get(k(n)))) forget(n);   // unsaved game changes stay
     });
 }

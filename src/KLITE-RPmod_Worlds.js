@@ -1722,7 +1722,8 @@ export default function initWorlds() {
             if (s.runtime) W.runtime[s.slot] = JSON.parse(s.runtime);
             if (s.world && JSON.stringify(W.library[s.worldId]) !== s.world) { W.library[s.worldId] = JSON.parse(s.world); try { normalizeWorld(W.library[s.worldId]); } catch (_) {} markDirty(); }
             const C = window.KLITE_RPMod_Characters;
-            for (const [nm, js] of Object.entries(s.sheets)) if (js && sheetJson(nm) !== js && C && C.saveSheet) C.saveSheet(nm, JSON.parse(js));
+            // through the live sheet (a few KB), not a write of the whole card with its portrait
+            for (const [nm, js] of Object.entries(s.sheets)) if (js && sheetJson(nm) !== js && C) { if (C.restoreSheet) C.restoreSheet(nm, JSON.parse(js)); else if (C.saveSheet) C.saveSheet(nm, JSON.parse(js)); }
             try { window.KLITE_RPMod_Log?.truncate?.(s.log); } catch (_) {}
             syncLive();
             return true;

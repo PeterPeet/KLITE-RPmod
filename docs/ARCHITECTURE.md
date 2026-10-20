@@ -924,7 +924,18 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   (`updateSheet`): applied to the cache at once, `rev` +1, saved in the background one write at a
   time (`saveSheet(…, { rev })`); an entry with `rev > savedRev` is never replaced by what is read
   from the card (a reload, an older save's result, a Library change) — fixed 2026-09-26 (R8): XP,
-  gold and items were lost when rewards arrived while a save was running. Worlds warms the linked cards of the active world on every
+  gold and items were lost when rewards arrived while a save was running. **Live sheet** (2026-10-20, a player's report of
+  very high disk use: Esolite stores a character as one IndexedDB entry `character_<id>` = { id, name, data, image } with the
+  portrait as base64 PNG, so a card write per HP change wrote megabytes — measured 2.9 MB per change with a 2.8 MB
+  portrait, after reading the record twice): a game change writes only `rpmod_sheet_<id>` = { name, sheet, base, at }
+  (a few KB, at once); the card is written (`foldSheet`) once the changes have been quiet for `FOLD_IDLE_MS` (15 s) and no
+  fight runs, on `flushSheet`, and on `pagehide`/hidden (`foldAll`). `base` = hash of the card's sheet the live sheet
+  started from: `loadSheet` reads both in parallel — live wins when its base matches the card, else the card (changed
+  elsewhere: a server sync from another device, an import) wins and the live sheet is dropped. `saveSheet` (sheet window,
+  builder, the fold) passes the portrait it just read (`storedImage`) — no second read; it embeds the card into the PNG,
+  which Esolite's "Download character" exports as stored. Retry/Undo restores through `restoreSheet` (live sheet).
+  Esolite's Library download and server sync (`putAllCharacterManagerData`, a `let`, not wrappable) read the card:
+  current after 15 s of quiet. Tests in `tests/liveSheet.test.js`. Worlds warms the linked cards of the active world on every
   `klite:worlds-change` so the next turn's slice has them.
 - **Persona:** the RP core's `panels.TOOLS.selectedPersona/personaEnabled` are accessors that fire
   `klite:persona-change` ({ name }) when the effective persona changes;

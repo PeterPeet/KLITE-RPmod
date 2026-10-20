@@ -102,6 +102,10 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
 | Map | Places room by room, board, fog, zone combat (no VTT) | ✅ R7: dungeon/town editor, mini-map with fog, moving with door rules, AI map tags, doors/Search checks, seeded generator, zone combat with cover and hiding |
 
 ### Known issues / tech debt
+0. ~~Very high disk reads/writes (player report 2026-10-20)~~ — every game change to a sheet rewrote the whole
+   character record with its portrait (2.9 MB per HP change measured with a 2.8 MB portrait, plus two reads). Fixed
+   with the **live sheet** (ARCHITECTURE §5b, store): game changes go into `rpmod_sheet_<id>` (a few KB), the card is
+   written after 15 s of quiet / after a fight / when the page is hidden. Idle RPmod writes nothing (measured).
 1. ~~"Monster / NPC combatant" flag does nothing~~ — decides the combat side since R5 (a monster is
    never an ally; victory = every enemy down).
 2. ~~Chat tags remain visible~~ — optional since R6 step 3 (2026-09-25): Settings → RPmod → Display → "Hide control
@@ -1088,6 +1092,12 @@ names the mod ("RPmod will roll whatever you do") — the prompt should say neve
   narrates the result from the log (one more turn per move); (c) RPmod asks for a short follow-up automatically after
   such a tag. Owner to decide.
 - [ ] **Generate More with GLM:** check Esolite's prefill/"Non-Standard Fields"/end-token options for assistant prefill.
+
+- [ ] **Deeper undo history with Redo** (owner, 2026-10-20, after the live sheet): one snapshot per reply (game state,
+  world changes, log length, sheets — a few KB each now that sheets are small) in IndexedDB: Undo/Retry several replies
+  deep, Esolite's Redo (`btn_redo`) re-applies the state after the reply, survives a page reload.
+- [ ] **Suggestion to Jaxxks (sent by the owner):** store a Library character's portrait in its own IndexedDB entry, so
+  edits of the card data stop rewriting the image (Esolite's own edits and every mod).
 
 **New open items from this live test:**
 - [ ] **Capture after a defeat:** the AI narrates the party tied up and dragged next door; RPmod has no "captured" state

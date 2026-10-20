@@ -14,6 +14,7 @@ async function adventure(t) {
     w.restart_new_game = () => { w.gametext_arr = []; };
     for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
     await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    await w.KLITE_RPMod_Characters.loadSheet('Tove Emberfall');   // the sheets load in the background: ready for synchronous reads
     return h;
 }
 const here = (W) => W.runtime.playerLocationId;
@@ -473,6 +474,7 @@ async function undoHost(t, answer = 'yes') {
     for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
     await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
     for (let i = 0; i < 40 && !w.btn_retry.__rpmod_undo; i++) await sleep(25);
+    await w.KLITE_RPMod_Characters.loadSheet('Tove Emberfall'); await w.KLITE_RPMod_Characters.loadSheet('Oona Greycairn');
     return h;
 }
 const hasItem = (w, n) => w.KLITE_RPMod_Characters.cachedSheet('Tove Emberfall').inventory.some(i => i.name === n);
