@@ -969,7 +969,8 @@ export default function initWorlds() {
                 if (mapOf(cur)) return go(t.arg, { source: 'ai' }).ok;   // logs the refusal
                 return false;
             }
-            case 'open': case 'close': case 'unlock': doorAction(t.tag, t.arg, { source: 'ai' }); return true;
+            case 'open': if (openContainer(t.arg, { source: 'ai' })) return true; doorAction(t.tag, t.arg, { source: 'ai' }); return true;   // a chest here, else a door
+            case 'close': case 'unlock': doorAction(t.tag, t.arg, { source: 'ai' }); return true;
             case 'search': searchRoom({ source: 'ai' }); return true;
             case 'room': aiAddRoom(t.arg); return true;
             case 'door': aiDoor(t.arg); return true;
@@ -1557,6 +1558,50 @@ export default function initWorlds() {
             if (ex) ex.qty = (Number(ex.qty) || 1) + qty; else inv.push({ id: uid('item'), name: n, qty });
         });
     }
+    // "14 gp", "6 sp": coins into the purse (the sheet's coins by denomination, else the story's) —
+    // <give>14 gp</give> made an item called "14 gp" before (play test 2026-10-20).
+    const COIN_RE = /^\s*(\d+)\s*(cp|sp|ep|gp|pp)\s*$/i;
+    function addCoinsOf(n, den) {
+        n = Number(n) || 0; den = String(den || 'gp').toLowerCase(); if (!n) return;
+        withSheet(s => { s.coins = s.coins || {}; s.coins[den] = (Number(s.coins[den]) || 0) + n; },
+            () => { rt().coins = rt().coins || { gp: 0 }; rt().coins[den] = (Number(rt().coins[den]) || 0) + n; });
+    }
+    // One entry of <give> or of a container's contents: coins, "Name x2", or an item.
+    function giveEntry(text) {
+        const t = norm(text); if (!t) return '';
+        const c = COIN_RE.exec(t); if (c) { addCoinsOf(c[1], c[2]); return t; }
+        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(t) || [];
+        inventoryAdd(nm, q); return t;
+    }
+    // ---- containers (play test 2026-10-20): a feature `kind: 'container'` with `contains[]` hands out
+    // what is inside once, when the player opens it (<open>, /open, the Here row); `runtime.looted`
+    // remembers it (additive; Back to start fills them again). Before, nothing handed the contents out —
+    // the keys of locked doors and quest items lying in chests could not be had.
+    function containersHere() {
+        const id = rt() && rt().playerLocationId; if (!id) return [];
+        return asArray(activeWorld() && activeWorld().objects).filter(o => o.kind === 'container' && o.locationId === id && featureVisible(o));
+    }
+    function containerLooted(o) { return !!(o && rt() && rt().looted && rt().looted[o.id]); }
+    function containerForTarget(target) {
+        const raw = norm(target); const k = MT.looseKey(raw); const list = containersHere();
+        if (!raw) return null;
+        return list.find(o => o.id === raw) || list.find(o => MT.looseKey(o.name) === k)
+            || (k.length >= 3 ? list.find(o => MT.looseKey(o.name).split(' ').includes(k) || MT.looseKey(o.name).includes(k)) : null) || null;
+    }
+    // → null when the target is no container here (the caller tries a door), else { ok, items|empty|reason }
+    function openContainer(target, opts = {}) {
+        if (!activeWorld() || !ensureRuntime()) return null;
+        const o = containerForTarget(target); if (!o) return null;
+        const name = norm(o.name);
+        const cb = getCombat();
+        if (cb && cb.active && !cb.outcome) { const reason = `Open ${name} refused: a fight is going on.`; gameLog(reason, 'loot'); return { ok: false, reason }; }
+        rt().looted = rt().looted || {};
+        if (rt().looted[o.id]) { gameLog(`${name} is empty — it was opened before.`, 'loot'); return { ok: true, empty: true, container: name }; }
+        rt().looted[o.id] = true;
+        const items = asArray(o.contains).map(giveEntry).filter(Boolean);
+        gameLog(`${opts.source === 'ai' ? 'The player opens' : 'Opens'} ${name}${items.length ? ': ' + items.join(', ') + (sheetOwner() ? ` — added to ${sheetOwner()}'s inventory` : ' — taken') : ' — it is empty'}.`, 'loot');
+        return { ok: true, items, container: name };
+    }
     // qty: a number (default 1, like <give>) or 'all' (the whole stack). Known issue 9, decided 2026-09-25.
     function inventoryRemove(name, qty) {
         const n = norm(name); if (!n) return;
@@ -1726,7 +1771,7 @@ export default function initWorlds() {
         });
         scan(/<flag>\s*([^=<>]+?)\s*(?:=\s*([^<>]*?))?\s*<\/flag>/gi, m => { rt().flags[norm(m[1])] = parseFlagValue(m[2]); return true; });
         scan(/<unflag>\s*([^<>]+?)\s*<\/unflag>/gi, m => { delete rt().flags[norm(m[1])]; return true; });
-        scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || []; inventoryAdd(nm, q); return true; });
+        scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, m => { giveEntry(m[1]); return true; });
         scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+|all))?$/i.exec(norm(m[1])) || []; inventoryRemove(nm, q); return true; });
         // <rep>Royal Guard=+50</rep>: the player's standing with a faction changes
         scan(/<rep>\s*([^=<>]+?)\s*=\s*([+-]?\d+)\s*<\/rep>/gi, m => { const fid = factionIdOf(m[1]); if (!fid) return false; changeReputation(fid, Number(m[2]), 'tag'); return true; });
@@ -2877,7 +2922,8 @@ export default function initWorlds() {
             else if (st === 'complete' && ids.has(q.turninPersonId)) quests.push({ id: q.id, title: questTitle(q), action: 'turnin' });
         }
         const checks = checksHere(loc.id).map(c => ({ questId: c.questId, objId: c.objId, text: c.text, what: c.what, dc: c.dc }));
-        return { place: norm(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, trade: vendorsHere().length > 0 };
+        const containers = containersHere().filter(o => !containerLooted(o) && asArray(o.contains).length).map(o => ({ id: o.id, name: norm(o.name) }));
+        return { place: norm(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, containers, trade: vendorsHere().length > 0 };
     }
     function computeActiveSlice(opts) {
         const mutate = !!(opts && opts.mutate);
@@ -2988,7 +3034,10 @@ export default function initWorlds() {
 
         // 5. Nearby objects
         const objsHere = asArray(world.objects).filter(o => (o.locationId === loc.id || asArray(loc.objectIds).includes(o.id)) && featureVisible(o));
-        const objLines = objsHere.map(o => '- ' + norm(o.name) + (MR.FEATURE_KINDS.includes(o.kind) && o.kind !== 'furniture' ? ` (${o.kind === 'light' ? (o.lit ? 'lit' : 'unlit') : o.kind})` : '') + (norm(o.desc) ? `: ${norm(o.desc)}` : ''));
+        const kindTag = (o) => o.kind === 'light' ? (o.lit ? 'lit' : 'unlit')
+            : o.kind === 'container' ? (containerLooted(o) ? 'container, emptied' : `container, unopened — when the player opens it, write <open>${norm(o.name)}</open>; RPmod hands out what is inside and logs it`)
+            : o.kind;
+        const objLines = objsHere.map(o => '- ' + norm(o.name) + (MR.FEATURE_KINDS.includes(o.kind) && o.kind !== 'furniture' ? ` (${kindTag(o)})` : '') + (norm(o.desc) ? `: ${norm(o.desc)}` : ''));
         push('Nearby Objects', 50, objLines.join('\n'));
         // 5-. Prepared encounters at this place not yet fought (R7 step 4: generated ones too)
         if (!(getCombat() && getCombat().active)) {
@@ -3845,6 +3894,8 @@ export default function initWorlds() {
         exploration() { const r = ensureRuntime(); MR.normalizeExploration(r); return deepClone({ explored: r.explored, found: r.found, doorState: r.doorState, roomLight: r.roomLight }); },
         // R7 step 3: player actions (UI or API) through the rules; results/refusals are logged
         door(action, target, opts) { const r = doorAction(action, target, opts || {}); syncLive(); return r; },
+        // a container here (chest, sack): hands out what is inside once → null when there is none
+        openContainer(target, opts) { const r = openContainer(target, opts || {}); if (r) syncLive(); return r; },
         search(opts) { const r = searchRoom(opts || {}); syncLive(); return r; },
         setRoomLight(level, roomId) { ensureRuntime(); const r = setRoomLight(level, roomId); syncLive(); return r; },
         roomLight: (id) => roomLightOf(locOf(id || (rt() && rt().playerLocationId))),

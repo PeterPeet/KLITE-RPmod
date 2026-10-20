@@ -137,6 +137,11 @@ export function hereReplies(info) {
         const t = safeName(c.text); if (!t) continue;
         out.push({ label: `Try: ${t} (${c.what})`, text: `/try ${t} | I try: ${t}.`, send: true, kind: 'check' });
     }
+    // unopened containers here (a chest, a sack): RPmod hands out what is inside (play test 2026-10-20)
+    for (const c of info.containers || []) {
+        const n = safeName(c.name); if (!n) continue;
+        out.push({ label: 'Open: ' + n, text: `/open ${n} | I open ${n.replace(/^The /, 'the ')}.`, send: true, kind: 'container' });
+    }
     if (info.trade) out.push({ label: 'Shop', text: '/shop', send: false, kind: 'shop' });
     if (info.inMap) out.push({ label: 'Search', text: '/search | I search the room.', send: true, kind: 'search' });
     return out;

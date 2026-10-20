@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 424 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 425 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -277,6 +277,12 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
     the next unknown exit (a secret door just found), and the party stood in the chief's hollow. The Here row's
     message is now "I go to {here}.", filled with the place the move really led to; the AI's echo of it is a move to
     where the party already is (nothing happens). Test in `tests/playtestR8.test.js`.
+34. ~~Containers never handed out what is inside~~ — fixed 2026-10-20 (play test, the chief's chest): `contains[]` was
+    stored but nothing used it — the AI was not told the contents and made some up, and the keys of locked doors
+    (Bone/Iron/Brass Key) and quest items (the Lake-green Coin) lying in containers could not be had (the content
+    test assumed the AI would write `<give>`). Now a container is opened once — `<open>name</open>`, `/open`, the Here
+    row's **Open: …** — and its contents go to the inventory, coins to the purse; the prompt says unopened/emptied.
+    `<give>14 gp</give>` gives coins (it made an item "14 gp"). Test in `tests/playtestR8.test.js`.
 
 ## Phases
 

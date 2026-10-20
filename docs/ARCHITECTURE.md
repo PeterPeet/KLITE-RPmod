@@ -264,6 +264,12 @@ Display setting "Hide control tags in the chat" removes them from the shown chat
 The map tags `<move>`/`<go>`, `<open>`, `<close>`, `<unlock>`, `<search>`, `<room>`, `<door>`,
 `<light>` are applied in **reply order** in one pass (`MT.scanMapTags` → `applyMapTag`, §3.9);
 `<move>` inside/into a dungeon or town goes through `go()`.
+**Containers (2026-10-20, play test):** `<open>name</open>` first tries a container feature here
+(`kind: 'container'`, `contains[]`; loose name match) — `openContainer()` hands the contents out once
+(`giveEntry`: "14 gp" → coins by denomination, "Name x2" → items), logs them (kind `loot`) and records
+`runtime.looted[objId]` (additive; Back to start refills); otherwise it is a door. The slice tags a container
+"unopened — write <open>…</open>" or "emptied"; `W.here().containers` feeds the Here row's **Open: …**;
+`/open` and the API `openContainer()` use the same path. `<give>` uses `giveEntry` too (coins).
 
 ### 3.5 Trigger bus
 `fireTriggers(signal)` — bounded queue (≤400 steps), per-cascade `firedNow` set,

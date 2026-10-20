@@ -120,8 +120,14 @@ export default function initChat() {
             run: (a) => { a = cleanArg(a); if (!a) return fail('Usage: /go <place or direction>'); const r = W().go(a, { source: 'ui' }); if (!r.ok) return { ok: false, error: r.reason }; return r.same ? ok('You are already there.') : { ok: true }; } },
         { name: 'look', group: 'World', world: true, usage: '/look', help: 'Where you are: the place, ways out, people and things here.', run: () => look() },
         { name: 'search', group: 'World', world: true, usage: '/search', help: 'Search this place (RPmod rolls Perception or Investigation).', run: () => { const r = W().search({ source: 'ui' }); return r.ok ? { ok: true } : { ok: false, error: r.reason }; } },
-        ...['open', 'close', 'unlock'].map(act => ({ name: act, group: 'World', world: true, usage: `/${act} <door or direction>`, help: `${act[0].toUpperCase() + act.slice(1)} a door (the rules decide; locks need a key or a check).`,
-            run: (a) => { a = cleanArg(a); if (!a) return fail(`Usage: /${act} <door or direction>`); const r = W().door(act, a, { source: 'ui' }); return r && r.ok ? { ok: true } : { ok: false, error: r && r.reason }; } })),
+        ...['open', 'close', 'unlock'].map(act => ({ name: act, group: 'World', world: true, usage: `/${act} <door or direction>`, help: act === 'open' ? 'Open a door, or a chest/sack here (what is inside goes to your inventory).' : `${act[0].toUpperCase() + act.slice(1)} a door (the rules decide; locks need a key or a check).`,
+            run: (a) => {
+                a = cleanArg(a); if (!a) return fail(`Usage: /${act} <door or direction>`);
+                // /open also opens a chest or a sack here (RPmod hands out what is inside)
+                const c = act === 'open' && W().openContainer ? W().openContainer(a, { source: 'ui' }) : null;
+                if (c) return c.ok ? { ok: true } : { ok: false, error: c.reason };
+                const r = W().door(act, a, { source: 'ui' }); return r && r.ok ? { ok: true } : { ok: false, error: r && r.reason };
+            } })),
         { name: 'talk', group: 'World', world: true, usage: '/talk <person>', help: 'Speak with someone here (counts for "talk to" objectives).',
             run: (a) => { const r = tag('talk', a, '/talk <person>'); if (r.ok) r.log = `Talks with ${cleanArg(a)}.`; else if (!r.error) r.error = `No one called "${cleanArg(a)}" is known in this world.`; return r; } },
         { name: 'join', group: 'World', world: true, usage: '/join <person>', help: 'Ask someone here to travel with you (only people who can join).',

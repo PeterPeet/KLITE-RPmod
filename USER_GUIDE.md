@@ -387,6 +387,7 @@ works in one go. RPmod applies the rules; refusals and rolls go to the game log.
 | Tag | Example | Effect |
 |---|---|---|
 | `<open>…</open>` / `<close>…</close>` | `<open>north</open>`, `<close>the iron door</close>` | Open or close a door (a locked or barred one refuses) |
+| `<open>container</open>` | `<open>The chief's chest</open>` | Opens a chest, sack or other container here **once**: what is inside goes to your inventory (coins such as "14 gp" into your purse) and the log lists it; opened again, it is empty. Also the Here row's **Open: …** and `/open The chief's chest` |
 | `<unlock>…</unlock>` | `<unlock>south</unlock>` | Key if carried, else a thieves' tools roll; barred refuses |
 | `<search></search>` | `<search/>` | Search the current room (Perception/Investigation roll) |
 | `<room>Name, dir: text</room>` | `<room>Bone Pit, west: a pit of old bones</room>` | The AI adds a room next to the current one. RPmod places it, names it exactly and joins it by an open door (town: an open way). Refused if that side already has a way; a room with that name is not added twice |

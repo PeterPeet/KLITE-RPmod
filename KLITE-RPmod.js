@@ -23873,6 +23873,10 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
           return false;
         }
         case "open":
+          if (openContainer(t.arg, { source: "ai" })) return true;
+          doorAction(t.tag, t.arg, { source: "ai" });
+          return true;
+        // a chest here, else a door
         case "close":
         case "unlock":
           doorAction(t.tag, t.arg, { source: "ai" });
@@ -24650,6 +24654,70 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         else inv.push({ id: uid("item"), name: n, qty });
       });
     }
+    const COIN_RE = /^\s*(\d+)\s*(cp|sp|ep|gp|pp)\s*$/i;
+    function addCoinsOf(n, den) {
+      n = Number(n) || 0;
+      den = String(den || "gp").toLowerCase();
+      if (!n) return;
+      withSheet(
+        (s) => {
+          s.coins = s.coins || {};
+          s.coins[den] = (Number(s.coins[den]) || 0) + n;
+        },
+        () => {
+          rt().coins = rt().coins || { gp: 0 };
+          rt().coins[den] = (Number(rt().coins[den]) || 0) + n;
+        }
+      );
+    }
+    function giveEntry(text) {
+      const t = norm5(text);
+      if (!t) return "";
+      const c = COIN_RE.exec(t);
+      if (c) {
+        addCoinsOf(c[1], c[2]);
+        return t;
+      }
+      const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(t) || [];
+      inventoryAdd(nm, q);
+      return t;
+    }
+    function containersHere() {
+      const id = rt() && rt().playerLocationId;
+      if (!id) return [];
+      return asArray5(activeWorld() && activeWorld().objects).filter((o) => o.kind === "container" && o.locationId === id && featureVisible(o));
+    }
+    function containerLooted(o) {
+      return !!(o && rt() && rt().looted && rt().looted[o.id]);
+    }
+    function containerForTarget(target) {
+      const raw = norm5(target);
+      const k2 = looseKey(raw);
+      const list3 = containersHere();
+      if (!raw) return null;
+      return list3.find((o) => o.id === raw) || list3.find((o) => looseKey(o.name) === k2) || (k2.length >= 3 ? list3.find((o) => looseKey(o.name).split(" ").includes(k2) || looseKey(o.name).includes(k2)) : null) || null;
+    }
+    function openContainer(target, opts = {}) {
+      if (!activeWorld() || !ensureRuntime()) return null;
+      const o = containerForTarget(target);
+      if (!o) return null;
+      const name = norm5(o.name);
+      const cb = getCombat();
+      if (cb && cb.active && !cb.outcome) {
+        const reason = `Open ${name} refused: a fight is going on.`;
+        gameLog(reason, "loot");
+        return { ok: false, reason };
+      }
+      rt().looted = rt().looted || {};
+      if (rt().looted[o.id]) {
+        gameLog(`${name} is empty — it was opened before.`, "loot");
+        return { ok: true, empty: true, container: name };
+      }
+      rt().looted[o.id] = true;
+      const items = asArray5(o.contains).map(giveEntry).filter(Boolean);
+      gameLog(`${opts.source === "ai" ? "The player opens" : "Opens"} ${name}${items.length ? ": " + items.join(", ") + (sheetOwner() ? ` — added to ${sheetOwner()}'s inventory` : " — taken") : " — it is empty"}.`, "loot");
+      return { ok: true, items, container: name };
+    }
     function inventoryRemove(name, qty) {
       const n = norm5(name);
       if (!n) return;
@@ -24919,8 +24987,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         return true;
       });
       scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, (m) => {
-        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm5(m[1])) || [];
-        inventoryAdd(nm, q);
+        giveEntry(m[1]);
         return true;
       });
       scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, (m) => {
@@ -26468,7 +26535,8 @@ ${recent}` : "");
         else if (st === "complete" && ids.has(q.turninPersonId)) quests.push({ id: q.id, title: questTitle(q), action: "turnin" });
       }
       const checks = checksHere(loc.id).map((c) => ({ questId: c.questId, objId: c.objId, text: c.text, what: c.what, dc: c.dc }));
-      return { place: norm5(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, trade: vendorsHere().length > 0 };
+      const containers = containersHere().filter((o) => !containerLooted(o) && asArray5(o.contains).length).map((o) => ({ id: o.id, name: norm5(o.name) }));
+      return { place: norm5(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, containers, trade: vendorsHere().length > 0 };
     }
     function computeActiveSlice(opts) {
       const mutate = !!(opts && opts.mutate);
@@ -26563,7 +26631,8 @@ ${xl.join("\n")}`;
       if (giverLines.length) push("Quest givers here", 66, giverLines.join("\n") + "\nSpeak the offers in the giver's voice. When the player agrees to a quest, write <accept>quest title</accept>; when they hand in a finished one, <turnin>quest title</turnin>. RPmod checks the requirements and pays the rewards.");
       push("Trade", 62, shopText());
       const objsHere = asArray5(world2.objects).filter((o) => (o.locationId === loc.id || asArray5(loc.objectIds).includes(o.id)) && featureVisible(o));
-      const objLines = objsHere.map((o) => "- " + norm5(o.name) + (FEATURE_KINDS.includes(o.kind) && o.kind !== "furniture" ? ` (${o.kind === "light" ? o.lit ? "lit" : "unlit" : o.kind})` : "") + (norm5(o.desc) ? `: ${norm5(o.desc)}` : ""));
+      const kindTag = (o) => o.kind === "light" ? o.lit ? "lit" : "unlit" : o.kind === "container" ? containerLooted(o) ? "container, emptied" : `container, unopened — when the player opens it, write <open>${norm5(o.name)}</open>; RPmod hands out what is inside and logs it` : o.kind;
+      const objLines = objsHere.map((o) => "- " + norm5(o.name) + (FEATURE_KINDS.includes(o.kind) && o.kind !== "furniture" ? ` (${kindTag(o)})` : "") + (norm5(o.desc) ? `: ${norm5(o.desc)}` : ""));
       push("Nearby Objects", 50, objLines.join("\n"));
       if (!(getCombat() && getCombat().active)) {
         const waiting = encountersAt(loc.id).filter((e) => !asArray5(rt().startedEncounters).includes(e.id));
@@ -27746,6 +27815,12 @@ ${xl.join("\n")}`;
       door(action, target, opts) {
         const r = doorAction(action, target, opts || {});
         syncLive();
+        return r;
+      },
+      // a container here (chest, sack): hands out what is inside once → null when there is none
+      openContainer(target, opts) {
+        const r = openContainer(target, opts || {});
+        if (r) syncLive();
         return r;
       },
       search(opts) {
@@ -37664,6 +37739,11 @@ OK = save and close · Cancel = close and discard them`);
       if (!t) continue;
       out.push({ label: `Try: ${t} (${c.what})`, text: `/try ${t} | I try: ${t}.`, send: true, kind: "check" });
     }
+    for (const c of info.containers || []) {
+      const n = safeName(c.name);
+      if (!n) continue;
+      out.push({ label: "Open: " + n, text: `/open ${n} | I open ${n.replace(/^The /, "the ")}.`, send: true, kind: "container" });
+    }
     if (info.trade) out.push({ label: "Shop", text: "/shop", send: false, kind: "shop" });
     if (info.inMap) out.push({ label: "Search", text: "/search | I search the room.", send: true, kind: "search" });
     return out;
@@ -38069,10 +38149,12 @@ Purse: ${iv.purseText}`);
         group: "World",
         world: true,
         usage: `/${act} <door or direction>`,
-        help: `${act[0].toUpperCase() + act.slice(1)} a door (the rules decide; locks need a key or a check).`,
+        help: act === "open" ? "Open a door, or a chest/sack here (what is inside goes to your inventory)." : `${act[0].toUpperCase() + act.slice(1)} a door (the rules decide; locks need a key or a check).`,
         run: (a) => {
           a = cleanArg(a);
           if (!a) return fail(`Usage: /${act} <door or direction>`);
+          const c = act === "open" && W().openContainer ? W().openContainer(a, { source: "ui" }) : null;
+          if (c) return c.ok ? { ok: true } : { ok: false, error: c.reason };
           const r = W().door(act, a, { source: "ui" });
           return r && r.ok ? { ok: true } : { ok: false, error: r && r.reason };
         }

@@ -133,3 +133,42 @@ test('Here row: the message names where the move led, so the AI\'s echo of it mo
     W.applyTags('<go>Stolen Stores</go> Sacks of grain everywhere.');   // the AI repeats the move
     assert.equal(at(), 'Stolen Stores', 'the echo is a move to where the party already is');
 });
+
+// Containers hold keys and quest items (the Bone Key, the Lake-green Coin), but nothing handed them out: the AI
+// was not told what is inside and made something up; <give>14 gp</give> made an item called "14 gp".
+test('containers: opened once (Here row, /open, the AI\'s <open>), contents to the inventory and purse; coins in <give>', async (t) => {
+    const h = await adventure(t); const W = h.api(); const w = h.window; const C = w.KLITE_RPMod_Characters;
+    const sheet = () => C.cachedSheet('Tove Emberfall');
+    const has = (n) => sheet().inventory.some(i => i.name === n);
+    const logText2 = () => w.KLITE_RPMod_Log.entries().map(e => e.what).join('\n');
+    W.moveTo("Chief's Hollow"); W.endEncounter();
+    assert.match(W.preview(), /The chief's chest \(container, unopened — when the player opens it, write <open>The chief's chest<\/open>; RPmod hands out what is inside/);
+    assert.ok(W.here().containers.some(c => c.name === "The chief's chest"), 'the Here row offers it');
+    // a fight is going on: not now
+    W.startEncounter([], { monsters: [{ key: 'goblin-warrior' }], zones: false });
+    assert.equal(W.openContainer("The chief's chest").ok, false);
+    W.endEncounter();
+    const gp0 = Number(sheet().coins.gp) || 0;
+    const r = w.KLITE_RPMod_Chat.run("/open The chief's chest", { send: false });
+    assert.equal(r.ok, true);
+    await sleep(30);
+    assert.ok(has('Lake-green Coin') && has('Potion of Healing'), JSON.stringify(sheet().inventory.map(i => i.name)));
+    assert.equal(Number(sheet().coins.gp), gp0 + 14, '14 gp into the purse, not an item');
+    assert.ok(!has('14 gp'));
+    assert.match(logText2(), /Opens The chief's chest: Lake-green Coin, 14 gp, Potion of Healing — added to Tove Emberfall's inventory\./);
+    assert.match(W.preview(), /The chief's chest \(container, emptied\)/);
+    assert.ok(!W.here().containers.length, 'gone from the Here row');
+    W.applyTags("<open>The chief's chest</open>");
+    assert.match(logText2(), /The chief's chest is empty — it was opened before\./);
+    assert.equal(sheet().inventory.filter(i => i.name === 'Lake-green Coin').length, 1);
+    // the AI opens the sack in the flooded burrow by a loose name: the Bone Key
+    W.moveTo('Flooded Burrow'); W.endEncounter();
+    W.applyTags('Tove fishes in the soggy sack. <open>the sack</open>');
+    await sleep(30);
+    assert.ok(has('Bone Key'), 'the key for the chief\'s door');
+    // coins in <give>
+    const sp0 = Number(sheet().coins.sp) || 0;
+    W.applyTags('<give>6 sp</give>');
+    await sleep(30);
+    assert.equal(Number(sheet().coins.sp), sp0 + 6, 'silver into the purse');
+});
