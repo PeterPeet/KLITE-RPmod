@@ -177,6 +177,8 @@ export default function initChat() {
             run: (a) => { if (inFight()) return fail('A fight is already on.'); const r = tag('encounter', a, '/encounter <saved encounter | monsters>'); if (!r.ok && !r.error) r.error = `No saved encounter or SRD monster matches "${cleanArg(a)}".`; if (r.ok) { try { Shell()?.open('combat'); } catch (_) {} if (autoTurnsOn()) W().runAutoTurns(); } return r; } },
         { name: 'endturn', group: 'Dice & combat', world: true, usage: '/endturn', help: 'End your turn in a fight (enemy turns run if that setting is on).',
             run: () => { if (!inFight()) return fail('No fight is on.'); W().nextTurn(); if (autoTurnsOn()) W().runAutoTurns(); return { ok: true, log: 'Ends the turn.' }; } },
+        { name: 'cast', group: 'Dice & combat', world: true, usage: '/cast <spell> [on target] [slot N | free]', help: 'Cast a spell from your sheet outside a fight: the slot is spent, healing rolled (e.g. /cast Cure Wounds on Oona).',
+            run: (a) => { a = cleanArg(a); if (!a) return fail('Usage: /cast <spell> [on target] [slot N | free]'); if (inFight()) return fail('In a fight, cast in the Combat window.'); const r = W().castOutside(a, { source: 'ui' }); return r.ok ? { ok: true } : { ok: false, error: r.reason }; } },
         { name: 'rest', group: 'Dice & combat', world: true, usage: '/rest', help: 'Long rest: HP and spell slots back.', run: () => { if (inFight()) return fail('Not during a fight.'); W().longRest(); return { ok: true, log: 'Takes a long rest.' }; } },
         { name: 'combat', group: 'Dice & combat', usage: '/combat', help: 'Open the Combat window.', run: () => opened('combat') },
 

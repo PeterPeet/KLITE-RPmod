@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 427 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 428 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -972,8 +972,11 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   (Esolite's `handle_mismatched_think`). RPmod now applies no tags of a reply that arrives cut off while thinking
   (reasoning requested, no proper stop, no thinking tag — logged: "use Generate More or Retry") and treats everything
   before a lone closing tag as thinking. Test in `tests/playtestR8.test.js`.
-- [ ] **Spells outside a fight:** no way to cast (Cure Wounds after a fight was narrated, HP unchanged). `/cast`, a Cast
-  button on the sheet and a `<cast>` tag RPmod rolls.
+- [x] **Spells outside a fight** — done 2026-10-20: `/cast Cure Wounds on Oona` and the AI's `<cast>Cure Wounds = Oona</cast>`
+  (prompt section "Casting spells" when the persona has spells; "=" because a tag cannot hold ">") spend the slot or free
+  cast like in a fight; healing is rolled onto the persona or a companion (sheet, else the story's companion HP); other
+  spells are logged for the AI to narrate; refused in a fight (Combat window). Test in `tests/playtestR8.test.js`.
+  Still open: a Cast button on the sheet's Spells tab.
 - [ ] **Fights started outside the Combat window** (an AI tag, an event, entering a room) begin after the AI's reply
   and do not run the first automatic turns (enemies or companions first wait for "Run enemy turns" / manual play).
 - [ ] **A dying player at a victory** stays at 0 HP with no way to stabilise (the AI asks for a death save that has no

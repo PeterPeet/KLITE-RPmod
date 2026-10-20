@@ -25057,6 +25057,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       scan(/<buy>\s*([^<>]+?)\s*<\/buy>/gi, (m) => tradeTag("buy", m[1]));
       scan(/<sell>\s*([^<>]+?)\s*<\/sell>/gi, (m) => tradeTag("sell", m[1]));
       scan(/<join>\s*([^<>]+?)\s*<\/join>/gi, (m) => joinParty(m[1], { source: "tag" }).ok);
+      scan(/<cast>\s*([^<>]+?)\s*<\/cast>/gi, (m) => castOutside(m[1], { source: "ai" }).ok);
       scan(/<leave>\s*([^<>]+?)\s*<\/leave>/gi, (m) => leaveParty(m[1], { source: "tag" }).ok);
       scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, (m) => {
         const npc = findNpcByName(world2, m[1]);
@@ -25941,6 +25942,85 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       checkOutcome();
       return out;
     }
+    function parseCast(text) {
+      let t = norm5(text), slot = null, free = false;
+      t = t.replace(/\b(?:at\s+)?(?:level|slot)\s*(\d)\b(?:\s*slot)?/i, (m2, n) => {
+        slot = Number(n);
+        return " ";
+      }).replace(/\bfree(?:\s+cast)?\b/i, () => {
+        free = true;
+        return " ";
+      }).replace(/\s+/g, " ").trim();
+      const m = /^(.*?)\s*(?:=|->|→|\s-\s|\bon\b|\bat\b|\bto\b|\bfor\b)\s*(.+)$/i.exec(t);
+      return { spell: norm5(m ? m[1] : t), target: norm5(m ? m[2] : ""), slot, free };
+    }
+    function spellByName(info, q) {
+      const k2 = looseKey(q);
+      return info.spells.find((x) => x.key === q) || info.spells.find((x) => looseKey(x.name) === k2) || null;
+    }
+    function partyTargetId(q) {
+      const pn = personaName();
+      const k2 = looseKey(q);
+      if (!k2 || /^(me|myself|self|you|yourself)$/.test(k2)) return "__player__";
+      if (pn && (looseKey(pn) === k2 || looseKey(pn).split(" ")[0] === k2)) return "__player__";
+      const w = activeWorld();
+      const pool = companionIds().map((id) => entityById(w, id)).filter(Boolean);
+      const p = personByLooseName(w, q, pool);
+      return p && companionIds().includes(p.id) ? p.id : null;
+    }
+    function healOutside(id, amount) {
+      const C2 = window.KLITE_RPMod_Characters;
+      const sn = id === "__player__" ? personaName() : personSheetName(id);
+      const sh = sn && C2 && C2.cachedSheet ? C2.cachedSheet(sn) : null;
+      if (sh) {
+        const max2 = Number(sh.hp.max) || 1, hp2 = Math.min(max2, Math.max(0, Number(sh.hp.current) || 0) + amount);
+        C2.updateSheet(sn, (x) => {
+          x.hp.current = Math.min(Number(x.hp.max) || 1, Math.max(0, Number(x.hp.current) || 0) + amount);
+        });
+        return { hp: hp2, max: max2 };
+      }
+      const max = combatantStatsNoCombat(id).hpMax;
+      const kept = rt().partyHp || {};
+      const hp = Math.min(max, (typeof kept[id] === "number" ? kept[id] : max) + amount);
+      rt().partyHp = Object.assign({}, kept, { [id]: hp });
+      return { hp, max };
+    }
+    function castOutside(text, opts = {}) {
+      if (!activeWorld() || !ensureRuntime()) return { ok: false, reason: "No world is active." };
+      const refuse = (why) => {
+        const msg = `Cast ${norm5(text)} refused: ${why}.`;
+        gameLog(msg, "spell");
+        return { ok: false, reason: msg };
+      };
+      const cb = getCombat();
+      if (cb && cb.active && !cb.outcome) return refuse("a fight is going on — spells in a fight are cast in the Combat window");
+      const C2 = window.KLITE_RPMod_Characters;
+      const caster = personaName();
+      const info = caster && C2 && C2.combatSpellsFor ? C2.combatSpellsFor(caster) : null;
+      if (!info || !info.spells.length) return refuse(`${caster || "the player"} has no spells on the character sheet`);
+      const pc = parseCast(text);
+      const sp = spellByName(info, pc.spell);
+      if (!sp) return refuse(`${caster} cannot cast "${pc.spell}"`);
+      const sv = spell(sp.key), u = sp.use;
+      let tid = null, tname = "";
+      if (u.kind === "heal") {
+        tid = partyTargetId(pc.target);
+        if (!tid) return refuse(`no one called "${pc.target}" is with the party`);
+        tname = tid === "__player__" ? caster : personName(entityById(activeWorld(), tid));
+      }
+      const pay = C2.spendSpell(caster, sp.key, { slotLevel: pc.slot, free: pc.free });
+      if (!pay.ok) return refuse(pay.reason);
+      const slot = pay.slotLevel || sv.level;
+      const how = sv.level ? pay.free ? " without a spell slot" : ` (level ${pay.slotLevel} spell slot)` : "";
+      if (u.kind === "heal") {
+        const amount = Math.max(0, rollExpr(castHealing(sv, sp.mod, slot)).total);
+        const r = healOutside(tid, amount);
+        gameLog(`${caster} casts ${sv.name}${how} on ${tname}: heals ${amount} → HP ${r.hp}/${r.max}.`, "spell");
+        return { ok: true, spell: sv.name, target: tname, healed: amount, hp: r.hp, max: r.max };
+      }
+      gameLog(`${caster} casts ${sv.name}${how}${pc.target ? ` (${pc.target})` : ""} — its effect is narrated.`, "spell");
+      return { ok: true, spell: sv.name };
+    }
     function companionIds() {
       return [.../* @__PURE__ */ new Set([...asArray5(rt() && rt().party), ...asArray5(rt() && rt().companions)])];
     }
@@ -26626,6 +26706,16 @@ ${recent}` : "");
       const party = asArray5(rt().party).map((id) => (findById(world2.npcs, id) || {}).name).filter(Boolean);
       if (party.length) stateBits.push("Party: " + party.map(norm5).join(", "));
       push("Player State", 85, stateBits.join("\n"));
+      if (!(getCombat() && getCombat().active)) {
+        let book = null;
+        try {
+          const C2 = window.KLITE_RPMod_Characters;
+          const pn = personaName();
+          book = pn && C2 && C2.combatSpellsFor ? C2.combatSpellsFor(pn) : null;
+        } catch (_) {
+        }
+        if (book && book.spells.length) push("Casting spells", 30, "Outside a fight, when the player casts a spell, write <cast>Spell name = target</cast> (e.g. <cast>Cure Wounds = Oona</cast>, <cast>Light</cast>); RPmod spends the spell slot, rolls any healing and logs the result — narrate that result, never an amount of your own. In a fight, spells are cast in the Combat window.");
+      }
       push("Set the story straight", 97, storyCorrectionText());
       push("Combat", 96, combatText());
       if (!(getCombat() && getCombat().active)) {
@@ -27880,6 +27970,12 @@ ${xl.join("\n")}`;
       openContainer(target, opts) {
         const r = openContainer(target, opts || {});
         if (r) syncLive();
+        return r;
+      },
+      // a spell outside a fight: "Cure Wounds = Oona", "Light", "Healing Word on me slot 2"
+      castOutside(text, opts) {
+        const r = castOutside(text, opts || {});
+        syncLive();
         return r;
       },
       search(opts) {
@@ -37840,7 +37936,8 @@ OK = save and close · Cancel = close and discard them`);
     "door",
     "light",
     "join",
-    "leave"
+    "leave",
+    "cast"
   ];
   var LT = "(?:<|&lt;)";
   var GT = "(?:>|&gt;)";
@@ -38414,6 +38511,20 @@ Purse: ${iv.purseText}`);
           W().nextTurn();
           if (autoTurnsOn()) W().runAutoTurns();
           return { ok: true, log: "Ends the turn." };
+        }
+      },
+      {
+        name: "cast",
+        group: "Dice & combat",
+        world: true,
+        usage: "/cast <spell> [on target] [slot N | free]",
+        help: "Cast a spell from your sheet outside a fight: the slot is spent, healing rolled (e.g. /cast Cure Wounds on Oona).",
+        run: (a) => {
+          a = cleanArg(a);
+          if (!a) return fail("Usage: /cast <spell> [on target] [slot N | free]");
+          if (inFight()) return fail("In a fight, cast in the Combat window.");
+          const r = W().castOutside(a, { source: "ui" });
+          return r.ok ? { ok: true } : { ok: false, error: r.reason };
         }
       },
       { name: "rest", group: "Dice & combat", world: true, usage: "/rest", help: "Long rest: HP and spell slots back.", run: () => {

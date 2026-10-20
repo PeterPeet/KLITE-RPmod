@@ -365,6 +365,7 @@ are applied when you send. Either way the next slice reflects them.
 | `<advance>` | `<advance>` | Advance the clock one step |
 | `<action>text</action>` | `<action>pick the lock</action>` | Fire an action signal (triggers `onAction` events) |
 | `<roll>expr</roll>` | `<roll>1d20+3</roll>` | Roll dice (logged in combat) |
+| `<cast>spell = target</cast>` | `<cast>Cure Wounds = Oona</cast>`, `<cast>Light</cast>` | Outside a fight: your persona casts from its sheet — the slot is spent, healing rolled onto the target (you or a companion); other spells are logged for the AI to narrate. In a fight, use the Combat window |
 | `<attack>A-&gt;B</attack>` | `<attack>You-&gt;Goblin</attack>` | Resolve an attack (to-hit vs AC, damage, HP) |
 | `<hp>Name=±N</hp>` | `<hp>Goblin=-4</hp>` | Adjust a combatant's HP |
 | `<check>Name=abi DC</check>` | `<check>You=dex 12</check>` | Ability check vs a DC |
@@ -447,6 +448,7 @@ one.
 | `/quest <id>=<state>` · `/rep` · `/rep <faction>=±n` | set a quest state; your standings; change one |
 | `/roll <dice> [adv\|dis]` | roll into the game log (`/roll 1d20+3`, `/r d100`) |
 | `/check <ability\|skill\|save> [DC] [adv\|dis]` | your persona rolls with its sheet bonus: `/check perception 12`, `/check dex save 14` |
+| `/cast <spell> [on target] [slot N\|free]` | a spell outside a fight: `/cast Cure Wounds on Oona`, `/cast Healing Word on me slot 2`, `/cast Light` |
 | `/encounter <saved encounter \| 2 Wolf, Goblin>` · `/attack <target> [with <weapon>]` · `/endturn` · `/rest` · `/combat` | fights (reach, range and cover are checked) and the long rest |
 | `/time <slot>` · `/advance [n]` (`/wait`) · `/weather <text>` | the clock |
 | `/flag <key>[=value]` · `/unflag <key>` · `/action <text>` | story flags and action triggers (for world creators) |
@@ -767,6 +769,9 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
     AI to narrate; add its condition under **Tools** if it has one.
   - With zone combat the spell's range counts (Touch = the same zone), and a spell with a casting
     time of an Action uses your action; a Bonus Action spell (Healing Word) does not.
+  - **Outside a fight** (after the fight, on the road): `/cast Cure Wounds on Oona`, or simply write it — the AI
+    then writes `<cast>…</cast>` and RPmod spends the slot and rolls the healing. Spells without healing are
+    logged and narrated.
   - Not handled yet: concentration, monsters casting spells, companions casting on their own turns.
 - **Companions keep their HP.** Allies from your world start the next fight with the HP they
   ended the last one with — from their character sheet if they have one, else remembered in the

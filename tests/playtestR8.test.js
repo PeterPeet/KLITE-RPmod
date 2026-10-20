@@ -231,3 +231,46 @@ test('story correction: the AI\'s refused tags come back as "Set the story strai
     w.handle_incoming_text('The key does not turn. The door stays shut.');   // the retried reply, without refused tags
     assert.doesNotMatch(W.preview(), /Set the story straight/, 'a clean reply clears it');
 });
+
+// Cure Wounds after a fight was narrated, but Oona's HP and Tove's slots did not change: outside a fight there was
+// no way to cast. Now /cast, the AI's <cast> and the prompt's "Casting spells" go through RPmod.
+test('spells outside a fight: /cast and <cast> spend the slot and roll the healing onto the target', async (t) => {
+    const h = await adventure(t); const W = h.api(); const w = h.window; const C = w.KLITE_RPMod_Characters;
+    assert.equal(W.joinParty('Oona Greycairn').ok, true);
+    C.cachedSheet('Oona Greycairn'); await sleep(20);
+    C.updateSheet('Oona Greycairn', s => { s.hp.current = 2; }); C.updateSheet('Tove Emberfall', s => { s.hp.current = 4; });
+    await sleep(30);
+    const used = () => (C.cachedSheet('Tove Emberfall').spellcasting.used || []).reduce((a, b) => a + (Number(b) || 0), 0);
+    const logText2 = () => w.KLITE_RPMod_Log.entries().map(e => e.what).join('\n');
+    assert.match(W.preview(), /\[Casting spells\]\nOutside a fight, when the player casts a spell, write <cast>Spell name = target<\/cast>/);
+    h.seedRandom([0.5]);
+    const r = w.KLITE_RPMod_Chat.run('/cast Cure Wounds -> Oona', { send: false });   // typed: "->" (cleanArg makes it "-")
+    assert.equal(r.ok, true, JSON.stringify(r));
+    await sleep(30);
+    const oona = C.cachedSheet('Oona Greycairn').hp.current;
+    assert.ok(oona > 2, 'Oona is healed: ' + oona);
+    assert.equal(used(), 1, 'a level 1 slot is spent');
+    assert.match(logText2(), new RegExp(`Tove Emberfall casts Cure Wounds \\(level 1 spell slot\\) on Oona Greycairn: heals \\d+ → HP ${oona}/12\\.`));
+    // the AI's tag, on the caster
+    W.applyTags('Tove whispers a word. <cast>Healing Word on me</cast>');
+    await sleep(30);
+    assert.ok(C.cachedSheet('Tove Emberfall').hp.current > 4);
+    assert.equal(used(), 2);
+    // a spell without healing: logged for the AI to narrate, no slot for a cantrip
+    W.applyTags('<cast>Light</cast>');
+    assert.match(logText2(), /Tove Emberfall casts Light — its effect is narrated\./);
+    assert.equal(used(), 2);
+    // refusals
+    W.applyTags('<cast>Fireball = goblin</cast>');
+    assert.match(logText2(), /Cast Fireball = goblin refused: Tove Emberfall cannot cast "Fireball"\./);
+    W.applyTags('<cast>Cure Wounds = Liu Wen</cast>');
+    assert.match(logText2(), /refused: no one called "Liu Wen" is with the party\./);
+    W.startEncounter([], { monsters: [{ key: 'wolf' }], zones: false });
+    assert.equal(W.castOutside('Cure Wounds = Oona').ok, false, 'in a fight: the Combat window');
+    W.endEncounter();
+    // out of slots
+    w.KLITE_RPMod_Chat.run('/cast Cure Wounds -> Oona', { send: false });
+    const last = w.KLITE_RPMod_Chat.run('/cast Cure Wounds -> Oona', { send: false });
+    assert.equal(last.ok, false);
+    assert.match(last.error, /no spell slot of level 1 or higher left/);
+});
