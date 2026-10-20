@@ -25067,7 +25067,9 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       });
       scan(/<encounter>\s*([^<>]+?)\s*<\/encounter>/gi, (m) => {
         if (getCombat() && getCombat().active && !getCombat().outcome) return false;
-        return !!startSavedEncounter(m[1]);
+        const c = startSavedEncounter(m[1]);
+        if (c) fightStartedOutside();
+        return !!c;
       });
       scan(/<quest>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/quest>/gi, (m) => {
         rt().questState[norm5(m[1])] = norm5(m[2]);
@@ -25175,7 +25177,9 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
           if (effect.eventId) sigs.push("manual:" + norm5(effect.eventId));
           break;
         case "encounter":
-          if (effect.value || effect.encounterId) startSavedEncounter(effect.encounterId || effect.value);
+          if (effect.value || effect.encounterId) {
+            if (startSavedEncounter(effect.encounterId || effect.value)) fightStartedOutside();
+          }
           break;
         case "reputation": {
           const fid = factionIdOf(effect.factionId);
@@ -26163,6 +26167,18 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         return p && !p.isMonster;
       });
       return { level, size: 1 + allies.length, allies };
+    }
+    const AUTO_TURNS = "combat_auto_turns";
+    function fightStartedOutside() {
+      try {
+        if (settingOn(AUTO_TURNS, true)) runAutoTurns();
+      } catch (e) {
+        err("first turns failed", e);
+      }
+      try {
+        window.KLITE_RPMod_Shell?.open("combat");
+      } catch (_) {
+      }
     }
     function parseMonsterList(text) {
       const out = [];

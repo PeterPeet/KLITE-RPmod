@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 428 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 429 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -977,8 +977,10 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   cast like in a fight; healing is rolled onto the persona or a companion (sheet, else the story's companion HP); other
   spells are logged for the AI to narrate; refused in a fight (Combat window). Test in `tests/playtestR8.test.js`.
   Still open: a Cast button on the sheet's Spells tab.
-- [ ] **Fights started outside the Combat window** (an AI tag, an event, entering a room) begin after the AI's reply
-  and do not run the first automatic turns (enemies or companions first wait for "Run enemy turns" / manual play).
+- [x] **Fights started outside the Combat window** — done 2026-10-20: a fight from the AI's `<encounter>` or an event's
+  effect (entering a room) runs the first automatic turns at once, like the window's Start (setting "Run enemy turns
+  automatically"), and opens the Combat window. Test in `tests/playtestR8.test.js`. (A fight from the AI's tag still
+  begins after its reply — the next reply narrates the first turns.)
 - [ ] **A dying player at a victory** stays at 0 HP with no way to stabilise (the AI asks for a death save that has no
   button outside a fight); only the Long Rest helps. SRD: keep rolling, or Medicine / Healer's Kit / Spare the Dying.
 - [ ] **Long Rest** does not move the clock and works anywhere at any time.

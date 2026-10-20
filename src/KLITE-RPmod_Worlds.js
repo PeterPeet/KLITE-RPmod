@@ -1838,7 +1838,7 @@ export default function initWorlds() {
         // <talk>Captain Rowan</talk>: the player spoke with this person (quest "talk" objectives)
         scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, m => { const npc = findNpcByName(world, m[1]); if (!npc) return false; questEvent('talk', { personId: npc.id }); return true; });
         // <encounter>Wolf Pack</encounter> (a saved encounter) or <encounter>2 Wolf, Goblin Warrior</encounter>
-        scan(/<encounter>\s*([^<>]+?)\s*<\/encounter>/gi, m => { if (getCombat() && getCombat().active && !getCombat().outcome) return false; return !!startSavedEncounter(m[1]); });
+        scan(/<encounter>\s*([^<>]+?)\s*<\/encounter>/gi, m => { if (getCombat() && getCombat().active && !getCombat().outcome) return false; const c = startSavedEncounter(m[1]); if (c) fightStartedOutside(); return !!c; });
         scan(/<quest>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/quest>/gi, m => { rt().questState[norm(m[1])] = norm(m[2]); return true; });
         scan(/<time>\s*([^<>]+?)\s*<\/time>/gi, m => { const t = norm(m[1]).toLowerCase(); if (TIME_SLOTS.includes(t)) { rt().clock.time = t; return true; } return false; });
         scan(/<weather>\s*([^<>]+?)\s*<\/weather>/gi, m => { rt().clock.weather = norm(m[1]); return true; });
@@ -1868,7 +1868,7 @@ export default function initWorlds() {
             case 'npcmove': { const npc = findById(world && world.npcs, effect.npcId) || findNpcByName(world, effect.npc); const l = findById(world && world.locations, effect.locationId) || locationByName(world, effect.location); if (npc && l) (rt().npcStateOverrides[npc.id] = rt().npcStateOverrides[npc.id] || {}).locationId = l.id; break; }
             case 'advance': advanceClock(Number(effect.slots) || 1); sigs.push('time'); break;
             case 'fireEvent': if (effect.eventId) sigs.push('manual:' + norm(effect.eventId)); break;
-            case 'encounter': if (effect.value || effect.encounterId) startSavedEncounter(effect.encounterId || effect.value); break;
+            case 'encounter': if (effect.value || effect.encounterId) { if (startSavedEncounter(effect.encounterId || effect.value)) fightStartedOutside(); } break;
             case 'reputation': { const fid = factionIdOf(effect.factionId); if (fid) changeReputation(fid, Number(effect.amount) || 0, 'event'); break; }
             // R8: a secret exit or room, or a hidden feature, becomes known (someone shows the way; a boat is hired)
             case 'reveal': { const id = norm(effect.id); if (!id) break; MR.normalizeExploration(rt()); if (!rt().found.secrets.includes(id)) rt().found.secrets.push(id); sigs.push('reveal:' + id); break; }
@@ -2614,6 +2614,15 @@ export default function initWorlds() {
         const level = Math.max(1, Number(sheet && sheet.level) || Number(playerCombatCfg().level) || 1);
         const allies = asArray(rt() && rt().party).filter(id => { const p = entityById(activeWorld(), id); return p && !p.isMonster; });
         return { level, size: 1 + allies.length, allies };
+    }
+    // A fight started outside the Combat window (the AI's <encounter>, an event — e.g. on arriving
+    // somewhere): like the window's Start, enemies and companions who act first take their turns at once
+    // (setting "Run enemy turns automatically"), and the Combat window opens (play test 2026-10-20: the
+    // first turns waited for "Run enemy turns", and the window had to be found through the Party banner).
+    const AUTO_TURNS = 'combat_auto_turns';
+    function fightStartedOutside() {
+        try { if (settingOn(AUTO_TURNS, true)) runAutoTurns(); } catch (e) { err('first turns failed', e); }
+        try { window.KLITE_RPMod_Shell?.open('combat'); } catch (_) {}
     }
     // A saved encounter of the world (id or name), or an ad-hoc list "2 Wolf, Goblin Warrior".
     function parseMonsterList(text) {

@@ -274,3 +274,26 @@ test('spells outside a fight: /cast and <cast> spend the slot and roll the heali
     assert.equal(last.ok, false);
     assert.match(last.error, /no spell slot of level 1 or higher left/);
 });
+
+// Fights the AI (or an event, e.g. on arrival) started waited for "Run enemy turns" when an enemy won the
+// initiative, and the Combat window had to be found through the Party banner.
+test('a fight started by the AI\'s tag runs the first enemy turns at once and opens the Combat window', async (t) => {
+    const h = await adventure(t); const W = h.api(); const w = h.window;
+    W.moveTo('Root Tunnel');
+    w.KLITE_RPMod_Shell.close('combat');
+    h.seedRandom([0.01, 0.99]);   // initiative: Tove 1, the wolf 20
+    W.applyTags('A wolf lunges from the dark! <encounter>Wolf</encounter>');
+    const cb = W.getCombat();
+    assert.ok(cb && cb.active);
+    assert.equal(cb.order[0].kind, 'monster', 'the wolf won the initiative');
+    assert.ok(cb.outcome || cb.order[cb.turnIndex].isPlayer, 'it is the player\'s turn now: ' + cb.order[cb.turnIndex].name);
+    assert.ok(cb.log.some(l => /^(Hit|Miss)[^:]*: Wolf → Tove Emberfall|^Wolf (moves|dashes)/.test(l)), 'the wolf acted: ' + JSON.stringify(cb.log));
+    assert.equal(w.KLITE_RPMod_Shell.isOpen('combat'), true, 'the Combat window is open');
+    // with automatic turns switched off, the wolf's turn waits as before
+    W.endEncounter();
+    w.KLITE_RPMod_Settings.set('combat_auto_turns', false);
+    h.seedRandom([0.01, 0.99]);
+    W.applyTags('<encounter>Wolf</encounter>');
+    const cb2 = W.getCombat();
+    assert.equal(cb2.order[cb2.turnIndex].kind, 'monster', 'the wolf\'s turn waits');
+});
