@@ -26329,6 +26329,17 @@ Same zone = melee range; ranged weapons of 30 ft or less reach the next zone, lo
       const f = lvl && findById(activeWorld().objects, Z2.cover[id]);
       return ` — ${zoneName(Z2.layout, Z2.pos[id])}${lvl ? `, behind ${norm5(f.name)} (${COVER_NAMES[lvl]})` : ""}${isHidden(Z2, id) ? ", hidden" : ""}`;
     }
+    function playerActed(cb, id) {
+      const u = cb.turnUse && cb.turnUse.id === id && cb.turnUse.round === cb.round ? cb.turnUse : null;
+      const Z2 = zoneState(cb);
+      const T = Z2 && zoneOnTurn(Z2, id) ? Z2.turn : null;
+      return !!(u && (u.attacks || u.cast) || T && (T.moved || T.attacked || T.acted || T.fled || T.bonusUsed));
+    }
+    function turnHint(cb, cur) {
+      if (cur.isPlayer && playerActed(cb, cur.id)) return "The player has already acted on this turn: those results are what they just did — narrate them. Their turn is not over: do not narrate anyone else's turn (RPmod runs the other turns when the player ends theirs), and end on what the player sees now.";
+      if (cur.isPlayer) return "It is the player's turn and they have not acted yet: narrate the results above, then end on the moment they must act — RPmod rolls whatever they do.";
+      return `It is ${cur.name}'s turn next: RPmod runs it — do not narrate it before its result appears under "Rolls and combat".`;
+    }
     function combatText() {
       const cb = getCombat();
       if (!cb || !cb.active) return "";
@@ -26354,7 +26365,7 @@ ${recent}` : "");
       if (cb.outcome === "victory") parts.push(`OUTCOME: Victory — every enemy is defeated${cb.xp ? ` (${cb.xp} XP${cb.xpShares > 1 ? `, ${cb.xpEach} XP each` : ""})` : ""}. Narrate the end of the fight.`);
       else if (cb.outcome === "defeat" && cb.wipe) parts.push("OUTCOME: Game over — every member of the party has died. Narrate their fall in a few calm, respectful sentences as the end of this story. Do not continue the story and do not revive anyone.");
       else if (cb.outcome === "defeat") parts.push("OUTCOME: Defeat — the party has fallen. Narrate what happens to the player character now; do not revive them by yourself.");
-      else parts.push(`RPmod rolls every attack, saving throw and HP change; narrate only the results listed under "Rolls and combat" — do not invent hits, damage or deaths.${cur.isPlayer ? " It is the player's turn: set the scene and wait for their action." : ""}`);
+      else parts.push('RPmod rolls every attack, saving throw and HP change; narrate every result listed under "Rolls and combat", in order, and nothing else — do not invent hits, damage or deaths. ' + turnHint(cb, cur));
       if (!window.KLITE_RPMod_Log) {
         const recent = cb.log.slice(-6).join("\n");
         if (recent) parts.push("Recent:\n" + recent);

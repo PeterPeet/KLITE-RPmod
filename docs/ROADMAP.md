@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 415 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 416 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -256,6 +256,12 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
     (`<think>…</think>`, Esolite's thinking tags): RPmod read tags there too, so a tag the model only considered was
     applied, and one it wrote in both places counted twice (a `<give>` gave two). The thinking is skipped now (also
     an unclosed block of a cut-off reply). Tests: `tests/playtestR8.test.js`.
+30. ~~The combat prompt contradicted itself~~ — fixed 2026-10-20 (play test): on the player's turn it said "It is the
+    player's turn: set the scene and wait for their action", but the player acts in the Combat window first and then
+    writes in the chat, so the results above already showed their attack. Gemma 4 with thinking spent its whole
+    reasoning on that contradiction (a loop until the reply was cut off). The prompt now says whether the player has
+    acted this turn (`turnUse`, the zone turn), asks to narrate every result in order, and that other turns are told
+    only once RPmod has run them. Test in `tests/playtestR8.test.js`.
 
 ## Phases
 

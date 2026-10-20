@@ -57,3 +57,25 @@ test('tags inside the model\'s thinking are not applied; the reply\'s tags are, 
     await sleep(30);
     assert.equal(torches(), before + 1);
 });
+
+// The prompt said "It is the player's turn: set the scene and wait for their action" while the results showed
+// the player's attack — the model spent its whole reasoning on the contradiction (thinking loop, reply cut off).
+test('combat prompt: before and after the player has acted on their turn; another\'s turn next', async (t) => {
+    const h = await adventure(t); const W = h.api();
+    W.moveTo('Root Tunnel');
+    W.startEncounter([], { monsters: [{ key: 'wolf' }], zones: false });
+    const cb = W.getCombat(); const wolf = cb.order.find(o => o.kind === 'monster').id;
+    cb.turnIndex = cb.order.findIndex(o => o.isPlayer); cb.turnUse = null;
+    let p = W.preview();
+    assert.match(p, /narrate every result listed under "Rolls and combat", in order/);
+    assert.match(p, /It is the player's turn and they have not acted yet/);
+    assert.doesNotMatch(p, /set the scene and wait for their action/);
+    W.attack('__player__', wolf, 0);
+    p = W.preview();
+    assert.match(p, /The player has already acted on this turn: those results are what they just did/);
+    assert.match(p, /Their turn is not over: do not narrate anyone else's turn/);
+    assert.doesNotMatch(p, /they have not acted yet/);
+    W.nextTurn();
+    const next = W.getCombat().order[W.getCombat().turnIndex];
+    if (!next.isPlayer) assert.match(W.preview(), new RegExp(`It is ${next.name}'s turn next: RPmod runs it`));
+});
