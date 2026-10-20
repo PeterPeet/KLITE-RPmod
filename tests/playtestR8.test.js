@@ -673,6 +673,7 @@ test('a new session (adventure start) starts with an empty game log; nothing of 
 // Live test 2026-10-20: the prompt named a waiting encounter only ("Goblin wolves") and GLM narrated four wolves for two.
 test('a waiting encounter in the prompt says who is in it', async (t) => {
     const h = createHost(); t.after(h.close);
+    h.window.handle_incoming_text = (txt) => { h.window.gametext_arr.push(txt); };
     h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
     h.load('bundle'); await h.ready({ ui: true });
     const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
@@ -681,4 +682,11 @@ test('a waiting encounter in the prompt says who is in it', async (t) => {
     await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
     W.moveTo('Wolf Den');
     assert.match(W.preview(), /\[Waiting here\]\n- Goblin wolves: 2 Wolf\n/);
+    // the AI copies the line instead of the name: the prepared encounter starts, not a second pack
+    w.handle_incoming_text('The wolves wake. <encounter>2 Wolf</encounter>');
+    assert.equal(W.getCombat().encounter, 'enc_den_wolves');
+    assert.ok(W.runtime.startedEncounters.includes('enc_den_wolves'));
+    W.endEncounter();
+    assert.doesNotMatch(W.preview(), /Waiting here/, 'no longer waiting');
+    assert.equal(W.startSavedEncounter('Goblin wolves: 2 Wolf').encounter, 'enc_den_wolves', 'the name with its line');
 });

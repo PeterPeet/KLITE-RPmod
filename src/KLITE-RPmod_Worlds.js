@@ -2894,7 +2894,15 @@ export default function initWorlds() {
     }
     function startSavedEncounter(idOrName, opts = {}) {
         const w = activeWorld(); const q = norm(idOrName).toLowerCase();
-        const enc = asArray(w && w.encounters).find(e => e.id === idOrName || norm(e.name).toLowerCase() === q);
+        // the prompt lists a waiting encounter as "Goblin wolves: 2 Wolf" — the name with its line, or only the line
+        // (live test 2026-10-20: GLM wrote <encounter>2 Wolf</encounter>, which started a second, ad-hoc pack)
+        const bare = q.replace(/\s*(?::.*|\(.*\))$/, '');
+        let enc = asArray(w && w.encounters).find(e => e.id === idOrName || norm(e.name).toLowerCase() === q || norm(e.name).toLowerCase() === bare);
+        if (!enc && opts.source === 'ai' && rt() && rt().playerLocationId) {
+            const sig = (list) => asArray(list).map(m => `${m.key}×${Number(m.count) || 1}`).sort().join(',');
+            const want = sig(parseMonsterList(idOrName));
+            if (want) enc = encountersAt(rt().playerLocationId).find(e => !asArray(rt().startedEncounters).includes(e.id) && !asArray(e.personIds).length && sig(e.monsters) === want);
+        }
         // live test 2026-10-20: the AI started "Chief Snagtooth and a guard" in the storeroom next door. A prepared
         // encounter that belongs to a place starts there only (the AI's tag); events and the window may start it anywhere.
         if (enc && opts.source === 'ai' && enc.locationId && rt()) {

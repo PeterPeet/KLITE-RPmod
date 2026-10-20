@@ -26546,7 +26546,13 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
     function startSavedEncounter(idOrName, opts = {}) {
       const w = activeWorld();
       const q = norm5(idOrName).toLowerCase();
-      const enc = asArray5(w && w.encounters).find((e) => e.id === idOrName || norm5(e.name).toLowerCase() === q);
+      const bare = q.replace(/\s*(?::.*|\(.*\))$/, "");
+      let enc = asArray5(w && w.encounters).find((e) => e.id === idOrName || norm5(e.name).toLowerCase() === q || norm5(e.name).toLowerCase() === bare);
+      if (!enc && opts.source === "ai" && rt() && rt().playerLocationId) {
+        const sig = (list3) => asArray5(list3).map((m) => `${m.key}×${Number(m.count) || 1}`).sort().join(",");
+        const want = sig(parseMonsterList(idOrName));
+        if (want) enc = encountersAt(rt().playerLocationId).find((e) => !asArray5(rt().startedEncounters).includes(e.id) && !asArray5(e.personIds).length && sig(e.monsters) === want);
+      }
       if (enc && opts.source === "ai" && enc.locationId && rt()) {
         const here2 = rt().playerLocationId;
         if (here2 !== enc.locationId && !isInsideLocation(here2, enc.locationId)) {
