@@ -207,6 +207,14 @@ All per-turn prompt context of RPmod goes through **`KLITE_RPMod_Context`**:
   priority (high first, stable) and become `constant:true` WI entries
   (`wigroup:'__rpmod__'`, `comment:'__rpmod__:<provider>'`) in `current_wi`, so Esolite's
   own engine injects them (size cap, context meter, insert position).
+- **Insert position (2026-10-20, owner's decision):** RPmod needs Esolite's World Info **"Before A/N"**
+  (`var wi_insertlocation = 1`) with the Author's Note strength **"Strong"** (`var anote_strength = 160`,
+  characters before the end); with "After Memory" the context sits before the whole chat and models follow
+  the recent chat over it (play test). Both are story settings, and `restart_new_game` resets them to 0/320;
+  `src/settings/contextPlacement.js` checks at start-up, after `kai_json_load` and after `restart_new_game`,
+  asks once (Esolite's `msgboxYesNo`) and then keeps them set (setting `rpmod_context_placement_auto`). With
+  an empty A/N, Esolite still inserts the World Info there (`truncated_anote = wistr + ""`), capped at 60 %
+  of the context (World Info itself at 50 %).
 - **Current providers:** `characters` (the RP core, order 10: persona 88, AI character /
   group-chat speaker 87) and `worlds` (order 50, the slice below; its NPC line skips the
   blurb for a described character).

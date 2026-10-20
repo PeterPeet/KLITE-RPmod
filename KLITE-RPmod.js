@@ -34272,6 +34272,128 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     else window.addEventListener("load", attempt, { once: true });
   }
 
+  // src/settings/contextPlacement.js
+  var AUTO_SETTING = "context_placement_auto";
+  var WI_BEFORE_AN = 1;
+  var AN_STRONG = 160;
+  var QUESTION = `RPmod needs World Info "Before A/N" with the Author's Note strength "Strong" to work: then the game state and the results of each turn sit right before the newest messages, where the AI pays attention. Should I set this now?`;
+  function placementOk(win) {
+    try {
+      if (win.wi_insertlocation === void 0 || win.anote_strength === void 0) return true;
+      return Number(win.wi_insertlocation) === WI_BEFORE_AN && Number(win.anote_strength) === AN_STRONG;
+    } catch (_) {
+      return true;
+    }
+  }
+  function applyPlacement(win) {
+    try {
+      win.wi_insertlocation = WI_BEFORE_AN;
+      win.anote_strength = AN_STRONG;
+      const d = win.document;
+      const wi = d.getElementById("wi_insertlocation");
+      if (wi) wi.value = String(WI_BEFORE_AN);
+      const an = d.getElementById("anote_strength");
+      if (an) an.value = String(AN_STRONG);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+  function initContextPlacement() {
+    "use strict";
+    if (window.KLITE_RPMod_ContextPlacement) return;
+    const S2 = () => window.KLITE_RPMod_Settings;
+    let declined = false, asking = false;
+    function auto() {
+      try {
+        return S2() ? S2().get(AUTO_SETTING) === true : false;
+      } catch (_) {
+        return false;
+      }
+    }
+    function ask(onYes) {
+      asking = true;
+      const done = () => {
+        asking = false;
+      };
+      const yes = () => {
+        done();
+        onYes();
+      };
+      const no = () => {
+        done();
+        declined = true;
+      };
+      if (typeof window.msgboxYesNo === "function") {
+        try {
+          window.msgboxYesNo(QUESTION, "RPmod: World Info placement", yes, no);
+          return;
+        } catch (_) {
+        }
+      }
+      try {
+        (window.confirm(QUESTION) ? yes : no)();
+      } catch (_) {
+        done();
+      }
+    }
+    function check() {
+      if (placementOk(window) || asking) return;
+      if (auto()) {
+        applyPlacement(window);
+        return;
+      }
+      if (declined) return;
+      ask(() => {
+        applyPlacement(window);
+        try {
+          S2() && S2().set(AUTO_SETTING, true);
+        } catch (_) {
+        }
+      });
+    }
+    function wrap(name, flag) {
+      const orig = window[name];
+      if (typeof orig !== "function" || orig[flag]) return false;
+      const wrapped = function() {
+        const r = orig.apply(this, arguments);
+        try {
+          setTimeout(check, 0);
+        } catch (_) {
+        }
+        return r;
+      };
+      wrapped[flag] = true;
+      window[name] = wrapped;
+      return true;
+    }
+    const api = { check, placementOk: () => placementOk(window), apply: () => applyPlacement(window), question: QUESTION };
+    window.KLITE_RPMod_ContextPlacement = api;
+    try {
+      S2()?.registerSetting({
+        id: AUTO_SETTING,
+        section: "Worlds",
+        order: 5,
+        default: false,
+        label: 'Keep World Info "Before A/N" (Strong) in every story',
+        help: "RPmod's game state and the results of each turn then sit right before the newest messages, where the AI follows them. Esolite resets this placement on New Session; RPmod sets it again."
+      });
+    } catch (_) {
+    }
+    let tries = 0;
+    const start = () => {
+      const a = wrap("restart_new_game", "__rpmod_placement");
+      const b = wrap("kai_json_load", "__rpmod_placement");
+      if ((!a || !b) && typeof window.restart_new_game !== "function" && ++tries < 120) {
+        setTimeout(start, 250);
+        return;
+      }
+      setTimeout(check, 1500);
+    };
+    if (document.readyState === "complete") start();
+    else window.addEventListener("load", start, { once: true });
+  }
+
   // src/game/log.js
   var SAVE_KEY = "rpmod_log";
   var MAX_ENTRIES = 200;
@@ -41264,6 +41386,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
   var MODULES = [
     ["shell/shell.js", initShell],
     ["settings/settings.js", initSettings],
+    ["settings/contextPlacement.js", initContextPlacement],
     ["library/esoliteLibrary.js", initLibrary],
     ["game/log.js", initGameLog],
     ["characters/characters.js", initCharacters],

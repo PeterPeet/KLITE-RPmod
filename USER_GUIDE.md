@@ -156,6 +156,13 @@ screens the palette becomes a strip on top and the inspector moves below the can
   *Unsaved world changes*. **Revert** undoes everything since the last save, including
   deletions. Closing the editor asks whether to save, keep the changes unsaved or revert,
   and the browser warns before you leave the page.
+- **World Info placement:** RPmod sends the game state (place, people, fight, the results of each turn) as
+  World Info. It needs Esolite's World Info **"Before A/N"** with the Author's Note strength **"Strong"**,
+  so this information sits right before the newest messages, where the AI follows it. When a story is set
+  differently, RPmod asks once: *"RPmod needs World Info before A/N + Strong to work. Should I set this
+  now?"* **Yes** sets it, and RPmod keeps it set from then on (Esolite resets it on New Session); **No**
+  leaves it until the next page load. Switch it on or off later in **Settings → RPmod → Keep World Info
+  "Before A/N" (Strong) in every story**.
 - **Autosave** (off by default): Esolite **Settings → RPmod → Autosave world edits** saves
   about a second after each change. It's convenient, but a deletion is then saved at once
   and can't be reverted.

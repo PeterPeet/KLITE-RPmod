@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 416 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 421 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -262,6 +262,11 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
     reasoning on that contradiction (a loop until the reply was cut off). The prompt now says whether the player has
     acted this turn (`turnUse`, the zone turn), asks to narrate every result in order, and that other turns are told
     only once RPmod has run them. Test in `tests/playtestR8.test.js`.
+31. ~~RPmod's context sat before the whole chat~~ — done 2026-10-20 (owner's decision after the play test: a wolf the
+    AI had narrated earlier was "still circling" although RPmod reported "Victory"; the context sat at character 785
+    of 30,000, before ~29,000 characters of chat): RPmod needs World Info **"Before A/N" + "Strong"**. It asks once
+    (Yes/No) when a story is set otherwise, and after Yes keeps it set after every New Session and story load
+    (`src/settings/contextPlacement.js`, setting `context_placement_auto`). Tests: `tests/contextPlacement.test.js`.
 
 ## Phases
 
