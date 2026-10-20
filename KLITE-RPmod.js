@@ -24967,8 +24967,15 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       if (n < sc.chat) return "";
       const here2 = rt().playerLocationId ? placeName(rt().playerLocationId) : "";
       const cb = getCombat();
+      const fighting = !!(cb && cb.active && !cb.outcome);
+      let foes = "";
+      if (!fighting && rt().playerLocationId) {
+        const waiting = encountersAt(rt().playerLocationId).filter((e) => !asArray5(rt().startedEncounters).includes(e.id));
+        const hostile = asArray5(activeWorld().npcs).filter((n2) => resolveNpcLocationId(n2) === rt().playerLocationId && !phasedEntity(n2).gone && (n2.isMonster || (personAttitude(n2) || {}).hostile));
+        if (!waiting.length && !hostile.length) foes = " There is no enemy here — no one to fight; no fight is running.";
+      }
       return "Your last reply described things that did not happen — RPmod refused them:\n" + sc.lines.map((l) => "- " + l).join("\n") + `
-Where things really stand: ${here2 ? `the party is at ${here2}` : "nothing changed"}${cb && cb.active && !cb.outcome ? ", and the fight goes on" : ""}; only the items listed in the inventory exist. Begin your next reply by setting this straight in one or two sentences, in the story's voice (no apology, no out-of-character note), then continue from there.`;
+Where things really stand: ${here2 ? `the party is at ${here2}` : "nothing changed"}${fighting ? ", and the fight goes on" : ""}; only the items listed in the inventory exist.${foes} Begin your next reply by setting this straight in one or two sentences, in the story's voice (no apology, no out-of-character note), then continue from there.`;
     }
     function containersHere() {
       const id = rt() && rt().playerLocationId;

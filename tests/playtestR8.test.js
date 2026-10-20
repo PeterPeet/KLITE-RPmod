@@ -229,7 +229,7 @@ test('story correction: the AI\'s refused tags come back as "Set the story strai
     w.gametext_arr.push('\n{{[INPUT]}}\nTove tries the iron key.\n{{[OUTPUT]}}\n');
     w.handle_incoming_text('<unlock>west</unlock> The key turns with a snick. <go>Sleeping Burrow</go> Hammocks everywhere.');
     let p = W.preview();
-    assert.match(p, /\[Set the story straight\]\nYour last reply described things that did not happen — RPmod refused them:\n- Unlock west refused: [^\n]*\n- Move to Sleeping Burrow refused: [^\n]*\nWhere things really stand: the party is at The Hollow Oak \(Chief's Hollow\)[^\n]*only the items listed in the inventory exist\. Begin your next reply by setting this straight/);
+    assert.match(p, /\[Set the story straight\]\nYour last reply described things that did not happen — RPmod refused them:\n- Unlock west refused: [^\n]*\n- Move to Sleeping Burrow refused: [^\n]*\nWhere things really stand: the party is at The Hollow Oak \(Chief's Hollow\)[^\n]*only the items listed in the inventory exist\.( There is no enemy here[^.]*\.[^.]*\.)? Begin your next reply by setting this straight/);
     // Retry removes that reply (and sends again, as Esolite's btn_retry): no correction for the next attempt
     w.gametext_arr.pop();
     assert.doesNotMatch(W.preview(), /Set the story straight/);
@@ -569,4 +569,24 @@ test('Retry right after a reply that started a fight: the open Combat window is 
     w.btn_retry(); await sleep(40);
     assert.equal(w.__asked.length, 0, 'nothing was played: no question');
     assert.equal(W.getCombat(), null, 'the fight is undone');
+});
+
+test('story correction: when no one hostile is here, it says so (no enemy, no fight)', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.window.handle_incoming_text = (txt) => { h.window.gametext_arr.push(txt); };
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    W.moveTo('Stolen Stores'); W.endEncounter();
+    w.gametext_arr.push('\n{{[INPUT]}}\nOn.\n{{[OUTPUT]}}\n');
+    w.handle_incoming_text('The chief rises! <encounter>Chief Snagtooth and a guard</encounter>');
+    assert.match(W.preview(), /only the items listed in the inventory exist\. There is no enemy here — no one to fight; no fight is running\./);
+    // where an encounter still waits, nothing of the kind is claimed
+    W.moveTo("Chief's Hollow"); W.endEncounter();
+    w.gametext_arr.push('\n{{[INPUT]}}\nIn.\n{{[OUTPUT]}}\n');
+    w.handle_incoming_text('<go>Nowhere Hall</go> The chief glares.');
+    assert.doesNotMatch(W.preview(), /There is no enemy here/);
 });

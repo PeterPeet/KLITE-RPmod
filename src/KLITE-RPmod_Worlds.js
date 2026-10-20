@@ -1760,9 +1760,17 @@ export default function initWorlds() {
         const n = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
         if (n < sc.chat) return '';   // that reply was retried or undone
         const here = rt().playerLocationId ? placeName(rt().playerLocationId) : '';
-        const cb = getCombat();
+        const cb = getCombat(); const fighting = !!(cb && cb.active && !cb.outcome);
+        // live test 2026-10-20: told "the chief is not here", DeepSeek put another goblin in the room and narrated a
+        // swing at it — so say plainly when no one hostile is here
+        let foes = '';
+        if (!fighting && rt().playerLocationId) {
+            const waiting = encountersAt(rt().playerLocationId).filter(e => !asArray(rt().startedEncounters).includes(e.id));
+            const hostile = asArray(activeWorld().npcs).filter(n => resolveNpcLocationId(n) === rt().playerLocationId && !phasedEntity(n).gone && (n.isMonster || (personAttitude(n) || {}).hostile));
+            if (!waiting.length && !hostile.length) foes = ' There is no enemy here — no one to fight; no fight is running.';
+        }
         return 'Your last reply described things that did not happen — RPmod refused them:\n' + sc.lines.map(l => '- ' + l).join('\n') +
-            `\nWhere things really stand: ${here ? `the party is at ${here}` : 'nothing changed'}${cb && cb.active && !cb.outcome ? ', and the fight goes on' : ''}; only the items listed in the inventory exist. ` +
+            `\nWhere things really stand: ${here ? `the party is at ${here}` : 'nothing changed'}${fighting ? ', and the fight goes on' : ''}; only the items listed in the inventory exist.${foes} ` +
             'Begin your next reply by setting this straight in one or two sentences, in the story\'s voice (no apology, no out-of-character note), then continue from there.';
     }
     // ---- containers (play test 2026-10-20): a feature `kind: 'container'` with `contains[]` hands out
