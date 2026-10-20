@@ -37651,7 +37651,7 @@ OK = save and close · Cancel = close and discard them`);
         continue;
       }
       if (w.door === "barred") continue;
-      out.push({ label: d ? `${d}: ${n}` : "→ " + n, text: `/go ${d || n} | I go to ${n}.`, send: true, kind: "go" });
+      out.push({ label: d ? `${d}: ${n}` : "→ " + n, text: `/go ${d || n} | I go to {here}.`, send: true, kind: "go" });
     }
     for (const p of info.people || []) {
       const n = safeName(p.name);
@@ -38430,7 +38430,18 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         results.push(r);
         if (!r.ok) return { ok: false, handled: true, results, message: "", error: r.error };
       }
-      return { ok: true, handled: true, results, message: messageOf(parts) };
+      return { ok: true, handled: true, results, message: fillPlace(messageOf(parts)) };
+    }
+    function fillPlace(text) {
+      if (!/\{here\}/.test(text)) return text;
+      let name = "";
+      try {
+        const A = W();
+        const id = A && A.runtime && A.runtime.playerLocationId;
+        name = id ? A.playerPlaceName(id, id) : "";
+      } catch (_) {
+      }
+      return text.replace(/\{here\}/g, name || "the next place");
     }
     function report(res) {
       if (!res.ok) {

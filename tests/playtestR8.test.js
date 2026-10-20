@@ -70,6 +70,7 @@ test('combat prompt: before and after the player has acted on their turn; anothe
     assert.match(p, /narrate every result listed under "Rolls and combat", in order/);
     assert.match(p, /It is the player's turn and they have not acted yet/);
     assert.doesNotMatch(p, /set the scene and wait for their action/);
+    h.seedRandom([0.05]);   // a miss: still the player's action (a hit could end the fight, and then the outcome is shown)
     W.attack('__player__', wolf, 0);
     p = W.preview();
     assert.match(p, /The player has already acted on this turn: those results are what they just did/);
@@ -113,4 +114,22 @@ test('page reload: the game log (with its Retry marks) comes back from the side 
     const h3 = await page(idb, ['A different story.']);
     await sleep(300);
     assert.equal(h3.window.KLITE_RPMod_Log.entries().length, 0, 'another chat: nothing restored');
+});
+
+// The Here row's "/go east | I go to unexplored room." moved the party into the storeroom; the AI echoed
+// <go>unexplored room</go>, which by then meant the next unknown exit (a secret door found on arrival), and
+// the party ended up in the chief's hollow without the player asking. The message now names the real place.
+test('Here row: the message names where the move led, so the AI\'s echo of it moves nobody', async (t) => {
+    const h = await adventure(t); const W = h.api(); const w = h.window;
+    W.moveTo('Wolf Den'); W.endEncounter();
+    const go = W.here().ways.find(x => x.name === 'unexplored room');
+    assert.ok(go, 'the plank door leads to an unexplored room');
+    const input = w.document.createElement('textarea'); input.id = 'input_text'; w.document.body.appendChild(input);
+    const res = w.KLITE_RPMod_Chat.run('/go east | I go to {here}.', { send: false });
+    assert.equal(res.ok, true);
+    const at = () => W.getGraph().nodes.find(n => n.id === W.runtime.playerLocationId).name;
+    assert.equal(at(), 'Stolen Stores');
+    assert.equal(input.value, 'I go to Stolen Stores.', 'the real name, not "unexplored room"');
+    W.applyTags('<go>Stolen Stores</go> Sacks of grain everywhere.');   // the AI repeats the move
+    assert.equal(at(), 'Stolen Stores', 'the echo is a move to where the party already is');
 });

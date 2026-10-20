@@ -240,7 +240,18 @@ export default function initChat() {
             const r = exec(p); results.push(r);
             if (!r.ok) return { ok: false, handled: true, results, message: '', error: r.error };
         }
-        return { ok: true, handled: true, results, message: messageOf(parts) };
+        return { ok: true, handled: true, results, message: fillPlace(messageOf(parts)) };
+    }
+    // "{here}" in a message part: the place the player is at once the commands ran — the Here row's
+    // "/go east | I go to {here}." then names where the move really led (play test 2026-10-20: "I go to
+    // unexplored room." made the AI echo <go>unexplored room</go>, which led on through the next unknown
+    // exit; an echo of the real name is a move to where the player already is, which does nothing).
+    function fillPlace(text) {
+        if (!/\{here\}/.test(text)) return text;
+        let name = '';
+        // seen from there: "Stolen Stores", not "The Hollow Oak (Stolen Stores)"
+        try { const A = W(); const id = A && A.runtime && A.runtime.playerLocationId; name = id ? A.playerPlaceName(id, id) : ''; } catch (_) {}
+        return text.replace(/\{here\}/g, name || 'the next place');
     }
     function report(res) {
         if (!res.ok) { showBox(res.error, 'RPmod command'); return; }

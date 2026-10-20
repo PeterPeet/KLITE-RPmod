@@ -125,7 +125,7 @@ export function hereReplies(info) {
         // a locked door: try to unlock it first (a key, or thieves' tools — RPmod rolls)
         if (w.door === 'locked') { out.push({ label: `Unlock: ${d || n}`, text: `/unlock ${d || n} | I try to unlock the ${d ? d + ' ' : ''}door.`, send: true, kind: 'door' }); continue; }
         if (w.door === 'barred') continue;
-        out.push({ label: d ? `${d}: ${n}` : '→ ' + n, text: `/go ${d || n} | I go to ${n}.`, send: true, kind: 'go' });
+        out.push({ label: d ? `${d}: ${n}` : '→ ' + n, text: `/go ${d || n} | I go to {here}.`, send: true, kind: 'go' });   // {here}: filled in after the move (slash.js)
     }
     for (const p of info.people || []) {
         const n = safeName(p.name); if (!n) continue;

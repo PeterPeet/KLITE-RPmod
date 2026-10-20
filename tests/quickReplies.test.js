@@ -33,7 +33,7 @@ test('quick replies: the Here row from W.here() — quests, ways out, people, sh
         people: [{ id: 'p', name: 'Bram', marker: '!' }] });
     assert.deepEqual(r.map(x => x.label), ['Accept: Rats Cellar', 'Turn in: Old Debt', 'north: Ossuary', '→ Village Green', '! Talk: Bram', 'Shop', 'Search']);
     assert.equal(r[0].text, '/accept Rats Cellar | I take on the task: Rats Cellar.', 'names cannot split the reply or open a tag');
-    assert.equal(r[2].text, '/go north | I go to Ossuary.', 'rooms by direction');
+    assert.equal(r[2].text, '/go north | I go to {here}.', 'rooms by direction (the name of where the move led is filled in after it)');
     assert.equal(r[5].send, false);
     assert.deepEqual(CR.hereReplies({ place: null }), []);
 });
