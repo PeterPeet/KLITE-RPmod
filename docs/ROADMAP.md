@@ -1039,7 +1039,25 @@ Slower and longer-thinking than V4 Pro on low; the game-master rules hold better
   thinking was sent as the assistant's reply (17,000 characters in a 31,000-character request), and every Generate More
   (GLM starts over) added another. RPmod folds it in the thinking tags once a finished reply does not continue it (or the
   player writes on); DeepSeek's continuation with a lone `</think>` is left to Esolite. Test in `tests/playtestR8.test.js`.
-- [x] **Waiting encounters say who is in them** ("Goblin wolves: 2 Wolf").
+- [x] **Waiting encounters say who is in them** ("Goblin wolves: 2 Wolf"); an `<encounter>` with that line ("2 Wolf",
+  "Goblin wolves: 2 Wolf") starts the prepared encounter — GLM without reasoning copied the line as the name and RPmod had
+  started a second, ad-hoc pack.
+
+**GLM 5.3 without reasoning** (reasoning "none", 4096; Esolite's GLM preset ends the instruct with `/nothink` and an empty
+closed thought — the model still writes a one-line `<think>` plan), same scenes:
+| Scene | Result |
+|---|---|
+| Start, quest, join | both tags right, **8 s** |
+| Ambush | correct (Tove won initiative: no blows invented), ends on Tove's turn, 10 s; one meta line "**Combat begins!**" |
+| Missed attack ×3 | **3 of 3 correct misses**, 6–10 s; one slip: a goblin calls Tove (they) "mountain man" |
+| `<cast>` after the fight | by itself, healing applied, no invented amount, 10 s |
+| Trap | correct, credited to Tove, 9 s |
+| Waiting encounter | started on arrival when the wolves noticed the party (`<encounter>2 Wolf</encounter>` → fixed above), 8 s |
+| "East and on south" | **invented a room** (`<room>Grain Cache…</room>`, refused) and **moved to an invented name** (`<go>South Burrow</go>`, refused), narrated two rooms in one reply; 14 s |
+| Story correction next turn | followed at once ("that plank door to the east is still shut…"), kept an invented detail (a chapel smell), called the dead wolves "sleeping" |
+No reply cut off; 6–14 s each (low: 20–90 s). Fights, spells and encounters as reliable as on "low"; exploring has the same
+weak spot as GLM Flash and the "low" run — which the two prompt items below address. **GLM 5.3 without reasoning is the
+best price/quality so far.**
 
 **Next for the Flash goal (from both Flash models):**
 - [ ] **No `<room>` in authored worlds:** the prompt invites "To add a room next to this one: `<room>…</room>`" — GLM used it to
