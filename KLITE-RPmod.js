@@ -1305,6 +1305,13 @@ body.rpm-docked #maincontainer {
     function shouldRestoreWindow(id) {
       const v = views.get(id);
       if (v && v.def.window && v.def.window.restore === false) return false;
+      if (v && v.def.window && typeof v.def.window.restore === "function") {
+        try {
+          if (!v.def.window.restore()) return false;
+        } catch (_) {
+          return false;
+        }
+      }
       return !compact && !!(layout.windows[id] && layout.windows[id].open);
     }
     function openView(id) {
@@ -25591,7 +25598,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       if (before <= 0 && cb.hp[id] > 0) {
         removeCond(id, "Unconscious");
         if (cb.death[id]) delete cb.death[id];
-        combatLog(`${combatantName(id)} is back on their feet.`);
+        combatLog(`${combatantName(id)} is back up.`);
       }
       return cb.hp[id];
     }
@@ -25772,13 +25779,14 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       const res = deathSave(d, r.die);
       const name = combatantName(id);
       if (res.result === "revived") {
+        combatLog(`${name} rolls a natural 20 on a death saving throw and regains 1 HP!`);
         cb.death[id] = null;
         delete cb.death[id];
         setHp(id, 1);
-        combatLog(`${name} rolls a natural 20 on a death saving throw and regains 1 HP!`);
       } else {
         cb.death[id] = res.state;
-        combatLog(`${name} death saving throw: ${r.die} — ${res.result === "success" ? "success" : res.result === "failure" ? r.die === 1 ? "natural 1, two failures" : "failure" : res.result === "stable" ? "third success, stable" : "third failure, dies"} (${res.state.s} successes / ${res.state.f} failures).`);
+        const n = (k2, w) => `${k2} ${w}${k2 === 1 ? "" : w === "success" ? "es" : "s"}`;
+        combatLog(`${name} death saving throw: ${r.die} — ${res.result === "success" ? "success" : res.result === "failure" ? r.die === 1 ? "natural 1, two failures" : "failure" : res.result === "stable" ? "third success, stable" : "third failure, dies"} (${n(res.state.s, "success")} / ${n(res.state.f, "failure")}).`);
       }
       checkOutcome();
       return { die: r.die, ...res };
@@ -26138,6 +26146,12 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       gameLog(`${who.length ? who.join(", ") + " finish" + (who.length === 1 ? "es" : "") : "The party finishes"} a Long Rest: HP, spell slots and free casts are restored.${morning}`, "rest");
       return { ok: true, who };
     }
+    function idleOnce(cb, o) {
+      cb.idle = cb.idle || {};
+      if (cb.idle[o.id]) return;
+      cb.idle[o.id] = true;
+      combatLog(`${o.name} has no one left to attack.`);
+    }
     function autoTurn(id) {
       const cb = getCombat();
       if (!cb || cb.outcome) return null;
@@ -26156,7 +26170,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       const st = combatantStats(id);
       const foes = cb.order.filter((x) => x.side !== o.side && !isDown(cb, x.id)).map((x) => x.id);
       if (!foes.length) {
-        combatLog(`${o.name} has no one left to attack.`);
+        idleOnce(cb, o);
         return { skipped: "no target" };
       }
       const idx = pickAttack(st);
@@ -26455,7 +26469,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       const st = combatantStats(id);
       const foes = cb.order.filter((x) => x.side !== o.side && !isDown(cb, x.id) && Z2.pos[x.id] !== "out");
       if (!foes.length) {
-        combatLog(`${o.name} has no one left to attack.`);
+        idleOnce(cb, o);
         return { skipped: "no target" };
       }
       const visible = foes.filter((f) => !isHidden(Z2, f.id));
@@ -26814,6 +26828,16 @@ ${xl.join("\n")}`;
         const npcStats = npc.stats || cardSheetStats(npc);
         if (npcStats) bits.push(statSummary(npcStats));
         const inParty = asArray5(rt() && rt().party).includes(npc.id);
+        try {
+          const sn = personSheetName(npc.id);
+          const sh = sn && window.KLITE_RPMod_Characters.cachedSheet(sn);
+          if (sh && norm5(sh.acNote)) bits.push(`Armour: ${norm5(sh.acNote)}`);
+          if (inParty) {
+            const ps = partyStatus().find((x) => x.id === npc.id);
+            if (ps) bits.push(`HP now ${ps.hp}/${ps.max}${ps.hp <= 0 ? " (down)" : ps.hp <= ps.max / 4 ? " (badly hurt)" : ""}`);
+          }
+        } catch (_) {
+        }
         if (inParty) bits.push(`travels with the player (party); if they part ways, write <leave>${personName(npc)}</leave>`);
         else if (npc.canJoin && !npc.isMonster) bits.push(`may join the player: when they agree to travel together, write <join>${personName(npc)}</join>`);
         npcLines.push("- " + bits.join(" | "));
@@ -29145,6 +29169,10 @@ ${xl.join("\n")}`;
     box.appendChild(btn(cb.outcome ? "Close the fight" : "End encounter", () => {
       if (cb.outcome || confirm("End the fight now (flee / stop)? HP is kept.")) {
         A.endEncounter();
+        try {
+          window.KLITE_RPMod_Shell?.close("combat");
+        } catch (_) {
+        }
         refresh2();
       }
     }, { icon: "x", block: true, variant: cb.outcome ? null : "danger", id: "end" }));
@@ -33066,7 +33094,10 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         else c.appendChild(el2("div", { class: "rpm-muted", text: "No world loaded." }));
       })));
       sh.registerView(Object.assign({ id: "gameover", title: "Game over", place: "window", window: { width: 420, height: 460, minWidth: 300, restore: false } }, view(renderGameOver)));
-      sh.registerView(Object.assign({ id: "combat", title: "Combat", place: "window", window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
+      sh.registerView(Object.assign({ id: "combat", title: "Combat", place: "window", window: { width: 460, height: 680, minWidth: 320, restore: () => {
+        const cb = API3() && API3().getCombat && API3().getCombat();
+        return !!(cb && cb.active);
+      } } }, view((c) => {
         if (API3().activeWorld()) renderCombatTab(c);
         else {
           c.appendChild(el2("div", { class: "rpm-muted", text: "Fights happen in a world. Choose one (or the example) in World Management." }));
@@ -41391,7 +41422,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
     const Worlds = () => window.KLITE_RPMod_Worlds;
     const Shell2 = () => window.KLITE_RPMod_Shell;
     const deepClone = (o) => JSON.parse(JSON.stringify(o));
-    const V = { box: null, adventure: null, pregen: null, busy: false, msg: "" };
+    const V = { box: null, adventure: null, pregen: null, busy: false, msg: "", changed: null, reset: true };
     function register(pkg) {
       const res = validateAdventure(pkg);
       if (!res.ok) {
@@ -41503,6 +41534,41 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       else id = await A.importWorld(w, { activate: false });
       return id;
     }
+    async function changedPregens(pkg) {
+      const out = [];
+      const C2 = window.KLITE_RPMod_Characters;
+      for (const g of pregens(pkg)) {
+        const found = await findPregen(pkg.id, g);
+        if (!found || !C2) continue;
+        let s = null;
+        try {
+          s = C2.loadSheet ? await C2.loadSheet(found.name) : C2.cachedSheet(found.name);
+        } catch (_) {
+        }
+        const s0 = g.card.data.extensions.klite_rpmod.sheet;
+        if (!s) continue;
+        const bits = [];
+        if (Number(s.level) !== Number(s0.level)) bits.push(`level ${s.level}`);
+        if ((Number(s.xp) || 0) !== (Number(s0.xp) || 0)) bits.push(`${Number(s.xp) || 0} XP`);
+        if (s.hp && s0.hp && Number(s.hp.current) !== Number(s0.hp.current)) bits.push(`HP ${s.hp.current}/${s.hp.max}`);
+        if (JSON.stringify((s.inventory || []).map((i) => i.name + "x" + (i.qty || 1)).sort()) !== JSON.stringify((s0.inventory || []).map((i) => i.name + "x" + (i.qty || 1)).sort())) bits.push("other items");
+        if (bits.length) out.push({ name: found.name, what: bits.join(", ") });
+      }
+      return out;
+    }
+    async function resetPregenSheets(pkg) {
+      const C2 = window.KLITE_RPMod_Characters;
+      if (!C2 || !C2.saveSheet) return 0;
+      let n = 0;
+      for (const g of pregens(pkg)) {
+        const found = await findPregen(pkg.id, g);
+        if (found) {
+          await C2.saveSheet(found.name, deepClone(g.card.data.extensions.klite_rpmod.sheet));
+          n++;
+        }
+      }
+      return n;
+    }
     async function start(idOrPkg, opts = {}) {
       const pkg = get(idOrPkg);
       if (!pkg) throw new Error("unknown adventure");
@@ -41518,6 +41584,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       const story = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
       if (opts.confirm !== false && story > 0 && !window.confirm(`Start "${pkg.title}" as ${who}? This begins a new session: the current story is replaced (save it first to keep it).`)) return { cancelled: true };
       const cards = await installPregens(pkg);
+      if (opts.resetPregens) await resetPregenSheets(pkg);
       const worldId = await installWorld(pkg, cards);
       try {
         if (typeof window.restart_new_game === "function") window.restart_new_game(false);
@@ -41588,14 +41655,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         A.reviveParty();
       } catch (_) {
       }
-      if (opts.resetPregens) {
-        const pkg = registry.get(cur.id);
-        const C2 = window.KLITE_RPMod_Characters;
-        for (const g of pregens(pkg)) {
-          const found = await findPregen(pkg.id, g);
-          if (found && C2 && C2.saveSheet) await C2.saveSheet(found.name, deepClone(g.card.data.extensions.klite_rpmod.sheet));
-        }
-      }
+      if (opts.resetPregens) await resetPregenSheets(registry.get(cur.id));
       return start(cur.id, opts.hero ? { hero: opts.hero, confirm: false } : cur.pregen ? { pregen: cur.pregen, confirm: false } : { hero: cur.persona, confirm: false });
     }
     const initials2 = (name) => String(name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
@@ -41653,7 +41713,16 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         grid.appendChild(card);
       }
       box.appendChild(grid);
-      box.appendChild(el("p", { class: "rpm-muted", text: "The others can join you as companions. Starting begins a new session: save your current story first if you want to keep it. Missing characters are added to your Library; characters already there are not changed." }));
+      box.appendChild(el("p", { class: "rpm-muted", text: "The others can join you as companions. Starting begins a new session: save your current story first if you want to keep it. Missing characters are added to your Library." }));
+      if (V.changed && V.changed.adventure === adv.id && V.changed.list.length) {
+        const cbx = el("input", { type: "checkbox", "data-adv": "reset" });
+        cbx.checked = V.reset;
+        cbx.addEventListener("change", () => {
+          V.reset = cbx.checked;
+        });
+        box.appendChild(el("label", { class: "rpm-check", "data-adv": "reset-row" }, [cbx, el("span", { text: "Give the characters their starting sheets back (level 1, full HP, their own items) — replaces what they kept from an earlier play." })]));
+        box.appendChild(el("ul", { class: "rpm-muted", "data-adv": "changed" }, V.changed.list.map((c) => el("li", { text: `${c.name}: ${c.what}` }))));
+      }
       if (V.msg) box.appendChild(el("p", { class: "rpm-adv-msg", role: "status", text: V.msg }));
       box.appendChild(el("button", {
         type: "button",
@@ -41665,8 +41734,10 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
           V.busy = true;
           V.msg = "";
           render();
+          const reset = !!(V.changed && V.changed.adventure === adv.id && V.changed.list.length && V.reset);
           try {
-            await start(adv.id, { pregen: V.pregen });
+            await start(adv.id, { pregen: V.pregen, resetPregens: reset });
+            V.changed = null;
           } catch (e) {
             V.msg = "Could not start: " + (e && e.message || e);
           }
@@ -41683,8 +41754,15 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         V.pregen = null;
       }
       V.msg = "";
+      V.reset = true;
       sh.open("adventure");
       render();
+      const pkg = get(V.adventure || list3()[0] && list3()[0].id);
+      if (pkg) changedPregens(pkg).then((listed) => {
+        V.changed = { adventure: pkg.id, list: listed };
+        render();
+      }).catch(() => {
+      });
       return true;
     }
     const api = {
@@ -41701,7 +41779,11 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       restart,
       current,
       open,
-      forbiddenNamesIn
+      forbiddenNamesIn,
+      changedPregens: (id) => {
+        const p = get(id);
+        return p ? changedPregens(p) : Promise.resolve([]);
+      }
     };
     window.KLITE_RPMod_Adventures = api;
     function registerView() {

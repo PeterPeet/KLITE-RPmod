@@ -2145,7 +2145,7 @@ export default function initWorlds() {
             if (party) { addCond(id, 'Unconscious'); cb.death[id] = { s: 0, f: 0, stable: false, dead: false }; combatLog(`${combatantName(id)} falls unconscious${o.isPlayer ? ' and is dying (death saving throws)' : ''}.`); }
             else { combatLog(`${combatantName(id)} is defeated.`); questEvent('kill', { key: o && o.key, name: o && o.key ? CR.MONSTERS[o.key].name : combatantName(id), personId: o && o.kind === 'person' ? id : null }); killReputation(cb, o); }
         }
-        if (before <= 0 && cb.hp[id] > 0) { removeCond(id, 'Unconscious'); if (cb.death[id]) delete cb.death[id]; combatLog(`${combatantName(id)} is back on their feet.`); }
+        if (before <= 0 && cb.hp[id] > 0) { removeCond(id, 'Unconscious'); if (cb.death[id]) delete cb.death[id]; combatLog(`${combatantName(id)} is back up.`); }
         return cb.hp[id];
     }
     // R4 extra: defeating a member of a faction costs standing with it — a person of the faction,
@@ -2282,10 +2282,11 @@ export default function initWorlds() {
         const d = deathOf(cb, id); if (!d || d.dead || d.stable) return null;
         const r = rollD20(0); const res = CR.deathSave(d, r.die);
         const name = combatantName(id);
-        if (res.result === 'revived') { cb.death[id] = null; delete cb.death[id]; setHp(id, 1); combatLog(`${name} rolls a natural 20 on a death saving throw and regains 1 HP!`); }
+        if (res.result === 'revived') { combatLog(`${name} rolls a natural 20 on a death saving throw and regains 1 HP!`); cb.death[id] = null; delete cb.death[id]; setHp(id, 1); }
         else {
             cb.death[id] = res.state;
-            combatLog(`${name} death saving throw: ${r.die} — ${res.result === 'success' ? 'success' : res.result === 'failure' ? (r.die === 1 ? 'natural 1, two failures' : 'failure') : res.result === 'stable' ? 'third success, stable' : 'third failure, dies'} (${res.state.s} successes / ${res.state.f} failures).`);
+            const n = (k, w) => `${k} ${w}${k === 1 ? '' : (w === 'success' ? 'es' : 's')}`;
+            combatLog(`${name} death saving throw: ${r.die} — ${res.result === 'success' ? 'success' : res.result === 'failure' ? (r.die === 1 ? 'natural 1, two failures' : 'failure') : res.result === 'stable' ? 'third success, stable' : 'third failure, dies'} (${n(res.state.s, 'success')} / ${n(res.state.f, 'failure')}).`);
         }
         checkOutcome();
         return { die: r.die, ...res };
@@ -2604,6 +2605,8 @@ export default function initWorlds() {
         gameLog(`${who.length ? who.join(', ') + ' finish' + (who.length === 1 ? 'es' : '') : 'The party finishes'} a Long Rest: HP, spell slots and free casts are restored.${morning}`, 'rest');
         return { ok: true, who };
     }
+    // "has no one left to attack" once per combatant and fight, not on every turn while the party lies dying
+    function idleOnce(cb, o) { cb.idle = cb.idle || {}; if (cb.idle[o.id]) return; cb.idle[o.id] = true; combatLog(`${o.name} has no one left to attack.`); }
     // A monster's (or ally's) turn: pick a target on the other side and attack
     // (multiattack = several attacks). Returns what happened.
     function autoTurn(id) {
@@ -2615,7 +2618,7 @@ export default function initWorlds() {
         if (zoneState(cb)) return zoneAutoTurn(id);
         const st = combatantStats(id);
         const foes = cb.order.filter(x => x.side !== o.side && !isDown(cb, x.id)).map(x => x.id);
-        if (!foes.length) { combatLog(`${o.name} has no one left to attack.`); return { skipped: 'no target' }; }
+        if (!foes.length) { idleOnce(cb, o); return { skipped: 'no target' }; }
         const idx = CR.pickAttack(st);
         if (idx < 0) { combatLog(`${o.name} has no attack to use.`); return { skipped: 'no attack' }; }
         const results = [];
@@ -2860,7 +2863,7 @@ export default function initWorlds() {
         const cb = getCombat(); const Z = zoneState(cb); const L = Z.layout;
         const o = zOrder(cb, id); const st = combatantStats(id);
         const foes = cb.order.filter(x => x.side !== o.side && !isDown(cb, x.id) && Z.pos[x.id] !== 'out');
-        if (!foes.length) { combatLog(`${o.name} has no one left to attack.`); return { skipped: 'no target' }; }
+        if (!foes.length) { idleOnce(cb, o); return { skipped: 'no target' }; }
         const visible = foes.filter(f => !isHidden(Z, f.id));
         if (!visible.length) return { searched: zoneSearch(id) };
         const choices = attackChoices(id);
@@ -3196,6 +3199,13 @@ export default function initWorlds() {
             const npcStats = npc.stats || cardSheetStats(npc);   // own block, else the card's sheet
             if (npcStats) bits.push(statSummary(npcStats));  // d20 block when present
             const inParty = asArray(rt() && rt().party).includes(npc.id);
+            // play test 2026-10-20: the AI saw only the maximum HP (Oona at 2/12 "stood up, sword in hand") and no
+            // armour (she wore chain mail, the AI wrote leather) — the card's sheet tells both
+            try {
+                const sn = personSheetName(npc.id); const sh = sn && window.KLITE_RPMod_Characters.cachedSheet(sn);
+                if (sh && norm(sh.acNote)) bits.push(`Armour: ${norm(sh.acNote)}`);
+                if (inParty) { const ps = partyStatus().find(x => x.id === npc.id); if (ps) bits.push(`HP now ${ps.hp}/${ps.max}${ps.hp <= 0 ? ' (down)' : ps.hp <= ps.max / 4 ? ' (badly hurt)' : ''}`); }
+            } catch (_) {}
             if (inParty) bits.push(`travels with the player (party); if they part ways, write <leave>${personName(npc)}</leave>`);
             else if (npc.canJoin && !npc.isMonster) bits.push(`may join the player: when they agree to travel together, write <join>${personName(npc)}</join>`);
             npcLines.push('- ' + bits.join(' | '));

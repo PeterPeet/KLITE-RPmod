@@ -17,6 +17,7 @@ async function adventure(t) {
     return h;
 }
 const here = (W) => W.runtime.playerLocationId;
+const STORE_KEY = 'KLITE.shell.layout';   // the shell's layout (src/shell/shell.js)
 const logText = (h) => h.window.KLITE_RPMod_Log.entries().map(e => e.what).join('\n');
 
 test('<go> understands the names as RPmod lists them: exit type, town/dungeon (room), exit line', async (t) => {
@@ -342,4 +343,57 @@ test('talk objectives: a person\'s name inside a place name is no talk ("I go to
     w.gametext_arr.push('\n{{[INPUT]}}\n"Liu! Which way did the cart go?"\n{{[OUTPUT]}}\n');
     w.handle_incoming_text('Liu Wen whirls around. "The Forest Road!"');
     assert.equal(done(), true, 'speaking to Liu counts');
+});
+
+// A new start of the adventure kept the pregens' sheets from the last play (Oona at 0 HP, Pell dead): the picker
+// now lists what they kept and offers their starting sheets back (a visible choice: it replaces levels and items).
+test('adventure picker: pregens from an earlier play are listed; "starting sheets back" resets them, unticked keeps them', async (t) => {
+    const h = await adventure(t); const w = h.window; const C = w.KLITE_RPMod_Characters; const ADV = w.KLITE_RPMod_Adventures;
+    await C.loadSheet('Oona Greycairn');
+    C.updateSheet('Oona Greycairn', s => { s.hp.current = 0; s.xp = 225; }); await sleep(50); await C.flushSheet?.('Oona Greycairn');
+    const listed = await ADV.changedPregens('drowned-lantern');
+    assert.deepEqual(JSON.parse(JSON.stringify(listed)), [{ name: 'Oona Greycairn', what: '225 XP, HP 0/12' }]);
+    ADV.open('drowned-lantern');
+    for (let i = 0; i < 50 && !w.document.querySelector('[data-adv="reset"]'); i++) await sleep(20);
+    const box = w.document.querySelector('[data-adv="reset"]');
+    assert.ok(box && box.checked, 'offered, ticked');
+    assert.match(w.document.querySelector('[data-adv="changed"]').textContent, /Oona Greycairn: 225 XP, HP 0\/12/);
+    // unticked: kept as they are
+    box.checked = false; box.dispatchEvent(new w.Event('change'));
+    w.document.querySelector('[data-adv="start"]').click();
+    for (let i = 0; i < 50 && w.document.querySelector('[data-adv="start"]') && /Starting/.test(w.document.querySelector('[data-adv="start"]').textContent); i++) await sleep(20);
+    await sleep(100);
+    assert.equal((await C.loadSheet('Oona Greycairn')).hp.current, 0, 'not reset when unticked');
+    // ticked: their starting sheets back
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false, resetPregens: true });
+    await sleep(50);
+    const oona = await C.loadSheet('Oona Greycairn');
+    assert.deepEqual([oona.hp.current, Number(oona.xp) || 0], [12, 0]);
+    assert.deepEqual(JSON.parse(JSON.stringify(await ADV.changedPregens('drowned-lantern'))), []);
+});
+
+test('a companion in the prompt: armour from the sheet and the HP they have now', async (t) => {
+    const h = await adventure(t); const W = h.api(); const C = h.window.KLITE_RPMod_Characters;
+    assert.equal(W.joinParty('Oona Greycairn').ok, true);
+    await C.loadSheet('Oona Greycairn'); C.updateSheet('Oona Greycairn', s => { s.hp.current = 2; }); await sleep(30);
+    const line = W.preview().split('\n').find(l => /^- Oona Greycairn/.test(l));
+    assert.match(line, /Armour: Chain Mail/);
+    assert.match(line, /HP now 2\/12 \(badly hurt\)/);
+});
+
+test('the Combat window comes back after a reload only while a fight is running', async (t) => {
+    // the shell asks the view when it restores windows: open last time, but no fight → stays closed
+    const page = async (layoutJson) => {
+        const h = createHost(); t.after(h.close);
+        if (layoutJson) h.window.localStorage.setItem(STORE_KEY, layoutJson);
+        h.load('bundle'); await h.ready({ ui: true });
+        return h;
+    };
+    const h1 = await page(null); const S1 = h1.window.KLITE_RPMod_Shell;
+    S1.open('combat'); assert.equal(S1.isOpen('combat'), true);
+    const saved = h1.window.localStorage.getItem(STORE_KEY);
+    assert.match(saved, /"combat":\{[^}]*"open":true/);
+    const h2 = await page(saved);
+    await sleep(100);
+    assert.equal(h2.window.KLITE_RPMod_Shell.isOpen('combat'), false, 'no fight: not reopened');
 });

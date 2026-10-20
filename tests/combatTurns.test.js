@@ -168,3 +168,21 @@ test('victory: whoever is still dying is stabilised after the fight and comes ro
     W.damage(wolf2, 99);
     assert.equal(cb2.hp.npc_rowan, 0, 'the dead are not revived');
 });
+
+test('combat log wording: "1 success", the natural 20 before "back up", "no one left to attack" once', async (t) => {
+    const h = await watchtower(t); const W = h.api();
+    W.startEncounter([], { monsters: [{ key: 'wolf' }], zones: false });
+    const cb = W.getCombat();
+    W.damage('__player__', 99); W.damage('npc_rowan', 99);
+    h.seedRandom([0.6]);   // a death save of 13
+    W.deathSave('__player__');
+    assert.ok(cb.log.some(l => /\(1 success \/ 0 failures\)\./.test(l)), JSON.stringify(cb.log.slice(-2)));
+    h.seedRandom([0.99]);   // a natural 20
+    W.deathSave('npc_rowan');
+    const i = cb.log.findIndex(l => /Captain Rowan rolls a natural 20/.test(l));
+    assert.ok(i >= 0 && /Captain Rowan is back up\./.test(cb.log[i + 1]), JSON.stringify(cb.log.slice(-3)));
+    W.damage('npc_rowan', 99);
+    h.seedRandom([0.6]);
+    for (let k = 0; k < 4; k++) { W.nextTurn(); W.runAutoTurns(); }
+    assert.ok(cb.log.filter(l => /Wolf has no one left to attack/.test(l)).length <= 1, 'once');
+});

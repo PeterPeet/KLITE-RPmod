@@ -83,7 +83,9 @@ chatting. Everything below explains how to build your own.
 - **The starter adventure "The Drowned Lantern"** — a ready-made adventure for one character
   and a companion (levels 1–5). Click **Play a starter adventure** on the *New
   here?* card or **Play the built-in adventure** in World Management, choose one of four characters and
-  start. It is being built in layers; playable now: the village of **Brindlewick**, the Forest
+  start. If the four characters already played before (hurt, fallen, levelled, other items), the window lists
+  that and offers **Give the characters their starting sheets back** — ticked, everyone starts fresh at level 1;
+  untick it to keep what they have. It is being built in layers; playable now: the village of **Brindlewick**, the Forest
   Road, the goblins of the **Hollow Oak** and the old coin; then the two roads to Lanternport —
   over **Windgap Pass** (a campfire, a ruined watchtower with a prisoner) or along the **Meadow
   Road** (a shepherd's lost sheep) — and the **Traveler's Outpost**, where something is wrong with

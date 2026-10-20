@@ -240,5 +240,8 @@ test('Combat window: build an encounter with the XP meter, save it, fight it thr
     assert.match($('[data-cb="outcome"]').textContent, /Victory![\s\S]*50 XP earned/);
     $('[data-cb="end"]').click(); await sleep(10);
     assert.equal(W.getCombat(), null);
-    assert.ok($('[data-cb="start-' + W.listEncounters()[0].id + '"]'), 'saved encounter can be started again');
+    assert.equal(w.KLITE_RPMod_Shell.isOpen('combat'), false, 'closing the fight closes the window (2026-10-20)');
+    w.KLITE_RPMod_Shell.open('combat');
+    for (let i = 0; i < 100 && !win(); i++) await sleep(20);
+    assert.ok($('[data-cb="start-' + W.listEncounters()[0].id + '"]'), 'reopened: the saved encounter can be started again');
 });

@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 432 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 436 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -987,19 +987,23 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
 - [x] **Long Rest** — done 2026-10-20: it takes the night (the clock runs slot by slot to the next morning, so night events
   fire); a fight breaking out interrupts it and nothing is restored. Content version 7: the campfire wolves (Gravel Road)
   also come when the night falls while resting there (`onTime` + location). Test in `tests/playtestR8.test.js`.
-- [ ] **New adventure start keeps the pregens' sheets** (Oona at 0 HP, Pell dead from the last run).
+- [x] **New adventure start keeps the pregens' sheets** — done 2026-10-20: the picker lists the pregens that differ from
+  their starting sheets ("Oona Greycairn: 225 XP, HP 0/12") and offers "Give the characters their starting sheets back"
+  (ticked; untick to keep them); `start(…, { resetPregens })`. Test in `tests/playtestR8.test.js`.
 - [x] **Objectives that complete on arrival** — done 2026-10-20: the talk check matched the name part "Wen" in "Wen's
   Farm"; place names no longer count as naming a person. (The quest being ready during the ambush is by design: the
   objective is to find the cart.) Test in `tests/playtestR8.test.js`.
-- [ ] **The AI only sees companions' maximum HP** (and no armour: Oona "in leather armour" while wearing chain mail).
+- [x] **The AI only sees companions' maximum HP** — done 2026-10-20: a person with a sheet gets "Armour: Chain Mail" (the
+  sheet's `acNote`), a companion "HP now 2/12 (badly hurt)". Test in `tests/playtestR8.test.js`.
 - [~] **Pronouns of absent people:** Liu Wen became "he" at the inn (her description reaches the AI only nearby) —
   content version 7: the Elder's offer says "at her farm". A general rule (people named in quest texts get their
   pronouns) is still open.
 - [ ] **Retry keeps the retried reply's tag effects** (a `<give>` in the discarded reply stays given).
-- [ ] **"Close the fight" switches the window to the encounter builder** instead of closing it (a creator tool in
-  front of a player); it is also restored after a reload.
-- [ ] Log wording: "1 successes"; "back on their feet" for everyone; "is back on their feet" logged before the
-  natural-20 death save that caused it; monsters with no one standing log "has no one left to attack" every turn.
+- [x] **"Close the fight" switches the window to the encounter builder** — done 2026-10-20: closing (or ending) the fight
+  closes the window; after a reload it reopens only while a fight runs (shell `window.restore` may be a function). Tests
+  in `tests/encounter.test.js`, `tests/playtestR8.test.js`.
+- [x] Log wording — done 2026-10-20: "1 success / 2 failures"; "is back up" (no pronoun); the natural 20 is logged before
+  it; "has no one left to attack" once per combatant and fight. Test in `tests/combatTurns.test.js`.
 - [ ] The browser pane of the test answers `confirm()` with "no" (test environment only; Esolite's own dialogs work).
 
 **Open items (owner's play test, 2026-09-26)** — not done yet:

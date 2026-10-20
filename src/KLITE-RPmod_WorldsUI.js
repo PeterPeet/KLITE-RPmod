@@ -1760,7 +1760,8 @@ export default function initWorldsUI() {
             else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
         })));
         sh.registerView(Object.assign({ id: 'gameover', title: 'Game over', place: 'window', window: { width: 420, height: 460, minWidth: 300, restore: false } }, view(renderGameOver)));
-        sh.registerView(Object.assign({ id: 'combat', title: 'Combat', place: 'window', window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
+        // reopened after a reload only while a fight is running (play test 2026-10-20: it came back as the builder)
+        sh.registerView(Object.assign({ id: 'combat', title: 'Combat', place: 'window', window: { width: 460, height: 680, minWidth: 320, restore: () => { const cb = API() && API().getCombat && API().getCombat(); return !!(cb && cb.active); } } }, view((c) => {
             if (API().activeWorld()) renderCombatTab(c);
             else { c.appendChild(el('div', { class: 'rpm-muted', text: 'Fights happen in a world. Choose one (or the example) in World Management.' })); c.appendChild(uiBtn('World Management', () => openView('world'), { block: true, style: 'margin-top:8px' })); }
         })));

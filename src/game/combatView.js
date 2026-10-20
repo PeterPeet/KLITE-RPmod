@@ -226,7 +226,9 @@ function renderFight(box, cb, A, refresh) {
     const log = el('div', { class: 'rpm-log', 'data-cb': 'log' });
     for (const line of (cb.log || []).slice(-10)) log.appendChild(el('div', { text: line }));
     box.appendChild(log);
-    box.appendChild(btn(cb.outcome ? 'Close the fight' : 'End encounter', () => { if (cb.outcome || confirm('End the fight now (flee / stop)? HP is kept.')) { A.endEncounter(); refresh(); } }, { icon: 'x', block: true, variant: cb.outcome ? null : 'danger', id: 'end' }));
+    // the window closes with the fight (play test 2026-10-20: it switched to the encounter builder, a creator
+    // tool, in front of the player); creators reopen it from World Creation → Combat
+    box.appendChild(btn(cb.outcome ? 'Close the fight' : 'End encounter', () => { if (cb.outcome || confirm('End the fight now (flee / stop)? HP is kept.')) { A.endEncounter(); try { window.KLITE_RPMod_Shell?.close('combat'); } catch (_) {} refresh(); } }, { icon: 'x', block: true, variant: cb.outcome ? null : 'danger', id: 'end' }));
 }
 
 function renderTurn(box, cb, cur, A, refresh) {
