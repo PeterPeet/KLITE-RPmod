@@ -1096,8 +1096,11 @@ names the mod ("RPmod will roll whatever you do") — the prompt should say neve
 - [ ] **Deeper undo history with Redo** (owner, 2026-10-20, after the live sheet): one snapshot per reply (game state,
   world changes, log length, sheets — a few KB each now that sheets are small) in IndexedDB: Undo/Retry several replies
   deep, Esolite's Redo (`btn_redo`) re-applies the state after the reply, survives a page reload.
-- [ ] **Suggestion to Jaxxks (sent by the owner):** store a Library character's portrait in its own IndexedDB entry, so
-  edits of the card data stop rewriting the image (Esolite's own edits and every mod).
+- [ ] **Upstream prototype for Jaxxks (later; our own bugs first — owner 2026-10-20):** a Library character's portrait in
+  its own IndexedDB entry (`character_<id>` = { id, name, data }, `character_img_<id>` = the PNG; the card embedded into
+  the PNG only on export), so edits of the card data stop rewriting the image (Esolite's own edits and every mod).
+  Jaxxks: build a prototype; if it holds up, it goes upstream (PR to esolithe/esobold). Old records with an inline
+  `image` keep working and migrate on their first save; `getCharacterData` keeps returning { id, name, data, image }.
 
 **New open items from this live test:**
 - [ ] **Capture after a defeat:** the AI narrates the party tied up and dragged next door; RPmod has no "captured" state
