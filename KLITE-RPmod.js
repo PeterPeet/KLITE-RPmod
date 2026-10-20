@@ -34273,7 +34273,28 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
   function initGameLog() {
     "use strict";
     if (window.KLITE_RPMod_Log) return;
-    const state = { entries: [], lastTurnIndex: 0 };
+    const MAX_MARKS = 50;
+    const state = { entries: [], lastTurnIndex: 0, marks: [] };
+    let pending2 = null;
+    const chatLength = () => {
+      try {
+        return Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+      } catch (_) {
+        return 0;
+      }
+    };
+    const inputPending = () => {
+      try {
+        const i = document.getElementById("input_text");
+        return !!(i && String(i.value || "").trim());
+      } catch (_) {
+        return false;
+      }
+    };
+    function rewind() {
+      const n = chatLength();
+      while (state.marks.length && n <= state.marks[state.marks.length - 1].chat) state.lastTurnIndex = Math.min(state.entries.length, state.marks.pop().from);
+    }
     function describe(e) {
       const r = e.roll;
       const detail = r ? r.rolls.length > 1 || r.modifier ? ` (${r.mode ? r.mode + " " : ""}${r.rolls.join(r.mode ? "/" : "+")}${r.modifier ? (r.modifier > 0 ? "+" : "") + r.modifier : ""})` : "" : "";
@@ -34297,6 +34318,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         const cut = state.entries.length - MAX_ENTRIES;
         state.entries.splice(0, cut);
         state.lastTurnIndex = Math.max(0, state.lastTurnIndex - cut);
+        for (const m of state.marks) m.from = Math.max(0, m.from - cut);
       }
       changed();
       return e;
@@ -34310,17 +34332,31 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     function clearLog() {
       state.entries = [];
       state.lastTurnIndex = 0;
+      state.marks = [];
       changed();
     }
     getContext().register({
       id: "gamelog",
       order: 60,
-      enabled: () => state.entries.length > state.lastTurnIndex,
+      enabled: () => {
+        rewind();
+        return state.entries.length > state.lastTurnIndex;
+      },
       collect: () => {
         const lines = sinceLastTurn().map((e) => "- " + describe(e));
         return lines.length ? [{ title: "Rolls and combat since your last reply", priority: 92, text: lines.join("\n") }] : [];
       },
+      // the input box still holds the player's text here (Esolite moves it into the chat later)
+      beforeTurn: () => {
+        rewind();
+        pending2 = { chat: chatLength() + (inputPending() ? 1 : 0), from: state.lastTurnIndex };
+      },
       afterTurn: () => {
+        if (pending2) {
+          state.marks.push(pending2);
+          if (state.marks.length > MAX_MARKS) state.marks.splice(0, state.marks.length - MAX_MARKS);
+          pending2 = null;
+        }
         state.lastTurnIndex = state.entries.length;
       }
     });
@@ -34331,7 +34367,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         const wrapped = function() {
           const obj = orig.apply(this, arguments);
           try {
-            if (obj && state.entries.length) obj[SAVE_KEY] = { version: 1, entries: state.entries.slice(-MAX_ENTRIES), lastTurnIndex: state.lastTurnIndex };
+            if (obj && state.entries.length) obj[SAVE_KEY] = { version: 1, entries: state.entries.slice(-MAX_ENTRIES), lastTurnIndex: state.lastTurnIndex, marks: state.marks.slice() };
           } catch (_) {
           }
           return obj;
@@ -34347,6 +34383,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
             const saved = storyobj && storyobj[SAVE_KEY];
             state.entries = saved && Array.isArray(saved.entries) ? saved.entries.filter((e) => e && typeof e === "object").slice(-MAX_ENTRIES) : [];
             state.lastTurnIndex = saved ? Math.min(state.entries.length, Math.max(0, Number(saved.lastTurnIndex) || 0)) : 0;
+            state.marks = saved && Array.isArray(saved.marks) ? saved.marks.filter((m) => m && Number.isFinite(Number(m.chat)) && Number.isFinite(Number(m.from))).map((m) => ({ chat: Number(m.chat), from: Math.min(state.entries.length, Math.max(0, Number(m.from))) })).slice(-MAX_MARKS) : [];
             changed();
           } catch (_) {
           }

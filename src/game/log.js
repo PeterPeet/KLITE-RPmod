@@ -5,7 +5,9 @@
 // The game log records rolls (from the character sheet, later combat and chat) per story:
 // saved in the story file under `rpmod_log` (additive key, last 200 entries), shown in the
 // left dock, and the rolls made since the AI's last turn go into its context ('gamelog'
-// provider of src/context) so the game master can react to them.
+// provider of src/context) so the game master can react to them. "Since the last turn"
+// follows the chat: a turn whose reply is gone again (Retry, Undo, a failed request) sends
+// its rolls once more (marks: { chat, from }, see turnMarks below).
 // Public API: window.KLITE_RPMod_Log.
 // =============================================================================
 import { getContext } from '../context/context.js';
@@ -48,7 +50,19 @@ export default function initGameLog() {
     'use strict';
     if (window.KLITE_RPMod_Log) return;
 
-    const state = { entries: [], lastTurnIndex: 0 };
+    // marks[]: one per turn that consumed rolls — `from` the log position before it, `chat` the
+    // chat length once its input was in (gametext_arr). The turn's reply is in the chat while it
+    // is longer than that; when it is not (Retry pops the reply, Undo, an error), the position
+    // goes back to `from`.
+    const MAX_MARKS = 50;
+    const state = { entries: [], lastTurnIndex: 0, marks: [] };
+    let pending = null;
+    const chatLength = () => { try { return Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0; } catch (_) { return 0; } };
+    const inputPending = () => { try { const i = document.getElementById('input_text'); return !!(i && String(i.value || '').trim()); } catch (_) { return false; } };
+    function rewind() {
+        const n = chatLength();
+        while (state.marks.length && n <= state.marks[state.marks.length - 1].chat) state.lastTurnIndex = Math.min(state.entries.length, state.marks.pop().from);
+    }
 
     function describe(e) {
         const r = e.roll;
@@ -65,6 +79,7 @@ export default function initGameLog() {
         if (state.entries.length > MAX_ENTRIES) {
             const cut = state.entries.length - MAX_ENTRIES;
             state.entries.splice(0, cut); state.lastTurnIndex = Math.max(0, state.lastTurnIndex - cut);
+            for (const m of state.marks) m.from = Math.max(0, m.from - cut);
         }
         changed();
         return e;
@@ -72,17 +87,22 @@ export default function initGameLog() {
     // Roll and log in one step: rollAndLog({ who, what, expr, mode, kind })
     function rollAndLog({ who, what, expr, mode, kind }) { return add({ who, what, kind, roll: roll(expr, { mode }) }); }
     function sinceLastTurn() { return state.entries.slice(state.lastTurnIndex); }
-    function clearLog() { state.entries = []; state.lastTurnIndex = 0; changed(); }
+    function clearLog() { state.entries = []; state.lastTurnIndex = 0; state.marks = []; changed(); }
 
     // ---- AI context: rolls since the last turn -----------------------------------------
     getContext().register({
         id: 'gamelog', order: 60,
-        enabled: () => state.entries.length > state.lastTurnIndex,
+        enabled: () => { rewind(); return state.entries.length > state.lastTurnIndex; },
         collect: () => {
             const lines = sinceLastTurn().map(e => '- ' + describe(e));
             return lines.length ? [{ title: 'Rolls and combat since your last reply', priority: 92, text: lines.join('\n') }] : [];
         },
-        afterTurn: () => { state.lastTurnIndex = state.entries.length; },
+        // the input box still holds the player's text here (Esolite moves it into the chat later)
+        beforeTurn: () => { rewind(); pending = { chat: chatLength() + (inputPending() ? 1 : 0), from: state.lastTurnIndex }; },
+        afterTurn: () => {
+            if (pending) { state.marks.push(pending); if (state.marks.length > MAX_MARKS) state.marks.splice(0, state.marks.length - MAX_MARKS); pending = null; }
+            state.lastTurnIndex = state.entries.length;
+        },
     });
 
     // ---- story file: additive key -------------------------------------------------------
@@ -92,7 +112,7 @@ export default function initGameLog() {
             const orig = window.generate_savefile;
             const wrapped = function () {
                 const obj = orig.apply(this, arguments);
-                try { if (obj && state.entries.length) obj[SAVE_KEY] = { version: 1, entries: state.entries.slice(-MAX_ENTRIES), lastTurnIndex: state.lastTurnIndex }; } catch (_) {}
+                try { if (obj && state.entries.length) obj[SAVE_KEY] = { version: 1, entries: state.entries.slice(-MAX_ENTRIES), lastTurnIndex: state.lastTurnIndex, marks: state.marks.slice() }; } catch (_) {}
                 return obj;
             };
             wrapped.__rpmod_log = true; window.generate_savefile = wrapped;
@@ -105,6 +125,8 @@ export default function initGameLog() {
                     const saved = storyobj && storyobj[SAVE_KEY];
                     state.entries = saved && Array.isArray(saved.entries) ? saved.entries.filter(e => e && typeof e === 'object').slice(-MAX_ENTRIES) : [];
                     state.lastTurnIndex = saved ? Math.min(state.entries.length, Math.max(0, Number(saved.lastTurnIndex) || 0)) : 0;
+                    // marks are additive (older saves have none: a Retry right after loading sends nothing again, as before)
+                    state.marks = saved && Array.isArray(saved.marks) ? saved.marks.filter(m => m && Number.isFinite(Number(m.chat)) && Number.isFinite(Number(m.from))).map(m => ({ chat: Number(m.chat), from: Math.min(state.entries.length, Math.max(0, Number(m.from))) })).slice(-MAX_MARKS) : [];
                     changed();
                 } catch (_) {}
                 return res;

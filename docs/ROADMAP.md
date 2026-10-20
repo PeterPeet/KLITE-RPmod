@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 412 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 413 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -243,6 +243,12 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
     Not changed (noted): a party member who starts a fight at 0 HP starts it dying rather than stable; a
     fight the AI starts with `<encounter>` does not run the enemies' first turns at once (the window's Start
     does); saving an encounter from the builder keeps only its enemies, not chosen allies.
+28. ~~Retry lost the fight's results~~ — fixed 2026-10-20 (found in the real-backend play test with Gemma 4 31B):
+    the game log marked "rolls since your last reply" as narrated when a turn was sent, so Esolite's **Retry**
+    (and Undo + resend, or a request that failed) sent the next attempt without them — the model then invented
+    its own rolls. The mark now follows the chat (`rpmod_log.marks`, additive: `{ chat, from }` per turn): while
+    the turn's reply is not in the chat any more, the next send carries those results again. Test in
+    `tests/characters.test.js`.
 
 ## Phases
 

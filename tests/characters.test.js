@@ -150,6 +150,7 @@ test('AI context: persona sheet and rolls since the last reply reach the prompt;
     assert.match(h.prompt, /\[User Character: Mira\][\s\S]*Character sheet: Ranger 3 — HP 20\/24/);
     assert.match(h.prompt, /Inventory: Longbow/);
     assert.match(h.prompt, /\[Rolls and combat since your last reply\]\n- Mira: Stealth check = 25 \(20\+5\) — natural 20!/);
+    w.gametext_arr.push('\n{{[INPUT]}}\nI sneak.\n{{[OUTPUT]}}\n', 'Mira slips past.');   // the turn's input and the reply
     await w.prepare_submit_generation();
     assert.doesNotMatch(h.prompt, /Rolls and combat/, 'only new rolls');
 
@@ -223,4 +224,41 @@ test('Worlds: a linked person without its own text uses the card\'s blurb; card 
     assert.match(W.preview(), /- Mira \| Mira is wary of strangers\./, 'personality first, macros and markup cleaned');
     W.updateEntity(p.id, { description: 'Own text wins.' });
     assert.match(W.preview(), /- Mira \| Own text wins\./);
+});
+
+// Play test 2026-10-20: Retry sent the fight's results to nobody — the first attempt had marked them as
+// narrated, so the retried reply invented its own rolls. The mark now follows the chat.
+test('AI context: Retry, Undo and a failed reply send the rolls since the last reply again', async (t) => {
+    const h = await charHost(t); const w = h.window; const L = w.KLITE_RPMod_Log;
+    const input = w.document.createElement('textarea'); input.id = 'input_text'; w.document.body.appendChild(input);
+    const send = async (text) => { input.value = text; await w.prepare_submit_generation(); input.value = ''; if (text) w.gametext_arr.push(`\n{{[INPUT]}}\n${text}\n{{[OUTPUT]}}\n`); };
+    const reply = (text) => w.gametext_arr.push(text);
+    const retry = async () => { w.gametext_arr.pop(); await w.prepare_submit_generation(); };   // Esolite's btn_retry
+    L.add({ who: '', what: 'Hit: Goblin → Pell, 8 damage', kind: 'combat' });
+    await send('I swing at the goblin.');
+    assert.match(h.prompt, /Hit: Goblin → Pell, 8 damage/);
+    reply('The goblin cuts Pell.');
+    await retry();
+    assert.match(h.prompt, /\[Rolls and combat since your last reply\]\n- Hit: Goblin → Pell, 8 damage/, 'a retry sees the same results');
+    reply('Pell staggers.');
+    await retry(); reply('Pell is cut.');
+    L.add({ who: '', what: 'Miss: Oona → Goblin', kind: 'combat' });
+    await send('Again!');
+    assert.match(h.prompt, /Miss: Oona → Goblin/);
+    assert.doesNotMatch(h.prompt, /8 damage/, 'a reply that stayed is not narrated again');
+    reply('Oona misses.');
+    // Undo of the last reply and input, then a new message: those results again
+    w.gametext_arr.splice(-2);
+    await send('Instead I shove it.');
+    assert.match(h.prompt, /Miss: Oona → Goblin/);
+    assert.doesNotMatch(h.prompt, /8 damage/);
+    // a request that failed (no reply): the next send carries the results again
+    await send('Hello?');
+    assert.match(h.prompt, /Miss: Oona → Goblin/);
+    reply('Here.');
+    await send('Good.');
+    assert.doesNotMatch(h.prompt, /Rolls and combat/);
+    // the marks are saved with the story (additive)
+    const save = w.generate_savefile();
+    assert.ok(Array.isArray(save.rpmod_log.marks) && save.rpmod_log.marks.length > 0);
 });
