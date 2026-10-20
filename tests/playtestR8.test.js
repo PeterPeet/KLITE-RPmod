@@ -455,7 +455,7 @@ test('Retry after the sheet changed: RPmod asks — Yes undoes everything, No ke
         w.btn_retry();
         await sleep(60);
         assert.equal(w.__asked.length, 1, answer);
-        assert.match(w.__asked[0], /since then Tove Emberfall's character sheet changed too\. Yes: undo everything that reply did — those sheet changes are lost as well\. No: keep the game as it is and only retry/);
+        assert.match(w.__asked[0], /since then Tove Emberfall's character sheet changed too\. Yes: undo everything that reply did — those later changes are lost as well\. No: keep the game as it is and only retry/);
         assert.equal(w.__retried, 1, 'the retry happens either way');
         assert.equal(hasItem(w, 'Rope'), answer === 'no');
         assert.equal(C.cachedSheet('Tove Emberfall').notes === 'My own note', answer === 'no');
@@ -553,4 +553,20 @@ test('a prepared encounter that belongs to a place starts there only (the AI\'s 
     W.moveTo("Chief's Hollow"); W.endEncounter();
     W.applyTags('<encounter>Chief Snagtooth and a guard</encounter>');
     assert.ok(W.getCombat() && W.getCombat().order.some(o => o.key === 'goblin-boss'), 'in the chief\'s hollow it starts');
+});
+
+// Live test: the Combat window asks attacksLeft() on every render, which wrote the turn record — so an undo saw
+// "fight turns" nobody played and asked needlessly.
+test('Retry right after a reply that started a fight: the open Combat window is no change — no question', async (t) => {
+    const h = await undoHost(t); const w = h.window; const W = h.api();
+    W.moveTo('Root Tunnel');
+    w.gametext_arr.push('\n{{[INPUT]}}\nOn.\n{{[OUTPUT]}}\n');
+    h.seedRandom([0.99, 0.01]);   // Tove wins the initiative: the window shows the player's turn panel
+    w.handle_incoming_text('A wolf! <encounter>Wolf</encounter>');
+    w.KLITE_RPMod_Shell.open('combat'); await sleep(50);
+    for (let i = 0; i < 3; i++) { W.attacksLeft('__player__'); w.KLITE_RPMod_Shell.refresh && w.KLITE_RPMod_Shell.refresh(['combat']); }
+    await sleep(30);
+    w.btn_retry(); await sleep(40);
+    assert.equal(w.__asked.length, 0, 'nothing was played: no question');
+    assert.equal(W.getCombat(), null, 'the fight is undone');
 });

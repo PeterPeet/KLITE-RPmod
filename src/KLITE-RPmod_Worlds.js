@@ -1665,6 +1665,18 @@ export default function initWorlds() {
         if (JSON.stringify(activeWorld()) !== s.after.world) edited.push('the world (editor)');
         return { edited };
     }
+    // Diagnostics: which fields of the game state differ from right after the reply (2 levels deep)
+    function undoInfo() {
+        const s = replySnap; if (!s || !s.after) return null;
+        const a = JSON.parse(s.after.state), b = JSON.parse(stateJson(rt())), out = [];
+        for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+            if (JSON.stringify(a[k]) === JSON.stringify(b[k])) continue;
+            if (a[k] && b[k] && typeof a[k] === 'object' && typeof b[k] === 'object' && !Array.isArray(a[k])) {
+                for (const k2 of new Set([...Object.keys(a[k]), ...Object.keys(b[k])])) if (JSON.stringify(a[k][k2]) !== JSON.stringify(b[k][k2])) out.push(k + '.' + k2);
+            } else out.push(k);
+        }
+        return { chat: s.chat, info: replyUndoInfo(), changed: out };
+    }
     function undoReplyEffects() {
         const s = replySnap; replySnap = null; if (!s) return false;
         try {
@@ -1690,7 +1702,7 @@ export default function initWorlds() {
                 if (!info.edited.length) { undoReplyEffects(); return orig.apply(self, args); }
                 const what = name === 'btn_retry' ? 'retry' : 'undo';
                 const text = `The AI's last reply changed the game (its tags), and since then ${info.edited.join(', ')} changed too. ` +
-                    `Yes: undo everything that reply did — those sheet changes are lost as well. No: keep the game as it is and only ${what} the reply's text.`;
+                    `Yes: undo everything that reply did — those later changes are lost as well. No: keep the game as it is and only ${what} the reply's text.`;
                 const yes = () => { undoReplyEffects(); orig.apply(self, args); };
                 const no = () => { replySnap = null; orig.apply(self, args); };
                 if (typeof window.msgboxYesNo === 'function') { try { window.msgboxYesNo(text, 'RPmod: undo what the reply did?', yes, no); return; } catch (_) {} }
@@ -2264,9 +2276,12 @@ export default function initWorlds() {
         if (!cb.turnUse || cb.turnUse.id !== id || cb.turnUse.round !== cb.round) cb.turnUse = { id, round: cb.round, attacks: 0, cast: false };
         return cb.turnUse;
     }
+    // read only (the Combat window asks on every render; writing the turn record there made the undo on
+    // Retry see "fight turns played" that never were — live test 2026-10-20)
     function attacksLeft(id) {
         const cb = getCombat(); if (!cb || cb.outcome) return 0;
-        const u = turnUse(cb, id); if (!u) return 0;
+        const cur = cb.order[cb.turnIndex]; if (!cur || cur.id !== id) return 0;
+        const u = cb.turnUse && cb.turnUse.id === id && cb.turnUse.round === cb.round ? cb.turnUse : { attacks: 0, cast: false };
         return u.cast ? 0 : Math.max(0, attacksAllowed(id) - u.attacks);
     }
     function conds(id) { const cb = getCombat(); return (cb && cb.conditions && cb.conditions[id]) || []; }
@@ -4256,6 +4271,7 @@ export default function initWorlds() {
         openContainer(target, opts) { const r = openContainer(target, opts || {}); if (r) syncLive(); return r; },
         // a spell outside a fight: "Cure Wounds = Oona", "Light", "Healing Word on me slot 2"
         castOutside(text, opts) { const r = castOutside(text, opts || {}); syncLive(); return r; },
+        undoInfo: () => undoInfo(),
         // the place a reply's text walks the party to (the "Story: go to …" button), or null
         storyPlaceIn: (text) => { const r = rt(); return r && r.playerLocationId ? storyPlaceIn(text, r.playerLocationId) : null; },
         search(opts) { const r = searchRoom(opts || {}); syncLive(); return r; },

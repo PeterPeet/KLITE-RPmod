@@ -24813,6 +24813,18 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       if (JSON.stringify(activeWorld()) !== s.after.world) edited.push("the world (editor)");
       return { edited };
     }
+    function undoInfo() {
+      const s = replySnap;
+      if (!s || !s.after) return null;
+      const a = JSON.parse(s.after.state), b = JSON.parse(stateJson(rt())), out = [];
+      for (const k2 of /* @__PURE__ */ new Set([...Object.keys(a), ...Object.keys(b)])) {
+        if (JSON.stringify(a[k2]) === JSON.stringify(b[k2])) continue;
+        if (a[k2] && b[k2] && typeof a[k2] === "object" && typeof b[k2] === "object" && !Array.isArray(a[k2])) {
+          for (const k22 of /* @__PURE__ */ new Set([...Object.keys(a[k2]), ...Object.keys(b[k2])])) if (JSON.stringify(a[k2][k22]) !== JSON.stringify(b[k2][k22])) out.push(k2 + "." + k22);
+        } else out.push(k2);
+      }
+      return { chat: s.chat, info: replyUndoInfo(), changed: out };
+    }
     function undoReplyEffects() {
       const s = replySnap;
       replySnap = null;
@@ -24862,7 +24874,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
             return orig.apply(self, args);
           }
           const what = name === "btn_retry" ? "retry" : "undo";
-          const text = `The AI's last reply changed the game (its tags), and since then ${info.edited.join(", ")} changed too. Yes: undo everything that reply did — those sheet changes are lost as well. No: keep the game as it is and only ${what} the reply's text.`;
+          const text = `The AI's last reply changed the game (its tags), and since then ${info.edited.join(", ")} changed too. Yes: undo everything that reply did — those later changes are lost as well. No: keep the game as it is and only ${what} the reply's text.`;
           const yes = () => {
             undoReplyEffects();
             orig.apply(self, args);
@@ -25763,8 +25775,9 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
     function attacksLeft(id) {
       const cb = getCombat();
       if (!cb || cb.outcome) return 0;
-      const u = turnUse(cb, id);
-      if (!u) return 0;
+      const cur = cb.order[cb.turnIndex];
+      if (!cur || cur.id !== id) return 0;
+      const u = cb.turnUse && cb.turnUse.id === id && cb.turnUse.round === cb.round ? cb.turnUse : { attacks: 0, cast: false };
       return u.cast ? 0 : Math.max(0, attacksAllowed(id) - u.attacks);
     }
     function conds(id) {
@@ -28307,6 +28320,7 @@ ${xl.join("\n")}`;
         syncLive();
         return r;
       },
+      undoInfo: () => undoInfo(),
       // the place a reply's text walks the party to (the "Story: go to …" button), or null
       storyPlaceIn: (text) => {
         const r = rt();
