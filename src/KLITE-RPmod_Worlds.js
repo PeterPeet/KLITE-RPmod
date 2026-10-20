@@ -555,7 +555,19 @@ export default function initWorlds() {
         return u.length === 1 ? u[0] : null;
     }
     // Target of a move: an id, a direction ("north"), a neighbour's name, else any place's name.
+    // RPmod's own ways of naming a place are understood too (play test 2026-10-20: the AI copies
+    // them from the prompt): "Wolf Den (corridor)" (exit type), "The Hollow Oak (Root Tunnel)"
+    // (a town/dungeon and its room), "east: Wolf Den" (an exit line).
     function resolveGoTarget(target, curId) {
+        const hit = resolveGoName(target, curId); if (hit) return hit;
+        const raw = norm(target);
+        const line = /^([a-z -]+?)\s*:\s*(.+)$/i.exec(raw);
+        if (line && MR.parseDir(line[1])) return resolveGoTarget(line[2], curId) || resolveGoName(line[1], curId);
+        const par = /^(.+?)\s*\(([^()]+)\)\s*$/.exec(raw);
+        if (par) return resolveGoName(par[1], curId) || resolveGoName(par[2], curId);
+        return null;
+    }
+    function resolveGoName(target, curId) {
         const w = activeWorld(); const raw = norm(target);
         const byId = findById(w.locations, raw); if (byId) return byId;
         const exits = curId ? playerExits(curId) : [];
@@ -1684,10 +1696,21 @@ export default function initWorlds() {
     //            <time>slot, <weather>desc, <advance> (advance clock one slot),
     //            <accept>quest</accept>, <turnin>quest</turnin>, <buy>item xN</buy>, <sell>item xN</sell>
     //            (R4 extras; the rules decide)
+    // A reasoning model's thinking (Esolite's thinking tags, default <think>…</think>) is not the
+    // reply: tags it only considers there must not be applied (play test 2026-10-20). An unclosed
+    // block (a reply cut off while thinking) is dropped to the end.
+    function stripThinking(text) {
+        let t = String(text || '');
+        const esc = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        let pairs = [['<think>', '</think>']];
+        try { const ls = window.localsettings; if (ls && ls.start_thinking_tag && ls.stop_thinking_tag) pairs = [[ls.start_thinking_tag, ls.stop_thinking_tag], ...pairs]; } catch (_) {}
+        for (const [a, b] of pairs) t = t.replace(new RegExp(esc(a) + '[\\s\\S]*?(?:' + esc(b) + '|$)', 'gi'), ' ');
+        return t;
+    }
     function parseMutations(text) {
         const world = activeWorld(); if (!world || !rt()) return false;
         let changed = false;
-        const s = String(text || '');
+        const s = stripThinking(text);
         const scan = (re, fn) => { let m; re.lastIndex = 0; while ((m = re.exec(s)) !== null) { try { if (fn(m) !== false) changed = true; } catch (_) {} } };
 
         // map tags (R7): <move>/<go>, <open>, <close>, <unlock>, <search>, <room>, <door>, <light>
@@ -2754,7 +2777,7 @@ export default function initWorlds() {
         if (!Array.isArray(arr)) return false;
         const start = Math.max(0, Math.min(Number(rt().lastParsedIndex) || 0, arr.length));
         let changed = false;
-        for (let i = start; i < arr.length; i++) { changed = parseMutations(arr[i]) || changed; try { detectTalk(arr[i]); } catch (_) {} }
+        for (let i = start; i < arr.length; i++) { changed = parseMutations(arr[i]) || changed; try { detectTalk(stripThinking(arr[i])); } catch (_) {} }
         const advanced = W.config.advanceClockPerTurn && arr.length > start && !(opts && opts.advance === false);
         rt().lastParsedIndex = arr.length;
         if (advanced) advanceClock(1);

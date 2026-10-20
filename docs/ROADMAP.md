@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 413 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 415 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -249,6 +249,13 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
     its own rolls. The mark now follows the chat (`rpmod_log.marks`, additive: `{ chat, from }` per turn): while
     the turn's reply is not in the chat any more, the next send carries those results again. Test in
     `tests/characters.test.js`.
+29. ~~`<go>` refused RPmod's own place names; tags inside a model's thinking were applied~~ — fixed 2026-10-20 (play
+    test, Gemma 4 31B with thinking): the AI copies an exit the way the prompt lists it — `<go>Wolf Den (corridor)</go>`
+    — and RPmod answered "there is no such place". `<go>` now also understands "Name (exit type or state)",
+    "Town (Room)" (as the Here row names it) and "east: Name". And reasoning models put their thinking into the reply
+    (`<think>…</think>`, Esolite's thinking tags): RPmod read tags there too, so a tag the model only considered was
+    applied, and one it wrote in both places counted twice (a `<give>` gave two). The thinking is skipped now (also
+    an unclosed block of a cut-off reply). Tests: `tests/playtestR8.test.js`.
 
 ## Phases
 

@@ -23372,6 +23372,16 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       return u.length === 1 ? u[0] : null;
     }
     function resolveGoTarget(target, curId) {
+      const hit = resolveGoName(target, curId);
+      if (hit) return hit;
+      const raw = norm5(target);
+      const line = /^([a-z -]+?)\s*:\s*(.+)$/i.exec(raw);
+      if (line && parseDir(line[1])) return resolveGoTarget(line[2], curId) || resolveGoName(line[1], curId);
+      const par = /^(.+?)\s*\(([^()]+)\)\s*$/.exec(raw);
+      if (par) return resolveGoName(par[1], curId) || resolveGoName(par[2], curId);
+      return null;
+    }
+    function resolveGoName(target, curId) {
       const w = activeWorld();
       const raw = norm5(target);
       const byId = findById(w.locations, raw);
@@ -24849,11 +24859,23 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       return lines.join("\n") + `
 The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or sells, write <buy>item x2</buy> or <sell>item</sell>; RPmod checks the price, the stock and the purse and logs the result — narrate only what the log says.`;
     }
+    function stripThinking(text) {
+      let t = String(text || "");
+      const esc = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      let pairs = [["<think>", "</think>"]];
+      try {
+        const ls = window.localsettings;
+        if (ls && ls.start_thinking_tag && ls.stop_thinking_tag) pairs = [[ls.start_thinking_tag, ls.stop_thinking_tag], ...pairs];
+      } catch (_) {
+      }
+      for (const [a, b] of pairs) t = t.replace(new RegExp(esc(a) + "[\\s\\S]*?(?:" + esc(b) + "|$)", "gi"), " ");
+      return t;
+    }
     function parseMutations(text) {
       const world2 = activeWorld();
       if (!world2 || !rt()) return false;
       let changed = false;
-      const s = String(text || "");
+      const s = stripThinking(text);
       const scan = (re, fn2) => {
         let m;
         re.lastIndex = 0;
@@ -26348,7 +26370,7 @@ ${recent}` : "");
       for (let i = start; i < arr2.length; i++) {
         changed = parseMutations(arr2[i]) || changed;
         try {
-          detectTalk(arr2[i]);
+          detectTalk(stripThinking(arr2[i]));
         } catch (_) {
         }
       }
