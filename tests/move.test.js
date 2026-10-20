@@ -102,7 +102,11 @@ test('AI context in a room: light, exits with directions and doors, visible feat
     assert.doesNotMatch(s, /Vault|secret/i);
     assert.match(s, /Brazier \(lit\)/);
     assert.doesNotMatch(s, /Pressure plate/, 'unfound trap hidden');
-    assert.match(s, /\[Exploring\][\s\S]*<go>name<\/go>[\s\S]*<search><\/search>[\s\S]*<room>Name, east/);
+    assert.match(s, /\[Exploring\][\s\S]*<go>name<\/go>[\s\S]*<search><\/search>[\s\S]*The map is fixed: never invent rooms/, 'by default the map is fixed');
+    assert.doesNotMatch(s, /<room>Name, east/);
+    W.updateEntity('__world__', { aiBuild: true });
+    s = W.preview();
+    assert.match(s, /\[Exploring\][\s\S]*<room>Name, east/, 'the author lets the AI add rooms');
     assert.doesNotMatch(s, /\[Map \(explored\)\]/, 'text map off by default');
     W.markFound('trap', d.trap.id);
     assert.match(W.preview(), /Pressure plate \(trap\)/);

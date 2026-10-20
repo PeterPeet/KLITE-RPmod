@@ -603,6 +603,12 @@ export default function initWorldsUI() {
         box.appendChild(ta);
         box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:10px;margin-top:3px', text: 'Shown to the AI as [World Rules]. The Description above is shown as the world premise.' }));
 
+        // whether the AI may extend the maps (world.aiBuild, default off: the maps are as built here)
+        const build = el('input', { type: 'checkbox', style: 'cursor:pointer', 'data-world': 'ai-build' }); build.checked = ent.aiBuild === true;
+        build.addEventListener('change', () => { A.updateEntity('__world__', { aiBuild: build.checked }); });
+        box.appendChild(el('label', { style: 'display:flex;gap:6px;align-items:center;margin-top:10px;cursor:pointer' }, [build, el('span', { text: 'The AI may add rooms and doors to the maps' })]));
+        box.appendChild(muted('Off: the dungeons and towns stay as you built them — the AI never invents rooms, ways or doors, and an unexplored exit is found by going there. Rooms the generator left unnamed ("Room 3") are named by the AI either way.', { style: 'font-size:10px;margin-top:3px' }));
+
         // R8: where a new game in this world begins (world.start) — also the start state of a new story
         const st = A.worldStart() || {};
         const card = el('div', { class: 'rpm-card', style: 'margin-top:12px', 'data-ui': 'world-start' });

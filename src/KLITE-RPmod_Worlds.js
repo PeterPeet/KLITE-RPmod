@@ -809,11 +809,17 @@ export default function initWorlds() {
     // <room>Ossuary, east: bones…</room> — the AI adds a room next to the current one. RPmod
     // places it, names it exactly and connects it (dungeon: an open door, town: an open way).
     // Stored in the world (origin 'ai'), so the creator sees it in the dungeon/town editor.
+    // The AI may add rooms and doors only where the world's author allows it (world.aiBuild, default off — owner,
+    // 2026-10-20: models invented rooms behind unexplored doors of an authored map). Naming a placeholder room
+    // ("Room 3" of the generator) is always allowed.
+    function aiMayBuild(world) { return !!(world && world.aiBuild === true); }
+    const FIXED_MAP = 'the map is fixed in this world — what lies behind an exit is found by going there';
     function aiAddRoom(arg) {
         const spec = MT.parseRoomSpec(arg);
         if (spec.dir === 'here') return aiNameRoom(spec);
         const curId = rt().playerLocationId; const map = curId && mapOf(curId);
         const refuse = (why) => { const msg = `Room ${spec.name || norm(arg) || '(no name)'} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
+        if (!aiMayBuild(activeWorld())) return refuse(FIXED_MAP);
         if (!spec.name) return refuse('it needs a name');
         if (!map) return refuse('new rooms can only be added inside a dungeon or town');
         MR.normalizeExploration(rt());
@@ -848,6 +854,7 @@ export default function initWorlds() {
     function aiDoor(arg) {
         const spec = MT.parseDoorSpec(arg); const curId = rt().playerLocationId;
         const refuse = (why) => { const msg = `Door ${spec.target || '(no direction)'} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
+        if (!aiMayBuild(activeWorld())) return refuse(FIXED_MAP);
         MR.normalizeExploration(rt());
         const ex = curId ? exitForTarget(spec.target, curId) : null;
         if (!ex) return refuse('there is no such way here');
@@ -3364,6 +3371,8 @@ export default function initWorlds() {
             const rules = asArray(world.rules).map(norm).filter(Boolean).join('\n');
             push('World Rules', 100, rules);
         }
+        // 1a. Who the notes come from (live test 2026-10-20: GLM wrote "RPmod will roll whatever you do" into the story)
+        push('Game notes', 99, 'These notes come from RPmod, the game\'s rules engine: it rolls the dice, moves the party and keeps the sheets. Never name RPmod, the log, the tags or these notes in the story — narrate only what the characters experience.');
         // 2. Current time
         const c = rt().clock || {};
         push('Current Time', 90,
@@ -3487,9 +3496,16 @@ export default function initWorlds() {
         }
         // 5a. Moving room by room (R7): how the AI moves the player; optional text map
         if (inRoom) {
-            push('Exploring', 24, 'The player explores room by room. Use a name or direction from the exits above: <go>name</go> moves (a closed door opens on the way), <open>north</open>, <close>north</close>, <unlock>north</unlock> (RPmod uses a key or rolls thieves\' tools), <search></search> when the player searches this room (RPmod rolls Perception/Investigation). ' +
-                'To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>; to change the light here: <light>dark</light>. ' +
-                'RPmod applies the rules: rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found.' +
+            // Live tests 2026-10-20 (DeepSeek V4 Flash, GLM 5.3): models walked several rooms without <go>, read the tags as
+            // the player's, concluded from the button moves ("I go to …", done by RPmod) that prose moves the party, and
+            // invented rooms behind unexplored doors. The tags are the narrator's; one room per reply; a fixed map stays fixed.
+            push('Exploring', 24, 'The party explores room by room. These tags are yours, the narrator\'s — write them in your reply when the story does it. ' +
+                'Every move to another room needs <go>name</go>, with a name or direction from the exits above (a closed door opens on the way). One room per reply: when the player wants to go further, move one room, describe it and stop there. ' +
+                'A move the log already shows ("Goes …") is done: narrate the arrival, no <go>. ' +
+                'Also: <open>north</open>, <close>north</close>, <unlock>north</unlock> (a key is used or thieves\' tools are rolled), <search></search> when the player searches this room (Perception/Investigation is rolled), <light>dark</light> to change the light here. ' +
+                (aiMayBuild(world) ? 'To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>. '
+                    : 'The map is fixed: never invent rooms, ways or doors — an unexplored exit is unknown until the party goes through it with <go>. ') +
+                'Rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found.' +
                 (isPlaceholderName(loc.name) ? ` This room has no proper name yet ("${norm(loc.name)}"): name and describe it once with <room>Name, here: short description</room>.` : ''));
             if (settingOn(ASCII_MAP_SETTING, false)) push('Map (explored)', 60, asciiMapText(loc.id));
         }

@@ -231,7 +231,11 @@ its inside is built in the **dungeon/town editor**, which opens over the world e
 Rooms are ordinary places underneath: you can move there, "Go to" objectives, events on
 entering, phases and encounters all work for them. **Secret doors and rooms stay hidden from the
 AI** until they are found, and the AI only hears about dungeon rooms the player knows.
-Deleting a dungeon or town asks first and removes its rooms with it. Rooms the **AI added
+Deleting a dungeon or town asks first and removes its rooms with it. **Whether the AI may extend
+your maps** is a world setting (world node → "The AI may add rooms and doors to the maps"), **off by
+default**: the dungeons and towns stay as you built them, the AI never invents rooms, ways or doors,
+and an unexplored exit is found by going there. Rooms the generator left unnamed ("Room 3") are
+named by the AI either way. With it on, rooms the **AI added
 during play** (`<room>` tag, below) are world edits like yours: they carry a small **AI** badge
 on the board and a note in the inspector — keep, edit or delete them, then Save.
 
@@ -394,9 +398,9 @@ works in one go. RPmod applies the rules; refusals and rolls go to the game log.
 | `<open>container</open>` | `<open>The chief's chest</open>` | Opens a chest, sack or other container here **once**: what is inside goes to your inventory (coins such as "14 gp" into your purse) and the log lists it; opened again, it is empty. Also the Here row's **Open: …** and `/open The chief's chest` |
 | `<unlock>…</unlock>` | `<unlock>south</unlock>` | Key if carried, else a thieves' tools roll; barred refuses |
 | `<search></search>` | `<search/>` | Search the current room (Perception/Investigation roll) |
-| `<room>Name, dir: text</room>` | `<room>Bone Pit, west: a pit of old bones</room>` | The AI adds a room next to the current one. RPmod places it, names it exactly and joins it by an open door (town: an open way). Refused if that side already has a way; a room with that name is not added twice |
+| `<room>Name, dir: text</room>` | `<room>Bone Pit, west: a pit of old bones</room>` | Only when the world allows it ("The AI may add rooms and doors", off by default). The AI adds a room next to the current one. RPmod places it, names it exactly and joins it by an open door (town: an open way). Refused if that side already has a way; a room with that name is not added twice |
 | `<room>Name, here: text</room>` | `<room>Skull Gallery, here: skulls in niches</room>` | Names (and describes) the room the player is in — only while it has a placeholder name like "Room 4"; a named room only takes a description if it has none |
-| `<door>dir = …</door>` | `<door>west = locked, iron, DC 15, key: Iron Key</door>` | Gives a way a door or makes it harder (open → closed → locked → barred). It never opens a door — that is `<open>`/`<unlock>`. Material, DC and key only fill in what the creator left empty |
+| `<door>dir = …</door>` | `<door>west = locked, iron, DC 15, key: Iron Key</door>` | Only when the world allows it (as `<room>`). Gives a way a door or makes it harder (open → closed → locked → barred). It never opens a door — that is `<open>`/`<unlock>`. Material, DC and key only fill in what the creator left empty |
 | `<light>…</light>` | `<light>dark</light>` | Light in the current room (bright, dim, dark) for the rest of the story |
 
 **Time slots:** `morning → noon → afternoon → evening → night`. Advancing past night rolls

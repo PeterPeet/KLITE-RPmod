@@ -630,7 +630,7 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
     unfound secret exits (`secretDC`), secret rooms behind visible exits (`room.secretDC`), unfound
     non-`hidden` trap features (`trapDC`), default DC 15. Hits → `found`; the log never shows a
     DC. `passiveNotice` does the same with passive Perception (10 + Perception) on `go`/`moveTo`.
-  - `<room>` → `aiAddRoom`: only inside a dungeon/town; a free side (the given direction, else
+  - `<room>` → `aiAddRoom`: only when the world allows it (`world.aiBuild === true`, default off — `aiMayBuild`; else refused "the map is fixed in this world", and `<door>` likewise; the [Exploring] prompt then says the map is fixed instead of offering the tags; `<room>Name, here</room>` naming is always allowed) and only inside a dungeon/town; a free side (the given direction, else
     n/e/s/w), `addRoom` beside the current room with `origin: 'ai'`, dungeon: door `open`, town:
     `open` way; room discovered; **world edit** (`markDirty`, editor badge "AI"). Same name in the
     map → no new room (fills an empty description). Side taken → refused (the text does not

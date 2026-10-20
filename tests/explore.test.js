@@ -176,6 +176,7 @@ test('passive Perception on entering finds what it beats (logged), a sheet skill
 test('AI tags on reply arrival, in order: unlock → open → go; <room>, <door>, <light>; refusals logged', async (t) => {
     const h = await host(t, { reply: true }); const w = h.window; const W = h.api();
     const d = buildCrypt(W); W.enable();
+    W.updateEntity('__world__', { aiBuild: true });   // the author lets the AI extend the maps
     await W.saveActiveWorld();
     W.moveTo('Hall'); W.giveItem('Iron Key');
     w.handle_incoming_text('You try the key. <unlock>south</unlock> <open>the south door</open> <go>south</go>');

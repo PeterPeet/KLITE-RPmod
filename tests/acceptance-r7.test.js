@@ -17,6 +17,7 @@ test('R7 acceptance: dungeon + town, generated dungeon, AI room with a locked do
     h.load('bundle'); await h.ready({ ui: true });
     const W = h.api(); const w = h.window; const doc = w.document;
     await W.newWorld('Acceptance');
+    W.updateEntity('__world__', { aiBuild: true });   // the AI adds a room below
     const road = W.addEntity('location', { name: 'Forest Road' });
     W.setPlayerCombat({ name: 'Kara', stats: { abilities: { str: 16, dex: 14, wis: 14, int: 10 }, ac: 15, hpMax: 40, speed: 30,
         attacks: [{ name: 'Longsword', toHit: 5, damage: '1d8+3' }, { name: 'Longbow', toHit: 4, damage: '1d8+2' }] } });

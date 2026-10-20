@@ -480,6 +480,7 @@ const hasItem = (w, n) => w.KLITE_RPMod_Characters.cachedSheet('Tove Emberfall')
 test('Retry undoes what the discarded reply did (items, flags, a fight, the world, its log lines)', async (t) => {
     const h = await undoHost(t); const w = h.window; const W = h.api();
     W.moveTo('Stolen Stores'); W.endEncounter();
+    W.updateEntity('__world__', { aiBuild: true });   // so that the reply can change the world
     const rooms = W.activeWorld().locations.length, log0 = w.KLITE_RPMod_Log.entries().length;
     w.gametext_arr.push('\n{{[INPUT]}}\nI look around.\n{{[OUTPUT]}}\n');
     w.handle_incoming_text('A rope! <give>Rope</give> <flag>found_rope</flag> <room>Larder, east: shelves</room> Goblins! <encounter>Goblin Warrior</encounter>');
@@ -689,4 +690,30 @@ test('a waiting encounter in the prompt says who is in it', async (t) => {
     W.endEncounter();
     assert.doesNotMatch(W.preview(), /Waiting here/, 'no longer waiting');
     assert.equal(W.startSavedEncounter('Goblin wolves: 2 Wolf').encounter, 'enc_den_wolves', 'the name with its line');
+});
+
+// Owner, 2026-10-20: the AI adds rooms and doors only where the world's author allows it (default off) — GLM and DeepSeek
+// Flash invented rooms behind unexplored doors of an authored map. The tags are the narrator's, one room per reply.
+test('a fixed map (default): <room>/<door> refused, the prompt says so', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.window.handle_incoming_text = (txt) => { h.window.gametext_arr.push(txt); };
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    W.moveTo('Wolf Den');
+    const rooms = W.activeWorld().locations.length;
+    const p = W.preview();
+    assert.match(p, /\[Game notes\]\nThese notes come from RPmod[^\n]*Never name RPmod/);
+    assert.match(p, /These tags are yours, the narrator's[\s\S]*Every move to another room needs <go>name<\/go>[\s\S]*One room per reply[\s\S]*A move the log already shows \("Goes …"\) is done/);
+    assert.match(p, /The map is fixed: never invent rooms, ways or doors/);
+    assert.doesNotMatch(p, /<room>Name, east/);
+    w.handle_incoming_text('Behind the door: <room>Grain Cache, east: sacks</room> <door>south = locked, iron</door>');
+    assert.equal(W.activeWorld().locations.length, rooms, 'no room');
+    const log = w.KLITE_RPMod_Log.entries().map(e => e.what).join('\n');
+    assert.match(log, /Room Grain Cache refused: the map is fixed in this world — what lies behind an exit is found by going there\./);
+    assert.match(log, /Door south refused: the map is fixed/);
+    // naming a generated room ("Room 3") stays allowed: tests/generator.test.js (AI: names a placeholder room)
 });

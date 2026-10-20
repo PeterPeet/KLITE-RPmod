@@ -1064,11 +1064,16 @@ Without Esolite's no-think preset (owner's question): the same — the chat-comp
 names the mod ("RPmod will roll whatever you do") — the prompt should say never to mention RPmod or the rules engine.
 
 **Next for the Flash goal (from both Flash models):**
-- [ ] **No `<room>` in authored worlds:** the prompt invites "To add a room next to this one: `<room>…</room>`" — GLM used it to
-  invent a room behind an unexplored door. Offer `<room>`/`<door>` only where the world lets the AI build (a world flag;
-  off for adventures), and say for an unexplored exit: "what lies there is unknown until the party goes: `<go>east</go>`".
-- [ ] **Moves:** Flash walked three rooms without `<go>`; GLM Flash wrote them. GLM 5.3's reasoning shows why a model skips it: the button moves ("I go to Wolf Den.") are done by RPmod before the reply, so the chat has no `<go>` of the AI's and it concludes RPmod reads prose; it also wondered whether the Exploring tags are meant for the player. Say they are the narrator's, and that a button move is already done. A short rule in the Exploring section ("every
+- [x] **The AI builds only where the author lets it:** world setting "The AI may add rooms and doors to the maps"
+  (`world.aiBuild`, **off by default** — owner 2026-10-20: adventures and own worlds are the same thing, the author
+  decides); off → `<room>`/`<door>` refused ("the map is fixed in this world") and [Exploring] says "never invent rooms,
+  ways or doors — an unexplored exit is unknown until the party goes through it with `<go>`". Naming a generated "Room 3"
+  stays allowed. Tests in `tests/playtestR8.test.js`, `move.test.js`.
+- [x] **Moves:** Flash walked three rooms without `<go>`; GLM Flash wrote them. GLM 5.3's reasoning shows why a model skips it: the button moves ("I go to Wolf Den.") are done by RPmod before the reply, so the chat has no `<go>` of the AI's and it concludes RPmod reads prose; it also wondered whether the Exploring tags are meant for the player. Say they are the narrator's, and that a button move is already done. A short rule in the Exploring section ("every
   move needs `<go>`; one room per reply, then stop") — measure on the same scene with both.
+  Done: [Exploring] now says the tags are the narrator's, every move needs `<go>`, one room per reply, a move the log
+  already shows is done. **[Game notes]** (new, every turn): the notes come from RPmod — never name RPmod, the log, the
+  tags or the notes in the story. Measure next on the "east and on south" scene (GLM 5.3 / GLM Flash without reasoning).
 - [ ] **Generate More with GLM:** check Esolite's prefill/"Non-Standard Fields"/end-token options for assistant prefill.
 
 **New open items from this live test:**

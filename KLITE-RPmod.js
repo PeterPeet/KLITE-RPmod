@@ -23685,6 +23685,10 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       gameLog(`Notices ${hits.map((h) => h.label).join(", ")} in ${playerPlaceName(locId, locId)} (passive Perception ${pp}).`, "map");
       return hits;
     }
+    function aiMayBuild(world2) {
+      return !!(world2 && world2.aiBuild === true);
+    }
+    const FIXED_MAP = "the map is fixed in this world — what lies behind an exit is found by going there";
     function aiAddRoom(arg) {
       const spec = parseRoomSpec(arg);
       if (spec.dir === "here") return aiNameRoom(spec);
@@ -23695,6 +23699,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         gameLog(msg, "map");
         return { ok: false, reason: msg };
       };
+      if (!aiMayBuild(activeWorld())) return refuse(FIXED_MAP);
       if (!spec.name) return refuse("it needs a name");
       if (!map) return refuse("new rooms can only be added inside a dungeon or town");
       normalizeExploration(rt());
@@ -23734,6 +23739,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         gameLog(msg, "map");
         return { ok: false, reason: msg };
       };
+      if (!aiMayBuild(activeWorld())) return refuse(FIXED_MAP);
       normalizeExploration(rt());
       const ex = curId ? exitForTarget(spec.target, curId) : null;
       if (!ex) return refuse("there is no such way here");
@@ -27089,6 +27095,7 @@ ${recent}` : "");
         const rules = asArray5(world2.rules).map(norm5).filter(Boolean).join("\n");
         push("World Rules", 100, rules);
       }
+      push("Game notes", 99, "These notes come from RPmod, the game's rules engine: it rolls the dice, moves the party and keeps the sheets. Never name RPmod, the log, the tags or these notes in the story — narrate only what the characters experience.");
       const c = rt().clock || {};
       push(
         "Current Time",
@@ -27198,7 +27205,7 @@ ${xl.join("\n")}`;
         if (waiting.length) push("Waiting here", 64, waiting.map((e) => `- ${norm5(e.name)}${who(e) ? `: ${who(e)}` : ""}`).join("\n") + "\nWhen they notice the player (or the player attacks), write <encounter>exact name</encounter>; RPmod then runs the fight.");
       }
       if (inRoom) {
-        push("Exploring", 24, "The player explores room by room. Use a name or direction from the exits above: <go>name</go> moves (a closed door opens on the way), <open>north</open>, <close>north</close>, <unlock>north</unlock> (RPmod uses a key or rolls thieves' tools), <search></search> when the player searches this room (RPmod rolls Perception/Investigation). To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>; to change the light here: <light>dark</light>. RPmod applies the rules: rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found." + (isPlaceholderName(loc.name) ? ` This room has no proper name yet ("${norm5(loc.name)}"): name and describe it once with <room>Name, here: short description</room>.` : ""));
+        push("Exploring", 24, `The party explores room by room. These tags are yours, the narrator's — write them in your reply when the story does it. Every move to another room needs <go>name</go>, with a name or direction from the exits above (a closed door opens on the way). One room per reply: when the player wants to go further, move one room, describe it and stop there. A move the log already shows ("Goes …") is done: narrate the arrival, no <go>. Also: <open>north</open>, <close>north</close>, <unlock>north</unlock> (a key is used or thieves' tools are rolled), <search></search> when the player searches this room (Perception/Investigation is rolled), <light>dark</light> to change the light here. ` + (aiMayBuild(world2) ? "To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>. " : "The map is fixed: never invent rooms, ways or doors — an unexplored exit is unknown until the party goes through it with <go>. ") + "Rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found." + (isPlaceholderName(loc.name) ? ` This room has no proper name yet ("${norm5(loc.name)}"): name and describe it once with <room>Name, here: short description</room>.` : ""));
         if (settingOn(ASCII_MAP_SETTING, false)) push("Map (explored)", 60, asciiMapText(loc.id));
       }
       const questLines = [];
@@ -31808,6 +31815,13 @@ ${xl.join("\n")}`;
       });
       box.appendChild(ta);
       box.appendChild(el2("div", { style: "color:var(--rpm-fg-muted);font-size:10px;margin-top:3px", text: "Shown to the AI as [World Rules]. The Description above is shown as the world premise." }));
+      const build2 = el2("input", { type: "checkbox", style: "cursor:pointer", "data-world": "ai-build" });
+      build2.checked = ent.aiBuild === true;
+      build2.addEventListener("change", () => {
+        A.updateEntity("__world__", { aiBuild: build2.checked });
+      });
+      box.appendChild(el2("label", { style: "display:flex;gap:6px;align-items:center;margin-top:10px;cursor:pointer" }, [build2, el2("span", { text: "The AI may add rooms and doors to the maps" })]));
+      box.appendChild(muted2('Off: the dungeons and towns stay as you built them — the AI never invents rooms, ways or doors, and an unexplored exit is found by going there. Rooms the generator left unnamed ("Room 3") are named by the AI either way.', { style: "font-size:10px;margin-top:3px" }));
       const st = A.worldStart() || {};
       const card = el2("div", { class: "rpm-card", style: "margin-top:12px", "data-ui": "world-start" });
       card.appendChild(el2("strong", { text: "Start of a new game" }));
