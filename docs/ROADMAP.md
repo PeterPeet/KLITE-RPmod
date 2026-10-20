@@ -978,6 +978,35 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   `locationId` now starts by the AI's tag only there (or inside it); elsewhere it is refused (logged → story correction).
   Ad-hoc lists, events and the Combat window are unchanged. Test in `tests/playtestR8.test.js`.
 
+**Live test of the new features, 2026-10-20 (DeepSeek V4 Pro, then V4 Flash):** all of them worked in the real game —
+pregen reset in the picker, first turns of a fight on arrival (the AI then narrated the companion's real blow), `<cast>`
+written by the model itself, the Combat window closing, Retry/Undo undoing a reply (a wrongly started boss fight with its
+move, secret door and attacks), cut-off replies at 512 tokens (nothing applied; Generate More's answer after `</think>`
+parsed; Generate More after a finished answer: the model returns nothing, state unchanged), the refused encounter in the
+wrong room with the story correction next turn, containers, "Turn based" placement keeping the player's message whole.
+
+**Model comparison (same scenes):**
+| | DeepSeek V4 Pro (low) | DeepSeek V4 Flash (low) | V4 Flash (high) |
+|---|---|---|---|
+| Time per reply | 20–60 s | ~7 s | 3–7 s |
+| Thinking | 6,000–15,000 chars, often cut off at 4096 | 500–2,800 | 70–1,900 (uneven) |
+| A miss narrated as a miss | yes | 1 of 3 (2 invented kills) | 2 of 3 (1 left open) |
+| Tags (`<accept>`, `<join>`, `<cast>`, `<encounter>`) | reliable, sometimes in the wrong place | reliable for simple ones | walked three rooms with **no** `<go>` |
+| Respects a refusal | yes (after the correction, but invents a substitute) | — | — |
+Pro is the more reliable game master; Flash on "high" is close in fights but loses track of moves. Both tie in well
+with RPmod's safety nets (refusals, correction, cut-off handling, undo).
+
+**New open items from this live test:**
+- [ ] **Capture after a defeat:** the AI narrates the party tied up and dragged next door; RPmod has no "captured" state
+  (the party lies at 0 HP where it fell).
+- [ ] **Content:** "Grain Sack" reads as an empty sack to the AI ("three empty grain sacks") — "Sack of Seed Grain".
+- [ ] **Gifts without `<give>`:** the AI hands out coins or items in prose ("she slides a few coins across the table").
+- [ ] **Junk from cut-off chunks stays in the chat** and goes back to the model as its own earlier answer (Retry/Undo it).
+- [ ] **Esolite (upstream):** the stream parser drops a network packet that holds several `data:` events ("Cannot parse a
+  chunk") — the provider's `finish_reason: "stop"` and, in one Gemma case, the end of the answer were lost. A small PR
+  for esobold (split the packet into lines).
+- [ ] Flash credits its own noticing to a companion ("Oona spots the cord" while RPmod's passive Perception was Tove's).
+
 **Open items from the play test (owner to prioritise):**
 - [x] **Story correction** — done 2026-10-20: the refusals of the AI's own tags in a reply (`refused`, `cannot`, …) are kept
   (`runtime.storyCorrection`, additive) and the next prompt opens with **[Set the story straight]** (priority 97): what
