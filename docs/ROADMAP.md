@@ -1022,11 +1022,30 @@ again on the same set. Results so far: the comparison table above; GLM 5.3 Flash
 | "East and on south" | a `<go>` for every move (best discipline so far), but **invented a room** behind the unexplored door (`<room>Mule Pen…`, refused) and moved Liu's grain into another room — 100 s, 32,000 chars of thinking |
 Text quality: the best of the cheap models (owner). Weak spots: slow on "medium"/"high", long thinking.
 
+**GLM 5.3 (full, `zai-org/glm-5.3`, reasoning "low"), same scenes — compared with DeepSeek V4 Pro on low:**
+| Scene | Result |
+|---|---|
+| Start, quest, join | both tags right, 52 s, 14,700 chars of thinking (16k) |
+| Ambush from the log | correct and vivid (the hit on Oona, ends on Tove's turn), 91 s, 27,000 chars (16k) |
+| Missed attack ×4 (2× 16k, 2× 4096) | **4 of 4 correct misses**, 19–47 s, 5,000–12,000 chars. Max output does **not** steer the thinking length (owner's question): 4096 gave 5,200 and 11,800 chars, 16k 10,300 and 11,400 |
+| `<cast>` after the fight | `<cast>Cure Wounds = Oona</cast>` by itself, healing and slot applied, 43 s |
+| Trap (4096) | cut off while thinking; Generate More: a fresh short think and a whole reply (14 s), trap credited to Tove |
+| Waiting encounter (4096) | cut off twice (75 s each), a Retry fitted (35 s, wolves asleep — right); on the attack `<encounter>Goblin wolves</encounter>` by exact name (22 s), but it narrated **four** wolves for two (the prompt gave no count → fixed) |
+| "East and on south" (4096) | cut off twice (50 s, 55 s); its reasoning: it never wrote `<go>` before (the buttons moved the party), so it concludes "RPmod parses prose"; plans `<room>Grain Store…</room>` behind the unexplored door |
+At 4096, 4 of 8 replies were cut off; the safety net held every time (no tag applied). Text quality: the best so far.
+Slower and longer-thinking than V4 Pro on low; the game-master rules hold better (misses, `<cast>`, encounter by name).
+
+- [x] **Cut-off reasoning no longer reaches the AI** — found with GLM 5.3: the untagged reasoning of a reply cut off while
+  thinking was sent as the assistant's reply (17,000 characters in a 31,000-character request), and every Generate More
+  (GLM starts over) added another. RPmod folds it in the thinking tags once a finished reply does not continue it (or the
+  player writes on); DeepSeek's continuation with a lone `</think>` is left to Esolite. Test in `tests/playtestR8.test.js`.
+- [x] **Waiting encounters say who is in them** ("Goblin wolves: 2 Wolf").
+
 **Next for the Flash goal (from both Flash models):**
 - [ ] **No `<room>` in authored worlds:** the prompt invites "To add a room next to this one: `<room>…</room>`" — GLM used it to
   invent a room behind an unexplored door. Offer `<room>`/`<door>` only where the world lets the AI build (a world flag;
   off for adventures), and say for an unexplored exit: "what lies there is unknown until the party goes: `<go>east</go>`".
-- [ ] **Moves:** Flash walked three rooms without `<go>`; GLM wrote them. A short rule in the Exploring section ("every
+- [ ] **Moves:** Flash walked three rooms without `<go>`; GLM Flash wrote them. GLM 5.3's reasoning shows why a model skips it: the button moves ("I go to Wolf Den.") are done by RPmod before the reply, so the chat has no `<go>` of the AI's and it concludes RPmod reads prose; it also wondered whether the Exploring tags are meant for the player. Say they are the narrator's, and that a button move is already done. A short rule in the Exploring section ("every
   move needs `<go>`; one room per reply, then stop") — measure on the same scene with both.
 - [ ] **Generate More with GLM:** check Esolite's prefill/"Non-Standard Fields"/end-token options for assistant prefill.
 
