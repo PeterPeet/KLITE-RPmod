@@ -1058,6 +1058,10 @@ closed thought — the model still writes a one-line `<think>` plan), same scene
 No reply cut off; 6–14 s each (low: 20–90 s). Fights, spells and encounters as reliable as on "low"; exploring has the same
 weak spot as GLM Flash and the "low" run — which the two prompt items below address. **GLM 5.3 without reasoning is the
 best price/quality so far.**
+Without Esolite's no-think preset (owner's question): the same — the chat-completions request never carried `/nothink`
+(Esolite sends no instruct tags to an OpenAI-compatible API); `reasoning_effort: "none"` alone does it (start 9 s, ambush
+10 s narrated as rolled, misses 2 of 2 in 6 s each, a one-line `<think>` plan still). New slip in both runs: the reply
+names the mod ("RPmod will roll whatever you do") — the prompt should say never to mention RPmod or the rules engine.
 
 **Next for the Flash goal (from both Flash models):**
 - [ ] **No `<room>` in authored worlds:** the prompt invites "To add a room next to this one: `<room>…</room>`" — GLM used it to
