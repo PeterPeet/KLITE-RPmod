@@ -250,6 +250,12 @@ test('a cut-off reasoning chunk is wrapped as thinking when a new reply restarts
     w.last_stop_reason = 'stop';
     w.handle_incoming_text(' so: stay.</think>Tove waits.');
     assert.equal(arr()[ds], reasoning, 'a continued thought is not touched');
+    // reasoning switched off after a cut-off reply: the Retry's answer has no thinking at all — folded as well
+    cut(reasoning);
+    const off = arr().length - 1;
+    w.last_request_str = JSON.stringify({ model: 'glm', max_tokens: 4096, messages: [] }); w.last_stop_reason = '';
+    w.handle_incoming_text('Tove waits by the door.');
+    assert.equal(arr()[off], '<think>' + reasoning + '</think>', 'a finished reply without thinking');
     // the player writes on after a cut-off reply: folded before the prompt is built
     cut(reasoning);
     const p = arr().length - 1;

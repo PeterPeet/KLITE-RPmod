@@ -25273,6 +25273,13 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       const t = String(text || "").trimStart().toLowerCase();
       return thinkingPairs().some(([a]) => t.startsWith(unescTag(a).toLowerCase()));
     }
+    function closesThought(text) {
+      const t = String(text || "").toLowerCase();
+      return thinkingPairs().some(([a, b]) => {
+        const ci = t.indexOf(unescTag(b).toLowerCase()), oi = t.indexOf(unescTag(a).toLowerCase());
+        return ci >= 0 && (oi < 0 || ci < oi);
+      });
+    }
     function wrapOrphanThinking(arr2, upTo2) {
       const list3 = cutOffChunks;
       cutOffChunks = [];
@@ -26948,8 +26955,8 @@ ${recent}` : "");
       if (!(opts && opts.advance === false)) settleCutOffAtSend(arr2);
       for (let i = start; i < arr2.length; i++) {
         if (opts && opts.advance === false && i === arr2.length - 1 && cutOffChunks.length) {
-          if (opensWithThinking(arr2[i])) wrapOrphanThinking(arr2, i);
-          else if (hasThinkingTag(arr2[i])) cutOffChunks = [];
+          if (closesThought(arr2[i])) cutOffChunks = [];
+          else if (opensWithThinking(arr2[i]) || !cutOffWhileThinking(arr2[i])) wrapOrphanThinking(arr2, i);
         }
         if (opts && opts.advance === false && i === arr2.length - 1 && cutOffWhileThinking(arr2[i])) {
           cutOffChunks.push({ index: i, head: arr2[i].slice(0, 200) });
