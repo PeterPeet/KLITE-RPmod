@@ -192,9 +192,9 @@ test('a reply cut off while thinking applies no tags; Generate More\'s continuat
     const logText2 = () => w.KLITE_RPMod_Log.entries().map(e => e.what).join('\n');
     const n0 = rooms();
     // the request asked for reasoning; the stream ended without a proper stop (finish_reason "length")
-    w.last_request_str = JSON.stringify({ model: 'deepseek', reasoning_effort: 'high', messages: [] });
+    w.last_request_str = JSON.stringify({ model: 'deepseek', reasoning_effort: 'high', max_tokens: 100, messages: [] });
     w.last_stop_reason = '';
-    w.handle_incoming_text('We need answer as narrator. Maybe <go>Wolf Den</go>, or add <room>Name, east: a tunnel</room> and <door>east = locked, iron</door>. Then');
+    w.handle_incoming_text('We need answer as narrator. Maybe <go>Wolf Den</go>, or add <room>Name, east: a tunnel</room> and <door>east = locked, iron</door>. Then we need decide which of the exits to use and how to describe the den, the smell, the straw and the dead wolves near the wall');
     assert.equal(at(), 'Stolen Stores', 'no move from the reasoning');
     assert.equal(rooms(), n0, 'no room from the reasoning');
     assert.match(logText2(), /The AI's reply was cut off while it was still thinking: RPmod applied none of its tags\. Use Generate More/);
@@ -203,6 +203,11 @@ test('a reply cut off while thinking applies no tags; Generate More\'s continuat
     w.handle_incoming_text(' decide: just go west.</think>Tove ducks back into the den. <go>Wolf Den</go>');
     assert.equal(at(), 'Wolf Den', 'the answer after </think> counts');
     assert.equal(rooms(), n0);
+    // a short reply that ended by itself (no reasoning in it, the provider sent no stop reason): parsed
+    w.last_request_str = JSON.stringify({ model: 'deepseek', reasoning_effort: 'low', max_tokens: 4096, messages: [] }); w.last_stop_reason = '';
+    w.handle_incoming_text('Tove steps back. <go>Stolen Stores</go>');
+    assert.equal(at(), 'Stolen Stores', 'far below its budget: not cut off');
+    w.handle_incoming_text('And on. <go>Wolf Den</go>');
     // a normal reply with its thinking tagged, and one without reasoning requested, are parsed as before
     w.last_request_str = JSON.stringify({ model: 'x', messages: [] }); w.last_stop_reason = '';
     w.handle_incoming_text('Oona nods. <go>Stolen Stores</go>');

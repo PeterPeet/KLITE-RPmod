@@ -25234,7 +25234,10 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         if (hasThinkingTag(text)) return false;
         const req = JSON.parse(String(window.last_request_str || "{}"));
         const eff = req.reasoning_effort || req.reasoning && (req.reasoning.effort || req.reasoning.enabled) || req.thinking && req.thinking.type === "enabled";
-        return !!eff && eff !== "none";
+        if (!eff || eff === "none") return false;
+        const maxTok = Number(req.max_tokens || req.max_completion_tokens) || 0;
+        if (maxTok && String(text || "").length / 4 < maxTok * 0.6) return false;
+        return true;
       } catch (_) {
         return false;
       }

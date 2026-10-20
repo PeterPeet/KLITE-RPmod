@@ -1955,7 +1955,12 @@ export default function initWorlds() {
             if (hasThinkingTag(text)) return false;
             const req = JSON.parse(String(window.last_request_str || '{}'));
             const eff = req.reasoning_effort || (req.reasoning && (req.reasoning.effort || req.reasoning.enabled)) || (req.thinking && req.thinking.type === 'enabled');
-            return !!eff && eff !== 'none';
+            if (!eff || eff === 'none') return false;
+            // a reply cut off used up its budget (live test 2026-10-20: Novita/DeepSeek leave last_stop_reason empty even
+            // for a reply that ended by itself, so the stop reason alone is no proof); ~4 characters a token, with margin
+            const maxTok = Number(req.max_tokens || req.max_completion_tokens) || 0;
+            if (maxTok && String(text || '').length / 4 < maxTok * 0.6) return false;
+            return true;
         } catch (_) { return false; }
     }
     function parseMutations(text) {

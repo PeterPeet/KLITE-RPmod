@@ -980,7 +980,10 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   thinking stays untagged so that **Generate More** continues the thought, which then ends with a lone `</think>`
   (Esolite's `handle_mismatched_think`). RPmod now applies no tags of a reply that arrives cut off while thinking
   (reasoning requested, no proper stop, no thinking tag — logged: "use Generate More or Retry") and treats everything
-  before a lone closing tag as thinking. Test in `tests/playtestR8.test.js`.
+  before a lone closing tag as thinking. Test in `tests/playtestR8.test.js`. **Live-tested** with DeepSeek V4 Pro at 512
+  max tokens / reasoning "high": two cut-off chunks applied nothing, the third (after Generate More) was parsed after its
+  `</think>`. Found there: Novita/DeepSeek leave `last_stop_reason` empty even for a reply that ended by itself, so a reply
+  only counts as cut off when it also used up its budget (length ≥ 60 % of max_tokens × 4 characters).
 - [x] **Spells outside a fight** — done 2026-10-20: `/cast Cure Wounds on Oona` and the AI's `<cast>Cure Wounds = Oona</cast>`
   (prompt section "Casting spells" when the persona has spells; "=" because a tag cannot hold ">") spend the slot or free
   cast like in a fight; healing is rolled onto the persona or a companion (sheet, else the story's companion HP); other
