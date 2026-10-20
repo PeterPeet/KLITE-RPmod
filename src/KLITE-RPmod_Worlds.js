@@ -1990,6 +1990,37 @@ export default function initWorlds() {
             return true;
         } catch (_) { return false; }
     }
+    // A reply cut off while thinking stays in the chat untagged, and Esolite sends untagged text to the AI as
+    // the reply (live test 2026-10-20, GLM 5.3: 17,000 characters of reasoning in a 31,000-character request,
+    // again after every Generate More). It is kept until the next chunk shows whether the reasoning goes on:
+    // a continuation that closes it with a lone closing tag (DeepSeek) stays as it is; a new reply that starts
+    // its own thinking (GLM restarts on Generate More / Retry) or the player writing on instead makes it an
+    // orphan, which RPmod wraps in the thinking tags (Esolite then folds it and leaves it out of the prompt).
+    let cutOffChunks = [];   // [{ index, head }]
+    const unescTag = (x) => String(x).replaceAll('\\n', '\n');
+    function opensWithThinking(text) {
+        const t = String(text || '').trimStart().toLowerCase();
+        return thinkingPairs().some(([a]) => t.startsWith(unescTag(a).toLowerCase()));
+    }
+    // wraps the recorded chunks before `upTo` that are still in the chat unchanged; forgets them all
+    function wrapOrphanThinking(arr, upTo) {
+        const list = cutOffChunks; cutOffChunks = [];
+        if (!Array.isArray(arr)) return 0;
+        const [a, b] = thinkingPairs()[0]; let n = 0;
+        for (const c of list) {
+            const t = arr[c.index];
+            if (c.index >= upTo || typeof t !== 'string' || !t.startsWith(c.head) || hasThinkingTag(t)) continue;
+            arr[c.index] = unescTag(a) + t + unescTag(b); n++;
+        }
+        if (n) { try { if (typeof window.render_gametext === 'function') window.render_gametext(false, false); } catch (_) {} }
+        return n;
+    }
+    // at a new turn: the player wrote instead of Generate More / Retry
+    function settleCutOffAtSend(arr) {
+        if (!cutOffChunks.length || !Array.isArray(arr)) return;
+        let input = ''; try { input = String(document.getElementById('input_text')?.value || '').trim(); } catch (_) {}
+        if (input && !input.startsWith('/')) wrapOrphanThinking(arr, arr.length);
+    }
     function parseMutations(text) {
         const world = activeWorld(); if (!world || !rt()) return false;
         let changed = false;
@@ -3196,8 +3227,14 @@ export default function initWorlds() {
         if (!Array.isArray(arr)) return false;
         const start = Math.max(0, Math.min(Number(rt().lastParsedIndex) || 0, arr.length));
         let changed = false;
+        if (!(opts && opts.advance === false)) settleCutOffAtSend(arr);
         for (let i = start; i < arr.length; i++) {
+            if (opts && opts.advance === false && i === arr.length - 1 && cutOffChunks.length) {
+                if (opensWithThinking(arr[i])) wrapOrphanThinking(arr, i);   // a new reply: the earlier reasoning is an orphan
+                else if (hasThinkingTag(arr[i])) cutOffChunks = [];           // a continuation closes it (Esolite pairs them)
+            }
             if (opts && opts.advance === false && i === arr.length - 1 && cutOffWhileThinking(arr[i])) {
+                cutOffChunks.push({ index: i, head: arr[i].slice(0, 200) });
                 gameLog('The AI\'s reply was cut off while it was still thinking: RPmod applied none of its tags. Use Generate More to let it finish, or Retry.', 'system');
                 continue;
             }

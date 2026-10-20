@@ -25267,6 +25267,41 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         return false;
       }
     }
+    let cutOffChunks = [];
+    const unescTag = (x) => String(x).replaceAll("\\n", "\n");
+    function opensWithThinking(text) {
+      const t = String(text || "").trimStart().toLowerCase();
+      return thinkingPairs().some(([a]) => t.startsWith(unescTag(a).toLowerCase()));
+    }
+    function wrapOrphanThinking(arr2, upTo2) {
+      const list3 = cutOffChunks;
+      cutOffChunks = [];
+      if (!Array.isArray(arr2)) return 0;
+      const [a, b] = thinkingPairs()[0];
+      let n = 0;
+      for (const c of list3) {
+        const t = arr2[c.index];
+        if (c.index >= upTo2 || typeof t !== "string" || !t.startsWith(c.head) || hasThinkingTag(t)) continue;
+        arr2[c.index] = unescTag(a) + t + unescTag(b);
+        n++;
+      }
+      if (n) {
+        try {
+          if (typeof window.render_gametext === "function") window.render_gametext(false, false);
+        } catch (_) {
+        }
+      }
+      return n;
+    }
+    function settleCutOffAtSend(arr2) {
+      if (!cutOffChunks.length || !Array.isArray(arr2)) return;
+      let input2 = "";
+      try {
+        input2 = String(document.getElementById("input_text")?.value || "").trim();
+      } catch (_) {
+      }
+      if (input2 && !input2.startsWith("/")) wrapOrphanThinking(arr2, arr2.length);
+    }
     function parseMutations(text) {
       const world2 = activeWorld();
       if (!world2 || !rt()) return false;
@@ -26910,8 +26945,14 @@ ${recent}` : "");
       if (!Array.isArray(arr2)) return false;
       const start = Math.max(0, Math.min(Number(rt().lastParsedIndex) || 0, arr2.length));
       let changed = false;
+      if (!(opts && opts.advance === false)) settleCutOffAtSend(arr2);
       for (let i = start; i < arr2.length; i++) {
+        if (opts && opts.advance === false && i === arr2.length - 1 && cutOffChunks.length) {
+          if (opensWithThinking(arr2[i])) wrapOrphanThinking(arr2, i);
+          else if (hasThinkingTag(arr2[i])) cutOffChunks = [];
+        }
         if (opts && opts.advance === false && i === arr2.length - 1 && cutOffWhileThinking(arr2[i])) {
+          cutOffChunks.push({ index: i, head: arr2[i].slice(0, 200) });
           gameLog("The AI's reply was cut off while it was still thinking: RPmod applied none of its tags. Use Generate More to let it finish, or Retry.", "system");
           continue;
         }

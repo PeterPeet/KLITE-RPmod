@@ -214,6 +214,56 @@ test('a reply cut off while thinking applies no tags; Generate More\'s continuat
     assert.equal(at(), 'Stolen Stores', 'no reasoning requested: a long reply cut off still counts');
 });
 
+// Live test 2026-10-20 (GLM 5.3, 4096): a reply cut off while thinking stayed in the chat untagged, and Esolite sent it
+// to the AI as the reply — 17,000 characters of reasoning in a 31,000-character request, again after every Generate
+// More (GLM does not continue a thought: it starts a new reply with its own <think>). The orphan is wrapped in the
+// thinking tags once the next chunk shows the reasoning will not be continued; DeepSeek's continuation is left alone.
+test('a cut-off reasoning chunk is wrapped as thinking when a new reply restarts it or the player writes on', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.window.handle_incoming_text = (txt) => { h.window.gametext_arr.push(txt); };
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    W.moveTo('Stolen Stores');
+    const arr = () => w.gametext_arr;
+    const cut = (txt) => { w.last_request_str = JSON.stringify({ model: 'glm', reasoning_effort: 'low', max_tokens: 20, messages: [] }); w.last_stop_reason = ''; w.handle_incoming_text(txt); };
+    const reasoning = 'Let me look at the current state. The player moved; maybe <go>Wolf Den</go>. I should describe the straw and the smell';
+    // GLM: cut off, Generate More cut off again, Retry (removes the newest), then a whole reply with its own thinking
+    cut(reasoning);
+    const first = arr().length - 1;
+    cut('Let me look at the current state carefully. Again <go>Wolf Den</go> maybe, and the wolves asleep in the straw');
+    arr().pop();   // Retry removes the newest chunk and generates again (empty input)
+    let input = w.document.getElementById('input_text');
+    if (!input) { input = w.document.createElement('textarea'); input.id = 'input_text'; w.document.body.appendChild(input); }
+    input.value = ''; await w.prepare_submit_generation();
+    assert.equal(arr()[first], reasoning, 'not yet: the thought might still go on');
+    w.last_stop_reason = 'stop';
+    w.handle_incoming_text('<think>Short.</think>Tove steps into the den. <go>Wolf Den</go>');
+    assert.equal(arr()[first], '<think>' + reasoning + '</think>', 'the orphan is folded as thinking');
+    assert.equal(W.getGraph().nodes.find(n => n.id === W.runtime.playerLocationId).name, 'Wolf Den', 'the new reply counts');
+    // DeepSeek: the continuation closes the thought with a lone </think> — left for Esolite to pair
+    cut(reasoning);
+    const ds = arr().length - 1;
+    w.last_stop_reason = 'stop';
+    w.handle_incoming_text(' so: stay.</think>Tove waits.');
+    assert.equal(arr()[ds], reasoning, 'a continued thought is not touched');
+    // the player writes on after a cut-off reply: folded before the prompt is built
+    cut(reasoning);
+    const p = arr().length - 1;
+    input.value = 'Tove looks around.';
+    await w.prepare_submit_generation();
+    assert.equal(arr()[p], '<think>' + reasoning + '</think>');
+    // a slash command or Generate More (empty input) does not
+    cut(reasoning);
+    const q = arr().length - 1;
+    input.value = '';
+    await w.prepare_submit_generation();
+    assert.equal(arr()[q], reasoning, 'Generate More: the thought may still go on');
+});
+
 // Gemma narrated an invented key opening a door RPmod kept locked, and the party walking into a room it never
 // reached; the refusal reached the next prompt only as one log line. Now the next prompt asks to set it straight.
 test('story correction: the AI\'s refused tags come back as "Set the story straight" (until the reply is retried)', async (t) => {
