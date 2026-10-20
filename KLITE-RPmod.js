@@ -23675,6 +23675,30 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       gameLog(text, "map");
       return { ok: true, text, roll: r, skill: sk.name, found: hits.map((h) => ({ kind: h.kind, id: h.id, label: h.label })), source: opts.source || null };
     }
+    function beyondExits(world2, loc) {
+      const visited = asArray5(rt() && rt().visitedLocationIds);
+      const pp = passivePerception();
+      const out = [];
+      for (const e of playerExits(loc.id)) {
+        const t = locOf(e.to);
+        if (!t || t.id === loc.id || visited.includes(t.id) || !mapOf(t.id) || !mapOf(loc.id) || mapOf(t.id).id !== mapOf(loc.id).id) continue;
+        const bits = [];
+        if (norm5(t.description)) bits.push(norm5(t.description));
+        const light = roomLightOf(t);
+        if (light) bits.push(`Light: ${light}`);
+        const people = asArray5(world2.npcs).filter((n) => resolveNpcLocationId(n) === t.id && !asArray5(rt().party).includes(n.id)).map(personName);
+        if (people.length) bits.push(`People: ${people.join(", ")}`);
+        const feats = asArray5(world2.objects).filter((o) => o.locationId === t.id && featureVisible(o)).map((o) => norm5(o.name)).filter(Boolean);
+        if (feats.length) bits.push(`Things: ${feats.join(", ")}`);
+        const notice = hiddenHere(t.id).filter((c) => pp >= c.dc).map((c) => c.label);
+        if (notice.length) bits.push(`On arrival the party notices (passive Perception): ${notice.join(", ")}`);
+        const waits = encountersAt(t.id).filter((en) => !asArray5(rt().startedEncounters).includes(en.id));
+        for (const en of waits) bits.push(`Waiting there: ${norm5(en.name)} (${encounterSummary(en.monsters)}) — when they notice the party, write <encounter>${norm5(en.name)}</encounter> after the <go>`);
+        const name = isPlaceholderName(t.name) ? "a room without a name yet" : norm5(t.name);
+        out.push(`- ${e.dir ? dirName(e.dir) : "the way"} → ${name}${bits.length ? ": " + bits.map((x) => x.replace(/[.\s]+$/, "")).join(". ") + "." : ""}`);
+      }
+      return out;
+    }
     function passiveNotice(locId) {
       if (!rt() || !locOf(locId)) return [];
       normalizeExploration(rt());
@@ -27206,6 +27230,8 @@ ${xl.join("\n")}`;
       }
       if (inRoom) {
         push("Exploring", 24, `The party explores room by room. These tags are yours, the narrator's — write them in your reply when the story does it. Every move to another room needs <go>name</go>, with a name or direction from the exits above (a closed door opens on the way). One room per reply: when the player wants to go further, move one room, describe it and stop there. A move the log already shows ("Goes …") is done: narrate the arrival, no <go>. Also: <open>north</open>, <close>north</close>, <unlock>north</unlock> (a key is used or thieves' tools are rolled), <search></search> when the player searches this room (Perception/Investigation is rolled), <light>dark</light> to change the light here. ` + (aiMayBuild(world2) ? "To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>. " : "The map is fixed: never invent rooms, ways or doors — an unexplored exit is unknown until the party goes through it with <go>. ") + "Rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found." + (isPlaceholderName(loc.name) ? ` This room has no proper name yet ("${norm5(loc.name)}"): name and describe it once with <room>Name, here: short description</room>.` : ""));
+        const ahead = beyondExits(world2, loc);
+        if (ahead.length) push("Behind the exits (for the narrator only)", 23, ahead.join("\n") + "\nThe player does not know this yet: use it only when the party goes there with <go> — then describe that room as given here, with what is noticed on arrival.");
         if (settingOn(ASCII_MAP_SETTING, false)) push("Map (explored)", 60, asciiMapText(loc.id));
       }
       const questLines = [];

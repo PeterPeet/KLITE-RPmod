@@ -717,3 +717,31 @@ test('a fixed map (default): <room>/<door> refused, the prompt says so', async (
     assert.match(log, /Door south refused: the map is fixed/);
     // naming a generated room ("Room 3") stays allowed: tests/generator.test.js (AI: names a placeholder room)
 });
+
+// Owner, 2026-10-20 (option a): the AI writes a move before RPmod makes it, so it narrated rooms it had never been told
+// about (GLM 5.3: a flooded room with a lantern for "a dry burrow" of grain sacks). It now gets, for the narrator only, what
+// lies behind each visible exit to a room not yet entered — never a secret room or an unfound secret exit.
+test('[Behind the exits]: the unvisited rooms next door for the narrator — with what passive Perception will notice', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.window.handle_incoming_text = (txt) => { h.window.gametext_arr.push(txt); };
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    W.moveTo('Root Tunnel'); W.moveTo('Wolf Den');
+    const stores = W.activeWorld().locations.find(l => l.name === 'Stolen Stores');
+    for (const e of stores.exits) if (e.type === 'secret') e.secretDC = 5;   // surely noticed by passive Perception
+    const behind = () => (W.preview().match(/\[Behind the exits \(for the narrator only\)\]\n([\s\S]*?)(?:\n\[|$)/) || [])[1] || '';
+    const b = behind();
+    assert.match(b, /- east → Stolen Stores: Grain sacks, barrels and crates[^\n]*On arrival the party notices \(passive Perception\): a secret door \(south\)/, b);
+    assert.match(b, /The player does not know this yet: use it only when the party goes there with <go>/);
+    assert.doesNotMatch(b, /Root Tunnel/, 'a room already visited is not repeated');
+    assert.match(W.preview(), /- east: unexplored room/, 'the exits still hide the name from the player\'s view');
+    // the exits of the hall are all visited or known: once the party has been in Stolen Stores, it is no longer "behind"
+    w.handle_incoming_text('Tove pushes the plank door open. <go>east</go>');
+    assert.equal(W.getGraph().nodes.find(n => n.id === W.runtime.playerLocationId).name, 'Stolen Stores');
+    W.moveTo('Wolf Den');
+    assert.doesNotMatch(behind(), /Stolen Stores/);
+});

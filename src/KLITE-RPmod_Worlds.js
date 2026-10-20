@@ -795,6 +795,31 @@ export default function initWorlds() {
         gameLog(text, 'map');
         return { ok: true, text, roll: r, skill: sk.name, found: hits.map(h => ({ kind: h.kind, id: h.id, label: h.label })), source: opts.source || null };
     }
+    // For the AI only: each visible exit to a room of this dungeon/town the party has not entered yet — its name and
+    // description, light, people, visible features, what passive Perception will notice on arrival, an encounter
+    // waiting there. Unfound secret exits and secret rooms stay out (playerExits); nothing here is revealed.
+    function beyondExits(world, loc) {
+        const visited = asArray(rt() && rt().visitedLocationIds); const pp = passivePerception();
+        const out = [];
+        for (const e of playerExits(loc.id)) {
+            const t = locOf(e.to);
+            if (!t || t.id === loc.id || visited.includes(t.id) || !mapOf(t.id) || !mapOf(loc.id) || mapOf(t.id).id !== mapOf(loc.id).id) continue;
+            const bits = [];
+            if (norm(t.description)) bits.push(norm(t.description));
+            const light = roomLightOf(t); if (light) bits.push(`Light: ${light}`);
+            const people = asArray(world.npcs).filter(n => resolveNpcLocationId(n) === t.id && !asArray(rt().party).includes(n.id)).map(personName);
+            if (people.length) bits.push(`People: ${people.join(', ')}`);
+            const feats = asArray(world.objects).filter(o => o.locationId === t.id && featureVisible(o)).map(o => norm(o.name)).filter(Boolean);
+            if (feats.length) bits.push(`Things: ${feats.join(', ')}`);
+            const notice = hiddenHere(t.id).filter(c => pp >= c.dc).map(c => c.label);
+            if (notice.length) bits.push(`On arrival the party notices (passive Perception): ${notice.join(', ')}`);
+            const waits = encountersAt(t.id).filter(en => !asArray(rt().startedEncounters).includes(en.id));
+            for (const en of waits) bits.push(`Waiting there: ${norm(en.name)} (${encounterSummary(en.monsters)}) — when they notice the party, write <encounter>${norm(en.name)}</encounter> after the <go>`);
+            const name = isPlaceholderName(t.name) ? 'a room without a name yet' : norm(t.name);
+            out.push(`- ${e.dir ? MR.dirName(e.dir) : 'the way'} → ${name}${bits.length ? ': ' + bits.map(x => x.replace(/[.\s]+$/, '')).join('. ') + '.' : ''}`);
+        }
+        return out;
+    }
     // Passive Perception on entering a room: whatever it beats is found without a roll.
     function passiveNotice(locId) {
         if (!rt() || !locOf(locId)) return [];
@@ -3507,6 +3532,11 @@ export default function initWorlds() {
                     : 'The map is fixed: never invent rooms, ways or doors — an unexplored exit is unknown until the party goes through it with <go>. ') +
                 'Rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found.' +
                 (isPlaceholderName(loc.name) ? ` This room has no proper name yet ("${norm(loc.name)}"): name and describe it once with <room>Name, here: short description</room>.` : ''));
+            // What lies behind the exits (owner 2026-10-20, option a): the AI writes a move before RPmod makes it, so it
+            // narrated rooms it had never been told about (GLM 5.3: a flooded room for "a dry burrow" of grain sacks).
+            const ahead = beyondExits(world, loc);
+            if (ahead.length) push('Behind the exits (for the narrator only)', 23, ahead.join('\n') +
+                '\nThe player does not know this yet: use it only when the party goes there with <go> — then describe that room as given here, with what is noticed on arrival.');
             if (settingOn(ASCII_MAP_SETTING, false)) push('Map (explored)', 60, asciiMapText(loc.id));
         }
 
