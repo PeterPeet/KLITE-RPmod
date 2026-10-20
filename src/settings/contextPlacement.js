@@ -45,8 +45,14 @@ export default function initContextPlacement() {
     let declined = false, asking = false;
 
     function auto() { try { return S() ? S().get(AUTO_SETTING) === true : false; } catch (_) { return false; } }
+    // Esolite's Yes/No box is shared (e.g. "Reconnect to previous custom endpoint?" right after a page
+    // load): wait until it is free instead of replacing someone else's question.
+    function boxBusy() {
+        try { const b = document.getElementById('yesnocontainer'); return !!(b && !b.classList.contains('hidden')); } catch (_) { return false; }
+    }
     function ask(onYes) {
         asking = true;
+        if (boxBusy()) { const wait = () => { if (boxBusy()) setTimeout(wait, 500); else { asking = false; check(); } }; setTimeout(wait, 500); return; }
         const done = () => { asking = false; };
         const yes = () => { done(); onYes(); };
         const no = () => { done(); declined = true; };
@@ -81,10 +87,13 @@ export default function initContextPlacement() {
     } catch (_) {}
 
     let tries = 0;
+    const hook = () => {
+        const a = typeof window.restart_new_game === 'function' && (wrap('restart_new_game', '__rpmod_placement') || window.restart_new_game.__rpmod_placement);
+        const b = typeof window.kai_json_load === 'function' && (wrap('kai_json_load', '__rpmod_placement') || window.kai_json_load.__rpmod_placement);
+        if ((!a || !b) && ++tries < 120) setTimeout(hook, 250);
+    };
     const start = () => {
-        const a = wrap('restart_new_game', '__rpmod_placement');
-        const b = wrap('kai_json_load', '__rpmod_placement');
-        if ((!a || !b) && typeof window.restart_new_game !== 'function' && ++tries < 120) { setTimeout(start, 250); return; }
+        hook();
         // Esolite restores the autosaved story during its own start-up: check after it settled
         setTimeout(check, 1500);
     };

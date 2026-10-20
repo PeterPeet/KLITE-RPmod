@@ -67,3 +67,16 @@ test('already "Before A/N" + "Strong": no question; a host without the variables
     await sleep(1800);
     assert.equal(asked, 0);
 });
+
+test('Esolite\'s Yes/No box is in use (the reconnect question after a reload): RPmod waits until it is free', async (t) => {
+    const h = createHost(); t.after(h.close); const w = h.window;
+    w.wi_insertlocation = 0; w.anote_strength = 320; w.__asked = [];
+    const box = w.document.createElement('div'); box.id = 'yesnocontainer'; w.document.body.appendChild(box);   // visible: Esolite's own question
+    w.msgboxYesNo = (text, title, onYes) => { w.__asked.push(title); box.classList.remove('hidden'); onYes(); box.classList.add('hidden'); };
+    h.load('bundle'); await h.ready({ ui: false });
+    await sleep(2300);
+    assert.equal(w.__asked.length, 0, 'not while the box shows another question');
+    box.classList.add('hidden');   // the user answered Esolite's question
+    assert.ok(await until(() => w.__asked.length === 1, 3000), 'asked once the box is free');
+    assert.deepEqual([w.wi_insertlocation, w.anote_strength], [1, 160]);
+});

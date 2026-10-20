@@ -34311,8 +34311,27 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         return false;
       }
     }
+    function boxBusy() {
+      try {
+        const b = document.getElementById("yesnocontainer");
+        return !!(b && !b.classList.contains("hidden"));
+      } catch (_) {
+        return false;
+      }
+    }
     function ask(onYes) {
       asking = true;
+      if (boxBusy()) {
+        const wait = () => {
+          if (boxBusy()) setTimeout(wait, 500);
+          else {
+            asking = false;
+            check();
+          }
+        };
+        setTimeout(wait, 500);
+        return;
+      }
       const done = () => {
         asking = false;
       };
@@ -34381,13 +34400,13 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     } catch (_) {
     }
     let tries = 0;
+    const hook = () => {
+      const a = typeof window.restart_new_game === "function" && (wrap("restart_new_game", "__rpmod_placement") || window.restart_new_game.__rpmod_placement);
+      const b = typeof window.kai_json_load === "function" && (wrap("kai_json_load", "__rpmod_placement") || window.kai_json_load.__rpmod_placement);
+      if ((!a || !b) && ++tries < 120) setTimeout(hook, 250);
+    };
     const start = () => {
-      const a = wrap("restart_new_game", "__rpmod_placement");
-      const b = wrap("kai_json_load", "__rpmod_placement");
-      if ((!a || !b) && typeof window.restart_new_game !== "function" && ++tries < 120) {
-        setTimeout(start, 250);
-        return;
-      }
+      hook();
       setTimeout(check, 1500);
     };
     if (document.readyState === "complete") start();
