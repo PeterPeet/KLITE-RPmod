@@ -270,6 +270,11 @@ The map tags `<move>`/`<go>`, `<open>`, `<close>`, `<unlock>`, `<search>`, `<roo
 `runtime.looted[objId]` (additive; Back to start refills); otherwise it is a door. The slice tags a container
 "unopened — write <open>…</open>" or "emptied"; `W.here().containers` feeds the Here row's **Open: …**;
 `/open` and the API `openContainer()` use the same path. `<give>` uses `giveEntry` too (coins).
+**Thinking (2026-10-20):** `parseMutations` reads `stripThinking(text)`: blocks between Esolite's thinking tags
+(`localsettings.start/stop_thinking_tag`, default `<think>`) are dropped, an unclosed one to the end, and text before
+a lone closing tag (the end of a thought continued by Generate More). A reply that arrives cut off while thinking
+(`cutOffWhileThinking`: reasoning in `last_request_str`, `last_stop_reason` not "stop"/"tool_calls", no thinking tag
+— Esolite leaves such reasoning untagged) is not parsed at all; a log line tells the player to Generate More or Retry.
 
 ### 3.5 Trigger bus
 `fireTriggers(signal)` — bounded queue (≤400 steps), per-cascade `firedNow` set,

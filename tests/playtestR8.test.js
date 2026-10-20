@@ -172,3 +172,38 @@ test('containers: opened once (Here row, /open, the AI\'s <open>), contents to t
     await sleep(30);
     assert.equal(Number(sheet().coins.sp), sp0 + 6, 'silver into the purse');
 });
+
+// A reply cut off at max_tokens while the model was still thinking: Esolite leaves the reasoning untagged (it
+// wraps it in <think>…</think> only on a proper stop) so that Generate More continues the thought, which then
+// ends with a lone </think>. RPmod applied the tags in that reasoning (a junk room "Name", a locked door, a move).
+test('a reply cut off while thinking applies no tags; Generate More\'s continuation counts only after </think>', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.window.handle_incoming_text = (txt) => { h.window.gametext_arr.push(txt); };   // Esolite appends the reply
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    W.moveTo('Stolen Stores');
+    const at = () => W.getGraph().nodes.find(n => n.id === W.runtime.playerLocationId).name;
+    const rooms = () => W.activeWorld().locations.length;
+    const logText2 = () => w.KLITE_RPMod_Log.entries().map(e => e.what).join('\n');
+    const n0 = rooms();
+    // the request asked for reasoning; the stream ended without a proper stop (finish_reason "length")
+    w.last_request_str = JSON.stringify({ model: 'deepseek', reasoning_effort: 'high', messages: [] });
+    w.last_stop_reason = '';
+    w.handle_incoming_text('We need answer as narrator. Maybe <go>Wolf Den</go>, or add <room>Name, east: a tunnel</room> and <door>east = locked, iron</door>. Then');
+    assert.equal(at(), 'Stolen Stores', 'no move from the reasoning');
+    assert.equal(rooms(), n0, 'no room from the reasoning');
+    assert.match(logText2(), /The AI's reply was cut off while it was still thinking: RPmod applied none of its tags\. Use Generate More/);
+    // Generate More: the continuation closes the thought, then answers
+    w.last_stop_reason = 'stop';
+    w.handle_incoming_text(' decide: just go west.</think>Tove ducks back into the den. <go>Wolf Den</go>');
+    assert.equal(at(), 'Wolf Den', 'the answer after </think> counts');
+    assert.equal(rooms(), n0);
+    // a normal reply with its thinking tagged, and one without reasoning requested, are parsed as before
+    w.last_request_str = JSON.stringify({ model: 'x', messages: [] }); w.last_stop_reason = '';
+    w.handle_incoming_text('Oona nods. <go>Stolen Stores</go>');
+    assert.equal(at(), 'Stolen Stores', 'no reasoning requested: a long reply cut off still counts');
+});

@@ -24927,17 +24927,41 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       return lines.join("\n") + `
 The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or sells, write <buy>item x2</buy> or <sell>item</sell>; RPmod checks the price, the stock and the purse and logs the result — narrate only what the log says.`;
     }
-    function stripThinking(text) {
-      let t = String(text || "");
-      const esc = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    function thinkingPairs() {
       let pairs = [["<think>", "</think>"]];
       try {
         const ls = window.localsettings;
         if (ls && ls.start_thinking_tag && ls.stop_thinking_tag) pairs = [[ls.start_thinking_tag, ls.stop_thinking_tag], ...pairs];
       } catch (_) {
       }
-      for (const [a, b] of pairs) t = t.replace(new RegExp(esc(a) + "[\\s\\S]*?(?:" + esc(b) + "|$)", "gi"), " ");
+      return pairs;
+    }
+    const escRe = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    function stripThinking(text) {
+      let t = String(text || "");
+      for (const [a, b] of thinkingPairs()) {
+        const open = new RegExp(escRe(a), "i"), close = new RegExp(escRe(b), "i");
+        const ci = t.search(close), oi = t.search(open);
+        if (ci >= 0 && (oi < 0 || ci < oi)) t = " " + t.slice(ci + t.slice(ci).match(close)[0].length);
+        t = t.replace(new RegExp(escRe(a) + "[\\s\\S]*?(?:" + escRe(b) + "|$)", "gi"), " ");
+      }
       return t;
+    }
+    function hasThinkingTag(text) {
+      const t = String(text || "");
+      return thinkingPairs().some(([a, b]) => new RegExp(escRe(a) + "|" + escRe(b), "i").test(t));
+    }
+    function cutOffWhileThinking(text) {
+      try {
+        const stop = String(window.last_stop_reason || "");
+        if (stop === "stop" || stop === "tool_calls") return false;
+        if (hasThinkingTag(text)) return false;
+        const req = JSON.parse(String(window.last_request_str || "{}"));
+        const eff = req.reasoning_effort || req.reasoning && (req.reasoning.effort || req.reasoning.enabled) || req.thinking && req.thinking.type === "enabled";
+        return !!eff && eff !== "none";
+      } catch (_) {
+        return false;
+      }
     }
     function parseMutations(text) {
       const world2 = activeWorld();
@@ -26446,6 +26470,10 @@ ${recent}` : "");
       const start = Math.max(0, Math.min(Number(rt().lastParsedIndex) || 0, arr2.length));
       let changed = false;
       for (let i = start; i < arr2.length; i++) {
+        if (opts && opts.advance === false && i === arr2.length - 1 && cutOffWhileThinking(arr2[i])) {
+          gameLog("The AI's reply was cut off while it was still thinking: RPmod applied none of its tags. Use Generate More to let it finish, or Retry.", "system");
+          continue;
+        }
         changed = parseMutations(arr2[i]) || changed;
         try {
           detectTalk(stripThinking(arr2[i]));

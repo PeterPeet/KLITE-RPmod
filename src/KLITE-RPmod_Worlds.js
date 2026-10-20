@@ -1744,13 +1744,39 @@ export default function initWorlds() {
     // A reasoning model's thinking (Esolite's thinking tags, default <think>…</think>) is not the
     // reply: tags it only considers there must not be applied (play test 2026-10-20). An unclosed
     // block (a reply cut off while thinking) is dropped to the end.
-    function stripThinking(text) {
-        let t = String(text || '');
-        const esc = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // A lone closing tag (no opening one) ends a thought begun in the previous chunk: Esolite leaves the
+    // reasoning of a reply cut off at max_tokens untagged so that Generate More continues it, and the
+    // continuation closes it ("…</think>answer"); everything before that closer is thinking too.
+    function thinkingPairs() {
         let pairs = [['<think>', '</think>']];
         try { const ls = window.localsettings; if (ls && ls.start_thinking_tag && ls.stop_thinking_tag) pairs = [[ls.start_thinking_tag, ls.stop_thinking_tag], ...pairs]; } catch (_) {}
-        for (const [a, b] of pairs) t = t.replace(new RegExp(esc(a) + '[\\s\\S]*?(?:' + esc(b) + '|$)', 'gi'), ' ');
+        return pairs;
+    }
+    const escRe = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    function stripThinking(text) {
+        let t = String(text || '');
+        for (const [a, b] of thinkingPairs()) {
+            const open = new RegExp(escRe(a), 'i'), close = new RegExp(escRe(b), 'i');
+            const ci = t.search(close), oi = t.search(open);
+            if (ci >= 0 && (oi < 0 || ci < oi)) t = ' ' + t.slice(ci + t.slice(ci).match(close)[0].length);   // orphan closer
+            t = t.replace(new RegExp(escRe(a) + '[\\s\\S]*?(?:' + escRe(b) + '|$)', 'gi'), ' ');
+        }
         return t;
+    }
+    function hasThinkingTag(text) { const t = String(text || ''); return thinkingPairs().some(([a, b]) => new RegExp(escRe(a) + '|' + escRe(b), 'i').test(t)); }
+    // The reply just arrived was cut off while the model was still thinking: reasoning was requested,
+    // the model did not stop properly (Esolite's last_stop_reason: "stop"/"tool_calls" when it did) and
+    // Esolite left the reasoning untagged (it wraps it only on a proper stop). Its tags are what the model
+    // considered, not what it decided (play test 2026-10-20: a junk room, a locked door, a move).
+    function cutOffWhileThinking(text) {
+        try {
+            const stop = String(window.last_stop_reason || '');
+            if (stop === 'stop' || stop === 'tool_calls') return false;
+            if (hasThinkingTag(text)) return false;
+            const req = JSON.parse(String(window.last_request_str || '{}'));
+            const eff = req.reasoning_effort || (req.reasoning && (req.reasoning.effort || req.reasoning.enabled)) || (req.thinking && req.thinking.type === 'enabled');
+            return !!eff && eff !== 'none';
+        } catch (_) { return false; }
     }
     function parseMutations(text) {
         const world = activeWorld(); if (!world || !rt()) return false;
@@ -2835,7 +2861,13 @@ export default function initWorlds() {
         if (!Array.isArray(arr)) return false;
         const start = Math.max(0, Math.min(Number(rt().lastParsedIndex) || 0, arr.length));
         let changed = false;
-        for (let i = start; i < arr.length; i++) { changed = parseMutations(arr[i]) || changed; try { detectTalk(stripThinking(arr[i])); } catch (_) {} }
+        for (let i = start; i < arr.length; i++) {
+            if (opts && opts.advance === false && i === arr.length - 1 && cutOffWhileThinking(arr[i])) {
+                gameLog('The AI\'s reply was cut off while it was still thinking: RPmod applied none of its tags. Use Generate More to let it finish, or Retry.', 'system');
+                continue;
+            }
+            changed = parseMutations(arr[i]) || changed; try { detectTalk(stripThinking(arr[i])); } catch (_) {}
+        }
         const advanced = W.config.advanceClockPerTurn && arr.length > start && !(opts && opts.advance === false);
         rt().lastParsedIndex = arr.length;
         if (advanced) advanceClock(1);
