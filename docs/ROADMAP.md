@@ -996,6 +996,12 @@ wrong room with the story correction next turn, containers, "Turn based" placeme
 Pro is the more reliable game master; Flash on "high" is close in fights but loses track of moves. Both tie in well
 with RPmod's safety nets (refusals, correction, cut-off handling, undo).
 
+**Goal (owner, 2026-10-20): RPmod plays well with cheap "Flash" models** — DeepSeek V4 Flash and Z.ai GLM 5.3 Flash,
+so that users can run the mod for little money. Method: the same scene set for every model (start + quest + join, the
+ambush narrated from the log, a missed attack narrated ×3 with Retry, `<cast>` after a fight, the trap, the walk "east
+through the door and on south" — moves and refusals), scored per scene; then prompt and safety-net changes, measured
+again on the same set. Results so far: the comparison table above; GLM 5.3 Flash next.
+
 **New open items from this live test:**
 - [ ] **Capture after a defeat:** the AI narrates the party tied up and dragged next door; RPmod has no "captured" state
   (the party lies at 0 HP where it fell).
