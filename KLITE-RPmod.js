@@ -33578,6 +33578,30 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         } catch (_) {
         }
       });
+      let tries = 0;
+      const hookRestart = () => {
+        const orig = window.restart_new_game;
+        if (typeof orig !== "function") {
+          if (++tries < 120) setTimeout(hookRestart, 250);
+          return;
+        }
+        if (orig.__rpmod_combatwin) return;
+        const wrapped = function() {
+          const r = orig.apply(this, arguments);
+          setTimeout(() => {
+            try {
+              const cb = API3() && API3().getCombat && API3().getCombat();
+              if (!(cb && cb.active && !cb.outcome) && sh.isOpen("combat")) sh.close("combat");
+            } catch (_) {
+            }
+          }, 0);
+          return r;
+        };
+        for (const k2 of Object.keys(orig)) wrapped[k2] = orig[k2];
+        wrapped.__rpmod_combatwin = true;
+        window.restart_new_game = wrapped;
+      };
+      hookRestart();
     }
     let started = false;
     function whenReady() {
@@ -35826,7 +35850,13 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     if (choices.class === "rogue") return level >= 6 ? 4 : 2;
     if (choices.class === "bard") return level >= 9 ? 4 : level >= 2 ? 2 : 0;
     if (choices.class === "ranger" && level >= 9) return 2;
+    if (choices.class === "wizard" && level >= 2) return 1;
     return 0;
+  }
+  var SCHOLAR_SKILLS = ["arcana", "history", "investigation", "medicine", "nature", "religion"];
+  function expertiseOptions(choices) {
+    const prof = proficientSkills(choices);
+    return choices.class === "wizard" ? prof.filter((s) => SCHOLAR_SKILLS.includes(s)) : prof;
   }
   function fightingStyleAt(choices) {
     const level = levelOf(choices);
@@ -35869,7 +35899,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     if (choices.species === "elf" && (choices.speciesSkills || []).length !== 1) errs.push("Choose the Keen Senses skill (Insight, Perception or Survival).");
     if (picks.extra && (choices.extraSkills || []).length !== picks.extra) errs.push(`Choose ${picks.extra} more skill${picks.extra === 1 ? "" : "s"}.`);
     const exp = expertisePicks(choices);
-    if (exp && (choices.expertise || []).filter((s) => proficientSkills(choices).includes(s)).length !== exp) errs.push(`Choose ${exp} skills for Expertise (from your proficiencies).`);
+    if (exp && (choices.expertise || []).filter((s) => expertiseOptions(choices).includes(s)).length !== exp) errs.push(choices.class === "wizard" ? "Scholar: choose 1 skill for Expertise (Arcana, History, Investigation, Medicine, Nature or Religion you are proficient in)." : `Choose ${exp} skills for Expertise (from your proficiencies).`);
     if (fightingStyleAt(choices) && !FIGHTING_STYLES.includes(choices.fightingStyle)) errs.push("Choose a Fighting Style.");
     if (ORDERS[choices.class] && !orderOf(choices)) errs.push(`Choose your ${ORDERS[choices.class].feature} (${Object.values(ORDERS[choices.class].options).join(" or ")}).`);
     if (secondFightingStyleAt(choices) && (!FIGHTING_STYLES.includes(choices.fightingStyle2) || choices.fightingStyle2 === choices.fightingStyle)) errs.push("Choose a second, different Fighting Style (Additional Fighting Style).");
@@ -36367,11 +36397,20 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       toast(L.describe(e));
     }
     function castSpell(sv, entry2, D) {
-      const sc = V.draft.spellcasting;
       if (!sv.level) {
         logSpell(`casts ${sv.name}.`);
         return;
       }
+      const r = spendSpell(V.name, entry2.key);
+      if (r.ok) {
+        logSpell(`casts ${sv.name} (level ${r.slotLevel} spell slot).`);
+        return;
+      }
+      if (!/cannot cast that spell/.test(r.reason || "")) {
+        toast(`No spell slot of level ${sv.level} or higher left${entry2.free ? " — use the free cast" : ""}.`, true);
+        return;
+      }
+      const sc = V.draft.spellcasting;
       const lvl = slotFor(sv.level, sc.slots, sc.used);
       if (!lvl) {
         toast(`No spell slot of level ${sv.level} or higher left${entry2.free ? " — use the free cast" : ""}.`, true);
@@ -36384,6 +36423,15 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       logSpell(`casts ${sv.name} (level ${lvl} spell slot).`);
     }
     function freeCast(sv, entry2, D) {
+      const r = spendSpell(V.name, entry2.key, { free: true });
+      if (r.ok) {
+        logSpell(`casts ${sv.name} without a spell slot (${entry2.source}).`);
+        return;
+      }
+      if (!/cannot cast that spell/.test(r.reason || "")) {
+        toast(r.reason || "No free cast left.", true);
+        return;
+      }
       const sc = V.draft.spellcasting;
       const f = sc.freeUsed = Object.assign({}, sc.freeUsed);
       f[entry2.key] = (f[entry2.key] || 0) + 1;
@@ -36783,12 +36831,19 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       });
       const atkName = el("input", { type: "text", class: "form-control rpm-input rpm-grow", placeholder: "e.g. Longsword", "aria-label": "New attack", list: "rpm-sheet-weapons", autocomplete: "off" });
       atkName.classList.add("fullScreenTextEditExclude");
-      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:4px" }, [atkName, btn3("", () => {
+      const addAttack = () => {
         const n = atkName.value.trim();
         if (!n) return;
         V.draft.attacks.push(attackFor(n, V.draft) || { name: n, ability: "str", proficient: true, damage: "1d8", notes: "" });
         edited();
-      }, { icon: "plus", title: "Add attack" })]));
+      };
+      atkName.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          addAttack();
+        }
+      });
+      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:4px" }, [atkName, btn3("", addAttack, { icon: "plus", title: "Add attack" })]));
       handsLine(root, s);
       root.appendChild(el("div", { class: "rpm-muted rpm-sheet-rule", "data-rule": "hands", text: HAND_RULE }));
     }
@@ -36868,12 +36923,19 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       }
       const itemName = el("input", { type: "text", class: "form-control rpm-input rpm-grow", placeholder: "Add an item (SRD names are suggested)", "aria-label": "New item", list: "rpm-sheet-items", autocomplete: "off" });
       itemName.classList.add("fullScreenTextEditExclude");
-      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:6px" }, [itemName, btn3("", () => {
+      const addItem = () => {
         const n = itemName.value.trim();
         if (!n) return;
         V.draft.inventory.push({ name: n, qty: 1, notes: "" });
         edited();
-      }, { icon: "plus", title: "Add item" })]));
+      };
+      itemName.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          addItem();
+        }
+      });
+      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:6px" }, [itemName, btn3("", addItem, { icon: "plus", title: "Add item" })]));
       root.appendChild(el("div", { class: "rpm-muted rpm-sheet-rule", text: HAND_RULE }));
       root.appendChild(heading2("Coins"));
       root.appendChild(el("div", { class: "rpm-sheet-grid4" }, ["cp", "sp", "gp", "pp"].map((c) => field(c.toUpperCase(), numIn(s.coins[c], set((v) => {
@@ -37702,7 +37764,9 @@ OK = save and close · Cancel = close and discard them`);
         lvl.style.width = "auto";
         root.appendChild(el("div", { class: "rpm-row" }, [el("span", { class: "rpm-label", text: "Start at" }), lvl]));
       }
-      root.appendChild(el("div", { class: "rpm-bld-grid" }, Object.entries(SRD.classes).map(([id, c2]) => pickCard(id, c2.name, `d${c2.hitDie} · ${c2.primary.map((a) => ABILITY_NAMES[a]).join(" & ")}`, V.c.class === id, () => {
+      const classes = Object.entries(SRD.classes).filter(([id]) => !V.levelUp || id === V.c.class);
+      root.appendChild(el("div", { class: "rpm-bld-grid" }, classes.map(([id, c2]) => pickCard(id, c2.name, `d${c2.hitDie} · ${c2.primary.map((a) => ABILITY_NAMES[a]).join(" & ")}`, V.c.class === id, () => {
+        if (V.levelUp || V.c.class === id) return;
         V.c.classSkills = [];
         V.c.expertise = [];
         V.c.fightingStyle = void 0;
@@ -37851,7 +37915,7 @@ OK = save and close · Cancel = close and discard them`);
         root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: `More skills — choose ${picks.extra}` }), el("div", { class: "rpm-muted", text: src }), checkList(opts, V.c.extraSkills, picks.extra, (v) => set("extraSkills", v), "More skills")]));
       }
       const exp = expertisePicks(V.c);
-      if (exp) root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: `Expertise — choose ${exp} of your skills` }), checkList(proficientSkills(V.c), V.c.expertise, exp, (v) => set("expertise", v), "Expertise")]));
+      if (exp) root.appendChild(el("div", { class: "rpm-bld-detail" }, [el("h3", { text: V.c.class === "wizard" ? "Scholar: Expertise — choose 1 of your field skills" : `Expertise — choose ${exp} of your skills` }), checkList(expertiseOptions(V.c), V.c.expertise, exp, (v) => set("expertise", v), "Expertise")]));
       if (fightingStyleAt(V.c)) root.appendChild(el("div", { class: "rpm-bld-detail" }, [
         el("h3", { text: "Fighting Style" }),
         el("div", { class: "rpm-bld-grid" }, FIGHTING_STYLES.map((f) => pickCard(f, f, (SRD.feats[f] ? SRD.feats[f].text[0] : "").slice(0, 90), V.c.fightingStyle === f, () => set("fightingStyle", f))))
@@ -39839,6 +39903,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         bgBonus: { plus2: "str", plus1: "con" },
         classSkills: ["perception", "survival"],
         fightingStyle: "Great Weapon Fighting",
+        languages: ["Orc", "Goblin"],
         classEquipment: "A",
         backgroundEquipment: "A",
         alignment: "Lawful Good"
@@ -39862,6 +39927,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         bgBonus: { plus2: "wis", plus1: "cha" },
         classSkills: ["medicine", "persuasion"],
         divineOrder: "protector",
+        languages: ["Dwarvish", "Elvish"],
         classEquipment: "A",
         backgroundEquipment: "A",
         alignment: "Neutral Good",
@@ -39888,6 +39954,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         classSkills: ["investigation", "nature"],
         speciesSkills: ["perception"],
         originFeat: "Alert",
+        languages: ["Draconic", "Elvish"],
         classEquipment: "A",
         backgroundEquipment: "A",
         alignment: "Chaotic Good",
@@ -39913,6 +39980,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         bgBonus: { plus2: "dex", plus1: "con" },
         classSkills: ["acrobatics", "deception", "perception", "investigation"],
         expertise: ["stealth", "perception"],
+        languages: ["Halfling", "Goblin"],
         classEquipment: "A",
         backgroundEquipment: "A",
         alignment: "Chaotic Good"

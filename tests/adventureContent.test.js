@@ -39,6 +39,9 @@ test('pregens: valid builder choices, sheets on the cards, pronouns and bonds', 
         assert.ok(k.sheet.hp.max > 0 && k.sheet.ac >= 10, c.data.name);
         assert.ok(c.data.description.includes(`(${k.pronouns})`), `${c.data.name}: pronouns in the card`);
         assert.ok(k.sheet.notes, `${c.data.name}: sheet notes (trait, bond)`);
+        // SRD 5.2.1: Common plus two standard languages (UI play test 2026-10-20: the pregens had only Common)
+        const langs = (k.sheet.proficiencies.match(/Languages: (.*)/) || [])[1] || '';
+        assert.equal(langs.split(', ').filter(l => l !== "Thieves' Cant").length, 3, `${c.data.name}: ${langs}`);
     }
     const tove = pkg.characters.find(c => c.data.extensions.klite_rpmod.pregen === 'tove');
     assert.match(tove.data.description, /short-sighted/);

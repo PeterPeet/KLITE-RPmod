@@ -39,14 +39,15 @@ const flagIs = (key) => ({ type: 'flag', key });
 const questIs = (questId, state) => ({ type: 'quest', questId, state });
 
 // ---- the pregenerated characters ---------------------------------------------------------
-// Each: builder choices (validated by tests/adventureContent.test.js), a line for the picker,
+// Each: builder choices (validated by tests/adventureContent.test.js; SRD 5.2.1: Common plus two standard languages —
+// UI play test 2026-10-20: the pregens had none), a line for the picker,
 // pronouns, the card text (how the AI should play them) and sheet notes.
 const PREGENS = [
     {
         id: 'oona', pronouns: 'she/her', line: 'Orc Fighter, Soldier · steady veteran with a prosthetic leg',
         choices: { name: 'Oona Greycairn', class: 'fighter', level: 1, background: 'soldier', species: 'orc', method: 'standard',
             scores: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 }, bgBonus: { plus2: 'str', plus1: 'con' },
-            classSkills: ['perception', 'survival'], fightingStyle: 'Great Weapon Fighting', classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Lawful Good' },
+            classSkills: ['perception', 'survival'], fightingStyle: 'Great Weapon Fighting', languages: ['Orc', 'Goblin'], classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Lawful Good' },
         description: 'Oona Greycairn (she/her) is an orc woman in her mid-forties, broad and weathered, with grey braids and a greatsword she carries like a walking staff. Her left leg ends below the knee in a prosthetic of carved oak and iron that she built and keeps repaired herself; she walks, runs and fights on it as she always has, and it creaks on cold mornings. For twenty years she guarded caravans between Brindlewick and the lake. Six years ago her crew was ambushed on the Forest Road and she was the only one to come home. She has worked odd jobs in the village since, and the vanishing carts have woken something in her.',
         personality: 'Steady, protective, dry humour; slow to speak and quick to act. Treats younger companions like recruits she has decided to keep alive. Hates waste and bragging. Softens around children and animals.',
         notes: 'Prosthetic left leg (oak and iron): part of who Oona is, not a weakness — no rules penalty. Bond: her old caravan crew was lost on the Forest Road.',
@@ -55,7 +56,7 @@ const PREGENS = [
         id: 'tove', pronouns: 'they/them', line: 'Dwarf Cleric, Acolyte · warm, loud, very short-sighted',
         choices: { name: 'Tove Emberfall', class: 'cleric', level: 1, background: 'acolyte', species: 'dwarf', method: 'standard',
             scores: { str: 13, dex: 10, con: 14, int: 8, wis: 15, cha: 12 }, bgBonus: { plus2: 'wis', plus1: 'cha' },
-            classSkills: ['medicine', 'persuasion'], divineOrder: 'protector', classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Neutral Good',
+            classSkills: ['medicine', 'persuasion'], divineOrder: 'protector', languages: ['Dwarvish', 'Elvish'], classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Neutral Good',
             spells: { cantrips: ['guidance', 'sacred-flame', 'thaumaturgy'], prepared: ['bless', 'cure-wounds', 'healing-word', 'shield-of-faith'] },
             magicInitiate: { background: { cantrips: ['spare-the-dying', 'light'], spell: 'sanctuary' } } },
         description: 'Tove Emberfall (they/them) is a dwarf cleric of the Still Water, an old order that tends shrines along rivers and lakes. Tove is very short-sighted and refuses to wear glasses ("my eyes are fine — the world is blurry"). They see their surroundings as soft shapes and colours, cannot tell faces apart beyond a few steps and recognise people by their voices, their footsteps and their smell of bread or smoke. Up close they notice everything. Their order once kept a chapel in a village that drowned when the old dam was built; Tove carries a copy of its prayer book and has always wanted to know what became of it.',
@@ -66,7 +67,7 @@ const PREGENS = [
         id: 'kasimir', pronouns: 'he/him', line: 'Human Wizard, Sage · curious scholar of the drowned village',
         choices: { name: 'Kasimir Adeyemi', class: 'wizard', level: 1, background: 'sage', species: 'human', method: 'standard',
             scores: { str: 8, dex: 13, con: 14, int: 15, wis: 12, cha: 10 }, bgBonus: { plus2: 'int', plus1: 'con' },
-            classSkills: ['investigation', 'nature'], speciesSkills: ['perception'], originFeat: 'Alert', classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Chaotic Good',
+            classSkills: ['investigation', 'nature'], speciesSkills: ['perception'], originFeat: 'Alert', languages: ['Draconic', 'Elvish'], classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Chaotic Good',
             spells: { cantrips: ['fire-bolt', 'mage-hand', 'minor-illusion'], spellbook: ['magic-missile', 'shield', 'sleep', 'burning-hands', 'detect-magic', 'mage-armor'], prepared: ['magic-missile', 'shield', 'sleep', 'burning-hands'] },
             magicInitiate: { background: { cantrips: ['light', 'prestidigitation'], spell: 'find-familiar' } } },
         description: 'Kasimir Adeyemi (he/him) is a young human wizard, twenty-three, tall and ink-stained, who came to the lake country to write the history of the village that drowned under Stillwater Mere when the old dam was built. He has maps, rumours and three notebooks, and no idea yet how dangerous the questions are. He talks to his notebook when he thinks, and his familiar (a small grey owl called Footnote) comments with disapproving hoots.',
@@ -77,7 +78,7 @@ const PREGENS = [
         id: 'pell', pronouns: 'she/her', line: 'Halfling Rogue, Criminal · quick hands, guilty conscience',
         choices: { name: 'Pell Marrow', class: 'rogue', level: 1, background: 'criminal', species: 'halfling', method: 'standard',
             scores: { str: 8, dex: 15, con: 14, int: 13, wis: 12, cha: 10 }, bgBonus: { plus2: 'dex', plus1: 'con' },
-            classSkills: ['acrobatics', 'deception', 'perception', 'investigation'], expertise: ['stealth', 'perception'], classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Chaotic Good' },
+            classSkills: ['acrobatics', 'deception', 'perception', 'investigation'], expertise: ['stealth', 'perception'], languages: ['Halfling', 'Goblin'], classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Chaotic Good' },
         description: 'Pell Marrow (she/her) is a halfling in her early thirties with a quick grin, quicker hands and a boatman\'s shoulders. For two summers she rowed night crossings on Stillwater Mere for a crew of smugglers who wore reed-green cloaks; she left when the cargo stopped being barrels and started being things they would not let her see. She knows the lake\'s moods, a hidden beach and a few people she would rather not meet again. She is back in the lake country to make up for something, though she will not say what.',
         personality: 'Quick, funny, restless; deflects with jokes, notices exits first. Loyal once trust is earned, and ashamed of her past in a way she hides badly. Hates bullies.',
         notes: 'Bond: once rowed for the smugglers (the Reedcloaks) and knows the hidden beach; wants to make amends.',

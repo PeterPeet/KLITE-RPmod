@@ -1102,6 +1102,29 @@ names the mod ("RPmod will roll whatever you do") — the prompt should say neve
   Jaxxks: build a prototype; if it holds up, it goes upstream (PR to esolithe/esobold). Old records with an inline
   `image` keep working and migrate on their first save; `getCharacterData` keeps returning { id, name, data, image }.
 
+**UI play test 2026-10-20 (character sheet, inventory, character builder — clicked through in the browser):** Overview,
+rolls (advantage, dice log), Combat tab, attacks with SRD autocomplete, Revert, Inventory (in hand / backpack, the
+two-hands warning, SRD definitions, coins), Save into the card, the left panel's Inventory in sync with an open sheet
+(also a game change into an unsaved draft), Spells, Features, Notes, the builder (wizard / Sage / High Elf: every step,
+the review's numbers) and a level up to 2 — all correct by SRD 5.2.1. Fixed:
+- [x] **Cast on the sheet** only ticked the slot in the draft while the game log had already told the AI — a Revert or
+  "discard" gave the slot back. It is a game change now (`spendSpell`, as in a fight); the free cast too.
+- [x] **Level up offered every class** — a click turned a wizard into a "Fighter 2" and dropped its skills. Only the own
+  class is shown (no multiclassing).
+- [x] **Wizard's Scholar** (level 2: Expertise in Arcana, History, Investigation, Medicine, Nature or Religion) was missing.
+- [x] **Enter** in the new-item / new-attack field did nothing; it adds now.
+- [x] **The pregens had only Common** — SRD 5.2.1: Common plus two standard languages (the builder asks; the pregens'
+  choices lacked them): Oona Orc + Goblin, Tove Dwarvish + Elvish, Kasimir Draconic + Elvish, Pell Halfling + Goblin.
+  Existing pregen cards get them with the picker's "starting sheets back".
+- [x] **The Combat window stayed open across New Session / an adventure start** without a fight; it closes now.
+Tests in `tests/uiPlaytest.test.js`, `spells.test.js`, `adventureContent.test.js`. Open (small):
+- [ ] A stack in the backpack goes into the hand as a whole (Holy Symbol ×2 → both); taking one should split it. And the
+  SRD lets a cleric wear the holy symbol on the shield (no hand).
+- [ ] The left panel's Inventory does not show what is in hand / worn.
+- [ ] The roll mode (Advantage / Disadvantage) stays on across characters and sessions — easy to forget.
+- [ ] After *Create character* the sheet opens on the last tab used (Notes) — a new character should open on Overview.
+- [ ] *New character* takes a second or two to show the builder, without a sign that it is coming.
+
 **New open items from this live test:**
 - [ ] **Capture after a defeat:** the AI narrates the party tied up and dragged next door; RPmod has no "captured" state
   (the party lies at 0 HP where it fell).

@@ -1803,6 +1803,22 @@ export default function initWorldsUI() {
         window.addEventListener('klite:game-over', () => { GO.msg = ''; try { sh.refresh(['party']); } catch (_) {} openView('gameover'); });
         window.addEventListener('klite:sheet-change', refreshParty);
         window.addEventListener('klite:worlds-dirty', () => { try { updateSaveState(); refreshPanel({ soft: true }); } catch (_) {} });
+        // New Session (also every adventure start and game-over restart): a Combat window without a fight closes
+        // (UI play test 2026-10-20: the encounter builder stayed open across a restart)
+        let tries = 0;
+        const hookRestart = () => {
+            const orig = window.restart_new_game;
+            if (typeof orig !== 'function') { if (++tries < 120) setTimeout(hookRestart, 250); return; }
+            if (orig.__rpmod_combatwin) return;
+            const wrapped = function () {
+                const r = orig.apply(this, arguments);
+                setTimeout(() => { try { const cb = API() && API().getCombat && API().getCombat(); if (!(cb && cb.active && !cb.outcome) && sh.isOpen('combat')) sh.close('combat'); } catch (_) {} }, 0);
+                return r;
+            };
+            for (const k of Object.keys(orig)) wrapped[k] = orig[k];   // keep the other hooks' markers (__rpmod_log, …)
+            wrapped.__rpmod_combatwin = true; window.restart_new_game = wrapped;
+        };
+        hookRestart();
     }
 
     // Runs once: a second start would register the views again, and re-registering a view

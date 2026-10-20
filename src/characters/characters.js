@@ -134,15 +134,24 @@ export default function initCharacters() {
         const L = Log(); if (!L) return;
         const e = L.add({ who: V.name, what, kind: 'spell' }); toast(L.describe(e));
     }
+    // A cast is a game change like one in a fight (UI play test 2026-10-20): the slot is spent on the sheet at once
+    // (spendSpell → the live sheet; an open draft takes it in), not as a draft edit a Revert or "discard" would undo
+    // although the AI was already told. A spell only in the unsaved draft (just prepared) spends in the draft as before.
     function castSpell(sv, entry, D) {
-        const sc = V.draft.spellcasting;
         if (!sv.level) { logSpell(`casts ${sv.name}.`); return; }
+        const r = spendSpell(V.name, entry.key);
+        if (r.ok) { logSpell(`casts ${sv.name} (level ${r.slotLevel} spell slot).`); return; }
+        if (!/cannot cast that spell/.test(r.reason || '')) { toast(`No spell slot of level ${sv.level} or higher left${entry.free ? ' — use the free cast' : ''}.`, true); return; }
+        const sc = V.draft.spellcasting;
         const lvl = SP.slotFor(sv.level, sc.slots, sc.used);
         if (!lvl) { toast(`No spell slot of level ${sv.level} or higher left${entry.free ? ' — use the free cast' : ''}.`, true); return; }
         const u = sc.used = (sc.used || []).slice(); while (u.length < lvl) u.push(0); u[lvl - 1] = (u[lvl - 1] || 0) + 1;
         edited(); logSpell(`casts ${sv.name} (level ${lvl} spell slot).`);
     }
     function freeCast(sv, entry, D) {
+        const r = spendSpell(V.name, entry.key, { free: true });
+        if (r.ok) { logSpell(`casts ${sv.name} without a spell slot (${entry.source}).`); return; }
+        if (!/cannot cast that spell/.test(r.reason || '')) { toast(r.reason || 'No free cast left.', true); return; }
         const sc = V.draft.spellcasting; const f = sc.freeUsed = Object.assign({}, sc.freeUsed);
         f[entry.key] = (f[entry.key] || 0) + 1; edited();
         logSpell(`casts ${sv.name} without a spell slot (${entry.source}).`);
@@ -410,10 +419,12 @@ export default function initCharacters() {
         });
         const atkName = el('input', { type: 'text', class: 'form-control rpm-input rpm-grow', placeholder: 'e.g. Longsword', 'aria-label': 'New attack', list: 'rpm-sheet-weapons', autocomplete: 'off' });
         atkName.classList.add('fullScreenTextEditExclude');
-        root.appendChild(el('div', { class: 'rpm-row', style: 'margin-top:4px' }, [atkName, btn('', () => {
+        const addAttack = () => {
             const n = atkName.value.trim(); if (!n) return;
             V.draft.attacks.push(attackFor(n, V.draft) || { name: n, ability: 'str', proficient: true, damage: '1d8', notes: '' }); edited();
-        }, { icon: 'plus', title: 'Add attack' })]));
+        };
+        atkName.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); addAttack(); } });   // UI play test: Enter adds
+        root.appendChild(el('div', { class: 'rpm-row', style: 'margin-top:4px' }, [atkName, btn('', addAttack, { icon: 'plus', title: 'Add attack' })]));
         handsLine(root, s);
         root.appendChild(el('div', { class: 'rpm-muted rpm-sheet-rule', 'data-rule': 'hands', text: EQ.HAND_RULE }));
     }
@@ -476,9 +487,9 @@ export default function initCharacters() {
         }
         const itemName = el('input', { type: 'text', class: 'form-control rpm-input rpm-grow', placeholder: 'Add an item (SRD names are suggested)', 'aria-label': 'New item', list: 'rpm-sheet-items', autocomplete: 'off' });
         itemName.classList.add('fullScreenTextEditExclude');
-        root.appendChild(el('div', { class: 'rpm-row', style: 'margin-top:6px' }, [itemName, btn('', () => {
-            const n = itemName.value.trim(); if (!n) return; V.draft.inventory.push({ name: n, qty: 1, notes: '' }); edited();
-        }, { icon: 'plus', title: 'Add item' })]));
+        const addItem = () => { const n = itemName.value.trim(); if (!n) return; V.draft.inventory.push({ name: n, qty: 1, notes: '' }); edited(); };
+        itemName.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); addItem(); } });   // UI play test: Enter adds
+        root.appendChild(el('div', { class: 'rpm-row', style: 'margin-top:6px' }, [itemName, btn('', addItem, { icon: 'plus', title: 'Add item' })]));
         root.appendChild(el('div', { class: 'rpm-muted rpm-sheet-rule', text: EQ.HAND_RULE }));
         root.appendChild(heading('Coins'));
         root.appendChild(el('div', { class: 'rpm-sheet-grid4' }, ['cp', 'sp', 'gp', 'pp'].map(c =>

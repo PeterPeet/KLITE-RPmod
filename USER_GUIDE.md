@@ -548,8 +548,9 @@ at level 19 an *Epic Boon*, which can raise a score to 30), **Skills & choices**
 and background packages or gold) and **Details & review**, which shows HP, AC, attacks,
 skills and spellcasting before anything is saved. It creates a new character in your
 Library with the sheet on its card, or puts the sheet on an existing character. **Level up**
-on a built sheet rebuilds it one level higher (up to 20), asks only what is new (the new
-level's feat, skills, spells) and keeps inventory, coins, notes and your spells; AC
+on a built sheet rebuilds it one level higher (up to 20) in the same class (there is no multiclassing), asks only
+what is new (the new level's feat, skills such as the Wizard's *Scholar* expertise at level 2, spells) and keeps
+inventory, coins, notes and your spells; AC
 and attacks follow what the character carries now. Every option shows its rules text from the SRD.
 
 **Spells (SRD 5.2.1, 339 spells).** The builder's **Spells** step shows your class's spell list
@@ -566,7 +567,8 @@ you can do it later on the sheet; too many or wrong spells block *Create*.
 On the **sheet**, the Spellcasting section lists your spells by level: open one for its text; roll
 **Hit** (spell attack), **Dmg** (cantrips grow at levels 5, 11 and 17) or **Heal**; the target's
 **save DC** is shown. In a fight, cast from the **Combat** window instead: it rolls against the
-targets and spends the slot (see *Combat* below). **Cast** here uses the lowest free spell slot of the spell's level or higher and
+targets and spends the slot (see *Combat* below). **Cast** here uses the lowest free spell slot of the spell's level or higher — at once, like in a fight (it is not
+part of the sheet's unsaved changes, so *Revert* does not give the slot back) — and
 writes it to the game log, so the AI narrates it; species and Magic Initiate spells also have a
 **Free** cast (once, or a gnome's Proficiency Bonus times, per Long Rest). **Restore slots (Long
 Rest)** clears used slots and free casts. **Change spells** (built characters) opens the same
@@ -605,7 +607,7 @@ abilities, saving throws, skills, proficiencies) · **Combat** (AC, speed, initi
 **Spells** · **Inventory** (items and coins) · **Features** · **Notes**. The roll mode above the tabs
 applies everywhere; the sheet remembers the tab you used last.
 
-- **SRD autocomplete:** typing an attack or an item offers the SRD 5.2.1 names (typing *Lo* offers
+- **SRD autocomplete:** typing an attack or an item offers the SRD 5.2.1 names (**Enter** or **+** adds it) (typing *Lo* offers
   Longbow, Longsword…). Picking a weapon for an attack fills its damage and ability (a Finesse
   weapon uses the better of STR and DEX, a ranged one DEX; a built character keeps its class's
   weapon proficiencies). Every SRD item in the inventory has its **definition** under it (damage and
