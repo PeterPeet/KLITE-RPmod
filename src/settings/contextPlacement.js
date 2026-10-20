@@ -5,11 +5,14 @@
 // With Esolite's default "After Memory" it sits at the very top, before the whole chat, and models
 // follow the recent chat over it (real-backend play test 2026-10-20: a wolf the AI had narrated
 // earlier was "still circling" although RPmod reported both dead). RPmod needs World Info
-// "Before A/N" with the Author's Note strength "Strong" (160 characters before the end) — owner's
-// decision 2026-10-20.
+// "Before A/N" with the Author's Note placed "Turn based", 1 user turn before the end (Esolite's
+// js/authorNotePositioningUtils.js: right before the player's newest message) — owner's decision
+// 2026-10-20. ("Strong", 160 characters before the end, cut longer player messages in half: the model
+// read "They [World: …] then push through the door" and wondered whether a system prompt was pasted.)
+// Hosts without "Turn based" (no anTurnOffset) keep "Strong".
 //
-// Both values are story settings in Esolite (`var wi_insertlocation`, `var anote_strength`, saved in
-// the story file) and New Session (restart_new_game) resets them. So RPmod checks at start-up, after a
+// The values are story settings in Esolite (`var wi_insertlocation`, `anote_strength`, `anTurnOffset`,
+// `anTurnType`, saved in the story file) and New Session (restart_new_game) resets them. So RPmod checks at start-up, after a
 // story is loaded and after every new session: when they are not set, it asks once (Esolite's Yes/No
 // box). Yes → set now and keep them set from then on (setting `context_placement_auto`); No → not
 // asked again until the page is reloaded. The setting can be switched off in Settings → RPmod.
@@ -17,23 +20,32 @@
 
 export const AUTO_SETTING = 'context_placement_auto';
 export const WI_BEFORE_AN = 1;        // Esolite's "Before A/N"
-export const AN_STRONG = 160;         // Esolite's "Strong": 160 characters before the end
-export const QUESTION = 'RPmod needs World Info "Before A/N" with the Author\'s Note strength "Strong" to work: then the game state and the results of each turn sit right before the newest messages, where the AI pays attention. Should I set this now?';
+export const AN_TURN = 'turn';        // Esolite's "Turn based" …
+export const TURN_OFFSET = 1;         // … 1 turn before the end …
+export const TURN_TYPE = 'user';      // … counting the player's turns: right before the newest player message
+export const AN_STRONG = 160;         // older hosts: "Strong", 160 characters before the end
+export const QUESTION = 'RPmod needs World Info "Before A/N" with the Author\'s Note placed "Turn based", 1 user turn before the end, to work: then the game state and the results of each turn sit right before the player\'s newest message, where the AI pays attention. Should I set this now?';
 
+export function turnSupported(win) { try { return win.anTurnOffset !== undefined && win.anTurnType !== undefined; } catch (_) { return false; } }
 // A host without these Esolite variables has nothing to set: treated as fine (never asked).
 export function placementOk(win) {
     try {
         if (win.wi_insertlocation === undefined || win.anote_strength === undefined) return true;
-        return Number(win.wi_insertlocation) === WI_BEFORE_AN && Number(win.anote_strength) === AN_STRONG;
+        if (Number(win.wi_insertlocation) !== WI_BEFORE_AN) return false;
+        if (!turnSupported(win)) return Number(win.anote_strength) === AN_STRONG;
+        return String(win.anote_strength) === AN_TURN && Number(win.anTurnOffset) === TURN_OFFSET && String(win.anTurnType) === TURN_TYPE;
     } catch (_) { return true; }
 }
-// Sets both values and the (hidden) dialog controls Esolite reads them back from on OK.
+// Sets the values and the (hidden) dialog controls Esolite reads them back from on OK.
 export function applyPlacement(win) {
     try {
-        win.wi_insertlocation = WI_BEFORE_AN; win.anote_strength = AN_STRONG;
-        const d = win.document;
-        const wi = d.getElementById('wi_insertlocation'); if (wi) wi.value = String(WI_BEFORE_AN);
-        const an = d.getElementById('anote_strength'); if (an) an.value = String(AN_STRONG);
+        const d = win.document; const set = (id, v) => { const e = d.getElementById(id); if (e) e.value = String(v); };
+        win.wi_insertlocation = WI_BEFORE_AN; set('wi_insertlocation', WI_BEFORE_AN);
+        if (turnSupported(win)) {
+            win.anote_strength = AN_TURN; win.anTurnOffset = TURN_OFFSET; win.anTurnType = TURN_TYPE;
+            set('anote_strength', AN_TURN); set('anTurnOffset', TURN_OFFSET); set('anTurnType', TURN_TYPE);
+            try { d.getElementById('aNoteTurnStrength')?.classList.remove('hidden'); } catch (_) {}
+        } else { win.anote_strength = AN_STRONG; set('anote_strength', AN_STRONG); }
         return true;
     } catch (_) { return false; }
 }
@@ -82,8 +94,8 @@ export default function initContextPlacement() {
 
     try {
         S()?.registerSetting({ id: AUTO_SETTING, section: 'Worlds', order: 5, default: false,
-            label: 'Keep World Info "Before A/N" (Strong) in every story',
-            help: 'RPmod\'s game state and the results of each turn then sit right before the newest messages, where the AI follows them. Esolite resets this placement on New Session; RPmod sets it again.' });
+            label: 'Keep World Info "Before A/N" (Turn based, 1 user turn) in every story',
+            help: 'RPmod\'s game state and the results of each turn then sit right before the player\'s newest message, where the AI follows them. Esolite resets this placement on New Session; RPmod sets it again.' });
     } catch (_) {}
 
     let tries = 0;

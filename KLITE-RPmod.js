@@ -34868,25 +34868,52 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
   // src/settings/contextPlacement.js
   var AUTO_SETTING = "context_placement_auto";
   var WI_BEFORE_AN = 1;
+  var AN_TURN = "turn";
+  var TURN_OFFSET = 1;
+  var TURN_TYPE = "user";
   var AN_STRONG = 160;
-  var QUESTION = `RPmod needs World Info "Before A/N" with the Author's Note strength "Strong" to work: then the game state and the results of each turn sit right before the newest messages, where the AI pays attention. Should I set this now?`;
+  var QUESTION = `RPmod needs World Info "Before A/N" with the Author's Note placed "Turn based", 1 user turn before the end, to work: then the game state and the results of each turn sit right before the player's newest message, where the AI pays attention. Should I set this now?`;
+  function turnSupported(win) {
+    try {
+      return win.anTurnOffset !== void 0 && win.anTurnType !== void 0;
+    } catch (_) {
+      return false;
+    }
+  }
   function placementOk(win) {
     try {
       if (win.wi_insertlocation === void 0 || win.anote_strength === void 0) return true;
-      return Number(win.wi_insertlocation) === WI_BEFORE_AN && Number(win.anote_strength) === AN_STRONG;
+      if (Number(win.wi_insertlocation) !== WI_BEFORE_AN) return false;
+      if (!turnSupported(win)) return Number(win.anote_strength) === AN_STRONG;
+      return String(win.anote_strength) === AN_TURN && Number(win.anTurnOffset) === TURN_OFFSET && String(win.anTurnType) === TURN_TYPE;
     } catch (_) {
       return true;
     }
   }
   function applyPlacement(win) {
     try {
-      win.wi_insertlocation = WI_BEFORE_AN;
-      win.anote_strength = AN_STRONG;
       const d = win.document;
-      const wi = d.getElementById("wi_insertlocation");
-      if (wi) wi.value = String(WI_BEFORE_AN);
-      const an = d.getElementById("anote_strength");
-      if (an) an.value = String(AN_STRONG);
+      const set = (id, v) => {
+        const e = d.getElementById(id);
+        if (e) e.value = String(v);
+      };
+      win.wi_insertlocation = WI_BEFORE_AN;
+      set("wi_insertlocation", WI_BEFORE_AN);
+      if (turnSupported(win)) {
+        win.anote_strength = AN_TURN;
+        win.anTurnOffset = TURN_OFFSET;
+        win.anTurnType = TURN_TYPE;
+        set("anote_strength", AN_TURN);
+        set("anTurnOffset", TURN_OFFSET);
+        set("anTurnType", TURN_TYPE);
+        try {
+          d.getElementById("aNoteTurnStrength")?.classList.remove("hidden");
+        } catch (_) {
+        }
+      } else {
+        win.anote_strength = AN_STRONG;
+        set("anote_strength", AN_STRONG);
+      }
       return true;
     } catch (_) {
       return false;
@@ -34987,8 +35014,8 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         section: "Worlds",
         order: 5,
         default: false,
-        label: 'Keep World Info "Before A/N" (Strong) in every story',
-        help: "RPmod's game state and the results of each turn then sit right before the newest messages, where the AI follows them. Esolite resets this placement on New Session; RPmod sets it again."
+        label: 'Keep World Info "Before A/N" (Turn based, 1 user turn) in every story',
+        help: "RPmod's game state and the results of each turn then sit right before the player's newest message, where the AI follows them. Esolite resets this placement on New Session; RPmod sets it again."
       });
     } catch (_) {
     }

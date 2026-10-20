@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 442 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 444 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -969,6 +969,10 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   `toggle_editable` when switched on, `btn_editmode`, `treeViewer.openTreeView/openPaginatedTreeView`); the action goes on.
   Test in `tests/playtestR8.test.js`.
 
+- [x] **World Info "Before A/N" + "Turn based", 1 user turn** (owner, 2026-10-20) instead of "Strong": Strong inserts 160
+  characters before the end and cut longer player messages in half (DeepSeek: "User pasted large system prompt maybe? …
+  They [World: etc] then push through the plank door"). Stories set to Strong are moved over without asking (after the
+  earlier Yes); older hosts keep Strong. Tests in `tests/contextPlacement.test.js`.
 - [x] **Prepared encounters start where they belong** — live test 2026-10-20: DeepSeek wrote `<encounter>Chief Snagtooth and a
   guard</encounter>` in the Stolen Stores (the chief sits in the next room) and RPmod started it. A saved encounter with a
   `locationId` now starts by the AI's tag only there (or inside it); elsewhere it is refused (logged → story correction).
