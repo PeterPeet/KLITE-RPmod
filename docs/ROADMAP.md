@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 429 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 432 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -981,14 +981,20 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   effect (entering a room) runs the first automatic turns at once, like the window's Start (setting "Run enemy turns
   automatically"), and opens the Combat window. Test in `tests/playtestR8.test.js`. (A fight from the AI's tag still
   begins after its reply — the next reply narrates the first turns.)
-- [ ] **A dying player at a victory** stays at 0 HP with no way to stabilise (the AI asks for a death save that has no
-  button outside a fight); only the Long Rest helps. SRD: keep rolling, or Medicine / Healer's Kit / Spare the Dying.
-- [ ] **Long Rest** does not move the clock and works anywhere at any time.
+- [x] **A dying player at a victory** — done 2026-10-20: whoever is still dying when the fight is won is stabilised and
+  comes round with 1 HP (RPmod simplification of "a stable creature regains 1 HP after 1d4 hours"); the dead stay dead.
+  Test in `tests/combatTurns.test.js`.
+- [x] **Long Rest** — done 2026-10-20: it takes the night (the clock runs slot by slot to the next morning, so night events
+  fire); a fight breaking out interrupts it and nothing is restored. Content version 7: the campfire wolves (Gravel Road)
+  also come when the night falls while resting there (`onTime` + location). Test in `tests/playtestR8.test.js`.
 - [ ] **New adventure start keeps the pregens' sheets** (Oona at 0 HP, Pell dead from the last run).
-- [ ] **Objectives that complete on arrival** ("Ask Liu Wen about the cart" ticked before anyone spoke; the quest ready
-  to turn in during the ambush).
+- [x] **Objectives that complete on arrival** — done 2026-10-20: the talk check matched the name part "Wen" in "Wen's
+  Farm"; place names no longer count as naming a person. (The quest being ready during the ambush is by design: the
+  objective is to find the cart.) Test in `tests/playtestR8.test.js`.
 - [ ] **The AI only sees companions' maximum HP** (and no armour: Oona "in leather armour" while wearing chain mail).
-- [ ] **Pronouns of absent people:** Liu Wen became "he" at the inn (her description reaches the AI only nearby).
+- [~] **Pronouns of absent people:** Liu Wen became "he" at the inn (her description reaches the AI only nearby) —
+  content version 7: the Elder's offer says "at her farm". A general rule (people named in quest texts get their
+  pronouns) is still open.
 - [ ] **Retry keeps the retried reply's tag effects** (a `<give>` in the discarded reply stays given).
 - [ ] **"Close the fight" switches the window to the encounter builder** instead of closing it (a creator tool in
   front of a player); it is also restored after a reload.

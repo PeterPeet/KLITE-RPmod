@@ -776,8 +776,10 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
 - **Companions keep their HP.** Allies from your world start the next fight with the HP they
   ended the last one with — from their character sheet if they have one, else remembered in the
   story. The **Party** section lists them with their HP.
-- **Long rest** (Party section, outside a fight): you and your companions get full HP back, and
-  your spell slots and free casts are restored. The AI is told.
+- **Long rest** (Party section or `/rest`, outside a fight): it takes the night — the clock runs on to the next
+  morning. Then you and your companions get full HP back, and your spell slots and free casts are restored; the AI
+  is told. What happens at night still happens: if a fight breaks out (wolves at an unguarded campfire), the rest
+  is interrupted and nothing is restored.
 - **Conditions** (Prone, Poisoned, Restrained, …, from the SRD) change attack rolls
   (advantage/disadvantage, automatic critical hits against the unconscious) and can run for a
   number of rounds. Stunned or paralyzed creatures lose their turn. Add them under **Tools**,
@@ -793,8 +795,9 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
   starts from the sheet's current HP); when you reach the next level's XP, the log says so and
   **Level up** on the sheet takes you there.
 - **Dying:** at 0 HP you and your companions fall unconscious and make death saving throws
-  (companions roll their own on their turn). Fallen but **stable** is a defeat: the AI tells what
-  happens next (capture, rescue…).
+  (companions roll their own on their turn). If your side **wins** while someone is still dying, they are
+  looked after once the fight is over and come round with **1 HP**. Fallen but **stable** with no one standing is a
+  defeat: the AI tells what happens next (capture, rescue…).
 - **Game over:** when **everyone in the party has died**, the story ends. The AI is asked to tell
   the fall briefly as the end of the story, and a **Game over** window opens (the Party section
   keeps a banner with **What now?**):

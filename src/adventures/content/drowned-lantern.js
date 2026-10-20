@@ -29,7 +29,7 @@ import { buildSheet } from '../../characters/builder-rules.js';
 import { writeSheet } from '../../characters/sheet.js';
 
 export const ID = 'drowned-lantern';
-export const VERSION = 6;   // 2: layer 2 (routes, Outpost, Watchtower, Owlbear Hollow); 3: each connection stored once (links only where no room exit leads out); 4: layer 3 (Lanternport, the Lantern Fair); 5: layer 4 (the south shore); 6: layer 5 (the Lost Chapel, the endings)
+export const VERSION = 7;   // 7: play-test fixes (the campfire wolves also come while resting there at night; Liu's pronoun in the offer); 2: layer 2 (routes, Outpost, Watchtower, Owlbear Hollow); 3: each connection stored once (links only where no room exit leads out); 4: layer 3 (Lanternport, the Lantern Fair); 5: layer 4 (the south shore); 6: layer 5 (the Lost Chapel, the endings)
 
 // ---- small helpers for the data below ----
 const place = (id, name, description, extra = {}) => Object.assign({ id, name, description }, extra);
@@ -196,7 +196,7 @@ function world() {
         quests: [
             { id: 'q_missing_carts', title: 'Missing Carts', giverPersonId: 'npc_maren', turninPersonId: 'npc_maren', ui: { x: 420, y: 420 },
               description: 'Liu Wen\'s grain cart never reached the mill. Elder Holt wants to know what happened on the Forest Road.',
-              offerText: 'Third cart this month. Liu Wen\'s, with the seed grain — the mule came home alone. Lanternport says the road is our business; I say it\'s theirs. Talk to Liu, then go and look. Please.',
+              offerText: 'Third cart this month. Liu Wen\'s, with the seed grain — the mule came home alone. Lanternport says the road is our business; I say it\'s theirs. Talk to Liu at her farm, then go and look. Please.',
               progressText: 'Anything on the road?', completionText: 'Goblins? That close to the village… and here I was blaming Lanternport. Well. We\'ll have to do something about that oak.',
               objectives: [{ id: 'o1', kind: 'talk', target: 'npc_liu', text: 'Ask Liu Wen about the cart' }, { id: 'o2', kind: 'visit', target: 'loc_forest_road', text: 'Find the cart on the Forest Road' }],
               rewards: [{ type: 'xp', xp: 50 }, { type: 'gold', gold: 5 }, { type: 'reputation', factionId: 'fac_brindlewick', amount: 50 }] },
@@ -381,7 +381,8 @@ function layer2(w) {
     );
     w.events.push(
         { id: 'ev_campfire_night', name: 'Eyes beyond the firelight', description: 'Eyes gleam beyond the firelight: a big grey wolf and two smaller ones, circling the camp.',
-          triggers: [{ type: 'onEnterLocation', locationId: 'loc_gravel_road' }], conditions: [{ field: 'time', op: '==', value: 'night' }],
+          // 7: also when the night falls while resting at the campfire (the Long Rest takes the night)
+          triggers: [{ type: 'onEnterLocation', locationId: 'loc_gravel_road' }, { type: 'onTime' }], conditions: [{ field: 'time', op: '==', value: 'night' }, { field: 'location', op: '==', value: 'loc_gravel_road' }],
           effects: [{ type: 'encounter', value: 'enc_campfire_wolves' }], repeatable: false, ui: { x: 900, y: 60 } },
         { id: 'ev_night_raid', name: 'Raiders in the yard', description: 'Shadows in reed-green cloaks slip over the Outpost wall and make for the carts.',
           triggers: [{ type: 'onEnterLocation', locationId: 'op_yard' }, { type: 'onTime' }], conditions: [questIs('q_night_raid', 'active'), { field: 'time', op: '==', value: 'night' }, { field: 'location', op: '==', value: 'op_yard' }],

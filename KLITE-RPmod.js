@@ -24432,8 +24432,10 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       const w = activeWorld();
       if (!w || !rt()) return;
       const here2 = rt().playerLocationId;
-      const t = norm5(text).toLowerCase();
+      let t = norm5(text).toLowerCase();
       if (!t) return;
+      const places = asArray5(w.locations).flatMap((l) => [norm5(l.name), norm5(phasedEntity(l).name)]).filter((n) => n.length > 2).map((n) => n.toLowerCase()).sort((a, b) => b.length - a.length);
+      for (const pn of [...new Set(places)]) if (t.includes(pn)) t = t.split(pn).join(" ");
       for (const q of asArray5(w.quests)) {
         if (questStateOf(q) !== "active") continue;
         for (const o of asArray5(q.objectives)) {
@@ -25791,6 +25793,14 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         cb.xpShares = Math.max(1, party.length);
         cb.xpEach = Math.floor(cb.xp / cb.xpShares);
         combatLog(`Victory! All enemies are defeated.${cb.xp ? cb.xpShares > 1 ? ` ${cb.xp} XP, ${cb.xpEach} XP each for ${cb.xpShares} characters.` : ` ${cb.xp} XP earned.` : ""}`);
+        for (const o of party) {
+          const d = deathOf(cb, o.id);
+          if (!d || d.dead || !isDown(cb, o.id)) continue;
+          delete cb.death[o.id];
+          cb.hp[o.id] = 1;
+          removeCond(o.id, "Unconscious");
+          combatLog(`After the fight: ${combatantName(o.id)} — stabilised, back on 1 HP.`);
+        }
       } else if (party.length && party.every((o) => isDown(cb, o.id) && !(deathOf(cb, o.id) && !deathOf(cb, o.id).stable && !deathOf(cb, o.id).dead))) {
         cb.outcome = "defeat";
         const p = deathOf(cb, "__player__");
@@ -26093,6 +26103,23 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
     function longRest() {
       const cb = getCombat();
       if (cb && cb.active !== false && !cb.outcome) return { ok: false, reason: "not during a fight" };
+      if (cb && cb.outcome) endEncounter();
+      const c = rt() && rt().clock;
+      if (c && c.time) {
+        for (let i = 0; i < TIME_SLOTS.length; i++) {
+          advanceClock(1);
+          try {
+            fireTriggers("time");
+          } catch (_) {
+          }
+          const f = getCombat();
+          if (f && f.active && !f.outcome) {
+            gameLog(`The Long Rest is interrupted (${placeName(rt().playerLocationId) || "here"}, day ${rt().clock.day}, ${rt().clock.time}): a fight breaks out.`, "rest");
+            return { ok: false, interrupted: true, reason: "the rest was interrupted by a fight" };
+          }
+          if (norm5(rt().clock.time).toLowerCase() === TIME_SLOTS[0]) break;
+        }
+      }
       const C2 = window.KLITE_RPMod_Characters;
       const who = [];
       const persona = personaName();
@@ -26107,7 +26134,8 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         if (p) who.push(personName(p));
       }
       if (rt()) rt().partyHp = {};
-      gameLog(`${who.length ? who.join(", ") + " finish" + (who.length === 1 ? "es" : "") : "The party finishes"} a Long Rest: HP, spell slots and free casts are restored.`, "rest");
+      const morning = rt() && rt().clock && rt().clock.time ? ` It is morning of day ${rt().clock.day}.` : "";
+      gameLog(`${who.length ? who.join(", ") + " finish" + (who.length === 1 ? "es" : "") : "The party finishes"} a Long Rest: HP, spell slots and free casts are restored.${morning}`, "rest");
       return { ok: true, who };
     }
     function autoTurn(id) {
@@ -39173,7 +39201,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
 
   // src/adventures/content/drowned-lantern.js
   var ID = "drowned-lantern";
-  var VERSION = 6;
+  var VERSION = 7;
   var place = (id, name, description, extra = {}) => Object.assign({ id, name, description }, extra);
   var room = (id, name, parentId, [x, y], description, extra = {}) => Object.assign({ id, name, parentId, map: { x, y, w: 4, h: 3 }, description }, extra);
   var exit = (id, to, dir, type = "open", extra = {}) => Object.assign({ id, to, dir, type }, extra);
@@ -39558,7 +39586,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
           turninPersonId: "npc_maren",
           ui: { x: 420, y: 420 },
           description: "Liu Wen's grain cart never reached the mill. Elder Holt wants to know what happened on the Forest Road.",
-          offerText: "Third cart this month. Liu Wen's, with the seed grain — the mule came home alone. Lanternport says the road is our business; I say it's theirs. Talk to Liu, then go and look. Please.",
+          offerText: "Third cart this month. Liu Wen's, with the seed grain — the mule came home alone. Lanternport says the road is our business; I say it's theirs. Talk to Liu at her farm, then go and look. Please.",
           progressText: "Anything on the road?",
           completionText: "Goblins? That close to the village… and here I was blaming Lanternport. Well. We'll have to do something about that oak.",
           objectives: [{ id: "o1", kind: "talk", target: "npc_liu", text: "Ask Liu Wen about the cart" }, { id: "o2", kind: "visit", target: "loc_forest_road", text: "Find the cart on the Forest Road" }],
@@ -39998,8 +40026,9 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
         id: "ev_campfire_night",
         name: "Eyes beyond the firelight",
         description: "Eyes gleam beyond the firelight: a big grey wolf and two smaller ones, circling the camp.",
-        triggers: [{ type: "onEnterLocation", locationId: "loc_gravel_road" }],
-        conditions: [{ field: "time", op: "==", value: "night" }],
+        // 7: also when the night falls while resting at the campfire (the Long Rest takes the night)
+        triggers: [{ type: "onEnterLocation", locationId: "loc_gravel_road" }, { type: "onTime" }],
+        conditions: [{ field: "time", op: "==", value: "night" }, { field: "location", op: "==", value: "loc_gravel_road" }],
         effects: [{ type: "encounter", value: "enc_campfire_wolves" }],
         repeatable: false,
         ui: { x: 900, y: 60 }

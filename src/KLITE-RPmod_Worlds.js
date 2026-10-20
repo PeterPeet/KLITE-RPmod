@@ -1390,7 +1390,11 @@ export default function initWorlds() {
     // Talking: a person with an open "talk" objective who is here and named in the new messages.
     function detectTalk(text) {
         const w = activeWorld(); if (!w || !rt()) return;
-        const here = rt().playerLocationId; const t = norm(text).toLowerCase(); if (!t) return;
+        const here = rt().playerLocationId; let t = norm(text).toLowerCase(); if (!t) return;
+        // place names do not count: "I go to Wen's Farm" is no talk with Liu Wen (play test 2026-10-20: the
+        // objective "Ask Liu Wen about the cart" was done on arrival)
+        const places = asArray(w.locations).flatMap(l => [norm(l.name), norm(phasedEntity(l).name)]).filter(n => n.length > 2).map(n => n.toLowerCase()).sort((a, b) => b.length - a.length);
+        for (const pn of [...new Set(places)]) if (t.includes(pn)) t = t.split(pn).join(' ');
         for (const q of asArray(w.quests)) {
             if (questStateOf(q) !== 'active') continue;
             for (const o of asArray(q.objectives)) {
@@ -2298,6 +2302,16 @@ export default function initWorlds() {
             cb.xpShares = Math.max(1, party.length);
             cb.xpEach = Math.floor(cb.xp / cb.xpShares);
             combatLog(`Victory! All enemies are defeated.${cb.xp ? (cb.xpShares > 1 ? ` ${cb.xp} XP, ${cb.xpEach} XP each for ${cb.xpShares} characters.` : ` ${cb.xp} XP earned.`) : ''}`);
+            // Who is still dying is looked after once the fight is over and comes round with 1 HP (an RPmod
+            // simplification of SRD 5.2.1's "a stable creature regains 1 HP after 1d4 hours") — before, the
+            // player stayed at 0 HP outside the fight with no way to stabilise (play test 2026-10-20).
+            for (const o of party) {
+                const d = deathOf(cb, o.id);
+                if (!d || d.dead || !isDown(cb, o.id)) continue;
+                delete cb.death[o.id];
+                cb.hp[o.id] = 1; removeCond(o.id, 'Unconscious');
+                combatLog(`After the fight: ${combatantName(o.id)} — stabilised, back on 1 HP.`);
+            }
         } else if (party.length && party.every(o => isDown(cb, o.id) && !(deathOf(cb, o.id) && !deathOf(cb, o.id).stable && !deathOf(cb, o.id).dead))) {
             cb.outcome = 'defeat';
             const p = deathOf(cb, '__player__');
@@ -2557,9 +2571,26 @@ export default function initWorlds() {
     }
     // Long Rest (outside a fight): the persona and every companion back to full HP, spell slots
     // and free casts restored (sheets), stored companion HP cleared.
+    // R8 play test 2026-10-20: the rest takes the night — the clock runs on to the next morning one slot at a
+    // time, so night events still happen (an ambush at the campfire, the fair's last night); a fight that breaks
+    // out interrupts it and nothing is restored. Without a clock (older worlds) it restores as before.
     function longRest() {
         const cb = getCombat();
         if (cb && cb.active !== false && !cb.outcome) return { ok: false, reason: 'not during a fight' };
+        if (cb && cb.outcome) endEncounter();   // a finished fight is closed by resting
+        const c = rt() && rt().clock;
+        if (c && c.time) {
+            for (let i = 0; i < TIME_SLOTS.length; i++) {
+                advanceClock(1);
+                try { fireTriggers('time'); } catch (_) {}
+                const f = getCombat();
+                if (f && f.active && !f.outcome) {
+                    gameLog(`The Long Rest is interrupted (${placeName(rt().playerLocationId) || 'here'}, day ${rt().clock.day}, ${rt().clock.time}): a fight breaks out.`, 'rest');
+                    return { ok: false, interrupted: true, reason: 'the rest was interrupted by a fight' };
+                }
+                if (norm(rt().clock.time).toLowerCase() === TIME_SLOTS[0]) break;
+            }
+        }
         const C = window.KLITE_RPMod_Characters; const who = [];
         const persona = personaName();
         if (persona && C && C.longRestSheet && personaSheet()) { C.longRestSheet(persona); who.push(persona); }
@@ -2569,7 +2600,8 @@ export default function initWorlds() {
             const p = entityById(activeWorld(), id); if (p) who.push(personName(p));
         }
         if (rt()) rt().partyHp = {};
-        gameLog(`${who.length ? who.join(', ') + ' finish' + (who.length === 1 ? 'es' : '') : 'The party finishes'} a Long Rest: HP, spell slots and free casts are restored.`, 'rest');
+        const morning = rt() && rt().clock && rt().clock.time ? ` It is morning of day ${rt().clock.day}.` : '';
+        gameLog(`${who.length ? who.join(', ') + ' finish' + (who.length === 1 ? 'es' : '') : 'The party finishes'} a Long Rest: HP, spell slots and free casts are restored.${morning}`, 'rest');
         return { ok: true, who };
     }
     // A monster's (or ally's) turn: pick a target on the other side and attack

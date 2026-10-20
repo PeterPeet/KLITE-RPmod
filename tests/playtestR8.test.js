@@ -297,3 +297,49 @@ test('a fight started by the AI\'s tag runs the first enemy turns at once and op
     const cb2 = W.getCombat();
     assert.equal(cb2.order[cb2.turnIndex].kind, 'monster', 'the wolf\'s turn waits');
 });
+
+// The Long Rest restored everything without time passing — anywhere, any number of times (play test).
+test('Long Rest takes the night: to the next morning; night events happen and a fight interrupts it', async (t) => {
+    const h = await adventure(t); const W = h.api(); const w = h.window; const C = w.KLITE_RPMod_Characters;
+    const clock = () => `${W.runtime.clock.day} ${W.runtime.clock.time}`;
+    C.updateSheet('Tove Emberfall', s => { s.hp.current = 3; }); await sleep(20);
+    assert.equal(clock(), '1 morning');
+    let r = W.longRest();
+    assert.equal(r.ok, true);
+    assert.equal(clock(), '2 morning', 'a whole night later');
+    await sleep(20);
+    assert.equal(C.cachedSheet('Tove Emberfall').hp.current, 11);
+    assert.ok(w.KLITE_RPMod_Log.entries().some(e => /Long Rest: HP, spell slots and free casts are restored\. It is morning of day 2\./.test(e.what)));
+    // at the old campfire on the Gravel Road the wolves come in the night
+    W.moveTo('Gravel Road'); W.endEncounter();
+    C.updateSheet('Tove Emberfall', s => { s.hp.current = 3; }); await sleep(20);
+    r = W.longRest();
+    assert.equal(r.ok, false); assert.equal(r.interrupted, true);
+    assert.equal(W.runtime.clock.time, 'night', 'the rest stopped when the fight broke out');
+    assert.ok(W.getCombat() && W.getCombat().active, 'Wolves at the campfire');
+    await sleep(20);
+    assert.ok(C.cachedSheet('Tove Emberfall').hp.current <= 3, 'nothing restored');
+    assert.ok(w.KLITE_RPMod_Log.entries().some(e => /The Long Rest is interrupted .*: a fight breaks out\./.test(e.what)));
+});
+
+// "Ask Liu Wen about the cart" was done the moment the party reached Wen's Farm: the talk check matched the
+// name part "Wen" in the place's name.
+test('talk objectives: a person\'s name inside a place name is no talk ("I go to Wen\'s Farm")', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.window.handle_incoming_text = (txt) => { h.window.gametext_arr.push(txt); };
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    W.applyTags('<accept>Missing Carts</accept>');
+    W.moveTo("Wen's Farm");
+    const done = () => !!(W.runtime.questObjectives.q_missing_carts || {}).o1;
+    w.gametext_arr.push("\n{{[INPUT]}}\nI go to Wen's Farm.\n{{[OUTPUT]}}\n");
+    w.handle_incoming_text("Tove reaches Wen's Farm. The goose pond is still.");
+    assert.equal(done(), false, 'arriving is not talking');
+    w.gametext_arr.push('\n{{[INPUT]}}\n"Liu! Which way did the cart go?"\n{{[OUTPUT]}}\n');
+    w.handle_incoming_text('Liu Wen whirls around. "The Forest Road!"');
+    assert.equal(done(), true, 'speaking to Liu counts');
+});

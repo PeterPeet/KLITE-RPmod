@@ -143,3 +143,28 @@ test('an action spell and the Attack action exclude each other; a bonus action s
     assert.equal(W.attacksLeft('__player__'), 0);
     assert.match(W.attack('__player__', ogre, 0).refused || '', /action is already used/);
 });
+
+// Play test 2026-10-20: a victory while the player was dying left them at 0 HP outside the fight, with no way to
+// stabilise (the AI asked for a death save that has no button outside a fight).
+test('victory: whoever is still dying is stabilised after the fight and comes round with 1 HP; the dead stay dead', async (t) => {
+    const h = await watchtower(t); const W = h.api();
+    W.startEncounter([], { monsters: [{ key: 'wolf' }], zones: false });
+    const cb = W.getCombat(); const wolf = cb.order.find(o => o.kind === 'monster').id;
+    W.damage('__player__', 99);
+    assert.ok(cb.death.__player__ && !cb.death.__player__.stable, 'the player is dying');
+    W.damage(wolf, 99);
+    assert.equal(cb.outcome, 'victory');
+    assert.equal(cb.hp.__player__, 1);
+    assert.equal(cb.death.__player__, undefined);
+    assert.ok(!W.conditionsOf('__player__').some(c => c.name === 'Unconscious'));
+    assert.ok(cb.log.some(l => /^After the fight: You — stabilised, back on 1 HP\.$/.test(l)), JSON.stringify(cb.log.slice(-3)));
+    assert.match(W.preview(), /\n  You HP 1\/12\n/, 'the prompt: up again, not dying');
+    // a companion who died stays dead
+    W.endEncounter();
+    W.startEncounter([], { monsters: [{ key: 'wolf' }], zones: false });
+    const cb2 = W.getCombat(); const wolf2 = cb2.order.find(o => o.kind === 'monster').id;
+    W.damage('npc_rowan', 99); for (let i = 0; i < 3; i++) W.damage('npc_rowan', 1);
+    assert.ok(cb2.death.npc_rowan.dead);
+    W.damage(wolf2, 99);
+    assert.equal(cb2.hp.npc_rowan, 0, 'the dead are not revived');
+});
