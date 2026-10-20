@@ -663,3 +663,16 @@ test('a new session (adventure start) starts with an empty game log; nothing of 
     input.value = 'Hello, Elder.'; await w.prepare_submit_generation();
     assert.doesNotMatch(h.prompt, /Old fight line/, 'nothing of it in the new game\'s prompt');
 });
+
+// Live test 2026-10-20: the prompt named a waiting encounter only ("Goblin wolves") and GLM narrated four wolves for two.
+test('a waiting encounter in the prompt says who is in it', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    W.moveTo('Wolf Den');
+    assert.match(W.preview(), /\[Waiting here\]\n- Goblin wolves: 2 Wolf\n/);
+});

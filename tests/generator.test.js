@@ -200,7 +200,7 @@ test('AI: names a placeholder room once (<room>Name, here: …</room>); encounte
     W.moveTo(room.id);
     let s = W.preview();
     assert.match(s, /This room has no proper name yet \("Room \d+"\)/);
-    assert.match(s, new RegExp(`\\[Waiting here\\]\\n- ${enc.name.replace(/[()]/g, '\\$&')}\\n[^\\n]*<encounter>exact name<\\/encounter>`));
+    assert.match(s, new RegExp(`\\[Waiting here\\]\\n- ${enc.name.replace(/[()]/g, '\\$&')}: \\d* ?[A-Z][^\\n]*\\n[^\\n]*<encounter>exact name<\\/encounter>`));
     const old = room.name;
     w.handle_incoming_text('Skulls line the walls. <room>Skull Gallery, here: skulls in niches from floor to ceiling</room>');
     assert.equal(W.entityById(room.id).name, 'Skull Gallery');

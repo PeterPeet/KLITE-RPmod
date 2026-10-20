@@ -3467,7 +3467,9 @@ export default function initWorlds() {
         // 5-. Prepared encounters at this place not yet fought (R7 step 4: generated ones too)
         if (!(getCombat() && getCombat().active)) {
             const waiting = encountersAt(loc.id).filter(e => !asArray(rt().startedEncounters).includes(e.id));
-            if (waiting.length) push('Waiting here', 64, waiting.map(e => `- ${norm(e.name)}`).join('\n') +
+            // who is in it (live test 2026-10-20: GLM narrated four wolves for an encounter of two)
+            const who = (e) => [...asArray(e.personIds).map(pid => findById(world.npcs, pid)).filter(Boolean).map(n => norm(n.name)), encounterSummary(e.monsters)].filter(Boolean).join(', ');
+            if (waiting.length) push('Waiting here', 64, waiting.map(e => `- ${norm(e.name)}${who(e) ? `: ${who(e)}` : ''}`).join('\n') +
                 '\nWhen they notice the player (or the player attacks), write <encounter>exact name</encounter>; RPmod then runs the fight.');
         }
         // 5a. Moving room by room (R7): how the AI moves the player; optional text map

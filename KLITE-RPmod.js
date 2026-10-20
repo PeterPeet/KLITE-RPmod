@@ -27181,7 +27181,8 @@ ${xl.join("\n")}`;
       push("Nearby Objects", 50, objLines.join("\n"));
       if (!(getCombat() && getCombat().active)) {
         const waiting = encountersAt(loc.id).filter((e) => !asArray5(rt().startedEncounters).includes(e.id));
-        if (waiting.length) push("Waiting here", 64, waiting.map((e) => `- ${norm5(e.name)}`).join("\n") + "\nWhen they notice the player (or the player attacks), write <encounter>exact name</encounter>; RPmod then runs the fight.");
+        const who = (e) => [...asArray5(e.personIds).map((pid) => findById(world2.npcs, pid)).filter(Boolean).map((n) => norm5(n.name)), encounterSummary(e.monsters)].filter(Boolean).join(", ");
+        if (waiting.length) push("Waiting here", 64, waiting.map((e) => `- ${norm5(e.name)}${who(e) ? `: ${who(e)}` : ""}`).join("\n") + "\nWhen they notice the player (or the player attacks), write <encounter>exact name</encounter>; RPmod then runs the fight.");
       }
       if (inRoom) {
         push("Exploring", 24, "The player explores room by room. Use a name or direction from the exits above: <go>name</go> moves (a closed door opens on the way), <open>north</open>, <close>north</close>, <unlock>north</unlock> (RPmod uses a key or rolls thieves' tools), <search></search> when the player searches this room (RPmod rolls Perception/Investigation). To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>; to change the light here: <light>dark</light>. RPmod applies the rules: rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found." + (isPlaceholderName(loc.name) ? ` This room has no proper name yet ("${norm5(loc.name)}"): name and describe it once with <room>Name, here: short description</room>.` : ""));
