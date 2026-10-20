@@ -79,3 +79,38 @@ test('combat prompt: before and after the player has acted on their turn; anothe
     const next = W.getCombat().order[W.getCombat().turnIndex];
     if (!next.isPlayer) assert.match(W.preview(), new RegExp(`It is ${next.name}'s turn next: RPmod runs it`));
 });
+
+// After a page reload the dice/combat log was empty (Esolite's start-up autosave drops RPmod's blocks; the
+// world state already had a side copy, the log had none) — and so a Retry had no results to send again.
+test('page reload: the game log (with its Retry marks) comes back from the side copy (same chat only)', async (t) => {
+    const page = async (idb, chat) => {
+        const h = createHost(); t.after(h.close); const w = h.window;
+        h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+        for (const [k, v] of idb) w.__idb.set(k, v);
+        if (chat) w.gametext_arr = chat.slice();
+        h.load('bundle'); await h.ready({ ui: false });
+        return h;
+    };
+    const h1 = await page([]); const w1 = h1.window;
+    const input = w1.document.createElement('textarea'); input.id = 'input_text'; w1.document.body.appendChild(input);
+    w1.KLITE_RPMod_Log.add({ what: 'Hit: Wolf → Oona, 6 damage', kind: 'combat' });
+    input.value = 'I swing.'; await w1.prepare_submit_generation(); input.value = '';
+    w1.gametext_arr.push('\n{{[INPUT]}}\nI swing.\n{{[OUTPUT]}}\n', 'The wolf bites Oona.');
+    w1.generate_savefile();   // an autosave
+    await sleep(600);
+    const idb = [...w1.__idb.entries()];
+    assert.ok(idb.some(([k]) => k === 'rpmod_storycopy_log'), 'side copy of the log');
+    const chat = w1.gametext_arr.slice();
+
+    const h2 = await page(idb, chat); const w2 = h2.window;
+
+    for (let i = 0; i < 100 && !w2.KLITE_RPMod_Log.entries().length; i++) await sleep(20);
+    assert.deepEqual(JSON.parse(JSON.stringify(w2.KLITE_RPMod_Log.entries().map(e => e.what))), ['Hit: Wolf → Oona, 6 damage'], 'the log is back');
+    // and a Retry right after the reload sends the results again
+    w2.gametext_arr.pop(); await w2.prepare_submit_generation();
+    assert.match(h2.prompt, /\[Rolls and combat since your last reply\]\n- Hit: Wolf → Oona, 6 damage/);
+
+    const h3 = await page(idb, ['A different story.']);
+    await sleep(300);
+    assert.equal(h3.window.KLITE_RPMod_Log.entries().length, 0, 'another chat: nothing restored');
+});

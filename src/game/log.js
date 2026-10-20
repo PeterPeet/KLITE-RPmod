@@ -11,6 +11,7 @@
 // Public API: window.KLITE_RPMod_Log.
 // =============================================================================
 import { getContext } from '../context/context.js';
+import { saveStoryCopy, loadStoryCopy } from '../context/storyCopy.js';
 import { el, clear } from '../shell/dom.js';
 
 const SAVE_KEY = 'rpmod_log';
@@ -106,13 +107,30 @@ export default function initGameLog() {
     });
 
     // ---- story file: additive key -------------------------------------------------------
+    function savedBlock() { return state.entries.length ? { version: 1, entries: state.entries.slice(-MAX_ENTRIES), lastTurnIndex: state.lastTurnIndex, marks: state.marks.slice() } : null; }
+    function applySaved(saved) {
+        state.entries = saved && Array.isArray(saved.entries) ? saved.entries.filter(e => e && typeof e === 'object').slice(-MAX_ENTRIES) : [];
+        state.lastTurnIndex = saved ? Math.min(state.entries.length, Math.max(0, Number(saved.lastTurnIndex) || 0)) : 0;
+        // marks are additive (older saves have none: a Retry right after loading sends nothing again, as before)
+        state.marks = saved && Array.isArray(saved.marks) ? saved.marks.filter(m => m && Number.isFinite(Number(m.chat)) && Number.isFinite(Number(m.from))).map(m => ({ chat: Number(m.chat), from: Math.min(state.entries.length, Math.max(0, Number(m.from))) })).slice(-MAX_MARKS) : [];
+        changed();
+    }
+    // A page reload: Esolite restores its autosaved story before RPmod's hooks exist and autosaves it
+    // again without this block (play test 2026-10-20: the log was empty after every reload). Like the
+    // Worlds and RP blocks (src/context/storyCopy.js), a side copy per chat is restored once at start-up.
+    let storyLoaded = false, restoreTried = false;
+    async function restoreFromAutosave() {
+        if (restoreTried || storyLoaded || state.entries.length) return false;
+        restoreTried = true;
+        try { const saved = await loadStoryCopy('log'); if (!saved || storyLoaded || state.entries.length) return false; applySaved(saved); return true; } catch (_) { return false; }
+    }
     function installSaveHooks() {
         let ok = true;
         if (typeof window.generate_savefile === 'function' && !window.generate_savefile.__rpmod_log) {
             const orig = window.generate_savefile;
             const wrapped = function () {
                 const obj = orig.apply(this, arguments);
-                try { if (obj && state.entries.length) obj[SAVE_KEY] = { version: 1, entries: state.entries.slice(-MAX_ENTRIES), lastTurnIndex: state.lastTurnIndex, marks: state.marks.slice() }; } catch (_) {}
+                try { const b = savedBlock(); if (obj && b) obj[SAVE_KEY] = b; saveStoryCopy('log', b); } catch (_) {}
                 return obj;
             };
             wrapped.__rpmod_log = true; window.generate_savefile = wrapped;
@@ -121,14 +139,7 @@ export default function initGameLog() {
             const orig = window.kai_json_load;
             const wrapped = function (storyobj) {
                 const res = orig.apply(this, arguments);
-                try {
-                    const saved = storyobj && storyobj[SAVE_KEY];
-                    state.entries = saved && Array.isArray(saved.entries) ? saved.entries.filter(e => e && typeof e === 'object').slice(-MAX_ENTRIES) : [];
-                    state.lastTurnIndex = saved ? Math.min(state.entries.length, Math.max(0, Number(saved.lastTurnIndex) || 0)) : 0;
-                    // marks are additive (older saves have none: a Retry right after loading sends nothing again, as before)
-                    state.marks = saved && Array.isArray(saved.marks) ? saved.marks.filter(m => m && Number.isFinite(Number(m.chat)) && Number.isFinite(Number(m.from))).map(m => ({ chat: Number(m.chat), from: Math.min(state.entries.length, Math.max(0, Number(m.from))) })).slice(-MAX_MARKS) : [];
-                    changed();
-                } catch (_) {}
+                try { storyLoaded = true; applySaved(storyobj && storyobj[SAVE_KEY]); } catch (_) {}
                 return res;
             };
             wrapped.__rpmod_log = true; window.kai_json_load = wrapped;
@@ -156,6 +167,7 @@ export default function initGameLog() {
         const saves = installSaveHooks();
         const sh = window.KLITE_RPMod_Shell;
         if (sh && !sh.views().includes('gamelog')) sh.registerView({ id: 'gamelog', title: 'Dice log', place: 'left', order: 30, mount: renderLog, update: renderLog });
+        if (saves) restoreFromAutosave();
         if ((!saves || !sh) && ++tries < 120) setTimeout(attempt, 250);
     };
     if (document.readyState === 'complete') attempt(); else window.addEventListener('load', attempt, { once: true });   // once: a second load event must not start it again

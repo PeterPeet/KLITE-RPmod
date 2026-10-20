@@ -34534,6 +34534,28 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         state.lastTurnIndex = state.entries.length;
       }
     });
+    function savedBlock() {
+      return state.entries.length ? { version: 1, entries: state.entries.slice(-MAX_ENTRIES), lastTurnIndex: state.lastTurnIndex, marks: state.marks.slice() } : null;
+    }
+    function applySaved(saved) {
+      state.entries = saved && Array.isArray(saved.entries) ? saved.entries.filter((e) => e && typeof e === "object").slice(-MAX_ENTRIES) : [];
+      state.lastTurnIndex = saved ? Math.min(state.entries.length, Math.max(0, Number(saved.lastTurnIndex) || 0)) : 0;
+      state.marks = saved && Array.isArray(saved.marks) ? saved.marks.filter((m) => m && Number.isFinite(Number(m.chat)) && Number.isFinite(Number(m.from))).map((m) => ({ chat: Number(m.chat), from: Math.min(state.entries.length, Math.max(0, Number(m.from))) })).slice(-MAX_MARKS) : [];
+      changed();
+    }
+    let storyLoaded = false, restoreTried = false;
+    async function restoreFromAutosave() {
+      if (restoreTried || storyLoaded || state.entries.length) return false;
+      restoreTried = true;
+      try {
+        const saved = await loadStoryCopy("log");
+        if (!saved || storyLoaded || state.entries.length) return false;
+        applySaved(saved);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
     function installSaveHooks() {
       let ok = true;
       if (typeof window.generate_savefile === "function" && !window.generate_savefile.__rpmod_log) {
@@ -34541,7 +34563,9 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         const wrapped = function() {
           const obj = orig.apply(this, arguments);
           try {
-            if (obj && state.entries.length) obj[SAVE_KEY] = { version: 1, entries: state.entries.slice(-MAX_ENTRIES), lastTurnIndex: state.lastTurnIndex, marks: state.marks.slice() };
+            const b = savedBlock();
+            if (obj && b) obj[SAVE_KEY] = b;
+            saveStoryCopy("log", b);
           } catch (_) {
           }
           return obj;
@@ -34554,11 +34578,8 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         const wrapped = function(storyobj) {
           const res = orig.apply(this, arguments);
           try {
-            const saved = storyobj && storyobj[SAVE_KEY];
-            state.entries = saved && Array.isArray(saved.entries) ? saved.entries.filter((e) => e && typeof e === "object").slice(-MAX_ENTRIES) : [];
-            state.lastTurnIndex = saved ? Math.min(state.entries.length, Math.max(0, Number(saved.lastTurnIndex) || 0)) : 0;
-            state.marks = saved && Array.isArray(saved.marks) ? saved.marks.filter((m) => m && Number.isFinite(Number(m.chat)) && Number.isFinite(Number(m.from))).map((m) => ({ chat: Number(m.chat), from: Math.min(state.entries.length, Math.max(0, Number(m.from))) })).slice(-MAX_MARKS) : [];
-            changed();
+            storyLoaded = true;
+            applySaved(storyobj && storyobj[SAVE_KEY]);
           } catch (_) {
           }
           return res;
@@ -34590,6 +34611,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       const saves = installSaveHooks();
       const sh = window.KLITE_RPMod_Shell;
       if (sh && !sh.views().includes("gamelog")) sh.registerView({ id: "gamelog", title: "Dice log", place: "left", order: 30, mount: renderLog, update: renderLog });
+      if (saves) restoreFromAutosave();
       if ((!saves || !sh) && ++tries < 120) setTimeout(attempt, 250);
     };
     if (document.readyState === "complete") attempt();

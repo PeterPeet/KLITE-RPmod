@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 422 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 423 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -267,6 +267,11 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
     of 30,000, before ~29,000 characters of chat): RPmod needs World Info **"Before A/N" + "Strong"**. It asks once
     (Yes/No) when a story is set otherwise, and after Yes keeps it set after every New Session and story load
     (`src/settings/contextPlacement.js`, setting `context_placement_auto`). Tests: `tests/contextPlacement.test.js`.
+    RPmod waits while Esolite's Yes/No box shows its own question (the reconnect question after a reload).
+32. ~~The game log was empty after a page reload~~ — fixed 2026-10-20 (play test): known issue 26 gave the world state
+    and the RP block a side copy for Esolite's start-up autosave, but not the dice/combat log (`rpmod_log`), so the
+    log — and with it the results a Retry sends again — was gone after every reload. The log now keeps its side copy
+    too (`rpmod_storycopy_log`, same chat only). Test in `tests/playtestR8.test.js`.
 
 ## Phases
 
