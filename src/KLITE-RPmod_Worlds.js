@@ -1573,6 +1573,29 @@ export default function initWorlds() {
         const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(t) || [];
         inventoryAdd(nm, q); return t;
     }
+    // ---- story correction (play test 2026-10-20) ----
+    // The AI narrates what its tags do before RPmod has checked them; a refused tag ("the door is locked")
+    // left an invented key turning in the lock and the party in a room it never reached. The refusals of a
+    // reply are kept (runtime.storyCorrection = { chat, lines }, additive) for the next prompt — while that
+    // reply is still in the chat (a Retry or Undo removes it, and its correction with it).
+    const REFUSAL_RE = /\brefused\b|\bcannot\b|\bdoes not join\b|\bis not here\b|^No one here|\bis empty — it was opened before\b|\bis not in the party\b/i;
+    function logLength() { try { return window.KLITE_RPMod_Log ? window.KLITE_RPMod_Log.entries().length : 0; } catch (_) { return 0; } }
+    function noteRefusals(from, chatLen) {
+        if (!rt()) return;
+        let lines = [];
+        try { lines = window.KLITE_RPMod_Log.entries().slice(from).map(e => norm(e.what)).filter(t => REFUSAL_RE.test(t)); } catch (_) {}
+        rt().storyCorrection = lines.length ? { chat: chatLen, lines: [...new Set(lines)].slice(0, 8) } : null;
+    }
+    function storyCorrectionText() {
+        const sc = rt() && rt().storyCorrection; if (!sc || !asArray(sc.lines).length) return '';
+        const n = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+        if (n < sc.chat) return '';   // that reply was retried or undone
+        const here = rt().playerLocationId ? placeName(rt().playerLocationId) : '';
+        const cb = getCombat();
+        return 'Your last reply described things that did not happen — RPmod refused them:\n' + sc.lines.map(l => '- ' + l).join('\n') +
+            `\nWhere things really stand: ${here ? `the party is at ${here}` : 'nothing changed'}${cb && cb.active && !cb.outcome ? ', and the fight goes on' : ''}; only the items listed in the inventory exist. ` +
+            'Begin your next reply by setting this straight in one or two sentences, in the story\'s voice (no apology, no out-of-character note), then continue from there.';
+    }
     // ---- containers (play test 2026-10-20): a feature `kind: 'container'` with `contains[]` hands out
     // what is inside once, when the player opens it (<open>, /open, the Here row); `runtime.looted`
     // remembers it (additive; Back to start fills them again). Before, nothing handed the contents out —
@@ -2866,7 +2889,11 @@ export default function initWorlds() {
                 gameLog('The AI\'s reply was cut off while it was still thinking: RPmod applied none of its tags. Use Generate More to let it finish, or Retry.', 'system');
                 continue;
             }
+            // the AI's own tags that RPmod refused (a reply that just arrived): the next prompt asks to set the story straight
+            const reply = opts && opts.advance === false && i === arr.length - 1;
+            const before = reply ? logLength() : 0;
             changed = parseMutations(arr[i]) || changed; try { detectTalk(stripThinking(arr[i])); } catch (_) {}
+            if (reply) noteRefusals(before, arr.length);
         }
         const advanced = W.config.advanceClockPerTurn && arr.length > start && !(opts && opts.advance === false);
         rt().lastParsedIndex = arr.length;
@@ -2986,6 +3013,8 @@ export default function initWorlds() {
         if (party.length) stateBits.push('Party: ' + party.map(norm).join(', '));
         push('Player State', 85, stateBits.join('\n'));
 
+        // 2b2. What the AI's last reply got wrong (its refused tags), above everything else
+        push('Set the story straight', 97, storyCorrectionText());
         // 2c. Combat state (top priority when an encounter is active)
         push('Combat', 96, combatText());
         // 2d. How the AI (as GM) starts a fight — RPmod then runs it (outside of combat only)

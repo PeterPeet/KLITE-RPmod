@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 426 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 427 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -961,8 +961,11 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   a locked door, a move (repaired by hand). With reasoning "low" it was tagged (still up to 13,000 characters).
 
 **Open items from the play test (owner to prioritise):**
-- [ ] **Story correction:** when RPmod refuses the AI's own tags, say so prominently on the next turn ("your last reply
-  could not happen: the door is still locked, you are still in …") — the AI's invented key/move stayed in the story.
+- [x] **Story correction** — done 2026-10-20: the refusals of the AI's own tags in a reply (`refused`, `cannot`, …) are kept
+  (`runtime.storyCorrection`, additive) and the next prompt opens with **[Set the story straight]** (priority 97): what
+  did not happen, where the party really is, "only the items listed in the inventory exist", and to correct it in one
+  or two sentences in the story's voice. Gone once that reply is retried or undone, or a clean reply arrives. Test in
+  `tests/playtestR8.test.js`. Not yet checked with a real model.
 - [x] **Don't parse a reply that is only reasoning / cut off** — done 2026-10-20: Esolite wraps streamed reasoning in
   `<think>…</think>` only on a proper stop (`close()`: `last_stop_reason == "stop"`); a reply cut off at max_tokens while
   thinking stays untagged so that **Generate More** continues the thought, which then ends with a lone `</think>`

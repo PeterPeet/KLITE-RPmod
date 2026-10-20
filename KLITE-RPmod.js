@@ -24682,6 +24682,33 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       inventoryAdd(nm, q);
       return t;
     }
+    const REFUSAL_RE = /\brefused\b|\bcannot\b|\bdoes not join\b|\bis not here\b|^No one here|\bis empty — it was opened before\b|\bis not in the party\b/i;
+    function logLength() {
+      try {
+        return window.KLITE_RPMod_Log ? window.KLITE_RPMod_Log.entries().length : 0;
+      } catch (_) {
+        return 0;
+      }
+    }
+    function noteRefusals(from, chatLen) {
+      if (!rt()) return;
+      let lines = [];
+      try {
+        lines = window.KLITE_RPMod_Log.entries().slice(from).map((e) => norm5(e.what)).filter((t) => REFUSAL_RE.test(t));
+      } catch (_) {
+      }
+      rt().storyCorrection = lines.length ? { chat: chatLen, lines: [...new Set(lines)].slice(0, 8) } : null;
+    }
+    function storyCorrectionText() {
+      const sc = rt() && rt().storyCorrection;
+      if (!sc || !asArray5(sc.lines).length) return "";
+      const n = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+      if (n < sc.chat) return "";
+      const here2 = rt().playerLocationId ? placeName(rt().playerLocationId) : "";
+      const cb = getCombat();
+      return "Your last reply described things that did not happen — RPmod refused them:\n" + sc.lines.map((l) => "- " + l).join("\n") + `
+Where things really stand: ${here2 ? `the party is at ${here2}` : "nothing changed"}${cb && cb.active && !cb.outcome ? ", and the fight goes on" : ""}; only the items listed in the inventory exist. Begin your next reply by setting this straight in one or two sentences, in the story's voice (no apology, no out-of-character note), then continue from there.`;
+    }
     function containersHere() {
       const id = rt() && rt().playerLocationId;
       if (!id) return [];
@@ -26474,11 +26501,14 @@ ${recent}` : "");
           gameLog("The AI's reply was cut off while it was still thinking: RPmod applied none of its tags. Use Generate More to let it finish, or Retry.", "system");
           continue;
         }
+        const reply = opts && opts.advance === false && i === arr2.length - 1;
+        const before = reply ? logLength() : 0;
         changed = parseMutations(arr2[i]) || changed;
         try {
           detectTalk(stripThinking(arr2[i]));
         } catch (_) {
         }
+        if (reply) noteRefusals(before, arr2.length);
       }
       const advanced = W.config.advanceClockPerTurn && arr2.length > start && !(opts && opts.advance === false);
       rt().lastParsedIndex = arr2.length;
@@ -26596,6 +26626,7 @@ ${recent}` : "");
       const party = asArray5(rt().party).map((id) => (findById(world2.npcs, id) || {}).name).filter(Boolean);
       if (party.length) stateBits.push("Party: " + party.map(norm5).join(", "));
       push("Player State", 85, stateBits.join("\n"));
+      push("Set the story straight", 97, storyCorrectionText());
       push("Combat", 96, combatText());
       if (!(getCombat() && getCombat().active)) {
         const saved = asArray5(world2.encounters).map((e) => e.name).filter(Boolean);

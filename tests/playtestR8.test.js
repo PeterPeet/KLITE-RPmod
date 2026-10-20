@@ -207,3 +207,27 @@ test('a reply cut off while thinking applies no tags; Generate More\'s continuat
     w.handle_incoming_text('Oona nods. <go>Stolen Stores</go>');
     assert.equal(at(), 'Stolen Stores', 'no reasoning requested: a long reply cut off still counts');
 });
+
+// Gemma narrated an invented key opening a door RPmod kept locked, and the party walking into a room it never
+// reached; the refusal reached the next prompt only as one log line. Now the next prompt asks to set it straight.
+test('story correction: the AI\'s refused tags come back as "Set the story straight" (until the reply is retried)', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.window.handle_incoming_text = (txt) => { h.window.gametext_arr.push(txt); };
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    W.moveTo("Chief's Hollow"); W.endEncounter();
+    w.gametext_arr.push('\n{{[INPUT]}}\nTove tries the iron key.\n{{[OUTPUT]}}\n');
+    w.handle_incoming_text('<unlock>west</unlock> The key turns with a snick. <go>Sleeping Burrow</go> Hammocks everywhere.');
+    let p = W.preview();
+    assert.match(p, /\[Set the story straight\]\nYour last reply described things that did not happen — RPmod refused them:\n- Unlock west refused: [^\n]*\n- Move to Sleeping Burrow refused: [^\n]*\nWhere things really stand: the party is at The Hollow Oak \(Chief's Hollow\)[^\n]*only the items listed in the inventory exist\. Begin your next reply by setting this straight/);
+    // Retry removes that reply (and sends again, as Esolite's btn_retry): no correction for the next attempt
+    w.gametext_arr.pop();
+    assert.doesNotMatch(W.preview(), /Set the story straight/);
+    await w.prepare_submit_generation();
+    w.handle_incoming_text('The key does not turn. The door stays shut.');   // the retried reply, without refused tags
+    assert.doesNotMatch(W.preview(), /Set the story straight/, 'a clean reply clears it');
+});
