@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 439 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 441 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -959,6 +959,15 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   a game over as asked. Both sometimes narrate a move without writing `<go>` (the party stays where it was).
 - DeepSeek's reasoning came once untagged (no `<think>`, cut off) and RPmod applied the tags in it — a junk room "Name",
   a locked door, a move (repaired by hand). With reasoning "low" it was tagged (still up to 13,000 characters).
+
+**Owner's decisions 2026-10-20 (done):**
+- [x] **"Story: go to …"** — a reply that moved no one but names a place reachable from here (an exit that is not locked
+  or barred, or a visited room of the same dungeon/town with a known route) offers it in the Here row (`runtime.storyGo`,
+  only while that reply is the last one); `/storygo` moves with source `story` (routes like Quick travel, stops at
+  events, logs "As the story told, the party went via … to …") and sends nothing. Test in `tests/playtestR8.test.js`.
+- [x] **Branch, Allow Editing, the chat tree** — a notice once per page while a world is active (wrapped `btn_branch`,
+  `toggle_editable` when switched on, `btn_editmode`, `treeViewer.openTreeView/openPaginatedTreeView`); the action goes on.
+  Test in `tests/playtestR8.test.js`.
 
 **Open items from the play test (owner to prioritise):**
 - [x] **Story correction** — done 2026-10-20: the refusals of the AI's own tags in a reply (`refused`, `cannot`, …) are kept

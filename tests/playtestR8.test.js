@@ -470,3 +470,63 @@ test('Retry after fighting on: the turns played since the reply count as a chang
     assert.match(w.__asked[0], /since then the game \(moves, fight turns, quests\) changed too/);
     assert.ok(W.getCombat() && W.getCombat().hp[wolf] < W.getCombat().maxHp[wolf], 'No: the fight and its turns stay');
 });
+
+// DeepSeek narrated "back through the grain stores … into the wolf den" without a <go>: the party stayed in the
+// chief's hollow. The Here row now offers "Story: go to Wolf Den" (a known place of the same dungeon, by a route).
+test('"Story: go to …": a reply that moved no one but walked the party somewhere offers that place', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.window.handle_incoming_text = (txt) => { h.window.gametext_arr.push(txt); };
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window; const W = h.api(); const ADV = w.KLITE_RPMod_Adventures;
+    w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    W.moveTo('Root Tunnel'); W.endEncounter();
+    for (const d of ['east', 'east']) { W.go(d); W.endEncounter(); }   // walked: Wolf Den, Stolen Stores
+    const found = W.runtime.found; if (!found.secrets.includes('ex_ho_stores_chief')) found.secrets.push('ex_ho_stores_chief');   // the secret door, noticed
+    W.go('south'); W.endEncounter();
+    const at = () => W.getGraph().nodes.find(n => n.id === W.runtime.playerLocationId).name;
+    w.gametext_arr.push('\n{{[INPUT]}}\nBack to the wolf den.\n{{[OUTPUT]}}\n');
+    w.handle_incoming_text('<think>Maybe <go>Sleeping Burrow</go>.</think>Tove and Oona pass back through the Stolen Stores and step into the Wolf Den. The dead wolves lie still.');
+    assert.equal(at(), "Chief's Hollow", 'no tag moved them');
+    assert.deepEqual(JSON.parse(JSON.stringify(W.here().storyGo)), { id: 'ho_wolfpen', name: 'Wolf Den' }, 'the place named last, not one from the thinking: ' + JSON.stringify(W.here().storyGo));
+    const r = w.KLITE_RPMod_Chat.run('/storygo Wolf Den', { send: true });
+    assert.equal(r.ok, true, JSON.stringify(r)); assert.equal(r.message, '', 'nothing is sent to the AI');
+    assert.equal(at(), 'Wolf Den', 'moved, by the route through the stores');
+    assert.ok(w.KLITE_RPMod_Log.entries().some(e => /As the story told, the party went via Stolen Stores to Wolf Den\./.test(e.what)), JSON.stringify(w.KLITE_RPMod_Log.entries().slice(-2).map(e => e.what)));
+    assert.equal(W.here().storyGo, null, 'the offer is gone once they are there');
+    // a reply whose tag moved the party offers nothing; nor does one that names only a locked way
+    w.handle_incoming_text('They go on. <go>Stolen Stores</go> Grain everywhere, and the Root Tunnel behind.');
+    assert.equal(at(), 'Stolen Stores'); assert.equal(W.here().storyGo, null);
+    W.moveTo("Chief's Hollow"); W.endEncounter();
+    w.handle_incoming_text('Tove stares at the door to the Sleeping Burrow.');
+    assert.equal(W.here().storyGo, null, 'a locked door is no way');
+});
+
+// Owner, 2026-10-20: Branch, Allow Editing and the chat tree change the chat far back — RPmod's game state cannot
+// follow. A notice once per page (while a world is active); the action itself goes on.
+test('Branch, Allow Editing and the chat tree: a notice once per page while a world is active', async (t) => {
+    const h = createHost(); t.after(h.close); const w = h.window;
+    const calls = []; w.__boxes = [];
+    w.btn_branch = () => calls.push('branch'); w.toggle_editable = () => calls.push('edit'); w.btn_editmode = () => calls.push('editmode');
+    w.treeViewer = { openTreeView: () => calls.push('tree'), openPaginatedTreeView: () => calls.push('tree2') };
+    w.msgbox = (text, title) => w.__boxes.push([title, text]);
+    const cb = w.document.createElement('input'); cb.type = 'checkbox'; cb.id = 'allowediting'; w.document.body.appendChild(cb);
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    for (let i = 0; i < 40 && !w.btn_branch.__rpmod_history; i++) await sleep(25);
+    w.btn_branch();
+    assert.deepEqual(calls, ['branch']); assert.equal(w.__boxes.length, 0, 'no world: no notice');
+    const ADV = w.KLITE_RPMod_Adventures; w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    cb.checked = false; w.toggle_editable();   // switched off: no notice
+    assert.equal(w.__boxes.length, 0);
+    cb.checked = true; w.toggle_editable();
+    assert.equal(w.__boxes.length, 1);
+    assert.match(w.__boxes[0][1], /does not follow edited, branched or reloaded chat history: it stays as it is now\. To take back the AI's last reply, use Retry or Undo/);
+    w.treeViewer.openTreeView(); w.btn_branch();
+    assert.equal(w.__boxes.length, 1, 'once per page');
+    assert.deepEqual(calls, ['branch', 'edit', 'edit', 'tree', 'branch'], 'the actions go on as usual');
+});

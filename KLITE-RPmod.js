@@ -23417,7 +23417,8 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         gameLog(msg, "map");
         return { ok: false, reason: msg };
       };
-      if (opts.source === "quicktravel" && rt().combat && rt().combat.active) return refuse("a fight is going on");
+      const quick = opts.source === "quicktravel" || opts.source === "story";
+      if (quick && rt().combat && rt().combat.active) return refuse("a fight is going on");
       let dest = resolveGoTarget(target, curId);
       if (!dest) return refuse("there is no such place");
       const destIsMap = isContainer(dest);
@@ -23435,7 +23436,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       if (cur && (mapOf(curId) || mapOf(dest.id))) {
         ex = playerExits(curId).find((e) => e.to === dest.id) || null;
         if (!ex && !(viaEntrance && !mapOf(curId))) {
-          const route = routeTo(curId, dest.id, { quick: opts.source === "quicktravel" });
+          const route = routeTo(curId, dest.id, { quick });
           if (!route) return refuse(`there is no known way from ${placeName(curId)} to ${placeName(dest.id, curId)}`);
           let at = curId;
           for (const id of route) {
@@ -23482,7 +23483,8 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       passiveNotice(dest.id);
       const dir = ex && ex.dir && !via.length ? dirName(ex.dir) : "";
       const viaTxt = via.length ? ` via ${via.map((id) => playerPlaceName(id, curId)).join(", ")}` : "";
-      if (opts.source === "ui" || via.length && opts.source !== "quicktravel") gameLog(`${opened ? "Opens the door and goes" : "Goes"}${dir ? " " + dir : ""}${viaTxt} to ${placeName(dest.id, curId)}.`, "map");
+      if (opts.source === "story") gameLog(`As the story told, the party went${viaTxt} to ${placeName(dest.id, curId)}${opened ? " (opening a door on the way)" : ""}.`, "map");
+      else if (opts.source === "ui" || via.length && opts.source !== "quicktravel") gameLog(`${opened ? "Opens the door and goes" : "Goes"}${dir ? " " + dir : ""}${viaTxt} to ${placeName(dest.id, curId)}.`, "map");
       if (opts.source === "quicktravel") gameLog(`Quick travel: the player skipped the journey and is now at ${placeName(dest.id, curId)}${opened ? " (a door was opened on the way)" : ""}. Describe the arrival briefly.`, "map");
       try {
         fireTriggers("enter:" + dest.id);
@@ -24691,6 +24693,62 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       inventoryAdd(nm, q);
       return t;
     }
+    function storyPlaceIn(text, curId) {
+      const t = " " + stripThinking(text).replace(/<[^<>]*>/g, " ").toLowerCase() + " ";
+      const cands = /* @__PURE__ */ new Map();
+      for (const e of playerExits(curId)) {
+        if (e.type === "door" || e.type === "secret") {
+          const st = doorState(e, rt().doorState);
+          if (st === "locked" || st === "barred") continue;
+        }
+        const name = playerPlaceName(e.to, curId);
+        if (name && name !== "unexplored room") cands.set(e.to, name);
+      }
+      const map = mapOf(curId);
+      if (map) for (const id of asArray5(rt().visitedLocationIds)) {
+        if (id === curId || !mapOf(id) || mapOf(id).id !== map.id || cands.has(id)) continue;
+        let way = null;
+        try {
+          way = routeTo(curId, id, { quick: true });
+        } catch (_) {
+        }
+        if (way) cands.set(id, playerPlaceName(id, curId));
+      }
+      let best = null;
+      for (const [id, name] of cands) {
+        for (const n of /* @__PURE__ */ new Set([name, norm5((locOf(id) || {}).name)])) {
+          const k2 = nameKey(n);
+          if (k2.length < 3) continue;
+          const re = new RegExp("(^|[^a-z])" + k2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?=[^a-z]|$)", "g");
+          let m, last = -1;
+          while ((m = re.exec(t)) !== null) last = m.index;
+          if (last >= 0 && (!best || last > best.at)) best = { id, name: playerPlaceName(id, curId), at: last };
+        }
+      }
+      return best;
+    }
+    function noteStoryPlace(text, locBefore, chatLen) {
+      if (!rt()) return;
+      const cur = rt().playerLocationId;
+      rt().storyGo = null;
+      if (!cur || cur !== locBefore) return;
+      const cb = getCombat();
+      if (cb && cb.active && !cb.outcome) return;
+      try {
+        const p = storyPlaceIn(text, cur);
+        if (p) rt().storyGo = { chat: chatLen, from: cur, to: p.id, name: p.name };
+      } catch (_) {
+      }
+    }
+    function storyGoHere() {
+      const sg = rt() && rt().storyGo;
+      if (!sg) return null;
+      const n = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+      if (n !== sg.chat || rt().playerLocationId !== sg.from) return null;
+      const cb = getCombat();
+      if (cb && cb.active && !cb.outcome) return null;
+      return { id: sg.to, name: sg.name };
+    }
     let replySnap = null;
     function sheetsInPlay() {
       const out = /* @__PURE__ */ new Set();
@@ -24707,6 +24765,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       const c = Object.assign({}, o);
       delete c.lastParsedIndex;
       delete c.storyCorrection;
+      delete c.storyGo;
       return JSON.stringify(c);
     }
     function sheetJson(n) {
@@ -24824,6 +24883,52 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         wrapped.__rpmod_undo = true;
         window[name] = wrapped;
       }
+      return ok;
+    }
+    const HISTORY_NOTICE = "RPmod's game state — place, inventory, quests, fights — does not follow edited, branched or reloaded chat history: it stays as it is now. To take back the AI's last reply, use Retry or Undo: RPmod then undoes what that reply did.";
+    let historyNoticed = false;
+    function historyNotice() {
+      if (historyNoticed) return;
+      let on = false;
+      try {
+        on = !!(W.config.enabled && activeWorld() && rt());
+      } catch (_) {
+      }
+      if (!on) return;
+      historyNoticed = true;
+      gameLog("Note: " + HISTORY_NOTICE, "system");
+      try {
+        if (typeof window.msgbox === "function") window.msgbox(HISTORY_NOTICE, "RPmod: chat history");
+      } catch (_) {
+      }
+    }
+    function installHistoryNotices() {
+      let ok = true;
+      const wrapFn = (obj, name, when) => {
+        const orig = obj && obj[name];
+        if (typeof orig !== "function") return false;
+        if (orig.__rpmod_history) return true;
+        const wrapped = function() {
+          try {
+            if (!when || when()) historyNotice();
+          } catch (_) {
+          }
+          return orig.apply(this, arguments);
+        };
+        wrapped.__rpmod_history = true;
+        obj[name] = wrapped;
+        return true;
+      };
+      ok = wrapFn(window, "btn_branch") && ok;
+      ok = wrapFn(window, "toggle_editable", () => {
+        const c = document.getElementById("allowediting");
+        return !c || c.checked;
+      }) && ok;
+      wrapFn(window, "btn_editmode");
+      if (window.treeViewer) {
+        wrapFn(window.treeViewer, "openTreeView");
+        wrapFn(window.treeViewer, "openPaginatedTreeView");
+      } else ok = false;
       return ok;
     }
     const REFUSAL_RE = /\brefused\b|\bcannot\b|\bdoes not join\b|\bis not here\b|^No one here|\bis empty — it was opened before\b|\bis not in the party\b/i;
@@ -26777,6 +26882,7 @@ ${recent}` : "");
         const reply = opts && opts.advance === false && i === arr2.length - 1;
         const before = reply ? logLength() : 0;
         if (reply) snapBefore(arr2.length);
+        const locBefore = rt().playerLocationId;
         changed = parseMutations(arr2[i]) || changed;
         try {
           detectTalk(stripThinking(arr2[i]));
@@ -26785,6 +26891,7 @@ ${recent}` : "");
         if (reply) {
           snapAfter();
           noteRefusals(before, arr2.length);
+          noteStoryPlace(arr2[i], locBefore, arr2.length);
         }
       }
       const advanced = W.config.advanceClockPerTurn && arr2.length > start && !(opts && opts.advance === false);
@@ -26871,7 +26978,12 @@ ${recent}` : "");
       }
       const checks = checksHere(loc.id).map((c) => ({ questId: c.questId, objId: c.objId, text: c.text, what: c.what, dc: c.dc }));
       const containers = containersHere().filter((o) => !containerLooted(o) && asArray5(o.contains).length).map((o) => ({ id: o.id, name: norm5(o.name) }));
-      return { place: norm5(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, containers, trade: vendorsHere().length > 0 };
+      let storyGo = null;
+      try {
+        storyGo = storyGoHere();
+      } catch (_) {
+      }
+      return { place: norm5(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, containers, storyGo, trade: vendorsHere().length > 0 };
     }
     function computeActiveSlice(opts) {
       const mutate = !!(opts && opts.mutate);
@@ -28185,6 +28297,11 @@ ${xl.join("\n")}`;
         syncLive();
         return r;
       },
+      // the place a reply's text walks the party to (the "Story: go to …" button), or null
+      storyPlaceIn: (text) => {
+        const r = rt();
+        return r && r.playerLocationId ? storyPlaceIn(text, r.playerLocationId) : null;
+      },
       search(opts) {
         const r = searchRoom(opts || {});
         syncLive();
@@ -28863,7 +28980,8 @@ ${xl.join("\n")}`;
       {
         let tries = 0;
         const hookUndo = () => {
-          if (!installUndoHooks() && ++tries < 120) setTimeout(hookUndo, 250);
+          const a = installUndoHooks(), b = installHistoryNotices();
+          if (!(a && b) && ++tries < 120) setTimeout(hookUndo, 250);
         };
         hookUndo();
       }
@@ -38096,6 +38214,10 @@ OK = save and close · Cancel = close and discard them`);
   function hereReplies(info) {
     if (!info || !info.place) return [];
     const out = [];
+    if (info.storyGo) {
+      const n = safeName(info.storyGo.name);
+      if (n) out.push({ label: "Story: go to " + n, text: `/storygo ${n}`, send: true, kind: "storygo", title: `The story says the party went to ${n}, but nothing moved them: go there now (the AI reads it in the log).` });
+    }
     for (const q of info.quests || []) {
       const t = safeName(q.title);
       if (!t) continue;
@@ -38271,7 +38393,7 @@ OK = save and close · Cancel = close and discard them`);
         type: "button",
         class: "btn btn-primary rpm-btn rpm-sm rpm-qr-btn" + (extra ? " " + extra : ""),
         "data-qr": r.kind || "mine",
-        title: (r.text || (r.send ? "(send: the AI continues)" : "")) + (r.send ? "" : "\n(fills the input box)"),
+        title: r.title || (r.text || (r.send ? "(send: the AI continues)" : "")) + (r.send ? "" : "\n(fills the input box)"),
         text: r.label,
         onclick: () => runReply(r)
       });
@@ -38544,6 +38666,19 @@ Purse: ${iv.purseText}`);
           return r && r.ok ? { ok: true } : { ok: false, error: r && r.reason };
         }
       })),
+      {
+        name: "storygo",
+        group: "World",
+        world: true,
+        usage: "/storygo <place>",
+        help: `Go where the AI's last reply said the party went (the Here row's "Story: go to …"); through known rooms, it stops when something happens.`,
+        run: (a) => {
+          a = cleanArg(a);
+          if (!a) return fail("Usage: /storygo <place>");
+          const r = W().go(a, { source: "story" });
+          return r && r.ok ? { ok: true } : { ok: false, error: r && r.reason };
+        }
+      },
       {
         name: "talk",
         group: "World",

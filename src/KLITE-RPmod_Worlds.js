@@ -589,7 +589,8 @@ export default function initWorlds() {
         const curId = rt().playerLocationId; const cur = locOf(curId);
         const refuse = (why) => { const msg = `Move to ${norm(target)} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
         // R8: no skipping a journey in the middle of a fight
-        if (opts.source === 'quicktravel' && rt().combat && rt().combat.active) return refuse('a fight is going on');
+        const quick = opts.source === 'quicktravel' || opts.source === 'story';   // 'story': "Go where the story says" (2026-10-20)
+        if (quick && rt().combat && rt().combat.active) return refuse('a fight is going on');
         let dest = resolveGoTarget(target, curId);
         if (!dest) return refuse('there is no such place');
         const destIsMap = MR.isContainer(dest);
@@ -605,7 +606,7 @@ export default function initWorlds() {
             // way is really entered: when something happens there (an event fires, a fight starts)
             // the journey stops at that place.
             if (!ex && !(viaEntrance && !mapOf(curId))) {
-                const route = routeTo(curId, dest.id, { quick: opts.source === 'quicktravel' });
+                const route = routeTo(curId, dest.id, { quick });
                 if (!route) return refuse(`there is no known way from ${placeName(curId)} to ${placeName(dest.id, curId)}`);
                 let at = curId;
                 for (const id of route) {
@@ -638,7 +639,8 @@ export default function initWorlds() {
         passiveNotice(dest.id);
         const dir = ex && ex.dir && !via.length ? MR.dirName(ex.dir) : '';
         const viaTxt = via.length ? ` via ${via.map(id => playerPlaceName(id, curId)).join(', ')}` : '';
-        if (opts.source === 'ui' || (via.length && opts.source !== 'quicktravel')) gameLog(`${opened ? 'Opens the door and goes' : 'Goes'}${dir ? ' ' + dir : ''}${viaTxt} to ${placeName(dest.id, curId)}.`, 'map');
+        if (opts.source === 'story') gameLog(`As the story told, the party went${viaTxt} to ${placeName(dest.id, curId)}${opened ? ' (opening a door on the way)' : ''}.`, 'map');
+        else if (opts.source === 'ui' || (via.length && opts.source !== 'quicktravel')) gameLog(`${opened ? 'Opens the door and goes' : 'Goes'}${dir ? ' ' + dir : ''}${viaTxt} to ${placeName(dest.id, curId)}.`, 'map');
         // R8: quick travel on the map — the journey itself is skipped; the AI describes the arrival
         if (opts.source === 'quicktravel') gameLog(`Quick travel: the player skipped the journey and is now at ${placeName(dest.id, curId)}${opened ? ' (a door was opened on the way)' : ''}. Describe the arrival briefly.`, 'map');
         try { fireTriggers('enter:' + dest.id); } catch (_) {}
@@ -1577,6 +1579,50 @@ export default function initWorlds() {
         const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(t) || [];
         inventoryAdd(nm, q); return t;
     }
+    // ---- "Go where the story says" (owner, 2026-10-20) ----
+    // Models narrate walking somewhere without writing <go> (play test: the party "stepped into the wolf den" and
+    // stayed in the chief's hollow). When a reply moved no one, the place it names last among those reachable from
+    // here (an exit — not a locked or barred one — or a known place of the same dungeon/town) is offered in the Here
+    // row; the button moves the party with the usual rules and sends nothing (the AI reads the move in the log).
+    function storyPlaceIn(text, curId) {
+        const t = ' ' + stripThinking(text).replace(/<[^<>]*>/g, ' ').toLowerCase() + ' ';
+        const cands = new Map();
+        for (const e of playerExits(curId)) {
+            if (e.type === 'door' || e.type === 'secret') { const st = MR.doorState(e, rt().doorState); if (st === 'locked' || st === 'barred') continue; }
+            const name = playerPlaceName(e.to, curId); if (name && name !== 'unexplored room') cands.set(e.to, name);
+        }
+        const map = mapOf(curId);
+        if (map) for (const id of asArray(rt().visitedLocationIds)) {
+            if (id === curId || !mapOf(id) || mapOf(id).id !== map.id || cands.has(id)) continue;
+            let way = null; try { way = routeTo(curId, id, { quick: true }); } catch (_) {}
+            if (way) cands.set(id, playerPlaceName(id, curId));   // only where a known way leads
+        }
+        let best = null;
+        for (const [id, name] of cands) {
+            for (const n of new Set([name, norm((locOf(id) || {}).name)])) {
+                const k = MR.nameKey(n); if (k.length < 3) continue;
+                const re = new RegExp('(^|[^a-z])' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=[^a-z]|$)', 'g');
+                let m, last = -1; while ((m = re.exec(t)) !== null) last = m.index;
+                if (last >= 0 && (!best || last > best.at)) best = { id, name: playerPlaceName(id, curId), at: last };
+            }
+        }
+        return best;
+    }
+    function noteStoryPlace(text, locBefore, chatLen) {
+        if (!rt()) return;
+        const cur = rt().playerLocationId;
+        rt().storyGo = null;
+        if (!cur || cur !== locBefore) return;   // the reply's own tags moved the party
+        const cb = getCombat(); if (cb && cb.active && !cb.outcome) return;
+        try { const p = storyPlaceIn(text, cur); if (p) rt().storyGo = { chat: chatLen, from: cur, to: p.id, name: p.name }; } catch (_) {}
+    }
+    function storyGoHere() {
+        const sg = rt() && rt().storyGo; if (!sg) return null;
+        const n = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+        if (n !== sg.chat || rt().playerLocationId !== sg.from) return null;
+        const cb = getCombat(); if (cb && cb.active && !cb.outcome) return null;
+        return { id: sg.to, name: sg.name };
+    }
     // ---- undoing a reply's effects on Retry / Undo (owner, 2026-10-20) ----
     // Esolite's Retry and Undo remove the AI's last reply, but what its tags did stayed (a <give> stayed given).
     // When a reply arrives, RPmod keeps what its tags can change — the story's game state (this slot), the world
@@ -1590,8 +1636,8 @@ export default function initWorlds() {
         for (const id of companionIds()) { const sn = personSheetName(id); if (sn) out.add(sn); }
         return [...out];
     }
-    // the game state without RPmod's own bookkeeping (chat position, the story correction)
-    function stateJson(o) { if (!o) return 'null'; const c = Object.assign({}, o); delete c.lastParsedIndex; delete c.storyCorrection; return JSON.stringify(c); }
+    // the game state without RPmod's own bookkeeping (chat position, the story correction, the story's place)
+    function stateJson(o) { if (!o) return 'null'; const c = Object.assign({}, o); delete c.lastParsedIndex; delete c.storyCorrection; delete c.storyGo; return JSON.stringify(c); }
     function sheetJson(n) { try { const sh = window.KLITE_RPMod_Characters.cachedSheet(n); return sh ? JSON.stringify(sh) : null; } catch (_) { return null; } }
     function snapBefore(chatLen) {
         try {
@@ -1651,6 +1697,36 @@ export default function initWorlds() {
             };
             wrapped.__rpmod_undo = true; window[name] = wrapped;
         }
+        return ok;
+    }
+    // ---- Branch, Allow Editing and the chat tree (owner, 2026-10-20) ----
+    // Those change the chat far back; RPmod's game state cannot follow (it stays as it is now). A notice once per
+    // page, while an RPmod world is active; the action itself goes on as usual.
+    const HISTORY_NOTICE = 'RPmod\'s game state — place, inventory, quests, fights — does not follow edited, branched or reloaded chat history: it stays as it is now. ' +
+        'To take back the AI\'s last reply, use Retry or Undo: RPmod then undoes what that reply did.';
+    let historyNoticed = false;
+    function historyNotice() {
+        if (historyNoticed) return; let on = false;
+        try { on = !!(W.config.enabled && activeWorld() && rt()); } catch (_) {}
+        if (!on) return;
+        historyNoticed = true;
+        gameLog('Note: ' + HISTORY_NOTICE, 'system');
+        try { if (typeof window.msgbox === 'function') window.msgbox(HISTORY_NOTICE, 'RPmod: chat history'); } catch (_) {}
+    }
+    function installHistoryNotices() {
+        let ok = true;
+        const wrapFn = (obj, name, when) => {
+            const orig = obj && obj[name];
+            if (typeof orig !== 'function') return false;
+            if (orig.__rpmod_history) return true;
+            const wrapped = function () { try { if (!when || when()) historyNotice(); } catch (_) {} return orig.apply(this, arguments); };
+            wrapped.__rpmod_history = true; obj[name] = wrapped; return true;
+        };
+        ok = wrapFn(window, 'btn_branch') && ok;
+        // Allow Editing: the checkbox calls toggle_editable() after it changed — tell when it is switched on
+        ok = wrapFn(window, 'toggle_editable', () => { const c = document.getElementById('allowediting'); return !c || c.checked; }) && ok;
+        wrapFn(window, 'btn_editmode');
+        if (window.treeViewer) { wrapFn(window.treeViewer, 'openTreeView'); wrapFn(window.treeViewer, 'openPaginatedTreeView'); } else ok = false;
         return ok;
     }
     // ---- story correction (play test 2026-10-20) ----
@@ -3084,8 +3160,9 @@ export default function initWorlds() {
             const reply = opts && opts.advance === false && i === arr.length - 1;
             const before = reply ? logLength() : 0;
             if (reply) snapBefore(arr.length);
+            const locBefore = rt().playerLocationId;
             changed = parseMutations(arr[i]) || changed; try { detectTalk(stripThinking(arr[i])); } catch (_) {}
-            if (reply) { snapAfter(); noteRefusals(before, arr.length); }
+            if (reply) { snapAfter(); noteRefusals(before, arr.length); noteStoryPlace(arr[i], locBefore, arr.length); }
         }
         const advanced = W.config.advanceClockPerTurn && arr.length > start && !(opts && opts.advance === false);
         rt().lastParsedIndex = arr.length;
@@ -3174,7 +3251,8 @@ export default function initWorlds() {
         }
         const checks = checksHere(loc.id).map(c => ({ questId: c.questId, objId: c.objId, text: c.text, what: c.what, dc: c.dc }));
         const containers = containersHere().filter(o => !containerLooted(o) && asArray(o.contains).length).map(o => ({ id: o.id, name: norm(o.name) }));
-        return { place: norm(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, containers, trade: vendorsHere().length > 0 };
+        let storyGo = null; try { storyGo = storyGoHere(); } catch (_) {}
+        return { place: norm(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, containers, storyGo, trade: vendorsHere().length > 0 };
     }
     function computeActiveSlice(opts) {
         const mutate = !!(opts && opts.mutate);
@@ -4163,6 +4241,8 @@ export default function initWorlds() {
         openContainer(target, opts) { const r = openContainer(target, opts || {}); if (r) syncLive(); return r; },
         // a spell outside a fight: "Cure Wounds = Oona", "Light", "Healing Word on me slot 2"
         castOutside(text, opts) { const r = castOutside(text, opts || {}); syncLive(); return r; },
+        // the place a reply's text walks the party to (the "Story: go to …" button), or null
+        storyPlaceIn: (text) => { const r = rt(); return r && r.playerLocationId ? storyPlaceIn(text, r.playerLocationId) : null; },
         search(opts) { const r = searchRoom(opts || {}); syncLive(); return r; },
         setRoomLight(level, roomId) { ensureRuntime(); const r = setRoomLight(level, roomId); syncLive(); return r; },
         roomLight: (id) => roomLightOf(locOf(id || (rt() && rt().playerLocationId))),
@@ -4407,7 +4487,7 @@ export default function initWorlds() {
         installSaveWrappers();
         await restoreFromAutosave();
         installReplyHook();
-        { let tries = 0; const hookUndo = () => { if (!installUndoHooks() && ++tries < 120) setTimeout(hookUndo, 250); }; hookUndo(); }
+        { let tries = 0; const hookUndo = () => { const a = installUndoHooks(), b = installHistoryNotices(); if (!(a && b) && ++tries < 120) setTimeout(hookUndo, 250); }; hookUndo(); }
         registerProvider();
         registerSettingAndGuards();
         const okPrepare = getContext().install();

@@ -128,6 +128,8 @@ export default function initChat() {
                 if (c) return c.ok ? { ok: true } : { ok: false, error: c.reason };
                 const r = W().door(act, a, { source: 'ui' }); return r && r.ok ? { ok: true } : { ok: false, error: r && r.reason };
             } })),
+        { name: 'storygo', group: 'World', world: true, usage: '/storygo <place>', help: 'Go where the AI\'s last reply said the party went (the Here row\'s "Story: go to …"); through known rooms, it stops when something happens.',
+            run: (a) => { a = cleanArg(a); if (!a) return fail('Usage: /storygo <place>'); const r = W().go(a, { source: 'story' }); return r && r.ok ? { ok: true } : { ok: false, error: r && r.reason }; } },
         { name: 'talk', group: 'World', world: true, usage: '/talk <person>', help: 'Speak with someone here (counts for "talk to" objectives).',
             run: (a) => { const r = tag('talk', a, '/talk <person>'); if (r.ok) r.log = `Talks with ${cleanArg(a)}.`; else if (!r.error) r.error = `No one called "${cleanArg(a)}" is known in this world.`; return r; } },
         { name: 'join', group: 'World', world: true, usage: '/join <person>', help: 'Ask someone here to travel with you (only people who can join).',

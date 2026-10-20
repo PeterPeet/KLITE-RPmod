@@ -408,6 +408,12 @@ to the next day, and the **season** follows the month automatically.
   started, rooms it added and its log lines. If something changed since that reply — you edited a character sheet,
   played fight turns, edited the world — RPmod asks first: **Yes** undoes everything (those changes too), **No**
   keeps the game as it is and only retries or removes the text. One reply deep; not after a page reload.
+- **"Story: go to …"** in the Here row: when the AI's reply walks the party somewhere but writes no `<go>` (it
+  happens), RPmod offers the place it named last — a way out of here, or a known room of the same dungeon or town.
+  One click moves the party there (through known rooms; it stops when something happens on the way) and sends
+  nothing; the AI reads the move in the log. Also `/storygo <place>`.
+- **Branch, Allow Editing and the chat tree** change the chat far back; RPmod's game state cannot follow them and
+  stays as it is now. RPmod says so once per page when you use them.
 - Tags stay in the story text. To **hide them in the chat**, turn on Settings → RPmod →
   Display → **Hide control tags in the chat**: they disappear from the chat as it is shown
   (the game log says what they did), RPmod still reads them, and **Allow Editing** shows them.

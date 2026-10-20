@@ -114,6 +114,8 @@ const DIR_WORD = { n: 'north', e: 'east', s: 'south', w: 'west', up: 'up', down:
 export function hereReplies(info) {
     if (!info || !info.place) return [];
     const out = [];
+    // the AI's last reply walked the party somewhere without <go>: one click makes it so (nothing is sent)
+    if (info.storyGo) { const n = safeName(info.storyGo.name); if (n) out.push({ label: 'Story: go to ' + n, text: `/storygo ${n}`, send: true, kind: 'storygo', title: `The story says the party went to ${n}, but nothing moved them: go there now (the AI reads it in the log).` }); }
     for (const q of info.quests || []) {
         const t = safeName(q.title); if (!t) continue;
         out.push(q.action === 'turnin'

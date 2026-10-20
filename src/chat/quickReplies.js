@@ -55,7 +55,7 @@ export function installQuickReplies(chat) {
     }
     function replyButton(r, extra) {
         return el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-sm rpm-qr-btn' + (extra ? ' ' + extra : ''), 'data-qr': r.kind || 'mine',
-            title: (r.text || (r.send ? '(send: the AI continues)' : '')) + (r.send ? '' : '\n(fills the input box)'), text: r.label, onclick: () => runReply(r) });
+            title: r.title || ((r.text || (r.send ? '(send: the AI continues)' : '')) + (r.send ? '' : '\n(fills the input box)')), text: r.label, onclick: () => runReply(r) });
     }
     function render(box) {
         clear(box);
