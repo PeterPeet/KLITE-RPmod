@@ -404,6 +404,10 @@ to the next day, and the **season** follows the month automatically.
 **Notes**
 - Tags are applied at the **start of your next message**, so a move the AI narrates this
   turn takes effect from the next turn onward — which reads naturally in the story.
+- **Retry and Undo** take back what the AI's last reply did, not just its text: items it gave, flags, a fight it
+  started, rooms it added and its log lines. If something changed since that reply — you edited a character sheet,
+  played fight turns, edited the world — RPmod asks first: **Yes** undoes everything (those changes too), **No**
+  keeps the game as it is and only retries or removes the text. One reply deep; not after a page reload.
 - Tags stay in the story text. To **hide them in the chat**, turn on Settings → RPmod →
   Display → **Hide control tags in the chat**: they disappear from the chat as it is shown
   (the game log says what they did), RPmod still reads them, and **Allow Editing** shows them.

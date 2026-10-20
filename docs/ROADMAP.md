@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 436 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 439 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -998,7 +998,11 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
 - [~] **Pronouns of absent people:** Liu Wen became "he" at the inn (her description reaches the AI only nearby) —
   content version 7: the Elder's offer says "at her farm". A general rule (people named in quest texts get their
   pronouns) is still open.
-- [ ] **Retry keeps the retried reply's tag effects** (a `<give>` in the discarded reply stays given).
+- [x] **Retry keeps the retried reply's tag effects** — done 2026-10-20 (owner: "detect sheet edits and warn"): when a reply
+  arrives, RPmod keeps the story's game state (slot), the world, the log length and the sheets in play as they were
+  before, and as they were right after; Retry/Undo of exactly that reply (wrapped `btn_retry`/`btn_back`) restores them.
+  If a sheet, the game state (fight turns, moves) or the world changed since, Esolite's Yes/No box asks: undo everything
+  or keep the game. In memory, one reply deep. Tests in `tests/playtestR8.test.js`.
 - [x] **"Close the fight" switches the window to the encounter builder** — done 2026-10-20: closing (or ending) the fight
   closes the window; after a reload it reopens only while a fight runs (shell `window.restore` may be a function). Tests
   in `tests/encounter.test.js`, `tests/playtestR8.test.js`.

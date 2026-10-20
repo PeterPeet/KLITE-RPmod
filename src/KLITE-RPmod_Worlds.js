@@ -1577,6 +1577,82 @@ export default function initWorlds() {
         const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(t) || [];
         inventoryAdd(nm, q); return t;
     }
+    // ---- undoing a reply's effects on Retry / Undo (owner, 2026-10-20) ----
+    // Esolite's Retry and Undo remove the AI's last reply, but what its tags did stayed (a <give> stayed given).
+    // When a reply arrives, RPmod keeps what its tags can change — the story's game state (this slot), the world
+    // (<room>, <door>), the game log and the sheets in play — as it was before, and the sheets as they were right
+    // after. Retry/Undo of exactly that reply restores it all. If a sheet changed since (the player edited it, a
+    // fight wrote HP), RPmod asks first: undo everything (those changes too) or keep the game as it is.
+    // One reply deep, in memory only (after a page reload there is nothing to undo).
+    let replySnap = null;
+    function sheetsInPlay() {
+        const out = new Set(); const pn = personaName(); if (pn) out.add(pn);
+        for (const id of companionIds()) { const sn = personSheetName(id); if (sn) out.add(sn); }
+        return [...out];
+    }
+    // the game state without RPmod's own bookkeeping (chat position, the story correction)
+    function stateJson(o) { if (!o) return 'null'; const c = Object.assign({}, o); delete c.lastParsedIndex; delete c.storyCorrection; return JSON.stringify(c); }
+    function sheetJson(n) { try { const sh = window.KLITE_RPMod_Characters.cachedSheet(n); return sh ? JSON.stringify(sh) : null; } catch (_) { return null; } }
+    function snapBefore(chatLen) {
+        try {
+            replySnap = { chat: chatLen, slot: W.runtime && W.runtime.active, runtime: JSON.stringify(rt()), worldId: W.activeWorldId,
+                world: JSON.stringify(activeWorld()), log: logLength(), sheets: Object.fromEntries(sheetsInPlay().map(n => [n, sheetJson(n)])) };
+        } catch (_) { replySnap = null; }
+    }
+    function snapAfter() {
+        const s = replySnap; if (!s) return;
+        try {
+            const a = { runtime: JSON.stringify(rt()), state: stateJson(rt()), world: JSON.stringify(activeWorld()), sheets: Object.fromEntries(Object.keys(s.sheets).map(n => [n, sheetJson(n)])) };
+            s.after = a;
+            const did = a.state !== stateJson(JSON.parse(s.runtime)) || a.world !== s.world || Object.keys(a.sheets).some(n => a.sheets[n] !== s.sheets[n]);
+            if (!did) replySnap = null;   // the reply changed nothing: nothing to undo
+        } catch (_) { replySnap = null; }
+    }
+    // → null (nothing to undo for the reply that is last in the chat now) or { edited: [sheet names changed since] }
+    function replyUndoInfo() {
+        const s = replySnap; if (!s || !s.after) return null;
+        const n = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+        if (n !== s.chat || W.activeWorldId !== s.worldId || !W.runtime || W.runtime.active !== s.slot) return null;
+        const edited = Object.keys(s.after.sheets).filter(nm => sheetJson(nm) !== s.after.sheets[nm]).map(nm => `${nm}'s character sheet`);
+        if (stateJson(rt()) !== s.after.state) edited.push('the game (moves, fight turns, quests)');
+        if (JSON.stringify(activeWorld()) !== s.after.world) edited.push('the world (editor)');
+        return { edited };
+    }
+    function undoReplyEffects() {
+        const s = replySnap; replySnap = null; if (!s) return false;
+        try {
+            if (s.runtime) W.runtime[s.slot] = JSON.parse(s.runtime);
+            if (s.world && JSON.stringify(W.library[s.worldId]) !== s.world) { W.library[s.worldId] = JSON.parse(s.world); try { normalizeWorld(W.library[s.worldId]); } catch (_) {} markDirty(); }
+            const C = window.KLITE_RPMod_Characters;
+            for (const [nm, js] of Object.entries(s.sheets)) if (js && sheetJson(nm) !== js && C && C.saveSheet) C.saveSheet(nm, JSON.parse(js));
+            try { window.KLITE_RPMod_Log?.truncate?.(s.log); } catch (_) {}
+            syncLive();
+            return true;
+        } catch (e) { err('undo of the reply failed', e); return false; }
+    }
+    function installUndoHooks() {
+        let ok = true;
+        for (const name of ['btn_retry', 'btn_back']) {
+            const orig = window[name];
+            if (typeof orig !== 'function') { ok = false; continue; }
+            if (orig.__rpmod_undo) continue;
+            const wrapped = function () {
+                const self = this, args = arguments;
+                let info = null; try { info = W.config.enabled && activeWorld() && rt() ? replyUndoInfo() : null; } catch (_) {}
+                if (!info) return orig.apply(self, args);
+                if (!info.edited.length) { undoReplyEffects(); return orig.apply(self, args); }
+                const what = name === 'btn_retry' ? 'retry' : 'undo';
+                const text = `The AI's last reply changed the game (its tags), and since then ${info.edited.join(', ')} changed too. ` +
+                    `Yes: undo everything that reply did — those sheet changes are lost as well. No: keep the game as it is and only ${what} the reply's text.`;
+                const yes = () => { undoReplyEffects(); orig.apply(self, args); };
+                const no = () => { replySnap = null; orig.apply(self, args); };
+                if (typeof window.msgboxYesNo === 'function') { try { window.msgboxYesNo(text, 'RPmod: undo what the reply did?', yes, no); return; } catch (_) {} }
+                (window.confirm(text) ? yes : no)();
+            };
+            wrapped.__rpmod_undo = true; window[name] = wrapped;
+        }
+        return ok;
+    }
     // ---- story correction (play test 2026-10-20) ----
     // The AI narrates what its tags do before RPmod has checked them; a refused tag ("the door is locked")
     // left an invented key turning in the lock and the party in a room it never reached. The refusals of a
@@ -3007,8 +3083,9 @@ export default function initWorlds() {
             // the AI's own tags that RPmod refused (a reply that just arrived): the next prompt asks to set the story straight
             const reply = opts && opts.advance === false && i === arr.length - 1;
             const before = reply ? logLength() : 0;
+            if (reply) snapBefore(arr.length);
             changed = parseMutations(arr[i]) || changed; try { detectTalk(stripThinking(arr[i])); } catch (_) {}
-            if (reply) noteRefusals(before, arr.length);
+            if (reply) { snapAfter(); noteRefusals(before, arr.length); }
         }
         const advanced = W.config.advanceClockPerTurn && arr.length > start && !(opts && opts.advance === false);
         rt().lastParsedIndex = arr.length;
@@ -4330,6 +4407,7 @@ export default function initWorlds() {
         installSaveWrappers();
         await restoreFromAutosave();
         installReplyHook();
+        { let tries = 0; const hookUndo = () => { if (!installUndoHooks() && ++tries < 120) setTimeout(hookUndo, 250); }; hookUndo(); }
         registerProvider();
         registerSettingAndGuards();
         const okPrepare = getContext().install();

@@ -89,6 +89,13 @@ export default function initGameLog() {
     function rollAndLog({ who, what, expr, mode, kind }) { return add({ who, what, kind, roll: roll(expr, { mode }) }); }
     function sinceLastTurn() { return state.entries.slice(state.lastTurnIndex); }
     function clearLog() { state.entries = []; state.lastTurnIndex = 0; state.marks = []; changed(); }
+    // Back to `n` entries (undoing a reply's effects on Retry/Undo drops the lines its tags wrote).
+    function truncate(n) {
+        n = Math.max(0, Math.min(state.entries.length, Number(n) || 0)); if (n === state.entries.length) return;
+        state.entries.length = n; state.lastTurnIndex = Math.min(state.lastTurnIndex, n);
+        for (const m of state.marks) m.from = Math.min(m.from, n);
+        changed();
+    }
 
     // ---- AI context: rolls since the last turn -----------------------------------------
     getContext().register({
@@ -159,7 +166,7 @@ export default function initGameLog() {
         box.appendChild(el('button', { type: 'button', class: 'btn btn-primary rpm-btn', style: 'margin-top:6px', text: 'Clear log', onclick: () => { if (confirm('Clear the game log of this story?')) clearLog(); } }));
     }
 
-    const api = { roll, d20, add, rollAndLog, entries: () => state.entries.slice(), sinceLastTurn, clear: clearLog, describe };
+    const api = { roll, d20, add, rollAndLog, entries: () => state.entries.slice(), sinceLastTurn, clear: clearLog, truncate, describe };
     window.KLITE_RPMod_Log = api;
 
     let tries = 0;

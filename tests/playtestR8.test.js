@@ -397,3 +397,76 @@ test('the Combat window comes back after a reload only while a fight is running'
     await sleep(100);
     assert.equal(h2.window.KLITE_RPMod_Shell.isOpen('combat'), false, 'no fight: not reopened');
 });
+
+// Retry and Undo removed the AI's reply, but what its tags did stayed (a <give> stayed given, a fight it started
+// stayed running). Now that reply's effects are undone — after asking, when a sheet changed since.
+async function undoHost(t, answer = 'yes') {
+    const h = createHost(); t.after(h.close); const w = h.window;
+    w.handle_incoming_text = (txt) => { w.gametext_arr.push(txt); };
+    w.btn_retry = function () { w.__retried = (w.__retried || 0) + 1; w.gametext_arr.pop(); };   // Esolite: pop, then send again
+    w.btn_back = function () { w.__undone = (w.__undone || 0) + 1; w.gametext_arr.pop(); };
+    w.__asked = []; w.msgboxYesNo = (text, title, yes, no) => { w.__asked.push(text); (answer === 'yes' ? yes : no)(); };
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const ADV = w.KLITE_RPMod_Adventures; w.restart_new_game = () => { w.gametext_arr = []; };
+    for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
+    await ADV.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    for (let i = 0; i < 40 && !w.btn_retry.__rpmod_undo; i++) await sleep(25);
+    return h;
+}
+const hasItem = (w, n) => w.KLITE_RPMod_Characters.cachedSheet('Tove Emberfall').inventory.some(i => i.name === n);
+
+test('Retry undoes what the discarded reply did (items, flags, a fight, the world, its log lines)', async (t) => {
+    const h = await undoHost(t); const w = h.window; const W = h.api();
+    W.moveTo('Stolen Stores'); W.endEncounter();
+    const rooms = W.activeWorld().locations.length, log0 = w.KLITE_RPMod_Log.entries().length;
+    w.gametext_arr.push('\n{{[INPUT]}}\nI look around.\n{{[OUTPUT]}}\n');
+    w.handle_incoming_text('A rope! <give>Rope</give> <flag>found_rope</flag> <room>Larder, east: shelves</room> Goblins! <encounter>Goblin Warrior</encounter>');
+    await sleep(30);
+    assert.ok(hasItem(w, 'Rope') && W.runtime.flags.found_rope && W.getCombat() && W.activeWorld().locations.length === rooms + 1);
+    w.btn_retry();
+    await sleep(60);
+    assert.equal(w.__retried, 1);
+    assert.equal(w.__asked.length, 0, 'no sheet changed since: no question');
+    assert.ok(!hasItem(w, 'Rope'), 'the item is gone');
+    assert.equal(W.runtime.flags.found_rope, undefined);
+    assert.equal(W.getCombat(), null, 'the fight it started is gone');
+    assert.equal(W.activeWorld().locations.length, rooms, 'the room it added is gone');
+    assert.equal(w.KLITE_RPMod_Log.entries().length, log0, 'its log lines are gone');
+    // a reply that changed nothing: nothing to undo, Undo just removes the text
+    w.handle_incoming_text('Dust and grain sacks.');
+    w.btn_back();
+    assert.equal(w.__undone, 1); assert.equal(w.__asked.length, 0);
+});
+
+test('Retry after the sheet changed: RPmod asks — Yes undoes everything, No keeps the game as it is', async (t) => {
+    for (const answer of ['yes', 'no']) {
+        const h = await undoHost(t, answer); const w = h.window; const W = h.api(); const C = w.KLITE_RPMod_Characters;
+        w.gametext_arr.push('\n{{[INPUT]}}\nI ask Ada.\n{{[OUTPUT]}}\n');
+        w.handle_incoming_text('Ada hands you a rope. <give>Rope</give>');
+        await sleep(30);
+        C.updateSheet('Tove Emberfall', s => { s.notes = 'My own note'; });   // the player edits the sheet afterwards
+        await sleep(30);
+        w.btn_retry();
+        await sleep(60);
+        assert.equal(w.__asked.length, 1, answer);
+        assert.match(w.__asked[0], /since then Tove Emberfall's character sheet changed too\. Yes: undo everything that reply did — those sheet changes are lost as well\. No: keep the game as it is and only retry/);
+        assert.equal(w.__retried, 1, 'the retry happens either way');
+        assert.equal(hasItem(w, 'Rope'), answer === 'no');
+        assert.equal(C.cachedSheet('Tove Emberfall').notes === 'My own note', answer === 'no');
+    }
+});
+
+test('Retry after fighting on: the turns played since the reply count as a change — RPmod asks', async (t) => {
+    const h = await undoHost(t, 'no'); const w = h.window; const W = h.api();
+    W.moveTo('Root Tunnel');
+    w.gametext_arr.push('\n{{[INPUT]}}\nI go on.\n{{[OUTPUT]}}\n');
+    w.handle_incoming_text('A wolf! <encounter>Wolf</encounter>');
+    const cb = W.getCombat(); assert.ok(cb);
+    const wolf = cb.order.find(o => o.kind === 'monster').id;
+    W.damage(wolf, 3);   // the player fights on in the Combat window
+    w.btn_retry(); await sleep(40);
+    assert.equal(w.__asked.length, 1);
+    assert.match(w.__asked[0], /since then the game \(moves, fight turns, quests\) changed too/);
+    assert.ok(W.getCombat() && W.getCombat().hp[wolf] < W.getCombat().maxHp[wolf], 'No: the fight and its turns stay');
+});

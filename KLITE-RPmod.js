@@ -24691,6 +24691,141 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       inventoryAdd(nm, q);
       return t;
     }
+    let replySnap = null;
+    function sheetsInPlay() {
+      const out = /* @__PURE__ */ new Set();
+      const pn = personaName();
+      if (pn) out.add(pn);
+      for (const id of companionIds()) {
+        const sn = personSheetName(id);
+        if (sn) out.add(sn);
+      }
+      return [...out];
+    }
+    function stateJson(o) {
+      if (!o) return "null";
+      const c = Object.assign({}, o);
+      delete c.lastParsedIndex;
+      delete c.storyCorrection;
+      return JSON.stringify(c);
+    }
+    function sheetJson(n) {
+      try {
+        const sh = window.KLITE_RPMod_Characters.cachedSheet(n);
+        return sh ? JSON.stringify(sh) : null;
+      } catch (_) {
+        return null;
+      }
+    }
+    function snapBefore(chatLen) {
+      try {
+        replySnap = {
+          chat: chatLen,
+          slot: W.runtime && W.runtime.active,
+          runtime: JSON.stringify(rt()),
+          worldId: W.activeWorldId,
+          world: JSON.stringify(activeWorld()),
+          log: logLength(),
+          sheets: Object.fromEntries(sheetsInPlay().map((n) => [n, sheetJson(n)]))
+        };
+      } catch (_) {
+        replySnap = null;
+      }
+    }
+    function snapAfter() {
+      const s = replySnap;
+      if (!s) return;
+      try {
+        const a = { runtime: JSON.stringify(rt()), state: stateJson(rt()), world: JSON.stringify(activeWorld()), sheets: Object.fromEntries(Object.keys(s.sheets).map((n) => [n, sheetJson(n)])) };
+        s.after = a;
+        const did = a.state !== stateJson(JSON.parse(s.runtime)) || a.world !== s.world || Object.keys(a.sheets).some((n) => a.sheets[n] !== s.sheets[n]);
+        if (!did) replySnap = null;
+      } catch (_) {
+        replySnap = null;
+      }
+    }
+    function replyUndoInfo() {
+      const s = replySnap;
+      if (!s || !s.after) return null;
+      const n = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+      if (n !== s.chat || W.activeWorldId !== s.worldId || !W.runtime || W.runtime.active !== s.slot) return null;
+      const edited = Object.keys(s.after.sheets).filter((nm) => sheetJson(nm) !== s.after.sheets[nm]).map((nm) => `${nm}'s character sheet`);
+      if (stateJson(rt()) !== s.after.state) edited.push("the game (moves, fight turns, quests)");
+      if (JSON.stringify(activeWorld()) !== s.after.world) edited.push("the world (editor)");
+      return { edited };
+    }
+    function undoReplyEffects() {
+      const s = replySnap;
+      replySnap = null;
+      if (!s) return false;
+      try {
+        if (s.runtime) W.runtime[s.slot] = JSON.parse(s.runtime);
+        if (s.world && JSON.stringify(W.library[s.worldId]) !== s.world) {
+          W.library[s.worldId] = JSON.parse(s.world);
+          try {
+            normalizeWorld(W.library[s.worldId]);
+          } catch (_) {
+          }
+          markDirty();
+        }
+        const C2 = window.KLITE_RPMod_Characters;
+        for (const [nm, js] of Object.entries(s.sheets)) if (js && sheetJson(nm) !== js && C2 && C2.saveSheet) C2.saveSheet(nm, JSON.parse(js));
+        try {
+          window.KLITE_RPMod_Log?.truncate?.(s.log);
+        } catch (_) {
+        }
+        syncLive();
+        return true;
+      } catch (e) {
+        err("undo of the reply failed", e);
+        return false;
+      }
+    }
+    function installUndoHooks() {
+      let ok = true;
+      for (const name of ["btn_retry", "btn_back"]) {
+        const orig = window[name];
+        if (typeof orig !== "function") {
+          ok = false;
+          continue;
+        }
+        if (orig.__rpmod_undo) continue;
+        const wrapped = function() {
+          const self = this, args = arguments;
+          let info = null;
+          try {
+            info = W.config.enabled && activeWorld() && rt() ? replyUndoInfo() : null;
+          } catch (_) {
+          }
+          if (!info) return orig.apply(self, args);
+          if (!info.edited.length) {
+            undoReplyEffects();
+            return orig.apply(self, args);
+          }
+          const what = name === "btn_retry" ? "retry" : "undo";
+          const text = `The AI's last reply changed the game (its tags), and since then ${info.edited.join(", ")} changed too. Yes: undo everything that reply did — those sheet changes are lost as well. No: keep the game as it is and only ${what} the reply's text.`;
+          const yes = () => {
+            undoReplyEffects();
+            orig.apply(self, args);
+          };
+          const no = () => {
+            replySnap = null;
+            orig.apply(self, args);
+          };
+          if (typeof window.msgboxYesNo === "function") {
+            try {
+              window.msgboxYesNo(text, "RPmod: undo what the reply did?", yes, no);
+              return;
+            } catch (_) {
+            }
+          }
+          (window.confirm(text) ? yes : no)();
+        };
+        wrapped.__rpmod_undo = true;
+        window[name] = wrapped;
+      }
+      return ok;
+    }
     const REFUSAL_RE = /\brefused\b|\bcannot\b|\bdoes not join\b|\bis not here\b|^No one here|\bis empty — it was opened before\b|\bis not in the party\b/i;
     function logLength() {
       try {
@@ -26641,12 +26776,16 @@ ${recent}` : "");
         }
         const reply = opts && opts.advance === false && i === arr2.length - 1;
         const before = reply ? logLength() : 0;
+        if (reply) snapBefore(arr2.length);
         changed = parseMutations(arr2[i]) || changed;
         try {
           detectTalk(stripThinking(arr2[i]));
         } catch (_) {
         }
-        if (reply) noteRefusals(before, arr2.length);
+        if (reply) {
+          snapAfter();
+          noteRefusals(before, arr2.length);
+        }
       }
       const advanced = W.config.advanceClockPerTurn && arr2.length > start && !(opts && opts.advance === false);
       rt().lastParsedIndex = arr2.length;
@@ -28721,6 +28860,13 @@ ${xl.join("\n")}`;
       installSaveWrappers();
       await restoreFromAutosave();
       installReplyHook();
+      {
+        let tries = 0;
+        const hookUndo = () => {
+          if (!installUndoHooks() && ++tries < 120) setTimeout(hookUndo, 250);
+        };
+        hookUndo();
+      }
       registerProvider();
       registerSettingAndGuards();
       const okPrepare = getContext().install();
@@ -34814,6 +34960,14 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       state.marks = [];
       changed();
     }
+    function truncate(n) {
+      n = Math.max(0, Math.min(state.entries.length, Number(n) || 0));
+      if (n === state.entries.length) return;
+      state.entries.length = n;
+      state.lastTurnIndex = Math.min(state.lastTurnIndex, n);
+      for (const m of state.marks) m.from = Math.min(m.from, n);
+      changed();
+    }
     getContext().register({
       id: "gamelog",
       order: 60,
@@ -34909,7 +35063,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         if (confirm("Clear the game log of this story?")) clearLog();
       } }));
     }
-    const api = { roll, d20, add, rollAndLog, entries: () => state.entries.slice(), sinceLastTurn, clear: clearLog, describe };
+    const api = { roll, d20, add, rollAndLog, entries: () => state.entries.slice(), sinceLastTurn, clear: clearLog, truncate, describe };
     window.KLITE_RPMod_Log = api;
     let tries = 0;
     const attempt = () => {
