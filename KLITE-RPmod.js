@@ -24693,8 +24693,10 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       inventoryAdd(nm, q);
       return t;
     }
+    const MOVE_RE = /\b(step|steps|stepped|stepping|walk|walks|walked|go|goes|went|going|head|heads|headed|enter|enters|entered|reach|reaches|reached|arrive|arrives|arrived|come|comes|came|follow|follows|followed|duck|ducks|ducked|push|pushes|pushed|climb|climbs|climbed|pass|passes|passed|slip|slips|slipped|lead|leads|led|make|makes|made their way|return|returns|returned|back into|into|through|out to)\b/;
     function storyPlaceIn(text, curId) {
-      const t = " " + stripThinking(text).replace(/<[^<>]*>/g, " ").toLowerCase().replace(/[’‘]/g, "'").replace(/[.,!?;:"'`]+/g, "").replace(/\s+/g, " ") + " ";
+      const norm1 = (x) => x.toLowerCase().replace(/[’‘]/g, "'").replace(/[,;:"'`]+/g, "").replace(/\s+/g, " ");
+      const sentences = stripThinking(text).replace(/<[^<>]*>/g, " ").split(/[.!?\n]+/).map((x) => " " + norm1(x) + " ").filter((x) => x.trim());
       const cands = /* @__PURE__ */ new Map();
       for (const e of playerExits(curId)) {
         if (e.type === "door" || e.type === "secret") {
@@ -24715,16 +24717,20 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         if (way) cands.set(id, playerPlaceName(id, curId));
       }
       let best = null;
-      for (const [id, name] of cands) {
-        for (const n of /* @__PURE__ */ new Set([name, norm5((locOf(id) || {}).name)])) {
-          const k2 = nameKey(n);
-          if (k2.length < 3) continue;
-          const re = new RegExp("(^|[^a-z])" + k2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?=[^a-z]|$)", "g");
-          let m, last = -1;
-          while ((m = re.exec(t)) !== null) last = m.index;
-          if (last >= 0 && (!best || last > best.at)) best = { id, name: playerPlaceName(id, curId), at: last };
+      sentences.forEach((sen, si) => {
+        if (!MOVE_RE.test(sen)) return;
+        for (const [id, name] of cands) {
+          for (const n of /* @__PURE__ */ new Set([name, norm5((locOf(id) || {}).name)])) {
+            const k2 = nameKey(n);
+            if (k2.length < 3) continue;
+            const re = new RegExp("(^|[^a-z])" + k2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?=[^a-z]|$)", "g");
+            let m, last = -1;
+            while ((m = re.exec(sen)) !== null) last = m.index;
+            const at = si * 1e5 + last;
+            if (last >= 0 && (!best || at > best.at)) best = { id, name: playerPlaceName(id, curId), at };
+          }
         }
-      }
+      });
       return best;
     }
     function noteStoryPlace(text, locBefore, chatLen) {
@@ -35222,6 +35228,22 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         wrapped.__rpmod_log = true;
         window.kai_json_load = wrapped;
       } else if (typeof window.kai_json_load !== "function") ok = false;
+      if (typeof window.restart_new_game === "function" && !window.restart_new_game.__rpmod_log) {
+        const orig = window.restart_new_game;
+        const wrapped = function() {
+          try {
+            state.entries = [];
+            state.lastTurnIndex = 0;
+            state.marks = [];
+            pending2 = null;
+            changed();
+          } catch (_) {
+          }
+          return orig.apply(this, arguments);
+        };
+        wrapped.__rpmod_log = true;
+        window.restart_new_game = wrapped;
+      }
       return ok;
     }
     function renderLog(box) {
@@ -35247,7 +35269,8 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       const sh = window.KLITE_RPMod_Shell;
       if (sh && !sh.views().includes("gamelog")) sh.registerView({ id: "gamelog", title: "Dice log", place: "left", order: 30, mount: renderLog, update: renderLog });
       if (saves) restoreFromAutosave();
-      if ((!saves || !sh) && ++tries < 120) setTimeout(attempt, 250);
+      const restartHooked = !!(window.restart_new_game && window.restart_new_game.__rpmod_log);
+      if ((!saves || !sh || !restartHooked) && ++tries < 120) setTimeout(attempt, 250);
     };
     if (document.readyState === "complete") attempt();
     else window.addEventListener("load", attempt, { once: true });

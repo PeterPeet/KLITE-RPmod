@@ -1002,6 +1002,14 @@ ambush narrated from the log, a missed attack narrated ×3 with Retry, `<cast>` 
 through the door and on south" — moves and refusals), scored per scene; then prompt and safety-net changes, measured
 again on the same set. Results so far: the comparison table above; GLM 5.3 Flash next.
 
+- [x] **A new session starts with an empty game log** — found with GLM 5.3 Flash 2026-10-20 ("this seems to be a replay/loop
+  of the same day"): New Session / an adventure start kept the old story's 200 log entries, and as the chat was short
+  again the Retry marks rewound to the oldest — **12,391 characters of other runs' fights** went to the AI as "since your
+  last reply" (it affected every test after the first restart, and likely the long reasoning of DeepSeek Pro). The log
+  now clears on `restart_new_game`. Test in `tests/playtestR8.test.js`.
+- [x] **"Story: go to" only for a sentence that moves** — "Liu Wen's farm is west of here" was offered as a move; the place
+  must now stand in a sentence with a word of movement (step, walk, enter, reach, into, through, …).
+
 **New open items from this live test:**
 - [ ] **Capture after a defeat:** the AI narrates the party tied up and dragged next door; RPmod has no "captured" state
   (the party lies at 0 HP where it fell).

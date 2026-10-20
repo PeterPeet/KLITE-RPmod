@@ -151,6 +151,19 @@ export default function initGameLog() {
             };
             wrapped.__rpmod_log = true; window.kai_json_load = wrapped;
         } else if (typeof window.kai_json_load !== 'function') ok = false;
+        // New Session (Esolite's restart_new_game — also every adventure start and game-over restart) begins a new
+        // story: its log starts empty. Live test 2026-10-20 (GLM: "this seems to be a replay/loop of the same day"):
+        // the old runs' 200 entries stayed, and as the chat was short again the Retry marks rewound to the oldest of
+        // them — 12,000 characters of other fights went to the AI as "since your last reply". The old story keeps its
+        // log in its own save file.
+        if (typeof window.restart_new_game === 'function' && !window.restart_new_game.__rpmod_log) {
+            const orig = window.restart_new_game;
+            const wrapped = function () {
+                try { state.entries = []; state.lastTurnIndex = 0; state.marks = []; pending = null; changed(); } catch (_) {}
+                return orig.apply(this, arguments);
+            };
+            wrapped.__rpmod_log = true; window.restart_new_game = wrapped;
+        }
         return ok;
     }
 
@@ -175,7 +188,8 @@ export default function initGameLog() {
         const sh = window.KLITE_RPMod_Shell;
         if (sh && !sh.views().includes('gamelog')) sh.registerView({ id: 'gamelog', title: 'Dice log', place: 'left', order: 30, mount: renderLog, update: renderLog });
         if (saves) restoreFromAutosave();
-        if ((!saves || !sh) && ++tries < 120) setTimeout(attempt, 250);
+        const restartHooked = !!(window.restart_new_game && window.restart_new_game.__rpmod_log);
+        if ((!saves || !sh || !restartHooked) && ++tries < 120) setTimeout(attempt, 250);
     };
     if (document.readyState === 'complete') attempt(); else window.addEventListener('load', attempt, { once: true });   // once: a second load event must not start it again
 }

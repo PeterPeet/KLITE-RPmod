@@ -1584,9 +1584,12 @@ export default function initWorlds() {
     // stayed in the chief's hollow). When a reply moved no one, the place it names last among those reachable from
     // here (an exit — not a locked or barred one — or a known place of the same dungeon/town) is offered in the Here
     // row; the button moves the party with the usual rules and sends nothing (the AI reads the move in the log).
+    // Only a sentence that moves counts (live test 2026-10-20: "Liu Wen's farm is west of here" was offered as a move).
+    const MOVE_RE = /\b(step|steps|stepped|stepping|walk|walks|walked|go|goes|went|going|head|heads|headed|enter|enters|entered|reach|reaches|reached|arrive|arrives|arrived|come|comes|came|follow|follows|followed|duck|ducks|ducked|push|pushes|pushed|climb|climbs|climbed|pass|passes|passed|slip|slips|slipped|lead|leads|led|make|makes|made their way|return|returns|returned|back into|into|through|out to)\b/;
     function storyPlaceIn(text, curId) {
-        // the text is normalised like the names (MR.nameKey drops punctuation and apostrophes; models write ’)
-        const t = ' ' + stripThinking(text).replace(/<[^<>]*>/g, ' ').toLowerCase().replace(/[’‘]/g, "'").replace(/[.,!?;:"'`]+/g, '').replace(/\s+/g, ' ') + ' ';
+        const norm1 = (x) => x.toLowerCase().replace(/[’‘]/g, "'").replace(/[,;:"'`]+/g, '').replace(/\s+/g, ' ');
+        // sentences, each normalised like the names (MR.nameKey drops punctuation and apostrophes; models write ’)
+        const sentences = stripThinking(text).replace(/<[^<>]*>/g, ' ').split(/[.!?\n]+/).map(x => ' ' + norm1(x) + ' ').filter(x => x.trim());
         const cands = new Map();
         for (const e of playerExits(curId)) {
             if (e.type === 'door' || e.type === 'secret') { const st = MR.doorState(e, rt().doorState); if (st === 'locked' || st === 'barred') continue; }
@@ -1599,14 +1602,18 @@ export default function initWorlds() {
             if (way) cands.set(id, playerPlaceName(id, curId));   // only where a known way leads
         }
         let best = null;
-        for (const [id, name] of cands) {
-            for (const n of new Set([name, norm((locOf(id) || {}).name)])) {
-                const k = MR.nameKey(n); if (k.length < 3) continue;
-                const re = new RegExp('(^|[^a-z])' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=[^a-z]|$)', 'g');
-                let m, last = -1; while ((m = re.exec(t)) !== null) last = m.index;
-                if (last >= 0 && (!best || last > best.at)) best = { id, name: playerPlaceName(id, curId), at: last };
+        sentences.forEach((sen, si) => {
+            if (!MOVE_RE.test(sen)) return;
+            for (const [id, name] of cands) {
+                for (const n of new Set([name, norm((locOf(id) || {}).name)])) {
+                    const k = MR.nameKey(n); if (k.length < 3) continue;
+                    const re = new RegExp('(^|[^a-z])' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=[^a-z]|$)', 'g');
+                    let m, last = -1; while ((m = re.exec(sen)) !== null) last = m.index;
+                    const at = si * 100000 + last;
+                    if (last >= 0 && (!best || at > best.at)) best = { id, name: playerPlaceName(id, curId), at };
+                }
             }
-        }
+        });
         return best;
     }
     function noteStoryPlace(text, locBefore, chatLen) {

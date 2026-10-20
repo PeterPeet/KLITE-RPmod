@@ -507,6 +507,10 @@ test('"Story: go to …": a reply that moved no one but walked the party somewhe
     W.moveTo("Chief's Hollow"); W.endEncounter();
     w.handle_incoming_text('Tove stares at the door to the Sleeping Burrow.');
     assert.equal(W.here().storyGo, null, 'a locked door is no way');
+    // a mere mention is no move ("… is west of here"); a sentence that moves is
+    W.moveTo('Stolen Stores'); W.endEncounter();
+    w.handle_incoming_text('Oona nods. The Root Tunnel is behind us, the Wolf Den is just west of here.');
+    assert.equal(W.here().storyGo, null, 'mentioned, not walked');
     // names with an apostrophe, written with a typographic one (as models do)
     W.moveTo('Stolen Stores'); W.endEncounter();
     w.handle_incoming_text('They slip back through the secret door into the Chief’s Hollow.');
@@ -589,4 +593,23 @@ test('story correction: when no one hostile is here, it says so (no enemy, no fi
     w.gametext_arr.push('\n{{[INPUT]}}\nIn.\n{{[OUTPUT]}}\n');
     w.handle_incoming_text('<go>Nowhere Hall</go> The chief glares.');
     assert.doesNotMatch(W.preview(), /There is no enemy here/);
+});
+
+// Live test (GLM 5.3 Flash: "this seems to be a replay/loop of the same day"): after a new adventure start the old
+// runs' log stayed, and the Retry marks rewound to its oldest entries — 12,000 characters of other fights went to
+// the AI as "since your last reply". A new session now starts with an empty log.
+test('a new session (adventure start) starts with an empty game log; nothing of the old story reaches the AI', async (t) => {
+    const h = await adventure(t); const w = h.window; const W = h.api(); const L = w.KLITE_RPMod_Log;
+    for (let i = 0; i < 40 && !(w.restart_new_game && w.restart_new_game.__rpmod_log); i++) await sleep(25);
+    const input = w.document.createElement('textarea'); input.id = 'input_text'; w.document.body.appendChild(input);
+    for (let k = 0; k < 3; k++) {   // a few turns of the old story, with rolls
+        L.add({ what: `Old fight line ${k}`, kind: 'combat' });
+        input.value = 'Attack!'; await w.prepare_submit_generation(); input.value = '';
+        w.gametext_arr.push('\n{{[INPUT]}}\nAttack!\n{{[OUTPUT]}}\n', `The goblin falls (${k}).`);
+    }
+    assert.ok(L.entries().length >= 3);
+    await w.KLITE_RPMod_Adventures.start('drowned-lantern', { pregen: 'tove', confirm: false });
+    assert.equal(L.entries().length, 0, 'the old story\'s log is gone with the old story');
+    input.value = 'Hello, Elder.'; await w.prepare_submit_generation();
+    assert.doesNotMatch(h.prompt, /Old fight line/, 'nothing of it in the new game\'s prompt');
 });
