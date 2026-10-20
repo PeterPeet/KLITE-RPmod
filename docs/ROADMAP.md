@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-10-20 (combat turn fixes: dying companions take their turn, one Attack action per turn with Extra Attack; before: 2026-09-26 — open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–7: Lanternport and the Lantern Fair, the south shore, the Lost Chapel and the endings)
+> Last updated: 2026-10-20 (first real-backend play test with Gemma 4 31B and DeepSeek V4 Pro: twelve fixes — combat turns, Retry, the game log on reload, `<go>` names, thinking blocks, the combat prompt, World Info placement, containers; open items under R8 step 8; before: 2026-09-26 — open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–7: Lanternport and the Lantern Fair, the south shore, the Lost Chapel and the endings)
 
 ## Current state
 
@@ -113,7 +113,10 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
    the persona's and the current speaker's entries each turn); the context then adds only the
    d20 sheet. Without such entries the context sends the card as before. Live-checked: the
    captured prompt holds the card once. "Load as scenario" still writes Memory (story data).
-5. **Never play-tested with a real AI backend** (only headless + page load).
+5. **Real-backend play test: started 2026-10-20** (see R8 step 8): Gemma 4 31B and DeepSeek V4 Pro (Novita, OpenAI-
+   compatible chat completions) through the starter adventure's layer 1 in the browser — Brindlewick, the Forest Road
+   ambush, the Hollow Oak (trap, wolves, the chief, the chest, a locked door), up to a total party kill. Twelve RPmod bugs
+   found and fixed the same day (known issues 27–34 and the commits of that day); the open items are listed under R8.
 6. `index.rpmod.html` boots the bundle at `window.load` (later than the usermod path); verify
    top-bar icon layout matches the usermod install.
 7. ~~Monster presets are SRD 5.1~~ — replaced by the 330 SRD 5.2.1 monsters (R5, 2026-09-23).
@@ -943,7 +946,43 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   layer 2, 4 from the fair on, 5 inside the chapel before the hag, never 6; the validator's all-content estimate is
   10,125 per character. Playthrough test (low water → hag → light put out → home; the long swim). Not yet checked in
   the browser — the owner's play test covers it.
-- [ ] Step 8: real-backend play test (known issue 5), then the World Building guide
+- [ ] Step 8: real-backend play test (known issue 5), then the World Building guide — 🟨 first session 2026-10-20 (layer 1
+  with Gemma 4 31B and DeepSeek V4 Pro; results below); next: the open items, then layers 2–5.
+
+**Real-backend play test, 2026-10-20 — what a model needs (findings):**
+- **World Info "Before A/N" + "Strong"** (RPmod now asks and keeps it, known issue 31): with "After Memory" the context
+  sat before ~29,000 characters of chat and the model followed the chat (a dead wolf "still circling").
+- **Thinking on, enough output:** Gemma 4 31B without thinking invented rolls and narrated stale states; with thinking
+  ("high", 4096 output) it narrated every result in order. "High" with 2048 tokens cut replies off mid-thinking.
+- **Gemma 4 31B** keeps its own inventions against RPmod's facts (an invented key "opened" a door RPmod kept locked);
+  **DeepSeek V4 Pro** respected the same refusal in two of two tries, started prepared encounters by name and ended
+  a game over as asked. Both sometimes narrate a move without writing `<go>` (the party stays where it was).
+- DeepSeek's reasoning came once untagged (no `<think>`, cut off) and RPmod applied the tags in it — a junk room "Name",
+  a locked door, a move (repaired by hand). With reasoning "low" it was tagged (still up to 13,000 characters).
+
+**Open items from the play test (owner to prioritise):**
+- [ ] **Story correction:** when RPmod refuses the AI's own tags, say so prominently on the next turn ("your last reply
+  could not happen: the door is still locked, you are still in …") — the AI's invented key/move stayed in the story.
+- [ ] **Don't parse a reply that is only reasoning / cut off** (`finish_reason: length`, or reasoning text without
+  `<think>`): its tags are what the model considered, not what it decided.
+- [ ] **Spells outside a fight:** no way to cast (Cure Wounds after a fight was narrated, HP unchanged). `/cast`, a Cast
+  button on the sheet and a `<cast>` tag RPmod rolls.
+- [ ] **Fights started outside the Combat window** (an AI tag, an event, entering a room) begin after the AI's reply
+  and do not run the first automatic turns (enemies or companions first wait for "Run enemy turns" / manual play).
+- [ ] **A dying player at a victory** stays at 0 HP with no way to stabilise (the AI asks for a death save that has no
+  button outside a fight); only the Long Rest helps. SRD: keep rolling, or Medicine / Healer's Kit / Spare the Dying.
+- [ ] **Long Rest** does not move the clock and works anywhere at any time.
+- [ ] **New adventure start keeps the pregens' sheets** (Oona at 0 HP, Pell dead from the last run).
+- [ ] **Objectives that complete on arrival** ("Ask Liu Wen about the cart" ticked before anyone spoke; the quest ready
+  to turn in during the ambush).
+- [ ] **The AI only sees companions' maximum HP** (and no armour: Oona "in leather armour" while wearing chain mail).
+- [ ] **Pronouns of absent people:** Liu Wen became "he" at the inn (her description reaches the AI only nearby).
+- [ ] **Retry keeps the retried reply's tag effects** (a `<give>` in the discarded reply stays given).
+- [ ] **"Close the fight" switches the window to the encounter builder** instead of closing it (a creator tool in
+  front of a player); it is also restored after a reload.
+- [ ] Log wording: "1 successes"; "back on their feet" for everyone; "is back on their feet" logged before the
+  natural-20 death save that caused it; monsters with no one standing log "has no one left to attack" every turn.
+- [ ] The browser pane of the test answers `confirm()` with "no" (test environment only; Esolite's own dialogs work).
 
 **Open items (owner's play test, 2026-09-26)** — not done yet:
 - [x] World editor: the inspector does not refresh after linking two elements. — fixed 2026-09-26 (Link tool
