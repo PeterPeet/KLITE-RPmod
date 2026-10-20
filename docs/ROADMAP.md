@@ -1074,6 +1074,19 @@ names the mod ("RPmod will roll whatever you do") — the prompt should say neve
   Done: [Exploring] now says the tags are the narrator's, every move needs `<go>`, one room per reply, a move the log
   already shows is done. **[Game notes]** (new, every turn): the notes come from RPmod — never name RPmod, the log, the
   tags or the notes in the story. Measure next on the "east and on south" scene (GLM 5.3 / GLM Flash without reasoning).
+  **Measured 2026-10-20 (GLM 5.3, no reasoning):** "east and on south" → `<go>east</go>`, one room, stops and asks (its plan:
+  "rule says one room per reply. So do east only"), no invented room, 10 s; `<encounter>2 Wolf</encounter>` starts the
+  prepared encounter. **New structural problem:** the AI writes the room *before* RPmod moves the party, so it does not know
+  what is there — it invented a flooded room with a chapel lantern (real: "a dry burrow" of grain sacks, barrels, crates),
+  and on the next turn kept its version although the real description was in the prompt. Same with `<search>`: it narrated
+  a hidden door found, RPmod rolled "9 — nothing found"; the secret door RPmod's passive Perception had found (south) went
+  into the west wall.
+- [ ] **Results of the AI's own tags** (move into an unseen room, `<search>`, `<unlock>`): the reply is written before the
+  result. Options: (a) give the AI what lies behind each visible, unvisited exit ("for the narrator: east → Stolen Stores:
+  …; narrate only when the party enters") and what passive Perception would notice there — one reply stays true, but the
+  AI then knows more than the player (secret rooms stay out); (b) the reply ends on the attempt and the next reply
+  narrates the result from the log (one more turn per move); (c) RPmod asks for a short follow-up automatically after
+  such a tag. Owner to decide.
 - [ ] **Generate More with GLM:** check Esolite's prefill/"Non-Standard Fields"/end-token options for assistant prefill.
 
 **New open items from this live test:**
