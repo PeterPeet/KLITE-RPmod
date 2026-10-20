@@ -22443,8 +22443,17 @@ ${char.mes_example}
       proficiency: d.pb,
       initiativeMod: d.initiative,
       saves: { ...d.saves },
-      attacks: d.attacks.map((a) => ({ name: a.name, toHit: a.toHit, damage: a.damage || "1d4" }))
+      attacks: d.attacks.map((a) => ({ name: a.name, toHit: a.toHit, damage: a.damage || "1d4" })),
+      attacksPerAction: attacksPerAction(d.sheet)
     };
+  }
+  function attacksPerAction(sheet) {
+    const s = normalizeSheet(sheet);
+    const words = String(s.className || "").toLowerCase().split(/[^a-z]+/);
+    const key = s.build && SRD.classes[s.build.class] && s.build.class || Object.keys(SRD.classes).find((k2) => words.includes(k2));
+    if (!key) return 1;
+    const names = SRD.classes[key].features.filter((f) => f.level <= s.level).map((f) => f.name);
+    return names.includes("Three Extra Attacks") ? 4 : names.includes("Two Extra Attacks") ? 3 : names.includes("Extra Attack") ? 2 : 1;
   }
   function fromCombatStats(stats, extra) {
     const st = stats || {};
@@ -23986,6 +23995,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       d.saves = s.saves && typeof s.saves === "object" ? { ...s.saves } : {};
       d.attacks = asArray5(s.attacks);
       for (const k2 of ["saveActions", "multiattack", "xp", "cr", "key", "name"]) if (s[k2] != null) d[k2] = s[k2];
+      if (Number(s.attacksPerAction) > 1) d.attacksPerAction = Number(s.attacksPerAction);
       return d;
     }
     function statSummary(stats) {
@@ -25341,7 +25351,24 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       if (!o) return false;
       if (!isDown(cb, o.id)) return true;
       const d = deathOf(cb, o.id);
-      return (o.side || (o.isPlayer ? "party" : "enemy")) === "party" && o.isPlayer && d && !d.stable && !d.dead;
+      return (o.side || (o.isPlayer ? "party" : "enemy")) === "party" && !!d && !d.stable && !d.dead;
+    }
+    function attacksAllowed(id) {
+      const st = combatantStats(id);
+      return Math.max(1, Number(st.attacksPerAction) || Number(st.multiattack) || 1);
+    }
+    function turnUse(cb, id) {
+      const cur = cb.order[cb.turnIndex];
+      if (!cur || cur.id !== id) return null;
+      if (!cb.turnUse || cb.turnUse.id !== id || cb.turnUse.round !== cb.round) cb.turnUse = { id, round: cb.round, attacks: 0, cast: false };
+      return cb.turnUse;
+    }
+    function attacksLeft(id) {
+      const cb = getCombat();
+      if (!cb || cb.outcome) return 0;
+      const u = turnUse(cb, id);
+      if (!u) return 0;
+      return u.cast ? 0 : Math.max(0, attacksAllowed(id) - u.attacks);
     }
     function conds(id) {
       const cb = getCombat();
@@ -25509,6 +25536,13 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
         }
       }
       const tSt = zc && zc.cover ? Object.assign({}, tSt0, { ac: tSt0.ac + coverBonus(zc.cover) }) : tSt0;
+      const use = !opts.reaction && !opts.atk && isV2(cb) ? turnUse(cb, attackerId) : null;
+      if (use && (use.cast || use.attacks >= attacksAllowed(attackerId))) {
+        const reason = use.cast ? "the action is already used this turn" : `the Attack action is used up (${use.attacks} attack${use.attacks > 1 ? "s" : ""} this turn)`;
+        combatLog(`${A} cannot attack ${T} again: ${reason}.`);
+        return { hit: false, refused: reason };
+      }
+      if (use) use.attacks++;
       if (!opts.atk) drawForAttack(attackerId, atk, A);
       const toHit = (atk.toHit != null ? Number(atk.toHit) : aSt.proficiency + abilityMod4(aSt.abilities.str)) - (zc ? zc.penalty : 0);
       const ranged = zc ? zc.ranged : opts.atk ? !!(P && P.ranged && !P.melee) : isRanged(atk);
@@ -25714,6 +25748,8 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
           if (u.kind === "attack") zc = r;
         }
       }
+      const use = turnUse(cb, casterId);
+      if (use && !u.bonus && (use.cast || use.attacks)) return { ok: false, reason: "the action is already used this turn" };
       const pay = C2 && C2.spendSpell ? C2.spendSpell(sheetNameOf(casterId), key, { slotLevel: opts.slot, free: opts.free }) : { ok: false, reason: "no character sheet" };
       if (!pay.ok) return { ok: false, reason: pay.reason };
       const slot = pay.slotLevel || sv.level;
@@ -25721,6 +25757,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       const names = targets.map(combatantName).join(", ");
       combatLog(`${A} casts ${sv.name}${how}${names ? ` at ${names}` : ""}.`);
       if (Z2 && zoneOnTurn(Z2, casterId) && u.bonus) Z2.turn.bonusUsed = true;
+      if (use && !u.bonus) use.cast = true;
       const out = { ok: true, key, slotLevel: sv.level ? slot : 0, free: !!pay.free, kind: u.kind, results: [] };
       if (u.kind === "attack") {
         const atk = { name: sv.name, toHit: sp.attack, damage: castDamage(sv, info.level, slot), type: u.damageType };
@@ -27972,6 +28009,7 @@ ${xl.join("\n")}`;
         syncLive();
         return r;
       },
+      attacksLeft: (id) => attacksLeft(id || "__player__"),
       deathSave(id) {
         const r = deathSaveRoll(id || "__player__");
         syncLive();
@@ -28813,10 +28851,10 @@ ${xl.join("\n")}`;
       refresh2();
     };
     const d = cb.death && cb.death[cur.id];
-    if (cur.isPlayer && d && !d.dead && !d.stable) {
-      wrap.appendChild(muted("You are dying. Roll a death saving throw: 10+ succeeds, 20 brings you back with 1 HP, 1 counts twice."));
+    if ((cur.isPlayer || cur.side === "party") && d && !d.dead && !d.stable) {
+      wrap.appendChild(muted(`${cur.isPlayer ? "You are" : cur.name + " is"} dying. Roll a death saving throw: 10+ succeeds, 20 brings ${cur.isPlayer ? "you" : "them"} back with 1 HP, 1 counts twice.`));
       wrap.appendChild(btn("Roll death save", () => {
-        A.deathSave("__player__");
+        A.deathSave(cur.id);
         endTurn();
       }, { icon: "dice-5", block: true, variant: "danger", id: "death-save" }));
       return;
@@ -28864,13 +28902,16 @@ ${xl.join("\n")}`;
       const zv = A.zoneView && A.zoneView();
       const why = zv && U.target ? zv.canAttack(cur.id, U.target, U.atk) : null;
       if (zv) zoneControls(wrap, cb, cur, zv, A, refresh2);
+      const left = A.attacksLeft ? A.attacksLeft(cur.id) : 1;
+      if (!left) wrap.appendChild(muted("Your action is used this turn — move, or End turn.", { "data-cb": "attacks-left", style: "margin-top:4px" }));
+      else if (left > 1) wrap.appendChild(muted(`Attack action: ${left} attacks left this turn (Extra Attack / Multiattack).`, { "data-cb": "attacks-left", style: "margin-top:4px" }));
       if (why && !why.ok) wrap.appendChild(muted(`Attack not possible: ${why.reason}.`, { "data-cb": "attack-why", style: "margin-top:4px" }));
       else if (why && (why.penalty || why.cover)) wrap.appendChild(muted([why.penalty ? `−${why.penalty} to hit (the target attacked you in melee)` : "", why.cover ? `the target is in ${why.cover === "three" ? "three-quarters" : "half"} cover` : ""].filter(Boolean).join(" · "), { "data-cb": "attack-note", style: "margin-top:4px" }));
       wrap.appendChild(row([
         btn("Attack", () => {
           if (U.target) A.attack(cur.id, U.target, U.atk, { mode: U.mode || void 0 });
           refresh2();
-        }, { icon: "swords", variant: "danger", grow: true, disabled: !foes.length || why && !why.ok, id: "attack" }),
+        }, { icon: "swords", variant: "danger", grow: true, disabled: !foes.length || !left || why && !why.ok, id: "attack" }),
         btn("End turn", endTurn, { icon: "arrow-right", grow: true, id: "end-turn" })
       ], "margin-top:6px"));
       wrap.appendChild(muted("Then tell the AI in the chat what you do — it narrates the rolls from the log.", { style: "margin-top:4px" }));

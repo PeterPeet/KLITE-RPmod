@@ -1062,6 +1062,7 @@ export default function initWorlds() {
         d.attacks = asArray(s.attacks);
         // monster extras (SRD stat blocks) are kept as they are
         for (const k of ['saveActions', 'multiattack', 'xp', 'cr', 'key', 'name']) if (s[k] != null) d[k] = s[k];
+        if (Number(s.attacksPerAction) > 1) d.attacksPerAction = Number(s.attacksPerAction);   // Extra Attack (character sheets)
         return d;
     }
     // Compact stat summary for injection, e.g. "AC 14, HP 30, STR 16(+3) DEX 12(+1)…, Init +2".
@@ -1965,12 +1966,27 @@ export default function initWorlds() {
     function sideList(cb, side) { return cb.order.filter(o => (o.side || (o.isPlayer ? 'party' : 'enemy')) === side); }
     function isDown(cb, id) { return (cb.hp[id] || 0) <= 0; }
     function deathOf(cb, id) { return (cb.death && cb.death[id]) || null; }
-    // A combatant takes a turn if it is up, or if it is a dying party member (death save).
+    // A combatant takes a turn if it is up, or if it is a dying party member (death save) — the
+    // player and companions alike (a dying companion rolls on its automatic turn).
     function canTakeTurn(cb, o) {
         if (!o) return false;
         if (!isDown(cb, o.id)) return true;
         const d = deathOf(cb, o.id);
-        return (o.side || (o.isPlayer ? 'party' : 'enemy')) === 'party' && o.isPlayer && d && !d.stable && !d.dead;
+        return (o.side || (o.isPlayer ? 'party' : 'enemy')) === 'party' && !!d && !d.stable && !d.dead;
+    }
+    // The Attack action on the current turn: weapon attacks made so far and whether the action went
+    // to a spell. One Attack action per turn: Extra Attack (sheets) or Multiattack (monsters) give
+    // more attacks in it. cb.turnUse = { id, round, attacks, cast }.
+    function attacksAllowed(id) { const st = combatantStats(id); return Math.max(1, Number(st.attacksPerAction) || Number(st.multiattack) || 1); }
+    function turnUse(cb, id) {
+        const cur = cb.order[cb.turnIndex]; if (!cur || cur.id !== id) return null;   // not their turn (reactions, the GM's tools)
+        if (!cb.turnUse || cb.turnUse.id !== id || cb.turnUse.round !== cb.round) cb.turnUse = { id, round: cb.round, attacks: 0, cast: false };
+        return cb.turnUse;
+    }
+    function attacksLeft(id) {
+        const cb = getCombat(); if (!cb || cb.outcome) return 0;
+        const u = turnUse(cb, id); if (!u) return 0;
+        return u.cast ? 0 : Math.max(0, attacksAllowed(id) - u.attacks);
     }
     function conds(id) { const cb = getCombat(); return (cb && cb.conditions && cb.conditions[id]) || []; }
     function addCond(id, name, rounds) {
@@ -2076,6 +2092,13 @@ export default function initWorlds() {
             if (!zc.ok) { combatLog(`${A} cannot attack ${T} with ${atk.name}: ${zc.reason}.`); return { hit: false, refused: zc.reason }; }
         }
         const tSt = zc && zc.cover ? Object.assign({}, tSt0, { ac: tSt0.ac + ZR.coverBonus(zc.cover) }) : tSt0;
+        // one Attack action per turn (spell attacks are counted by castSpell; reactions are free)
+        const use = !opts.reaction && !opts.atk && isV2(cb) ? turnUse(cb, attackerId) : null;
+        if (use && (use.cast || use.attacks >= attacksAllowed(attackerId))) {
+            const reason = use.cast ? 'the action is already used this turn' : `the Attack action is used up (${use.attacks} attack${use.attacks > 1 ? 's' : ''} this turn)`;
+            combatLog(`${A} cannot attack ${T} again: ${reason}.`); return { hit: false, refused: reason };
+        }
+        if (use) use.attacks++;
         if (!opts.atk) drawForAttack(attackerId, atk, A);
         const toHit = ((atk.toHit != null) ? Number(atk.toHit) : (aSt.proficiency + abilityMod(aSt.abilities.str))) - (zc ? zc.penalty : 0);
         const ranged = zc ? zc.ranged : (opts.atk ? !!(P && P.ranged && !P.melee) : CR.isRanged(atk));
@@ -2250,6 +2273,8 @@ export default function initWorlds() {
                 if (u.kind === 'attack') zc = r;
             }
         }
+        const use = turnUse(cb, casterId);
+        if (use && !u.bonus && (use.cast || use.attacks)) return { ok: false, reason: 'the action is already used this turn' };
         const pay = C && C.spendSpell ? C.spendSpell(sheetNameOf(casterId), key, { slotLevel: opts.slot, free: opts.free }) : { ok: false, reason: 'no character sheet' };
         if (!pay.ok) return { ok: false, reason: pay.reason };
         const slot = pay.slotLevel || sv.level;
@@ -2257,6 +2282,7 @@ export default function initWorlds() {
         const names = targets.map(combatantName).join(', ');
         combatLog(`${A} casts ${sv.name}${how}${names ? ` at ${names}` : ''}.`);
         if (Z && zoneOnTurn(Z, casterId) && u.bonus) Z.turn.bonusUsed = true;
+        if (use && !u.bonus) use.cast = true;
         const out = { ok: true, key, slotLevel: sv.level ? slot : 0, free: !!pay.free, kind: u.kind, results: [] };
         if (u.kind === 'attack') {
             const atk = { name: sv.name, toHit: sp.attack, damage: SP.castDamage(sv, info.level, slot), type: u.damageType };
@@ -3868,6 +3894,7 @@ export default function initWorlds() {
         zoneSearch(id) { const r = zoneSearch(id || '__player__'); syncLive(); return r; },
         zoneLayoutOf(locId) { return roomLayout(locId); },
         runAutoTurns() { const r = runAutoTurns(); syncLive(); return r; },
+        attacksLeft: (id) => attacksLeft(id || '__player__'),
         deathSave(id) { const r = deathSaveRoll(id || '__player__'); syncLive(); return r; },
         savingThrow(id, ability, dc, mode) { const r = savingThrow(id, ability, dc, { mode }); syncLive(); return r; },
         saveAction(a, t, i) { const r = saveAction(a, t, i); syncLive(); return r; },

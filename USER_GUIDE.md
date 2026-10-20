@@ -739,6 +739,12 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
   press **Attack**, then **End turn** — the enemies' turns are rolled automatically until it is
   your turn again (switch this off in Settings → RPmod → *Run enemy turns automatically*). Then
   write in the chat what your character does; the AI narrates from the combat log.
+- **One Attack action per turn:** one weapon attack, or two with **Extra Attack** (Barbarian,
+  Fighter, Monk, Paladin, Ranger from level 5; a Fighter gets three at 11 and four at 20 — taken
+  from the class and level on your sheet). The turn panel shows the attacks left; monsters use
+  their Multiattack. Casting a spell with a casting time of an Action takes the place of the
+  Attack action (a Bonus Action spell such as Healing Word does not). Opportunity attacks are
+  reactions and do not count.
 - **Spells:** if your character (or a companion with a character sheet) has spells, the turn
   panel has **Weapon / Spell**. Choose the spell, the **slot level** (the lowest free one; a
   higher slot adds dice when the spell says so; species and feat spells also offer their *free

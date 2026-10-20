@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-26 (open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–7: Lanternport and the Lantern Fair, the south shore, the Lost Chapel and the endings)
+> Last updated: 2026-10-20 (combat turn fixes: dying companions take their turn, one Attack action per turn with Extra Attack; before: 2026-09-26 — open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–7: Lanternport and the Lantern Fair, the south shore, the Lost Chapel and the endings)
 
 ## Current state
 
@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-09-26 — `npm test`, 406 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 412 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -228,6 +228,21 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
     journey was skipped. The Quest log shows accepted quests (+ those offered here); a **Quest editor**
     (Creator view) lists every quest; **Reputation** is its own window and shows only factions met.
     Arriving at a place now counts as visited. Tests: `tests/questlogR8.test.js`, reworked map tests.
+27. ~~Encounter turn bugs~~ — fixed 2026-10-20 (owner: "the encounter system seems to have problems"; found by
+    reading the code, reproduced headless): (a) a **dying companion never got a turn** in the real turn order —
+    `canTakeTurn` let only the player act while down, so End turn skipped it and its death saves were never
+    rolled (the game-over test called `autoTurn` directly and missed it); (b) as a result a fight with the player
+    stable or dead and a companion dying **never ended** (the enemies looped "has no one left to attack");
+    (c) the player could **attack any number of times per turn**, with zones (`attacked` never blocked) and
+    without. Now: dying party members take their turn (automatic: the death save; with automatic turns off the
+    turn panel shows *Roll death save* for the companion too); **one Attack action per turn** (`cb.turnUse`,
+    API `attacksLeft`) with **Extra Attack** from the sheet's class and level (`attacksPerAction` in
+    `sheet.js`, SRD: 2 at level 5, the Fighter 3 at 11 and 4 at 20) and Multiattack for monsters; an action
+    spell and the Attack action exclude each other (zones did this already), a bonus action spell does not;
+    reactions and the GM's tools are not limited. Tests: `tests/combatTurns.test.js` (fail without the fix).
+    Not changed (noted): a party member who starts a fight at 0 HP starts it dying rather than stable; a
+    fight the AI starts with `<encounter>` does not run the enemies' first turns at once (the window's Start
+    does); saving an encounter from the builder keeps only its enemies, not chosen allies.
 
 ## Phases
 
