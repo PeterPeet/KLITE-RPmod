@@ -1010,6 +1010,26 @@ again on the same set. Results so far: the comparison table above; GLM 5.3 Flash
 - [x] **"Story: go to" only for a sentence that moves** — "Liu Wen's farm is west of here" was offered as a move; the place
   must now stand in a sentence with a word of movement (step, walk, enter, reach, into, through, …).
 
+**GLM 5.3 Flash (Novita, `zai-org/glm-5.3-flash`, GLM instruct tags, thinking in `<think>…</think>`), same scenes:**
+| Scene | Result |
+|---|---|
+| Start, quest, join | both tags right; tags drafted several times in its thinking were applied once (stripping works) |
+| Ambush from the log | correct and vivid; on "high" (4096) cut off mid-answer; **Generate More does not continue** — GLM writes the whole answer again (no assistant prefill) |
+| Missed attack ×3 ("medium", 16k) | **3 of 3 correct misses**, no one else's turn, ends on the player — 30–36 s, 9,000–12,000 chars of thinking |
+| `<cast>` after the fight | written by itself, healing applied |
+| Trap | correct, credited to the right character |
+| Waiting encounter | started itself by exact name (`Goblin wolves`) |
+| "East and on south" | a `<go>` for every move (best discipline so far), but **invented a room** behind the unexplored door (`<room>Mule Pen…`, refused) and moved Liu's grain into another room — 100 s, 32,000 chars of thinking |
+Text quality: the best of the cheap models (owner). Weak spots: slow on "medium"/"high", long thinking.
+
+**Next for the Flash goal (from both Flash models):**
+- [ ] **No `<room>` in authored worlds:** the prompt invites "To add a room next to this one: `<room>…</room>`" — GLM used it to
+  invent a room behind an unexplored door. Offer `<room>`/`<door>` only where the world lets the AI build (a world flag;
+  off for adventures), and say for an unexplored exit: "what lies there is unknown until the party goes: `<go>east</go>`".
+- [ ] **Moves:** Flash walked three rooms without `<go>`; GLM wrote them. A short rule in the Exploring section ("every
+  move needs `<go>`; one room per reply, then stop") — measure on the same scene with both.
+- [ ] **Generate More with GLM:** check Esolite's prefill/"Non-Standard Fields"/end-token options for assistant prefill.
+
 **New open items from this live test:**
 - [ ] **Capture after a defeat:** the AI narrates the party tied up and dragged next door; RPmod has no "captured" state
   (the party lies at 0 HP where it fell).
