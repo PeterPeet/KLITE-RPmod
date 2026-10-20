@@ -25319,7 +25319,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       });
       scan(/<encounter>\s*([^<>]+?)\s*<\/encounter>/gi, (m) => {
         if (getCombat() && getCombat().active && !getCombat().outcome) return false;
-        const c = startSavedEncounter(m[1]);
+        const c = startSavedEncounter(m[1], { source: "ai" });
         if (c) fightStartedOutside();
         return !!c;
       });
@@ -26475,10 +26475,17 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       }
       return out;
     }
-    function startSavedEncounter(idOrName) {
+    function startSavedEncounter(idOrName, opts = {}) {
       const w = activeWorld();
       const q = norm5(idOrName).toLowerCase();
       const enc = asArray5(w && w.encounters).find((e) => e.id === idOrName || norm5(e.name).toLowerCase() === q);
+      if (enc && opts.source === "ai" && enc.locationId && rt()) {
+        const here2 = rt().playerLocationId;
+        if (here2 !== enc.locationId && !isInsideLocation(here2, enc.locationId)) {
+          gameLog(`Encounter ${norm5(enc.name)} refused: they are at ${placeName(enc.locationId, here2)}, not here.`, "combat");
+          return null;
+        }
+      }
       if (enc) {
         const c = startEncounter(asArray5(enc.personIds), { monsters: enc.monsters, encounterId: enc.id, difficulty: enc.difficulty, enemyStart: enc.start || void 0 });
         if (c && rt()) {

@@ -539,3 +539,18 @@ test('Branch, Allow Editing and the chat tree: a notice once per page while a wo
     assert.equal(w.__boxes.length, 1, 'once per page');
     assert.deepEqual(calls, ['branch', 'edit', 'edit', 'tree', 'branch'], 'the actions go on as usual');
 });
+
+// Live test: DeepSeek started "Chief Snagtooth and a guard" in the Stolen Stores (the chief sits next door).
+test('a prepared encounter that belongs to a place starts there only (the AI\'s tag); elsewhere it is refused', async (t) => {
+    const h = await adventure(t); const W = h.api(); const w = h.window;
+    W.moveTo('Stolen Stores'); W.endEncounter();
+    W.applyTags('The chief rises! <encounter>Chief Snagtooth and a guard</encounter>');
+    assert.equal(W.getCombat(), null, 'not in the storeroom');
+    assert.ok(w.KLITE_RPMod_Log.entries().some(e => /Encounter Chief Snagtooth and a guard refused: they are at Chief's Hollow, not here\./.test(e.what)));
+    W.applyTags('Two rats! <encounter>2 Giant Rat</encounter>');
+    assert.ok(W.getCombat() && W.getCombat().active, 'an ad-hoc list still starts anywhere');
+    W.endEncounter();
+    W.moveTo("Chief's Hollow"); W.endEncounter();
+    W.applyTags('<encounter>Chief Snagtooth and a guard</encounter>');
+    assert.ok(W.getCombat() && W.getCombat().order.some(o => o.key === 'goblin-boss'), 'in the chief\'s hollow it starts');
+});

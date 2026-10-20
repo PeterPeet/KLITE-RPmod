@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-10-20 — `npm test`, 441 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 442 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -968,6 +968,11 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
 - [x] **Branch, Allow Editing, the chat tree** — a notice once per page while a world is active (wrapped `btn_branch`,
   `toggle_editable` when switched on, `btn_editmode`, `treeViewer.openTreeView/openPaginatedTreeView`); the action goes on.
   Test in `tests/playtestR8.test.js`.
+
+- [x] **Prepared encounters start where they belong** — live test 2026-10-20: DeepSeek wrote `<encounter>Chief Snagtooth and a
+  guard</encounter>` in the Stolen Stores (the chief sits in the next room) and RPmod started it. A saved encounter with a
+  `locationId` now starts by the AI's tag only there (or inside it); elsewhere it is refused (logged → story correction).
+  Ad-hoc lists, events and the Combat window are unchanged. Test in `tests/playtestR8.test.js`.
 
 **Open items from the play test (owner to prioritise):**
 - [x] **Story correction** — done 2026-10-20: the refusals of the AI's own tags in a reply (`refused`, `cannot`, …) are kept

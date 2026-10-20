@@ -2000,7 +2000,7 @@ export default function initWorlds() {
         // <talk>Captain Rowan</talk>: the player spoke with this person (quest "talk" objectives)
         scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, m => { const npc = findNpcByName(world, m[1]); if (!npc) return false; questEvent('talk', { personId: npc.id }); return true; });
         // <encounter>Wolf Pack</encounter> (a saved encounter) or <encounter>2 Wolf, Goblin Warrior</encounter>
-        scan(/<encounter>\s*([^<>]+?)\s*<\/encounter>/gi, m => { if (getCombat() && getCombat().active && !getCombat().outcome) return false; const c = startSavedEncounter(m[1]); if (c) fightStartedOutside(); return !!c; });
+        scan(/<encounter>\s*([^<>]+?)\s*<\/encounter>/gi, m => { if (getCombat() && getCombat().active && !getCombat().outcome) return false; const c = startSavedEncounter(m[1], { source: 'ai' }); if (c) fightStartedOutside(); return !!c; });
         scan(/<quest>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/quest>/gi, m => { rt().questState[norm(m[1])] = norm(m[2]); return true; });
         scan(/<time>\s*([^<>]+?)\s*<\/time>/gi, m => { const t = norm(m[1]).toLowerCase(); if (TIME_SLOTS.includes(t)) { rt().clock.time = t; return true; } return false; });
         scan(/<weather>\s*([^<>]+?)\s*<\/weather>/gi, m => { rt().clock.weather = norm(m[1]); return true; });
@@ -2826,9 +2826,18 @@ export default function initWorlds() {
         }
         return out;
     }
-    function startSavedEncounter(idOrName) {
+    function startSavedEncounter(idOrName, opts = {}) {
         const w = activeWorld(); const q = norm(idOrName).toLowerCase();
         const enc = asArray(w && w.encounters).find(e => e.id === idOrName || norm(e.name).toLowerCase() === q);
+        // live test 2026-10-20: the AI started "Chief Snagtooth and a guard" in the storeroom next door. A prepared
+        // encounter that belongs to a place starts there only (the AI's tag); events and the window may start it anywhere.
+        if (enc && opts.source === 'ai' && enc.locationId && rt()) {
+            const here = rt().playerLocationId;
+            if (here !== enc.locationId && !isInsideLocation(here, enc.locationId)) {
+                gameLog(`Encounter ${norm(enc.name)} refused: they are at ${placeName(enc.locationId, here)}, not here.`, 'combat');
+                return null;
+            }
+        }
         if (enc) {
             const c = startEncounter(asArray(enc.personIds), { monsters: enc.monsters, encounterId: enc.id, difficulty: enc.difficulty, enemyStart: enc.start || undefined });
             if (c && rt()) { rt().startedEncounters = asArray(rt().startedEncounters); if (!rt().startedEncounters.includes(enc.id)) rt().startedEncounters.push(enc.id); }
