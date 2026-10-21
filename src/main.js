@@ -14,6 +14,7 @@ import initWorldsUI from './KLITE-RPmod_WorldsUI.js';
 import initOnboarding from './onboarding/onboarding.js';
 import initLibrary from './library/esoliteLibrary.js';
 import initSettings from './settings/settings.js';
+import initContextPlacement from './settings/contextPlacement.js';
 import initGameLog from './game/log.js';
 import initCharacters from './characters/characters.js';
 import initGallery from './characters/gallery.js';
@@ -25,6 +26,7 @@ import initAdventures from './adventures/adventures.js';
 const MODULES = [
     ['shell/shell.js', initShell],
     ['settings/settings.js', initSettings],
+    ['settings/contextPlacement.js', initContextPlacement],
     ['library/esoliteLibrary.js', initLibrary],
     ['game/log.js', initGameLog],
     ['characters/characters.js', initCharacters],

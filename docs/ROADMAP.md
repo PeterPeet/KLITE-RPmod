@@ -6,7 +6,7 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-09-26 (open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–7: Lanternport and the Lantern Fair, the south shore, the Lost Chapel and the endings)
+> Last updated: 2026-10-20 (first real-backend play test with Gemma 4 31B and DeepSeek V4 Pro: twelve fixes — combat turns, Retry, the game log on reload, `<go>` names, thinking blocks, the combat prompt, World Info placement, containers; open items under R8 step 8; before: 2026-09-26 — open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–7: Lanternport and the Lantern Fair, the south shore, the Lost Chapel and the endings)
 
 ## Current state
 
@@ -41,7 +41,7 @@ reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternpo
 shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
 the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
 
-### What works (verified headless 2026-09-26 — `npm test`, 406 tests)
+### What works (verified headless 2026-10-20 — `npm test`, 444 tests)
 - Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
 - **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
   and AI character (Tools tab / group-chat speaker) now actually reach the AI.
@@ -63,7 +63,9 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
   World editor (node graph) windows; Creator/Player lens.
 - **Delivery:** usermod bundle, or `index.rpmod.html` that autoloads the mod after
   Esolite's `load` event; online at https://rp-lite.koboldai.net (released Esobold + RPmod,
-  published with `npm run deploy:pages -- --push`; first deploy 2026-09-25).
+  published with `npm run deploy:pages -- --push`; first deploy 2026-09-25; **v0.10.0 released 2026-10-21** on Esolite
+  origin/remoteManagement @ a90fe85a6 — Esolite unchanged since the previous release f4d807885, our four Esobold PRs
+  merged upstream; the local Esobold clone now tracks remoteManagement, not guide-extensions).
 - **Credits:** the exact SRD 5.2.1 attribution, the Ultimate Dungeon Terrain credit (zone combat idea)
   and Lucide appear in the Guide's **Credits** chapter, the header of `KLITE-RPmod.js` (taken verbatim
   from `src/data/srd52.js` at build time) and USER_GUIDE "Credits"; the SRD text also under every
@@ -102,6 +104,10 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
 | Map | Places room by room, board, fog, zone combat (no VTT) | ✅ R7: dungeon/town editor, mini-map with fog, moving with door rules, AI map tags, doors/Search checks, seeded generator, zone combat with cover and hiding |
 
 ### Known issues / tech debt
+0. ~~Very high disk reads/writes (player report 2026-10-20)~~ — every game change to a sheet rewrote the whole
+   character record with its portrait (2.9 MB per HP change measured with a 2.8 MB portrait, plus two reads). Fixed
+   with the **live sheet** (ARCHITECTURE §5b, store): game changes go into `rpmod_sheet_<id>` (a few KB), the card is
+   written after 15 s of quiet / after a fight / when the page is hidden. Idle RPmod writes nothing (measured).
 1. ~~"Monster / NPC combatant" flag does nothing~~ — decides the combat side since R5 (a monster is
    never an ally; victory = every enemy down).
 2. ~~Chat tags remain visible~~ — optional since R6 step 3 (2026-09-25): Settings → RPmod → Display → "Hide control
@@ -113,7 +119,10 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
    the persona's and the current speaker's entries each turn); the context then adds only the
    d20 sheet. Without such entries the context sends the card as before. Live-checked: the
    captured prompt holds the card once. "Load as scenario" still writes Memory (story data).
-5. **Never play-tested with a real AI backend** (only headless + page load).
+5. **Real-backend play test: started 2026-10-20** (see R8 step 8): Gemma 4 31B and DeepSeek V4 Pro (Novita, OpenAI-
+   compatible chat completions) through the starter adventure's layer 1 in the browser — Brindlewick, the Forest Road
+   ambush, the Hollow Oak (trap, wolves, the chief, the chest, a locked door), up to a total party kill. Twelve RPmod bugs
+   found and fixed the same day (known issues 27–34 and the commits of that day); the open items are listed under R8.
 6. `index.rpmod.html` boots the bundle at `window.load` (later than the usermod path); verify
    top-bar icon layout matches the usermod install.
 7. ~~Monster presets are SRD 5.1~~ — replaced by the 330 SRD 5.2.1 monsters (R5, 2026-09-23).
@@ -228,6 +237,61 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
     journey was skipped. The Quest log shows accepted quests (+ those offered here); a **Quest editor**
     (Creator view) lists every quest; **Reputation** is its own window and shows only factions met.
     Arriving at a place now counts as visited. Tests: `tests/questlogR8.test.js`, reworked map tests.
+27. ~~Encounter turn bugs~~ — fixed 2026-10-20 (owner: "the encounter system seems to have problems"; found by
+    reading the code, reproduced headless): (a) a **dying companion never got a turn** in the real turn order —
+    `canTakeTurn` let only the player act while down, so End turn skipped it and its death saves were never
+    rolled (the game-over test called `autoTurn` directly and missed it); (b) as a result a fight with the player
+    stable or dead and a companion dying **never ended** (the enemies looped "has no one left to attack");
+    (c) the player could **attack any number of times per turn**, with zones (`attacked` never blocked) and
+    without. Now: dying party members take their turn (automatic: the death save; with automatic turns off the
+    turn panel shows *Roll death save* for the companion too); **one Attack action per turn** (`cb.turnUse`,
+    API `attacksLeft`) with **Extra Attack** from the sheet's class and level (`attacksPerAction` in
+    `sheet.js`, SRD: 2 at level 5, the Fighter 3 at 11 and 4 at 20) and Multiattack for monsters; an action
+    spell and the Attack action exclude each other (zones did this already), a bonus action spell does not;
+    reactions and the GM's tools are not limited. Tests: `tests/combatTurns.test.js` (fail without the fix).
+    Not changed (noted): a party member who starts a fight at 0 HP starts it dying rather than stable; a
+    fight the AI starts with `<encounter>` does not run the enemies' first turns at once (the window's Start
+    does); saving an encounter from the builder keeps only its enemies, not chosen allies.
+28. ~~Retry lost the fight's results~~ — fixed 2026-10-20 (found in the real-backend play test with Gemma 4 31B):
+    the game log marked "rolls since your last reply" as narrated when a turn was sent, so Esolite's **Retry**
+    (and Undo + resend, or a request that failed) sent the next attempt without them — the model then invented
+    its own rolls. The mark now follows the chat (`rpmod_log.marks`, additive: `{ chat, from }` per turn): while
+    the turn's reply is not in the chat any more, the next send carries those results again. Test in
+    `tests/characters.test.js`.
+29. ~~`<go>` refused RPmod's own place names; tags inside a model's thinking were applied~~ — fixed 2026-10-20 (play
+    test, Gemma 4 31B with thinking): the AI copies an exit the way the prompt lists it — `<go>Wolf Den (corridor)</go>`
+    — and RPmod answered "there is no such place". `<go>` now also understands "Name (exit type or state)",
+    "Town (Room)" (as the Here row names it) and "east: Name". And reasoning models put their thinking into the reply
+    (`<think>…</think>`, Esolite's thinking tags): RPmod read tags there too, so a tag the model only considered was
+    applied, and one it wrote in both places counted twice (a `<give>` gave two). The thinking is skipped now (also
+    an unclosed block of a cut-off reply). Tests: `tests/playtestR8.test.js`.
+30. ~~The combat prompt contradicted itself~~ — fixed 2026-10-20 (play test): on the player's turn it said "It is the
+    player's turn: set the scene and wait for their action", but the player acts in the Combat window first and then
+    writes in the chat, so the results above already showed their attack. Gemma 4 with thinking spent its whole
+    reasoning on that contradiction (a loop until the reply was cut off). The prompt now says whether the player has
+    acted this turn (`turnUse`, the zone turn), asks to narrate every result in order, and that other turns are told
+    only once RPmod has run them. Test in `tests/playtestR8.test.js`.
+31. ~~RPmod's context sat before the whole chat~~ — done 2026-10-20 (owner's decision after the play test: a wolf the
+    AI had narrated earlier was "still circling" although RPmod reported "Victory"; the context sat at character 785
+    of 30,000, before ~29,000 characters of chat): RPmod needs World Info **"Before A/N" + "Strong"**. It asks once
+    (Yes/No) when a story is set otherwise, and after Yes keeps it set after every New Session and story load
+    (`src/settings/contextPlacement.js`, setting `context_placement_auto`). Tests: `tests/contextPlacement.test.js`.
+    RPmod waits while Esolite's Yes/No box shows its own question (the reconnect question after a reload).
+32. ~~The game log was empty after a page reload~~ — fixed 2026-10-20 (play test): known issue 26 gave the world state
+    and the RP block a side copy for Esolite's start-up autosave, but not the dice/combat log (`rpmod_log`), so the
+    log — and with it the results a Retry sends again — was gone after every reload. The log now keeps its side copy
+    too (`rpmod_storycopy_log`, same chat only). Test in `tests/playtestR8.test.js`.
+33. ~~A Here-row move led on through a second, unasked exit~~ — fixed 2026-10-20 (play test): "/go east | I go to
+    unexplored room." moved the party into the storeroom; the AI echoed `<go>unexplored room</go>`, which by then meant
+    the next unknown exit (a secret door just found), and the party stood in the chief's hollow. The Here row's
+    message is now "I go to {here}.", filled with the place the move really led to; the AI's echo of it is a move to
+    where the party already is (nothing happens). Test in `tests/playtestR8.test.js`.
+34. ~~Containers never handed out what is inside~~ — fixed 2026-10-20 (play test, the chief's chest): `contains[]` was
+    stored but nothing used it — the AI was not told the contents and made some up, and the keys of locked doors
+    (Bone/Iron/Brass Key) and quest items (the Lake-green Coin) lying in containers could not be had (the content
+    test assumed the AI would write `<give>`). Now a container is opened once — `<open>name</open>`, `/open`, the Here
+    row's **Open: …** — and its contents go to the inventory, coins to the purse; the prompt says unopened/emptied.
+    `<give>14 gp</give>` gives coins (it made an item "14 gp"). Test in `tests/playtestR8.test.js`.
 
 ## Phases
 
@@ -888,7 +952,244 @@ on load, starting in the Player view. Only SRD 5.2.1 content; the reference mate
   layer 2, 4 from the fair on, 5 inside the chapel before the hag, never 6; the validator's all-content estimate is
   10,125 per character. Playthrough test (low water → hag → light put out → home; the long swim). Not yet checked in
   the browser — the owner's play test covers it.
-- [ ] Step 8: real-backend play test (known issue 5), then the World Building guide
+- [ ] Step 8: real-backend play test (known issue 5), then the World Building guide — 🟨 first session 2026-10-20 (layer 1
+  with Gemma 4 31B and DeepSeek V4 Pro; results below); next: the open items, then layers 2–5.
+
+**Real-backend play test, 2026-10-20 — what a model needs (findings):**
+- **World Info "Before A/N" + "Strong"** (RPmod now asks and keeps it, known issue 31): with "After Memory" the context
+  sat before ~29,000 characters of chat and the model followed the chat (a dead wolf "still circling").
+- **Thinking on, enough output:** Gemma 4 31B without thinking invented rolls and narrated stale states; with thinking
+  ("high", 4096 output) it narrated every result in order. "High" with 2048 tokens cut replies off mid-thinking.
+- **Gemma 4 31B** keeps its own inventions against RPmod's facts (an invented key "opened" a door RPmod kept locked);
+  **DeepSeek V4 Pro** respected the same refusal in two of two tries, started prepared encounters by name and ended
+  a game over as asked. Both sometimes narrate a move without writing `<go>` (the party stays where it was).
+- DeepSeek's reasoning came once untagged (no `<think>`, cut off) and RPmod applied the tags in it — a junk room "Name",
+  a locked door, a move (repaired by hand). With reasoning "low" it was tagged (still up to 13,000 characters).
+
+**Owner's decisions 2026-10-20 (done):**
+- [x] **"Story: go to …"** — a reply that moved no one but names a place reachable from here (an exit that is not locked
+  or barred, or a visited room of the same dungeon/town with a known route) offers it in the Here row (`runtime.storyGo`,
+  only while that reply is the last one); `/storygo` moves with source `story` (routes like Quick travel, stops at
+  events, logs "As the story told, the party went via … to …") and sends nothing. Test in `tests/playtestR8.test.js`.
+- [x] **Branch, Allow Editing, the chat tree** — a notice once per page while a world is active (wrapped `btn_branch`,
+  `toggle_editable` when switched on, `btn_editmode`, `treeViewer.openTreeView/openPaginatedTreeView`); the action goes on.
+  Test in `tests/playtestR8.test.js`.
+
+- [x] **World Info "Before A/N" + "Turn based", 1 user turn** (owner, 2026-10-20) instead of "Strong": Strong inserts 160
+  characters before the end and cut longer player messages in half (DeepSeek: "User pasted large system prompt maybe? …
+  They [World: etc] then push through the plank door"). Stories set to Strong are moved over without asking (after the
+  earlier Yes); older hosts keep Strong. Tests in `tests/contextPlacement.test.js`.
+- [x] **Prepared encounters start where they belong** — live test 2026-10-20: DeepSeek wrote `<encounter>Chief Snagtooth and a
+  guard</encounter>` in the Stolen Stores (the chief sits in the next room) and RPmod started it. A saved encounter with a
+  `locationId` now starts by the AI's tag only there (or inside it); elsewhere it is refused (logged → story correction).
+  Ad-hoc lists, events and the Combat window are unchanged. Test in `tests/playtestR8.test.js`.
+
+**Live test of the new features, 2026-10-20 (DeepSeek V4 Pro, then V4 Flash):** all of them worked in the real game —
+pregen reset in the picker, first turns of a fight on arrival (the AI then narrated the companion's real blow), `<cast>`
+written by the model itself, the Combat window closing, Retry/Undo undoing a reply (a wrongly started boss fight with its
+move, secret door and attacks), cut-off replies at 512 tokens (nothing applied; Generate More's answer after `</think>`
+parsed; Generate More after a finished answer: the model returns nothing, state unchanged), the refused encounter in the
+wrong room with the story correction next turn, containers, "Turn based" placement keeping the player's message whole.
+
+**Model comparison (same scenes):**
+| | DeepSeek V4 Pro (low) | DeepSeek V4 Flash (low) | V4 Flash (high) |
+|---|---|---|---|
+| Time per reply | 20–60 s | ~7 s | 3–7 s |
+| Thinking | 6,000–15,000 chars, often cut off at 4096 | 500–2,800 | 70–1,900 (uneven) |
+| A miss narrated as a miss | yes | 1 of 3 (2 invented kills) | 2 of 3 (1 left open) |
+| Tags (`<accept>`, `<join>`, `<cast>`, `<encounter>`) | reliable, sometimes in the wrong place | reliable for simple ones | walked three rooms with **no** `<go>` |
+| Respects a refusal | yes (after the correction, but invents a substitute) | — | — |
+Pro is the more reliable game master; Flash on "high" is close in fights but loses track of moves. Both tie in well
+with RPmod's safety nets (refusals, correction, cut-off handling, undo).
+
+**Goal (owner, 2026-10-20): RPmod plays well with cheap "Flash" models** — DeepSeek V4 Flash and Z.ai GLM 5.3 Flash,
+so that users can run the mod for little money. Method: the same scene set for every model (start + quest + join, the
+ambush narrated from the log, a missed attack narrated ×3 with Retry, `<cast>` after a fight, the trap, the walk "east
+through the door and on south" — moves and refusals), scored per scene; then prompt and safety-net changes, measured
+again on the same set. Results so far: the comparison table above; GLM 5.3 Flash next.
+
+- [x] **A new session starts with an empty game log** — found with GLM 5.3 Flash 2026-10-20 ("this seems to be a replay/loop
+  of the same day"): New Session / an adventure start kept the old story's 200 log entries, and as the chat was short
+  again the Retry marks rewound to the oldest — **12,391 characters of other runs' fights** went to the AI as "since your
+  last reply" (it affected every test after the first restart, and likely the long reasoning of DeepSeek Pro). The log
+  now clears on `restart_new_game`. Test in `tests/playtestR8.test.js`.
+- [x] **"Story: go to" only for a sentence that moves** — "Liu Wen's farm is west of here" was offered as a move; the place
+  must now stand in a sentence with a word of movement (step, walk, enter, reach, into, through, …).
+
+**GLM 5.3 Flash (Novita, `zai-org/glm-5.3-flash`, GLM instruct tags, thinking in `<think>…</think>`), same scenes:**
+| Scene | Result |
+|---|---|
+| Start, quest, join | both tags right; tags drafted several times in its thinking were applied once (stripping works) |
+| Ambush from the log | correct and vivid; on "high" (4096) cut off mid-answer; **Generate More does not continue** — GLM writes the whole answer again (no assistant prefill) |
+| Missed attack ×3 ("medium", 16k) | **3 of 3 correct misses**, no one else's turn, ends on the player — 30–36 s, 9,000–12,000 chars of thinking |
+| `<cast>` after the fight | written by itself, healing applied |
+| Trap | correct, credited to the right character |
+| Waiting encounter | started itself by exact name (`Goblin wolves`) |
+| "East and on south" | a `<go>` for every move (best discipline so far), but **invented a room** behind the unexplored door (`<room>Mule Pen…`, refused) and moved Liu's grain into another room — 100 s, 32,000 chars of thinking |
+Text quality: the best of the cheap models (owner). Weak spots: slow on "medium"/"high", long thinking.
+
+**GLM 5.3 (full, `zai-org/glm-5.3`, reasoning "low"), same scenes — compared with DeepSeek V4 Pro on low:**
+| Scene | Result |
+|---|---|
+| Start, quest, join | both tags right, 52 s, 14,700 chars of thinking (16k) |
+| Ambush from the log | correct and vivid (the hit on Oona, ends on Tove's turn), 91 s, 27,000 chars (16k) |
+| Missed attack ×4 (2× 16k, 2× 4096) | **4 of 4 correct misses**, 19–47 s, 5,000–12,000 chars. Max output does **not** steer the thinking length (owner's question): 4096 gave 5,200 and 11,800 chars, 16k 10,300 and 11,400 |
+| `<cast>` after the fight | `<cast>Cure Wounds = Oona</cast>` by itself, healing and slot applied, 43 s |
+| Trap (4096) | cut off while thinking; Generate More: a fresh short think and a whole reply (14 s), trap credited to Tove |
+| Waiting encounter (4096) | cut off twice (75 s each), a Retry fitted (35 s, wolves asleep — right); on the attack `<encounter>Goblin wolves</encounter>` by exact name (22 s), but it narrated **four** wolves for two (the prompt gave no count → fixed) |
+| "East and on south" (4096) | cut off twice (50 s, 55 s); its reasoning: it never wrote `<go>` before (the buttons moved the party), so it concludes "RPmod parses prose"; plans `<room>Grain Store…</room>` behind the unexplored door |
+At 4096, 4 of 8 replies were cut off; the safety net held every time (no tag applied). Text quality: the best so far.
+Slower and longer-thinking than V4 Pro on low; the game-master rules hold better (misses, `<cast>`, encounter by name).
+
+- [x] **Cut-off reasoning no longer reaches the AI** — found with GLM 5.3: the untagged reasoning of a reply cut off while
+  thinking was sent as the assistant's reply (17,000 characters in a 31,000-character request), and every Generate More
+  (GLM starts over) added another. RPmod folds it in the thinking tags once a finished reply does not continue it (or the
+  player writes on); DeepSeek's continuation with a lone `</think>` is left to Esolite. Test in `tests/playtestR8.test.js`.
+- [x] **Waiting encounters say who is in them** ("Goblin wolves: 2 Wolf"); an `<encounter>` with that line ("2 Wolf",
+  "Goblin wolves: 2 Wolf") starts the prepared encounter — GLM without reasoning copied the line as the name and RPmod had
+  started a second, ad-hoc pack.
+
+**GLM 5.3 without reasoning** (reasoning "none", 4096; Esolite's GLM preset ends the instruct with `/nothink` and an empty
+closed thought — the model still writes a one-line `<think>` plan), same scenes:
+| Scene | Result |
+|---|---|
+| Start, quest, join | both tags right, **8 s** |
+| Ambush | correct (Tove won initiative: no blows invented), ends on Tove's turn, 10 s; one meta line "**Combat begins!**" |
+| Missed attack ×3 | **3 of 3 correct misses**, 6–10 s; one slip: a goblin calls Tove (they) "mountain man" |
+| `<cast>` after the fight | by itself, healing applied, no invented amount, 10 s |
+| Trap | correct, credited to Tove, 9 s |
+| Waiting encounter | started on arrival when the wolves noticed the party (`<encounter>2 Wolf</encounter>` → fixed above), 8 s |
+| "East and on south" | **invented a room** (`<room>Grain Cache…</room>`, refused) and **moved to an invented name** (`<go>South Burrow</go>`, refused), narrated two rooms in one reply; 14 s |
+| Story correction next turn | followed at once ("that plank door to the east is still shut…"), kept an invented detail (a chapel smell), called the dead wolves "sleeping" |
+No reply cut off; 6–14 s each (low: 20–90 s). Fights, spells and encounters as reliable as on "low"; exploring has the same
+weak spot as GLM Flash and the "low" run — which the two prompt items below address. **GLM 5.3 without reasoning is the
+best price/quality so far.**
+Without Esolite's no-think preset (owner's question): the same — the chat-completions request never carried `/nothink`
+(Esolite sends no instruct tags to an OpenAI-compatible API); `reasoning_effort: "none"` alone does it (start 9 s, ambush
+10 s narrated as rolled, misses 2 of 2 in 6 s each, a one-line `<think>` plan still). New slip in both runs: the reply
+names the mod ("RPmod will roll whatever you do") — the prompt should say never to mention RPmod or the rules engine.
+
+**Next for the Flash goal (from both Flash models):**
+- [x] **The AI builds only where the author lets it:** world setting "The AI may add rooms and doors to the maps"
+  (`world.aiBuild`, **off by default** — owner 2026-10-20: adventures and own worlds are the same thing, the author
+  decides); off → `<room>`/`<door>` refused ("the map is fixed in this world") and [Exploring] says "never invent rooms,
+  ways or doors — an unexplored exit is unknown until the party goes through it with `<go>`". Naming a generated "Room 3"
+  stays allowed. Tests in `tests/playtestR8.test.js`, `move.test.js`.
+- [x] **Moves:** Flash walked three rooms without `<go>`; GLM Flash wrote them. GLM 5.3's reasoning shows why a model skips it: the button moves ("I go to Wolf Den.") are done by RPmod before the reply, so the chat has no `<go>` of the AI's and it concludes RPmod reads prose; it also wondered whether the Exploring tags are meant for the player. Say they are the narrator's, and that a button move is already done. A short rule in the Exploring section ("every
+  move needs `<go>`; one room per reply, then stop") — measure on the same scene with both.
+  Done: [Exploring] now says the tags are the narrator's, every move needs `<go>`, one room per reply, a move the log
+  already shows is done. **[Game notes]** (new, every turn): the notes come from RPmod — never name RPmod, the log, the
+  tags or the notes in the story. Measure next on the "east and on south" scene (GLM 5.3 / GLM Flash without reasoning).
+  **Measured 2026-10-20 (GLM 5.3, no reasoning):** "east and on south" → `<go>east</go>`, one room, stops and asks (its plan:
+  "rule says one room per reply. So do east only"), no invented room, 10 s; `<encounter>2 Wolf</encounter>` starts the
+  prepared encounter. **New structural problem:** the AI writes the room *before* RPmod moves the party, so it does not know
+  what is there — it invented a flooded room with a chapel lantern (real: "a dry burrow" of grain sacks, barrels, crates),
+  and on the next turn kept its version although the real description was in the prompt. Same with `<search>`: it narrated
+  a hidden door found, RPmod rolled "9 — nothing found"; the secret door RPmod's passive Perception had found (south) went
+  into the west wall.
+- [ ] **Results of the AI's own tags** (move into an unseen room, `<search>`, `<unlock>`): the reply is written before the
+  result. Options: (a) give the AI what lies behind each visible, unvisited exit ("for the narrator: east → Stolen Stores:
+  …; narrate only when the party enters") and what passive Perception would notice there — one reply stays true, but the
+  AI then knows more than the player (secret rooms stay out); (b) the reply ends on the attempt and the next reply
+  narrates the result from the log (one more turn per move); (c) RPmod asks for a short follow-up automatically after
+  such a tag. Owner to decide.
+- [ ] **Generate More with GLM:** check Esolite's prefill/"Non-Standard Fields"/end-token options for assistant prefill.
+
+- [ ] **Deeper undo history with Redo** (owner, 2026-10-20, after the live sheet): one snapshot per reply (game state,
+  world changes, log length, sheets — a few KB each now that sheets are small) in IndexedDB: Undo/Retry several replies
+  deep, Esolite's Redo (`btn_redo`) re-applies the state after the reply, survives a page reload.
+- [ ] **Upstream prototype for Jaxxks (later; our own bugs first — owner 2026-10-20):** a Library character's portrait in
+  its own IndexedDB entry (`character_<id>` = { id, name, data }, `character_img_<id>` = the PNG; the card embedded into
+  the PNG only on export), so edits of the card data stop rewriting the image (Esolite's own edits and every mod).
+  Jaxxks: build a prototype; if it holds up, it goes upstream (PR to esolithe/esobold). Old records with an inline
+  `image` keep working and migrate on their first save; `getCharacterData` keeps returning { id, name, data, image }.
+
+**UI play test 2026-10-20 (character sheet, inventory, character builder — clicked through in the browser):** Overview,
+rolls (advantage, dice log), Combat tab, attacks with SRD autocomplete, Revert, Inventory (in hand / backpack, the
+two-hands warning, SRD definitions, coins), Save into the card, the left panel's Inventory in sync with an open sheet
+(also a game change into an unsaved draft), Spells, Features, Notes, the builder (wizard / Sage / High Elf: every step,
+the review's numbers) and a level up to 2 — all correct by SRD 5.2.1. Fixed:
+- [x] **Cast on the sheet** only ticked the slot in the draft while the game log had already told the AI — a Revert or
+  "discard" gave the slot back. It is a game change now (`spendSpell`, as in a fight); the free cast too.
+- [x] **Level up offered every class** — a click turned a wizard into a "Fighter 2" and dropped its skills. Only the own
+  class is shown (no multiclassing).
+- [x] **Wizard's Scholar** (level 2: Expertise in Arcana, History, Investigation, Medicine, Nature or Religion) was missing.
+- [x] **Enter** in the new-item / new-attack field did nothing; it adds now.
+- [x] **The pregens had only Common** — SRD 5.2.1: Common plus two standard languages (the builder asks; the pregens'
+  choices lacked them): Oona Orc + Goblin, Tove Dwarvish + Elvish, Kasimir Draconic + Elvish, Pell Halfling + Goblin.
+  Existing pregen cards get them with the picker's "starting sheets back".
+- [x] **The Combat window stayed open across New Session / an adventure start** without a fight; it closes now.
+Tests in `tests/uiPlaytest.test.js`, `spells.test.js`, `adventureContent.test.js`. Open (small):
+- [ ] A stack in the backpack goes into the hand as a whole (Holy Symbol ×2 → both); taking one should split it. And the
+  SRD lets a cleric wear the holy symbol on the shield (no hand).
+- [ ] The left panel's Inventory does not show what is in hand / worn.
+- [ ] The roll mode (Advantage / Disadvantage) stays on across characters and sessions — easy to forget.
+- [ ] After *Create character* the sheet opens on the last tab used (Notes) — a new character should open on Overview.
+- [ ] *New character* takes a second or two to show the builder, without a sign that it is coming.
+
+**New open items from this live test:**
+- [ ] **Capture after a defeat:** the AI narrates the party tied up and dragged next door; RPmod has no "captured" state
+  (the party lies at 0 HP where it fell).
+- [ ] **Content:** "Grain Sack" reads as an empty sack to the AI ("three empty grain sacks") — "Sack of Seed Grain".
+- [ ] **Gifts without `<give>`:** the AI hands out coins or items in prose ("she slides a few coins across the table").
+- [ ] **Junk from cut-off chunks stays in the chat** and goes back to the model as its own earlier answer (Retry/Undo it).
+- [ ] **Esolite (upstream):** the stream parser drops a network packet that holds several `data:` events ("Cannot parse a
+  chunk") — the provider's `finish_reason: "stop"` and, in one Gemma case, the end of the answer were lost. A small PR
+  for esobold (split the packet into lines).
+- [ ] Flash credits its own noticing to a companion ("Oona spots the cord" while RPmod's passive Perception was Tove's).
+
+**Open items from the play test (owner to prioritise):**
+- [x] **Story correction** — done 2026-10-20: the refusals of the AI's own tags in a reply (`refused`, `cannot`, …) are kept
+  (`runtime.storyCorrection`, additive) and the next prompt opens with **[Set the story straight]** (priority 97): what
+  did not happen, where the party really is, "only the items listed in the inventory exist", and to correct it in one
+  or two sentences in the story's voice. Gone once that reply is retried or undone, or a clean reply arrives. Test in
+  `tests/playtestR8.test.js`. Not yet checked with a real model.
+- [x] **Don't parse a reply that is only reasoning / cut off** — done 2026-10-20: Esolite wraps streamed reasoning in
+  `<think>…</think>` only on a proper stop (`close()`: `last_stop_reason == "stop"`); a reply cut off at max_tokens while
+  thinking stays untagged so that **Generate More** continues the thought, which then ends with a lone `</think>`
+  (Esolite's `handle_mismatched_think`). RPmod now applies no tags of a reply that arrives cut off while thinking
+  (reasoning requested, no proper stop, no thinking tag — logged: "use Generate More or Retry") and treats everything
+  before a lone closing tag as thinking. Test in `tests/playtestR8.test.js`. **Live-tested** with DeepSeek V4 Pro at 512
+  max tokens / reasoning "high": two cut-off chunks applied nothing, the third (after Generate More) was parsed after its
+  `</think>`. Found there: Novita/DeepSeek leave `last_stop_reason` empty even for a reply that ended by itself, so a reply
+  only counts as cut off when it also used up its budget (length ≥ 60 % of max_tokens × 4 characters).
+- [x] **Spells outside a fight** — done 2026-10-20: `/cast Cure Wounds on Oona` and the AI's `<cast>Cure Wounds = Oona</cast>`
+  (prompt section "Casting spells" when the persona has spells; "=" because a tag cannot hold ">") spend the slot or free
+  cast like in a fight; healing is rolled onto the persona or a companion (sheet, else the story's companion HP); other
+  spells are logged for the AI to narrate; refused in a fight (Combat window). Test in `tests/playtestR8.test.js`.
+  Still open: a Cast button on the sheet's Spells tab.
+- [x] **Fights started outside the Combat window** — done 2026-10-20: a fight from the AI's `<encounter>` or an event's
+  effect (entering a room) runs the first automatic turns at once, like the window's Start (setting "Run enemy turns
+  automatically"), and opens the Combat window. Test in `tests/playtestR8.test.js`. (A fight from the AI's tag still
+  begins after its reply — the next reply narrates the first turns.)
+- [x] **A dying player at a victory** — done 2026-10-20: whoever is still dying when the fight is won is stabilised and
+  comes round with 1 HP (RPmod simplification of "a stable creature regains 1 HP after 1d4 hours"); the dead stay dead.
+  Test in `tests/combatTurns.test.js`.
+- [x] **Long Rest** — done 2026-10-20: it takes the night (the clock runs slot by slot to the next morning, so night events
+  fire); a fight breaking out interrupts it and nothing is restored. Content version 7: the campfire wolves (Gravel Road)
+  also come when the night falls while resting there (`onTime` + location). Test in `tests/playtestR8.test.js`.
+- [x] **New adventure start keeps the pregens' sheets** — done 2026-10-20: the picker lists the pregens that differ from
+  their starting sheets ("Oona Greycairn: 225 XP, HP 0/12") and offers "Give the characters their starting sheets back"
+  (ticked; untick to keep them); `start(…, { resetPregens })`. Test in `tests/playtestR8.test.js`.
+- [x] **Objectives that complete on arrival** — done 2026-10-20: the talk check matched the name part "Wen" in "Wen's
+  Farm"; place names no longer count as naming a person. (The quest being ready during the ambush is by design: the
+  objective is to find the cart.) Test in `tests/playtestR8.test.js`.
+- [x] **The AI only sees companions' maximum HP** — done 2026-10-20: a person with a sheet gets "Armour: Chain Mail" (the
+  sheet's `acNote`), a companion "HP now 2/12 (badly hurt)". Test in `tests/playtestR8.test.js`.
+- [~] **Pronouns of absent people:** Liu Wen became "he" at the inn (her description reaches the AI only nearby) —
+  content version 7: the Elder's offer says "at her farm". A general rule (people named in quest texts get their
+  pronouns) is still open.
+- [x] **Retry keeps the retried reply's tag effects** — done 2026-10-20 (owner: "detect sheet edits and warn"): when a reply
+  arrives, RPmod keeps the story's game state (slot), the world, the log length and the sheets in play as they were
+  before, and as they were right after; Retry/Undo of exactly that reply (wrapped `btn_retry`/`btn_back`) restores them.
+  If a sheet, the game state (fight turns, moves) or the world changed since, Esolite's Yes/No box asks: undo everything
+  or keep the game. In memory, one reply deep. Tests in `tests/playtestR8.test.js`.
+- [x] **"Close the fight" switches the window to the encounter builder** — done 2026-10-20: closing (or ending) the fight
+  closes the window; after a reload it reopens only while a fight runs (shell `window.restore` may be a function). Tests
+  in `tests/encounter.test.js`, `tests/playtestR8.test.js`.
+- [x] Log wording — done 2026-10-20: "1 success / 2 failures"; "is back up" (no pronoun); the natural 20 is logged before
+  it; "has no one left to attack" once per combatant and fight. Test in `tests/combatTurns.test.js`.
+- [ ] The browser pane of the test answers `confirm()` with "no" (test environment only; Esolite's own dialogs work).
 
 **Open items (owner's play test, 2026-09-26)** — not done yet:
 - [x] World editor: the inspector does not refresh after linking two elements. — fixed 2026-09-26 (Link tool

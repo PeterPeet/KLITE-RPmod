@@ -83,7 +83,9 @@ chatting. Everything below explains how to build your own.
 - **The starter adventure "The Drowned Lantern"** — a ready-made adventure for one character
   and a companion (levels 1–5). Click **Play a starter adventure** on the *New
   here?* card or **Play the built-in adventure** in World Management, choose one of four characters and
-  start. It is being built in layers; playable now: the village of **Brindlewick**, the Forest
+  start. If the four characters already played before (hurt, fallen, levelled, other items), the window lists
+  that and offers **Give the characters their starting sheets back** — ticked, everyone starts fresh at level 1;
+  untick it to keep what they have. It is being built in layers; playable now: the village of **Brindlewick**, the Forest
   Road, the goblins of the **Hollow Oak** and the old coin; then the two roads to Lanternport —
   over **Windgap Pass** (a campfire, a ruined watchtower with a prisoner) or along the **Meadow
   Road** (a shepherd's lost sheep) — and the **Traveler's Outpost**, where something is wrong with
@@ -156,6 +158,14 @@ screens the palette becomes a strip on top and the inspector moves below the can
   *Unsaved world changes*. **Revert** undoes everything since the last save, including
   deletions. Closing the editor asks whether to save, keep the changes unsaved or revert,
   and the browser warns before you leave the page.
+- **World Info placement:** RPmod sends the game state (place, people, fight, the results of each turn) as
+  World Info. It needs Esolite's World Info **"Before A/N"** with the Author's Note placed **"Turn based", 1 user
+  turn before the end**, so this information sits right before your newest message, where the AI follows it.
+  When a story is set differently, RPmod asks once: *"RPmod needs World Info "Before A/N" with the Author's Note
+  placed "Turn based"… Should I set this now?"* **Yes** sets it, and RPmod keeps it set from then on (Esolite
+  resets it on New Session); **No** leaves it until the next page load. Switch it on or off later in **Settings →
+  RPmod → Keep World Info "Before A/N" (Turn based, 1 user turn) in every story**. (Older Esolite versions without
+  "Turn based" get "Strong".)
 - **Autosave** (off by default): Esolite **Settings → RPmod → Autosave world edits** saves
   about a second after each change. It's convenient, but a deletion is then saved at once
   and can't be reverted.
@@ -221,7 +231,11 @@ its inside is built in the **dungeon/town editor**, which opens over the world e
 Rooms are ordinary places underneath: you can move there, "Go to" objectives, events on
 entering, phases and encounters all work for them. **Secret doors and rooms stay hidden from the
 AI** until they are found, and the AI only hears about dungeon rooms the player knows.
-Deleting a dungeon or town asks first and removes its rooms with it. Rooms the **AI added
+Deleting a dungeon or town asks first and removes its rooms with it. **Whether the AI may extend
+your maps** is a world setting (world node → "The AI may add rooms and doors to the maps"), **off by
+default**: the dungeons and towns stay as you built them, the AI never invents rooms, ways or doors,
+and an unexplored exit is found by going there. Rooms the generator left unnamed ("Room 3") are
+named by the AI either way. With it on, rooms the **AI added
 during play** (`<room>` tag, below) are world edits like yours: they carry a small **AI** badge
 on the board and a note in the inspector — keep, edit or delete them, then Save.
 
@@ -358,6 +372,7 @@ are applied when you send. Either way the next slice reflects them.
 | `<advance>` | `<advance>` | Advance the clock one step |
 | `<action>text</action>` | `<action>pick the lock</action>` | Fire an action signal (triggers `onAction` events) |
 | `<roll>expr</roll>` | `<roll>1d20+3</roll>` | Roll dice (logged in combat) |
+| `<cast>spell = target</cast>` | `<cast>Cure Wounds = Oona</cast>`, `<cast>Light</cast>` | Outside a fight: your persona casts from its sheet — the slot is spent, healing rolled onto the target (you or a companion); other spells are logged for the AI to narrate. In a fight, use the Combat window |
 | `<attack>A-&gt;B</attack>` | `<attack>You-&gt;Goblin</attack>` | Resolve an attack (to-hit vs AC, damage, HP) |
 | `<hp>Name=±N</hp>` | `<hp>Goblin=-4</hp>` | Adjust a combatant's HP |
 | `<check>Name=abi DC</check>` | `<check>You=dex 12</check>` | Ability check vs a DC |
@@ -380,11 +395,12 @@ works in one go. RPmod applies the rules; refusals and rolls go to the game log.
 | Tag | Example | Effect |
 |---|---|---|
 | `<open>…</open>` / `<close>…</close>` | `<open>north</open>`, `<close>the iron door</close>` | Open or close a door (a locked or barred one refuses) |
+| `<open>container</open>` | `<open>The chief's chest</open>` | Opens a chest, sack or other container here **once**: what is inside goes to your inventory (coins such as "14 gp" into your purse) and the log lists it; opened again, it is empty. Also the Here row's **Open: …** and `/open The chief's chest` |
 | `<unlock>…</unlock>` | `<unlock>south</unlock>` | Key if carried, else a thieves' tools roll; barred refuses |
 | `<search></search>` | `<search/>` | Search the current room (Perception/Investigation roll) |
-| `<room>Name, dir: text</room>` | `<room>Bone Pit, west: a pit of old bones</room>` | The AI adds a room next to the current one. RPmod places it, names it exactly and joins it by an open door (town: an open way). Refused if that side already has a way; a room with that name is not added twice |
+| `<room>Name, dir: text</room>` | `<room>Bone Pit, west: a pit of old bones</room>` | Only when the world allows it ("The AI may add rooms and doors", off by default). The AI adds a room next to the current one. RPmod places it, names it exactly and joins it by an open door (town: an open way). Refused if that side already has a way; a room with that name is not added twice |
 | `<room>Name, here: text</room>` | `<room>Skull Gallery, here: skulls in niches</room>` | Names (and describes) the room the player is in — only while it has a placeholder name like "Room 4"; a named room only takes a description if it has none |
-| `<door>dir = …</door>` | `<door>west = locked, iron, DC 15, key: Iron Key</door>` | Gives a way a door or makes it harder (open → closed → locked → barred). It never opens a door — that is `<open>`/`<unlock>`. Material, DC and key only fill in what the creator left empty |
+| `<door>dir = …</door>` | `<door>west = locked, iron, DC 15, key: Iron Key</door>` | Only when the world allows it (as `<room>`). Gives a way a door or makes it harder (open → closed → locked → barred). It never opens a door — that is `<open>`/`<unlock>`. Material, DC and key only fill in what the creator left empty |
 | `<light>…</light>` | `<light>dark</light>` | Light in the current room (bright, dim, dark) for the rest of the story |
 
 **Time slots:** `morning → noon → afternoon → evening → night`. Advancing past night rolls
@@ -393,6 +409,16 @@ to the next day, and the **season** follows the month automatically.
 **Notes**
 - Tags are applied at the **start of your next message**, so a move the AI narrates this
   turn takes effect from the next turn onward — which reads naturally in the story.
+- **Retry and Undo** take back what the AI's last reply did, not just its text: items it gave, flags, a fight it
+  started, rooms it added and its log lines. If something changed since that reply — you edited a character sheet,
+  played fight turns, edited the world — RPmod asks first: **Yes** undoes everything (those changes too), **No**
+  keeps the game as it is and only retries or removes the text. One reply deep; not after a page reload.
+- **"Story: go to …"** in the Here row: when the AI's reply walks the party somewhere but writes no `<go>` (it
+  happens), RPmod offers the place it named last — a way out of here, or a known room of the same dungeon or town.
+  One click moves the party there (through known rooms; it stops when something happens on the way) and sends
+  nothing; the AI reads the move in the log. Also `/storygo <place>`.
+- **Branch, Allow Editing and the chat tree** change the chat far back; RPmod's game state cannot follow them and
+  stays as it is now. RPmod says so once per page when you use them.
 - Tags stay in the story text. To **hide them in the chat**, turn on Settings → RPmod →
   Display → **Hide control tags in the chat**: they disappear from the chat as it is shown
   (the game log says what they did), RPmod still reads them, and **Allow Editing** shows them.
@@ -439,6 +465,7 @@ one.
 | `/quest <id>=<state>` · `/rep` · `/rep <faction>=±n` | set a quest state; your standings; change one |
 | `/roll <dice> [adv\|dis]` | roll into the game log (`/roll 1d20+3`, `/r d100`) |
 | `/check <ability\|skill\|save> [DC] [adv\|dis]` | your persona rolls with its sheet bonus: `/check perception 12`, `/check dex save 14` |
+| `/cast <spell> [on target] [slot N\|free]` | a spell outside a fight: `/cast Cure Wounds on Oona`, `/cast Healing Word on me slot 2`, `/cast Light` |
 | `/encounter <saved encounter \| 2 Wolf, Goblin>` · `/attack <target> [with <weapon>]` · `/endturn` · `/rest` · `/combat` | fights (reach, range and cover are checked) and the long rest |
 | `/time <slot>` · `/advance [n]` (`/wait`) · `/weather <text>` | the clock |
 | `/flag <key>[=value]` · `/unflag <key>` · `/action <text>` | story flags and action triggers (for world creators) |
@@ -521,8 +548,9 @@ at level 19 an *Epic Boon*, which can raise a score to 30), **Skills & choices**
 and background packages or gold) and **Details & review**, which shows HP, AC, attacks,
 skills and spellcasting before anything is saved. It creates a new character in your
 Library with the sheet on its card, or puts the sheet on an existing character. **Level up**
-on a built sheet rebuilds it one level higher (up to 20), asks only what is new (the new
-level's feat, skills, spells) and keeps inventory, coins, notes and your spells; AC
+on a built sheet rebuilds it one level higher (up to 20) in the same class (there is no multiclassing), asks only
+what is new (the new level's feat, skills such as the Wizard's *Scholar* expertise at level 2, spells) and keeps
+inventory, coins, notes and your spells; AC
 and attacks follow what the character carries now. Every option shows its rules text from the SRD.
 
 **Spells (SRD 5.2.1, 339 spells).** The builder's **Spells** step shows your class's spell list
@@ -539,7 +567,8 @@ you can do it later on the sheet; too many or wrong spells block *Create*.
 On the **sheet**, the Spellcasting section lists your spells by level: open one for its text; roll
 **Hit** (spell attack), **Dmg** (cantrips grow at levels 5, 11 and 17) or **Heal**; the target's
 **save DC** is shown. In a fight, cast from the **Combat** window instead: it rolls against the
-targets and spends the slot (see *Combat* below). **Cast** here uses the lowest free spell slot of the spell's level or higher and
+targets and spends the slot (see *Combat* below). **Cast** here uses the lowest free spell slot of the spell's level or higher — at once, like in a fight (it is not
+part of the sheet's unsaved changes, so *Revert* does not give the slot back) — and
 writes it to the game log, so the AI narrates it; species and Magic Initiate spells also have a
 **Free** cast (once, or a gnome's Proficiency Bonus times, per Long Rest). **Restore slots (Long
 Rest)** clears used slots and free casts. **Change spells** (built characters) opens the same
@@ -578,7 +607,7 @@ abilities, saving throws, skills, proficiencies) · **Combat** (AC, speed, initi
 **Spells** · **Inventory** (items and coins) · **Features** · **Notes**. The roll mode above the tabs
 applies everywhere; the sheet remembers the tab you used last.
 
-- **SRD autocomplete:** typing an attack or an item offers the SRD 5.2.1 names (typing *Lo* offers
+- **SRD autocomplete:** typing an attack or an item offers the SRD 5.2.1 names (**Enter** or **+** adds it) (typing *Lo* offers
   Longbow, Longsword…). Picking a weapon for an attack fills its damage and ability (a Finesse
   weapon uses the better of STR and DEX, a ranged one DEX; a built character keeps its class's
   weapon proficiencies). Every SRD item in the inventory has its **definition** under it (damage and
@@ -739,6 +768,12 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
   press **Attack**, then **End turn** — the enemies' turns are rolled automatically until it is
   your turn again (switch this off in Settings → RPmod → *Run enemy turns automatically*). Then
   write in the chat what your character does; the AI narrates from the combat log.
+- **One Attack action per turn:** one weapon attack, or two with **Extra Attack** (Barbarian,
+  Fighter, Monk, Paladin, Ranger from level 5; a Fighter gets three at 11 and four at 20 — taken
+  from the class and level on your sheet). The turn panel shows the attacks left; monsters use
+  their Multiattack. Casting a spell with a casting time of an Action takes the place of the
+  Attack action (a Bonus Action spell such as Healing Word does not). Opportunity attacks are
+  reactions and do not count.
 - **Spells:** if your character (or a companion with a character sheet) has spells, the turn
   panel has **Weapon / Spell**. Choose the spell, the **slot level** (the lowest free one; a
   higher slot adds dice when the spell says so; species and feat spells also offer their *free
@@ -753,12 +788,17 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
     AI to narrate; add its condition under **Tools** if it has one.
   - With zone combat the spell's range counts (Touch = the same zone), and a spell with a casting
     time of an Action uses your action; a Bonus Action spell (Healing Word) does not.
+  - **Outside a fight** (after the fight, on the road): `/cast Cure Wounds on Oona`, or simply write it — the AI
+    then writes `<cast>…</cast>` and RPmod spends the slot and rolls the healing. Spells without healing are
+    logged and narrated.
   - Not handled yet: concentration, monsters casting spells, companions casting on their own turns.
 - **Companions keep their HP.** Allies from your world start the next fight with the HP they
   ended the last one with — from their character sheet if they have one, else remembered in the
   story. The **Party** section lists them with their HP.
-- **Long rest** (Party section, outside a fight): you and your companions get full HP back, and
-  your spell slots and free casts are restored. The AI is told.
+- **Long rest** (Party section or `/rest`, outside a fight): it takes the night — the clock runs on to the next
+  morning. Then you and your companions get full HP back, and your spell slots and free casts are restored; the AI
+  is told. What happens at night still happens: if a fight breaks out (wolves at an unguarded campfire), the rest
+  is interrupted and nothing is restored.
 - **Conditions** (Prone, Poisoned, Restrained, …, from the SRD) change attack rolls
   (advantage/disadvantage, automatic critical hits against the unconscious) and can run for a
   number of rounds. Stunned or paralyzed creatures lose their turn. Add them under **Tools**,
@@ -774,8 +814,9 @@ arrives → he offers a delivery quest*. Wire it all visually in the editor.
   starts from the sheet's current HP); when you reach the next level's XP, the log says so and
   **Level up** on the sheet takes you there.
 - **Dying:** at 0 HP you and your companions fall unconscious and make death saving throws
-  (companions roll their own on their turn). Fallen but **stable** is a defeat: the AI tells what
-  happens next (capture, rescue…).
+  (companions roll their own on their turn). If your side **wins** while someone is still dying, they are
+  looked after once the fight is over and come round with **1 HP**. Fallen but **stable** with no one standing is a
+  defeat: the AI tells what happens next (capture, rescue…).
 - **Game over:** when **everyone in the party has died**, the story ends. The AI is asked to tell
   the fall briefly as the end of the story, and a **Game over** window opens (the Party section
   keeps a banner with **What now?**):

@@ -17,6 +17,7 @@
 // =============================================================================
 
 import { spellName } from './spell-rules.js';
+import { SRD } from '../data/srd52.js';
 
 export const EXT_KEY = 'klite_rpmod';
 export const SHEET_VERSION = 1;
@@ -158,7 +159,18 @@ export function toCombatStats(sheet) {
         abilities: { ...d.sheet.abilities }, ac: d.sheet.ac, hpMax: d.sheet.hp.max, speed: d.sheet.speed,
         proficiency: d.pb, initiativeMod: d.initiative, saves: { ...d.saves },
         attacks: d.attacks.map(a => ({ name: a.name, toHit: a.toHit, damage: a.damage || '1d4' })),
+        attacksPerAction: attacksPerAction(d.sheet),
     };
+}
+// SRD 5.2.1: attacks per Attack action — Extra Attack (Barbarian, Fighter, Monk, Paladin, Ranger
+// at level 5), the Fighter's Two / Three Extra Attacks (11, 20). Class from the builder, else the class field.
+export function attacksPerAction(sheet) {
+    const s = normalizeSheet(sheet);
+    const words = String(s.className || '').toLowerCase().split(/[^a-z]+/);
+    const key = (s.build && SRD.classes[s.build.class] && s.build.class) || Object.keys(SRD.classes).find(k => words.includes(k));
+    if (!key) return 1;
+    const names = SRD.classes[key].features.filter(f => f.level <= s.level).map(f => f.name);
+    return names.includes('Three Extra Attacks') ? 4 : names.includes('Two Extra Attacks') ? 3 : names.includes('Extra Attack') ? 2 : 1;
 }
 export function fromCombatStats(stats, extra) {
     const st = stats || {};

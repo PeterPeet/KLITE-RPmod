@@ -555,7 +555,19 @@ export default function initWorlds() {
         return u.length === 1 ? u[0] : null;
     }
     // Target of a move: an id, a direction ("north"), a neighbour's name, else any place's name.
+    // RPmod's own ways of naming a place are understood too (play test 2026-10-20: the AI copies
+    // them from the prompt): "Wolf Den (corridor)" (exit type), "The Hollow Oak (Root Tunnel)"
+    // (a town/dungeon and its room), "east: Wolf Den" (an exit line).
     function resolveGoTarget(target, curId) {
+        const hit = resolveGoName(target, curId); if (hit) return hit;
+        const raw = norm(target);
+        const line = /^([a-z -]+?)\s*:\s*(.+)$/i.exec(raw);
+        if (line && MR.parseDir(line[1])) return resolveGoTarget(line[2], curId) || resolveGoName(line[1], curId);
+        const par = /^(.+?)\s*\(([^()]+)\)\s*$/.exec(raw);
+        if (par) return resolveGoName(par[1], curId) || resolveGoName(par[2], curId);
+        return null;
+    }
+    function resolveGoName(target, curId) {
         const w = activeWorld(); const raw = norm(target);
         const byId = findById(w.locations, raw); if (byId) return byId;
         const exits = curId ? playerExits(curId) : [];
@@ -577,7 +589,8 @@ export default function initWorlds() {
         const curId = rt().playerLocationId; const cur = locOf(curId);
         const refuse = (why) => { const msg = `Move to ${norm(target)} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
         // R8: no skipping a journey in the middle of a fight
-        if (opts.source === 'quicktravel' && rt().combat && rt().combat.active) return refuse('a fight is going on');
+        const quick = opts.source === 'quicktravel' || opts.source === 'story';   // 'story': "Go where the story says" (2026-10-20)
+        if (quick && rt().combat && rt().combat.active) return refuse('a fight is going on');
         let dest = resolveGoTarget(target, curId);
         if (!dest) return refuse('there is no such place');
         const destIsMap = MR.isContainer(dest);
@@ -593,7 +606,7 @@ export default function initWorlds() {
             // way is really entered: when something happens there (an event fires, a fight starts)
             // the journey stops at that place.
             if (!ex && !(viaEntrance && !mapOf(curId))) {
-                const route = routeTo(curId, dest.id, { quick: opts.source === 'quicktravel' });
+                const route = routeTo(curId, dest.id, { quick });
                 if (!route) return refuse(`there is no known way from ${placeName(curId)} to ${placeName(dest.id, curId)}`);
                 let at = curId;
                 for (const id of route) {
@@ -626,7 +639,8 @@ export default function initWorlds() {
         passiveNotice(dest.id);
         const dir = ex && ex.dir && !via.length ? MR.dirName(ex.dir) : '';
         const viaTxt = via.length ? ` via ${via.map(id => playerPlaceName(id, curId)).join(', ')}` : '';
-        if (opts.source === 'ui' || (via.length && opts.source !== 'quicktravel')) gameLog(`${opened ? 'Opens the door and goes' : 'Goes'}${dir ? ' ' + dir : ''}${viaTxt} to ${placeName(dest.id, curId)}.`, 'map');
+        if (opts.source === 'story') gameLog(`As the story told, the party went${viaTxt} to ${placeName(dest.id, curId)}${opened ? ' (opening a door on the way)' : ''}.`, 'map');
+        else if (opts.source === 'ui' || (via.length && opts.source !== 'quicktravel')) gameLog(`${opened ? 'Opens the door and goes' : 'Goes'}${dir ? ' ' + dir : ''}${viaTxt} to ${placeName(dest.id, curId)}.`, 'map');
         // R8: quick travel on the map — the journey itself is skipped; the AI describes the arrival
         if (opts.source === 'quicktravel') gameLog(`Quick travel: the player skipped the journey and is now at ${placeName(dest.id, curId)}${opened ? ' (a door was opened on the way)' : ''}. Describe the arrival briefly.`, 'map');
         try { fireTriggers('enter:' + dest.id); } catch (_) {}
@@ -781,6 +795,31 @@ export default function initWorlds() {
         gameLog(text, 'map');
         return { ok: true, text, roll: r, skill: sk.name, found: hits.map(h => ({ kind: h.kind, id: h.id, label: h.label })), source: opts.source || null };
     }
+    // For the AI only: each visible exit to a room of this dungeon/town the party has not entered yet — its name and
+    // description, light, people, visible features, what passive Perception will notice on arrival, an encounter
+    // waiting there. Unfound secret exits and secret rooms stay out (playerExits); nothing here is revealed.
+    function beyondExits(world, loc) {
+        const visited = asArray(rt() && rt().visitedLocationIds); const pp = passivePerception();
+        const out = [];
+        for (const e of playerExits(loc.id)) {
+            const t = locOf(e.to);
+            if (!t || t.id === loc.id || visited.includes(t.id) || !mapOf(t.id) || !mapOf(loc.id) || mapOf(t.id).id !== mapOf(loc.id).id) continue;
+            const bits = [];
+            if (norm(t.description)) bits.push(norm(t.description));
+            const light = roomLightOf(t); if (light) bits.push(`Light: ${light}`);
+            const people = asArray(world.npcs).filter(n => resolveNpcLocationId(n) === t.id && !asArray(rt().party).includes(n.id)).map(personName);
+            if (people.length) bits.push(`People: ${people.join(', ')}`);
+            const feats = asArray(world.objects).filter(o => o.locationId === t.id && featureVisible(o)).map(o => norm(o.name)).filter(Boolean);
+            if (feats.length) bits.push(`Things: ${feats.join(', ')}`);
+            const notice = hiddenHere(t.id).filter(c => pp >= c.dc).map(c => c.label);
+            if (notice.length) bits.push(`On arrival the party notices (passive Perception): ${notice.join(', ')}`);
+            const waits = encountersAt(t.id).filter(en => !asArray(rt().startedEncounters).includes(en.id));
+            for (const en of waits) bits.push(`Waiting there: ${norm(en.name)} (${encounterSummary(en.monsters)}) — when they notice the party, write <encounter>${norm(en.name)}</encounter> after the <go>`);
+            const name = isPlaceholderName(t.name) ? 'a room without a name yet' : norm(t.name);
+            out.push(`- ${e.dir ? MR.dirName(e.dir) : 'the way'} → ${name}${bits.length ? ': ' + bits.map(x => x.replace(/[.\s]+$/, '')).join('. ') + '.' : ''}`);
+        }
+        return out;
+    }
     // Passive Perception on entering a room: whatever it beats is found without a roll.
     function passiveNotice(locId) {
         if (!rt() || !locOf(locId)) return [];
@@ -795,11 +834,17 @@ export default function initWorlds() {
     // <room>Ossuary, east: bones…</room> — the AI adds a room next to the current one. RPmod
     // places it, names it exactly and connects it (dungeon: an open door, town: an open way).
     // Stored in the world (origin 'ai'), so the creator sees it in the dungeon/town editor.
+    // The AI may add rooms and doors only where the world's author allows it (world.aiBuild, default off — owner,
+    // 2026-10-20: models invented rooms behind unexplored doors of an authored map). Naming a placeholder room
+    // ("Room 3" of the generator) is always allowed.
+    function aiMayBuild(world) { return !!(world && world.aiBuild === true); }
+    const FIXED_MAP = 'the map is fixed in this world — what lies behind an exit is found by going there';
     function aiAddRoom(arg) {
         const spec = MT.parseRoomSpec(arg);
         if (spec.dir === 'here') return aiNameRoom(spec);
         const curId = rt().playerLocationId; const map = curId && mapOf(curId);
         const refuse = (why) => { const msg = `Room ${spec.name || norm(arg) || '(no name)'} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
+        if (!aiMayBuild(activeWorld())) return refuse(FIXED_MAP);
         if (!spec.name) return refuse('it needs a name');
         if (!map) return refuse('new rooms can only be added inside a dungeon or town');
         MR.normalizeExploration(rt());
@@ -834,6 +879,7 @@ export default function initWorlds() {
     function aiDoor(arg) {
         const spec = MT.parseDoorSpec(arg); const curId = rt().playerLocationId;
         const refuse = (why) => { const msg = `Door ${spec.target || '(no direction)'} refused: ${why}.`; gameLog(msg, 'map'); return { ok: false, reason: msg }; };
+        if (!aiMayBuild(activeWorld())) return refuse(FIXED_MAP);
         MR.normalizeExploration(rt());
         const ex = curId ? exitForTarget(spec.target, curId) : null;
         if (!ex) return refuse('there is no such way here');
@@ -957,7 +1003,8 @@ export default function initWorlds() {
                 if (mapOf(cur)) return go(t.arg, { source: 'ai' }).ok;   // logs the refusal
                 return false;
             }
-            case 'open': case 'close': case 'unlock': doorAction(t.tag, t.arg, { source: 'ai' }); return true;
+            case 'open': if (openContainer(t.arg, { source: 'ai' })) return true; doorAction(t.tag, t.arg, { source: 'ai' }); return true;   // a chest here, else a door
+            case 'close': case 'unlock': doorAction(t.tag, t.arg, { source: 'ai' }); return true;
             case 'search': searchRoom({ source: 'ai' }); return true;
             case 'room': aiAddRoom(t.arg); return true;
             case 'door': aiDoor(t.arg); return true;
@@ -1062,6 +1109,7 @@ export default function initWorlds() {
         d.attacks = asArray(s.attacks);
         // monster extras (SRD stat blocks) are kept as they are
         for (const k of ['saveActions', 'multiattack', 'xp', 'cr', 'key', 'name']) if (s[k] != null) d[k] = s[k];
+        if (Number(s.attacksPerAction) > 1) d.attacksPerAction = Number(s.attacksPerAction);   // Extra Attack (character sheets)
         return d;
     }
     // Compact stat summary for injection, e.g. "AC 14, HP 30, STR 16(+3) DEX 12(+1)…, Init +2".
@@ -1376,7 +1424,11 @@ export default function initWorlds() {
     // Talking: a person with an open "talk" objective who is here and named in the new messages.
     function detectTalk(text) {
         const w = activeWorld(); if (!w || !rt()) return;
-        const here = rt().playerLocationId; const t = norm(text).toLowerCase(); if (!t) return;
+        const here = rt().playerLocationId; let t = norm(text).toLowerCase(); if (!t) return;
+        // place names do not count: "I go to Wen's Farm" is no talk with Liu Wen (play test 2026-10-20: the
+        // objective "Ask Liu Wen about the cart" was done on arrival)
+        const places = asArray(w.locations).flatMap(l => [norm(l.name), norm(phasedEntity(l).name)]).filter(n => n.length > 2).map(n => n.toLowerCase()).sort((a, b) => b.length - a.length);
+        for (const pn of [...new Set(places)]) if (t.includes(pn)) t = t.split(pn).join(' ');
         for (const q of asArray(w.quests)) {
             if (questStateOf(q) !== 'active') continue;
             for (const o of asArray(q.objectives)) {
@@ -1544,6 +1596,252 @@ export default function initWorlds() {
             if (ex) ex.qty = (Number(ex.qty) || 1) + qty; else inv.push({ id: uid('item'), name: n, qty });
         });
     }
+    // "14 gp", "6 sp": coins into the purse (the sheet's coins by denomination, else the story's) —
+    // <give>14 gp</give> made an item called "14 gp" before (play test 2026-10-20).
+    const COIN_RE = /^\s*(\d+)\s*(cp|sp|ep|gp|pp)\s*$/i;
+    function addCoinsOf(n, den) {
+        n = Number(n) || 0; den = String(den || 'gp').toLowerCase(); if (!n) return;
+        withSheet(s => { s.coins = s.coins || {}; s.coins[den] = (Number(s.coins[den]) || 0) + n; },
+            () => { rt().coins = rt().coins || { gp: 0 }; rt().coins[den] = (Number(rt().coins[den]) || 0) + n; });
+    }
+    // One entry of <give> or of a container's contents: coins, "Name x2", or an item.
+    function giveEntry(text) {
+        const t = norm(text); if (!t) return '';
+        const c = COIN_RE.exec(t); if (c) { addCoinsOf(c[1], c[2]); return t; }
+        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(t) || [];
+        inventoryAdd(nm, q); return t;
+    }
+    // ---- "Go where the story says" (owner, 2026-10-20) ----
+    // Models narrate walking somewhere without writing <go> (play test: the party "stepped into the wolf den" and
+    // stayed in the chief's hollow). When a reply moved no one, the place it names last among those reachable from
+    // here (an exit — not a locked or barred one — or a known place of the same dungeon/town) is offered in the Here
+    // row; the button moves the party with the usual rules and sends nothing (the AI reads the move in the log).
+    // Only a sentence that moves counts (live test 2026-10-20: "Liu Wen's farm is west of here" was offered as a move).
+    const MOVE_RE = /\b(step|steps|stepped|stepping|walk|walks|walked|go|goes|went|going|head|heads|headed|enter|enters|entered|reach|reaches|reached|arrive|arrives|arrived|come|comes|came|follow|follows|followed|duck|ducks|ducked|push|pushes|pushed|climb|climbs|climbed|pass|passes|passed|slip|slips|slipped|lead|leads|led|make|makes|made their way|return|returns|returned|back into|into|through|out to)\b/;
+    function storyPlaceIn(text, curId) {
+        const norm1 = (x) => x.toLowerCase().replace(/[’‘]/g, "'").replace(/[,;:"'`]+/g, '').replace(/\s+/g, ' ');
+        // sentences, each normalised like the names (MR.nameKey drops punctuation and apostrophes; models write ’)
+        const sentences = stripThinking(text).replace(/<[^<>]*>/g, ' ').split(/[.!?\n]+/).map(x => ' ' + norm1(x) + ' ').filter(x => x.trim());
+        const cands = new Map();
+        for (const e of playerExits(curId)) {
+            if (e.type === 'door' || e.type === 'secret') { const st = MR.doorState(e, rt().doorState); if (st === 'locked' || st === 'barred') continue; }
+            const name = playerPlaceName(e.to, curId); if (name && name !== 'unexplored room') cands.set(e.to, name);
+        }
+        const map = mapOf(curId);
+        if (map) for (const id of asArray(rt().visitedLocationIds)) {
+            if (id === curId || !mapOf(id) || mapOf(id).id !== map.id || cands.has(id)) continue;
+            let way = null; try { way = routeTo(curId, id, { quick: true }); } catch (_) {}
+            if (way) cands.set(id, playerPlaceName(id, curId));   // only where a known way leads
+        }
+        let best = null;
+        sentences.forEach((sen, si) => {
+            if (!MOVE_RE.test(sen)) return;
+            for (const [id, name] of cands) {
+                for (const n of new Set([name, norm((locOf(id) || {}).name)])) {
+                    const k = MR.nameKey(n); if (k.length < 3) continue;
+                    const re = new RegExp('(^|[^a-z])' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=[^a-z]|$)', 'g');
+                    let m, last = -1; while ((m = re.exec(sen)) !== null) last = m.index;
+                    const at = si * 100000 + last;
+                    if (last >= 0 && (!best || at > best.at)) best = { id, name: playerPlaceName(id, curId), at };
+                }
+            }
+        });
+        return best;
+    }
+    function noteStoryPlace(text, locBefore, chatLen) {
+        if (!rt()) return;
+        const cur = rt().playerLocationId;
+        rt().storyGo = null;
+        if (!cur || cur !== locBefore) return;   // the reply's own tags moved the party
+        const cb = getCombat(); if (cb && cb.active && !cb.outcome) return;
+        try { const p = storyPlaceIn(text, cur); if (p) rt().storyGo = { chat: chatLen, from: cur, to: p.id, name: p.name }; } catch (_) {}
+    }
+    function storyGoHere() {
+        const sg = rt() && rt().storyGo; if (!sg) return null;
+        const n = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+        if (n !== sg.chat || rt().playerLocationId !== sg.from) return null;
+        const cb = getCombat(); if (cb && cb.active && !cb.outcome) return null;
+        return { id: sg.to, name: sg.name };
+    }
+    // ---- undoing a reply's effects on Retry / Undo (owner, 2026-10-20) ----
+    // Esolite's Retry and Undo remove the AI's last reply, but what its tags did stayed (a <give> stayed given).
+    // When a reply arrives, RPmod keeps what its tags can change — the story's game state (this slot), the world
+    // (<room>, <door>), the game log and the sheets in play — as it was before, and the sheets as they were right
+    // after. Retry/Undo of exactly that reply restores it all. If a sheet changed since (the player edited it, a
+    // fight wrote HP), RPmod asks first: undo everything (those changes too) or keep the game as it is.
+    // One reply deep, in memory only (after a page reload there is nothing to undo).
+    let replySnap = null;
+    function sheetsInPlay() {
+        const out = new Set(); const pn = personaName(); if (pn) out.add(pn);
+        for (const id of companionIds()) { const sn = personSheetName(id); if (sn) out.add(sn); }
+        return [...out];
+    }
+    // the game state without RPmod's own bookkeeping (chat position, the story correction, the story's place)
+    function stateJson(o) { if (!o) return 'null'; const c = Object.assign({}, o); delete c.lastParsedIndex; delete c.storyCorrection; delete c.storyGo; return JSON.stringify(c); }
+    function sheetJson(n) { try { const sh = window.KLITE_RPMod_Characters.cachedSheet(n); return sh ? JSON.stringify(sh) : null; } catch (_) { return null; } }
+    function snapBefore(chatLen) {
+        try {
+            replySnap = { chat: chatLen, slot: W.runtime && W.runtime.active, runtime: JSON.stringify(rt()), worldId: W.activeWorldId,
+                world: JSON.stringify(activeWorld()), log: logLength(), sheets: Object.fromEntries(sheetsInPlay().map(n => [n, sheetJson(n)])) };
+        } catch (_) { replySnap = null; }
+    }
+    function snapAfter() {
+        const s = replySnap; if (!s) return;
+        try {
+            const a = { runtime: JSON.stringify(rt()), state: stateJson(rt()), world: JSON.stringify(activeWorld()), sheets: Object.fromEntries(Object.keys(s.sheets).map(n => [n, sheetJson(n)])) };
+            s.after = a;
+            const did = a.state !== stateJson(JSON.parse(s.runtime)) || a.world !== s.world || Object.keys(a.sheets).some(n => a.sheets[n] !== s.sheets[n]);
+            if (!did) replySnap = null;   // the reply changed nothing: nothing to undo
+        } catch (_) { replySnap = null; }
+    }
+    // → null (nothing to undo for the reply that is last in the chat now) or { edited: [sheet names changed since] }
+    function replyUndoInfo() {
+        const s = replySnap; if (!s || !s.after) return null;
+        const n = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+        if (n !== s.chat || W.activeWorldId !== s.worldId || !W.runtime || W.runtime.active !== s.slot) return null;
+        const edited = Object.keys(s.after.sheets).filter(nm => sheetJson(nm) !== s.after.sheets[nm]).map(nm => `${nm}'s character sheet`);
+        if (stateJson(rt()) !== s.after.state) edited.push('the game (moves, fight turns, quests)');
+        if (JSON.stringify(activeWorld()) !== s.after.world) edited.push('the world (editor)');
+        return { edited };
+    }
+    // Diagnostics: which fields of the game state differ from right after the reply (2 levels deep)
+    function undoInfo() {
+        const s = replySnap; if (!s || !s.after) return null;
+        const a = JSON.parse(s.after.state), b = JSON.parse(stateJson(rt())), out = [];
+        for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+            if (JSON.stringify(a[k]) === JSON.stringify(b[k])) continue;
+            if (a[k] && b[k] && typeof a[k] === 'object' && typeof b[k] === 'object' && !Array.isArray(a[k])) {
+                for (const k2 of new Set([...Object.keys(a[k]), ...Object.keys(b[k])])) if (JSON.stringify(a[k][k2]) !== JSON.stringify(b[k][k2])) out.push(k + '.' + k2);
+            } else out.push(k);
+        }
+        return { chat: s.chat, info: replyUndoInfo(), changed: out };
+    }
+    function undoReplyEffects() {
+        const s = replySnap; replySnap = null; if (!s) return false;
+        try {
+            if (s.runtime) W.runtime[s.slot] = JSON.parse(s.runtime);
+            if (s.world && JSON.stringify(W.library[s.worldId]) !== s.world) { W.library[s.worldId] = JSON.parse(s.world); try { normalizeWorld(W.library[s.worldId]); } catch (_) {} markDirty(); }
+            const C = window.KLITE_RPMod_Characters;
+            // through the live sheet (a few KB), not a write of the whole card with its portrait
+            for (const [nm, js] of Object.entries(s.sheets)) if (js && sheetJson(nm) !== js && C) { if (C.restoreSheet) C.restoreSheet(nm, JSON.parse(js)); else if (C.saveSheet) C.saveSheet(nm, JSON.parse(js)); }
+            try { window.KLITE_RPMod_Log?.truncate?.(s.log); } catch (_) {}
+            syncLive();
+            return true;
+        } catch (e) { err('undo of the reply failed', e); return false; }
+    }
+    function installUndoHooks() {
+        let ok = true;
+        for (const name of ['btn_retry', 'btn_back']) {
+            const orig = window[name];
+            if (typeof orig !== 'function') { ok = false; continue; }
+            if (orig.__rpmod_undo) continue;
+            const wrapped = function () {
+                const self = this, args = arguments;
+                let info = null; try { info = W.config.enabled && activeWorld() && rt() ? replyUndoInfo() : null; } catch (_) {}
+                if (!info) return orig.apply(self, args);
+                if (!info.edited.length) { undoReplyEffects(); return orig.apply(self, args); }
+                const what = name === 'btn_retry' ? 'retry' : 'undo';
+                const text = `The AI's last reply changed the game (its tags), and since then ${info.edited.join(', ')} changed too. ` +
+                    `Yes: undo everything that reply did — those later changes are lost as well. No: keep the game as it is and only ${what} the reply's text.`;
+                const yes = () => { undoReplyEffects(); orig.apply(self, args); };
+                const no = () => { replySnap = null; orig.apply(self, args); };
+                if (typeof window.msgboxYesNo === 'function') { try { window.msgboxYesNo(text, 'RPmod: undo what the reply did?', yes, no); return; } catch (_) {} }
+                (window.confirm(text) ? yes : no)();
+            };
+            wrapped.__rpmod_undo = true; window[name] = wrapped;
+        }
+        return ok;
+    }
+    // ---- Branch, Allow Editing and the chat tree (owner, 2026-10-20) ----
+    // Those change the chat far back; RPmod's game state cannot follow (it stays as it is now). A notice once per
+    // page, while an RPmod world is active; the action itself goes on as usual.
+    const HISTORY_NOTICE = 'RPmod\'s game state — place, inventory, quests, fights — does not follow edited, branched or reloaded chat history: it stays as it is now. ' +
+        'To take back the AI\'s last reply, use Retry or Undo: RPmod then undoes what that reply did.';
+    let historyNoticed = false;
+    function historyNotice() {
+        if (historyNoticed) return; let on = false;
+        try { on = !!(W.config.enabled && activeWorld() && rt()); } catch (_) {}
+        if (!on) return;
+        historyNoticed = true;
+        gameLog('Note: ' + HISTORY_NOTICE, 'system');
+        try { if (typeof window.msgbox === 'function') window.msgbox(HISTORY_NOTICE, 'RPmod: chat history'); } catch (_) {}
+    }
+    function installHistoryNotices() {
+        let ok = true;
+        const wrapFn = (obj, name, when) => {
+            const orig = obj && obj[name];
+            if (typeof orig !== 'function') return false;
+            if (orig.__rpmod_history) return true;
+            const wrapped = function () { try { if (!when || when()) historyNotice(); } catch (_) {} return orig.apply(this, arguments); };
+            wrapped.__rpmod_history = true; obj[name] = wrapped; return true;
+        };
+        ok = wrapFn(window, 'btn_branch') && ok;
+        // Allow Editing: the checkbox calls toggle_editable() after it changed — tell when it is switched on
+        ok = wrapFn(window, 'toggle_editable', () => { const c = document.getElementById('allowediting'); return !c || c.checked; }) && ok;
+        wrapFn(window, 'btn_editmode');
+        if (window.treeViewer) { wrapFn(window.treeViewer, 'openTreeView'); wrapFn(window.treeViewer, 'openPaginatedTreeView'); } else ok = false;
+        return ok;
+    }
+    // ---- story correction (play test 2026-10-20) ----
+    // The AI narrates what its tags do before RPmod has checked them; a refused tag ("the door is locked")
+    // left an invented key turning in the lock and the party in a room it never reached. The refusals of a
+    // reply are kept (runtime.storyCorrection = { chat, lines }, additive) for the next prompt — while that
+    // reply is still in the chat (a Retry or Undo removes it, and its correction with it).
+    const REFUSAL_RE = /\brefused\b|\bcannot\b|\bdoes not join\b|\bis not here\b|^No one here|\bis empty — it was opened before\b|\bis not in the party\b/i;
+    function logLength() { try { return window.KLITE_RPMod_Log ? window.KLITE_RPMod_Log.entries().length : 0; } catch (_) { return 0; } }
+    function noteRefusals(from, chatLen) {
+        if (!rt()) return;
+        let lines = [];
+        try { lines = window.KLITE_RPMod_Log.entries().slice(from).map(e => norm(e.what)).filter(t => REFUSAL_RE.test(t)); } catch (_) {}
+        rt().storyCorrection = lines.length ? { chat: chatLen, lines: [...new Set(lines)].slice(0, 8) } : null;
+    }
+    function storyCorrectionText() {
+        const sc = rt() && rt().storyCorrection; if (!sc || !asArray(sc.lines).length) return '';
+        const n = Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0;
+        if (n < sc.chat) return '';   // that reply was retried or undone
+        const here = rt().playerLocationId ? placeName(rt().playerLocationId) : '';
+        const cb = getCombat(); const fighting = !!(cb && cb.active && !cb.outcome);
+        // live test 2026-10-20: told "the chief is not here", DeepSeek put another goblin in the room and narrated a
+        // swing at it — so say plainly when no one hostile is here
+        let foes = '';
+        if (!fighting && rt().playerLocationId) {
+            const waiting = encountersAt(rt().playerLocationId).filter(e => !asArray(rt().startedEncounters).includes(e.id));
+            const hostile = asArray(activeWorld().npcs).filter(n => resolveNpcLocationId(n) === rt().playerLocationId && !phasedEntity(n).gone && (n.isMonster || (personAttitude(n) || {}).hostile));
+            if (!waiting.length && !hostile.length) foes = ' There is no enemy here — no one to fight; no fight is running.';
+        }
+        return 'Your last reply described things that did not happen — RPmod refused them:\n' + sc.lines.map(l => '- ' + l).join('\n') +
+            `\nWhere things really stand: ${here ? `the party is at ${here}` : 'nothing changed'}${fighting ? ', and the fight goes on' : ''}; only the items listed in the inventory exist.${foes} ` +
+            'Begin your next reply by setting this straight in one or two sentences, in the story\'s voice (no apology, no out-of-character note), then continue from there.';
+    }
+    // ---- containers (play test 2026-10-20): a feature `kind: 'container'` with `contains[]` hands out
+    // what is inside once, when the player opens it (<open>, /open, the Here row); `runtime.looted`
+    // remembers it (additive; Back to start fills them again). Before, nothing handed the contents out —
+    // the keys of locked doors and quest items lying in chests could not be had.
+    function containersHere() {
+        const id = rt() && rt().playerLocationId; if (!id) return [];
+        return asArray(activeWorld() && activeWorld().objects).filter(o => o.kind === 'container' && o.locationId === id && featureVisible(o));
+    }
+    function containerLooted(o) { return !!(o && rt() && rt().looted && rt().looted[o.id]); }
+    function containerForTarget(target) {
+        const raw = norm(target); const k = MT.looseKey(raw); const list = containersHere();
+        if (!raw) return null;
+        return list.find(o => o.id === raw) || list.find(o => MT.looseKey(o.name) === k)
+            || (k.length >= 3 ? list.find(o => MT.looseKey(o.name).split(' ').includes(k) || MT.looseKey(o.name).includes(k)) : null) || null;
+    }
+    // → null when the target is no container here (the caller tries a door), else { ok, items|empty|reason }
+    function openContainer(target, opts = {}) {
+        if (!activeWorld() || !ensureRuntime()) return null;
+        const o = containerForTarget(target); if (!o) return null;
+        const name = norm(o.name);
+        const cb = getCombat();
+        if (cb && cb.active && !cb.outcome) { const reason = `Open ${name} refused: a fight is going on.`; gameLog(reason, 'loot'); return { ok: false, reason }; }
+        rt().looted = rt().looted || {};
+        if (rt().looted[o.id]) { gameLog(`${name} is empty — it was opened before.`, 'loot'); return { ok: true, empty: true, container: name }; }
+        rt().looted[o.id] = true;
+        const items = asArray(o.contains).map(giveEntry).filter(Boolean);
+        gameLog(`${opts.source === 'ai' ? 'The player opens' : 'Opens'} ${name}${items.length ? ': ' + items.join(', ') + (sheetOwner() ? ` — added to ${sheetOwner()}'s inventory` : ' — taken') : ' — it is empty'}.`, 'loot');
+        return { ok: true, items, container: name };
+    }
     // qty: a number (default 1, like <give>) or 'all' (the whole stack). Known issue 9, decided 2026-09-25.
     function inventoryRemove(name, qty) {
         const n = norm(name); if (!n) return;
@@ -1683,10 +1981,88 @@ export default function initWorlds() {
     //            <time>slot, <weather>desc, <advance> (advance clock one slot),
     //            <accept>quest</accept>, <turnin>quest</turnin>, <buy>item xN</buy>, <sell>item xN</sell>
     //            (R4 extras; the rules decide)
+    // A reasoning model's thinking (Esolite's thinking tags, default <think>…</think>) is not the
+    // reply: tags it only considers there must not be applied (play test 2026-10-20). An unclosed
+    // block (a reply cut off while thinking) is dropped to the end.
+    // A lone closing tag (no opening one) ends a thought begun in the previous chunk: Esolite leaves the
+    // reasoning of a reply cut off at max_tokens untagged so that Generate More continues it, and the
+    // continuation closes it ("…</think>answer"); everything before that closer is thinking too.
+    function thinkingPairs() {
+        let pairs = [['<think>', '</think>']];
+        try { const ls = window.localsettings; if (ls && ls.start_thinking_tag && ls.stop_thinking_tag) pairs = [[ls.start_thinking_tag, ls.stop_thinking_tag], ...pairs]; } catch (_) {}
+        return pairs;
+    }
+    const escRe = (x) => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    function stripThinking(text) {
+        let t = String(text || '');
+        for (const [a, b] of thinkingPairs()) {
+            const open = new RegExp(escRe(a), 'i'), close = new RegExp(escRe(b), 'i');
+            const ci = t.search(close), oi = t.search(open);
+            if (ci >= 0 && (oi < 0 || ci < oi)) t = ' ' + t.slice(ci + t.slice(ci).match(close)[0].length);   // orphan closer
+            t = t.replace(new RegExp(escRe(a) + '[\\s\\S]*?(?:' + escRe(b) + '|$)', 'gi'), ' ');
+        }
+        return t;
+    }
+    function hasThinkingTag(text) { const t = String(text || ''); return thinkingPairs().some(([a, b]) => new RegExp(escRe(a) + '|' + escRe(b), 'i').test(t)); }
+    // The reply just arrived was cut off while the model was still thinking: reasoning was requested,
+    // the model did not stop properly (Esolite's last_stop_reason: "stop"/"tool_calls" when it did) and
+    // Esolite left the reasoning untagged (it wraps it only on a proper stop). Its tags are what the model
+    // considered, not what it decided (play test 2026-10-20: a junk room, a locked door, a move).
+    function cutOffWhileThinking(text) {
+        try {
+            const stop = String(window.last_stop_reason || '');
+            if (stop === 'stop' || stop === 'tool_calls') return false;
+            if (hasThinkingTag(text)) return false;
+            const req = JSON.parse(String(window.last_request_str || '{}'));
+            const eff = req.reasoning_effort || (req.reasoning && (req.reasoning.effort || req.reasoning.enabled)) || (req.thinking && req.thinking.type === 'enabled');
+            if (!eff || eff === 'none') return false;
+            // a reply cut off used up its budget (live test 2026-10-20: Novita/DeepSeek leave last_stop_reason empty even
+            // for a reply that ended by itself, so the stop reason alone is no proof); ~4 characters a token, with margin
+            const maxTok = Number(req.max_tokens || req.max_completion_tokens) || 0;
+            if (maxTok && String(text || '').length / 4 < maxTok * 0.6) return false;
+            return true;
+        } catch (_) { return false; }
+    }
+    // A reply cut off while thinking stays in the chat untagged, and Esolite sends untagged text to the AI as
+    // the reply (live test 2026-10-20, GLM 5.3: 17,000 characters of reasoning in a 31,000-character request,
+    // again after every Generate More). It is kept until the next chunk shows whether the reasoning goes on:
+    // a continuation that closes it with a lone closing tag (DeepSeek) stays as it is; any other finished reply
+    // (GLM restarts with its own thinking on Generate More / Retry; a reply without reasoning) or the player
+    // writing on instead makes it an orphan, which RPmod wraps in the thinking tags (Esolite then folds it and leaves it out of the prompt).
+    let cutOffChunks = [];   // [{ index, head }]
+    const unescTag = (x) => String(x).replaceAll('\\n', '\n');
+    function opensWithThinking(text) {
+        const t = String(text || '').trimStart().toLowerCase();
+        return thinkingPairs().some(([a]) => t.startsWith(unescTag(a).toLowerCase()));
+    }
+    // a lone closing tag before any opening one: the text continues a thought begun earlier
+    function closesThought(text) {
+        const t = String(text || '').toLowerCase();
+        return thinkingPairs().some(([a, b]) => { const ci = t.indexOf(unescTag(b).toLowerCase()), oi = t.indexOf(unescTag(a).toLowerCase()); return ci >= 0 && (oi < 0 || ci < oi); });
+    }
+    // wraps the recorded chunks before `upTo` that are still in the chat unchanged; forgets them all
+    function wrapOrphanThinking(arr, upTo) {
+        const list = cutOffChunks; cutOffChunks = [];
+        if (!Array.isArray(arr)) return 0;
+        const [a, b] = thinkingPairs()[0]; let n = 0;
+        for (const c of list) {
+            const t = arr[c.index];
+            if (c.index >= upTo || typeof t !== 'string' || !t.startsWith(c.head) || hasThinkingTag(t)) continue;
+            arr[c.index] = unescTag(a) + t + unescTag(b); n++;
+        }
+        if (n) { try { if (typeof window.render_gametext === 'function') window.render_gametext(false, false); } catch (_) {} }
+        return n;
+    }
+    // at a new turn: the player wrote instead of Generate More / Retry
+    function settleCutOffAtSend(arr) {
+        if (!cutOffChunks.length || !Array.isArray(arr)) return;
+        let input = ''; try { input = String(document.getElementById('input_text')?.value || '').trim(); } catch (_) {}
+        if (input && !input.startsWith('/')) wrapOrphanThinking(arr, arr.length);
+    }
     function parseMutations(text) {
         const world = activeWorld(); if (!world || !rt()) return false;
         let changed = false;
-        const s = String(text || '');
+        const s = stripThinking(text);
         const scan = (re, fn) => { let m; re.lastIndex = 0; while ((m = re.exec(s)) !== null) { try { if (fn(m) !== false) changed = true; } catch (_) {} } };
 
         // map tags (R7): <move>/<go>, <open>, <close>, <unlock>, <search>, <room>, <door>, <light>
@@ -1702,7 +2078,7 @@ export default function initWorlds() {
         });
         scan(/<flag>\s*([^=<>]+?)\s*(?:=\s*([^<>]*?))?\s*<\/flag>/gi, m => { rt().flags[norm(m[1])] = parseFlagValue(m[2]); return true; });
         scan(/<unflag>\s*([^<>]+?)\s*<\/unflag>/gi, m => { delete rt().flags[norm(m[1])]; return true; });
-        scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(norm(m[1])) || []; inventoryAdd(nm, q); return true; });
+        scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, m => { giveEntry(m[1]); return true; });
         scan(/<take>\s*([^<>]+?)\s*<\/take>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+|all))?$/i.exec(norm(m[1])) || []; inventoryRemove(nm, q); return true; });
         // <rep>Royal Guard=+50</rep>: the player's standing with a faction changes
         scan(/<rep>\s*([^=<>]+?)\s*=\s*([+-]?\d+)\s*<\/rep>/gi, m => { const fid = factionIdOf(m[1]); if (!fid) return false; changeReputation(fid, Number(m[2]), 'tag'); return true; });
@@ -1714,11 +2090,13 @@ export default function initWorlds() {
         scan(/<sell>\s*([^<>]+?)\s*<\/sell>/gi, m => tradeTag('sell', m[1]));
         // <join>Oona</join> / <leave>Oona</leave>: a person here travels with the party / parts ways (R8)
         scan(/<join>\s*([^<>]+?)\s*<\/join>/gi, m => joinParty(m[1], { source: 'tag' }).ok);
+        // <cast>Cure Wounds = Oona</cast>: a spell outside a fight — RPmod spends the slot and rolls (play test 2026-10-20)
+        scan(/<cast>\s*([^<>]+?)\s*<\/cast>/gi, m => castOutside(m[1], { source: 'ai' }).ok);
         scan(/<leave>\s*([^<>]+?)\s*<\/leave>/gi, m => leaveParty(m[1], { source: 'tag' }).ok);
         // <talk>Captain Rowan</talk>: the player spoke with this person (quest "talk" objectives)
         scan(/<talk>\s*([^<>]+?)\s*<\/talk>/gi, m => { const npc = findNpcByName(world, m[1]); if (!npc) return false; questEvent('talk', { personId: npc.id }); return true; });
         // <encounter>Wolf Pack</encounter> (a saved encounter) or <encounter>2 Wolf, Goblin Warrior</encounter>
-        scan(/<encounter>\s*([^<>]+?)\s*<\/encounter>/gi, m => { if (getCombat() && getCombat().active && !getCombat().outcome) return false; return !!startSavedEncounter(m[1]); });
+        scan(/<encounter>\s*([^<>]+?)\s*<\/encounter>/gi, m => { if (getCombat() && getCombat().active && !getCombat().outcome) return false; const c = startSavedEncounter(m[1], { source: 'ai' }); if (c) fightStartedOutside(); return !!c; });
         scan(/<quest>\s*([^=<>]+?)\s*=\s*([^<>]+?)\s*<\/quest>/gi, m => { rt().questState[norm(m[1])] = norm(m[2]); return true; });
         scan(/<time>\s*([^<>]+?)\s*<\/time>/gi, m => { const t = norm(m[1]).toLowerCase(); if (TIME_SLOTS.includes(t)) { rt().clock.time = t; return true; } return false; });
         scan(/<weather>\s*([^<>]+?)\s*<\/weather>/gi, m => { rt().clock.weather = norm(m[1]); return true; });
@@ -1748,7 +2126,7 @@ export default function initWorlds() {
             case 'npcmove': { const npc = findById(world && world.npcs, effect.npcId) || findNpcByName(world, effect.npc); const l = findById(world && world.locations, effect.locationId) || locationByName(world, effect.location); if (npc && l) (rt().npcStateOverrides[npc.id] = rt().npcStateOverrides[npc.id] || {}).locationId = l.id; break; }
             case 'advance': advanceClock(Number(effect.slots) || 1); sigs.push('time'); break;
             case 'fireEvent': if (effect.eventId) sigs.push('manual:' + norm(effect.eventId)); break;
-            case 'encounter': if (effect.value || effect.encounterId) startSavedEncounter(effect.encounterId || effect.value); break;
+            case 'encounter': if (effect.value || effect.encounterId) { if (startSavedEncounter(effect.encounterId || effect.value)) fightStartedOutside(); } break;
             case 'reputation': { const fid = factionIdOf(effect.factionId); if (fid) changeReputation(fid, Number(effect.amount) || 0, 'event'); break; }
             // R8: a secret exit or room, or a hidden feature, becomes known (someone shows the way; a boat is hired)
             case 'reveal': { const id = norm(effect.id); if (!id) break; MR.normalizeExploration(rt()); if (!rt().found.secrets.includes(id)) rt().found.secrets.push(id); sigs.push('reveal:' + id); break; }
@@ -1965,12 +2343,30 @@ export default function initWorlds() {
     function sideList(cb, side) { return cb.order.filter(o => (o.side || (o.isPlayer ? 'party' : 'enemy')) === side); }
     function isDown(cb, id) { return (cb.hp[id] || 0) <= 0; }
     function deathOf(cb, id) { return (cb.death && cb.death[id]) || null; }
-    // A combatant takes a turn if it is up, or if it is a dying party member (death save).
+    // A combatant takes a turn if it is up, or if it is a dying party member (death save) — the
+    // player and companions alike (a dying companion rolls on its automatic turn).
     function canTakeTurn(cb, o) {
         if (!o) return false;
         if (!isDown(cb, o.id)) return true;
         const d = deathOf(cb, o.id);
-        return (o.side || (o.isPlayer ? 'party' : 'enemy')) === 'party' && o.isPlayer && d && !d.stable && !d.dead;
+        return (o.side || (o.isPlayer ? 'party' : 'enemy')) === 'party' && !!d && !d.stable && !d.dead;
+    }
+    // The Attack action on the current turn: weapon attacks made so far and whether the action went
+    // to a spell. One Attack action per turn: Extra Attack (sheets) or Multiattack (monsters) give
+    // more attacks in it. cb.turnUse = { id, round, attacks, cast }.
+    function attacksAllowed(id) { const st = combatantStats(id); return Math.max(1, Number(st.attacksPerAction) || Number(st.multiattack) || 1); }
+    function turnUse(cb, id) {
+        const cur = cb.order[cb.turnIndex]; if (!cur || cur.id !== id) return null;   // not their turn (reactions, the GM's tools)
+        if (!cb.turnUse || cb.turnUse.id !== id || cb.turnUse.round !== cb.round) cb.turnUse = { id, round: cb.round, attacks: 0, cast: false };
+        return cb.turnUse;
+    }
+    // read only (the Combat window asks on every render; writing the turn record there made the undo on
+    // Retry see "fight turns played" that never were — live test 2026-10-20)
+    function attacksLeft(id) {
+        const cb = getCombat(); if (!cb || cb.outcome) return 0;
+        const cur = cb.order[cb.turnIndex]; if (!cur || cur.id !== id) return 0;
+        const u = cb.turnUse && cb.turnUse.id === id && cb.turnUse.round === cb.round ? cb.turnUse : { attacks: 0, cast: false };
+        return u.cast ? 0 : Math.max(0, attacksAllowed(id) - u.attacks);
     }
     function conds(id) { const cb = getCombat(); return (cb && cb.conditions && cb.conditions[id]) || []; }
     function addCond(id, name, rounds) {
@@ -2006,7 +2402,7 @@ export default function initWorlds() {
             if (party) { addCond(id, 'Unconscious'); cb.death[id] = { s: 0, f: 0, stable: false, dead: false }; combatLog(`${combatantName(id)} falls unconscious${o.isPlayer ? ' and is dying (death saving throws)' : ''}.`); }
             else { combatLog(`${combatantName(id)} is defeated.`); questEvent('kill', { key: o && o.key, name: o && o.key ? CR.MONSTERS[o.key].name : combatantName(id), personId: o && o.kind === 'person' ? id : null }); killReputation(cb, o); }
         }
-        if (before <= 0 && cb.hp[id] > 0) { removeCond(id, 'Unconscious'); if (cb.death[id]) delete cb.death[id]; combatLog(`${combatantName(id)} is back on their feet.`); }
+        if (before <= 0 && cb.hp[id] > 0) { removeCond(id, 'Unconscious'); if (cb.death[id]) delete cb.death[id]; combatLog(`${combatantName(id)} is back up.`); }
         return cb.hp[id];
     }
     // R4 extra: defeating a member of a faction costs standing with it — a person of the faction,
@@ -2076,6 +2472,13 @@ export default function initWorlds() {
             if (!zc.ok) { combatLog(`${A} cannot attack ${T} with ${atk.name}: ${zc.reason}.`); return { hit: false, refused: zc.reason }; }
         }
         const tSt = zc && zc.cover ? Object.assign({}, tSt0, { ac: tSt0.ac + ZR.coverBonus(zc.cover) }) : tSt0;
+        // one Attack action per turn (spell attacks are counted by castSpell; reactions are free)
+        const use = !opts.reaction && !opts.atk && isV2(cb) ? turnUse(cb, attackerId) : null;
+        if (use && (use.cast || use.attacks >= attacksAllowed(attackerId))) {
+            const reason = use.cast ? 'the action is already used this turn' : `the Attack action is used up (${use.attacks} attack${use.attacks > 1 ? 's' : ''} this turn)`;
+            combatLog(`${A} cannot attack ${T} again: ${reason}.`); return { hit: false, refused: reason };
+        }
+        if (use) use.attacks++;
         if (!opts.atk) drawForAttack(attackerId, atk, A);
         const toHit = ((atk.toHit != null) ? Number(atk.toHit) : (aSt.proficiency + abilityMod(aSt.abilities.str))) - (zc ? zc.penalty : 0);
         const ranged = zc ? zc.ranged : (opts.atk ? !!(P && P.ranged && !P.melee) : CR.isRanged(atk));
@@ -2136,10 +2539,11 @@ export default function initWorlds() {
         const d = deathOf(cb, id); if (!d || d.dead || d.stable) return null;
         const r = rollD20(0); const res = CR.deathSave(d, r.die);
         const name = combatantName(id);
-        if (res.result === 'revived') { cb.death[id] = null; delete cb.death[id]; setHp(id, 1); combatLog(`${name} rolls a natural 20 on a death saving throw and regains 1 HP!`); }
+        if (res.result === 'revived') { combatLog(`${name} rolls a natural 20 on a death saving throw and regains 1 HP!`); cb.death[id] = null; delete cb.death[id]; setHp(id, 1); }
         else {
             cb.death[id] = res.state;
-            combatLog(`${name} death saving throw: ${r.die} — ${res.result === 'success' ? 'success' : res.result === 'failure' ? (r.die === 1 ? 'natural 1, two failures' : 'failure') : res.result === 'stable' ? 'third success, stable' : 'third failure, dies'} (${res.state.s} successes / ${res.state.f} failures).`);
+            const n = (k, w) => `${k} ${w}${k === 1 ? '' : (w === 'success' ? 'es' : 's')}`;
+            combatLog(`${name} death saving throw: ${r.die} — ${res.result === 'success' ? 'success' : res.result === 'failure' ? (r.die === 1 ? 'natural 1, two failures' : 'failure') : res.result === 'stable' ? 'third success, stable' : 'third failure, dies'} (${n(res.state.s, 'success')} / ${n(res.state.f, 'failure')}).`);
         }
         checkOutcome();
         return { die: r.die, ...res };
@@ -2156,6 +2560,16 @@ export default function initWorlds() {
             cb.xpShares = Math.max(1, party.length);
             cb.xpEach = Math.floor(cb.xp / cb.xpShares);
             combatLog(`Victory! All enemies are defeated.${cb.xp ? (cb.xpShares > 1 ? ` ${cb.xp} XP, ${cb.xpEach} XP each for ${cb.xpShares} characters.` : ` ${cb.xp} XP earned.`) : ''}`);
+            // Who is still dying is looked after once the fight is over and comes round with 1 HP (an RPmod
+            // simplification of SRD 5.2.1's "a stable creature regains 1 HP after 1d4 hours") — before, the
+            // player stayed at 0 HP outside the fight with no way to stabilise (play test 2026-10-20).
+            for (const o of party) {
+                const d = deathOf(cb, o.id);
+                if (!d || d.dead || !isDown(cb, o.id)) continue;
+                delete cb.death[o.id];
+                cb.hp[o.id] = 1; removeCond(o.id, 'Unconscious');
+                combatLog(`After the fight: ${combatantName(o.id)} — stabilised, back on 1 HP.`);
+            }
         } else if (party.length && party.every(o => isDown(cb, o.id) && !(deathOf(cb, o.id) && !deathOf(cb, o.id).stable && !deathOf(cb, o.id).dead))) {
             cb.outcome = 'defeat';
             const p = deathOf(cb, '__player__');
@@ -2250,6 +2664,8 @@ export default function initWorlds() {
                 if (u.kind === 'attack') zc = r;
             }
         }
+        const use = turnUse(cb, casterId);
+        if (use && !u.bonus && (use.cast || use.attacks)) return { ok: false, reason: 'the action is already used this turn' };
         const pay = C && C.spendSpell ? C.spendSpell(sheetNameOf(casterId), key, { slotLevel: opts.slot, free: opts.free }) : { ok: false, reason: 'no character sheet' };
         if (!pay.ok) return { ok: false, reason: pay.reason };
         const slot = pay.slotLevel || sv.level;
@@ -2257,6 +2673,7 @@ export default function initWorlds() {
         const names = targets.map(combatantName).join(', ');
         combatLog(`${A} casts ${sv.name}${how}${names ? ` at ${names}` : ''}.`);
         if (Z && zoneOnTurn(Z, casterId) && u.bonus) Z.turn.bonusUsed = true;
+        if (use && !u.bonus) use.cast = true;
         const out = { ok: true, key, slotLevel: sv.level ? slot : 0, free: !!pay.free, kind: u.kind, results: [] };
         if (u.kind === 'attack') {
             const atk = { name: sv.name, toHit: sp.attack, damage: SP.castDamage(sv, info.level, slot), type: u.damageType };
@@ -2289,6 +2706,75 @@ export default function initWorlds() {
         if (Z && zoneOnTurn(Z, casterId) && !u.bonus) Z.turn.acted = true;
         checkOutcome();
         return out;
+    }
+    // ---- spells outside a fight (play test 2026-10-20: Cure Wounds after a fight was narrated, HP unchanged) ----
+    // "Cure Wounds = Oona", "Healing Word on me", "Light", "… slot 2", "… free": the persona casts from its
+    // sheet; the slot is spent like in a fight; healing is rolled and written to the target (the persona's
+    // sheet, a companion's sheet, else the story's companion HP); other spells are logged for the AI to narrate.
+    function parseCast(text) {
+        let t = norm(text), slot = null, free = false;
+        t = t.replace(/\b(?:at\s+)?(?:level|slot)\s*(\d)\b(?:\s*slot)?/i, (m, n) => { slot = Number(n); return ' '; })
+             .replace(/\bfree(?:\s+cast)?\b/i, () => { free = true; return ' '; }).replace(/\s+/g, ' ').trim();
+        // "=" like the other tags (a tag cannot hold ">"); typed text also "on", "at", "->" (cleanArg leaves "-")
+        const m = /^(.*?)\s*(?:=|->|→|\s-\s|\bon\b|\bat\b|\bto\b|\bfor\b)\s*(.+)$/i.exec(t);
+        return { spell: norm(m ? m[1] : t), target: norm(m ? m[2] : ''), slot, free };
+    }
+    function spellByName(info, q) {
+        const k = MT.looseKey(q);
+        return info.spells.find(x => x.key === q) || info.spells.find(x => MT.looseKey(x.name) === k) || null;
+    }
+    // the persona ("me", its name or first name) or a companion travelling with the party
+    function partyTargetId(q) {
+        const pn = personaName(); const k = MT.looseKey(q);
+        if (!k || /^(me|myself|self|you|yourself)$/.test(k)) return '__player__';
+        if (pn && (MT.looseKey(pn) === k || MT.looseKey(pn).split(' ')[0] === k)) return '__player__';
+        const w = activeWorld(); const pool = companionIds().map(id => entityById(w, id)).filter(Boolean);
+        const p = personByLooseName(w, q, pool);
+        return p && companionIds().includes(p.id) ? p.id : null;
+    }
+    function healOutside(id, amount) {
+        const C = window.KLITE_RPMod_Characters;
+        const sn = id === '__player__' ? personaName() : personSheetName(id);
+        const sh = sn && C && C.cachedSheet ? C.cachedSheet(sn) : null;
+        if (sh) {
+            const max = Number(sh.hp.max) || 1, hp = Math.min(max, Math.max(0, Number(sh.hp.current) || 0) + amount);
+            C.updateSheet(sn, x => { x.hp.current = Math.min(Number(x.hp.max) || 1, Math.max(0, Number(x.hp.current) || 0) + amount); });
+            return { hp, max };
+        }
+        const max = combatantStatsNoCombat(id).hpMax; const kept = rt().partyHp || {};
+        const hp = Math.min(max, (typeof kept[id] === 'number' ? kept[id] : max) + amount);
+        rt().partyHp = Object.assign({}, kept, { [id]: hp });
+        return { hp, max };
+    }
+    function castOutside(text, opts = {}) {
+        if (!activeWorld() || !ensureRuntime()) return { ok: false, reason: 'No world is active.' };
+        const refuse = (why) => { const msg = `Cast ${norm(text)} refused: ${why}.`; gameLog(msg, 'spell'); return { ok: false, reason: msg }; };
+        const cb = getCombat();
+        if (cb && cb.active && !cb.outcome) return refuse('a fight is going on — spells in a fight are cast in the Combat window');
+        const C = window.KLITE_RPMod_Characters; const caster = personaName();
+        const info = caster && C && C.combatSpellsFor ? C.combatSpellsFor(caster) : null;
+        if (!info || !info.spells.length) return refuse(`${caster || 'the player'} has no spells on the character sheet`);
+        const pc = parseCast(text); const sp = spellByName(info, pc.spell);
+        if (!sp) return refuse(`${caster} cannot cast "${pc.spell}"`);
+        const sv = SP.spell(sp.key), u = sp.use;
+        let tid = null, tname = '';
+        if (u.kind === 'heal') {
+            tid = partyTargetId(pc.target);
+            if (!tid) return refuse(`no one called "${pc.target}" is with the party`);
+            tname = tid === '__player__' ? caster : personName(entityById(activeWorld(), tid));
+        }
+        const pay = C.spendSpell(caster, sp.key, { slotLevel: pc.slot, free: pc.free });
+        if (!pay.ok) return refuse(pay.reason);
+        const slot = pay.slotLevel || sv.level;
+        const how = sv.level ? (pay.free ? ' without a spell slot' : ` (level ${pay.slotLevel} spell slot)`) : '';
+        if (u.kind === 'heal') {
+            const amount = Math.max(0, rollExpr(SP.castHealing(sv, sp.mod, slot)).total);
+            const r = healOutside(tid, amount);
+            gameLog(`${caster} casts ${sv.name}${how} on ${tname}: heals ${amount} → HP ${r.hp}/${r.max}.`, 'spell');
+            return { ok: true, spell: sv.name, target: tname, healed: amount, hp: r.hp, max: r.max };
+        }
+        gameLog(`${caster} casts ${sv.name}${how}${pc.target ? ` (${pc.target})` : ''} — its effect is narrated.`, 'spell');
+        return { ok: true, spell: sv.name };
     }
     // Companions: world persons travelling with the player (runtime `party`) or who fought on the
     // player's side (runtime `companions`, recorded after each fight).
@@ -2343,9 +2829,26 @@ export default function initWorlds() {
     }
     // Long Rest (outside a fight): the persona and every companion back to full HP, spell slots
     // and free casts restored (sheets), stored companion HP cleared.
+    // R8 play test 2026-10-20: the rest takes the night — the clock runs on to the next morning one slot at a
+    // time, so night events still happen (an ambush at the campfire, the fair's last night); a fight that breaks
+    // out interrupts it and nothing is restored. Without a clock (older worlds) it restores as before.
     function longRest() {
         const cb = getCombat();
         if (cb && cb.active !== false && !cb.outcome) return { ok: false, reason: 'not during a fight' };
+        if (cb && cb.outcome) endEncounter();   // a finished fight is closed by resting
+        const c = rt() && rt().clock;
+        if (c && c.time) {
+            for (let i = 0; i < TIME_SLOTS.length; i++) {
+                advanceClock(1);
+                try { fireTriggers('time'); } catch (_) {}
+                const f = getCombat();
+                if (f && f.active && !f.outcome) {
+                    gameLog(`The Long Rest is interrupted (${placeName(rt().playerLocationId) || 'here'}, day ${rt().clock.day}, ${rt().clock.time}): a fight breaks out.`, 'rest');
+                    return { ok: false, interrupted: true, reason: 'the rest was interrupted by a fight' };
+                }
+                if (norm(rt().clock.time).toLowerCase() === TIME_SLOTS[0]) break;
+            }
+        }
         const C = window.KLITE_RPMod_Characters; const who = [];
         const persona = personaName();
         if (persona && C && C.longRestSheet && personaSheet()) { C.longRestSheet(persona); who.push(persona); }
@@ -2355,9 +2858,12 @@ export default function initWorlds() {
             const p = entityById(activeWorld(), id); if (p) who.push(personName(p));
         }
         if (rt()) rt().partyHp = {};
-        gameLog(`${who.length ? who.join(', ') + ' finish' + (who.length === 1 ? 'es' : '') : 'The party finishes'} a Long Rest: HP, spell slots and free casts are restored.`, 'rest');
+        const morning = rt() && rt().clock && rt().clock.time ? ` It is morning of day ${rt().clock.day}.` : '';
+        gameLog(`${who.length ? who.join(', ') + ' finish' + (who.length === 1 ? 'es' : '') : 'The party finishes'} a Long Rest: HP, spell slots and free casts are restored.${morning}`, 'rest');
         return { ok: true, who };
     }
+    // "has no one left to attack" once per combatant and fight, not on every turn while the party lies dying
+    function idleOnce(cb, o) { cb.idle = cb.idle || {}; if (cb.idle[o.id]) return; cb.idle[o.id] = true; combatLog(`${o.name} has no one left to attack.`); }
     // A monster's (or ally's) turn: pick a target on the other side and attack
     // (multiattack = several attacks). Returns what happened.
     function autoTurn(id) {
@@ -2369,7 +2875,7 @@ export default function initWorlds() {
         if (zoneState(cb)) return zoneAutoTurn(id);
         const st = combatantStats(id);
         const foes = cb.order.filter(x => x.side !== o.side && !isDown(cb, x.id)).map(x => x.id);
-        if (!foes.length) { combatLog(`${o.name} has no one left to attack.`); return { skipped: 'no target' }; }
+        if (!foes.length) { idleOnce(cb, o); return { skipped: 'no target' }; }
         const idx = CR.pickAttack(st);
         if (idx < 0) { combatLog(`${o.name} has no attack to use.`); return { skipped: 'no attack' }; }
         const results = [];
@@ -2401,6 +2907,15 @@ export default function initWorlds() {
         const allies = asArray(rt() && rt().party).filter(id => { const p = entityById(activeWorld(), id); return p && !p.isMonster; });
         return { level, size: 1 + allies.length, allies };
     }
+    // A fight started outside the Combat window (the AI's <encounter>, an event — e.g. on arriving
+    // somewhere): like the window's Start, enemies and companions who act first take their turns at once
+    // (setting "Run enemy turns automatically"), and the Combat window opens (play test 2026-10-20: the
+    // first turns waited for "Run enemy turns", and the window had to be found through the Party banner).
+    const AUTO_TURNS = 'combat_auto_turns';
+    function fightStartedOutside() {
+        try { if (settingOn(AUTO_TURNS, true)) runAutoTurns(); } catch (e) { err('first turns failed', e); }
+        try { window.KLITE_RPMod_Shell?.open('combat'); } catch (_) {}
+    }
     // A saved encounter of the world (id or name), or an ad-hoc list "2 Wolf, Goblin Warrior".
     function parseMonsterList(text) {
         const out = [];
@@ -2410,9 +2925,26 @@ export default function initWorlds() {
         }
         return out;
     }
-    function startSavedEncounter(idOrName) {
+    function startSavedEncounter(idOrName, opts = {}) {
         const w = activeWorld(); const q = norm(idOrName).toLowerCase();
-        const enc = asArray(w && w.encounters).find(e => e.id === idOrName || norm(e.name).toLowerCase() === q);
+        // the prompt lists a waiting encounter as "Goblin wolves: 2 Wolf" — the name with its line, or only the line
+        // (live test 2026-10-20: GLM wrote <encounter>2 Wolf</encounter>, which started a second, ad-hoc pack)
+        const bare = q.replace(/\s*(?::.*|\(.*\))$/, '');
+        let enc = asArray(w && w.encounters).find(e => e.id === idOrName || norm(e.name).toLowerCase() === q || norm(e.name).toLowerCase() === bare);
+        if (!enc && opts.source === 'ai' && rt() && rt().playerLocationId) {
+            const sig = (list) => asArray(list).map(m => `${m.key}×${Number(m.count) || 1}`).sort().join(',');
+            const want = sig(parseMonsterList(idOrName));
+            if (want) enc = encountersAt(rt().playerLocationId).find(e => !asArray(rt().startedEncounters).includes(e.id) && !asArray(e.personIds).length && sig(e.monsters) === want);
+        }
+        // live test 2026-10-20: the AI started "Chief Snagtooth and a guard" in the storeroom next door. A prepared
+        // encounter that belongs to a place starts there only (the AI's tag); events and the window may start it anywhere.
+        if (enc && opts.source === 'ai' && enc.locationId && rt()) {
+            const here = rt().playerLocationId;
+            if (here !== enc.locationId && !isInsideLocation(here, enc.locationId)) {
+                gameLog(`Encounter ${norm(enc.name)} refused: they are at ${placeName(enc.locationId, here)}, not here.`, 'combat');
+                return null;
+            }
+        }
         if (enc) {
             const c = startEncounter(asArray(enc.personIds), { monsters: enc.monsters, encounterId: enc.id, difficulty: enc.difficulty, enemyStart: enc.start || undefined });
             if (c && rt()) { rt().startedEncounters = asArray(rt().startedEncounters); if (!rt().startedEncounters.includes(enc.id)) rt().startedEncounters.push(enc.id); }
@@ -2605,7 +3137,7 @@ export default function initWorlds() {
         const cb = getCombat(); const Z = zoneState(cb); const L = Z.layout;
         const o = zOrder(cb, id); const st = combatantStats(id);
         const foes = cb.order.filter(x => x.side !== o.side && !isDown(cb, x.id) && Z.pos[x.id] !== 'out');
-        if (!foes.length) { combatLog(`${o.name} has no one left to attack.`); return { skipped: 'no target' }; }
+        if (!foes.length) { idleOnce(cb, o); return { skipped: 'no target' }; }
         const visible = foes.filter(f => !isHidden(Z, f.id));
         if (!visible.length) return { searched: zoneSearch(id) };
         const choices = attackChoices(id);
@@ -2692,6 +3224,19 @@ export default function initWorlds() {
         const lvl = coverLevelOf(Z, id); const f = lvl && findById(activeWorld().objects, Z.cover[id]);
         return ` — ${ZR.zoneName(Z.layout, Z.pos[id])}${lvl ? `, behind ${norm(f.name)} (${ZR.COVER_NAMES[lvl]})` : ''}${isHidden(Z, id) ? ', hidden' : ''}`;
     }
+    // What the AI should do with the current turn (play test 2026-10-20: "It is the player's turn: wait
+    // for their action" while the results said the player had already attacked confused the model).
+    // The player acts in the Combat window, then writes in the chat — their turn is still running.
+    function playerActed(cb, id) {
+        const u = cb.turnUse && cb.turnUse.id === id && cb.turnUse.round === cb.round ? cb.turnUse : null;
+        const Z = zoneState(cb); const T = Z && zoneOnTurn(Z, id) ? Z.turn : null;
+        return !!((u && (u.attacks || u.cast)) || (T && (T.moved || T.attacked || T.acted || T.fled || T.bonusUsed)));
+    }
+    function turnHint(cb, cur) {
+        if (cur.isPlayer && playerActed(cb, cur.id)) return 'The player has already acted on this turn: those results are what they just did — narrate them. Their turn is not over: do not narrate anyone else\'s turn (RPmod runs the other turns when the player ends theirs), and end on what the player sees now.';
+        if (cur.isPlayer) return 'It is the player\'s turn and they have not acted yet: narrate the results above, then end on the moment they must act — RPmod rolls whatever they do.';
+        return `It is ${cur.name}'s turn next: RPmod runs it — do not narrate it before its result appears under "Rolls and combat".`;
+    }
     // Human-readable combat state for injection (the AI narrates, RPmod adjudicates).
     function combatText() {
         const cb = getCombat(); if (!cb || !cb.active) return '';
@@ -2714,7 +3259,7 @@ export default function initWorlds() {
         if (cb.outcome === 'victory') parts.push(`OUTCOME: Victory — every enemy is defeated${cb.xp ? ` (${cb.xp} XP${cb.xpShares > 1 ? `, ${cb.xpEach} XP each` : ''})` : ''}. Narrate the end of the fight.`);
         else if (cb.outcome === 'defeat' && cb.wipe) parts.push('OUTCOME: Game over — every member of the party has died. Narrate their fall in a few calm, respectful sentences as the end of this story. Do not continue the story and do not revive anyone.');
         else if (cb.outcome === 'defeat') parts.push('OUTCOME: Defeat — the party has fallen. Narrate what happens to the player character now; do not revive them by yourself.');
-        else parts.push(`RPmod rolls every attack, saving throw and HP change; narrate only the results listed under "Rolls and combat" — do not invent hits, damage or deaths.${cur.isPlayer ? ' It is the player\'s turn: set the scene and wait for their action.' : ''}`);
+        else parts.push('RPmod rolls every attack, saving throw and HP change; narrate every result listed under "Rolls and combat", in order, and nothing else — do not invent hits, damage or deaths. ' + turnHint(cb, cur));
         if (!window.KLITE_RPMod_Log) { const recent = cb.log.slice(-6).join('\n'); if (recent) parts.push('Recent:\n' + recent); }
         return parts.join('\n');
     }
@@ -2728,7 +3273,25 @@ export default function initWorlds() {
         if (!Array.isArray(arr)) return false;
         const start = Math.max(0, Math.min(Number(rt().lastParsedIndex) || 0, arr.length));
         let changed = false;
-        for (let i = start; i < arr.length; i++) { changed = parseMutations(arr[i]) || changed; try { detectTalk(arr[i]); } catch (_) {} }
+        if (!(opts && opts.advance === false)) settleCutOffAtSend(arr);
+        for (let i = start; i < arr.length; i++) {
+            if (opts && opts.advance === false && i === arr.length - 1 && cutOffChunks.length) {
+                if (closesThought(arr[i])) cutOffChunks = [];                // a continuation closes it (Esolite pairs them)
+                else if (opensWithThinking(arr[i]) || !cutOffWhileThinking(arr[i])) wrapOrphanThinking(arr, i);   // a new reply: the earlier reasoning is an orphan
+            }
+            if (opts && opts.advance === false && i === arr.length - 1 && cutOffWhileThinking(arr[i])) {
+                cutOffChunks.push({ index: i, head: arr[i].slice(0, 200) });
+                gameLog('The AI\'s reply was cut off while it was still thinking: RPmod applied none of its tags. Use Generate More to let it finish, or Retry.', 'system');
+                continue;
+            }
+            // the AI's own tags that RPmod refused (a reply that just arrived): the next prompt asks to set the story straight
+            const reply = opts && opts.advance === false && i === arr.length - 1;
+            const before = reply ? logLength() : 0;
+            if (reply) snapBefore(arr.length);
+            const locBefore = rt().playerLocationId;
+            changed = parseMutations(arr[i]) || changed; try { detectTalk(stripThinking(arr[i])); } catch (_) {}
+            if (reply) { snapAfter(); noteRefusals(before, arr.length); noteStoryPlace(arr[i], locBefore, arr.length); }
+        }
         const advanced = W.config.advanceClockPerTurn && arr.length > start && !(opts && opts.advance === false);
         rt().lastParsedIndex = arr.length;
         if (advanced) advanceClock(1);
@@ -2815,7 +3378,9 @@ export default function initWorlds() {
             else if (st === 'complete' && ids.has(q.turninPersonId)) quests.push({ id: q.id, title: questTitle(q), action: 'turnin' });
         }
         const checks = checksHere(loc.id).map(c => ({ questId: c.questId, objId: c.objId, text: c.text, what: c.what, dc: c.dc }));
-        return { place: norm(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, trade: vendorsHere().length > 0 };
+        const containers = containersHere().filter(o => !containerLooted(o) && asArray(o.contains).length).map(o => ({ id: o.id, name: norm(o.name) }));
+        let storyGo = null; try { storyGo = storyGoHere(); } catch (_) {}
+        return { place: norm(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, containers, storyGo, trade: vendorsHere().length > 0 };
     }
     function computeActiveSlice(opts) {
         const mutate = !!(opts && opts.mutate);
@@ -2832,6 +3397,8 @@ export default function initWorlds() {
             const rules = asArray(world.rules).map(norm).filter(Boolean).join('\n');
             push('World Rules', 100, rules);
         }
+        // 1a. Who the notes come from (live test 2026-10-20: GLM wrote "RPmod will roll whatever you do" into the story)
+        push('Game notes', 99, 'These notes come from RPmod, the game\'s rules engine: it rolls the dice, moves the party and keeps the sheets. Never name RPmod, the log, the tags or these notes in the story — narrate only what the characters experience.');
         // 2. Current time
         const c = rt().clock || {};
         push('Current Time', 90,
@@ -2846,6 +3413,13 @@ export default function initWorlds() {
         if (party.length) stateBits.push('Party: ' + party.map(norm).join(', '));
         push('Player State', 85, stateBits.join('\n'));
 
+        // 2b1. Spells outside a fight: the persona's spells go through RPmod too
+        if (!(getCombat() && getCombat().active)) {
+            let book = null; try { const C = window.KLITE_RPMod_Characters; const pn = personaName(); book = pn && C && C.combatSpellsFor ? C.combatSpellsFor(pn) : null; } catch (_) {}
+            if (book && book.spells.length) push('Casting spells', 30, 'Outside a fight, when the player casts a spell, write <cast>Spell name = target</cast> (e.g. <cast>Cure Wounds = Oona</cast>, <cast>Light</cast>); RPmod spends the spell slot, rolls any healing and logs the result — narrate that result, never an amount of your own. In a fight, spells are cast in the Combat window.');
+        }
+        // 2b2. What the AI's last reply got wrong (its refused tags), above everything else
+        push('Set the story straight', 97, storyCorrectionText());
         // 2c. Combat state (top priority when an encounter is active)
         push('Combat', 96, combatText());
         // 2d. How the AI (as GM) starts a fight — RPmod then runs it (outside of combat only)
@@ -2910,6 +3484,13 @@ export default function initWorlds() {
             const npcStats = npc.stats || cardSheetStats(npc);   // own block, else the card's sheet
             if (npcStats) bits.push(statSummary(npcStats));  // d20 block when present
             const inParty = asArray(rt() && rt().party).includes(npc.id);
+            // play test 2026-10-20: the AI saw only the maximum HP (Oona at 2/12 "stood up, sword in hand") and no
+            // armour (she wore chain mail, the AI wrote leather) — the card's sheet tells both
+            try {
+                const sn = personSheetName(npc.id); const sh = sn && window.KLITE_RPMod_Characters.cachedSheet(sn);
+                if (sh && norm(sh.acNote)) bits.push(`Armour: ${norm(sh.acNote)}`);
+                if (inParty) { const ps = partyStatus().find(x => x.id === npc.id); if (ps) bits.push(`HP now ${ps.hp}/${ps.max}${ps.hp <= 0 ? ' (down)' : ps.hp <= ps.max / 4 ? ' (badly hurt)' : ''}`); }
+            } catch (_) {}
             if (inParty) bits.push(`travels with the player (party); if they part ways, write <leave>${personName(npc)}</leave>`);
             else if (npc.canJoin && !npc.isMonster) bits.push(`may join the player: when they agree to travel together, write <join>${personName(npc)}</join>`);
             npcLines.push('- ' + bits.join(' | '));
@@ -2926,20 +3507,37 @@ export default function initWorlds() {
 
         // 5. Nearby objects
         const objsHere = asArray(world.objects).filter(o => (o.locationId === loc.id || asArray(loc.objectIds).includes(o.id)) && featureVisible(o));
-        const objLines = objsHere.map(o => '- ' + norm(o.name) + (MR.FEATURE_KINDS.includes(o.kind) && o.kind !== 'furniture' ? ` (${o.kind === 'light' ? (o.lit ? 'lit' : 'unlit') : o.kind})` : '') + (norm(o.desc) ? `: ${norm(o.desc)}` : ''));
+        const kindTag = (o) => o.kind === 'light' ? (o.lit ? 'lit' : 'unlit')
+            : o.kind === 'container' ? (containerLooted(o) ? 'container, emptied' : `container, unopened — when the player opens it, write <open>${norm(o.name)}</open>; RPmod hands out what is inside and logs it`)
+            : o.kind;
+        const objLines = objsHere.map(o => '- ' + norm(o.name) + (MR.FEATURE_KINDS.includes(o.kind) && o.kind !== 'furniture' ? ` (${kindTag(o)})` : '') + (norm(o.desc) ? `: ${norm(o.desc)}` : ''));
         push('Nearby Objects', 50, objLines.join('\n'));
         // 5-. Prepared encounters at this place not yet fought (R7 step 4: generated ones too)
         if (!(getCombat() && getCombat().active)) {
             const waiting = encountersAt(loc.id).filter(e => !asArray(rt().startedEncounters).includes(e.id));
-            if (waiting.length) push('Waiting here', 64, waiting.map(e => `- ${norm(e.name)}`).join('\n') +
+            // who is in it (live test 2026-10-20: GLM narrated four wolves for an encounter of two)
+            const who = (e) => [...asArray(e.personIds).map(pid => findById(world.npcs, pid)).filter(Boolean).map(n => norm(n.name)), encounterSummary(e.monsters)].filter(Boolean).join(', ');
+            if (waiting.length) push('Waiting here', 64, waiting.map(e => `- ${norm(e.name)}${who(e) ? `: ${who(e)}` : ''}`).join('\n') +
                 '\nWhen they notice the player (or the player attacks), write <encounter>exact name</encounter>; RPmod then runs the fight.');
         }
         // 5a. Moving room by room (R7): how the AI moves the player; optional text map
         if (inRoom) {
-            push('Exploring', 24, 'The player explores room by room. Use a name or direction from the exits above: <go>name</go> moves (a closed door opens on the way), <open>north</open>, <close>north</close>, <unlock>north</unlock> (RPmod uses a key or rolls thieves\' tools), <search></search> when the player searches this room (RPmod rolls Perception/Investigation). ' +
-                'To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>; to change the light here: <light>dark</light>. ' +
-                'RPmod applies the rules: rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found.' +
+            // Live tests 2026-10-20 (DeepSeek V4 Flash, GLM 5.3): models walked several rooms without <go>, read the tags as
+            // the player's, concluded from the button moves ("I go to …", done by RPmod) that prose moves the party, and
+            // invented rooms behind unexplored doors. The tags are the narrator's; one room per reply; a fixed map stays fixed.
+            push('Exploring', 24, 'The party explores room by room. These tags are yours, the narrator\'s — write them in your reply when the story does it. ' +
+                'Every move to another room needs <go>name</go>, with a name or direction from the exits above (a closed door opens on the way). One room per reply: when the player wants to go further, move one room, describe it and stop there. ' +
+                'A move the log already shows ("Goes …") is done: narrate the arrival, no <go>. ' +
+                'Also: <open>north</open>, <close>north</close>, <unlock>north</unlock> (a key is used or thieves\' tools are rolled), <search></search> when the player searches this room (Perception/Investigation is rolled), <light>dark</light> to change the light here. ' +
+                (aiMayBuild(world) ? 'To add a room next to this one: <room>Name, east: short description</room>; to give a way a door or lock it: <door>east = locked, iron</door>. '
+                    : 'The map is fixed: never invent rooms, ways or doors — an unexplored exit is unknown until the party goes through it with <go>. ') +
+                'Rolls, results and refusals appear in the log — narrate what actually happened, and describe hidden doors or traps only once the log says they were found.' +
                 (isPlaceholderName(loc.name) ? ` This room has no proper name yet ("${norm(loc.name)}"): name and describe it once with <room>Name, here: short description</room>.` : ''));
+            // What lies behind the exits (owner 2026-10-20, option a): the AI writes a move before RPmod makes it, so it
+            // narrated rooms it had never been told about (GLM 5.3: a flooded room for "a dry burrow" of grain sacks).
+            const ahead = beyondExits(world, loc);
+            if (ahead.length) push('Behind the exits (for the narrator only)', 23, ahead.join('\n') +
+                '\nThe player does not know this yet: use it only when the party goes there with <go> — then describe that room as given here, with what is noticed on arrival.');
             if (settingOn(ASCII_MAP_SETTING, false)) push('Map (explored)', 60, asciiMapText(loc.id));
         }
 
@@ -3783,6 +4381,13 @@ export default function initWorlds() {
         exploration() { const r = ensureRuntime(); MR.normalizeExploration(r); return deepClone({ explored: r.explored, found: r.found, doorState: r.doorState, roomLight: r.roomLight }); },
         // R7 step 3: player actions (UI or API) through the rules; results/refusals are logged
         door(action, target, opts) { const r = doorAction(action, target, opts || {}); syncLive(); return r; },
+        // a container here (chest, sack): hands out what is inside once → null when there is none
+        openContainer(target, opts) { const r = openContainer(target, opts || {}); if (r) syncLive(); return r; },
+        // a spell outside a fight: "Cure Wounds = Oona", "Light", "Healing Word on me slot 2"
+        castOutside(text, opts) { const r = castOutside(text, opts || {}); syncLive(); return r; },
+        undoInfo: () => undoInfo(),
+        // the place a reply's text walks the party to (the "Story: go to …" button), or null
+        storyPlaceIn: (text) => { const r = rt(); return r && r.playerLocationId ? storyPlaceIn(text, r.playerLocationId) : null; },
         search(opts) { const r = searchRoom(opts || {}); syncLive(); return r; },
         setRoomLight(level, roomId) { ensureRuntime(); const r = setRoomLight(level, roomId); syncLive(); return r; },
         roomLight: (id) => roomLightOf(locOf(id || (rt() && rt().playerLocationId))),
@@ -3868,6 +4473,7 @@ export default function initWorlds() {
         zoneSearch(id) { const r = zoneSearch(id || '__player__'); syncLive(); return r; },
         zoneLayoutOf(locId) { return roomLayout(locId); },
         runAutoTurns() { const r = runAutoTurns(); syncLive(); return r; },
+        attacksLeft: (id) => attacksLeft(id || '__player__'),
         deathSave(id) { const r = deathSaveRoll(id || '__player__'); syncLive(); return r; },
         savingThrow(id, ability, dc, mode) { const r = savingThrow(id, ability, dc, { mode }); syncLive(); return r; },
         saveAction(a, t, i) { const r = saveAction(a, t, i); syncLive(); return r; },
@@ -4026,6 +4632,7 @@ export default function initWorlds() {
         installSaveWrappers();
         await restoreFromAutosave();
         installReplyHook();
+        { let tries = 0; const hookUndo = () => { const a = installUndoHooks(), b = installHistoryNotices(); if (!(a && b) && ++tries < 120) setTimeout(hookUndo, 250); }; hookUndo(); }
         registerProvider();
         registerSettingAndGuards();
         const okPrepare = getContext().install();

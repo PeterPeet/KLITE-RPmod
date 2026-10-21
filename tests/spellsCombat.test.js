@@ -106,7 +106,7 @@ test('casting: spell attack, save spells (one damage roll, half on success), hea
     r = W.castSpell('__player__', 'cure-wounds', { targets: [ned], slot: 2 });
     assert.equal(r.slotLevel, 2); assert.equal(r.results[0].healed, 4 * 5 + 3, '4d8+3 with every die 5');
     assert.equal(W.getCombat().hp[ned], 10); assert.equal(W.getCombat().death[ned], undefined);
-    assert.match(logText(W), /Ned is back on their feet/);
+    assert.match(logText(W), /Ned is back up\./);
 
     // no slot left: refused, nothing spent, nothing logged
     W.castSpell('__player__', 'healing-word', { targets: ['__player__'], slot: 2 });

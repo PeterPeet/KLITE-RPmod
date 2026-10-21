@@ -147,13 +147,20 @@ export function speciesSkillOptions(choices) {
     return [];
 }
 // Expertise picks by class/level: Rogue 2 at 1 and 2 more at 6, Bard 2 at 2 and 2 more at 9,
-// Ranger 2 at 9.
+// Ranger 2 at 9, Wizard 1 at 2 (Scholar — UI play test 2026-10-20: it was missing).
 export function expertisePicks(choices) {
     const level = levelOf(choices);
     if (choices.class === 'rogue') return level >= 6 ? 4 : 2;
     if (choices.class === 'bard') return level >= 9 ? 4 : level >= 2 ? 2 : 0;
     if (choices.class === 'ranger' && level >= 9) return 2;
+    if (choices.class === 'wizard' && level >= 2) return 1;
     return 0;
+}
+// The skills Expertise may go to: the proficient ones; the Wizard's Scholar only one of its field skills.
+export const SCHOLAR_SKILLS = ['arcana', 'history', 'investigation', 'medicine', 'nature', 'religion'];
+export function expertiseOptions(choices) {
+    const prof = proficientSkills(choices);
+    return choices.class === 'wizard' ? prof.filter(s => SCHOLAR_SKILLS.includes(s)) : prof;
 }
 export function fightingStyleAt(choices) {
     const level = levelOf(choices);
@@ -197,7 +204,7 @@ export function validate(choices) {
     if (choices.species === 'elf' && (choices.speciesSkills || []).length !== 1) errs.push('Choose the Keen Senses skill (Insight, Perception or Survival).');
     if (picks.extra && (choices.extraSkills || []).length !== picks.extra) errs.push(`Choose ${picks.extra} more skill${picks.extra === 1 ? '' : 's'}.`);
     const exp = expertisePicks(choices);
-    if (exp && (choices.expertise || []).filter(s => proficientSkills(choices).includes(s)).length !== exp) errs.push(`Choose ${exp} skills for Expertise (from your proficiencies).`);
+    if (exp && (choices.expertise || []).filter(s => expertiseOptions(choices).includes(s)).length !== exp) errs.push(choices.class === 'wizard' ? 'Scholar: choose 1 skill for Expertise (Arcana, History, Investigation, Medicine, Nature or Religion you are proficient in).' : `Choose ${exp} skills for Expertise (from your proficiencies).`);
     if (fightingStyleAt(choices) && !FIGHTING_STYLES.includes(choices.fightingStyle)) errs.push('Choose a Fighting Style.');
     if (ORDERS[choices.class] && !orderOf(choices)) errs.push(`Choose your ${ORDERS[choices.class].feature} (${Object.values(ORDERS[choices.class].options).join(' or ')}).`);
     if (secondFightingStyleAt(choices) && (!FIGHTING_STYLES.includes(choices.fightingStyle2) || choices.fightingStyle2 === choices.fightingStyle)) errs.push('Choose a second, different Fighting Style (Additional Fighting Style).');

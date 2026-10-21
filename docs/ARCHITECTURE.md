@@ -207,6 +207,16 @@ All per-turn prompt context of RPmod goes through **`KLITE_RPMod_Context`**:
   priority (high first, stable) and become `constant:true` WI entries
   (`wigroup:'__rpmod__'`, `comment:'__rpmod__:<provider>'`) in `current_wi`, so Esolite's
   own engine injects them (size cap, context meter, insert position).
+- **Insert position (2026-10-20, owner's decisions):** RPmod needs Esolite's World Info **"Before A/N"**
+  (`var wi_insertlocation = 1`) with the Author's Note **"Turn based", 1 user turn before the end** (`anote_strength =
+  "turn"`, `anTurnOffset = 1`, `anTurnType = "user"`; `insertAuthorsNoteToContext` in `js/authorNotePositioningUtils.js`
+  puts it right before the last user turn marker). With "After Memory" the context sat before the whole chat and models
+  followed the chat over it; "Strong" (160 characters before the end) cut longer player messages in half. All are story
+  settings and `restart_new_game` resets them; `src/settings/contextPlacement.js` checks at start-up, after
+  `kai_json_load` and after `restart_new_game`, asks once (Esolite's `msgboxYesNo`, waiting while it shows another
+  question) and then keeps them set (setting `rpmod_context_placement_auto`). Hosts without `anTurnOffset` get "Strong".
+  With an empty A/N, Esolite still inserts the World Info there (`truncated_anote = wistr + ""`), capped at 60 % of the
+  context (World Info itself at 50 %).
 - **Current providers:** `characters` (the RP core, order 10: persona 88, AI character /
   group-chat speaker 87) and `worlds` (order 50, the slice below; its NPC line skips the
   blurb for a described character).
@@ -256,6 +266,17 @@ Display setting "Hide control tags in the chat" removes them from the shown chat
 The map tags `<move>`/`<go>`, `<open>`, `<close>`, `<unlock>`, `<search>`, `<room>`, `<door>`,
 `<light>` are applied in **reply order** in one pass (`MT.scanMapTags` → `applyMapTag`, §3.9);
 `<move>` inside/into a dungeon or town goes through `go()`.
+**Containers (2026-10-20, play test):** `<open>name</open>` first tries a container feature here
+(`kind: 'container'`, `contains[]`; loose name match) — `openContainer()` hands the contents out once
+(`giveEntry`: "14 gp" → coins by denomination, "Name x2" → items), logs them (kind `loot`) and records
+`runtime.looted[objId]` (additive; Back to start refills); otherwise it is a door. The slice tags a container
+"unopened — write <open>…</open>" or "emptied"; `W.here().containers` feeds the Here row's **Open: …**;
+`/open` and the API `openContainer()` use the same path. `<give>` uses `giveEntry` too (coins).
+**Thinking (2026-10-20):** `parseMutations` reads `stripThinking(text)`: blocks between Esolite's thinking tags
+(`localsettings.start/stop_thinking_tag`, default `<think>`) are dropped, an unclosed one to the end, and text before
+a lone closing tag (the end of a thought continued by Generate More). A reply that arrives cut off while thinking
+(`cutOffWhileThinking`: reasoning in `last_request_str`, `last_stop_reason` not "stop"/"tool_calls", no thinking tag
+— Esolite leaves such reasoning untagged) is not parsed at all; a log line tells the player to Generate More or Retry.
 
 ### 3.5 Trigger bus
 `fireTriggers(signal)` — bounded queue (≤400 steps), per-cascade `firedNow` set,
@@ -609,7 +630,7 @@ Design and steps: [design/R7-world-map.md](design/R7-world-map.md). Steps 1 (dat
     unfound secret exits (`secretDC`), secret rooms behind visible exits (`room.secretDC`), unfound
     non-`hidden` trap features (`trapDC`), default DC 15. Hits → `found`; the log never shows a
     DC. `passiveNotice` does the same with passive Perception (10 + Perception) on `go`/`moveTo`.
-  - `<room>` → `aiAddRoom`: only inside a dungeon/town; a free side (the given direction, else
+  - `<room>` → `aiAddRoom`: only when the world allows it (`world.aiBuild === true`, default off — `aiMayBuild`; else refused "the map is fixed in this world", and `<door>` likewise; the [Exploring] prompt then says the map is fixed instead of offering the tags; `<room>Name, here</room>` naming is always allowed) and only inside a dungeon/town; a free side (the given direction, else
     n/e/s/w), `addRoom` beside the current room with `origin: 'ai'`, dungeon: door `open`, town:
     `open` way; room discovered; **world edit** (`markDirty`, editor badge "AI"). Same name in the
     map → no new room (fills an empty description). Side taken → refused (the text does not
@@ -903,7 +924,18 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   (`updateSheet`): applied to the cache at once, `rev` +1, saved in the background one write at a
   time (`saveSheet(…, { rev })`); an entry with `rev > savedRev` is never replaced by what is read
   from the card (a reload, an older save's result, a Library change) — fixed 2026-09-26 (R8): XP,
-  gold and items were lost when rewards arrived while a save was running. Worlds warms the linked cards of the active world on every
+  gold and items were lost when rewards arrived while a save was running. **Live sheet** (2026-10-20, a player's report of
+  very high disk use: Esolite stores a character as one IndexedDB entry `character_<id>` = { id, name, data, image } with the
+  portrait as base64 PNG, so a card write per HP change wrote megabytes — measured 2.9 MB per change with a 2.8 MB
+  portrait, after reading the record twice): a game change writes only `rpmod_sheet_<id>` = { name, sheet, base, at }
+  (a few KB, at once); the card is written (`foldSheet`) once the changes have been quiet for `FOLD_IDLE_MS` (15 s) and no
+  fight runs, on `flushSheet`, and on `pagehide`/hidden (`foldAll`). `base` = hash of the card's sheet the live sheet
+  started from: `loadSheet` reads both in parallel — live wins when its base matches the card, else the card (changed
+  elsewhere: a server sync from another device, an import) wins and the live sheet is dropped. `saveSheet` (sheet window,
+  builder, the fold) passes the portrait it just read (`storedImage`) — no second read; it embeds the card into the PNG,
+  which Esolite's "Download character" exports as stored. Retry/Undo restores through `restoreSheet` (live sheet).
+  Esolite's Library download and server sync (`putAllCharacterManagerData`, a `let`, not wrappable) read the card:
+  current after 15 s of quiet. Tests in `tests/liveSheet.test.js`. Worlds warms the linked cards of the active world on every
   `klite:worlds-change` so the next turn's slice has them.
 - **Persona:** the RP core's `panels.TOOLS.selectedPersona/personaEnabled` are accessors that fire
   `klite:persona-change` ({ name }) when the effective persona changes;

@@ -189,7 +189,13 @@ test('builder Spells step + sheet: choose spells, cast (slot + log), free cast, 
     click($('[data-step="spells"]'), w);
     assert.ok($('[data-picker="Spellbook"] input[data-spell="magic-missile"]').checked);
     assert.match($('[data-picker="Spellbook"] h3').textContent, /Spellbook — choose 8 .*\(6\/8\)/);
+    // level 2: Scholar — one Expertise among the wizard's field skills (UI play test 2026-10-20: it was missing)
+    click($('[data-step="skills"]'), w); await sleep(10);
+    const scholar = [...doc.querySelectorAll('[role="group"][aria-label="Expertise"] input[data-check]')].map(c => c.getAttribute('data-check'));
+    assert.ok(scholar.length && scholar.every(s => ['arcana', 'history', 'investigation', 'medicine', 'nature', 'religion'].includes(s)), JSON.stringify(scholar));
+    const ex = doc.querySelector('[aria-label="Expertise"] input[data-check="' + scholar[0] + '"]'); ex.checked = true; ex.dispatchEvent(new w.Event('change')); await sleep(10);
     click($('[data-step="review"]'), w); click($('[data-bld="create"]'), w); await sleep(100);
     const l2 = JSON.parse(await w.indexeddb_load('character_Mira', 'null')).data.extensions.klite_rpmod.sheet;
     assert.equal(l2.level, 2); assert.deepEqual(plain(l2.spellcasting.preparedSpells), ['magic-missile', 'shield', 'sleep', 'burning-hands']);
+    assert.equal(l2.skills[scholar[0]], 2, 'Scholar: expertise in the chosen skill');
 });

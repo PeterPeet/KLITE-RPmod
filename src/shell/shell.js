@@ -76,7 +76,8 @@ export default function initShell() {
     //         beforeClose?(container, api) — window views: return false to keep the window
     //         open (e.g. after asking about unsaved changes) }
     // def.window may also carry { large, flush } (see windows.js) and restore: false —
-    // do not reopen the window at startup even if it was open last time.
+    // do not reopen the window at startup even if it was open last time — or restore: () => boolean
+    // (asked at startup: e.g. the Combat window only while a fight is running).
     function registerView(def) {
         if (!def || !def.id || !PLACES.has(def.place) || typeof def.mount !== 'function') {
             throw new Error('KLITE_RPMod_Shell.registerView: need { id, place: left|right|window, mount }');
@@ -237,6 +238,7 @@ export default function initShell() {
     function shouldRestoreWindow(id) {
         const v = views.get(id);
         if (v && v.def.window && v.def.window.restore === false) return false;
+        if (v && v.def.window && typeof v.def.window.restore === 'function') { try { if (!v.def.window.restore()) return false; } catch (_) { return false; } }
         return !compact && !!(layout.windows[id] && layout.windows[id].open);
     }
 

@@ -120,8 +120,16 @@ export default function initChat() {
             run: (a) => { a = cleanArg(a); if (!a) return fail('Usage: /go <place or direction>'); const r = W().go(a, { source: 'ui' }); if (!r.ok) return { ok: false, error: r.reason }; return r.same ? ok('You are already there.') : { ok: true }; } },
         { name: 'look', group: 'World', world: true, usage: '/look', help: 'Where you are: the place, ways out, people and things here.', run: () => look() },
         { name: 'search', group: 'World', world: true, usage: '/search', help: 'Search this place (RPmod rolls Perception or Investigation).', run: () => { const r = W().search({ source: 'ui' }); return r.ok ? { ok: true } : { ok: false, error: r.reason }; } },
-        ...['open', 'close', 'unlock'].map(act => ({ name: act, group: 'World', world: true, usage: `/${act} <door or direction>`, help: `${act[0].toUpperCase() + act.slice(1)} a door (the rules decide; locks need a key or a check).`,
-            run: (a) => { a = cleanArg(a); if (!a) return fail(`Usage: /${act} <door or direction>`); const r = W().door(act, a, { source: 'ui' }); return r && r.ok ? { ok: true } : { ok: false, error: r && r.reason }; } })),
+        ...['open', 'close', 'unlock'].map(act => ({ name: act, group: 'World', world: true, usage: `/${act} <door or direction>`, help: act === 'open' ? 'Open a door, or a chest/sack here (what is inside goes to your inventory).' : `${act[0].toUpperCase() + act.slice(1)} a door (the rules decide; locks need a key or a check).`,
+            run: (a) => {
+                a = cleanArg(a); if (!a) return fail(`Usage: /${act} <door or direction>`);
+                // /open also opens a chest or a sack here (RPmod hands out what is inside)
+                const c = act === 'open' && W().openContainer ? W().openContainer(a, { source: 'ui' }) : null;
+                if (c) return c.ok ? { ok: true } : { ok: false, error: c.reason };
+                const r = W().door(act, a, { source: 'ui' }); return r && r.ok ? { ok: true } : { ok: false, error: r && r.reason };
+            } })),
+        { name: 'storygo', group: 'World', world: true, usage: '/storygo <place>', help: 'Go where the AI\'s last reply said the party went (the Here row\'s "Story: go to …"); through known rooms, it stops when something happens.',
+            run: (a) => { a = cleanArg(a); if (!a) return fail('Usage: /storygo <place>'); const r = W().go(a, { source: 'story' }); return r && r.ok ? { ok: true } : { ok: false, error: r && r.reason }; } },
         { name: 'talk', group: 'World', world: true, usage: '/talk <person>', help: 'Speak with someone here (counts for "talk to" objectives).',
             run: (a) => { const r = tag('talk', a, '/talk <person>'); if (r.ok) r.log = `Talks with ${cleanArg(a)}.`; else if (!r.error) r.error = `No one called "${cleanArg(a)}" is known in this world.`; return r; } },
         { name: 'join', group: 'World', world: true, usage: '/join <person>', help: 'Ask someone here to travel with you (only people who can join).',
@@ -171,6 +179,8 @@ export default function initChat() {
             run: (a) => { if (inFight()) return fail('A fight is already on.'); const r = tag('encounter', a, '/encounter <saved encounter | monsters>'); if (!r.ok && !r.error) r.error = `No saved encounter or SRD monster matches "${cleanArg(a)}".`; if (r.ok) { try { Shell()?.open('combat'); } catch (_) {} if (autoTurnsOn()) W().runAutoTurns(); } return r; } },
         { name: 'endturn', group: 'Dice & combat', world: true, usage: '/endturn', help: 'End your turn in a fight (enemy turns run if that setting is on).',
             run: () => { if (!inFight()) return fail('No fight is on.'); W().nextTurn(); if (autoTurnsOn()) W().runAutoTurns(); return { ok: true, log: 'Ends the turn.' }; } },
+        { name: 'cast', group: 'Dice & combat', world: true, usage: '/cast <spell> [on target] [slot N | free]', help: 'Cast a spell from your sheet outside a fight: the slot is spent, healing rolled (e.g. /cast Cure Wounds on Oona).',
+            run: (a) => { a = cleanArg(a); if (!a) return fail('Usage: /cast <spell> [on target] [slot N | free]'); if (inFight()) return fail('In a fight, cast in the Combat window.'); const r = W().castOutside(a, { source: 'ui' }); return r.ok ? { ok: true } : { ok: false, error: r.reason }; } },
         { name: 'rest', group: 'Dice & combat', world: true, usage: '/rest', help: 'Long rest: HP and spell slots back.', run: () => { if (inFight()) return fail('Not during a fight.'); W().longRest(); return { ok: true, log: 'Takes a long rest.' }; } },
         { name: 'combat', group: 'Dice & combat', usage: '/combat', help: 'Open the Combat window.', run: () => opened('combat') },
 
@@ -240,7 +250,18 @@ export default function initChat() {
             const r = exec(p); results.push(r);
             if (!r.ok) return { ok: false, handled: true, results, message: '', error: r.error };
         }
-        return { ok: true, handled: true, results, message: messageOf(parts) };
+        return { ok: true, handled: true, results, message: fillPlace(messageOf(parts)) };
+    }
+    // "{here}" in a message part: the place the player is at once the commands ran — the Here row's
+    // "/go east | I go to {here}." then names where the move really led (play test 2026-10-20: "I go to
+    // unexplored room." made the AI echo <go>unexplored room</go>, which led on through the next unknown
+    // exit; an echo of the real name is a move to where the player already is, which does nothing).
+    function fillPlace(text) {
+        if (!/\{here\}/.test(text)) return text;
+        let name = '';
+        // seen from there: "Stolen Stores", not "The Hollow Oak (Stolen Stores)"
+        try { const A = W(); const id = A && A.runtime && A.runtime.playerLocationId; name = id ? A.playerPlaceName(id, id) : ''; } catch (_) {}
+        return text.replace(/\{here\}/g, name || 'the next place');
     }
     function report(res) {
         if (!res.ok) { showBox(res.error, 'RPmod command'); return; }

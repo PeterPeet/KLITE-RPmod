@@ -131,7 +131,10 @@ test('engine: exploration state, doors, secrets stay out of the AI slice', async
     assert.match(s, /\[Current Location: Hall\][\s\S]*Part of: Old Crypt/);
     // behind closed doors: the rooms are there, their names are not known yet (step 3 fog)
     assert.match(s, /Exits:\n(- .*\n)*- west: unexplored room \(closed door\)/); assert.match(s, /- south: unexplored room \(locked iron door\)/);
-    assert.doesNotMatch(s, /Ossuary|Entrance/, 'unseen room names stay out of the AI context');
+    // owner 2026-10-20 (option a): the narrator learns what lies behind the visible exits in its own section only
+    const ahead = (s.match(/\[Behind the exits \(for the narrator only\)\]\n[\s\S]*?(?=\n\[|$)/) || [''])[0];
+    assert.match(ahead, /- south → Ossuary/); assert.match(ahead, /- west → Entrance/);
+    assert.doesNotMatch(s.replace(ahead, ''), /Ossuary|Entrance/, 'unseen room names stay out of the rest of the AI context');
     assert.doesNotMatch(s, /Vault/, 'unfound secret not in the AI context');
     assert.doesNotMatch(s, /- [a-z]+: Old Crypt/, 'the dungeon itself is not an exit from its rooms');
 

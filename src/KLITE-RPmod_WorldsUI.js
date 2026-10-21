@@ -603,6 +603,12 @@ export default function initWorldsUI() {
         box.appendChild(ta);
         box.appendChild(el('div', { style: 'color:var(--rpm-fg-muted);font-size:10px;margin-top:3px', text: 'Shown to the AI as [World Rules]. The Description above is shown as the world premise.' }));
 
+        // whether the AI may extend the maps (world.aiBuild, default off: the maps are as built here)
+        const build = el('input', { type: 'checkbox', style: 'cursor:pointer', 'data-world': 'ai-build' }); build.checked = ent.aiBuild === true;
+        build.addEventListener('change', () => { A.updateEntity('__world__', { aiBuild: build.checked }); });
+        box.appendChild(el('label', { style: 'display:flex;gap:6px;align-items:center;margin-top:10px;cursor:pointer' }, [build, el('span', { text: 'The AI may add rooms and doors to the maps' })]));
+        box.appendChild(muted('Off: the dungeons and towns stay as you built them — the AI never invents rooms, ways or doors, and an unexplored exit is found by going there. Rooms the generator left unnamed ("Room 3") are named by the AI either way.', { style: 'font-size:10px;margin-top:3px' }));
+
         // R8: where a new game in this world begins (world.start) — also the start state of a new story
         const st = A.worldStart() || {};
         const card = el('div', { class: 'rpm-card', style: 'margin-top:12px', 'data-ui': 'world-start' });
@@ -1760,7 +1766,8 @@ export default function initWorldsUI() {
             else c.appendChild(el('div', { class: 'rpm-muted', text: 'No world loaded.' }));
         })));
         sh.registerView(Object.assign({ id: 'gameover', title: 'Game over', place: 'window', window: { width: 420, height: 460, minWidth: 300, restore: false } }, view(renderGameOver)));
-        sh.registerView(Object.assign({ id: 'combat', title: 'Combat', place: 'window', window: { width: 460, height: 680, minWidth: 320 } }, view((c) => {
+        // reopened after a reload only while a fight is running (play test 2026-10-20: it came back as the builder)
+        sh.registerView(Object.assign({ id: 'combat', title: 'Combat', place: 'window', window: { width: 460, height: 680, minWidth: 320, restore: () => { const cb = API() && API().getCombat && API().getCombat(); return !!(cb && cb.active); } } }, view((c) => {
             if (API().activeWorld()) renderCombatTab(c);
             else { c.appendChild(el('div', { class: 'rpm-muted', text: 'Fights happen in a world. Choose one (or the example) in World Management.' })); c.appendChild(uiBtn('World Management', () => openView('world'), { block: true, style: 'margin-top:8px' })); }
         })));
@@ -1796,6 +1803,22 @@ export default function initWorldsUI() {
         window.addEventListener('klite:game-over', () => { GO.msg = ''; try { sh.refresh(['party']); } catch (_) {} openView('gameover'); });
         window.addEventListener('klite:sheet-change', refreshParty);
         window.addEventListener('klite:worlds-dirty', () => { try { updateSaveState(); refreshPanel({ soft: true }); } catch (_) {} });
+        // New Session (also every adventure start and game-over restart): a Combat window without a fight closes
+        // (UI play test 2026-10-20: the encounter builder stayed open across a restart)
+        let tries = 0;
+        const hookRestart = () => {
+            const orig = window.restart_new_game;
+            if (typeof orig !== 'function') { if (++tries < 120) setTimeout(hookRestart, 250); return; }
+            if (orig.__rpmod_combatwin) return;
+            const wrapped = function () {
+                const r = orig.apply(this, arguments);
+                setTimeout(() => { try { const cb = API() && API().getCombat && API().getCombat(); if (!(cb && cb.active && !cb.outcome) && sh.isOpen('combat')) sh.close('combat'); } catch (_) {} }, 0);
+                return r;
+            };
+            for (const k of Object.keys(orig)) wrapped[k] = orig[k];   // keep the other hooks' markers (__rpmod_log, …)
+            wrapped.__rpmod_combatwin = true; window.restart_new_game = wrapped;
+        };
+        hookRestart();
     }
 
     // Runs once: a second start would register the views again, and re-registering a view

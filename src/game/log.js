@@ -5,10 +5,13 @@
 // The game log records rolls (from the character sheet, later combat and chat) per story:
 // saved in the story file under `rpmod_log` (additive key, last 200 entries), shown in the
 // left dock, and the rolls made since the AI's last turn go into its context ('gamelog'
-// provider of src/context) so the game master can react to them.
+// provider of src/context) so the game master can react to them. "Since the last turn"
+// follows the chat: a turn whose reply is gone again (Retry, Undo, a failed request) sends
+// its rolls once more (marks: { chat, from }, see turnMarks below).
 // Public API: window.KLITE_RPMod_Log.
 // =============================================================================
 import { getContext } from '../context/context.js';
+import { saveStoryCopy, loadStoryCopy } from '../context/storyCopy.js';
 import { el, clear } from '../shell/dom.js';
 
 const SAVE_KEY = 'rpmod_log';
@@ -48,7 +51,19 @@ export default function initGameLog() {
     'use strict';
     if (window.KLITE_RPMod_Log) return;
 
-    const state = { entries: [], lastTurnIndex: 0 };
+    // marks[]: one per turn that consumed rolls — `from` the log position before it, `chat` the
+    // chat length once its input was in (gametext_arr). The turn's reply is in the chat while it
+    // is longer than that; when it is not (Retry pops the reply, Undo, an error), the position
+    // goes back to `from`.
+    const MAX_MARKS = 50;
+    const state = { entries: [], lastTurnIndex: 0, marks: [] };
+    let pending = null;
+    const chatLength = () => { try { return Array.isArray(window.gametext_arr) ? window.gametext_arr.length : 0; } catch (_) { return 0; } };
+    const inputPending = () => { try { const i = document.getElementById('input_text'); return !!(i && String(i.value || '').trim()); } catch (_) { return false; } };
+    function rewind() {
+        const n = chatLength();
+        while (state.marks.length && n <= state.marks[state.marks.length - 1].chat) state.lastTurnIndex = Math.min(state.entries.length, state.marks.pop().from);
+    }
 
     function describe(e) {
         const r = e.roll;
@@ -65,6 +80,7 @@ export default function initGameLog() {
         if (state.entries.length > MAX_ENTRIES) {
             const cut = state.entries.length - MAX_ENTRIES;
             state.entries.splice(0, cut); state.lastTurnIndex = Math.max(0, state.lastTurnIndex - cut);
+            for (const m of state.marks) m.from = Math.max(0, m.from - cut);
         }
         changed();
         return e;
@@ -72,27 +88,56 @@ export default function initGameLog() {
     // Roll and log in one step: rollAndLog({ who, what, expr, mode, kind })
     function rollAndLog({ who, what, expr, mode, kind }) { return add({ who, what, kind, roll: roll(expr, { mode }) }); }
     function sinceLastTurn() { return state.entries.slice(state.lastTurnIndex); }
-    function clearLog() { state.entries = []; state.lastTurnIndex = 0; changed(); }
+    function clearLog() { state.entries = []; state.lastTurnIndex = 0; state.marks = []; changed(); }
+    // Back to `n` entries (undoing a reply's effects on Retry/Undo drops the lines its tags wrote).
+    function truncate(n) {
+        n = Math.max(0, Math.min(state.entries.length, Number(n) || 0)); if (n === state.entries.length) return;
+        state.entries.length = n; state.lastTurnIndex = Math.min(state.lastTurnIndex, n);
+        for (const m of state.marks) m.from = Math.min(m.from, n);
+        changed();
+    }
 
     // ---- AI context: rolls since the last turn -----------------------------------------
     getContext().register({
         id: 'gamelog', order: 60,
-        enabled: () => state.entries.length > state.lastTurnIndex,
+        enabled: () => { rewind(); return state.entries.length > state.lastTurnIndex; },
         collect: () => {
             const lines = sinceLastTurn().map(e => '- ' + describe(e));
             return lines.length ? [{ title: 'Rolls and combat since your last reply', priority: 92, text: lines.join('\n') }] : [];
         },
-        afterTurn: () => { state.lastTurnIndex = state.entries.length; },
+        // the input box still holds the player's text here (Esolite moves it into the chat later)
+        beforeTurn: () => { rewind(); pending = { chat: chatLength() + (inputPending() ? 1 : 0), from: state.lastTurnIndex }; },
+        afterTurn: () => {
+            if (pending) { state.marks.push(pending); if (state.marks.length > MAX_MARKS) state.marks.splice(0, state.marks.length - MAX_MARKS); pending = null; }
+            state.lastTurnIndex = state.entries.length;
+        },
     });
 
     // ---- story file: additive key -------------------------------------------------------
+    function savedBlock() { return state.entries.length ? { version: 1, entries: state.entries.slice(-MAX_ENTRIES), lastTurnIndex: state.lastTurnIndex, marks: state.marks.slice() } : null; }
+    function applySaved(saved) {
+        state.entries = saved && Array.isArray(saved.entries) ? saved.entries.filter(e => e && typeof e === 'object').slice(-MAX_ENTRIES) : [];
+        state.lastTurnIndex = saved ? Math.min(state.entries.length, Math.max(0, Number(saved.lastTurnIndex) || 0)) : 0;
+        // marks are additive (older saves have none: a Retry right after loading sends nothing again, as before)
+        state.marks = saved && Array.isArray(saved.marks) ? saved.marks.filter(m => m && Number.isFinite(Number(m.chat)) && Number.isFinite(Number(m.from))).map(m => ({ chat: Number(m.chat), from: Math.min(state.entries.length, Math.max(0, Number(m.from))) })).slice(-MAX_MARKS) : [];
+        changed();
+    }
+    // A page reload: Esolite restores its autosaved story before RPmod's hooks exist and autosaves it
+    // again without this block (play test 2026-10-20: the log was empty after every reload). Like the
+    // Worlds and RP blocks (src/context/storyCopy.js), a side copy per chat is restored once at start-up.
+    let storyLoaded = false, restoreTried = false;
+    async function restoreFromAutosave() {
+        if (restoreTried || storyLoaded || state.entries.length) return false;
+        restoreTried = true;
+        try { const saved = await loadStoryCopy('log'); if (!saved || storyLoaded || state.entries.length) return false; applySaved(saved); return true; } catch (_) { return false; }
+    }
     function installSaveHooks() {
         let ok = true;
         if (typeof window.generate_savefile === 'function' && !window.generate_savefile.__rpmod_log) {
             const orig = window.generate_savefile;
             const wrapped = function () {
                 const obj = orig.apply(this, arguments);
-                try { if (obj && state.entries.length) obj[SAVE_KEY] = { version: 1, entries: state.entries.slice(-MAX_ENTRIES), lastTurnIndex: state.lastTurnIndex }; } catch (_) {}
+                try { const b = savedBlock(); if (obj && b) obj[SAVE_KEY] = b; saveStoryCopy('log', b); } catch (_) {}
                 return obj;
             };
             wrapped.__rpmod_log = true; window.generate_savefile = wrapped;
@@ -101,16 +146,24 @@ export default function initGameLog() {
             const orig = window.kai_json_load;
             const wrapped = function (storyobj) {
                 const res = orig.apply(this, arguments);
-                try {
-                    const saved = storyobj && storyobj[SAVE_KEY];
-                    state.entries = saved && Array.isArray(saved.entries) ? saved.entries.filter(e => e && typeof e === 'object').slice(-MAX_ENTRIES) : [];
-                    state.lastTurnIndex = saved ? Math.min(state.entries.length, Math.max(0, Number(saved.lastTurnIndex) || 0)) : 0;
-                    changed();
-                } catch (_) {}
+                try { storyLoaded = true; applySaved(storyobj && storyobj[SAVE_KEY]); } catch (_) {}
                 return res;
             };
             wrapped.__rpmod_log = true; window.kai_json_load = wrapped;
         } else if (typeof window.kai_json_load !== 'function') ok = false;
+        // New Session (Esolite's restart_new_game — also every adventure start and game-over restart) begins a new
+        // story: its log starts empty. Live test 2026-10-20 (GLM: "this seems to be a replay/loop of the same day"):
+        // the old runs' 200 entries stayed, and as the chat was short again the Retry marks rewound to the oldest of
+        // them — 12,000 characters of other fights went to the AI as "since your last reply". The old story keeps its
+        // log in its own save file.
+        if (typeof window.restart_new_game === 'function' && !window.restart_new_game.__rpmod_log) {
+            const orig = window.restart_new_game;
+            const wrapped = function () {
+                try { state.entries = []; state.lastTurnIndex = 0; state.marks = []; pending = null; changed(); } catch (_) {}
+                return orig.apply(this, arguments);
+            };
+            wrapped.__rpmod_log = true; window.restart_new_game = wrapped;
+        }
         return ok;
     }
 
@@ -126,7 +179,7 @@ export default function initGameLog() {
         box.appendChild(el('button', { type: 'button', class: 'btn btn-primary rpm-btn', style: 'margin-top:6px', text: 'Clear log', onclick: () => { if (confirm('Clear the game log of this story?')) clearLog(); } }));
     }
 
-    const api = { roll, d20, add, rollAndLog, entries: () => state.entries.slice(), sinceLastTurn, clear: clearLog, describe };
+    const api = { roll, d20, add, rollAndLog, entries: () => state.entries.slice(), sinceLastTurn, clear: clearLog, truncate, describe };
     window.KLITE_RPMod_Log = api;
 
     let tries = 0;
@@ -134,7 +187,9 @@ export default function initGameLog() {
         const saves = installSaveHooks();
         const sh = window.KLITE_RPMod_Shell;
         if (sh && !sh.views().includes('gamelog')) sh.registerView({ id: 'gamelog', title: 'Dice log', place: 'left', order: 30, mount: renderLog, update: renderLog });
-        if ((!saves || !sh) && ++tries < 120) setTimeout(attempt, 250);
+        if (saves) restoreFromAutosave();
+        const restartHooked = !!(window.restart_new_game && window.restart_new_game.__rpmod_log);
+        if ((!saves || !sh || !restartHooked) && ++tries < 120) setTimeout(attempt, 250);
     };
     if (document.readyState === 'complete') attempt(); else window.addEventListener('load', attempt, { once: true });   // once: a second load event must not start it again
 }

@@ -25,7 +25,7 @@ export default function initAdventures() {
     const Worlds = () => window.KLITE_RPMod_Worlds;
     const Shell = () => window.KLITE_RPMod_Shell;
     const deepClone = (o) => JSON.parse(JSON.stringify(o));
-    const V = { box: null, adventure: null, pregen: null, busy: false, msg: '' };
+    const V = { box: null, adventure: null, pregen: null, busy: false, msg: '', changed: null, reset: true };
 
     function register(pkg) {
         const res = AR.validateAdventure(pkg);
@@ -103,8 +103,35 @@ export default function initAdventures() {
         return id;
     }
 
+    // ---- pregens from an earlier play (play test 2026-10-20: Oona at 0 HP, Pell dead) -------------
+    // The Library's pregens that differ from their starting sheets: [{ name, what }] ("HP 0/12, 225 XP").
+    async function changedPregens(pkg) {
+        const out = []; const C = window.KLITE_RPMod_Characters;
+        for (const g of AR.pregens(pkg)) {
+            const found = await findPregen(pkg.id, g); if (!found || !C) continue;
+            let s = null; try { s = C.loadSheet ? await C.loadSheet(found.name) : C.cachedSheet(found.name); } catch (_) {}
+            const s0 = g.card.data.extensions.klite_rpmod.sheet; if (!s) continue;
+            const bits = [];
+            if (Number(s.level) !== Number(s0.level)) bits.push(`level ${s.level}`);
+            if ((Number(s.xp) || 0) !== (Number(s0.xp) || 0)) bits.push(`${Number(s.xp) || 0} XP`);
+            if (s.hp && s0.hp && Number(s.hp.current) !== Number(s0.hp.current)) bits.push(`HP ${s.hp.current}/${s.hp.max}`);
+            if (JSON.stringify((s.inventory || []).map(i => i.name + 'x' + (i.qty || 1)).sort()) !== JSON.stringify((s0.inventory || []).map(i => i.name + 'x' + (i.qty || 1)).sort())) bits.push('other items');
+            if (bits.length) out.push({ name: found.name, what: bits.join(', ') });
+        }
+        return out;
+    }
+    async function resetPregenSheets(pkg) {
+        const C = window.KLITE_RPMod_Characters; if (!C || !C.saveSheet) return 0; let n = 0;
+        for (const g of AR.pregens(pkg)) {
+            const found = await findPregen(pkg.id, g);
+            if (found) { await C.saveSheet(found.name, deepClone(g.card.data.extensions.klite_rpmod.sheet)); n++; }
+        }
+        return n;
+    }
+
     // ---- start ---------------------------------------------------------------------------------
-    // opts: { pregen, hero, confirm = true }. `hero`: play with a character of your own from the
+    // opts: { pregen, hero, confirm = true, resetPregens }. resetPregens: the adventure's pregens in the Library get their
+    // starting sheets back (level 1, full HP, their items) — the picker asks when they differ. `hero`: play with a character of your own from the
     // Library (its name) instead of a pregen. Starts a new session: the current story is replaced.
     async function start(idOrPkg, opts = {}) {
         const pkg = get(idOrPkg); if (!pkg) throw new Error('unknown adventure');
@@ -120,6 +147,7 @@ export default function initAdventures() {
         if (opts.confirm !== false && story > 0 && !window.confirm(`Start "${pkg.title}" as ${who}? This begins a new session: the current story is replaced (save it first to keep it).`)) return { cancelled: true };
 
         const cards = await installPregens(pkg);
+        if (opts.resetPregens) await resetPregenSheets(pkg);
         const worldId = await installWorld(pkg, cards);
 
         // a new session with the adventure's opening, then the world begins at its start: the
@@ -168,13 +196,7 @@ export default function initAdventures() {
     async function restart(opts = {}) {
         const cur = await current(); if (!cur) throw new Error('the active world is not an adventure');
         const A = Worlds(); try { A.reviveParty(); } catch (_) {}
-        if (opts.resetPregens) {
-            const pkg = registry.get(cur.id); const C = window.KLITE_RPMod_Characters;
-            for (const g of AR.pregens(pkg)) {
-                const found = await findPregen(pkg.id, g);
-                if (found && C && C.saveSheet) await C.saveSheet(found.name, deepClone(g.card.data.extensions.klite_rpmod.sheet));
-            }
-        }
+        if (opts.resetPregens) await resetPregenSheets(registry.get(cur.id));
         return start(cur.id, opts.hero ? { hero: opts.hero, confirm: false } : cur.pregen ? { pregen: cur.pregen, confirm: false } : { hero: cur.persona, confirm: false });
     }
 
@@ -213,12 +235,20 @@ export default function initAdventures() {
             grid.appendChild(card);
         }
         box.appendChild(grid);
-        box.appendChild(el('p', { class: 'rpm-muted', text: 'The others can join you as companions. Starting begins a new session: save your current story first if you want to keep it. Missing characters are added to your Library; characters already there are not changed.' }));
+        box.appendChild(el('p', { class: 'rpm-muted', text: 'The others can join you as companions. Starting begins a new session: save your current story first if you want to keep it. Missing characters are added to your Library.' }));
+        // characters from an earlier play: offer their starting sheets (they would start hurt, dead or levelled)
+        if (V.changed && V.changed.adventure === adv.id && V.changed.list.length) {
+            const cbx = el('input', { type: 'checkbox', 'data-adv': 'reset' }); cbx.checked = V.reset;
+            cbx.addEventListener('change', () => { V.reset = cbx.checked; });
+            box.appendChild(el('label', { class: 'rpm-check', 'data-adv': 'reset-row' }, [cbx, el('span', { text: 'Give the characters their starting sheets back (level 1, full HP, their own items) — replaces what they kept from an earlier play.' })]));
+            box.appendChild(el('ul', { class: 'rpm-muted', 'data-adv': 'changed' }, V.changed.list.map(c => el('li', { text: `${c.name}: ${c.what}` }))));
+        }
         if (V.msg) box.appendChild(el('p', { class: 'rpm-adv-msg', role: 'status', text: V.msg }));
         box.appendChild(el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon rpm-block', 'data-adv': 'start', disabled: V.busy || !V.pregen ? '' : null,
             onclick: async () => {
                 if (V.busy) return; V.busy = true; V.msg = ''; render();
-                try { await start(adv.id, { pregen: V.pregen }); }
+                const reset = !!(V.changed && V.changed.adventure === adv.id && V.changed.list.length && V.reset);
+                try { await start(adv.id, { pregen: V.pregen, resetPregens: reset }); V.changed = null; }
                 catch (e) { V.msg = 'Could not start: ' + (e && e.message || e); }
                 V.busy = false; render();
             } }, [iconText('play', V.busy ? 'Starting…' : 'Start the adventure')]));
@@ -226,14 +256,18 @@ export default function initAdventures() {
     function open(adventureId) {
         const sh = Shell(); if (!sh) return false;
         if (adventureId) { V.adventure = adventureId; V.pregen = null; }
-        V.msg = '';
+        V.msg = ''; V.reset = true;
         sh.open('adventure'); render();
+        // which pregens kept something from an earlier play (async: the Library is read)
+        const pkg = get(V.adventure || (list()[0] && list()[0].id));
+        if (pkg) changedPregens(pkg).then(listed => { V.changed = { adventure: pkg.id, list: listed }; render(); }).catch(() => {});
         return true;
     }
 
     const api = { list, get: (id) => { const p = get(id); return p ? deepClone(p) : null; }, register, validate: AR.validateAdventure,
         pregens: (id) => AR.pregens(get(id)).map(g => ({ id: g.id, name: g.name, line: g.line, pronouns: g.pronouns })),
-        installPregens, start, restart, current, open, forbiddenNamesIn: AR.forbiddenNamesIn };
+        installPregens, start, restart, current, open, forbiddenNamesIn: AR.forbiddenNamesIn,
+        changedPregens: (id) => { const p = get(id); return p ? changedPregens(p) : Promise.resolve([]); } };
     window.KLITE_RPMod_Adventures = api;
 
     function registerView() {

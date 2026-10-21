@@ -114,6 +114,8 @@ const DIR_WORD = { n: 'north', e: 'east', s: 'south', w: 'west', up: 'up', down:
 export function hereReplies(info) {
     if (!info || !info.place) return [];
     const out = [];
+    // the AI's last reply walked the party somewhere without <go>: one click makes it so (nothing is sent)
+    if (info.storyGo) { const n = safeName(info.storyGo.name); if (n) out.push({ label: 'Story: go to ' + n, text: `/storygo ${n}`, send: true, kind: 'storygo', title: `The story says the party went to ${n}, but nothing moved them: go there now (the AI reads it in the log).` }); }
     for (const q of info.quests || []) {
         const t = safeName(q.title); if (!t) continue;
         out.push(q.action === 'turnin'
@@ -125,7 +127,7 @@ export function hereReplies(info) {
         // a locked door: try to unlock it first (a key, or thieves' tools — RPmod rolls)
         if (w.door === 'locked') { out.push({ label: `Unlock: ${d || n}`, text: `/unlock ${d || n} | I try to unlock the ${d ? d + ' ' : ''}door.`, send: true, kind: 'door' }); continue; }
         if (w.door === 'barred') continue;
-        out.push({ label: d ? `${d}: ${n}` : '→ ' + n, text: `/go ${d || n} | I go to ${n}.`, send: true, kind: 'go' });
+        out.push({ label: d ? `${d}: ${n}` : '→ ' + n, text: `/go ${d || n} | I go to {here}.`, send: true, kind: 'go' });   // {here}: filled in after the move (slash.js)
     }
     for (const p of info.people || []) {
         const n = safeName(p.name); if (!n) continue;
@@ -136,6 +138,11 @@ export function hereReplies(info) {
     for (const c of info.checks || []) {
         const t = safeName(c.text); if (!t) continue;
         out.push({ label: `Try: ${t} (${c.what})`, text: `/try ${t} | I try: ${t}.`, send: true, kind: 'check' });
+    }
+    // unopened containers here (a chest, a sack): RPmod hands out what is inside (play test 2026-10-20)
+    for (const c of info.containers || []) {
+        const n = safeName(c.name); if (!n) continue;
+        out.push({ label: 'Open: ' + n, text: `/open ${n} | I open ${n.replace(/^The /, 'the ')}.`, send: true, kind: 'container' });
     }
     if (info.trade) out.push({ label: 'Shop', text: '/shop', send: false, kind: 'shop' });
     if (info.inMap) out.push({ label: 'Search', text: '/search | I search the room.', send: true, kind: 'search' });
@@ -149,7 +156,7 @@ export function hereReplies(info) {
 // story text keeps the tags and the engine parses them as before.
 export const CONTROL_TAGS = ['move', 'go', 'npcmove', 'mood', 'flag', 'unflag', 'give', 'take', 'rep', 'accept', 'turnin',
     'buy', 'sell', 'talk', 'encounter', 'quest', 'time', 'weather', 'advance', 'action', 'roll', 'attack', 'hp', 'check',
-    'open', 'close', 'unlock', 'search', 'room', 'door', 'light', 'join', 'leave'];
+    'open', 'close', 'unlock', 'search', 'room', 'door', 'light', 'join', 'leave', 'cast'];
 const LT = '(?:<|&lt;)', GT = '(?:>|&gt;)', NAMES = CONTROL_TAGS.join('|');
 const PAIR_RE = new RegExp(`[ \\t]*${LT}(${NAMES})\\s*${GT}[\\s\\S]*?${LT}\\/\\1\\s*${GT}`, 'gi');
 const SINGLE_RE = new RegExp(`[ \\t]*${LT}(?:(?:${NAMES})\\s*\\/|advance\\s*\\/?|search\\s*)${GT}`, 'gi');

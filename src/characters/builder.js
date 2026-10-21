@@ -76,8 +76,11 @@ export default function initBuilder() {
             lvl.setAttribute('data-bld', 'level'); lvl.style.width = 'auto';
             root.appendChild(el('div', { class: 'rpm-row' }, [el('span', { class: 'rpm-label', text: 'Start at' }), lvl]));
         }
-        root.appendChild(el('div', { class: 'rpm-bld-grid' }, Object.entries(SRD.classes).map(([id, c]) =>
-            pickCard(id, c.name, `d${c.hitDie} · ${c.primary.map(a => ABILITY_NAMES[a]).join(' & ')}`, V.c.class === id, () => { V.c.classSkills = []; V.c.expertise = []; V.c.fightingStyle = undefined; V.c.classEquipment = 'A'; set('class', id); }))));
+        // Level up keeps the class (no multiclassing; UI play test 2026-10-20: a click on another class turned a wizard into
+        // a "Fighter 2" and dropped the chosen skills): only the character's own class is shown.
+        const classes = Object.entries(SRD.classes).filter(([id]) => !V.levelUp || id === V.c.class);
+        root.appendChild(el('div', { class: 'rpm-bld-grid' }, classes.map(([id, c]) =>
+            pickCard(id, c.name, `d${c.hitDie} · ${c.primary.map(a => ABILITY_NAMES[a]).join(' & ')}`, V.c.class === id, () => { if (V.levelUp || V.c.class === id) return; V.c.classSkills = []; V.c.expertise = []; V.c.fightingStyle = undefined; V.c.classEquipment = 'A'; set('class', id); }))));
         const c = SRD.classes[V.c.class]; if (!c) return;
         const lines = [
             `Hit Point Die: d${c.hitDie} · Saving throws: ${c.saves.map(a => ABILITY_NAMES[a]).join(', ')}`,
@@ -159,7 +162,7 @@ export default function initBuilder() {
             root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: `More skills — choose ${picks.extra}` }), el('div', { class: 'rpm-muted', text: src }), checkList(opts, V.c.extraSkills, picks.extra, v => set('extraSkills', v), 'More skills')]));
         }
         const exp = R.expertisePicks(V.c);
-        if (exp) root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: `Expertise — choose ${exp} of your skills` }), checkList(R.proficientSkills(V.c), V.c.expertise, exp, v => set('expertise', v), 'Expertise')]));
+        if (exp) root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: V.c.class === 'wizard' ? 'Scholar: Expertise — choose 1 of your field skills' : `Expertise — choose ${exp} of your skills` }), checkList(R.expertiseOptions(V.c), V.c.expertise, exp, v => set('expertise', v), 'Expertise')]));
         if (R.fightingStyleAt(V.c)) root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: 'Fighting Style' }),
             el('div', { class: 'rpm-bld-grid' }, R.FIGHTING_STYLES.map(f => pickCard(f, f, (SRD.feats[f] ? SRD.feats[f].text[0] : '').slice(0, 90), V.c.fightingStyle === f, () => set('fightingStyle', f))))]));
         if (R.secondFightingStyleAt(V.c)) root.appendChild(el('div', { class: 'rpm-bld-detail' }, [el('h3', { text: 'Additional Fighting Style (Champion 7)' }),

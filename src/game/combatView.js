@@ -226,7 +226,9 @@ function renderFight(box, cb, A, refresh) {
     const log = el('div', { class: 'rpm-log', 'data-cb': 'log' });
     for (const line of (cb.log || []).slice(-10)) log.appendChild(el('div', { text: line }));
     box.appendChild(log);
-    box.appendChild(btn(cb.outcome ? 'Close the fight' : 'End encounter', () => { if (cb.outcome || confirm('End the fight now (flee / stop)? HP is kept.')) { A.endEncounter(); refresh(); } }, { icon: 'x', block: true, variant: cb.outcome ? null : 'danger', id: 'end' }));
+    // the window closes with the fight (play test 2026-10-20: it switched to the encounter builder, a creator
+    // tool, in front of the player); creators reopen it from World Creation → Combat
+    box.appendChild(btn(cb.outcome ? 'Close the fight' : 'End encounter', () => { if (cb.outcome || confirm('End the fight now (flee / stop)? HP is kept.')) { A.endEncounter(); try { window.KLITE_RPMod_Shell?.close('combat'); } catch (_) {} refresh(); } }, { icon: 'x', block: true, variant: cb.outcome ? null : 'danger', id: 'end' }));
 }
 
 function renderTurn(box, cb, cur, A, refresh) {
@@ -234,9 +236,9 @@ function renderTurn(box, cb, cur, A, refresh) {
     box.appendChild(wrap);
     const endTurn = () => { A.nextTurn(); if (autoTurnsOn()) A.runAutoTurns(); refresh(); };
     const d = cb.death && cb.death[cur.id];
-    if (cur.isPlayer && d && !d.dead && !d.stable) {
-        wrap.appendChild(muted('You are dying. Roll a death saving throw: 10+ succeeds, 20 brings you back with 1 HP, 1 counts twice.'));
-        wrap.appendChild(btn('Roll death save', () => { A.deathSave('__player__'); endTurn(); }, { icon: 'dice-5', block: true, variant: 'danger', id: 'death-save' }));
+    if ((cur.isPlayer || cur.side === 'party') && d && !d.dead && !d.stable) {
+        wrap.appendChild(muted(`${cur.isPlayer ? 'You are' : cur.name + ' is'} dying. Roll a death saving throw: 10+ succeeds, 20 brings ${cur.isPlayer ? 'you' : 'them'} back with 1 HP, 1 counts twice.`));
+        wrap.appendChild(btn('Roll death save', () => { A.deathSave(cur.id); endTurn(); }, { icon: 'dice-5', block: true, variant: 'danger', id: 'death-save' }));
         return;
     }
     if (cur.isPlayer || cur.side === 'party') {
@@ -267,10 +269,13 @@ function renderTurn(box, cb, cur, A, refresh) {
         const zv = A.zoneView && A.zoneView();
         const why = zv && U.target ? zv.canAttack(cur.id, U.target, U.atk) : null;
         if (zv) zoneControls(wrap, cb, cur, zv, A, refresh);
+        const left = A.attacksLeft ? A.attacksLeft(cur.id) : 1;
+        if (!left) wrap.appendChild(muted('Your action is used this turn — move, or End turn.', { 'data-cb': 'attacks-left', style: 'margin-top:4px' }));
+        else if (left > 1) wrap.appendChild(muted(`Attack action: ${left} attacks left this turn (Extra Attack / Multiattack).`, { 'data-cb': 'attacks-left', style: 'margin-top:4px' }));
         if (why && !why.ok) wrap.appendChild(muted(`Attack not possible: ${why.reason}.`, { 'data-cb': 'attack-why', style: 'margin-top:4px' }));
         else if (why && (why.penalty || why.cover)) wrap.appendChild(muted([why.penalty ? `−${why.penalty} to hit (the target attacked you in melee)` : '', why.cover ? `the target is in ${why.cover === 'three' ? 'three-quarters' : 'half'} cover` : ''].filter(Boolean).join(' · '), { 'data-cb': 'attack-note', style: 'margin-top:4px' }));
         wrap.appendChild(row([
-            btn('Attack', () => { if (U.target) A.attack(cur.id, U.target, U.atk, { mode: U.mode || undefined }); refresh(); }, { icon: 'swords', variant: 'danger', grow: true, disabled: !foes.length || (why && !why.ok), id: 'attack' }),
+            btn('Attack', () => { if (U.target) A.attack(cur.id, U.target, U.atk, { mode: U.mode || undefined }); refresh(); }, { icon: 'swords', variant: 'danger', grow: true, disabled: !foes.length || !left || (why && !why.ok), id: 'attack' }),
             btn('End turn', endTurn, { icon: 'arrow-right', grow: true, id: 'end-turn' }),
         ], 'margin-top:6px'));
         wrap.appendChild(muted('Then tell the AI in the chat what you do — it narrates the rolls from the log.', { style: 'margin-top:4px' }));

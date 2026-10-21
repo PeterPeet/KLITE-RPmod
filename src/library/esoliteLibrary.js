@@ -119,7 +119,8 @@ function upsertMeta(meta) {
 //   no oldName     → new entry, resolved like Esolite's own import (a taken name becomes
 //                    "Name_1" unless the user enabled overwriting on name collision)
 // Returns { id, name }.
-export async function saveCharacter({ inner, image, oldName }) {
+// storedImage: the record's portrait as just read (saveSheet) — saves reading the whole record again.
+export async function saveCharacter({ inner, image, oldName, storedImage }) {
     const rawName = (inner && inner.name) || '';
     if (!String(rawName).trim()) throw new Error('Character must have a name.');
     let existing = oldName ? findMetaByName(oldName) : null;
@@ -139,8 +140,8 @@ export async function saveCharacter({ inner, image, oldName }) {
         name = r.name; id = r.id;
     }
     const record = { id, name, data: Object.assign({}, inner, { name: normalizeName(rawName, 'No character name') }) };
-    let img = image;
-    if (!img) {
+    let img = image || storedImage || null;
+    if (!img && storedImage === undefined) {
         // keep the stored portrait when the edit did not bring one
         try {
             const prev = JSON.parse(await window.indexeddb_load?.(storageKey(id), '{}') || '{}');
@@ -155,6 +156,9 @@ export async function saveCharacter({ inner, image, oldName }) {
     libraryChanged({ name, oldName: oldName || null });
     return { id, name };
 }
+
+// The Library id of a character (the key its record and RPmod's live sheet are stored under), or null.
+export function characterIdOf(name) { const m = name ? findMetaByName(name) : null; return m && m.id ? `${m.id}` : null; }
 
 // `klite:library-change` on window after RPmod wrote or deleted a character
 // (detail { name, oldName, deleted }) — caches keyed by name drop the entry.
