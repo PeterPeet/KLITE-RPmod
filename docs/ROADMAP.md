@@ -63,7 +63,9 @@ the endings, the XP balance) are built — the adventure is complete. Next: the 
   World editor (node graph) windows; Creator/Player lens.
 - **Delivery:** usermod bundle, or `index.rpmod.html` that autoloads the mod after
   Esolite's `load` event; online at https://rp-lite.koboldai.net (released Esobold + RPmod,
-  published with `npm run deploy:pages -- --push`; first deploy 2026-09-25).
+  published with `npm run deploy:pages -- --push`; first deploy 2026-09-25; **v0.10.0 released 2026-10-21** on Esolite
+  origin/remoteManagement @ a90fe85a6 — Esolite unchanged since the previous release f4d807885, our four Esobold PRs
+  merged upstream; the local Esobold clone now tracks remoteManagement, not guide-extensions).
 - **Credits:** the exact SRD 5.2.1 attribution, the Ultimate Dungeon Terrain credit (zone combat idea)
   and Lucide appear in the Guide's **Credits** chapter, the header of `KLITE-RPmod.js` (taken verbatim
   from `src/data/srd52.js` at build time) and USER_GUIDE "Credits"; the SRD text also under every
