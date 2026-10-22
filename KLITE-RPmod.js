@@ -19823,7 +19823,8 @@ ${char.mes_example}
         "properties": "Light",
         "mastery": "Slow",
         "category": "simple melee",
-        "cost": "1 SP"
+        "cost": "1 SP",
+        "weight": 2
       },
       "Dagger": {
         "damage": "1d4",
@@ -19831,7 +19832,8 @@ ${char.mes_example}
         "properties": "Finesse, Light, Thrown (Range 20/60)",
         "mastery": "Nick",
         "category": "simple melee",
-        "cost": "2 GP"
+        "cost": "2 GP",
+        "weight": 1
       },
       "Greatclub": {
         "damage": "1d8",
@@ -19839,7 +19841,8 @@ ${char.mes_example}
         "properties": "Two-Handed",
         "mastery": "Push",
         "category": "simple melee",
-        "cost": "2 SP"
+        "cost": "2 SP",
+        "weight": 10
       },
       "Handaxe": {
         "damage": "1d6",
@@ -19847,7 +19850,8 @@ ${char.mes_example}
         "properties": "Light, Thrown (Range 20/60)",
         "mastery": "Vex",
         "category": "simple melee",
-        "cost": "5 GP"
+        "cost": "5 GP",
+        "weight": 2
       },
       "Javelin": {
         "damage": "1d6",
@@ -19855,7 +19859,8 @@ ${char.mes_example}
         "properties": "Thrown (Range 30/120)",
         "mastery": "Slow",
         "category": "simple melee",
-        "cost": "5 SP"
+        "cost": "5 SP",
+        "weight": 2
       },
       "Light Hammer": {
         "damage": "1d4",
@@ -19863,7 +19868,8 @@ ${char.mes_example}
         "properties": "Light, Thrown (Range 20/60)",
         "mastery": "Nick",
         "category": "simple melee",
-        "cost": "2 GP"
+        "cost": "2 GP",
+        "weight": 2
       },
       "Mace": {
         "damage": "1d6",
@@ -19871,7 +19877,8 @@ ${char.mes_example}
         "properties": "",
         "mastery": "Sap",
         "category": "simple melee",
-        "cost": "5 GP"
+        "cost": "5 GP",
+        "weight": 4
       },
       "Quarterstaff": {
         "damage": "1d6",
@@ -19879,7 +19886,8 @@ ${char.mes_example}
         "properties": "Versatile (1d8)",
         "mastery": "Topple",
         "category": "simple melee",
-        "cost": "2 SP"
+        "cost": "2 SP",
+        "weight": 4
       },
       "Sickle": {
         "damage": "1d4",
@@ -19887,7 +19895,8 @@ ${char.mes_example}
         "properties": "Light",
         "mastery": "Nick",
         "category": "simple melee",
-        "cost": "1 GP"
+        "cost": "1 GP",
+        "weight": 2
       },
       "Spear": {
         "damage": "1d6",
@@ -19895,7 +19904,8 @@ ${char.mes_example}
         "properties": "Thrown (Range 20/60), Versatile (1d8)",
         "mastery": "Sap",
         "category": "simple melee",
-        "cost": "1 GP"
+        "cost": "1 GP",
+        "weight": 3
       },
       "Dart": {
         "damage": "1d4",
@@ -19903,7 +19913,8 @@ ${char.mes_example}
         "properties": "Finesse, Thrown (Range 20/60)",
         "mastery": "Vex",
         "category": "simple ranged",
-        "cost": "5 CP"
+        "cost": "5 CP",
+        "weight": 0.25
       },
       "Light Crossbow": {
         "damage": "1d8",
@@ -19911,7 +19922,8 @@ ${char.mes_example}
         "properties": "Ammunition (Range 80/320; Bolt), Loading, Two-Handed",
         "mastery": "Slow",
         "category": "simple ranged",
-        "cost": "25 GP"
+        "cost": "25 GP",
+        "weight": 5
       },
       "Shortbow": {
         "damage": "1d6",
@@ -19919,7 +19931,8 @@ ${char.mes_example}
         "properties": "Ammunition (Range 80/320; Arrow), Two-Handed",
         "mastery": "Vex",
         "category": "simple ranged",
-        "cost": "25 GP"
+        "cost": "25 GP",
+        "weight": 2
       },
       "Sling": {
         "damage": "1d4",
@@ -19927,7 +19940,8 @@ ${char.mes_example}
         "properties": "Ammunition (Range 30/120; Bullet)",
         "mastery": "Slow",
         "category": "simple ranged",
-        "cost": "1 SP"
+        "cost": "1 SP",
+        "weight": 0
       },
       "Battleaxe": {
         "damage": "1d8",
@@ -19935,7 +19949,8 @@ ${char.mes_example}
         "properties": "Versatile (1d10)",
         "mastery": "Topple",
         "category": "martial melee",
-        "cost": "10 GP"
+        "cost": "10 GP",
+        "weight": 4
       },
       "Flail": {
         "damage": "1d8",
@@ -19943,7 +19958,8 @@ ${char.mes_example}
         "properties": "",
         "mastery": "Sap",
         "category": "martial melee",
-        "cost": "10 GP"
+        "cost": "10 GP",
+        "weight": 2
       },
       "Glaive": {
         "damage": "1d10",
@@ -19951,7 +19967,8 @@ ${char.mes_example}
         "properties": "Heavy, Reach, Two-Handed",
         "mastery": "Graze",
         "category": "martial melee",
-        "cost": "20 GP"
+        "cost": "20 GP",
+        "weight": 6
       },
       "Greataxe": {
         "damage": "1d12",
@@ -19959,7 +19976,8 @@ ${char.mes_example}
         "properties": "Heavy, Two-Handed",
         "mastery": "Cleave",
         "category": "martial melee",
-        "cost": "30 GP"
+        "cost": "30 GP",
+        "weight": 7
       },
       "Greatsword": {
         "damage": "2d6",
@@ -19967,7 +19985,8 @@ ${char.mes_example}
         "properties": "Heavy, Two-Handed",
         "mastery": "Graze",
         "category": "martial melee",
-        "cost": "50 GP"
+        "cost": "50 GP",
+        "weight": 6
       },
       "Halberd": {
         "damage": "1d10",
@@ -19975,7 +19994,8 @@ ${char.mes_example}
         "properties": "Heavy, Reach, Two-Handed",
         "mastery": "Cleave",
         "category": "martial melee",
-        "cost": "20 GP"
+        "cost": "20 GP",
+        "weight": 6
       },
       "Lance": {
         "damage": "1d10",
@@ -19983,7 +20003,8 @@ ${char.mes_example}
         "properties": "Heavy, Reach, Two-Handed (unless mounted)",
         "mastery": "Topple",
         "category": "martial melee",
-        "cost": "10 GP"
+        "cost": "10 GP",
+        "weight": 6
       },
       "Longsword": {
         "damage": "1d8",
@@ -19991,7 +20012,8 @@ ${char.mes_example}
         "properties": "Versatile (1d10)",
         "mastery": "Sap",
         "category": "martial melee",
-        "cost": "15 GP"
+        "cost": "15 GP",
+        "weight": 3
       },
       "Maul": {
         "damage": "2d6",
@@ -19999,7 +20021,8 @@ ${char.mes_example}
         "properties": "Heavy, Two-Handed",
         "mastery": "Topple",
         "category": "martial melee",
-        "cost": "10 GP"
+        "cost": "10 GP",
+        "weight": 10
       },
       "Morningstar": {
         "damage": "1d8",
@@ -20007,7 +20030,8 @@ ${char.mes_example}
         "properties": "",
         "mastery": "Sap",
         "category": "martial melee",
-        "cost": "15 GP"
+        "cost": "15 GP",
+        "weight": 4
       },
       "Pike": {
         "damage": "1d10",
@@ -20015,7 +20039,8 @@ ${char.mes_example}
         "properties": "Heavy, Reach, Two-Handed",
         "mastery": "Push",
         "category": "martial melee",
-        "cost": "5 GP"
+        "cost": "5 GP",
+        "weight": 18
       },
       "Rapier": {
         "damage": "1d8",
@@ -20023,7 +20048,8 @@ ${char.mes_example}
         "properties": "Finesse",
         "mastery": "Vex",
         "category": "martial melee",
-        "cost": "25 GP"
+        "cost": "25 GP",
+        "weight": 2
       },
       "Scimitar": {
         "damage": "1d6",
@@ -20031,7 +20057,8 @@ ${char.mes_example}
         "properties": "Finesse, Light",
         "mastery": "Nick",
         "category": "martial melee",
-        "cost": "25 GP"
+        "cost": "25 GP",
+        "weight": 3
       },
       "Shortsword": {
         "damage": "1d6",
@@ -20039,7 +20066,8 @@ ${char.mes_example}
         "properties": "Finesse, Light",
         "mastery": "Vex",
         "category": "martial melee",
-        "cost": "10 GP"
+        "cost": "10 GP",
+        "weight": 2
       },
       "Trident": {
         "damage": "1d8",
@@ -20047,7 +20075,8 @@ ${char.mes_example}
         "properties": "Thrown (Range 20/60), Versatile (1d10)",
         "mastery": "Topple",
         "category": "martial melee",
-        "cost": "5 GP"
+        "cost": "5 GP",
+        "weight": 4
       },
       "Warhammer": {
         "damage": "1d8",
@@ -20055,7 +20084,8 @@ ${char.mes_example}
         "properties": "Versatile (1d10)",
         "mastery": "Push",
         "category": "martial melee",
-        "cost": "15 GP"
+        "cost": "15 GP",
+        "weight": 5
       },
       "War Pick": {
         "damage": "1d8",
@@ -20063,7 +20093,8 @@ ${char.mes_example}
         "properties": "Versatile (1d10)",
         "mastery": "Sap",
         "category": "martial melee",
-        "cost": "5 GP"
+        "cost": "5 GP",
+        "weight": 2
       },
       "Whip": {
         "damage": "1d4",
@@ -20071,7 +20102,8 @@ ${char.mes_example}
         "properties": "Finesse, Reach",
         "mastery": "Slow",
         "category": "martial melee",
-        "cost": "2 GP"
+        "cost": "2 GP",
+        "weight": 3
       },
       "Blowgun": {
         "damage": "1",
@@ -20079,7 +20111,8 @@ ${char.mes_example}
         "properties": "Ammunition (Range 25/100; Needle), Loading",
         "mastery": "Vex",
         "category": "martial ranged",
-        "cost": "10 GP"
+        "cost": "10 GP",
+        "weight": 1
       },
       "Hand Crossbow": {
         "damage": "1d6",
@@ -20087,7 +20120,8 @@ ${char.mes_example}
         "properties": "Ammunition (Range 30/120; Bolt), Light, Loading",
         "mastery": "Vex",
         "category": "martial ranged",
-        "cost": "75 GP"
+        "cost": "75 GP",
+        "weight": 3
       },
       "Heavy Crossbow": {
         "damage": "1d10",
@@ -20095,7 +20129,8 @@ ${char.mes_example}
         "properties": "Ammunition (Range 100/400; Bolt), Heavy, Loading, Two-Handed",
         "mastery": "Push",
         "category": "martial ranged",
-        "cost": "50 GP"
+        "cost": "50 GP",
+        "weight": 18
       },
       "Longbow": {
         "damage": "1d8",
@@ -20103,7 +20138,8 @@ ${char.mes_example}
         "properties": "Ammunition (Range 150/600; Arrow), Heavy, Two-Handed",
         "mastery": "Slow",
         "category": "martial ranged",
-        "cost": "50 GP"
+        "cost": "50 GP",
+        "weight": 2
       },
       "Musket": {
         "damage": "1d12",
@@ -20111,7 +20147,8 @@ ${char.mes_example}
         "properties": "Ammunition (Range 40/120; Bullet), Loading, Two-Handed",
         "mastery": "Slow",
         "category": "martial ranged",
-        "cost": "500 GP"
+        "cost": "500 GP",
+        "weight": 10
       },
       "Pistol": {
         "damage": "1d10",
@@ -20119,7 +20156,8 @@ ${char.mes_example}
         "properties": "Ammunition (Range 30/90; Bullet), Loading",
         "mastery": "Vex",
         "category": "martial ranged",
-        "cost": "250 GP"
+        "cost": "250 GP",
+        "weight": 3
       }
     },
     "armor": {
@@ -20127,76 +20165,121 @@ ${char.mes_example}
         "category": "light",
         "base": 11,
         "dexCap": null,
-        "cost": "5 GP"
+        "cost": "5 GP",
+        "weight": 8
       },
       "Leather Armor": {
         "category": "light",
         "base": 11,
         "dexCap": null,
-        "cost": "10 GP"
+        "cost": "10 GP",
+        "weight": 10
       },
       "Studded Leather Armor": {
         "category": "light",
         "base": 12,
         "dexCap": null,
-        "cost": "45 GP"
+        "cost": "45 GP",
+        "weight": 13
       },
       "Hide Armor": {
         "category": "medium",
         "base": 12,
         "dexCap": 2,
-        "cost": "10 GP"
+        "cost": "10 GP",
+        "weight": 12
       },
       "Chain Shirt": {
         "category": "medium",
         "base": 13,
         "dexCap": 2,
-        "cost": "50 GP"
+        "cost": "50 GP",
+        "weight": 20
       },
       "Scale Mail": {
         "category": "medium",
         "base": 14,
         "dexCap": 2,
-        "cost": "50 GP"
+        "cost": "50 GP",
+        "weight": 45
       },
       "Breastplate": {
         "category": "medium",
         "base": 14,
         "dexCap": 2,
-        "cost": "400 GP"
+        "cost": "400 GP",
+        "weight": 20
       },
       "Half Plate Armor": {
         "category": "medium",
         "base": 15,
         "dexCap": 2,
-        "cost": "750 GP"
+        "cost": "750 GP",
+        "weight": 40
       },
       "Ring Mail": {
         "category": "heavy",
         "base": 14,
         "dexCap": 0,
-        "cost": "30 GP"
+        "cost": "30 GP",
+        "weight": 40
       },
       "Chain Mail": {
         "category": "heavy",
         "base": 16,
         "dexCap": 0,
-        "cost": "75 GP"
+        "cost": "75 GP",
+        "weight": 55
       },
       "Splint Armor": {
         "category": "heavy",
         "base": 17,
         "dexCap": 0,
-        "cost": "200 GP"
+        "cost": "200 GP",
+        "weight": 60
       },
       "Plate Armor": {
         "category": "heavy",
         "base": 18,
         "dexCap": 0,
-        "cost": "1,500 GP"
+        "cost": "1,500 GP",
+        "weight": 65
       }
     },
     "shieldCost": "10 GP",
+    "shieldWeight": 6,
+    "ammunition": {
+      "Arrows": {
+        "amount": 20,
+        "storage": "Quiver",
+        "weight": 1,
+        "cost": "1 GP"
+      },
+      "Bolts": {
+        "amount": 20,
+        "storage": "Case",
+        "weight": 1.5,
+        "cost": "1 GP"
+      },
+      "Bullets, Firearm": {
+        "amount": 10,
+        "storage": "Pouch",
+        "weight": 2,
+        "cost": "3 GP"
+      },
+      "Bullets, Sling": {
+        "amount": 20,
+        "storage": "Pouch",
+        "weight": 1.5,
+        "cost": "4 CP"
+      },
+      "Needles": {
+        "amount": 50,
+        "storage": "Pouch",
+        "weight": 1,
+        "cost": "1 GP"
+      }
+    },
     "xpBudget": {
       "1": {
         "low": 50,
