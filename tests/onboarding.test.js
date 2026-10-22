@@ -318,6 +318,9 @@ test('Guide: a chapter on the AI model and the settings that matter', () => {
     assert.match(text, /Before A\/N/);
     assert.match(text, /Context Size: 32,768 .*85% of the Context Size/);
     assert.match(text, /Never set it above what the model offers at your provider/);
+    assert.match(text, /Claude, GPT, Gemini or Grok will probably work well, but we could not test them yet/);
+    assert.match(text, /The AI Horde does not work for RPmod/);
+    assert.doesNotMatch(JSON.stringify(CHAPTERS.find(c => c.id === 'esolite').blocks), /AI Horde \(free, community-run\) works without setup/, 'first steps no longer recommend the Horde');
 });
 
 test('"New here?" warns while Max Output is below 16,000 and stops once it is set', async (t) => {
