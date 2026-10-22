@@ -62,6 +62,9 @@ npm run icons        # after changing the icon list: regenerates src/shell/icons
   when the owner says so. Both branches are protected: no force-push, and the `license` check must pass
   (`.github/workflows/license.yml`: `LICENSE.md` = AGPL-3.0 unchanged, `package.json` license `AGPL-3.0-only`).
 - **License: AGPL-3.0** (owner, 2026-10-22; the host's license). Keep `LICENSE.md` unchanged.
+- **Release notes:** every version gets a `CHANGELOG.md` section and a GitHub Release with tag `vX.Y.Z` on `main` (same
+  text). Style (owner): informal, like a short blog post to the players — "Hi everyone! …" — what we worked on and
+  what comes next, then a short plain-language list; no developer jargon.
 
 ## Esolite host constraints (details: ARCHITECTURE.md §2)
 - Hook generation via `window.prepare_submit_generation`; `submit_generation` is a
