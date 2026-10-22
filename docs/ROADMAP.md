@@ -12,8 +12,8 @@
 
 **Now: R9 — inventory** (owner, 2026-10-22, after v0.10.1): a Diablo-like inventory where an item's size comes from its
 SRD weight. Phases 1–4 are done (rules and SRD weights, the Inventory tab, the game hooks, docs, a play test with GLM
-5.3 and its fixes: `<drop>`, the [Items] note, the AI's weights, Speed 5 ft in zone combat). Next: PR into development,
-then a release. Details under **R9** below.
+5.3 and its fixes: `<drop>`, the [Items] note, the AI's weights, Speed 5 ft in zone combat), merged (PR #12) and
+**released as v0.11.0** (2026-10-22). Details under **R9** below.
 
 **Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
 is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). R5 is done
@@ -1277,7 +1277,7 @@ open (e.g. on an iPad, where the left panel is closed).
   - **Adventure notes:** one text, saved in the adventure (world) state, wiped on a new start / Back to start;
     Delete / Cancel / Save; a grey note under the box says so. For things that matter only in this play.
 
-### R9 — Inventory: bags, paper doll, item size from SRD weight 🟨 (owner, 2026-10-22)
+### R9 — Inventory: bags, paper doll, item size from SRD weight ✅ (owner, 2026-10-22; v0.11.0)
 Plan: Diablo-style item management, but an item's tiles come from its **weight** (SRD 5.2.1), not its type; first
 version with icons for weapon, armor, ammunition, potion, bag and general gear. Owner's decisions while building it:
 weight brackets per kind for the tiles; rotation (R); dropped items stay in the room; an **Overweight** bag for the
