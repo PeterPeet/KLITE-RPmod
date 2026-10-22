@@ -527,7 +527,9 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-inv-slot.rpm-full, .rpm-inv-chip { touch-action: none; }
 .rpm-inv-qty { position: absolute; right: 2px; bottom: 0; font-size: 10px; font-weight: bold; }
 .rpm-inv-small { font-size: 9px; line-height: 1.05; }
-.rpm-inv-two { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: clip; }
+.rpm-inv-two { white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: clip; }
+.rpm-inv-one { white-space: nowrap; text-overflow: ellipsis; }
+.rpm-inv-qty.rpm-inv-qty-below { position: static; line-height: 1; }
 .rpm-inv-tip { position: fixed; z-index: 11; pointer-events: none; max-width: 260px; padding: 3px 7px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); background: var(--rpm-bg); color: var(--rpm-fg-hi); font-size: var(--rpm-fs-sm); box-shadow: var(--rpm-shadow); }
 .rpm-inv-ghost { pointer-events: none; border: 2px dashed var(--rpm-success); }
 .rpm-inv-ghost[data-ok="0"] { border-color: var(--rpm-danger); }
@@ -37443,9 +37445,9 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       }, [
         // one row high (owner): the name only, no icon; the colour still tells the kind
         h > 1 ? icon(KIND_ICON[kind], 16) : null,
-        el("span", { class: "rpm-inv-name rpm-inv-two" + (h === 1 || w === 1 ? " rpm-inv-small" : ""), text: it.name }),
-        // two lines for every item (owner)
-        it.qty > 1 ? el("span", { class: "rpm-inv-qty", text: String(it.qty) }) : null
+        // two lines for every item (owner), hyphenated; a 1×1 tile with a count: one line, the count below
+        el("span", { class: "rpm-inv-name " + (w === 1 && h === 1 && it.qty > 1 ? "rpm-inv-one" : "rpm-inv-two") + (h === 1 || w === 1 ? " rpm-inv-small" : ""), lang: "en", text: it.name }),
+        it.qty > 1 ? el("span", { class: "rpm-inv-qty" + (w === 1 && h === 1 ? " rpm-inv-qty-below" : ""), text: String(it.qty) }) : null
       ]);
       tip(t, it);
       dragSource(t, it, w, h);

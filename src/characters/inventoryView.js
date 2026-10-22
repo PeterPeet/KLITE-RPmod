@@ -156,8 +156,9 @@ export function inventoryView(opts) {
             } }, [
                 // one row high (owner): the name only, no icon; the colour still tells the kind
                 h > 1 ? icon(KIND_ICON[kind], 16) : null,
-                el('span', { class: 'rpm-inv-name rpm-inv-two' + (h === 1 || w === 1 ? ' rpm-inv-small' : ''), text: it.name }),   // two lines for every item (owner)
-                it.qty > 1 ? el('span', { class: 'rpm-inv-qty', text: String(it.qty) }) : null]);
+                // two lines for every item (owner), hyphenated; a 1×1 tile with a count: one line, the count below
+                el('span', { class: 'rpm-inv-name ' + (w === 1 && h === 1 && it.qty > 1 ? 'rpm-inv-one' : 'rpm-inv-two') + (h === 1 || w === 1 ? ' rpm-inv-small' : ''), lang: 'en', text: it.name }),
+                it.qty > 1 ? el('span', { class: 'rpm-inv-qty' + (w === 1 && h === 1 ? ' rpm-inv-qty-below' : ''), text: String(it.qty) }) : null]);
         tip(t, it);
         dragSource(t, it, w, h);
         return t;

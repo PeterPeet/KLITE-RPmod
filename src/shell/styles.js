@@ -521,7 +521,9 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-inv-slot.rpm-full, .rpm-inv-chip { touch-action: none; }
 .rpm-inv-qty { position: absolute; right: 2px; bottom: 0; font-size: 10px; font-weight: bold; }
 .rpm-inv-small { font-size: 9px; line-height: 1.05; }
-.rpm-inv-two { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: clip; }
+.rpm-inv-two { white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: clip; }
+.rpm-inv-one { white-space: nowrap; text-overflow: ellipsis; }
+.rpm-inv-qty.rpm-inv-qty-below { position: static; line-height: 1; }
 .rpm-inv-tip { position: fixed; z-index: 11; pointer-events: none; max-width: 260px; padding: 3px 7px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); background: var(--rpm-bg); color: var(--rpm-fg-hi); font-size: var(--rpm-fs-sm); box-shadow: var(--rpm-shadow); }
 .rpm-inv-ghost { pointer-events: none; border: 2px dashed var(--rpm-success); }
 .rpm-inv-ghost[data-ok="0"] { border-color: var(--rpm-danger); }
