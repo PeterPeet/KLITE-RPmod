@@ -169,12 +169,19 @@ export function writeSheet(inner, sheet) {
     return out;
 }
 
+// R9 (SRD 5.2.1): more than Str × 15 lb carried, or anything dragged along (the Overweight bag):
+// Speed at most 5 ft.
+export function effectiveSpeed(sheet) {
+    const sp = Math.max(0, int(sheet && sheet.speed, 30));
+    return sheet && Array.isArray(sheet.inventory) && sheet.inventory.length && IR.carried(sheet).slowed ? Math.min(5, sp) : sp;
+}
+
 // ---- Worlds stat block <-> sheet (persons linked to a card) ----------------------------
 // Worlds persons carry { abilities, ac, hpMax, speed, proficiency, initiativeMod, attacks }.
 export function toCombatStats(sheet) {
     const d = derive(sheet);
     return {
-        abilities: { ...d.sheet.abilities }, ac: d.sheet.ac, hpMax: d.sheet.hp.max, speed: d.sheet.speed,
+        abilities: { ...d.sheet.abilities }, ac: d.sheet.ac, hpMax: d.sheet.hp.max, speed: effectiveSpeed(d.sheet),
         proficiency: d.pb, initiativeMod: d.initiative, saves: { ...d.saves },
         attacks: d.attacks.map(a => ({ name: a.name, toHit: a.toHit, damage: a.damage || '1d4' })),
         attacksPerAction: attacksPerAction(d.sheet),
@@ -204,7 +211,7 @@ export function sheetSummary(sheet) {
     const d = derive(sheet); const s = d.sheet;
     const who = [s.species, s.className && `${s.className} ${s.level}`, !s.className && `level ${s.level}`].filter(Boolean).join(' ');
     const lines = [
-        `${who || 'Level ' + s.level} — HP ${s.hp.current}/${s.hp.max}${s.hp.temp ? ` (+${s.hp.temp} temp)` : ''}, AC ${s.ac}, Speed ${s.speed} ft.`,
+        `${who || 'Level ' + s.level} — HP ${s.hp.current}/${s.hp.max}${s.hp.temp ? ` (+${s.hp.temp} temp)` : ''}, AC ${s.ac}, Speed ${effectiveSpeed(s) < s.speed ? `${effectiveSpeed(s)} ft (overloaded; normally ${s.speed} ft)` : s.speed + ' ft'}.`,
         ABILITIES.map(a => `${a.toUpperCase()} ${s.abilities[a]} (${fmt(d.mods[a])})`).join(', '),
     ];
     const prof = SKILLS.filter(k => s.skills[k.id]).map(k => `${k.name} ${fmt(d.skills[k.id])}`);

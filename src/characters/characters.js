@@ -12,7 +12,7 @@
 // Public API: window.KLITE_RPMod_Characters.
 // =============================================================================
 import { el, clear, icon, iconText } from '../shell/dom.js';
-import { ABILITIES, ABILITY_NAMES, SKILLS, defaultSheet, normalizeSheet, derive, fmt, fromCombatStats } from './sheet.js';
+import { ABILITIES, ABILITY_NAMES, SKILLS, defaultSheet, normalizeSheet, derive, fmt, fromCombatStats, effectiveSpeed } from './sheet.js';
 import { loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor, updateSheet, flushSheet, restoreSheet, foldAll, forget, combatSpellsFor, spendSpell, longRestSheet, setItemInHand } from './store.js';
 import { characterNames } from '../library/esoliteLibrary.js';
 import * as SP from './spell-rules.js';
@@ -379,7 +379,7 @@ export default function initCharacters() {
     function combatTab(root, D, s, set) {
         root.appendChild(el('div', { class: 'rpm-sheet-grid4' }, [
             field('Armor Class', numIn(s.ac, set(v => { V.draft.ac = v; }))),
-            field('Speed', numIn(s.speed, set(v => { V.draft.speed = v; }))),
+            field(effectiveSpeed(s) < s.speed ? `Speed (now ${effectiveSpeed(s)} ft: overloaded)` : 'Speed', numIn(s.speed, set(v => { V.draft.speed = v; }))),
             field('Initiative', btn(fmt(D.initiative), () => rollD20('Initiative', D.initiative, 'initiative'), { roll: 'initiative', title: 'Roll initiative' })),
             field('Passive Perception', el('div', { class: 'rpm-sheet-static', text: String(D.passivePerception) })),
         ]));
@@ -478,11 +478,21 @@ export default function initCharacters() {
             render();
         } else edited();
     }
+    function canDrop() {
+        try { const W = window.KLITE_RPMod_Worlds; return !!(W && W.dropItem && W.here && W.here() && W.here().place); } catch (_) { return false; }
+    }
     function inventoryTab(root, D, s, set) {
         root.appendChild(itemList());
         root.appendChild(inventoryView({
             sheet: s, state: V.inv, apply: invApply, toast: (m, err) => toast(m, err),
             openRef: window.KLITE_RPMod_Compendium ? (ref) => window.KLITE_RPMod_Compendium.open(ref) : null,
+            // R9: drop it here (a world place): it stays on the ground, the Here row can pick it up again
+            drop: canDrop() ? (it) => {
+                const r = window.KLITE_RPMod_Worlds.dropItem(V.name, it.id);
+                if (!r.ok) return r.reason;
+                const fresh = cachedSheet(V.name); if (fresh) { V.saved = normalizeSheet(fresh); V.draft.inventory = JSON.parse(JSON.stringify(V.saved.inventory)); }
+                toast(`${it.name} dropped here.`); return '';
+            } : null,
         }));
         const itemName = el('input', { type: 'text', class: 'form-control rpm-input rpm-grow', placeholder: 'Add an item (SRD names are suggested)', 'aria-label': 'New item', list: 'rpm-sheet-items', autocomplete: 'off' });
         itemName.classList.add('fullScreenTextEditExclude');

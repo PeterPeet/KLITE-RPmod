@@ -24,7 +24,7 @@ const DOLL = [
     ['Straps on the pack', ['strap1', 'strap2']],
 ];
 
-// opts: { sheet, state: { sel, drag }, apply(mutate, note), toast(msg, isError), openRef(ref) }
+// opts: { sheet, state: { sel, drag }, apply(mutate, note), toast(msg, isError), openRef(ref), drop(item) → '' | reason }
 export function inventoryView(opts) {
     const s = opts.sheet, st = opts.state;
     const inv = s.inventory;
@@ -292,6 +292,10 @@ export function inventoryView(opts) {
                     st.sel = null; setField((x, sh) => { IR.takeInHand(sh, x); });
                 }, kind === 'armor' ? 'Wear it' : 'Hold it in a free hand') : null,
                 it.inHand ? button('backpack', 'Put away', () => { st.sel = null; setField((x, sh) => { IR.stow(sh, x); }); }, 'A sheath or the back for weapons, else a bag') : null,
+                opts.drop ? button('arrow-down-to-line', 'Drop', () => {
+                    const why = opts.drop(it); if (why) { opts.toast(`${it.name}: ${why}.`, true); return; }
+                    st.sel = null; opts.apply(null);
+                }, 'Put it down here: it stays in this place, you can pick it up again') : null,
                 el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-danger', 'data-inv-remove': '1', title: 'Remove it from the inventory (or drop it here)', onclick: () => removeItem(it) }, [icon('trash-2', 14), el('span', { text: 'Remove' })]),
                 info && info.ref && opts.openRef ? button('book-marked', 'Compendium', () => opts.openRef(info.ref), 'Open the SRD entry') : null,
                 button('x', 'Put back', () => { st.sel = null; opts.apply(null); }, 'Put it back where it was (Esc)'),

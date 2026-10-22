@@ -144,6 +144,11 @@ export function hereReplies(info) {
         const n = safeName(c.name); if (!n) continue;
         out.push({ label: 'Open: ' + n, text: `/open ${n} | I open ${n.replace(/^The /, 'the ')}.`, send: true, kind: 'container' });
     }
+    // R9: things on the ground here (dropped, or loot that did not fit)
+    for (const g of info.ground || []) {
+        const n = safeName(g.name); if (!n) continue;
+        out.push({ label: 'Pick up: ' + n + (g.qty > 1 ? ' ×' + g.qty : ''), text: `/pickup ${n} | I pick up the ${n}.`, send: true, kind: 'pickup' });
+    }
     if (info.trade) out.push({ label: 'Shop', text: '/shop', send: false, kind: 'shop' });
     if (info.inMap) out.push({ label: 'Search', text: '/search | I search the room.', send: true, kind: 'search' });
     return out;

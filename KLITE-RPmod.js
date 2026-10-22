@@ -916,7 +916,9 @@ body.rpm-docked #maincontainer {
     // inventory: take in hand
     "hand": [["path", { "d": "M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" }], ["path", { "d": "M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" }], ["path", { "d": "M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" }], ["path", { "d": "M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" }]],
     // inventory: carried weight
-    "weight": [["circle", { "cx": "12", "cy": "5", "r": "3" }], ["path", { "d": "M6.5 8a2 2 0 0 0-1.905 1.46L2.1 18.5A2 2 0 0 0 4 21h16a2 2 0 0 0 1.925-2.54L19.4 9.5A2 2 0 0 0 17.48 8Z" }]]
+    "weight": [["circle", { "cx": "12", "cy": "5", "r": "3" }], ["path", { "d": "M6.5 8a2 2 0 0 0-1.905 1.46L2.1 18.5A2 2 0 0 0 4 21h16a2 2 0 0 0 1.925-2.54L19.4 9.5A2 2 0 0 0 17.48 8Z" }]],
+    // inventory: drop on the ground
+    "arrow-down-to-line": [["path", { "d": "M12 17V3" }], ["path", { "d": "m6 11 6 6 6-6" }], ["path", { "d": "M19 21H5" }]]
   };
 
   // src/shell/dom.js
@@ -22525,9 +22527,18 @@ ${char.mes_example}
     const key = /arrow/.test(n) ? "Arrows" : /\bbolt/.test(n) ? "Bolts" : /sling/.test(n) && /bullet/.test(n) ? "Bullets, Sling" : /bullet/.test(n) ? "Bullets, Firearm" : /needle/.test(n) ? "Needles" : "";
     return key && A[key] ? Object.assign({ key }, A[key]) : null;
   }
+  var bundleOf = (item) => {
+    const m = /\((\d+)\)\s*$/.exec(String(item && item.name || ""));
+    return m ? Math.max(1, Number(m[1])) : 1;
+  };
   function unitWeight(item) {
     const own = num(item && item.weight);
     if (own != null && own >= 0) return { w: own, guess: false };
+    const b = bundleOf(item);
+    if (b > 1) {
+      const one = unitWeight({ name: String(item.name).replace(/\s*\(\d+\)\s*$/, "") });
+      return { w: one.w * b, guess: one.guess };
+    }
     const n = low2(item && item.name).replace(/\s*\(.*\)$/, "");
     if (!n) return { w: DEFAULT_WEIGHT, guess: true };
     const bag = bagSpec(item);
@@ -22561,7 +22572,7 @@ ${char.mes_example}
   }
   function perTile(item) {
     const n = low2(item && item.name), ammo = ammoRow(n);
-    if (ammo) return ammo.amount;
+    if (ammo) return Math.max(1, Math.floor(ammo.amount / bundleOf(item)));
     const { w } = unitWeight(item);
     if (isBag(item) || w >= 1) return 1;
     return w > 0 ? Math.floor(1 / w) : 10;
@@ -22727,7 +22738,7 @@ ${char.mes_example}
       const sp = specOf(sheet, id);
       if (!sp) break;
       const here2 = id === from || ancestors(sheet, from).includes(id);
-      if (!here2 && load(sheet, id) + w > sp.cap + 1e-9)
+      if (load(sheet, id) + (here2 ? 0 : w) > sp.cap + 1e-9)
         return id === OVER ? `too heavy even to drag (${load(sheet, id)} of ${sp.cap} lb overweight)` : `too heavy for the ${sp.name} (${load(sheet, id)} of ${sp.cap} lb)`;
       if (sp.fixed != null) break;
     }
@@ -22850,10 +22861,11 @@ ${char.mes_example}
     }
     ensureIds(sheet);
     const same = o.same || ((a, b) => low2(a) === low2(b));
-    const probe = { name: n, qty };
+    const wt = Number.isFinite(Number(o.weight)) && o.weight !== "" && o.weight != null ? Number(o.weight) : null;
+    const probe = Object.assign({ name: n, qty }, wt != null ? { weight: wt } : {});
     const c = carried(sheet), w = unitWeight(probe).w * qty;
     if (c.total + w > c.limit + 1e-9 && !o.force) return { item: null, placed: false, reason: `too heavy: you can drag at most ${c.limit} lb` };
-    const ex = ofSheet(sheet).find((i) => same(i.name, n) && i.at && i.at.bag);
+    const ex = ofSheet(sheet).find((i) => same(i.name, n) && i.at && i.at.bag && (i.weight == null ? wt == null : i.weight === wt));
     if (ex) {
       const grown = Object.assign({}, ex, { qty: qtyOf(ex) + qty });
       const at = Object.assign({}, ex.at, { rot: !!ex.rot });
@@ -22862,7 +22874,7 @@ ${char.mes_example}
       if (!canPlace(sheet, ex, at)) return { item: ex, placed: true, reason: "" };
       ex.qty = before;
     }
-    const item = { name: n, qty, notes: "" };
+    const item = Object.assign({ name: n, qty, notes: "" }, wt != null ? { weight: wt } : {});
     sheet.inventory.push(item);
     ensureIds(sheet);
     const t = findSpot(sheet, item, { adding: false });
@@ -23114,13 +23126,17 @@ ${char.mes_example}
     out.extensions = ext;
     return out;
   }
+  function effectiveSpeed(sheet) {
+    const sp = Math.max(0, int(sheet && sheet.speed, 30));
+    return sheet && Array.isArray(sheet.inventory) && sheet.inventory.length && carried(sheet).slowed ? Math.min(5, sp) : sp;
+  }
   function toCombatStats(sheet) {
     const d = derive(sheet);
     return {
       abilities: { ...d.sheet.abilities },
       ac: d.sheet.ac,
       hpMax: d.sheet.hp.max,
-      speed: d.sheet.speed,
+      speed: effectiveSpeed(d.sheet),
       proficiency: d.pb,
       initiativeMod: d.initiative,
       saves: { ...d.saves },
@@ -23151,7 +23167,7 @@ ${char.mes_example}
     const s = d.sheet;
     const who = [s.species, s.className && `${s.className} ${s.level}`, !s.className && `level ${s.level}`].filter(Boolean).join(" ");
     const lines = [
-      `${who || "Level " + s.level} — HP ${s.hp.current}/${s.hp.max}${s.hp.temp ? ` (+${s.hp.temp} temp)` : ""}, AC ${s.ac}, Speed ${s.speed} ft.`,
+      `${who || "Level " + s.level} — HP ${s.hp.current}/${s.hp.max}${s.hp.temp ? ` (+${s.hp.temp} temp)` : ""}, AC ${s.ac}, Speed ${effectiveSpeed(s) < s.speed ? `${effectiveSpeed(s)} ft (overloaded; normally ${s.speed} ft)` : s.speed + " ft"}.`,
       ABILITIES.map((a) => `${a.toUpperCase()} ${s.abilities[a]} (${fmt(d.mods[a])})`).join(", ")
     ];
     const prof = SKILLS.filter((k2) => s.skills[k2.id]).map((k2) => `${k2.name} ${fmt(d.skills[k2.id])}`);
@@ -25368,20 +25384,97 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       } });
     }
     const sameItem = (a, b) => sameName(a, b);
-    function inventoryAdd(name, qty) {
+    function inventoryAdd(name, qty, opts) {
       const n = norm5(name);
-      if (!n) return;
+      if (!n) return null;
       qty = Number(qty) || 1;
+      let res = { placed: true, reason: "" };
       withSheet((s) => {
-        const ex = s.inventory.find((i) => sameItem(i.name, n));
-        if (ex) ex.qty = (Number(ex.qty) || 1) + qty;
-        else s.inventory.push({ name: n, qty, notes: "" });
+        res = addItem(s, n, qty, { same: sameItem, weight: opts && opts.weight });
       }, () => {
         const inv = rt().inventory;
         const ex = inv.find((i) => sameItem(i.name, n));
         if (ex) ex.qty = (Number(ex.qty) || 1) + qty;
         else inv.push({ id: uid("item"), name: n, qty });
       });
+      if (res.placed) return res;
+      if (groundAdd(n, qty, opts && opts.weight)) {
+        gameLog(`${n}${qty > 1 ? " ×" + qty : ""} ${/too heavy/.test(res.reason) ? "is too heavy to carry" : "does not fit anywhere"} — left on the ground here.`, "loot");
+        return Object.assign({}, res, { ground: true });
+      }
+      withSheet((s) => {
+        addItem(s, n, qty, { same: sameItem, weight: opts && opts.weight, force: true });
+      }, () => {
+      });
+      return res;
+    }
+    function groundAt(id) {
+      const g = rt() && rt().ground;
+      return asArray5(g && g[id]);
+    }
+    function groundHere() {
+      const id = rt() && rt().playerLocationId;
+      return id ? groundAt(id) : [];
+    }
+    function groundAdd(name, qty, weight) {
+      const id = rt() && rt().playerLocationId;
+      if (!activeWorld() || !id) return false;
+      rt().ground = rt().ground || {};
+      const list3 = rt().ground[id] = asArray5(rt().ground[id]);
+      const w = weight != null && weight !== "" && Number.isFinite(Number(weight)) ? Number(weight) : null;
+      const ex = list3.find((g) => sameItem(g.name, name) && (g.weight == null ? w == null : g.weight === w));
+      if (ex) ex.qty = (Number(ex.qty) || 1) + (Number(qty) || 1);
+      else list3.push(Object.assign({ id: uid("ground"), name: norm5(name), qty: Number(qty) || 1 }, w != null ? { weight: w } : {}));
+      return true;
+    }
+    function groundTake(name, qty) {
+      const id = rt() && rt().playerLocationId;
+      const list3 = groundAt(id);
+      if (!list3.length) return 0;
+      const g = list3.find((x) => x.id === name) || list3.find((x) => sameItem(x.name, name));
+      if (!g) return 0;
+      const n = Math.min(Number(g.qty) || 1, Math.max(1, Number(qty) || 1));
+      g.qty = (Number(g.qty) || 1) - n;
+      if (g.qty <= 0) rt().ground[id] = list3.filter((x) => x !== g);
+      return n;
+    }
+    function pickUp(target, opts = {}) {
+      if (!activeWorld() || !ensureRuntime()) return { ok: false, reason: "no world" };
+      const list3 = groundHere();
+      const t = norm5(target);
+      const g = list3.find((x) => x.id === t) || list3.find((x) => sameItem(x.name, t));
+      if (!g) return { ok: false, reason: `nothing called "${t}" lies here` };
+      const qty = Number(g.qty) || 1, name = g.name;
+      if (sheetOwner()) {
+        const probe = JSON.parse(JSON.stringify(personaSheet() || { inventory: [] }));
+        const r = addItem(probe, name, qty, { same: sameItem, weight: g.weight });
+        if (!r.placed) {
+          const reason = `${name}${qty > 1 ? " ×" + qty : ""} stays on the ground: ${r.reason}`;
+          gameLog(reason + ".", "loot");
+          return { ok: false, reason };
+        }
+      }
+      groundTake(g.id, qty);
+      inventoryAdd(name, qty, { weight: g.weight });
+      gameLog(`${opts.source === "ai" ? "The player picks" : "Picks"} up ${name}${qty > 1 ? " ×" + qty : ""}.`, "loot");
+      return { ok: true, name, qty };
+    }
+    function dropItem(charName, itemId) {
+      if (!activeWorld() || !ensureRuntime() || !rt().playerLocationId) return { ok: false, reason: "you are not in a place of a world" };
+      const C2 = window.KLITE_RPMod_Characters;
+      const sh = C2 && C2.cachedSheet(charName);
+      if (!sh) return { ok: false, reason: "no sheet" };
+      const it = asArray5(sh.inventory).find((i) => i.id === itemId);
+      if (!it) return { ok: false, reason: "no such item" };
+      if (isBag(it) && contents(sh, it.id).length) return { ok: false, reason: `empty the ${it.name} first` };
+      C2.updateSheet(charName, (s) => {
+        const x = s.inventory.find((i) => i.id === itemId);
+        if (x) removeItem(s, x);
+      });
+      groundAdd(it.name, Number(it.qty) || 1, it.weight);
+      gameLog(`${charName} drops ${it.name}${it.qty > 1 ? " ×" + it.qty : ""} here.`, "loot");
+      syncLive();
+      return { ok: true };
     }
     const COIN_RE = /^\s*(\d+)\s*(cp|sp|ep|gp|pp)\s*$/i;
     function addCoinsOf(n, den) {
@@ -25408,6 +25501,12 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         return t;
       }
       const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(t) || [];
+      const lying = groundHere().find((g) => sameItem(g.name, nm));
+      if (lying) {
+        const n = groundTake(lying.id, q || 1);
+        inventoryAdd(lying.name, n, { weight: lying.weight });
+        return t;
+      }
       inventoryAdd(nm, q);
       return t;
     }
@@ -25750,7 +25849,12 @@ Where things really stand: ${here2 ? `the party is at ${here2}` : "nothing chang
         if (!all && (Number(inv[i].qty) || 1) > q) inv[i].qty -= q;
         else inv.splice(i, 1);
       };
-      withSheet((s) => cut(s.inventory), () => cut(rt().inventory));
+      withSheet((s) => {
+        const it = s.inventory.find((x) => sameItem(x.name, n));
+        if (!it) return;
+        if (!all && (Number(it.qty) || 1) > q) it.qty -= q;
+        else removeItem(s, it);
+      }, () => cut(rt().inventory));
     }
     function itemCount(name) {
       let n = 0;
@@ -25891,6 +25995,11 @@ Where things really stand: ${here2 ? `the party is at ${here2}` : "nothing chang
       if (it.left != null && it.left < qty) return refuse(it.left ? `only ${it.left} left today` : "sold out until tomorrow");
       const cost = it.price * qty;
       if (v.purse < cost) return refuse(`it costs ${formatPrice(cost)} and the player has ${v.purseText}`);
+      if (sheetOwner()) {
+        const probe = JSON.parse(JSON.stringify(personaSheet() || { inventory: [] }));
+        const r = addItem(probe, it.item, qty, { same: sameItem });
+        if (!r.placed) return refuse(`the player cannot carry it (${r.reason})`);
+      }
       changePurse((c) => payCoins(c, cost) || c);
       inventoryAdd(it.item, qty);
       if (it.left != null) markSold(p, it.item, qty);
@@ -27794,7 +27903,8 @@ ${recent}` : "");
         storyGo = storyGoHere();
       } catch (_) {
       }
-      return { place: norm5(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, containers, storyGo, trade: vendorsHere().length > 0 };
+      const ground = groundHere().map((g) => ({ id: g.id, name: norm5(g.name), qty: Number(g.qty) || 1 }));
+      return { place: norm5(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, containers, ground, storyGo, trade: vendorsHere().length > 0 };
     }
     function computeActiveSlice(opts) {
       const mutate = !!(opts && opts.mutate);
@@ -27914,6 +28024,8 @@ ${xl.join("\n")}`;
       const kindTag = (o) => o.kind === "light" ? o.lit ? "lit" : "unlit" : o.kind === "container" ? containerLooted(o) ? "container, emptied" : `container, unopened — when the player opens it, write <open>${norm5(o.name)}</open>; RPmod hands out what is inside and logs it` : o.kind;
       const objLines = objsHere.map((o) => "- " + norm5(o.name) + (FEATURE_KINDS.includes(o.kind) && o.kind !== "furniture" ? ` (${kindTag(o)})` : "") + (norm5(o.desc) ? `: ${norm5(o.desc)}` : ""));
       push("Nearby Objects", 50, objLines.join("\n"));
+      const lying = groundAt(loc.id);
+      if (lying.length) push("On the ground here", 49, lying.map((g) => `- ${norm5(g.name)}${g.qty > 1 ? " ×" + g.qty : ""}`).join("\n") + "\nWhen the player picks something up, write <give>exact name</give>; RPmod checks that it can be carried.");
       if (!(getCombat() && getCombat().active)) {
         const waiting = encountersAt(loc.id).filter((e) => !asArray5(rt().startedEncounters).includes(e.id));
         const who = (e) => [...asArray5(e.personIds).map((pid) => findById(world2.npcs, pid)).filter(Boolean).map((n) => norm5(n.name)), encounterSummary(e.monsters)].filter(Boolean).join(", ");
@@ -29105,6 +29217,15 @@ ${xl.join("\n")}`;
         const r = openContainer(target, opts || {});
         if (r) syncLive();
         return r;
+      },
+      groundHere: () => JSON.parse(JSON.stringify(groundHere())),
+      pickUp(target, opts) {
+        const r = pickUp(target, opts || {});
+        syncLive();
+        return r;
+      },
+      dropItem(charName, itemId) {
+        return dropItem(charName, itemId);
       },
       // a spell outside a fight: "Cure Wounds = Oona", "Light", "Healing Word on me slot 2"
       castOutside(text, opts) {
@@ -37404,6 +37525,15 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
               stow(sh, x);
             });
           }, "A sheath or the back for weapons, else a bag") : null,
+          opts.drop ? button("arrow-down-to-line", "Drop", () => {
+            const why = opts.drop(it);
+            if (why) {
+              opts.toast(`${it.name}: ${why}.`, true);
+              return;
+            }
+            st.sel = null;
+            opts.apply(null);
+          }, "Put it down here: it stays in this place, you can pick it up again") : null,
           el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-danger", "data-inv-remove": "1", title: "Remove it from the inventory (or drop it here)", onclick: () => removeItem2(it) }, [icon("trash-2", 14), el("span", { text: "Remove" })]),
           info && info.ref && opts.openRef ? button("book-marked", "Compendium", () => opts.openRef(info.ref), "Open the SRD entry") : null,
           button("x", "Put back", () => {
@@ -37975,7 +38105,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         field("Armor Class", numIn(s.ac, set((v) => {
           V.draft.ac = v;
         }))),
-        field("Speed", numIn(s.speed, set((v) => {
+        field(effectiveSpeed(s) < s.speed ? `Speed (now ${effectiveSpeed(s)} ft: overloaded)` : "Speed", numIn(s.speed, set((v) => {
           V.draft.speed = v;
         }))),
         field("Initiative", btn3(fmt(D.initiative), () => rollD20("Initiative", D.initiative, "initiative"), { roll: "initiative", title: "Roll initiative" })),
@@ -38117,6 +38247,14 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         render();
       } else edited();
     }
+    function canDrop() {
+      try {
+        const W = window.KLITE_RPMod_Worlds;
+        return !!(W && W.dropItem && W.here && W.here() && W.here().place);
+      } catch (_) {
+        return false;
+      }
+    }
     function inventoryTab(root, D, s, set) {
       root.appendChild(itemList());
       root.appendChild(inventoryView({
@@ -38124,7 +38262,19 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         state: V.inv,
         apply: invApply,
         toast: (m, err) => toast(m, err),
-        openRef: window.KLITE_RPMod_Compendium ? (ref) => window.KLITE_RPMod_Compendium.open(ref) : null
+        openRef: window.KLITE_RPMod_Compendium ? (ref) => window.KLITE_RPMod_Compendium.open(ref) : null,
+        // R9: drop it here (a world place): it stays on the ground, the Here row can pick it up again
+        drop: canDrop() ? (it) => {
+          const r = window.KLITE_RPMod_Worlds.dropItem(V.name, it.id);
+          if (!r.ok) return r.reason;
+          const fresh = cachedSheet(V.name);
+          if (fresh) {
+            V.saved = normalizeSheet(fresh);
+            V.draft.inventory = JSON.parse(JSON.stringify(V.saved.inventory));
+          }
+          toast(`${it.name} dropped here.`);
+          return "";
+        } : null
       }));
       const itemName = el("input", { type: "text", class: "form-control rpm-input rpm-grow", placeholder: "Add an item (SRD names are suggested)", "aria-label": "New item", list: "rpm-sheet-items", autocomplete: "off" });
       itemName.classList.add("fullScreenTextEditExclude");
@@ -39819,6 +39969,11 @@ OK = save and close · Cancel = close and discard them`);
       if (!n) continue;
       out.push({ label: "Open: " + n, text: `/open ${n} | I open ${n.replace(/^The /, "the ")}.`, send: true, kind: "container" });
     }
+    for (const g of info.ground || []) {
+      const n = safeName(g.name);
+      if (!n) continue;
+      out.push({ label: "Pick up: " + n + (g.qty > 1 ? " ×" + g.qty : ""), text: `/pickup ${n} | I pick up the ${n}.`, send: true, kind: "pickup" });
+    }
     if (info.trade) out.push({ label: "Shop", text: "/shop", send: false, kind: "shop" });
     if (info.inMap) out.push({ label: "Search", text: "/search | I search the room.", send: true, kind: "search" });
     return out;
@@ -40308,6 +40463,20 @@ Purse: ${iv.purseText}`);
           const r = tag("take", a, "/take <item> [xN | x all]");
           if (r.ok) r.log = `Loses ${cleanArg(a)}.`;
           return r;
+        }
+      },
+      {
+        name: "pickup",
+        aliases: ["pick"],
+        group: "Items & trade",
+        world: true,
+        usage: "/pickup <item>",
+        help: "Pick up something lying here (it must fit: a bag, a strap, or dragged along).",
+        run: (a) => {
+          a = cleanArg(a);
+          if (!a) return fail("Usage: /pickup <item>");
+          const r = W().pickUp(a, { source: "ui" });
+          return r.ok ? { ok: true } : { ok: false, error: r.reason };
         }
       },
       { name: "inv", aliases: ["inventory"], group: "Items & trade", world: true, usage: "/inv", help: "Show your inventory and purse.", run: () => inventory() },

@@ -31,6 +31,7 @@ import * as LB from './game/lorebook-rules.js';
 import { derive as deriveSheet } from './characters/sheet.js';
 import * as SP from './characters/spell-rules.js';
 import * as EQ from './characters/equipment-rules.js';
+import * as IR from './game/inventory-rules.js';
 
 export default function initWorlds() {
     'use strict';
@@ -1587,14 +1588,79 @@ export default function initWorlds() {
         window.KLITE_RPMod_Characters.updateSheet(n, mutate, { onMissing: () => { fallback(); syncLive(); } });
     }
     const sameItem = (a, b) => QR.sameName(a, b);   // "Wolf Pelts" stacks with "Wolf Pelt"
-    function inventoryAdd(name, qty) {
-        const n = norm(name); if (!n) return;
+    // R9: into the sheet by the inventory rules (src/game/inventory-rules.js) — onto a stack, into
+    // a bag, a strap, the pockets, the Overweight bag. What does not fit (too heavy even to drag, no
+    // room) is left on the ground here (logged), or, outside a place, added unpacked: never lost.
+    // → { placed, reason, ground }
+    function inventoryAdd(name, qty, opts) {
+        const n = norm(name); if (!n) return null;
         qty = Number(qty) || 1;
-        withSheet(s => { const ex = s.inventory.find(i => sameItem(i.name, n)); if (ex) ex.qty = (Number(ex.qty) || 1) + qty; else s.inventory.push({ name: n, qty, notes: '' }); }, () => {
+        let res = { placed: true, reason: '' };
+        withSheet(s => { res = IR.addItem(s, n, qty, { same: sameItem, weight: opts && opts.weight }); }, () => {
             const inv = rt().inventory;
             const ex = inv.find(i => sameItem(i.name, n));
             if (ex) ex.qty = (Number(ex.qty) || 1) + qty; else inv.push({ id: uid('item'), name: n, qty });
         });
+        if (res.placed) return res;
+        if (groundAdd(n, qty, opts && opts.weight)) {
+            gameLog(`${n}${qty > 1 ? ' ×' + qty : ''} ${/too heavy/.test(res.reason) ? 'is too heavy to carry' : 'does not fit anywhere'} — left on the ground here.`, 'loot');
+            return Object.assign({}, res, { ground: true });
+        }
+        withSheet(s => { IR.addItem(s, n, qty, { same: sameItem, weight: opts && opts.weight, force: true }); }, () => {});
+        return res;
+    }
+    // ---- R9: things on the ground: dropped by the player, or loot that did not fit --------------
+    // runtime.ground = { [locationId]: [{ id, name, qty, weight? }] } (additive; this play only —
+    // Back to start clears the runtime). The Here row offers "Pick up", the AI sees them, and a
+    // <give> of something lying here takes it from the ground.
+    function groundAt(id) { const g = rt() && rt().ground; return asArray(g && g[id]); }
+    function groundHere() { const id = rt() && rt().playerLocationId; return id ? groundAt(id) : []; }
+    function groundAdd(name, qty, weight) {
+        const id = rt() && rt().playerLocationId; if (!activeWorld() || !id) return false;
+        rt().ground = rt().ground || {};
+        const list = rt().ground[id] = asArray(rt().ground[id]);
+        const w = weight != null && weight !== '' && Number.isFinite(Number(weight)) ? Number(weight) : null;
+        const ex = list.find(g => sameItem(g.name, name) && (g.weight == null ? w == null : g.weight === w));
+        if (ex) ex.qty = (Number(ex.qty) || 1) + (Number(qty) || 1);
+        else list.push(Object.assign({ id: uid('ground'), name: norm(name), qty: Number(qty) || 1 }, w != null ? { weight: w } : {}));
+        return true;
+    }
+    // takes up to `qty` of something lying here off the ground → how many
+    function groundTake(name, qty) {
+        const id = rt() && rt().playerLocationId; const list = groundAt(id); if (!list.length) return 0;
+        const g = list.find(x => x.id === name) || list.find(x => sameItem(x.name, name)); if (!g) return 0;
+        const n = Math.min(Number(g.qty) || 1, Math.max(1, Number(qty) || 1));
+        g.qty = (Number(g.qty) || 1) - n;
+        if (g.qty <= 0) rt().ground[id] = list.filter(x => x !== g);
+        return n;
+    }
+    // /pickup, the Here row: into the inventory by the rules; refused (it stays) when it does not fit
+    function pickUp(target, opts = {}) {
+        if (!activeWorld() || !ensureRuntime()) return { ok: false, reason: 'no world' };
+        const list = groundHere(); const t = norm(target);
+        const g = list.find(x => x.id === t) || list.find(x => sameItem(x.name, t)); if (!g) return { ok: false, reason: `nothing called "${t}" lies here` };
+        const qty = Number(g.qty) || 1, name = g.name;
+        if (sheetOwner()) {
+            const probe = JSON.parse(JSON.stringify(personaSheet() || { inventory: [] }));
+            const r = IR.addItem(probe, name, qty, { same: sameItem, weight: g.weight });
+            if (!r.placed) { const reason = `${name}${qty > 1 ? ' ×' + qty : ''} stays on the ground: ${r.reason}`; gameLog(reason + '.', 'loot'); return { ok: false, reason }; }
+        }
+        groundTake(g.id, qty);
+        inventoryAdd(name, qty, { weight: g.weight });
+        gameLog(`${opts.source === 'ai' ? 'The player picks' : 'Picks'} up ${name}${qty > 1 ? ' ×' + qty : ''}.`, 'loot');
+        return { ok: true, name, qty };
+    }
+    // The sheet's "Drop": out of a character's inventory onto the ground here (a bag only when empty).
+    function dropItem(charName, itemId) {
+        if (!activeWorld() || !ensureRuntime() || !rt().playerLocationId) return { ok: false, reason: 'you are not in a place of a world' };
+        const C = window.KLITE_RPMod_Characters; const sh = C && C.cachedSheet(charName); if (!sh) return { ok: false, reason: 'no sheet' };
+        const it = asArray(sh.inventory).find(i => i.id === itemId); if (!it) return { ok: false, reason: 'no such item' };
+        if (IR.isBag(it) && IR.contents(sh, it.id).length) return { ok: false, reason: `empty the ${it.name} first` };
+        C.updateSheet(charName, (s) => { const x = s.inventory.find(i => i.id === itemId); if (x) IR.removeItem(s, x); });
+        groundAdd(it.name, Number(it.qty) || 1, it.weight);
+        gameLog(`${charName} drops ${it.name}${it.qty > 1 ? ' ×' + it.qty : ''} here.`, 'loot');
+        syncLive();
+        return { ok: true };
     }
     // "14 gp", "6 sp": coins into the purse (the sheet's coins by denomination, else the story's) —
     // <give>14 gp</give> made an item called "14 gp" before (play test 2026-10-20).
@@ -1609,6 +1675,8 @@ export default function initWorlds() {
         const t = norm(text); if (!t) return '';
         const c = COIN_RE.exec(t); if (c) { addCoinsOf(c[1], c[2]); return t; }
         const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(t) || [];
+        const lying = groundHere().find(g => sameItem(g.name, nm));   // R9: picked up from the ground here
+        if (lying) { const n = groundTake(lying.id, q || 1); inventoryAdd(lying.name, n, { weight: lying.weight }); return t; }
         inventoryAdd(nm, q); return t;
     }
     // ---- "Go where the story says" (owner, 2026-10-20) ----
@@ -1847,7 +1915,8 @@ export default function initWorlds() {
         const n = norm(name); if (!n) return;
         const all = String(qty).toLowerCase() === 'all', q = Math.max(1, Number(qty) || 1);
         const cut = (inv) => { const i = inv.findIndex(x => sameItem(x.name, n)); if (i < 0) return; if (!all && (Number(inv[i].qty) || 1) > q) inv[i].qty -= q; else inv.splice(i, 1); };
-        withSheet(s => cut(s.inventory), () => cut(rt().inventory));
+        // R9: a whole item leaves through the rules (what was inside a bag is packed elsewhere)
+        withSheet(s => { const it = s.inventory.find(x => sameItem(x.name, n)); if (!it) return; if (!all && (Number(it.qty) || 1) > q) it.qty -= q; else IR.removeItem(s, it); }, () => cut(rt().inventory));
     }
     // Items the player holds (sheet + story inventory).
     function itemCount(name) {
@@ -1931,6 +2000,11 @@ export default function initWorlds() {
         if (it.left != null && it.left < qty) return refuse(it.left ? `only ${it.left} left today` : 'sold out until tomorrow');
         const cost = it.price * qty;
         if (v.purse < cost) return refuse(`it costs ${SH.formatPrice(cost)} and the player has ${v.purseText}`);
+        if (sheetOwner()) {   // R9: no room or too heavy → not bought (nothing paid)
+            const probe = JSON.parse(JSON.stringify(personaSheet() || { inventory: [] }));
+            const r = IR.addItem(probe, it.item, qty, { same: sameItem });
+            if (!r.placed) return refuse(`the player cannot carry it (${r.reason})`);
+        }
         changePurse(c => SH.payCoins(c, cost) || c);
         inventoryAdd(it.item, qty);
         if (it.left != null) markSold(p, it.item, qty);
@@ -3380,7 +3454,8 @@ export default function initWorlds() {
         const checks = checksHere(loc.id).map(c => ({ questId: c.questId, objId: c.objId, text: c.text, what: c.what, dc: c.dc }));
         const containers = containersHere().filter(o => !containerLooted(o) && asArray(o.contains).length).map(o => ({ id: o.id, name: norm(o.name) }));
         let storyGo = null; try { storyGo = storyGoHere(); } catch (_) {}
-        return { place: norm(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, containers, storyGo, trade: vendorsHere().length > 0 };
+        const ground = groundHere().map(g => ({ id: g.id, name: norm(g.name), qty: Number(g.qty) || 1 }));
+        return { place: norm(phasedEntity(loc).name), inMap: !!mapOf(loc.id), ways, people, quests, checks, containers, ground, storyGo, trade: vendorsHere().length > 0 };
     }
     function computeActiveSlice(opts) {
         const mutate = !!(opts && opts.mutate);
@@ -3512,6 +3587,10 @@ export default function initWorlds() {
             : o.kind;
         const objLines = objsHere.map(o => '- ' + norm(o.name) + (MR.FEATURE_KINDS.includes(o.kind) && o.kind !== 'furniture' ? ` (${kindTag(o)})` : '') + (norm(o.desc) ? `: ${norm(o.desc)}` : ''));
         push('Nearby Objects', 50, objLines.join('\n'));
+        // 5+. R9: things on the ground here (dropped by the player, or loot that did not fit)
+        const lying = groundAt(loc.id);
+        if (lying.length) push('On the ground here', 49, lying.map(g => `- ${norm(g.name)}${g.qty > 1 ? ' ×' + g.qty : ''}`).join('\n') +
+            '\nWhen the player picks something up, write <give>exact name</give>; RPmod checks that it can be carried.');
         // 5-. Prepared encounters at this place not yet fought (R7 step 4: generated ones too)
         if (!(getCombat() && getCombat().active)) {
             const waiting = encountersAt(loc.id).filter(e => !asArray(rt().startedEncounters).includes(e.id));
@@ -4383,6 +4462,9 @@ export default function initWorlds() {
         door(action, target, opts) { const r = doorAction(action, target, opts || {}); syncLive(); return r; },
         // a container here (chest, sack): hands out what is inside once → null when there is none
         openContainer(target, opts) { const r = openContainer(target, opts || {}); if (r) syncLive(); return r; },
+        groundHere: () => JSON.parse(JSON.stringify(groundHere())),
+        pickUp(target, opts) { const r = pickUp(target, opts || {}); syncLive(); return r; },
+        dropItem(charName, itemId) { return dropItem(charName, itemId); },
         // a spell outside a fight: "Cure Wounds = Oona", "Light", "Healing Word on me slot 2"
         castOutside(text, opts) { const r = castOutside(text, opts || {}); syncLive(); return r; },
         undoInfo: () => undoInfo(),

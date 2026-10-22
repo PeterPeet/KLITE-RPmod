@@ -78,6 +78,7 @@ const NAMES = {
     'split': 'inventory: split a stack',
     'hand': 'inventory: take in hand',
     'weight': 'inventory: carried weight',
+    'arrow-down-to-line': 'inventory: drop on the ground',
 };
 
 const pkg = JSON.parse(fs.readFileSync(path.join(PKG, 'package.json'), 'utf8'));

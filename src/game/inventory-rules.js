@@ -124,10 +124,15 @@ function ammoRow(n) {
     return key && A[key] ? Object.assign({ key }, A[key]) : null;
 }
 
-// Pounds per piece: { w, guess } — guess: the SRD does not know the item (or says "Varies").
+// "Arrows (20)" (a shop's bundle): 20 pieces in one item; 1 otherwise.
+const bundleOf = (item) => { const m = /\((\d+)\)\s*$/.exec(String(item && item.name || '')); return m ? Math.max(1, Number(m[1])) : 1; };
+// Pounds per piece (a bundle "Arrows (20)" is one piece of 20): { w, guess } — guess: the SRD does
+// not know the item (or says "Varies").
 export function unitWeight(item) {
     const own = num(item && item.weight);
     if (own != null && own >= 0) return { w: own, guess: false };
+    const b = bundleOf(item);
+    if (b > 1) { const one = unitWeight({ name: String(item.name).replace(/\s*\(\d+\)\s*$/, '') }); return { w: one.w * b, guess: one.guess }; }
     const n = low(item && item.name).replace(/\s*\(.*\)$/, '');
     if (!n) return { w: DEFAULT_WEIGHT, guess: true };
     const bag = bagSpec(item); if (bag && bag.fixed != null) return { w: bag.fixed, guess: false };
@@ -160,7 +165,7 @@ export function itemKind(item) {
 // 20 arrows, 50 needles); everything else takes tiles by its stack's weight and its kind.
 export function perTile(item) {
     const n = low(item && item.name), ammo = ammoRow(n);
-    if (ammo) return ammo.amount;
+    if (ammo) return Math.max(1, Math.floor(ammo.amount / bundleOf(item)));
     const { w } = unitWeight(item);
     if (isBag(item) || w >= 1) return 1;
     return w > 0 ? Math.floor(1 / w) : 10;
@@ -321,8 +326,9 @@ export function canPlace(sheet, item, target, opts) {
     const w = totalWeight(sheet, item), from = item.at && item.at.bag;
     for (const id of [target.bag, ...ancestors(sheet, target.bag).slice(1)]) {
         const sp = specOf(sheet, id); if (!sp) break;
+        // already inside: the load counts it as it is now (a grown stack too); else it comes on top
         const here = id === from || ancestors(sheet, from).includes(id);
-        if (!here && load(sheet, id) + w > sp.cap + 1e-9)
+        if (load(sheet, id) + (here ? 0 : w) > sp.cap + 1e-9)
             return id === OVER ? `too heavy even to drag (${load(sheet, id)} of ${sp.cap} lb overweight)` : `too heavy for the ${sp.name} (${load(sheet, id)} of ${sp.cap} lb)`;
         if (sp.fixed != null) break;
     }
@@ -414,7 +420,8 @@ export const unpacked = (sheet) => ofSheet(sheet).filter(i => !i.at);
 // Adds `qty` × `name`: onto a stack of the same thing when it still fits where it is, else as a
 // new item in the first free spot. { item, placed, reason } — placed false: no room or too heavy
 // (the caller decides: loot stays in the room, a buy is refused). With `force` it is added
-// unpacked anyway (nothing the game hands out may vanish).
+// unpacked anyway (nothing the game hands out may vanish). opts.weight: lb per piece (a weight
+// the player set, kept when it is dropped and picked up again).
 export function addItem(sheet, name, qty, opts) {
     const o = opts || {}, n = String(name || '').trim(); qty = Math.max(1, Math.trunc(Number(qty) || 1));
     if (!n) return { item: null, placed: false, reason: 'no name' };
@@ -426,10 +433,11 @@ export function addItem(sheet, name, qty, opts) {
     }
     ensureIds(sheet);
     const same = o.same || ((a, b) => low(a) === low(b));
-    const probe = { name: n, qty };
+    const wt = Number.isFinite(Number(o.weight)) && o.weight !== '' && o.weight != null ? Number(o.weight) : null;
+    const probe = Object.assign({ name: n, qty }, wt != null ? { weight: wt } : {});
     const c = carried(sheet), w = unitWeight(probe).w * qty;
     if (c.total + w > c.limit + 1e-9 && !o.force) return { item: null, placed: false, reason: `too heavy: you can drag at most ${c.limit} lb` };
-    const ex = ofSheet(sheet).find(i => same(i.name, n) && i.at && i.at.bag);
+    const ex = ofSheet(sheet).find(i => same(i.name, n) && i.at && i.at.bag && (i.weight == null ? wt == null : i.weight === wt));
     if (ex) {
         const grown = Object.assign({}, ex, { qty: qtyOf(ex) + qty });
         const at = Object.assign({}, ex.at, { rot: !!ex.rot });
@@ -437,7 +445,7 @@ export function addItem(sheet, name, qty, opts) {
         if (!canPlace(sheet, ex, at)) return { item: ex, placed: true, reason: '' };
         ex.qty = before;
     }
-    const item = { name: n, qty, notes: '' };
+    const item = Object.assign({ name: n, qty, notes: '' }, wt != null ? { weight: wt } : {});
     sheet.inventory.push(item); ensureIds(sheet);
     const t = findSpot(sheet, item, { adding: false });
     if (t) { place(sheet, item, t); return { item, placed: true, reason: '' }; }

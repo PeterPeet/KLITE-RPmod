@@ -205,6 +205,12 @@ test('addItem stacks where it still fits; removeItem repacks a bag\'s contents; 
     assert.equal(a.item.qty, 25);
     assert.equal(part.qty, 15);
     assert.ok(part.at && part.at.bag, 'the split-off part is packed');
+    // a stack only grows while its bag holds the weight (Overweight: Str × 15 = 150 lb)
+    const drag = sheet([], { abilities: { str: 10 } });
+    assert.equal(R.addItem(drag, 'Barrel', 1).placed, true);
+    assert.equal(R.addItem(drag, 'Barrel', 1).placed, true);
+    assert.equal(R.addItem(drag, 'Barrel', 1).placed, false, '210 lb > 150 lb');
+    assert.equal(drag.inventory.reduce((a, i) => a + i.qty, 0), 2);
     const forced = R.addItem(sheet([], { abilities: { str: 1 } }), 'Anvil', 1, { force: true });
     assert.equal(forced.item.name, 'Anvil', 'force: added even when it cannot be packed');
     // taking the backpack away packs what was inside elsewhere — or leaves it not packed
