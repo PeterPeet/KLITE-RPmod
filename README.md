@@ -23,7 +23,7 @@ and start the built-in adventure *The Drowned Lantern* (four pregenerated charac
 - **Compendium:** every SRD 5.2.1 monster, spell, item and rule, searchable, docked beside the chat.
 - **Guide:** built into Esolite's Guide, with RPmod's own chapters.
 
-Documentation: [User guide](USER_GUIDE.md) · [Roadmap and current state](docs/ROADMAP.md) ·
+Documentation: [What's new (changelog)](CHANGELOG.md) · [User guide](USER_GUIDE.md) · [Roadmap and current state](docs/ROADMAP.md) ·
 [Architecture](docs/ARCHITECTURE.md) · [Product vision](docs/USERSTORY.md)
 
 ## Which AI model?
