@@ -478,11 +478,22 @@ export function carryLine(sheet) {
     const c = carried(sheet), lb = (n) => Math.round(n * 10) / 10;
     return `Carrying ${lb(c.total)} of ${c.capacity} lb` + (c.slowed ? ` — overloaded: Speed at most 5 ft (can drag up to ${c.limit} lb)` : '');
 }
-// Takes an item in hand (armor: puts it on): main hand, else off hand. '' or the reason.
+// Takes an item in hand (armor: puts it on): main hand, else off hand. '' or the reason. From a
+// stack only one piece goes into the hand (UI play test 2026-10-20: Holy Symbol ×2 → both).
 export function takeInHand(sheet, item) {
     const slots = itemKind(item) === 'armor' ? ['armor'] : itemKind(item) === 'shield' ? ['off', 'main'] : ['main', 'off'];
+    const one = qtyOf(item) > 1 && itemKind(item) !== 'ammo' ? Object.assign({}, item, { qty: 1, id: undefined, at: undefined }) : item;
     let why = '';
-    for (const sl of slots) { why = canPlace(sheet, item, { slot: sl }); if (!why) { place(sheet, item, { slot: sl }); return ''; } }
+    for (const sl of slots) {
+        why = canPlace(sheet, one, { slot: sl }); if (why) continue;
+        if (one !== item) {
+            item.qty = qtyOf(item) - 1;
+            delete one.id; delete one.at; delete one.rot;
+            sheet.inventory.push(one); ensureIds(sheet);
+        }
+        place(sheet, one, { slot: sl });
+        return '';
+    }
     return why;
 }
 // Puts a held (or any) item away: a sheath or the back for weapons, else the bags, else the

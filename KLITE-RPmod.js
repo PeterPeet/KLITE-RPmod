@@ -22913,13 +22913,21 @@ ${char.mes_example}
   }
   function takeInHand(sheet, item) {
     const slots = itemKind(item) === "armor" ? ["armor"] : itemKind(item) === "shield" ? ["off", "main"] : ["main", "off"];
+    const one = qtyOf(item) > 1 && itemKind(item) !== "ammo" ? Object.assign({}, item, { qty: 1, id: void 0, at: void 0 }) : item;
     let why = "";
     for (const sl of slots) {
-      why = canPlace(sheet, item, { slot: sl });
-      if (!why) {
-        place(sheet, item, { slot: sl });
-        return "";
+      why = canPlace(sheet, one, { slot: sl });
+      if (why) continue;
+      if (one !== item) {
+        item.qty = qtyOf(item) - 1;
+        delete one.id;
+        delete one.at;
+        delete one.rot;
+        sheet.inventory.push(one);
+        ensureIds(sheet);
       }
+      place(sheet, one, { slot: sl });
+      return "";
     }
     return why;
   }
@@ -34721,7 +34729,14 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       blocks: [
         { p: `The Character gallery shows your whole Library full screen, with big portraits: open it with "Gallery" in the right panel's Quick Links. Filter by tag, search, sort, and switch between large, medium, small and list views. Click a character for the full card and to play as them, let the AI play them, open their sheet, edit, download or favorite them.` },
         { p: "Every character in your Library can have a character sheet: abilities, saving throws, skills, armor class, hit points, attacks, inventory and coins. The sheet is stored inside the character card, so it travels with the card when you export it." },
-        { p: 'The sheet has tabs: Overview, Combat, Spells, Inventory, Features and Notes. Typing an attack or an item suggests the SRD names; a weapon fills in its damage. Items are in hand or in the backpack — "(<-BP)" takes one out, "(->BP)" puts it away; weapons in hand are green, attacks with a stowed weapon dimmed (in a fight you draw a weapon as part of the attack). Features lists your SRD features automatically. Notes: Character notes stay with the character, Adventure notes only with this play of the world.' },
+        { p: "The sheet has tabs: Overview, Combat, Spells, Inventory, Features and Notes. Typing an attack or an item suggests the SRD names; a weapon fills in its damage. Weapons in hand are green in Attacks, attacks with a stowed weapon dimmed (in a fight you draw a weapon as part of the attack). Features lists your SRD features automatically. Notes: Character notes stay with the character, Adventure notes only with this play of the world." },
+        { p: "The Inventory tab is a backpack like in a computer RPG: every item takes tiles by its weight (SRD) — a dagger one tile, a longsword three in a row, a bedroll a big block; small things share a tile. On the left your body: hands, armor, the back (backpack, a weapon and a shield), the belt, sheaths and two straps on the backpack. On the right every bag as a grid, your pockets, and the Overweight bag." },
+        { list: [
+          "Click an item to pick it up, then click where it goes — or drag it. R turns it, Esc puts it back. Dropped on a bag, it goes inside.",
+          "You carry up to Strength × 15 lb (Backpack 50 lb, Pouch 6 lb …). Beyond that you can only drag things along (the Overweight bag): Speed 5 ft, in fights too.",
+          'Drop puts an item on the ground where you are; the Here row offers "Pick up". Loot that does not fit stays on the ground.',
+          "Moves are saved at once, no Save button needed."
+        ] },
         { list: [
           'Open it with "Character sheet" in the Party section (it starts with your persona) and pick any character at the top.',
           "Click any bonus to roll a d20 with it; choose Advantage or Disadvantage above. Attacks roll to hit and damage.",

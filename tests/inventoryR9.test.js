@@ -211,6 +211,10 @@ test('addItem stacks where it still fits; removeItem repacks a bag\'s contents; 
     assert.equal(R.addItem(drag, 'Barrel', 1).placed, true);
     assert.equal(R.addItem(drag, 'Barrel', 1).placed, false, '210 lb > 150 lb');
     assert.equal(drag.inventory.reduce((a, i) => a + i.qty, 0), 2);
+    // from a stack only one piece goes into the hand
+    const hs = sheet([{ name: 'Backpack', qty: 1, at: { slot: 'back' } }, { name: 'Holy Symbol', qty: 2 }]); R.organize(hs);
+    assert.equal(R.takeInHand(hs, hs.inventory.find(i => i.name === 'Holy Symbol')), '');
+    assert.deepEqual(hs.inventory.filter(i => i.name === 'Holy Symbol').map(i => [i.qty, i.at.slot || 'bag']), [[1, 'bag'], [1, 'main']]);
     const forced = R.addItem(sheet([], { abilities: { str: 1 } }), 'Anvil', 1, { force: true });
     assert.equal(forced.item.name, 'Anvil', 'force: added even when it cannot be packed');
     // taking the backpack away packs what was inside elsewhere — or leaves it not packed

@@ -184,7 +184,8 @@ xp, questState{}, questObjectives{ qid: { oid: true | count } }, rewardsPaid{}, 
 activeQuestId, discovered{quests,events,descriptions},
 combat, npcStateOverrides{}, completedEventIds[], lastParsedIndex, clock{day,month,year,time,season,weather},
 explored{}, found{secrets[],traps[],searched{}}, doorState{}, roomLight{}` (R7, §3.9; older saves get them via
-`toRuntimeContainer` / `MR.normalizeExploration`).
+`toRuntimeContainer` / `MR.normalizeExploration`), `ground{ [locationId]: [{ id, name, qty, weight? }] }` (R9,
+additive: things dropped or loot that did not fit — §5b Inventory).
 Ops: `resetToBase / commitToBase / swapActive / setActiveSlot` (deep clones; `lastParsedIndex` kept —
 it tracks the chat). **Worlds per story (R8, known issue 22):** `switchWorld(id, { fresh })` (API
 `useWorld`, also `createWorld`, `loadExample`, lorebook restore) parks the current world's runtime in
@@ -903,11 +904,40 @@ Design: [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
   `derive` (SRD 5.2: mod = ⌊(score−10)/2⌋, PB = 2+⌊(level−1)/4⌋, saves, skills ×1/×2,
   initiative, passive Perception, attack to-hit), `readSheet/writeSheet` on the card's
   `data.extensions.klite_rpmod.sheet` (other extensions and klite_rpmod keys kept),
-  `toCombatStats/fromCombatStats` (Worlds stat block), `sheetSummary` (AI text: "In hand / worn" and
-  "Backpack" when anything is held). **R8 save format (additive):** inventory items may carry
-  `inHand: true` (held or worn); `normalizeSheet` keeps it only when true, so sheets saved before read
-  as "everything in the backpack". The builder marks the armor and shield its AC counts as worn (new
-  characters only).
+  `toCombatStats/fromCombatStats` (Worlds stat block; `speed` = `effectiveSpeed`, at most 5 ft when
+  overloaded), `sheetSummary` (AI text: "In hand / worn", "Carried: … (sheathed / on the back / strapped
+  to the pack / on the belt)", one line per bag, "Pockets", "Dragged along (overweight)", "Not packed",
+  "Carrying N of M lb"). **R8 save format (additive):** inventory items may carry `inHand: true` (held or
+  worn); `normalizeSheet` keeps it only when true. The builder marks the armor and shield its AC counts as
+  worn (new characters only). **R9 (additive):** items may carry `id`, `at` (`{ bag, x, y }` or
+  `{ slot }`), `rot`, `weight` (lb per piece, set by the player); `normalizeSheet` keeps them and runs
+  `IR.organize` on every sheet (never removes an item).
+- **Inventory** (R9, `src/game/inventory-rules.js` pure, `src/characters/inventoryView.js` the tab).
+  Item size from SRD weight, not type: `unitWeight` (player override → bag fixed weight → Shield → SRD
+  weapon/armor table (`SRD.weapons[].weight`, `SRD.armor[].weight`, hand-copied in `extract-srd.py`,
+  checked against the PDF by `check_weights`) → `SRD.ammunition` per piece → compendium gear (`gear()`
+  resolves "Torches", "Hooded Lantern") → 1 lb, a guess; a shop bundle "Arrows (20)" is 20 pieces);
+  `itemKind` (icon: weapon/armor/shield/ammo/potion/bag/gear); `footprint` = a weight bracket per kind
+  (small things share a tile: `perTile`), `rot` turns it. **Bags** (`BAGS`): pounds, grid, where worn
+  (back/belt), `accepts` (quiver: arrows), `fixed` weight (Bag of Holding); Backpack **50 lb** (owner;
+  the SRD says 30, its packs hold ~50); virtual bags `pockets` (3×1, 2 lb) and `over` (Overweight:
+  Str × 15 lb more, Speed 5 ft while not empty). **Slots** (`SLOTS`): main/off (Two-Handed only in main,
+  blocks off), armor, back, belt1/2, sheath1/2 (one-handed, non-Heavy, ≤ 10 lb), slung + slungShield,
+  strap1/2 (gear ≤ 20 lb, only with a worn Backpack/Haversack); `inHand` is set exactly for main/off/armor.
+  `capacity` = Str × 15 (Goliath × 2), `carried` (coins 50/lb; `slowed`, limit = twice). `canPlace`
+  (the reason, for the player; every bag up the chain holds the weight; extradimensional bags never
+  nest), `place`, `findSpot` (weapons: sheaths/back first; then bags in `bagOrder`, pockets, straps,
+  Overweight), `organize` (idempotent: invalid places cleared, SRD packs unpacked by `kitContents`,
+  bag stacks split, held → slots, bags worn, the rest packed largest first; what finds nothing stays
+  without `at` = "Not packed"), `addItem` (stack where it still fits, `force`), `removeItem` (a bag's
+  contents repacked), `splitStack`, `takeInHand` (one piece of a stack), `stow`, `carryLine`.
+  The tab: click to pick / click to place, pointer-event drag with a footprint preview, R / Esc, the
+  picked item's details; changes go through `invApply` in characters.js — `updateSheet` (a game change,
+  live sheet) and the draft. **Game hooks** (Worlds): `inventoryAdd` by the rules, else onto
+  `runtime.ground` here (logged); `pickUp` (`/pickup`, Here row "Pick up: …"; refused while it does not
+  fit), `<give>` of something lying here takes it from the ground; `dropItem(char, itemId)` (the tab's
+  Drop; a bag only when empty); the prompt section "On the ground here"; `buyItem` refuses what cannot be
+  carried before paying; `inventoryRemove` through `removeItem`.
 - **Equipment** (`equipment-rules.js`, pure, SRD 5.2.1): `weaponNames/itemNames` (autocomplete:
   weapons; weapons, armor, Shield, gear, tools, magic items from the compendium index),
   `itemInfo(name)` → `{ kind, summary, text, hands, ref }` (the item's definition; `ref` opens the

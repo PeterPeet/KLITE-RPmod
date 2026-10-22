@@ -6,9 +6,13 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-10-20 (first real-backend play test with Gemma 4 31B and DeepSeek V4 Pro: twelve fixes — combat turns, Retry, the game log on reload, `<go>` names, thinking blocks, the combat prompt, World Info placement, containers; open items under R8 step 8; before: 2026-09-26 — open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–7: Lanternport and the Lantern Fair, the south shore, the Lost Chapel and the endings)
+> Last updated: 2026-10-22 (R9 inventory: item size from SRD weight, bags, paper doll, the ground — phases 1–3 done, docs; next: play test with a real model; before: 2026-10-20 — first real-backend play test with Gemma 4 31B and DeepSeek V4 Pro: twelve fixes — combat turns, Retry, the game log on reload, `<go>` names, thinking blocks, the combat prompt, World Info placement, containers; open items under R8 step 8; before: 2026-09-26 — open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–7: Lanternport and the Lantern Fair, the south shore, the Lost Chapel and the endings)
 
 ## Current state
+
+**Now: R9 — inventory** (owner, 2026-10-22, after v0.10.1): a Diablo-like inventory where an item's size comes from its
+SRD weight. Phases 1–3 are done (rules and SRD weights, the Inventory tab, the game hooks), docs written; next: a play
+test with a real model (loot, shop, dropping and picking up, an overloaded fight). Details under **R9** below.
 
 **Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
 is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). R5 is done
@@ -1119,8 +1123,8 @@ the review's numbers) and a level up to 2 — all correct by SRD 5.2.1. Fixed:
   Existing pregen cards get them with the picker's "starting sheets back".
 - [x] **The Combat window stayed open across New Session / an adventure start** without a fight; it closes now.
 Tests in `tests/uiPlaytest.test.js`, `spells.test.js`, `adventureContent.test.js`. Open (small):
-- [ ] A stack in the backpack goes into the hand as a whole (Holy Symbol ×2 → both); taking one should split it. And the
-  SRD lets a cleric wear the holy symbol on the shield (no hand).
+- [x] A stack in the backpack went into the hand as a whole (Holy Symbol ×2 → both); one piece now (R9 `takeInHand`).
+- [ ] The SRD lets a cleric wear the holy symbol on the shield (no hand).
 - [ ] The left panel's Inventory does not show what is in hand / worn.
 - [ ] The roll mode (Advantage / Disadvantage) stays on across characters and sessions — easy to forget.
 - [ ] After *Create character* the sheet opens on the last tab used (Notes) — a new character should open on Overview.
@@ -1270,6 +1274,32 @@ open (e.g. on an iPad, where the left panel is closed).
   - **Character notes:** one text, saved in the character, permanent; Delete / Cancel / Save.
   - **Adventure notes:** one text, saved in the adventure (world) state, wiped on a new start / Back to start;
     Delete / Cancel / Save; a grey note under the box says so. For things that matter only in this play.
+
+### R9 — Inventory: bags, paper doll, item size from SRD weight 🟨 (owner, 2026-10-22)
+Plan: Diablo-style item management, but an item's tiles come from its **weight** (SRD 5.2.1), not its type; first
+version with icons for weapon, armor, ammunition, potion, bag and general gear. Owner's decisions while building it:
+weight brackets per kind for the tiles; rotation (R); dropped items stay in the room; an **Overweight** bag for the
+SRD's drag range (Str × 15 lb more, Speed at most 5 ft while anything is in it, nothing beyond twice the capacity);
+**straps and sheaths** (2 straps on a worn backpack, 2 sheaths, a weapon and a shield on the back, a waterskin on the
+belt — the SRD's own equipment packs overfill a 30 lb backpack); **Backpack 50 lb**; **pockets** (a coin must never mean
+5 ft). Rules: `src/game/inventory-rules.js`; ARCHITECTURE §5b "Inventory"; USER_GUIDE "The inventory".
+- [x] **Phase 1 — rules and data:** weapon, armor, Shield weights and the Ammunition table in `srd52.js` (hand-copied in
+  `extract-srd.py`, checked against the PDF), weights from the gear entries, footprints, bags, slots, capacity, the
+  Overweight bag, `organize` for older sheets (nothing lost, idempotent), SRD packs unpacked, add/remove/split.
+- [x] **Phase 2 — the Inventory tab:** paper doll, a grid per bag (bags in bags, pockets, Overweight), click to pick /
+  click to place and pointer-event drag (mouse, touch) with a footprint preview, R / Esc, the picked item's details,
+  "Not packed"; moves saved at once (game changes); phone width; the AI summary says where things are and the weight.
+- [x] **Phase 3 — the game:** loot by the rules, what does not fit stays on the ground (`runtime.ground`), the prompt's
+  "On the ground here", the Here row's "Pick up", `/pickup`, `<give>` picks up from the ground, the tab's Drop, the
+  shop refuses what cannot be carried, Speed at most 5 ft when overloaded (combat, the AI, the Combat tab). The four
+  pregens start at full speed (Oona carries her greatsword); bags are worn where they belong.
+- [x] Bugs found on the way: drag and drop did nothing (the drop used the item picked before), a Greatsword in the off
+  hand, a stack growing past its bag's weight, "Arrows (20)" weighed as one arrow, Pell's quiver on the back and
+  backpack on the belt, a stack of pouches as one bag.
+- [ ] **Phase 4:** play test with a real model (owner sets up the AI): loot, a buy, drop and pick up, a fight while
+  overloaded; the left panel's Inventory (still a plain list; known item above).
+- [ ] Later: a holy symbol worn on the shield; dropping a full bag with its contents; swapping two items by dropping one
+  onto the other; more icons.
 
 Also planned (owner, 2026-09-25): **1:1 roleplay audit** — play a 1:1 scenario with a real backend, and a per-story **play style** (Adventure with a world / Roleplay without).
 
