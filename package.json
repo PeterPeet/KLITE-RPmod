@@ -1,6 +1,6 @@
 {
   "name": "klite-rpmod",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "private": true,
   "description": "KLITE RPmod — tabletop-RPG roleplay layer for Esobold Esolite (KoboldAI Lite fork)",
   "license": "AGPL-3.0-only",
