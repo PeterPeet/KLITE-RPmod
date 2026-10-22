@@ -518,7 +518,7 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-inv-grid { position: relative; width: calc(var(--cols) * var(--rpm-cell)); height: calc(var(--rows) * var(--rpm-cell)); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); box-sizing: content-box;
     background-color: var(--rpm-bg-alt); background-image: linear-gradient(var(--rpm-border) 1px, transparent 1px), linear-gradient(90deg, var(--rpm-border) 1px, transparent 1px); background-size: var(--rpm-cell) var(--rpm-cell); }
 .rpm-inv-holding .rpm-inv-grid { cursor: copy; }
-.rpm-inv-bag[data-bag="over"] .rpm-inv-gridwrap { max-height: calc(4.5 * var(--rpm-cell)); }
+.rpm-inv-bag[data-bag="over"] .rpm-inv-gridwrap { max-height: calc(8.5 * var(--rpm-cell)); }   /* about as tall as Body + Belt beside it (owner) */
 .rpm-inv-item, .rpm-inv-ghost { position: absolute; left: calc(var(--x) * var(--rpm-cell) + 2px); top: calc(var(--y) * var(--rpm-cell) + 2px); width: calc(var(--w) * var(--rpm-cell) - 4px); height: calc(var(--h) * var(--rpm-cell) - 4px); box-sizing: border-box; border-radius: 5px; }
 .rpm-inv-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 1px; border: 1px solid var(--rpm-border-hi); font-size: 10px; color: var(--rpm-fg-hi); cursor: grab; overflow: hidden; touch-action: none; }
 .rpm-inv-slot.rpm-full, .rpm-inv-chip { touch-action: none; }
@@ -538,7 +538,7 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-inv-details { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); padding: 6px 8px; background: var(--rpm-bg-alt); }
 .rpm-inv-fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
 .rpm-inv-hint { font-size: var(--rpm-fs-sm); }
-@media (max-width: 480px) { .rpm-inv { --rpm-cell: 26px; } .rpm-inv-doll { flex-basis: 100%; } .rpm-inv-slots { grid-template-columns: repeat(4, minmax(0, 1fr)); } .rpm-inv-slot { min-height: 44px; } .rpm-inv-fields { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) { .rpm-inv { --rpm-cell: 26px; } .rpm-inv-bag[data-bag="over"] .rpm-inv-gridwrap { max-height: calc(4.5 * var(--rpm-cell)); } .rpm-inv-doll { flex-basis: 100%; } .rpm-inv-slots { grid-template-columns: repeat(4, minmax(0, 1fr)); } .rpm-inv-slot { min-height: 44px; } .rpm-inv-fields { grid-template-columns: 1fr 1fr; } }
 .rpm-sheet-notehint { font-size: var(--rpm-fs-sm); color: var(--rpm-fg-muted); }
 .rpm-sheet-notebtns { justify-content: flex-end; margin-bottom: 8px; }
 .rpm-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100002; background: var(--rpm-bg); color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi); box-shadow: inset 3px 0 0 var(--rpm-success), var(--rpm-shadow); border-radius: var(--rpm-radius-lg); padding: 8px 16px; font-family: var(--rpm-font); font-size: var(--rpm-fs); }
@@ -33797,6 +33797,14 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       bar.appendChild(el2("span", { style: `width:${pct}%;background:${pct > 50 ? "var(--rpm-success)" : pct > 25 ? "var(--rpm-quest)" : "var(--rpm-danger)"}` }));
       return bar;
     }
+    function speedNow(name, sheet) {
+      try {
+        const st = window.KLITE_RPMod_Characters.combatStatsFor(name);
+        return st && st.speed != null ? st.speed : sheet.speed;
+      } catch (_) {
+        return sheet.speed;
+      }
+    }
     function renderPersona(box, player, cb) {
       const C2 = window.KLITE_RPMod_Characters;
       const persona = C2 && C2.personaName ? C2.personaName() : "";
@@ -33818,7 +33826,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         box.appendChild(row2([
           el2("span", { class: "rpm-grow", "data-party": "hp", title: inCombat ? "Hit points in the current fight" : "Hit points on the character sheet", text: `HP ${hp}/${max}${temp}${inCombat ? " ⚔" : ""}` }),
           el2("span", { "data-party": "ac", title: sheet.acNote || "Armor Class", text: `AC ${sheet.ac}` }),
-          el2("span", { class: "rpm-muted", "data-party": "speed", text: `${sheet.speed} ft.` })
+          el2("span", { class: "rpm-muted", "data-party": "speed", title: speedNow(persona, sheet) < sheet.speed ? `Overloaded: normally ${sheet.speed} ft` : "Speed", text: `${speedNow(persona, sheet)} ft.` })
         ], "margin-top:4px"));
         box.appendChild(hpBar2(hp, max));
         box.appendChild(uiBtn("Character sheet", () => C2.open(persona), { icon: "id-card", block: true, style: "margin:6px 0 4px", title: "Abilities, skills, inventory — click values to roll" }));
@@ -34188,10 +34196,48 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         refreshPanel();
       }, { icon: "plus", title: "Set flag" })], "margin-top:5px"));
     }
+    function weightBar(c) {
+      const pct = c.capacity > 0 ? Math.max(0, Math.min(100, Math.round(c.total / c.capacity * 100))) : 0;
+      const bar = el2("div", { class: "rpm-bar", "data-inv": "weightbar", role: "meter", "aria-label": "Carried weight", "aria-valuemin": "0", "aria-valuemax": String(c.capacity), "aria-valuenow": String(Math.round(c.total)) });
+      bar.appendChild(el2("span", { style: `width:${pct}%;background:${c.slowed ? "var(--rpm-danger)" : pct > 80 ? "var(--rpm-quest)" : "var(--rpm-success)"}` }));
+      return bar;
+    }
+    function inventoryCard(name, sheet, opts) {
+      const C2 = window.KLITE_RPMod_Characters, c = carried(sheet);
+      const who = [sheet.species, sheet.className ? `${sheet.className} ${sheet.level}` : `Level ${sheet.level}`].filter(Boolean).join(" · ");
+      const coins = ["pp", "gp", "sp", "cp"].filter((k2) => Number(sheet.coins && sheet.coins[k2]) > 0).map((k2) => `${sheet.coins[k2]} ${k2}`).join(" ") || "0 gp";
+      const lb2 = (n) => Math.round(n * 10) / 10;
+      return el2("div", { class: "rpm-card", "data-inv-card": name }, [
+        row2([
+          el2("span", { class: "rpm-grow", style: "font-weight:bold", "data-inv": "owner", text: name }),
+          uiBtn("Inventory", () => C2.open(name, { tab: "inventory" }), { icon: "backpack", title: `${name}'s inventory: bags, paper doll, weight` })
+        ]),
+        who ? muted2(who) : null,
+        row2([
+          el2("span", { class: "rpm-grow", "data-inv": "weight", text: `${lb2(c.total)} / ${c.capacity} lb` }),
+          el2("span", { class: "rpm-muted", "data-inv": "summary", text: coins + (opts && opts.xp ? ` · ${sheet.xp} XP` : "") })
+        ], "margin-top:2px"),
+        weightBar(c),
+        c.slowed ? el2("div", { class: "rpm-inv-warn", "data-inv": "slowed", text: load(sheet, OVER) > 0 ? "Overweight: Speed 5 ft" : `Over ${c.capacity} lb: Speed 5 ft` }) : null
+      ]);
+    }
     function renderInventory(box) {
       const A = API3();
       if (!A.activeWorld()) {
         box.appendChild(muted2("No world loaded."));
+        return;
+      }
+      const C2 = window.KLITE_RPMod_Characters;
+      const persona = C2 && C2.personaName ? C2.personaName() : "";
+      const own = persona && C2.cachedSheet(persona);
+      if (own) {
+        box.appendChild(inventoryCard(persona, own, { xp: true }));
+        for (const m of A.partyStatus ? A.partyStatus() : []) {
+          const sh = m.sheet && C2.cachedSheet(m.sheet);
+          if (sh && m.sheet !== persona) box.appendChild(inventoryCard(m.sheet, sh));
+        }
+        const story = A.runtime && A.runtime.inventory || [];
+        if (story.length) box.appendChild(muted2(`Story items: ${story.map((i) => i.name + (i.qty > 1 ? " ×" + i.qty : "")).join(", ")}`, { "data-inv": "story" }));
         return;
       }
       const iv = A.inventory();
@@ -38536,14 +38582,22 @@ OK = save and close · Cancel = close and discard them`);
       return true;
     }
     const api = {
-      open(name) {
+      // opts.tab: open on that tab (the left panel's Inventory cards: 'inventory')
+      open(name, opts) {
         const sh = Shell2();
         if (!sh) return false;
+        if (opts && opts.tab && TABS.some(([id]) => id === opts.tab)) {
+          V.tab = opts.tab;
+          try {
+            localStorage.setItem(TAB_KEY, V.tab);
+          } catch (_) {
+          }
+        }
         if (name && name !== V.name) {
           V.name = null;
           V.draft = null;
           select2(name);
-        }
+        } else if (V.box) render();
         sh.open("sheet");
         return true;
       },

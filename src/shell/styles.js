@@ -513,7 +513,7 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-inv-grid { position: relative; width: calc(var(--cols) * var(--rpm-cell)); height: calc(var(--rows) * var(--rpm-cell)); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); box-sizing: content-box;
     background-color: var(--rpm-bg-alt); background-image: linear-gradient(var(--rpm-border) 1px, transparent 1px), linear-gradient(90deg, var(--rpm-border) 1px, transparent 1px); background-size: var(--rpm-cell) var(--rpm-cell); }
 .rpm-inv-holding .rpm-inv-grid { cursor: copy; }
-.rpm-inv-bag[data-bag="over"] .rpm-inv-gridwrap { max-height: calc(4.5 * var(--rpm-cell)); }
+.rpm-inv-bag[data-bag="over"] .rpm-inv-gridwrap { max-height: calc(8.5 * var(--rpm-cell)); }   /* about as tall as Body + Belt beside it (owner) */
 .rpm-inv-item, .rpm-inv-ghost { position: absolute; left: calc(var(--x) * var(--rpm-cell) + 2px); top: calc(var(--y) * var(--rpm-cell) + 2px); width: calc(var(--w) * var(--rpm-cell) - 4px); height: calc(var(--h) * var(--rpm-cell) - 4px); box-sizing: border-box; border-radius: 5px; }
 .rpm-inv-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 1px; border: 1px solid var(--rpm-border-hi); font-size: 10px; color: var(--rpm-fg-hi); cursor: grab; overflow: hidden; touch-action: none; }
 .rpm-inv-slot.rpm-full, .rpm-inv-chip { touch-action: none; }
@@ -533,7 +533,7 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-inv-details { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); padding: 6px 8px; background: var(--rpm-bg-alt); }
 .rpm-inv-fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
 .rpm-inv-hint { font-size: var(--rpm-fs-sm); }
-@media (max-width: 480px) { .rpm-inv { --rpm-cell: 26px; } .rpm-inv-doll { flex-basis: 100%; } .rpm-inv-slots { grid-template-columns: repeat(4, minmax(0, 1fr)); } .rpm-inv-slot { min-height: 44px; } .rpm-inv-fields { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) { .rpm-inv { --rpm-cell: 26px; } .rpm-inv-bag[data-bag="over"] .rpm-inv-gridwrap { max-height: calc(4.5 * var(--rpm-cell)); } .rpm-inv-doll { flex-basis: 100%; } .rpm-inv-slots { grid-template-columns: repeat(4, minmax(0, 1fr)); } .rpm-inv-slot { min-height: 44px; } .rpm-inv-fields { grid-template-columns: 1fr 1fr; } }
 .rpm-sheet-notehint { font-size: var(--rpm-fs-sm); color: var(--rpm-fg-muted); }
 .rpm-sheet-notebtns { justify-content: flex-end; margin-bottom: 8px; }
 .rpm-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100002; background: var(--rpm-bg); color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi); box-shadow: inset 3px 0 0 var(--rpm-success), var(--rpm-shadow); border-radius: var(--rpm-radius-lg); padding: 8px 16px; font-family: var(--rpm-font); font-size: var(--rpm-fs); }

@@ -617,7 +617,13 @@ export default function initCharacters() {
     }
 
     const api = {
-        open(name) { const sh = Shell(); if (!sh) return false; if (name && name !== V.name) { V.name = null; V.draft = null; select(name); } sh.open('sheet'); return true; },
+        // opts.tab: open on that tab (the left panel's Inventory cards: 'inventory')
+        open(name, opts) {
+            const sh = Shell(); if (!sh) return false;
+            if (opts && opts.tab && TABS.some(([id]) => id === opts.tab)) { V.tab = opts.tab; try { localStorage.setItem(TAB_KEY, V.tab); } catch (_) {} }
+            if (name && name !== V.name) { V.name = null; V.draft = null; select(name); } else if (V.box) render();
+            sh.open('sheet'); return true;
+        },
         loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor, updateSheet, flushSheet, restoreSheet, foldAll, forget,
         combatSpellsFor, spendSpell, longRestSheet, setItemInHand,
         // the player's persona (Tools panel): name when chosen and enabled, else ''

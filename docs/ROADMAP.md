@@ -1126,7 +1126,8 @@ the review's numbers) and a level up to 2 — all correct by SRD 5.2.1. Fixed:
 Tests in `tests/uiPlaytest.test.js`, `spells.test.js`, `adventureContent.test.js`. Open (small):
 - [x] A stack in the backpack went into the hand as a whole (Holy Symbol ×2 → both); one piece now (R9 `takeInHand`).
 - [ ] The SRD lets a cleric wear the holy symbol on the shield (no hand).
-- [ ] The left panel's Inventory does not show what is in hand / worn.
+- [x] The left panel's Inventory was a plain list (its "−" even removed a backpack in the R9 play test): now a card per
+  party member — name, **Inventory** (the sheet's Inventory tab), species · class, a weight bar, coins, the 5 ft warning (R9).
 - [ ] The roll mode (Advantage / Disadvantage) stays on across characters and sessions — easy to forget.
 - [ ] After *Create character* the sheet opens on the last tab used (Notes) — a new character should open on Overview.
 - [ ] *New character* takes a second or two to show the builder, without a sign that it is coming.
@@ -1312,7 +1313,8 @@ belt — the SRD's own equipment packs overfill a 30 lb backpack); **Backpack 50
 - [ ] World findings from this test (not inventory): the AI does not see the wares of a vendor elsewhere (it said Oskar
   has no armour; he sells a Chain Shirt); GLM gave the three travellers (Tove, Kasimir, Pell) other names (Marta, Fen,
   Silla) — their names are not in the Tipsy Heron's prompt.
-- [ ] The left panel's Inventory is still a plain list (known item above).
+- [x] The left panel's Inventory: a card per party member (owner's design; known item above); the Party card shows the
+  speed now (5 ft when overloaded); the Overweight grid is about as tall as Body and Belt beside it.
 - [ ] Later: a holy symbol worn on the shield; dropping a full bag with its contents; swapping two items by dropping one
   onto the other; more icons.
 

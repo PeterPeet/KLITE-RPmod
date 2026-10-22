@@ -670,6 +670,9 @@ tell weapons, armor, ammunition, potions, bags and other gear apart.
   …** (refused while it still does not fit), the AI sees what lies there, and when it writes `<give>` for
   it, it comes from the ground. Things on the ground stay in their place for this play of the world.
 - **Buying:** a vendor does not sell you something you cannot carry (nothing is paid).
+- **Left panel:** the **Inventory** section shows a card for you and every companion with a character sheet: the
+  weight as a bar (red when overloaded), coins (and your XP), the 5 ft warning, and an **Inventory** button that
+  opens that character's sheet on the Inventory tab. The Party card shows the speed you move at now.
 - **Older characters** keep every item: what they held goes into the hands and the armor slot, the rest is
   packed; an SRD equipment pack (Explorer's Pack …) is unpacked into its contents. What finds no place is
   shown as **Not packed**.

@@ -123,3 +123,31 @@ test('combat: an overloaded character moves at most 5 ft (SRD)', async (t) => {
     C.updateSheet('Tove Emberfall', (s) => { s.inventory.push({ name: 'Barrel', qty: 1 }); });
     assert.equal(C.combatStatsFor('Tove Emberfall').speed, 5, 'a barrel dragged along');
 });
+
+test('left panel: an Inventory card per party member (weight bar, coins, the sheet\'s Inventory tab); the Party card shows the speed now', async (t) => {
+    const h = await adventure(t); const W = h.api(); const w = h.window; const doc = w.document; const C = w.KLITE_RPMod_Characters;
+    W.moveTo('The Tipsy Heron');
+    assert.equal(W.joinParty('npc_kasimir', { source: 'ui' }).ok, true);
+    await C.loadSheet('Kasimir Adeyemi');
+    h.ui().refreshPanel(); await sleep(30);
+    const sec = () => doc.querySelector('#rpm-dock-left [data-section="inventory"]');
+    const cards = () => [...sec().querySelectorAll('[data-inv-card]')].map(c => c.getAttribute('data-inv-card'));
+    assert.deepEqual(cards(), ['Tove Emberfall', 'Kasimir Adeyemi']);
+    const card = (n) => sec().querySelector(`[data-inv-card="${n}"]`);
+    assert.match(card('Tove Emberfall').querySelector('[data-inv="weight"]').textContent, /^\d+(\.\d)? \/ 195 lb$/);
+    assert.match(card('Tove Emberfall').textContent, /Dwarf · Cleric 1/);
+    assert.ok(card('Tove Emberfall').querySelector('[data-inv="weightbar"][role="meter"]'));
+    assert.equal(card('Tove Emberfall').querySelector('[data-inv="slowed"]'), null);
+    assert.equal(sec().querySelector('[aria-label="Item name"]'), null, 'no item list any more (it removed a backpack by accident)');
+    // the button opens the sheet on the Inventory tab
+    const btn = [...card('Kasimir Adeyemi').querySelectorAll('button')].find(b => /Inventory/.test(b.textContent));
+    btn.click(); await sleep(60);
+    assert.ok(doc.querySelector('[data-window="sheet"] [data-sheet-panel="inventory"]'), 'the Inventory tab');
+    assert.equal(C.current().name, 'Kasimir Adeyemi');
+    // overloaded: red, the warning, and the Party card's speed
+    C.updateSheet('Tove Emberfall', (s) => { s.inventory.push({ name: 'Barrel', qty: 1 }); });
+    h.ui().refreshPanel(); await sleep(30);
+    assert.match(card('Tove Emberfall').querySelector('[data-inv="slowed"]').textContent, /Overweight: Speed 5 ft/);
+    assert.match(card('Tove Emberfall').querySelector('[data-inv="weightbar"] span').getAttribute('style'), /--rpm-danger/);
+    assert.equal(doc.querySelector('#rpm-dock-left [data-party="speed"]').textContent, '5 ft.');
+});
