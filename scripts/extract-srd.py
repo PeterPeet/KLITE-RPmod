@@ -192,6 +192,29 @@ COSTS = {
     'Scale Mail': '50 GP', 'Breastplate': '400 GP', 'Half Plate Armor': '750 GP', 'Ring Mail': '30 GP', 'Chain Mail': '75 GP',
     'Splint Armor': '200 GP', 'Plate Armor': '1,500 GP', 'Shield': '10 GP',
 }
+# name -> weight in lb (weapons and armor tables; 0 = "—"; checked against the PDF text by check_weights)
+WEIGHTS = {
+    'Club': 2, 'Dagger': 1, 'Greatclub': 10, 'Handaxe': 2, 'Javelin': 2, 'Light Hammer': 2, 'Mace': 4, 'Quarterstaff': 4, 'Sickle': 2,
+    'Spear': 3, 'Dart': 0.25, 'Light Crossbow': 5, 'Shortbow': 2, 'Sling': 0, 'Battleaxe': 4, 'Flail': 2, 'Glaive': 6, 'Greataxe': 7,
+    'Greatsword': 6, 'Halberd': 6, 'Lance': 6, 'Longsword': 3, 'Maul': 10, 'Morningstar': 4, 'Pike': 18, 'Rapier': 2, 'Scimitar': 3,
+    'Shortsword': 2, 'Trident': 4, 'Warhammer': 5, 'War Pick': 2, 'Whip': 3, 'Blowgun': 1, 'Hand Crossbow': 3, 'Heavy Crossbow': 18,
+    'Longbow': 2, 'Musket': 10, 'Pistol': 3,
+    'Padded Armor': 8, 'Leather Armor': 10, 'Studded Leather Armor': 13, 'Hide Armor': 12, 'Chain Shirt': 20, 'Scale Mail': 45,
+    'Breastplate': 20, 'Half Plate Armor': 40, 'Ring Mail': 40, 'Chain Mail': 55, 'Splint Armor': 60, 'Plate Armor': 65, 'Shield': 6,
+}
+# Ammunition table: type -> (amount, storage, weight in lb of that amount, cost)
+AMMUNITION = {
+    'Arrows': (20, 'Quiver', 1, '1 GP'), 'Bolts': (20, 'Case', 1.5, '1 GP'), 'Bullets, Firearm': (10, 'Pouch', 2, '3 GP'),
+    'Bullets, Sling': (20, 'Pouch', 1.5, '4 CP'), 'Needles': (50, 'Pouch', 1, '1 GP'),
+}
+def lb_text(w):
+    return '—' if w == 0 else {0.25: '1/4 lb.', 1.5: '1½ lb.'}.get(w, f'{w:g} lb.')
+def check_weights(txt):
+    lines = txt.split('\n')
+    for name, w in list(WEIGHTS.items()) + [(k, v[2]) for k, v in AMMUNITION.items()]:
+        t = lb_text(w)
+        ok = any(l.startswith(name + ' ') and any(t in x for x in lines[i:i + 4]) for i, l in enumerate(lines))
+        if not ok: raise SystemExit(f'weight of {name} ({t}) not found in the SRD text')
 def check_costs(txt):
     lines = txt.split('\n')
     for name, cost in COSTS.items():
@@ -817,6 +840,7 @@ def main():
     # page breaks → plain line breaks (headers "System Reference Document 5.2.1" + page number)
     txt = re.sub(r'\n=====PAGE \d+=====\nSystem Reference Document 5\.2\.1\s*\n\d+\n', '\n', pdf_text())
     check_costs(txt)
+    check_weights(txt)
     data = dict(
         attribution=ATTRIBUTION, source='SRD 5.2.1',
         standardArray=[15, 14, 13, 12, 10, 8], pointBuy=dict(budget=27, costs={8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9}),
@@ -825,9 +849,10 @@ def main():
                        rare=['Abyssal', 'Celestial', 'Deep Speech', 'Druidic', 'Infernal', 'Primordial', 'Sylvan', "Thieves' Cant", 'Undercommon']),
         alignments=['Lawful Good', 'Neutral Good', 'Chaotic Good', 'Lawful Neutral', 'Neutral', 'Chaotic Neutral', 'Lawful Evil', 'Neutral Evil', 'Chaotic Evil'],
         classes={}, backgrounds=BACKGROUNDS, species=extract_species(txt), feats=extract_feats(txt),
-        weapons={k: dict(damage=v[0], type=v[1], properties=v[2], mastery=v[3], category=v[4], cost=COSTS[k]) for k, v in WEAPONS.items()},
-        armor={k: dict(category=v[0], base=v[1], dexCap=v[2], cost=COSTS[k]) for k, v in ARMOR.items()},
-        shieldCost=COSTS['Shield'],
+        weapons={k: dict(damage=v[0], type=v[1], properties=v[2], mastery=v[3], category=v[4], cost=COSTS[k], weight=WEIGHTS[k]) for k, v in WEAPONS.items()},
+        armor={k: dict(category=v[0], base=v[1], dexCap=v[2], cost=COSTS[k], weight=WEIGHTS[k]) for k, v in ARMOR.items()},
+        shieldCost=COSTS['Shield'], shieldWeight=WEIGHTS['Shield'],
+        ammunition={k: dict(amount=v[0], storage=v[1], weight=v[2], cost=v[3]) for k, v in AMMUNITION.items()},
         xpBudget={l: dict(low=v[0], moderate=v[1], high=v[2]) for l, v in XP_BUDGET.items()},
         conditions=extract_conditions(txt),
     )

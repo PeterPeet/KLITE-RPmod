@@ -41,10 +41,11 @@ const questIs = (questId, state) => ({ type: 'quest', questId, state });
 // ---- the pregenerated characters ---------------------------------------------------------
 // Each: builder choices (validated by tests/adventureContent.test.js; SRD 5.2.1: Common plus two standard languages —
 // UI play test 2026-10-20: the pregens had none), a line for the picker,
-// pronouns, the card text (how the AI should play them) and sheet notes.
+// pronouns, the card text (how the AI should play them) and sheet notes; `hold`: what they start
+// with in hand (R9 inventory: every pregen starts at full speed, nothing in the Overweight bag).
 const PREGENS = [
     {
-        id: 'oona', pronouns: 'she/her', line: 'Orc Fighter, Soldier · steady veteran with a prosthetic leg',
+        id: 'oona', pronouns: 'she/her', line: 'Orc Fighter, Soldier · steady veteran with a prosthetic leg', hold: ['Greatsword'],
         choices: { name: 'Oona Greycairn', class: 'fighter', level: 1, background: 'soldier', species: 'orc', method: 'standard',
             scores: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 }, bgBonus: { plus2: 'str', plus1: 'con' },
             classSkills: ['perception', 'survival'], fightingStyle: 'Great Weapon Fighting', languages: ['Orc', 'Goblin'], classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Lawful Good' },
@@ -88,6 +89,10 @@ const PREGENS = [
 function pregenCard(p) {
     const sheet = buildSheet(p.choices);
     sheet.notes = p.notes;
+    if (p.hold) {   // packed again around what is held (writeSheet organizes)
+        for (const it of sheet.inventory) { delete it.at; delete it.rot; }
+        for (const n of p.hold) { const it = sheet.inventory.find(i => i.name === n); if (it) it.inHand = true; }
+    }
     const data = writeSheet({
         name: p.choices.name, description: p.description, personality: p.personality,
         scenario: '', first_mes: '', mes_example: '', alternate_greetings: [],

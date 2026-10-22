@@ -12,13 +12,16 @@
 // Public API: window.KLITE_RPMod_Characters.
 // =============================================================================
 import { el, clear, icon, iconText } from '../shell/dom.js';
-import { ABILITIES, ABILITY_NAMES, SKILLS, defaultSheet, normalizeSheet, derive, fmt, fromCombatStats } from './sheet.js';
+import { ABILITIES, ABILITY_NAMES, SKILLS, defaultSheet, normalizeSheet, derive, fmt, fromCombatStats, effectiveSpeed } from './sheet.js';
 import { loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor, updateSheet, flushSheet, restoreSheet, foldAll, forget, combatSpellsFor, spendSpell, longRestSheet, setItemInHand } from './store.js';
 import { characterNames } from '../library/esoliteLibrary.js';
 import * as SP from './spell-rules.js';
 import * as BR from './builder-rules.js';
 import { spellPicker, spellDetails, spellTags } from './spellPicker.js';
 import * as EQ from './equipment-rules.js';
+import * as IR from '../game/inventory-rules.js';
+import { inventoryView } from './inventoryView.js';
+import { sameName } from '../game/quest-rules.js';
 import { SRD } from '../data/srd52.js';
 
 const LAST_KEY = 'KLITE.sheet.last';
@@ -33,7 +36,7 @@ export default function initCharacters() {
     if (window.KLITE_RPMod_Characters) return;
 
     let savedTab = null; try { savedTab = localStorage.getItem(TAB_KEY); } catch (_) {}
-    const V = { name: null, saved: null, draft: null, loading: false, error: '', mode: null, box: null, timer: null, manage: false, spellSearch: {}, tab: savedTab || 'overview', notesBuf: {} };
+    const V = { name: null, saved: null, draft: null, loading: false, error: '', mode: null, box: null, timer: null, manage: false, spellSearch: {}, tab: savedTab || 'overview', notesBuf: {}, inv: { sel: null, drag: null } };
     const Shell = () => window.KLITE_RPMod_Shell;
     const Log = () => window.KLITE_RPMod_Log;
     const autosave = () => { try { return !!window.KLITE_RPMod_Settings?.get(AUTOSAVE_SETTING); } catch (_) { return false; } };
@@ -50,7 +53,7 @@ export default function initCharacters() {
     async function select(name) {
         if (V.draft && dirty() && name !== V.name && !confirm(`Discard unsaved changes to ${V.name}'s sheet?`)) { render(); return; }
         V.name = name || null; V.saved = null; V.draft = null; V.error = '';
-        V.manage = false; V.notesBuf = {};
+        V.manage = false; V.notesBuf = {}; V.inv = { sel: null, drag: null };
         try { localStorage.setItem(LAST_KEY, V.name || ''); } catch (_) {}
         if (!V.name) { render(); return; }
         V.loading = true; render();
@@ -348,7 +351,11 @@ export default function initCharacters() {
         return el('button', { type: 'button', class: 'rpm-iconbtn rpm-sheet-bp', 'data-bp': on ? 'hand' : 'pack', 'aria-pressed': String(on),
             title: on ? `${it.name} is in hand (or worn). Put it into the backpack.` : `${it.name} is in the backpack. Take it in hand (or put it on).`,
             'aria-label': (on ? 'Put into the backpack: ' : 'Take in hand: ') + it.name, text: on ? '(->BP)' : '(<-BP)',
-            onclick: () => { if (on) delete V.draft.inventory[i].inHand; else V.draft.inventory[i].inHand = true; edited(); } });
+            onclick: () => {
+                const id = it.id;   // R9: into a free hand, or away into a sheath or a bag
+                if (!on) { const copy = JSON.parse(JSON.stringify(V.draft)); const why = IR.takeInHand(copy, copy.inventory.find(x => x.id === id)); if (why) { toast(`${it.name}: ${why}.`, true); return; } }
+                invApply((sh) => { const x = sh.inventory.find(y => y.id === id); if (!x) return; if (on) IR.stow(sh, x); else IR.takeInHand(sh, x); });
+            } });
     }
     function handsLine(root, s) {
         const n = EQ.handsUsed(s.inventory);
@@ -372,7 +379,7 @@ export default function initCharacters() {
     function combatTab(root, D, s, set) {
         root.appendChild(el('div', { class: 'rpm-sheet-grid4' }, [
             field('Armor Class', numIn(s.ac, set(v => { V.draft.ac = v; }))),
-            field('Speed', numIn(s.speed, set(v => { V.draft.speed = v; }))),
+            field(effectiveSpeed(s) < s.speed ? `Speed (now ${effectiveSpeed(s)} ft: overloaded)` : 'Speed', numIn(s.speed, set(v => { V.draft.speed = v; }))),
             field('Initiative', btn(fmt(D.initiative), () => rollD20('Initiative', D.initiative, 'initiative'), { roll: 'initiative', title: 'Roll initiative' })),
             field('Passive Perception', el('div', { class: 'rpm-sheet-static', text: String(D.passivePerception) })),
         ]));
@@ -457,43 +464,51 @@ export default function initCharacters() {
         spells.addEventListener('change', () => { V.draft.spellcasting.spells = spells.value; edited(); });
         root.appendChild(spells);
     }
-    function itemRow(it, i, set) {
-        const info = EQ.itemInfo(it.name);
-        const weaponHeld = it.inHand && info && info.kind === 'weapon';
-        const nameIn = textIn(it.name, set(v => { V.draft.inventory[i].name = v; }), { class: 'form-control rpm-input rpm-grow', 'aria-label': 'Item name', list: 'rpm-sheet-items', autocomplete: 'off' });
-        const row = el('div', { class: 'rpm-sheet-item' + (weaponHeld ? ' rpm-inhand' : ''), 'data-item': it.name }, [
-            el('div', { class: 'rpm-sheet-line' }, [
-                handToggle(i), nameIn,
-                numIn(it.qty, set(v => { V.draft.inventory[i].qty = v; }), { class: 'form-control rpm-input rpm-sheet-qty', min: 1, 'aria-label': 'Quantity' }),
-                el('button', { type: 'button', class: 'rpm-iconbtn', title: 'Remove item', 'aria-label': 'Remove ' + it.name, onclick: () => { V.draft.inventory.splice(i, 1); edited(); } }, [icon('trash-2', 14)]),
-            ]),
-        ]);
-        // the item's SRD definition, on demand
-        if (info) row.appendChild(el('details', { class: 'rpm-sheet-def', 'data-def': it.name }, [
-            el('summary', { class: 'rpm-muted', text: info.summary }),
-            ...info.text.slice(0, 4).map(t => el('p', { class: 'rpm-cmp-p', text: t })),
-            info.ref && window.KLITE_RPMod_Compendium ? btn('In the compendium', () => window.KLITE_RPMod_Compendium.open(info.ref), { icon: 'book-marked', title: 'Open the SRD entry' }) : null,
-        ]));
-        return row;
+    // R9: inventory changes (moves, splits, renames, adding, removing) are game changes — saved at
+    // once through the store (live sheet, the card later), into the draft too, like a quest reward;
+    // with other unsaved inventory edits (older drafts) only the draft changes.
+    function invApply(mutate) {
+        if (!mutate) { render(); return; }
+        const same = V.saved && JSON.stringify(V.draft.inventory) === JSON.stringify(V.saved.inventory);
+        mutate(V.draft); V.draft = normalizeSheet(V.draft);
+        if (same && V.name && cachedSheet(V.name)) {
+            updateSheet(V.name, mutate);
+            const fresh = cachedSheet(V.name); if (fresh) V.saved = normalizeSheet(fresh);
+            V.draft.inventory = JSON.parse(JSON.stringify(V.saved.inventory));
+            render();
+        } else edited();
+    }
+    function canDrop() {
+        try { const W = window.KLITE_RPMod_Worlds; return !!(W && W.dropItem && W.here && W.here() && W.here().place); } catch (_) { return false; }
     }
     function inventoryTab(root, D, s, set) {
         root.appendChild(itemList());
-        handsLine(root, s);
-        const groups = [['In hand / worn', s.inventory.map((it, i) => [it, i]).filter(([it]) => it.inHand)], ['Backpack', s.inventory.map((it, i) => [it, i]).filter(([it]) => !it.inHand)]];
-        for (const [title, list] of groups) {
-            root.appendChild(heading(title));
-            if (!list.length) root.appendChild(el('div', { class: 'rpm-muted', text: title === 'Backpack' ? 'Empty.' : 'Nothing in hand. "(<-BP)" takes an item out of the backpack.' }));
-            for (const [it, i] of list) root.appendChild(itemRow(it, i, set));
-        }
+        root.appendChild(inventoryView({
+            sheet: s, state: V.inv, apply: invApply, toast: (m, err) => toast(m, err),
+            openRef: window.KLITE_RPMod_Compendium ? (ref) => window.KLITE_RPMod_Compendium.open(ref) : null,
+            // R9: drop it here (a world place): it stays on the ground, the Here row can pick it up again
+            drop: canDrop() ? (it) => {
+                const r = window.KLITE_RPMod_Worlds.dropItem(V.name, it.id);
+                if (!r.ok) return r.reason;
+                const fresh = cachedSheet(V.name); if (fresh) { V.saved = normalizeSheet(fresh); V.draft.inventory = JSON.parse(JSON.stringify(V.saved.inventory)); }
+                toast(`${it.name} dropped here.`); return '';
+            } : null,
+        }));
         const itemName = el('input', { type: 'text', class: 'form-control rpm-input rpm-grow', placeholder: 'Add an item (SRD names are suggested)', 'aria-label': 'New item', list: 'rpm-sheet-items', autocomplete: 'off' });
         itemName.classList.add('fullScreenTextEditExclude');
-        const addItem = () => { const n = itemName.value.trim(); if (!n) return; V.draft.inventory.push({ name: n, qty: 1, notes: '' }); edited(); };
+        const addItem = () => {
+            const n = itemName.value.trim(); if (!n) return;
+            let res = null;
+            invApply((sh) => { res = IR.addItem(sh, n, 1, { force: true, same: sameName }); });
+            if (res && !res.placed) toast(`${n}: ${res.reason}.`, true);
+        };
         itemName.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); addItem(); } });   // UI play test: Enter adds
         root.appendChild(el('div', { class: 'rpm-row', style: 'margin-top:6px' }, [itemName, btn('', addItem, { icon: 'plus', title: 'Add item' })]));
         root.appendChild(el('div', { class: 'rpm-muted rpm-sheet-rule', text: EQ.HAND_RULE }));
         root.appendChild(heading('Coins'));
         root.appendChild(el('div', { class: 'rpm-sheet-grid4' }, ['cp', 'sp', 'gp', 'pp'].map(c =>
             field(c.toUpperCase(), numIn(s.coins[c], set(v => { V.draft.coins[c] = v; }), { min: 0 })))));
+        root.appendChild(el('div', { class: 'rpm-muted', text: `50 coins weigh 1 lb (SRD).` }));
     }
     // Features: the SRD text of the class, subclass, species, background and feat features at this
     // level (read from the builder's choices, else from the sheet's class/species/background names).
@@ -602,7 +617,13 @@ export default function initCharacters() {
     }
 
     const api = {
-        open(name) { const sh = Shell(); if (!sh) return false; if (name && name !== V.name) { V.name = null; V.draft = null; select(name); } sh.open('sheet'); return true; },
+        // opts.tab: open on that tab (the left panel's Inventory cards: 'inventory')
+        open(name, opts) {
+            const sh = Shell(); if (!sh) return false;
+            if (opts && opts.tab && TABS.some(([id]) => id === opts.tab)) { V.tab = opts.tab; try { localStorage.setItem(TAB_KEY, V.tab); } catch (_) {} }
+            if (name && name !== V.name) { V.name = null; V.draft = null; select(name); } else if (V.box) render();
+            sh.open('sheet'); return true;
+        },
         loadSheet, saveSheet, cachedSheet, combatStatsFor, summaryFor, blurbFor, updateSheet, flushSheet, restoreSheet, foldAll, forget,
         combatSpellsFor, spendSpell, longRestSheet, setItemInHand,
         // the player's persona (Tools panel): name when chosen and enabled, else ''

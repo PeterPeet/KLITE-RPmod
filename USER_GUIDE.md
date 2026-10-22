@@ -376,8 +376,9 @@ are applied when you send. Either way the next slice reflects them.
 | `<mood>NPC=Mood</mood>` | `<mood>Bram=cheerful</mood>` | Set an NPC's mood |
 | `<flag>key=value</flag>` | `<flag>metRowan=true</flag>` | Set a story flag (`<flag>key</flag>` = true) |
 | `<unflag>key</unflag>` | `<unflag>metRowan</unflag>` | Clear a flag |
-| `<give>Item</give>` | `<give>Torch x2</give>` | Add to inventory (`x2` optional) |
-| `<take>Item</take>` | `<take>Torch</take>`, `<take>Torch x2</take>`, `<take>Torch x all</take>` | Remove one (or the count, or the whole stack) |
+| `<give>Item</give>` | `<give>Torch x2</give>` | Add to inventory (`x2` optional); packed by the inventory rules — what does not fit stays on the ground here; something lying here is picked up from the ground |
+| `<take>Item</take>` | `<take>Torch</take>`, `<take>Torch x2</take>`, `<take>Torch x all</take>` | Remove one (or the count, or the whole stack) — it is gone (used up, handed over, stolen) |
+| `<drop>Item</drop>` | `<drop>Broken cart axle</drop>`, `<drop>Torch x2</drop>` | Put it down here: it stays on the ground and can be picked up again |
 | `<quest>id=state</quest>` | `<quest>find_sword=active</quest>` | Set a quest's state (`done` hides it) |
 | `<time>slot</time>` | `<time>evening</time>` | Set time of day |
 | `<weather>…</weather>` | `<weather>rain</weather>` | Set the weather |
@@ -471,6 +472,7 @@ one.
 | `/talk <person>` | you speak with someone (counts for "talk to" objectives) |
 | `/join <person>` · `/leave <person>` | someone here travels with you (if they can join) · parts ways |
 | `/give <item> [xN]` · `/take <item> [xN \| x all]` · `/inv` | inventory |
+| `/pickup <item>` · `/drop <item> [xN \| x all]` | pick up something lying here (it must fit; also the Here row's **Pick up: …**) · put something down here |
 | `/buy [vendor:] <item> [xN]` · `/sell …` · `/shop` | trade with a vendor here; the Shop window |
 | `/accept`, `/turnin`, `/abandon`, `/track <quest>` · `/quests` | quests; the Quest log |
 | `/try <contest> [adv\|dis]` | try a contest (a check objective) of an accepted quest here — RPmod rolls your bonus against its DC, once a day |
@@ -611,7 +613,8 @@ passive Perception are calculated for you.
   SillyTavern and Chub. Changes are a draft until you press **Save** (or turn on
   *Autosave character sheets* in Settings → RPmod); **Revert** undoes them.
 - **What the AI knows:** your persona's (and the active character's) sheet summary is part
-  of the prompt (what you hold or wear is listed apart from the backpack). A world person linked
+  of the prompt (what you hold or wear, what you carry on the body, each bag, the pockets, what you
+  drag along, and the weight you carry). A world person linked
   to a card uses that card's sheet in combat if it has no stat block of its own.
 
 **Tabs.** The sheet is split into tabs, like Esolite's Settings dialog: **Overview** (identity,
@@ -624,14 +627,7 @@ applies everywhere; the sheet remembers the tab you used last.
   weapon uses the better of STR and DEX, a ranged one DEX; a built character keeps its class's
   weapon proficiencies). Every SRD item in the inventory has its **definition** under it (damage and
   properties, the armor's AC, the gear's rules text), with a link into the Compendium.
-- **In hand vs. backpack:** each item is either **in hand / worn** or in the **backpack**. The
-  button before an item switches it: **(<-BP)** takes it out of the backpack, **(->BP)** puts it
-  away (the tooltip says which). Weapons in hand are green in Attacks and Inventory; an attack whose
-  weapon is in the backpack is dimmed. The SRD rule: you draw or stow one weapon as part of each
-  attack you make with it (in a fight RPmod does that for you and logs it); getting out or putting
-  away any other item takes the **Utilize** action. The sheet warns when more than two hands are in
-  use (a Two-Handed weapon takes both, a Shield one, worn armor none). Sheets from before this
-  version have everything in the backpack; new characters from the builder wear their armor.
+- **Inventory:** see [The inventory](#the-inventory) below.
 - **Features:** the SRD text of your class, subclass, species, background and feat features up to
   your level, filled in automatically (built characters; for others RPmod reads the SRD class,
   species and background names on the sheet). Your own features and traits go in the box below.
@@ -639,6 +635,53 @@ applies everywhere; the sheet remembers the tab you used last.
   every story. **Adventure notes** belong to this play of the world (saved with the story) and are
   wiped when a new game starts or on **Back to start** — for things that matter only in this
   adventure. Both have **Save**, **Cancel** (drop the edit) and **Delete**.
+
+### The inventory
+
+The **Inventory** tab works like a backpack in a computer RPG: every item takes **tiles** in a
+grid, and how many depends on its **weight** (SRD 5.2.1), not its type — a dagger is 1×1, a longsword a
+long 1×3, a 7 lb bedroll a 3×3 block; 20 arrows or 2 potions share one tile. Colours and icons tell
+melee weapons (red, a sword), ranged weapons (green, a bow — bows, crossbows, darts, javelins, throwing knives),
+armor and shields (blue), ammunition (yellow), potions (violet), bags and other gear apart; the potion colour is
+editable in Esolite's theme editor like RPmod's other colours. Names wrap onto two lines; a tile one row high
+shows only the name. Hover over an item (or focus it with the keyboard) for its name, weight and where it is.
+
+- **Carrying:** you carry up to **Str × 15 lb** (a Goliath twice that, Powerful Build); 50 coins weigh
+  1 lb. The bar at the top shows it. Up to twice that you can only **drag** things along: they go into
+  the **Overweight** bag, and while anything is in it (or you carry more than Str × 15 lb) your
+  **Speed is at most 5 ft** — in fights too, and the AI is told. More than twice that you cannot take at all.
+- **Bags:** each bag has its pounds and its grid: **Backpack 50 lb** (8×6; RPmod's choice — the SRD
+  says 30 lb, but its own equipment packs put about 50 lb into one), Sack 30 lb, Pouch 6 lb, a Quiver holds
+  arrows, a Bolt case bolts, a Bag of Holding 500 lb and always weighs 5 lb. A bag inside a bag opens as
+  its own grid, and its contents count for both. Everyone has **pockets** (3 tiles, 2 lb) for a coin or a key.
+- **On the body (paper doll):** the **main hand** and the **off hand** (a two-handed weapon goes into the
+  main hand and needs both), the **armor**, the **back** (the backpack, plus one weapon and one shield
+  carried together), the **belt** (a pouch, a quiver, a case or a waterskin), two **sheaths** (one-handed
+  weapons up to 10 lb) and, while you wear a backpack, two **straps** for bulky gear like a bedroll or a
+  tent (up to 20 lb each).
+- **Moving things:** click an item to pick it up, then click where it goes — a free spot, a slot, or a bag
+  (it goes inside). Or drag it with the mouse or a finger; a green or red outline shows whether it fits.
+  **R** turns it, **Esc** puts it back. If something does not fit, a message says why ("needs both hands",
+  "too heavy for the pouch").
+- **The picked item:** name, quantity, weight (set your own for things the SRD does not know — they
+  count as 1 lb, unless the AI gave a weight: `<give>Broken cart axle (40 lb)</give>`), notes, its SRD definition, and **Turn**, **Split** (half the stack), **Take in hand** /
+  **Put on**, **Put away**, **Drop**, **Remove** and **Compendium**. Taking a stack in hand takes one piece.
+- **Saved at once:** moving, splitting and dropping are saved right away, like a quest reward — no Save
+  button needed.
+- **The ground:** **Drop** (in a world; also `/drop`, and the AI's `<drop>`) puts an item down where you are (a bag only when it is empty).
+  Loot that does not fit anywhere stays on the ground too; the log says so. The Here row offers **Pick up:
+  …** (refused while it still does not fit), the AI sees what lies there, and when it writes `<give>` for
+  it, it comes from the ground. Things on the ground stay in their place for this play of the world.
+- **Buying:** a vendor does not sell you something you cannot carry (nothing is paid).
+- **Left panel:** the **Inventory** section shows a card for you and every companion with a character sheet: the
+  weight as a bar (red when overloaded), coins (and your XP), the 5 ft warning, and an **Inventory** button that
+  opens that character's sheet on the Inventory tab. The Party card shows the speed you move at now.
+- **Older characters** keep every item: what they held goes into the hands and the armor slot, the rest is
+  packed; an SRD equipment pack (Explorer's Pack …) is unpacked into its contents. What finds no place is
+  shown as **Not packed**.
+- **The SRD rule** still holds in fights: you draw or stow one weapon as part of each attack you make with
+  it (RPmod does that for you and logs it); getting out or putting away any other item takes the **Utilize**
+  action.
 
 **World Management** chooses the world (new, rename, import, export), enables it for the story and
 holds the **Game state** buttons and the **Premade worlds**. **World Creation** has the **Creator
@@ -728,7 +771,8 @@ with an **Open reputation** button.
 
 **Your inventory is your persona's sheet.** Items, gold and XP from quests, fights and the
 `<give>`/`<take>` tags go onto the character card, so they stay with the character in every
-story. Without a persona the story keeps them. If you are editing the sheet while a reward
+story — packed by the [inventory rules](#the-inventory) (what does not fit stays on the ground). Without a
+persona the story keeps them. If you are editing the sheet while a reward
 arrives, the reward is merged into your unsaved edits.
 
 **Reputation.** Each faction has a standing from **Hated** through Hostile, Unfriendly,

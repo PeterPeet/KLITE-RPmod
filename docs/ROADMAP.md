@@ -6,9 +6,14 @@
 > can resume without any chat history.
 >
 > Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
-> Last updated: 2026-10-20 (first real-backend play test with Gemma 4 31B and DeepSeek V4 Pro: twelve fixes — combat turns, Retry, the game log on reload, `<go>` names, thinking blocks, the combat prompt, World Info placement, containers; open items under R8 step 8; before: 2026-09-26 — open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–7: Lanternport and the Lantern Fair, the south shore, the Lost Chapel and the endings)
+> Last updated: 2026-10-22 (R9 inventory: item size from SRD weight, bags, paper doll, the ground — phases 1–3 done, docs; next: play test with a real model; before: 2026-10-20 — first real-backend play test with Gemma 4 31B and DeepSeek V4 Pro: twelve fixes — combat turns, Retry, the game log on reload, `<go>` names, thinking blocks, the combat prompt, World Info placement, containers; open items under R8 step 8; before: 2026-09-26 — open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–7: Lanternport and the Lantern Fair, the south shore, the Lost Chapel and the endings)
 
 ## Current state
+
+**Now: R9 — inventory** (owner, 2026-10-22, after v0.10.1): a Diablo-like inventory where an item's size comes from its
+SRD weight. Phases 1–4 are done (rules and SRD weights, the Inventory tab, the game hooks, docs, a play test with GLM
+5.3 and its fixes: `<drop>`, the [Items] note, the AI's weights, Speed 5 ft in zone combat). Next: PR into development,
+then a release. Details under **R9** below.
 
 **Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
 is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). R5 is done
@@ -1119,9 +1124,10 @@ the review's numbers) and a level up to 2 — all correct by SRD 5.2.1. Fixed:
   Existing pregen cards get them with the picker's "starting sheets back".
 - [x] **The Combat window stayed open across New Session / an adventure start** without a fight; it closes now.
 Tests in `tests/uiPlaytest.test.js`, `spells.test.js`, `adventureContent.test.js`. Open (small):
-- [ ] A stack in the backpack goes into the hand as a whole (Holy Symbol ×2 → both); taking one should split it. And the
-  SRD lets a cleric wear the holy symbol on the shield (no hand).
-- [ ] The left panel's Inventory does not show what is in hand / worn.
+- [x] A stack in the backpack went into the hand as a whole (Holy Symbol ×2 → both); one piece now (R9 `takeInHand`).
+- [ ] The SRD lets a cleric wear the holy symbol on the shield (no hand).
+- [x] The left panel's Inventory was a plain list (its "−" even removed a backpack in the R9 play test): now a card per
+  party member — name, **Inventory** (the sheet's Inventory tab), species · class, a weight bar, coins, the 5 ft warning (R9).
 - [ ] The roll mode (Advantage / Disadvantage) stays on across characters and sessions — easy to forget.
 - [ ] After *Create character* the sheet opens on the last tab used (Notes) — a new character should open on Overview.
 - [ ] *New character* takes a second or two to show the builder, without a sign that it is coming.
@@ -1270,6 +1276,47 @@ open (e.g. on an iPad, where the left panel is closed).
   - **Character notes:** one text, saved in the character, permanent; Delete / Cancel / Save.
   - **Adventure notes:** one text, saved in the adventure (world) state, wiped on a new start / Back to start;
     Delete / Cancel / Save; a grey note under the box says so. For things that matter only in this play.
+
+### R9 — Inventory: bags, paper doll, item size from SRD weight 🟨 (owner, 2026-10-22)
+Plan: Diablo-style item management, but an item's tiles come from its **weight** (SRD 5.2.1), not its type; first
+version with icons for weapon, armor, ammunition, potion, bag and general gear. Owner's decisions while building it:
+weight brackets per kind for the tiles; rotation (R); dropped items stay in the room; an **Overweight** bag for the
+SRD's drag range (Str × 15 lb more, Speed at most 5 ft while anything is in it, nothing beyond twice the capacity);
+**straps and sheaths** (2 straps on a worn backpack, 2 sheaths, a weapon and a shield on the back, a waterskin on the
+belt — the SRD's own equipment packs overfill a 30 lb backpack); **Backpack 50 lb**; **pockets** (a coin must never mean
+5 ft). Rules: `src/game/inventory-rules.js`; ARCHITECTURE §5b "Inventory"; USER_GUIDE "The inventory".
+- [x] **Phase 1 — rules and data:** weapon, armor, Shield weights and the Ammunition table in `srd52.js` (hand-copied in
+  `extract-srd.py`, checked against the PDF), weights from the gear entries, footprints, bags, slots, capacity, the
+  Overweight bag, `organize` for older sheets (nothing lost, idempotent), SRD packs unpacked, add/remove/split.
+- [x] **Phase 2 — the Inventory tab:** paper doll, a grid per bag (bags in bags, pockets, Overweight), click to pick /
+  click to place and pointer-event drag (mouse, touch) with a footprint preview, R / Esc, the picked item's details,
+  "Not packed"; moves saved at once (game changes); phone width; the AI summary says where things are and the weight.
+- [x] **Phase 3 — the game:** loot by the rules, what does not fit stays on the ground (`runtime.ground`), the prompt's
+  "On the ground here", the Here row's "Pick up", `/pickup`, `<give>` picks up from the ground, the tab's Drop, the
+  shop refuses what cannot be carried, Speed at most 5 ft when overloaded (combat, the AI, the Combat tab). The four
+  pregens start at full speed (Oona carries her greatsword); bags are worn where they belong.
+- [x] Bugs found on the way: drag and drop did nothing (the drop used the item picked before), a Greatsword in the off
+  hand, a stack growing past its bag's weight, "Arrows (20)" weighed as one arrow, Pell's quiver on the back and
+  backpack on the belt, a stack of pouches as one bag.
+- [x] **Phase 4 — docs and play test** (2026-10-22, GLM 5.3 on Novita, reasoning none, Max Output 16,000; Oona, a
+  fresh start): dropping the rope and picking it up in the chat (`<give>` from the ground), buying Leather Armor from
+  Oskar (into Overweight, Speed 5 ft, the AI sees "Speed 5 ft (overloaded)" and later narrates "her pace is down to a
+  trudge"), a heavy axle with the AI's weight (`<give>Broken cart axle (40 lb)</give>`), a goblin ambush while overloaded
+  (no zone move; she throws the load down with `<drop>`, back to 30 ft, wins in round 5), picking both up again after the
+  fight (Here row and `<give>`) — all correct after these fixes:
+  - [x] the AI was never told how `<give>`/`<take>` work and wrote `<take>` for "picks up the axle" → [Items] note
+  - [x] "throws down the axle and the armour" became `<take>` (gone) → new `<drop>` tag and `/drop`, onto the ground
+  - [x] things the SRD does not know weighed 1 lb → the AI adds a weight in `<give>` ("(40 lb)")
+  - [x] Speed 5 ft still moved a zone in zone combat → below 10 ft no zone move, fleeing one; Speed 0 is 0 (was 30)
+  - [x] arrows went into the backpack, not the quiver → a bag made for an item first
+  - [x] picking up through `<give>` was not logged
+- [ ] World findings from this test (not inventory): the AI does not see the wares of a vendor elsewhere (it said Oskar
+  has no armour; he sells a Chain Shirt); GLM gave the three travellers (Tove, Kasimir, Pell) other names (Marta, Fen,
+  Silla) — their names are not in the Tipsy Heron's prompt.
+- [x] The left panel's Inventory: a card per party member (owner's design; known item above); the Party card shows the
+  speed now (5 ft when overloaded); the Overweight grid is about as tall as Body and Belt beside it.
+- [ ] Later: a holy symbol worn on the shield; dropping a full bag with its contents; swapping two items by dropping one
+  onto the other; more icons.
 
 Also planned (owner, 2026-09-25): **1:1 roleplay audit** — play a 1:1 scenario with a real backend, and a per-story **play style** (Adventure with a world / Roleplay without).
 

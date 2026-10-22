@@ -144,6 +144,11 @@ export function hereReplies(info) {
         const n = safeName(c.name); if (!n) continue;
         out.push({ label: 'Open: ' + n, text: `/open ${n} | I open ${n.replace(/^The /, 'the ')}.`, send: true, kind: 'container' });
     }
+    // R9: things on the ground here (dropped, or loot that did not fit)
+    for (const g of info.ground || []) {
+        const n = safeName(g.name); if (!n) continue;
+        out.push({ label: 'Pick up: ' + n + (g.qty > 1 ? ' ×' + g.qty : ''), text: `/pickup ${n} | I pick up the ${n}.`, send: true, kind: 'pickup' });
+    }
     if (info.trade) out.push({ label: 'Shop', text: '/shop', send: false, kind: 'shop' });
     if (info.inMap) out.push({ label: 'Search', text: '/search | I search the room.', send: true, kind: 'search' });
     return out;
@@ -154,7 +159,7 @@ export function hereReplies(info) {
 // text reaches Esolite's apply_display_only_regex HTML-escaped (&lt;move&gt;) — or raw when
 // Esolite's escaping is off — so both spellings are matched. Only the display changes; the
 // story text keeps the tags and the engine parses them as before.
-export const CONTROL_TAGS = ['move', 'go', 'npcmove', 'mood', 'flag', 'unflag', 'give', 'take', 'rep', 'accept', 'turnin',
+export const CONTROL_TAGS = ['move', 'go', 'npcmove', 'mood', 'flag', 'unflag', 'give', 'take', 'drop', 'rep', 'accept', 'turnin',
     'buy', 'sell', 'talk', 'encounter', 'quest', 'time', 'weather', 'advance', 'action', 'roll', 'attack', 'hp', 'check',
     'open', 'close', 'unlock', 'search', 'room', 'door', 'light', 'join', 'leave', 'cast'];
 const LT = '(?:<|&lt;)', GT = '(?:>|&gt;)', NAMES = CONTROL_TAGS.join('|');
