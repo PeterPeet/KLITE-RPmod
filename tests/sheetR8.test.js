@@ -40,15 +40,18 @@ test('equipment rules: SRD names, definitions, weapon → attack (finesse → DE
     assert.equal(EQ.attackInHand(inv, 'Unarmed Strike'), null, 'nothing to dim');
 });
 
-test('save format: inHand is additive — kept only when true; old sheets have everything in the backpack', () => {
+test('save format: inHand is additive — kept only when true; R9 gives every item a place (sheathed, pockets, bags)', () => {
     const old = SH.normalizeSheet({ inventory: [{ name: 'Longsword', qty: 1 }, { name: 'Rope', qty: 1, notes: '50 ft' }] });
-    assert.deepEqual(plain(old.inventory), [{ name: 'Longsword', qty: 1, notes: '' }, { name: 'Rope', qty: 1, notes: '50 ft' }]);
-    const s = SH.normalizeSheet({ inventory: [{ name: 'Longsword', qty: 1, inHand: true }, { name: 'Rope', inHand: false }] });
-    assert.deepEqual(plain(s.inventory), [{ name: 'Longsword', qty: 1, notes: '', inHand: true }, { name: 'Rope', qty: 1, notes: '' }]);
+    assert.deepEqual(plain(old.inventory), [{ name: 'Longsword', qty: 1, notes: '', id: 'it1', at: { slot: 'sheath1' } },
+        { name: 'Rope', qty: 1, notes: '50 ft', id: 'it2', at: { bag: 'over', x: 0, y: 0 } }], 'no bag: the rope is dragged along');
+    const s = SH.normalizeSheet({ inventory: [{ name: 'Longsword', qty: 1, inHand: true }, { name: 'Rope', inHand: false }, { name: 'Backpack' }] });
+    assert.deepEqual(plain(s.inventory), [{ name: 'Longsword', qty: 1, notes: '', inHand: true, id: 'it1', at: { slot: 'main' } },
+        { name: 'Rope', qty: 1, notes: '', id: 'it2', at: { bag: 'it3', x: 0, y: 0 } }, { name: 'Backpack', qty: 1, notes: '', id: 'it3', at: { slot: 'back' } }]);
     assert.deepEqual(plain(SH.normalizeSheet(plain(s)).inventory), plain(s.inventory), 'stable');
     const sum = SH.sheetSummary(s);
-    assert.match(sum, /In hand \/ worn: Longsword/); assert.match(sum, /Backpack: Rope/);
-    assert.match(SH.sheetSummary(old), /Inventory: Longsword, Rope/, 'old sheets read as before');
+    assert.match(sum, /In hand \/ worn: Longsword/); assert.match(sum, /Carried: Backpack \(worn on the back\)/); assert.match(sum, /\nBackpack: Rope/);
+    assert.match(sum, /Carrying 13 of 150 lb/);
+    assert.match(SH.sheetSummary(old), /Carried: Longsword \(sheathed\)\nDragged along \(overweight\): Rope\nCarrying 8 of 150 lb — overloaded/);
 });
 
 async function sheetHost(t) {
@@ -85,29 +88,31 @@ test('sheet: tabs like Esolite\'s settings; attacks with SRD autocomplete; in ha
     assert.ok(row().classList.contains('rpm-stowed'), 'in the backpack: dimmed');
     assert.match(win(doc).querySelector('[data-rule="hands"]').textContent, /draw or stow one weapon as part of each attack/);
 
-    // Inventory: take the rapier in hand → green in Attacks and Inventory
-    await tab(w, doc, 'inventory');
-    const item = (n) => win(doc).querySelector(`[data-item="${n}"]`);
-    assert.equal(item('Rapier').querySelector('[data-bp]').textContent, '(<-BP)');
-    click(item('Rapier').querySelector('[data-bp]'), w); await sleep(10);
-    assert.equal(item('Rapier').querySelector('[data-bp]').textContent, '(->BP)');
-    assert.ok(item('Rapier').classList.contains('rpm-inhand'));
-    assert.match(item('Rapier').querySelector('[data-bp]').title, /Put it into the backpack/);
-    await tab(w, doc, 'combat');
+    // Combat: the toggle takes the rapier in hand (R9: into the main hand) → green in Attacks
+    click(row().querySelector('[data-bp]'), w); await sleep(20);
     assert.ok(row().classList.contains('rpm-inhand'), 'green in Attacks');
-    // more than two hands: a warning
+    // Inventory (R9): the paper doll shows it in the main hand; the greatsword cannot join it
     await tab(w, doc, 'inventory');
-    click(item('Greatsword').querySelector('[data-bp]'), w); await sleep(10);
-    click(item('Shield').querySelector('[data-bp]'), w); await sleep(10);
-    assert.equal(win(doc).querySelector('[data-hands]').getAttribute('data-hands'), '4');
-    assert.match(win(doc).querySelector('[data-hands]').textContent, /more than two hands/);
+    const slot = (k) => win(doc).querySelector(`[data-slot="${k}"]`);
+    assert.match(slot('main').textContent, /Rapier/);
+    const pickUp = async (n) => { click(win(doc).querySelector(`[data-id][data-item="${n}"]`) || [...win(doc).querySelectorAll('[data-slot]')].find(x => x.textContent.includes(n)), w); await sleep(20); };
+    await pickUp('Greatsword');
+    assert.equal(win(doc).querySelector('[data-inv-details]').getAttribute('data-inv-details'), 'Greatsword');
+    click(slot('off'), w); await sleep(20);
+    assert.match(doc.querySelector('.rpm-toast').textContent, /Greatsword needs both hands: hold it in the main hand/);
+    // the shield goes to the off hand
+    await pickUp('Shield');
+    click(slot('off'), w); await sleep(20);
+    assert.match(slot('off').textContent, /Shield/);
+    assert.equal(win(doc).querySelector('[data-hands]'), null, 'no hands line on the inventory tab (the slots show it)');
     // definitions and the autocomplete
-    assert.match(item('Rope').querySelector('[data-def] summary').textContent, /Adventuring gear/);
+    await pickUp('Rope');
+    assert.match(win(doc).querySelector('[data-inv-details]').textContent, /Adventuring gear/);
     assert.ok(doc.querySelector('#rpm-sheet-items option[value="Potion of Healing"]'));
-    // saved: the flag is in the card, old items without it
-    click(win(doc).querySelector('[data-save="sheet"]'), w); await sleep(40); await C.flushSheet('Mira');
+    // saved at once, without the Save button: moves are game changes
+    await C.flushSheet('Mira');
     const s = await C.loadSheet('Mira');
-    assert.deepEqual(plain(s.inventory.map(i => [i.name, !!i.inHand])), [['Rapier', true], ['Greatsword', true], ['Shield', true], ['Rope', false]]);
+    assert.deepEqual(plain(s.inventory.map(i => [i.name, !!i.inHand])), [['Rapier', true], ['Greatsword', false], ['Shield', true], ['Rope', false]]);
 });
 
 test('Features tab: the SRD features of a built character, level-appropriate, with the attribution', async (t) => {
@@ -115,7 +120,7 @@ test('Features tab: the SRD features of a built character, level-appropriate, wi
     const ADV = w.KLITE_RPMod_Adventures; for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
     await ADV.installPregens('drowned-lantern');
     const oona = await C.loadSheet('Oona Greycairn');
-    assert.deepEqual(plain(oona.inventory.filter(i => i.inHand).map(i => i.name)), ['Chain Mail'], 'a new character wears the armor its AC counts; weapons start in the backpack');
+    assert.deepEqual(plain(oona.inventory.filter(i => i.inHand).map(i => i.name)), ['Chain Mail', 'Greatsword'], 'a new character wears the armor its AC counts; Oona carries her greatsword (R9)');
     C.open('Oona Greycairn'); await sleep(40);
     await tab(w, doc, 'features');
     const text = win(doc).querySelector('[data-features="srd"]').textContent;

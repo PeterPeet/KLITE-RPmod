@@ -67,6 +67,8 @@ test('rules: layouts, adjacency, line of fire, reach and range, cover, movement,
     assert.equal(ZR.featureZone(large, { id: 'x1' }), ZR.featureZone(large, { id: 'x1' }), 'stable');
 
     assert.equal(ZR.moveAllowance(30), 1); assert.equal(ZR.moveAllowance(60), 2); assert.equal(ZR.moveAllowance(30, true), 2);
+    // R9: overloaded (Speed 5 ft) stays in its zone, fleeing (Dash) one zone; Speed 0 does not move; no speed = 30 ft
+    assert.equal(ZR.moveAllowance(5), 0); assert.equal(ZR.moveAllowance(5, true), 1); assert.equal(ZR.moveAllowance(0, true), 0); assert.equal(ZR.moveAllowance(undefined), 1);
     assert.equal(ZR.provokes(1, false), false, 'fighting retreat'); assert.equal(ZR.provokes(1, true), true); assert.equal(ZR.provokes(2, false), true);
     assert.equal(ZR.partyStart(large, 'w'), 'w'); assert.equal(ZR.partyStart(large, null), 'c'); assert.equal(ZR.partyStart(small, 'w'), 'inner');
     assert.equal(ZR.enemyStart(large, 'w', 'auto'), 'e'); assert.equal(ZR.enemyStart(large, 'w', 'near'), 'c');

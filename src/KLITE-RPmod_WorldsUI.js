@@ -20,6 +20,7 @@ import { renderCombat, AUTO_TURNS_SETTING } from './game/combatView.js';
 import { renderShop } from './game/shopView.js';
 import { registerMapEditor, openMapEditor, closeMapEditor } from './map/mapEditor.js';
 import { registerMinimap, MINIMAP_VIEWS } from './map/minimap.js';
+import * as IR from './game/inventory-rules.js';
 
 export default function initWorldsUI() {
     'use strict';
@@ -1339,6 +1340,8 @@ export default function initWorldsUI() {
         bar.appendChild(el('span', { style: `width:${pct}%;background:${pct > 50 ? 'var(--rpm-success)' : pct > 25 ? 'var(--rpm-quest)' : 'var(--rpm-danger)'}` }));
         return bar;
     }
+    // R9: the speed it moves at now (at most 5 ft when overloaded), from the combat stats
+    function speedNow(name, sheet) { try { const st = window.KLITE_RPMod_Characters.combatStatsFor(name); return st && st.speed != null ? st.speed : sheet.speed; } catch (_) { return sheet.speed; } }
     // The player character = the persona chosen in the Tools panel.
     // Sheet values come from the card; during combat the tracker's HP is authoritative.
     function renderPersona(box, player, cb) {
@@ -1362,7 +1365,7 @@ export default function initWorldsUI() {
             box.appendChild(row([
                 el('span', { class: 'rpm-grow', 'data-party': 'hp', title: inCombat ? 'Hit points in the current fight' : 'Hit points on the character sheet', text: `HP ${hp}/${max}${temp}${inCombat ? ' ⚔' : ''}` }),
                 el('span', { 'data-party': 'ac', title: sheet.acNote || 'Armor Class', text: `AC ${sheet.ac}` }),
-                el('span', { class: 'rpm-muted', 'data-party': 'speed', text: `${sheet.speed} ft.` })
+                el('span', { class: 'rpm-muted', 'data-party': 'speed', title: speedNow(persona, sheet) < sheet.speed ? `Overloaded: normally ${sheet.speed} ft` : 'Speed', text: `${speedNow(persona, sheet)} ft.` })
             ], 'margin-top:4px'));
             box.appendChild(hpBar(hp, max));
             box.appendChild(uiBtn('Character sheet', () => C.open(persona), { icon: 'id-card', block: true, style: 'margin:6px 0 4px', title: 'Abilities, skills, inventory — click values to roll' }));
@@ -1650,10 +1653,47 @@ export default function initWorldsUI() {
         const fv = uiInput({ placeholder: 'value', class: 'form-control rpm-input rpm-grow', 'aria-label': 'Flag value' });
         box.appendChild(row([fk, fv, uiBtn('', () => { const k = fk.value.trim(); if (!k) return; A.setFlag(k, parseVal(fv.value)); refreshPanel(); }, { icon: 'plus', title: 'Set flag' })], 'margin-top:5px'));
     }
-    // ---- left dock: Inventory — the persona's sheet (plus any story items), else the story's ----
+    // ---- left dock: Inventory — R9 (owner, 2026-10-22): a card per party member with a sheet (the persona,
+    // then companions linked to a card): name + "Inventory" (the sheet's Inventory tab), species · class,
+    // the carried weight as a bar like the HP bar (red when overloaded), coins and XP, the 5 ft warning.
+    // Without a persona: the story's inventory as a list, as before.
+    function weightBar(c) {
+        const pct = c.capacity > 0 ? Math.max(0, Math.min(100, Math.round(c.total / c.capacity * 100))) : 0;
+        const bar = el('div', { class: 'rpm-bar', 'data-inv': 'weightbar', role: 'meter', 'aria-label': 'Carried weight', 'aria-valuemin': '0', 'aria-valuemax': String(c.capacity), 'aria-valuenow': String(Math.round(c.total)) });
+        bar.appendChild(el('span', { style: `width:${pct}%;background:${c.slowed ? 'var(--rpm-danger)' : pct > 80 ? 'var(--rpm-quest)' : 'var(--rpm-success)'}` }));
+        return bar;
+    }
+    function inventoryCard(name, sheet, opts) {
+        const C = window.KLITE_RPMod_Characters, c = IR.carried(sheet);
+        const who = [sheet.species, sheet.className ? `${sheet.className} ${sheet.level}` : `Level ${sheet.level}`].filter(Boolean).join(' · ');
+        const coins = ['pp', 'gp', 'sp', 'cp'].filter(k => Number(sheet.coins && sheet.coins[k]) > 0).map(k => `${sheet.coins[k]} ${k}`).join(' ') || '0 gp';
+        const lb = (n) => Math.round(n * 10) / 10;
+        return el('div', { class: 'rpm-card', 'data-inv-card': name }, [
+            row([el('span', { class: 'rpm-grow', style: 'font-weight:bold', 'data-inv': 'owner', text: name }),
+                uiBtn('Inventory', () => C.open(name, { tab: 'inventory' }), { icon: 'backpack', title: `${name}'s inventory: bags, paper doll, weight` })]),
+            who ? muted(who) : null,
+            row([el('span', { class: 'rpm-grow', 'data-inv': 'weight', text: `${lb(c.total)} / ${c.capacity} lb` }),
+                el('span', { class: 'rpm-muted', 'data-inv': 'summary', text: coins + (opts && opts.xp ? ` · ${sheet.xp} XP` : '') })], 'margin-top:2px'),
+            weightBar(c),
+            c.slowed ? el('div', { class: 'rpm-inv-warn', 'data-inv': 'slowed', text: IR.load(sheet, IR.OVER) > 0 ? 'Overweight: Speed 5 ft' : `Over ${c.capacity} lb: Speed 5 ft` }) : null,
+        ]);
+    }
     function renderInventory(box) {
         const A = API();
         if (!A.activeWorld()) { box.appendChild(muted('No world loaded.')); return; }
+        const C = window.KLITE_RPMod_Characters;
+        const persona = C && C.personaName ? C.personaName() : '';
+        const own = persona && C.cachedSheet(persona);
+        if (own) {
+            box.appendChild(inventoryCard(persona, own, { xp: true }));
+            for (const m of (A.partyStatus ? A.partyStatus() : [])) {
+                const sh = m.sheet && C.cachedSheet(m.sheet);
+                if (sh && m.sheet !== persona) box.appendChild(inventoryCard(m.sheet, sh));
+            }
+            const story = (A.runtime && A.runtime.inventory) || [];
+            if (story.length) box.appendChild(muted(`Story items: ${story.map(i => i.name + (i.qty > 1 ? ' ×' + i.qty : '')).join(', ')}`, { 'data-inv': 'story' }));
+            return;
+        }
         const iv = A.inventory();
         box.appendChild(el('div', { style: 'font-weight:bold', 'data-inv': 'owner', text: iv.source === 'sheet' ? iv.owner : 'Story inventory' }));
         box.appendChild(muted(`${iv.purseText} · ${iv.xp} XP${iv.source === 'sheet' ? ' · saved on the character sheet' : ' · choose a persona to keep them on its sheet'}`, { 'data-inv': 'summary' }));

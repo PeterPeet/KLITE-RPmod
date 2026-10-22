@@ -19,6 +19,7 @@
 // builder (saveSheet) write the card directly, as before.
 // =============================================================================
 import { loadCharacter, saveCharacter, characterIdOf } from '../library/esoliteLibrary.js';
+import * as IR from '../game/inventory-rules.js';
 import { readSheet, writeSheet, normalizeSheet, toCombatStats, sheetSummary, derive } from './sheet.js';
 import * as SP from './spell-rules.js';
 
@@ -191,7 +192,9 @@ export function setItemInHand(name, itemName, on) {
     const n = String(itemName || '').trim().toLowerCase();
     updateSheet(name, (s) => {
         const it = s.inventory.find(i => i.name.toLowerCase() === n); if (!it) return;
-        if (on) it.inHand = true; else delete it.inHand;
+        // R9: into a free hand (no free hand: held anyway, as before), or put away into a sheath or a bag
+        if (on) { if (IR.takeInHand(s, it)) { delete it.at; it.inHand = true; } }
+        else IR.stow(s, it);
         result = !!on;
     });
     return result;

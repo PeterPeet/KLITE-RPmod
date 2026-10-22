@@ -3,6 +3,41 @@
 What's new in KLITE RPmod, newest first. Play it at <https://rp-lite.koboldai.net>; the Esolite mod manager loads the
 same version.
 
+## v0.11.0 — 2026-10-22
+
+Hi everyone! Last time we promised the inventory system, and here it is. Your backpack is now a real backpack: every
+item takes room by its weight, the way you know it from Diablo. A dagger is one small tile, a longsword a long row, a
+bedroll a big block, and twenty arrows share a single tile. You pack it, you turn things to make them fit, and when it
+gets too heavy, your character feels it.
+
+We play-tested it with a real AI model and fixed what we found: the AI now picks things up, puts them down and leaves
+them lying where they were dropped. Throw your heavy load into the mud before a fight, and it is still there afterwards.
+Next we'll look at a few things the play test showed about shops and people in the world, and keep on fixing.
+
+**Your inventory**
+- A new **Inventory** tab on the character sheet: your hands, armor, back, belt, sheaths and two straps on the
+  backpack on the left, and every bag as its own grid on the right — a pouch inside your backpack opens as its own grid.
+- Click an item to pick it up and click where it goes, or just drag it (mouse or finger). Press **R** to turn it.
+  A green or red outline shows whether it fits, and if it doesn't, RPmod tells you why.
+- Bags hold what the rules allow: a Backpack 50 lb, a Pouch 6 lb, a Quiver your arrows, a Bag of Holding 500 lb.
+  And everyone has pockets for a coin or a key.
+- You carry up to **Strength × 15 lb**. More than that you can only drag along — your Speed drops to 5 ft, in fights
+  too. Drop something, and you're quick again.
+- **Drop** puts something on the ground right where you are; the Here row offers **Pick up** later. Loot that doesn't
+  fit stays on the ground too, and nothing is ever lost.
+- Shops don't sell you more than you can carry (and you don't pay for it).
+- Colours and icons tell melee weapons, ranged weapons, armor, ammunition, potions and bags apart; hover over an item
+  for its name, weight and where it is.
+- The left panel shows a small card for you and every companion: how much they carry, their coins, and a button
+  straight to their inventory.
+- Your characters keep everything they had. The four heroes of *The Drowned Lantern* start with a well-packed bag,
+  and Oona carries her greatsword in her hands.
+
+**The AI**
+- It knows how to give you things, take them away and leave them on the ground, and it can say how heavy something
+  unusual is ("a broken cart axle, 40 lb").
+- It knows when you are overloaded and slowed down, and it tells you so in the story.
+
 ## v0.10.1 — 2026-10-22
 
 Hi everyone! A small one this time, but an important one. After all our play testing, one thing kept coming up: RPmod

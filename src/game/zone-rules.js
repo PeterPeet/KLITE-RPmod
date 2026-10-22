@@ -182,7 +182,14 @@ export function coverBonus(level) { return COVER[level] || 0; }
 
 // ---- movement ------------------------------------------------------------------------------
 // Zones a creature may move in one turn: 1, or 2 at 60 ft speed and more; fleeing doubles it.
-export function moveAllowance(speedFt, flee) { const base = (Number(speedFt) || 30) >= 60 ? 2 : 1; return flee ? base * 2 : base; }
+// Below 10 ft (R9: an overloaded character, Speed 5 ft) it stays in its zone and only fleeing
+// (Dash) takes it one zone; Speed 0 does not move at all. No speed given: 30 ft.
+export function moveAllowance(speedFt, flee) {
+    const sp = speedFt == null || speedFt === '' || !Number.isFinite(Number(speedFt)) ? 30 : Number(speedFt);
+    if (sp <= 0) return 0;
+    if (sp < 10) return flee ? 1 : 0;
+    const base = sp >= 60 ? 2 : 1; return flee ? base * 2 : base;
+}
 // Leaving a zone provokes opportunity attacks when fleeing or moving more than one zone.
 export function provokes(zonesMoved, flee) { return !!flee || zonesMoved > 1; }
 
