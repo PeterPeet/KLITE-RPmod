@@ -25513,14 +25513,17 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
         addCoinsOf(c[1], c[2]);
         return t;
       }
-      const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(t) || [];
+      const wm = /^(.*?)\s*\((\d+(?:[.,]\d+)?)\s*(?:lb|lbs|pounds?)\.?\)\s*((?:[x×]\s*\d+)?)\s*$/i.exec(t);
+      const weight = wm ? Number(wm[2].replace(",", ".")) : void 0;
+      const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(wm ? wm[1] + (wm[3] ? " " + wm[3] : "") : t) || [];
       const lying = groundHere().find((g) => sameItem(g.name, nm));
       if (lying) {
         const n = groundTake(lying.id, q || 1);
-        inventoryAdd(lying.name, n, { weight: lying.weight });
+        const r = inventoryAdd(lying.name, n, { weight: lying.weight });
+        if (r && !r.ground) gameLog(`The player picks up ${norm5(lying.name)}${n > 1 ? " ×" + n : ""}.`, "loot");
         return t;
       }
-      inventoryAdd(nm, q);
+      inventoryAdd(nm, q, weight != null ? { weight } : void 0);
       return t;
     }
     const MOVE_RE = /\b(step|steps|stepped|stepping|walk|walks|walked|go|goes|went|going|head|heads|headed|enter|enters|entered|reach|reaches|reached|arrive|arrives|arrived|come|comes|came|follow|follows|followed|duck|ducks|ducked|push|pushes|pushed|climb|climbs|climbed|pass|passes|passed|slip|slips|slipped|lead|leads|led|make|makes|made their way|return|returns|returned|back into|into|through|out to)\b/;
@@ -27934,6 +27937,7 @@ ${recent}` : "");
         push("World Rules", 100, rules);
       }
       push("Game notes", 99, "These notes come from RPmod, the game's rules engine: it rolls the dice, moves the party and keeps the sheets. Never name RPmod, the log, the tags or these notes in the story — narrate only what the characters experience.");
+      push("Items", 58, "When the player gets or picks up something, write <give>Item</give> (<give>Torch x2</give>); for a thing that is not standard gear, add its weight: <give>Broken cart axle (40 lb)</give>. When something leaves the player's inventory (used up, handed over, lost, stolen), write <take>Item</take>. RPmod packs it by weight; what the player cannot carry stays on the ground.");
       const c = rt().clock || {};
       push(
         "Current Time",

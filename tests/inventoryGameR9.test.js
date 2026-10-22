@@ -71,6 +71,14 @@ test('loot that does not fit stays on the ground; the prompt and the Here row sh
     await sleep(20);
     assert.equal(count('Barrel'), 1);
     assert.deepEqual(plain(W.here().ground.map(g => [g.name, g.qty])), [['Barrel', 2]], 'two left on the ground');
+    assert.match(logText(h), /The player picks up Barrel\./);
+    // the AI explains the tags and may give a weight for things the SRD does not know
+    assert.match(W.preview(), /\[Items\][^[]*<give>Broken cart axle \(40 lb\)<\/give>[^[]*<take>Item<\/take>/);
+    W.applyTags('<give>Broken cart axle (40 lb)</give>');
+    await sleep(20);
+    const axle = sheet().inventory.find(i => i.name === 'Broken cart axle');
+    assert.ok(axle, 'named without the weight');
+    assert.equal(axle.weight, 40);
     // moving on: the barrel stays in the Tipsy Heron
     W.moveTo('Village Green');
     assert.equal(W.here().ground.length, 0);

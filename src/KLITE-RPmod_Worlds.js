@@ -1674,10 +1674,17 @@ export default function initWorlds() {
     function giveEntry(text) {
         const t = norm(text); if (!t) return '';
         const c = COIN_RE.exec(t); if (c) { addCoinsOf(c[1], c[2]); return t; }
-        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(t) || [];
+        // R9: "Broken cart axle (40 lb)" — the AI's weight for a thing the SRD does not know (lb per piece)
+        const wm = /^(.*?)\s*\((\d+(?:[.,]\d+)?)\s*(?:lb|lbs|pounds?)\.?\)\s*((?:[x×]\s*\d+)?)\s*$/i.exec(t);
+        const weight = wm ? Number(wm[2].replace(',', '.')) : undefined;
+        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+))?$/i.exec(wm ? (wm[1] + (wm[3] ? ' ' + wm[3] : '')) : t) || [];
         const lying = groundHere().find(g => sameItem(g.name, nm));   // R9: picked up from the ground here
-        if (lying) { const n = groundTake(lying.id, q || 1); inventoryAdd(lying.name, n, { weight: lying.weight }); return t; }
-        inventoryAdd(nm, q); return t;
+        if (lying) {
+            const n = groundTake(lying.id, q || 1); const r = inventoryAdd(lying.name, n, { weight: lying.weight });
+            if (r && !r.ground) gameLog(`The player picks up ${norm(lying.name)}${n > 1 ? ' ×' + n : ''}.`, 'loot');
+            return t;
+        }
+        inventoryAdd(nm, q, weight != null ? { weight } : undefined); return t;
     }
     // ---- "Go where the story says" (owner, 2026-10-20) ----
     // Models narrate walking somewhere without writing <go> (play test: the party "stepped into the wolf den" and
@@ -3474,6 +3481,9 @@ export default function initWorlds() {
         }
         // 1a. Who the notes come from (live test 2026-10-20: GLM wrote "RPmod will roll whatever you do" into the story)
         push('Game notes', 99, 'These notes come from RPmod, the game\'s rules engine: it rolls the dice, moves the party and keeps the sheets. Never name RPmod, the log, the tags or these notes in the story — narrate only what the characters experience.');
+        // 1b. Items (R9 play test 2026-10-22: GLM wrote <take> for "she picks up the axle" — the tags were never explained)
+        push('Items', 58, 'When the player gets or picks up something, write <give>Item</give> (<give>Torch x2</give>); for a thing that is not standard gear, add its weight: <give>Broken cart axle (40 lb)</give>. ' +
+            'When something leaves the player\'s inventory (used up, handed over, lost, stolen), write <take>Item</take>. RPmod packs it by weight; what the player cannot carry stays on the ground.');
         // 2. Current time
         const c = rt().clock || {};
         push('Current Time', 90,
