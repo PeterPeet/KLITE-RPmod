@@ -79,11 +79,25 @@ test('loot that does not fit stays on the ground; the prompt and the Here row sh
     const axle = sheet().inventory.find(i => i.name === 'Broken cart axle');
     assert.ok(axle, 'named without the weight');
     assert.equal(axle.weight, 40);
+    // <drop>: put down, it stays on the ground (live test: GLM wrote <take> and the things were gone)
+    assert.match(W.preview(), /<drop>Item<\/drop>: it stays on the ground here/);
+    W.applyTags('Oona throws the axle aside. <drop>Broken cart axle</drop>');
+    await sleep(20);
+    assert.ok(!sheet().inventory.some(i => i.name === 'Broken cart axle'));
+    const lyingAxle = W.groundHere().find(g => g.name === 'Broken cart axle');
+    assert.ok(lyingAxle && lyingAxle.weight === 40, 'on the ground with its weight');
+    assert.match(logText(h), /The player drops Broken cart axle here\./);
+    // /drop a count from a stack
+    W.applyTags('<give>Torch x4</give>'); await sleep(20);
+    const torches0 = count('Torch');
+    assert.equal(w.KLITE_RPMod_Chat.run('/drop Torch x2', { send: false }).ok, true);
+    assert.equal(count('Torch'), torches0 - 2);
+    assert.equal(w.KLITE_RPMod_Chat.run('/drop Anvil', { send: false }).ok, false, 'nothing to drop');
     // moving on: the barrel stays in the Tipsy Heron
     W.moveTo('Village Green');
     assert.equal(W.here().ground.length, 0);
     W.moveTo('The Tipsy Heron');
-    assert.equal(W.here().ground.length, 1);
+    assert.deepEqual(plain(W.here().ground.map(g => g.name)), ['Barrel', 'Broken cart axle', 'Torch'], 'all still there');
 });
 
 test('shop: a buy the player cannot carry is refused, nothing paid; a bundle "Arrows (20)" weighs 1 lb', async (t) => {

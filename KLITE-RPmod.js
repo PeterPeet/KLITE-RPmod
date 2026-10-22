@@ -21982,7 +21982,10 @@ ${char.mes_example}
     return COVER[level] || 0;
   }
   function moveAllowance(speedFt, flee) {
-    const base = (Number(speedFt) || 30) >= 60 ? 2 : 1;
+    const sp = speedFt == null || speedFt === "" || !Number.isFinite(Number(speedFt)) ? 30 : Number(speedFt);
+    if (sp <= 0) return 0;
+    if (sp < 10) return flee ? 1 : 0;
+    const base = sp >= 60 ? 2 : 1;
     return flee ? base * 2 : base;
   }
   function provokes(zonesMoved, flee) {
@@ -25472,6 +25475,36 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       gameLog(`${opts.source === "ai" ? "The player picks" : "Picks"} up ${name}${qty > 1 ? " ×" + qty : ""}.`, "loot");
       return { ok: true, name, qty };
     }
+    function dropByName(name, qty, opts = {}) {
+      const n = norm5(name);
+      if (!n) return false;
+      if (!activeWorld() || !ensureRuntime() || !rt().playerLocationId) return false;
+      const all = String(qty).toLowerCase() === "all";
+      let dropped = null;
+      withSheet((s) => {
+        const it = s.inventory.find((x) => sameItem(x.name, n));
+        if (!it) return;
+        const have = Number(it.qty) || 1, k2 = all ? have : Math.min(have, Math.max(1, Number(qty) || 1));
+        dropped = { name: it.name, qty: k2, weight: it.weight };
+        if (k2 < have) it.qty = have - k2;
+        else removeItem(s, it);
+      }, () => {
+        const inv = rt().inventory;
+        const i = inv.findIndex((x) => sameItem(x.name, n));
+        if (i < 0) return;
+        const have = Number(inv[i].qty) || 1, k2 = all ? have : Math.min(have, Math.max(1, Number(qty) || 1));
+        dropped = { name: inv[i].name, qty: k2 };
+        if (k2 < have) inv[i].qty = have - k2;
+        else inv.splice(i, 1);
+      });
+      if (!dropped) {
+        gameLog(`Drop ${n} refused: the player does not have it.`, "loot");
+        return false;
+      }
+      groundAdd(dropped.name, dropped.qty, dropped.weight);
+      gameLog(`${opts.source === "ai" ? "The player drops" : "Drops"} ${norm5(dropped.name)}${dropped.qty > 1 ? " ×" + dropped.qty : ""} here.`, "loot");
+      return true;
+    }
     function dropItem(charName, itemId) {
       if (!activeWorld() || !ensureRuntime() || !rt().playerLocationId) return { ok: false, reason: "you are not in a place of a world" };
       const C2 = window.KLITE_RPMod_Characters;
@@ -26193,6 +26226,10 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
           return true;
         }
         return false;
+      });
+      scan(/<drop>\s*([^<>]+?)\s*<\/drop>/gi, (m) => {
+        const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+|all))?$/i.exec(norm5(m[1])) || [];
+        return dropByName(nm, q, { source: "ai" });
       });
       scan(/<flag>\s*([^=<>]+?)\s*(?:=\s*([^<>]*?))?\s*<\/flag>/gi, (m) => {
         rt().flags[norm5(m[1])] = parseFlagValue(m[2]);
@@ -27459,8 +27496,8 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       return Z2.turn && Z2.turn.id === id;
     }
     function combatantSpeed(id) {
-      const s = Number(combatantStats(id).speed);
-      return s > 0 ? s : 30;
+      const v = combatantStats(id).speed, s = Number(v);
+      return v != null && v !== "" && Number.isFinite(s) && s >= 0 ? s : 30;
     }
     function attackOf(id, idx) {
       const st = combatantStats(id);
@@ -27937,7 +27974,7 @@ ${recent}` : "");
         push("World Rules", 100, rules);
       }
       push("Game notes", 99, "These notes come from RPmod, the game's rules engine: it rolls the dice, moves the party and keeps the sheets. Never name RPmod, the log, the tags or these notes in the story — narrate only what the characters experience.");
-      push("Items", 58, "When the player gets or picks up something, write <give>Item</give> (<give>Torch x2</give>); for a thing that is not standard gear, add its weight: <give>Broken cart axle (40 lb)</give>. When something leaves the player's inventory (used up, handed over, lost, stolen), write <take>Item</take>. RPmod packs it by weight; what the player cannot carry stays on the ground.");
+      push("Items", 58, "When the player gets or picks up something, write <give>Item</give> (<give>Torch x2</give>); for a thing that is not standard gear, add its weight: <give>Broken cart axle (40 lb)</give>. When the player puts something down, throws it aside or leaves it behind, write <drop>Item</drop>: it stays on the ground here. Only when something is really gone (used up, eaten, handed to someone, destroyed, stolen), write <take>Item</take>. RPmod packs things by weight; what the player cannot carry stays on the ground.");
       const c = rt().clock || {};
       push(
         "Current Time",
@@ -29243,6 +29280,11 @@ ${xl.join("\n")}`;
       },
       dropItem(charName, itemId) {
         return dropItem(charName, itemId);
+      },
+      drop(name, qty, opts) {
+        const r = dropByName(name, qty, opts || {});
+        if (r) syncLive();
+        return r;
       },
       // a spell outside a fight: "Cure Wounds = Oona", "Light", "Healing Word on me slot 2"
       castOutside(text, opts) {
@@ -40011,6 +40053,7 @@ OK = save and close · Cancel = close and discard them`);
     "unflag",
     "give",
     "take",
+    "drop",
     "rep",
     "accept",
     "turnin",
@@ -40487,6 +40530,19 @@ Purse: ${iv.purseText}`);
           const r = tag("take", a, "/take <item> [xN | x all]");
           if (r.ok) r.log = `Loses ${cleanArg(a)}.`;
           return r;
+        }
+      },
+      {
+        name: "drop",
+        group: "Items & trade",
+        world: true,
+        usage: "/drop <item> [xN | x all]",
+        help: "Put something down here: it stays on the ground, you can pick it up again.",
+        run: (a) => {
+          a = cleanArg(a);
+          if (!a) return fail("Usage: /drop <item> [xN | x all]");
+          const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+|all))?$/i.exec(a) || [];
+          return W().drop(nm, q, { source: "ui" }) ? { ok: true } : fail(`You have no "${nm}" to drop here.`);
         }
       },
       {

@@ -159,7 +159,7 @@ export function hereReplies(info) {
 // text reaches Esolite's apply_display_only_regex HTML-escaped (&lt;move&gt;) — or raw when
 // Esolite's escaping is off — so both spellings are matched. Only the display changes; the
 // story text keeps the tags and the engine parses them as before.
-export const CONTROL_TAGS = ['move', 'go', 'npcmove', 'mood', 'flag', 'unflag', 'give', 'take', 'rep', 'accept', 'turnin',
+export const CONTROL_TAGS = ['move', 'go', 'npcmove', 'mood', 'flag', 'unflag', 'give', 'take', 'drop', 'rep', 'accept', 'turnin',
     'buy', 'sell', 'talk', 'encounter', 'quest', 'time', 'weather', 'advance', 'action', 'roll', 'attack', 'hp', 'check',
     'open', 'close', 'unlock', 'search', 'room', 'door', 'light', 'join', 'leave', 'cast'];
 const LT = '(?:<|&lt;)', GT = '(?:>|&gt;)', NAMES = CONTROL_TAGS.join('|');

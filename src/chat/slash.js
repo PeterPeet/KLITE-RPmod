@@ -142,6 +142,8 @@ export default function initChat() {
             run: (a) => { const r = tag('give', a, '/give <item> [xN]'); if (r.ok) r.log = `Gets ${cleanArg(a)}.`; return r; } },
         { name: 'take', group: 'Items & trade', world: true, usage: '/take <item> [xN | x all]', help: 'An item leaves your inventory (default one; "x all" the stack).',
             run: (a) => { const r = tag('take', a, '/take <item> [xN | x all]'); if (r.ok) r.log = `Loses ${cleanArg(a)}.`; return r; } },
+        { name: 'drop', group: 'Items & trade', world: true, usage: '/drop <item> [xN | x all]', help: 'Put something down here: it stays on the ground, you can pick it up again.',
+            run: (a) => { a = cleanArg(a); if (!a) return fail('Usage: /drop <item> [xN | x all]'); const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+|all))?$/i.exec(a) || []; return W().drop(nm, q, { source: 'ui' }) ? { ok: true } : fail(`You have no "${nm}" to drop here.`); } },
         { name: 'pickup', aliases: ['pick'], group: 'Items & trade', world: true, usage: '/pickup <item>', help: 'Pick up something lying here (it must fit: a bag, a strap, or dragged along).',
             run: (a) => { a = cleanArg(a); if (!a) return fail('Usage: /pickup <item>'); const r = W().pickUp(a, { source: 'ui' }); return r.ok ? { ok: true } : { ok: false, error: r.reason }; } },
         { name: 'inv', aliases: ['inventory'], group: 'Items & trade', world: true, usage: '/inv', help: 'Show your inventory and purse.', run: () => inventory() },

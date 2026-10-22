@@ -377,7 +377,8 @@ are applied when you send. Either way the next slice reflects them.
 | `<flag>key=value</flag>` | `<flag>metRowan=true</flag>` | Set a story flag (`<flag>key</flag>` = true) |
 | `<unflag>key</unflag>` | `<unflag>metRowan</unflag>` | Clear a flag |
 | `<give>Item</give>` | `<give>Torch x2</give>` | Add to inventory (`x2` optional); packed by the inventory rules — what does not fit stays on the ground here; something lying here is picked up from the ground |
-| `<take>Item</take>` | `<take>Torch</take>`, `<take>Torch x2</take>`, `<take>Torch x all</take>` | Remove one (or the count, or the whole stack) |
+| `<take>Item</take>` | `<take>Torch</take>`, `<take>Torch x2</take>`, `<take>Torch x all</take>` | Remove one (or the count, or the whole stack) — it is gone (used up, handed over, stolen) |
+| `<drop>Item</drop>` | `<drop>Broken cart axle</drop>`, `<drop>Torch x2</drop>` | Put it down here: it stays on the ground and can be picked up again |
 | `<quest>id=state</quest>` | `<quest>find_sword=active</quest>` | Set a quest's state (`done` hides it) |
 | `<time>slot</time>` | `<time>evening</time>` | Set time of day |
 | `<weather>…</weather>` | `<weather>rain</weather>` | Set the weather |
@@ -471,7 +472,7 @@ one.
 | `/talk <person>` | you speak with someone (counts for "talk to" objectives) |
 | `/join <person>` · `/leave <person>` | someone here travels with you (if they can join) · parts ways |
 | `/give <item> [xN]` · `/take <item> [xN \| x all]` · `/inv` | inventory |
-| `/pickup <item>` | pick up something lying here (it must fit; also the Here row's **Pick up: …**) |
+| `/pickup <item>` · `/drop <item> [xN \| x all]` | pick up something lying here (it must fit; also the Here row's **Pick up: …**) · put something down here |
 | `/buy [vendor:] <item> [xN]` · `/sell …` · `/shop` | trade with a vendor here; the Shop window |
 | `/accept`, `/turnin`, `/abandon`, `/track <quest>` · `/quests` | quests; the Quest log |
 | `/try <contest> [adv\|dis]` | try a contest (a check objective) of an accepted quest here — RPmod rolls your bonus against its DC, once a day |
@@ -660,11 +661,11 @@ tell weapons, armor, ammunition, potions, bags and other gear apart.
   **R** turns it, **Esc** puts it back. If something does not fit, a message says why ("needs both hands",
   "too heavy for the pouch").
 - **The picked item:** name, quantity, weight (set your own for things the SRD does not know — they
-  count as 1 lb), notes, its SRD definition, and **Turn**, **Split** (half the stack), **Take in hand** /
+  count as 1 lb, unless the AI gave a weight: `<give>Broken cart axle (40 lb)</give>`), notes, its SRD definition, and **Turn**, **Split** (half the stack), **Take in hand** /
   **Put on**, **Put away**, **Drop**, **Remove** and **Compendium**. Taking a stack in hand takes one piece.
 - **Saved at once:** moving, splitting and dropping are saved right away, like a quest reward — no Save
   button needed.
-- **The ground:** **Drop** (in a world) puts an item down where you are (a bag only when it is empty).
+- **The ground:** **Drop** (in a world; also `/drop`, and the AI's `<drop>`) puts an item down where you are (a bag only when it is empty).
   Loot that does not fit anywhere stays on the ground too; the log says so. The Here row offers **Pick up:
   …** (refused while it still does not fit), the AI sees what lies there, and when it writes `<give>` for
   it, it comes from the ground. Things on the ground stay in their place for this play of the world.

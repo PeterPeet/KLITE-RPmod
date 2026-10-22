@@ -1650,6 +1650,29 @@ export default function initWorlds() {
         gameLog(`${opts.source === 'ai' ? 'The player picks' : 'Picks'} up ${name}${qty > 1 ? ' ×' + qty : ''}.`, 'loot');
         return { ok: true, name, qty };
     }
+    // <drop>Item [xN|x all]</drop>, /drop: the player puts something down here — onto the ground (the
+    // count from a stack; a bag's contents are packed elsewhere). Outside a place: refused.
+    function dropByName(name, qty, opts = {}) {
+        const n = norm(name); if (!n) return false;
+        if (!activeWorld() || !ensureRuntime() || !rt().playerLocationId) return false;
+        const all = String(qty).toLowerCase() === 'all';
+        let dropped = null;
+        withSheet(s => {
+            const it = s.inventory.find(x => sameItem(x.name, n)); if (!it) return;
+            const have = Number(it.qty) || 1, k = all ? have : Math.min(have, Math.max(1, Number(qty) || 1));
+            dropped = { name: it.name, qty: k, weight: it.weight };
+            if (k < have) it.qty = have - k; else IR.removeItem(s, it);
+        }, () => {
+            const inv = rt().inventory; const i = inv.findIndex(x => sameItem(x.name, n)); if (i < 0) return;
+            const have = Number(inv[i].qty) || 1, k = all ? have : Math.min(have, Math.max(1, Number(qty) || 1));
+            dropped = { name: inv[i].name, qty: k };
+            if (k < have) inv[i].qty = have - k; else inv.splice(i, 1);
+        });
+        if (!dropped) { gameLog(`Drop ${n} refused: the player does not have it.`, 'loot'); return false; }
+        groundAdd(dropped.name, dropped.qty, dropped.weight);
+        gameLog(`${opts.source === 'ai' ? 'The player drops' : 'Drops'} ${norm(dropped.name)}${dropped.qty > 1 ? ' ×' + dropped.qty : ''} here.`, 'loot');
+        return true;
+    }
     // The sheet's "Drop": out of a character's inventory onto the ground here (a bag only when empty).
     function dropItem(charName, itemId) {
         if (!activeWorld() || !ensureRuntime() || !rt().playerLocationId) return { ok: false, reason: 'you are not in a place of a world' };
@@ -2157,6 +2180,7 @@ export default function initWorlds() {
             const npc = findNpcByName(world, m[1]);
             if (npc) { (rt().npcStateOverrides[npc.id] = rt().npcStateOverrides[npc.id] || {}).mood = norm(m[2]); return true; } return false;
         });
+        scan(/<drop>\s*([^<>]+?)\s*<\/drop>/gi, m => { const [, nm, q] = /^(.*?)(?:\s*[x×]\s*(\d+|all))?$/i.exec(norm(m[1])) || []; return dropByName(nm, q, { source: 'ai' }); });
         scan(/<flag>\s*([^=<>]+?)\s*(?:=\s*([^<>]*?))?\s*<\/flag>/gi, m => { rt().flags[norm(m[1])] = parseFlagValue(m[2]); return true; });
         scan(/<unflag>\s*([^<>]+?)\s*<\/unflag>/gi, m => { delete rt().flags[norm(m[1])]; return true; });
         scan(/<give>\s*([^<>]+?)\s*<\/give>/gi, m => { giveEntry(m[1]); return true; });
@@ -3069,7 +3093,7 @@ export default function initWorlds() {
     const zOrder = (cb, id) => cb.order.find(x => x.id === id);
     const turnPos = (cb) => cb.round * cb.order.length + cb.turnIndex;
     function zoneOnTurn(Z, id) { return Z.turn && Z.turn.id === id; }
-    function combatantSpeed(id) { const s = Number(combatantStats(id).speed); return s > 0 ? s : 30; }
+    function combatantSpeed(id) { const v = combatantStats(id).speed, s = Number(v); return v != null && v !== '' && Number.isFinite(s) && s >= 0 ? s : 30; }
     // An attack of a combatant and its zone profile (monster range text: the stat snapshot, or the
     // SRD data for snapshots saved before step 5; weapons: SRD weapon properties).
     function attackOf(id, idx) {
@@ -3482,8 +3506,10 @@ export default function initWorlds() {
         // 1a. Who the notes come from (live test 2026-10-20: GLM wrote "RPmod will roll whatever you do" into the story)
         push('Game notes', 99, 'These notes come from RPmod, the game\'s rules engine: it rolls the dice, moves the party and keeps the sheets. Never name RPmod, the log, the tags or these notes in the story — narrate only what the characters experience.');
         // 1b. Items (R9 play test 2026-10-22: GLM wrote <take> for "she picks up the axle" — the tags were never explained)
+        // (live test: for "she throws down the axle and the armour" GLM wrote <take> — the things were gone, not on the ground)
         push('Items', 58, 'When the player gets or picks up something, write <give>Item</give> (<give>Torch x2</give>); for a thing that is not standard gear, add its weight: <give>Broken cart axle (40 lb)</give>. ' +
-            'When something leaves the player\'s inventory (used up, handed over, lost, stolen), write <take>Item</take>. RPmod packs it by weight; what the player cannot carry stays on the ground.');
+            'When the player puts something down, throws it aside or leaves it behind, write <drop>Item</drop>: it stays on the ground here. ' +
+            'Only when something is really gone (used up, eaten, handed to someone, destroyed, stolen), write <take>Item</take>. RPmod packs things by weight; what the player cannot carry stays on the ground.');
         // 2. Current time
         const c = rt().clock || {};
         push('Current Time', 90,
@@ -4475,6 +4501,7 @@ export default function initWorlds() {
         groundHere: () => JSON.parse(JSON.stringify(groundHere())),
         pickUp(target, opts) { const r = pickUp(target, opts || {}); syncLive(); return r; },
         dropItem(charName, itemId) { return dropItem(charName, itemId); },
+        drop(name, qty, opts) { const r = dropByName(name, qty, opts || {}); if (r) syncLive(); return r; },
         // a spell outside a fight: "Cure Wounds = Oona", "Light", "Healing Word on me slot 2"
         castOutside(text, opts) { const r = castOutside(text, opts || {}); syncLive(); return r; },
         undoInfo: () => undoInfo(),
