@@ -1033,7 +1033,7 @@ Text quality: the best of the cheap models (owner). Weak spots: slow on "medium"
 |---|---|
 | Start, quest, join | both tags right, 52 s, 14,700 chars of thinking (16k) |
 | Ambush from the log | correct and vivid (the hit on Oona, ends on Tove's turn), 91 s, 27,000 chars (16k) |
-| Missed attack ×4 (2× 16k, 2× 4096) | **4 of 4 correct misses**, 19–47 s, 5,000–12,000 chars. Max output does **not** steer the thinking length (owner's question): 4096 gave 5,200 and 11,800 chars, 16k 10,300 and 11,400 |
+| Missed attack ×4 (2× 16k, 2× 4096) | **4 of 4 correct misses**, 19–47 s, 5,000–12,000 chars. On `reasoning_effort: "low"`, max output does **not** scale GLM's thinking (owner's question): at 4k vs. 16k the thinking was about the same length — 4096 gave 5,200 and 11,800 chars, 16k 10,300 and 11,400 ("high" not measured) |
 | `<cast>` after the fight | `<cast>Cure Wounds = Oona</cast>` by itself, healing and slot applied, 43 s |
 | Trap (4096) | cut off while thinking; Generate More: a fresh short think and a whole reply (14 s), trap credited to Tove |
 | Waiting encounter (4096) | cut off twice (75 s each), a Retry fitted (35 s, wolves asleep — right); on the attack `<encounter>Goblin wolves</encounter>` by exact name (22 s), but it narrated **four** wolves for two (the prompt gave no count → fixed) |
