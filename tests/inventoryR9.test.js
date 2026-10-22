@@ -6,7 +6,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const esbuild = require('esbuild');
 const path = require('path');
-const { ROOT } = require('./helpers/host');
+const { createHost, click, sleep, ROOT } = require('./helpers/host');
 
 function requireSrc(rel) {
     const out = esbuild.buildSync({ entryPoints: [path.join(ROOT, rel)], bundle: true, format: 'cjs', platform: 'neutral', write: false, logLevel: 'error' });
@@ -77,6 +77,7 @@ test('slots: armor is worn, bags on the back and the belt, two-handed weapons ne
     R.place(s, gs, { slot: 'main' });
     assert.equal(gs.inHand, true, 'hands and armor set inHand (combat)');
     assert.match(R.canPlace(s, sh, { slot: 'off' }), /Greatsword needs both hands/);
+    assert.match(R.canPlace(s, gs, { slot: 'off' }), /needs both hands: hold it in the main hand/, 'not in the off hand either');
     R.place(s, gs, { bag: 'over', x: 0, y: 0 });
     assert.equal(gs.inHand, undefined);
     R.place(s, sh, { slot: 'off' });
@@ -252,5 +253,57 @@ test('Backpack 50 lb, straps, sheaths, weapon and shield on the back: SRD starti
     delete before.Backpack;
     assert.deepEqual(tally(e.inventory), before);
     assert.ok(!e.inventory.some(i => i.at && /^strap/.test(i.at.slot || '')), 'no straps without the backpack');
+});
+
+test('inventory screen: paper doll and bags, add with Enter, into a bag, turn, split, overweight, remove — saved at once', async (t) => {
+    const h = createHost(); t.after(h.close);
+    h.installFakeLibrary(); h.installFakeSettingsDialog(); h.installTavernTool();
+    h.load('bundle'); await h.ready({ ui: true });
+    const w = h.window, doc = w.document, C = w.KLITE_RPMod_Characters;
+    for (let i = 0; i < 100 && !(w.KLITE_RPMod_Shell && w.KLITE_RPMod_Shell.views().includes('sheet')); i++) await sleep(20);
+    await w.__addEsoCharacter('Pip', { description: 'A halfling.' });
+    await C.saveSheet('Pip', { className: 'Rogue', level: 1, abilities: { str: 6 }, inventory: [{ name: 'Backpack', qty: 1 }, { name: 'Pouch', qty: 1 }, { name: 'Arrow', qty: 40 }] });
+    C.open('Pip'); await sleep(40);
+    const win = () => doc.querySelector('[data-window="sheet"]');
+    click(win().querySelector('[data-sheet-tab="inventory"]'), w); await sleep(20);
+    const q = (sel) => win().querySelector(sel);
+    assert.match(q('[data-slot="back"]').textContent, /Backpack/, 'the backpack is worn');
+    assert.match(q('[data-slot="belt1"]').textContent, /Pouch/, 'the pouch hangs on the belt');
+    assert.ok(q('[data-grid="pockets"]'), 'pockets are always there');
+    assert.match(q('.rpm-inv-carry').textContent, /of 90 lb/, 'Str 6 × 15');
+    // add with Enter: into the backpack
+    const add = q('input[aria-label="New item"]');
+    add.value = 'Iron Spikes'; add.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await sleep(20);
+    const bp = (await C.loadSheet('Pip')).inventory.find(i => i.name === 'Backpack');
+    let spikes = (await C.loadSheet('Pip')).inventory.find(i => i.name === 'Iron Spikes');
+    assert.equal(spikes.at.bag, bp.id);
+    // pick the spikes, click the pouch on the belt: into the pouch (5 of 6 lb)
+    click(q('.rpm-inv-item[data-item="Iron Spikes"]'), w); await sleep(20);
+    assert.equal(q('[data-inv-details]').getAttribute('data-inv-details'), 'Iron Spikes');
+    click(q('[data-slot="belt1"]'), w); await sleep(20);
+    spikes = (await C.loadSheet('Pip')).inventory.find(i => i.name === 'Iron Spikes');
+    const pouch = (await C.loadSheet('Pip')).inventory.find(i => i.name === 'Pouch');
+    assert.equal(spikes.at.bag, pouch.id, 'saved at once, no Save button');
+    assert.ok(q('[data-grid="' + pouch.id + '"] .rpm-inv-item[data-item="Iron Spikes"]'), 'the pouch opens as its own grid');
+    // turn: Esc puts back, R turns
+    click(q('.rpm-inv-item[data-item="Arrow"]'), w); await sleep(20);
+    const arrows = () => C.cachedSheet('Pip').inventory.find(i => i.name === 'Arrow');
+    q('.rpm-inv').dispatchEvent(new w.KeyboardEvent('keydown', { key: 'r', bubbles: true })); await sleep(20);
+    assert.equal(arrows().rot, true, '2x1 → 1x2');
+    // split the 40 arrows
+    click([...q('[data-inv-details]').querySelectorAll('button')].find(b => /Split/.test(b.textContent)), w); await sleep(20);
+    assert.deepEqual(plain(C.cachedSheet('Pip').inventory.filter(i => i.name === 'Arrow').map(i => i.qty)), [20, 20]);
+    q('.rpm-inv').dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await sleep(20);
+    assert.equal(q('[data-inv-details]'), null, 'Esc puts it back');
+    // too much: a barrel (70 lb) does not fit the backpack (50 lb) → dragged along, the 5 ft warning
+    add.value = 'Barrel'; add.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await sleep(20);
+    assert.ok(q('[data-grid="over"] .rpm-inv-item[data-item="Barrel"]'));
+    assert.match(q('.rpm-inv-warn').textContent, /Speed at most 5 ft/);
+    // remove (asks first)
+    w.confirm = () => true;
+    click(q('.rpm-inv-item[data-item="Barrel"]'), w); await sleep(20);
+    click(q('[data-inv-remove]'), w); await sleep(20);
+    assert.ok(!C.cachedSheet('Pip').inventory.some(i => i.name === 'Barrel'));
+    assert.equal(q('.rpm-inv-warn'), null);
 });
 

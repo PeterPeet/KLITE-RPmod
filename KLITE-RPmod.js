@@ -498,6 +498,47 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-sheet-feature { border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); padding: 4px 8px; background: var(--rpm-bg-alt); }
 .rpm-sheet-feature > summary { cursor: pointer; }
 .rpm-sheet-note { min-height: 120px; }
+/* R9 inventory: paper doll + bag grids; a tile is var(--rpm-cell) square, items sit at --x/--y with --w × --h tiles */
+.rpm-inv { --rpm-cell: 30px; display: flex; flex-direction: column; gap: 6px; }
+.rpm-inv-carry { display: flex; align-items: center; gap: 6px; font-size: var(--rpm-fs-sm); }
+.rpm-inv-bar { flex: 0 0 120px; height: 8px; border: 1px solid var(--rpm-border); border-radius: 4px; overflow: hidden; background: var(--rpm-bg-alt); }
+.rpm-inv-bar > span { display: block; height: 100%; background: var(--rpm-success); }
+.rpm-inv-carry[data-carry="slowed"] .rpm-inv-bar > span { background: var(--rpm-danger); }
+.rpm-inv-warn { color: var(--rpm-danger); font-size: var(--rpm-fs-sm); }
+.rpm-inv-main { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+.rpm-inv-doll { flex: 0 1 200px; min-width: 170px; display: flex; flex-direction: column; gap: 3px; }
+.rpm-inv-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.rpm-inv-slot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 48px; padding: 3px; border: 1px dashed var(--rpm-border-hi); border-radius: var(--rpm-radius); background: transparent; color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); cursor: pointer; text-align: center; overflow: hidden; }
+.rpm-inv-slot.rpm-full { border-style: solid; color: var(--rpm-fg-hi); }
+.rpm-inv-where { font-size: 10px; color: var(--rpm-fg-muted); line-height: 1.1; }
+.rpm-inv-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.15; }
+.rpm-inv-bags { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.rpm-inv-bag-h { display: flex; align-items: center; gap: 5px; font-size: var(--rpm-fs-sm); color: var(--rpm-fg-hi); font-weight: bold; }
+.rpm-inv-gridwrap { overflow-x: auto; max-height: 340px; overflow-y: auto; }
+.rpm-inv-grid { position: relative; width: calc(var(--cols) * var(--rpm-cell)); height: calc(var(--rows) * var(--rpm-cell)); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); box-sizing: content-box;
+    background-color: var(--rpm-bg-alt); background-image: linear-gradient(var(--rpm-border) 1px, transparent 1px), linear-gradient(90deg, var(--rpm-border) 1px, transparent 1px); background-size: var(--rpm-cell) var(--rpm-cell); }
+.rpm-inv-holding .rpm-inv-grid { cursor: copy; }
+.rpm-inv-bag[data-bag="over"] .rpm-inv-gridwrap { max-height: calc(4.5 * var(--rpm-cell)); }
+.rpm-inv-item, .rpm-inv-ghost { position: absolute; left: calc(var(--x) * var(--rpm-cell) + 2px); top: calc(var(--y) * var(--rpm-cell) + 2px); width: calc(var(--w) * var(--rpm-cell) - 4px); height: calc(var(--h) * var(--rpm-cell) - 4px); box-sizing: border-box; border-radius: 5px; }
+.rpm-inv-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 1px; border: 1px solid var(--rpm-border-hi); font-size: 10px; color: var(--rpm-fg-hi); cursor: grab; overflow: hidden; touch-action: none; }
+.rpm-inv-slot.rpm-full, .rpm-inv-chip { touch-action: none; }
+.rpm-inv-qty { position: absolute; right: 2px; bottom: 0; font-size: 10px; font-weight: bold; }
+.rpm-inv-ghost { pointer-events: none; border: 2px dashed var(--rpm-success); }
+.rpm-inv-ghost[data-ok="0"] { border-color: var(--rpm-danger); }
+.rpm-inv-item.rpm-sel, .rpm-inv-slot.rpm-sel, .rpm-inv-chip.rpm-sel { outline: 2px solid var(--rpm-accent-fg-hi); outline-offset: -1px; }
+.rpm-inv [data-kind="weapon"] { background: color-mix(in srgb, var(--rpm-danger) 18%, transparent); }
+.rpm-inv [data-kind="armor"], .rpm-inv [data-kind="shield"] { background: color-mix(in srgb, var(--rpm-info) 20%, transparent); }
+.rpm-inv [data-kind="ammo"] { background: color-mix(in srgb, var(--rpm-quest) 22%, transparent); }
+.rpm-inv [data-kind="potion"] { background: color-mix(in srgb, var(--rpm-success) 20%, transparent); }
+.rpm-inv [data-kind="bag"] { background: color-mix(in srgb, var(--rpm-accent-fg) 18%, transparent); }
+.rpm-inv [data-kind="gear"] { background: color-mix(in srgb, var(--rpm-fg-muted) 16%, transparent); }
+.rpm-inv-dragghost { position: fixed; z-index: 10; pointer-events: none; display: flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); background: var(--rpm-bg); color: var(--rpm-fg-hi); font-size: var(--rpm-fs-sm); box-shadow: var(--rpm-shadow); }
+.rpm-inv-loose { border: 1px solid var(--rpm-danger); border-radius: var(--rpm-radius); padding: 4px 6px; }
+.rpm-inv-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); color: var(--rpm-fg-hi); font-size: var(--rpm-fs-sm); cursor: grab; }
+.rpm-inv-details { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); padding: 6px 8px; background: var(--rpm-bg-alt); }
+.rpm-inv-fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+.rpm-inv-hint { font-size: var(--rpm-fs-sm); }
+@media (max-width: 480px) { .rpm-inv { --rpm-cell: 26px; } .rpm-inv-doll { flex-basis: 100%; } .rpm-inv-slots { grid-template-columns: repeat(4, minmax(0, 1fr)); } .rpm-inv-slot { min-height: 44px; } .rpm-inv-fields { grid-template-columns: 1fr 1fr; } }
 .rpm-sheet-notehint { font-size: var(--rpm-fs-sm); color: var(--rpm-fg-muted); }
 .rpm-sheet-notebtns { justify-content: flex-end; margin-bottom: 8px; }
 .rpm-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100002; background: var(--rpm-bg); color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi); box-shadow: inset 3px 0 0 var(--rpm-success), var(--rpm-shadow); border-radius: var(--rpm-radius-lg); padding: 8px 16px; font-family: var(--rpm-font); font-size: var(--rpm-fs); }
@@ -855,7 +896,27 @@ body.rpm-docked #maincontainer {
     // quick replies: move up
     "arrow-up": [["path", { "d": "m5 12 7-7 7 7" }], ["path", { "d": "M12 19V5" }]],
     // quick replies: a reply that sends
-    "message-square": [["path", { "d": "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" }]]
+    "message-square": [["path", { "d": "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" }]],
+    // inventory (R9): weapon
+    "sword": [["path", { "d": "m11 19-6-6" }], ["path", { "d": "m5 21-2-2" }], ["path", { "d": "m8 16-4 4" }], ["path", { "d": "M9.5 17.5 20.414 6.586A2 2 0 0021 5.172V3h-2.172a2 2 0 00-1.414.586L6.5 14.5" }]],
+    // inventory: armor
+    "shirt": [["path", { "d": "M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" }]],
+    // inventory: ammunition
+    "move-up": [["path", { "d": "M8 6L12 2L16 6" }], ["path", { "d": "M12 2V22" }]],
+    // inventory: potion
+    "flask-conical": [["path", { "d": "M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2" }], ["path", { "d": "M6.453 15h11.094" }], ["path", { "d": "M8.5 2h7" }]],
+    // inventory: general item
+    "package": [["path", { "d": "M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" }], ["path", { "d": "M12 22V12" }], ["polyline", { "points": "3.29 7 12 12 20.71 7" }], ["path", { "d": "m7.5 4.27 9 5.15" }]],
+    // inventory: bag
+    "backpack": [["path", { "d": "M4 10a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" }], ["path", { "d": "M8 10h8" }], ["path", { "d": "M8 18h8" }], ["path", { "d": "M8 22v-6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v6" }], ["path", { "d": "M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" }]],
+    // inventory: rotate an item
+    "rotate-cw": [["path", { "d": "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" }], ["path", { "d": "M21 3v5h-5" }]],
+    // inventory: split a stack
+    "split": [["path", { "d": "M16 3h5v5" }], ["path", { "d": "M8 3H3v5" }], ["path", { "d": "M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3" }], ["path", { "d": "m15 9 6-6" }]],
+    // inventory: take in hand
+    "hand": [["path", { "d": "M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" }], ["path", { "d": "M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" }], ["path", { "d": "M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" }], ["path", { "d": "M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" }]],
+    // inventory: carried weight
+    "weight": [["circle", { "cx": "12", "cy": "5", "r": "3" }], ["path", { "d": "M6.5 8a2 2 0 0 0-1.905 1.46L2.1 18.5A2 2 0 0 0 4 21h16a2 2 0 0 0 1.925-2.54L19.4 9.5A2 2 0 0 0 17.48 8Z" }]]
   };
 
   // src/shell/dom.js
@@ -1120,10 +1181,10 @@ body.rpm-docked #maincontainer {
     let shownTab = null;
     const PLACES = /* @__PURE__ */ new Set(["left", "right", "window"]);
     const TAB_GROUPS = [{ id: "rp", label: "RP" }, { id: "adventure", label: "Adventure" }];
-    function sortedViews(place2) {
-      return [...views.values()].filter((v) => v.def.place === place2).sort((a, b) => (a.def.order ?? 100) - (b.def.order ?? 100) || String(a.def.id).localeCompare(String(b.def.id)));
+    function sortedViews(place3) {
+      return [...views.values()].filter((v) => v.def.place === place3).sort((a, b) => (a.def.order ?? 100) - (b.def.order ?? 100) || String(a.def.id).localeCompare(String(b.def.id)));
     }
-    const hasViews = (place2) => sortedViews(place2).length > 0;
+    const hasViews = (place3) => sortedViews(place3).length > 0;
     function registerView(def) {
       if (!def || !def.id || !PLACES.has(def.place) || typeof def.mount !== "function") {
         throw new Error("KLITE_RPMod_Shell.registerView: need { id, place: left|right|window, mount }");
@@ -1478,7 +1539,7 @@ body.rpm-docked #maincontainer {
           v.mounted = false;
         }
       });
-      for (const place2 of ["left", "right"]) for (const v of sortedViews(place2)) placeView(v);
+      for (const place3 of ["left", "right"]) for (const v of sortedViews(place3)) placeView(v);
       syncMode(true);
       for (const v of sortedViews("window")) if (shouldRestoreWindow(v.def.id)) openView(v.def.id);
       let resizeTimer = null;
@@ -9936,9 +9997,9 @@ ${examples}`;
           }
           return { index: index2, weight, name: char.name };
         });
-        const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
-        if (totalWeight === 0) return 0;
-        let random = Math.random() * totalWeight;
+        const totalWeight2 = weights.reduce((sum, w) => sum + w.weight, 0);
+        if (totalWeight2 === 0) return 0;
+        let random = Math.random() * totalWeight2;
         for (const weight of weights) {
           random -= weight.weight;
           if (random <= 0) {
@@ -12105,11 +12166,11 @@ ${char.mes_example}
       // the character had then; point them at the Library id of the character with that name
       // (also moves the group avatar). Custom group characters keep their own ids.
       relinkSelections(list3) {
-        const byId = new Set(list3.map((c) => String(c.id)));
+        const byId2 = new Set(list3.map((c) => String(c.id)));
         const byName = new Map(list3.map((c) => [String(c.name), c]));
         const relink = (sel2) => {
           if (!sel2 || sel2.isCustom || sel2.type === "worldinfo" || !sel2.name) return false;
-          if (sel2.idSource === "library" && byId.has(String(sel2.id))) return false;
+          if (sel2.idSource === "library" && byId2.has(String(sel2.id))) return false;
           const hit = byName.get(String(sel2.name));
           if (!hit || String(sel2.id) === hit.id && sel2.idSource === "library") return false;
           const old = sel2.id;
@@ -21106,8 +21167,8 @@ ${char.mes_example}
   }
   function rectOf(room2) {
     const m = room2 && room2.map || {};
-    const num2 = (v, d) => Number.isFinite(Number(v)) && v !== null && v !== "" ? Math.round(Number(v)) : d;
-    return { x: num2(m.x, 0), y: num2(m.y, 0), w: Math.max(1, num2(m.w, ROOM.w)), h: Math.max(1, num2(m.h, ROOM.h)) };
+    const num3 = (v, d) => Number.isFinite(Number(v)) && v !== null && v !== "" ? Math.round(Number(v)) : d;
+    return { x: num3(m.x, 0), y: num3(m.y, 0), w: Math.max(1, num3(m.w, ROOM.w)), h: Math.max(1, num3(m.h, ROOM.h)) };
   }
   function hasRect(room2) {
     return !!(room2 && room2.map && Number.isFinite(Number(room2.map.x)) && Number.isFinite(Number(room2.map.y)));
@@ -21340,17 +21401,17 @@ ${char.mes_example}
     for (let part of s.slice(eq + 1).split(/[,;]/)) {
       part = part.trim();
       if (!part) continue;
-      const low3 = part.toLowerCase();
+      const low4 = part.toLowerCase();
       let m;
       if (m = /^key\s*[:=]?\s*(.+)$/i.exec(part)) {
         out.keyItem = m[1].trim();
         continue;
       }
-      if (m = /^(?:lock\s*)?dc\s*(\d+)$/i.exec(low3)) {
+      if (m = /^(?:lock\s*)?dc\s*(\d+)$/i.exec(low4)) {
         out.lockDC = Number(m[1]);
         continue;
       }
-      const word = low3.replace(/\b(the|a|an|door|is|now)\b/g, " ").trim();
+      const word = low4.replace(/\b(the|a|an|door|is|now)\b/g, " ").trim();
       if (word === "unlocked" || word === "shut") {
         out.state = "closed";
         continue;
@@ -21531,8 +21592,8 @@ ${char.mes_example}
     let fit2 = pool.filter((m) => m.xp > 0 && m.xp <= target && m.xp >= target / 8);
     if (!fit2.length) fit2 = pool.filter((m) => m.xp > 0 && m.xp <= target);
     if (!fit2.length) {
-      const low3 = pool.filter((m) => m.xp > 0).sort((a, b) => a.xp - b.xp)[0];
-      return low3 ? [{ key: low3.key, count: 1 }] : [];
+      const low4 = pool.filter((m) => m.xp > 0).sort((a, b) => a.xp - b.xp)[0];
+      return low4 ? [{ key: low4.key, count: 1 }] : [];
     }
     const first = pick(R, fit2);
     const count = Math.max(1, Math.min(6, Math.floor(target / first.xp) - (chance(R, 0.4) ? 1 : 0)));
@@ -21682,7 +21743,7 @@ ${char.mes_example}
     };
     const square = add(0, 0, { name: "Town Square", entrance: true, features: [{ name: "Well", kind: "furniture" }] });
     for (const k2 of shuffle(R, keys)) {
-      const place2 = TOWN_PLACES.find((p) => p.key === k2);
+      const place3 = TOWN_PLACES.find((p) => p.key === k2);
       const cands = [];
       for (const r of rooms) for (const nb of neighbours(...r.slot)) {
         const sk = slotKey(nb.i, nb.j);
@@ -21691,7 +21752,7 @@ ${char.mes_example}
       }
       const best = Math.min(...cands.map((c) => c.dist));
       const spot2 = pick(R, cands.filter((c) => c.dist === best));
-      const room2 = add(spot2.i, spot2.j, { name: place2.name, place: k2, features: place2.features.map(([name, kind]) => kind === "light" ? { name, kind, lit: true } : { name, kind }) });
+      const room2 = add(spot2.i, spot2.j, { name: place3.name, place: k2, features: place3.features.map(([name, kind]) => kind === "light" ? { name, kind, lit: true } : { name, kind }) });
       const nbs = neighbours(spot2.i, spot2.j).map((x) => ({ d: x.d, key: slots.get(slotKey(x.i, x.j)), dist: Math.abs(x.i) + Math.abs(x.j) })).filter((x) => x.key && x.key !== room2.key).sort((a, b) => a.dist - b.dist);
       const to = nbs[0];
       edges.push({ from: to.key, to: room2.key, dir: OPP[to.d], type: "open" });
@@ -22353,7 +22414,517 @@ ${char.mes_example}
     return out;
   }
 
+  // src/game/inventory-rules.js
+  var low2 = (s) => String(s == null ? "" : s).trim().toLowerCase();
+  var num = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  var round = (n) => Math.round(n * 100) / 100;
+  var OVER = "over";
+  var POCKETS = "pockets";
+  var POCKETS_SPEC = { name: "pockets", cap: 2, cols: 3, rows: 1 };
+  var SLOTS = ["main", "off", "armor", "back", "belt1", "belt2", "strap1", "strap2", "sheath1", "sheath2", "slung", "slungShield"];
+  var SLOT_NAMES = {
+    main: "Main hand",
+    off: "Off hand",
+    armor: "Armor",
+    back: "Back",
+    belt1: "Belt",
+    belt2: "Belt",
+    strap1: "Strapped to the pack",
+    strap2: "Strapped to the pack",
+    sheath1: "Sheath",
+    sheath2: "Sheath",
+    slung: "Weapon on the back",
+    slungShield: "Shield on the back"
+  };
+  var STRAP_LB = 20;
+  var SHEATH_LB = 10;
+  var SLUNG_LB = 20;
+  var STRAPS = /^(backpack|handy haversack)$/;
+  var DEFAULT_WEIGHT = 1;
+  var COINS_PER_LB = 50;
+  var BAGS = {
+    // Backpack 50 lb (owner, R9; the SRD says 30 lb, but its own equipment packs put ~50 lb of gear
+    // into one): a fresh character's starting pack fits.
+    "backpack": { cap: 50, cols: 8, rows: 6 },
+    "sack": { cap: 30, cols: 6, rows: 5 },
+    "pouch": { cap: 6, cols: 3, rows: 2 },
+    "quiver": { cap: 1, cols: 1, rows: 1, accepts: /arrow/ },
+    "case, crossbow bolt": { cap: 1.5, cols: 1, rows: 1, accepts: /\bbolt/ },
+    "bag of holding": { cap: 500, cols: 10, rows: 10, fixed: 5, extra: true },
+    "handy haversack": { cap: 900, cols: 12, rows: 10, fixed: 5, extra: true }
+  };
+  var BAG_ALIASES = { "crossbow bolt case": "case, crossbow bolt", "bolt case": "case, crossbow bolt" };
+  var EXTRADIMENSIONAL = /bag of holding|handy haversack|portable hole/;
+  function bagSpec(item) {
+    const n = low2(item && item.name).replace(/\s*\(.*\)$/, "");
+    const key = BAGS[n] ? n : BAG_ALIASES[n];
+    return key ? Object.assign({ name: key }, BAGS[key]) : null;
+  }
+  var isBag = (item) => !!bagSpec(item);
+  function parseWeight(text) {
+    if (typeof text === "number") return Number.isFinite(text) && text >= 0 ? text : null;
+    const s = String(text == null ? "" : text).trim();
+    if (s === "—" || s === "-") return 0;
+    const m = /^(\d+)?\s*(½|\d+\/\d+)?\s*lb/.exec(s);
+    if (!m || !m[1] && !m[2]) return null;
+    let n = m[1] ? Number(m[1]) : 0;
+    if (m[2] === "½") n += 0.5;
+    else if (m[2]) {
+      const [a, b] = m[2].split("/").map(Number);
+      n += a / b;
+    }
+    return n;
+  }
+  var GEAR = null;
+  function gearByName() {
+    if (GEAR) return GEAR;
+    GEAR = {};
+    for (const g of Object.values(COMPENDIUM.gear || {})) GEAR[low2(g.name)] = g;
+    return GEAR;
+  }
+  var GEAR_FIX = { "waterskin": 5 };
+  function gear(name) {
+    const G = gearByName(), n = low2(name).replace(/\s*\(.*\)$/, "");
+    if (!n) return null;
+    for (const f of [n, n.replace(/s$/, ""), n.replace(/es$/, ""), n.replace(/ies$/, "y")]) {
+      if (G[f]) return G[f];
+      const w = f.split(" ");
+      if (w.length > 1) {
+        const inv = w[w.length - 1] + ", " + w.slice(0, -1).join(" ");
+        if (G[inv]) return G[inv];
+      }
+    }
+    return null;
+  }
+  function kitContents(name) {
+    const g = gear(name);
+    if (!g || !/pack$/i.test(g.name)) return null;
+    const m = /contains the following items: (.+?)\.?$/.exec((g.text || []).join(" "));
+    if (!m) return null;
+    return m[1].split(/,\s*(?:and\s+)?|\s+and\s+/).map((t) => {
+      const q = /^(\d+)\s+(?:(?:flasks?|days?|sheets?) of\s+)?(.+)$/.exec(t.trim());
+      const qty = q ? Number(q[1]) : 1, raw = q ? q[2] : t.trim(), hit = gear(raw);
+      return { name: hit ? hit.name : raw, qty };
+    }).filter((k2) => k2.name);
+  }
+  var stripMagic = (n) => n.replace(/^\+\d\s+/, "").replace(/\s+\+\d$/, "");
+  function weaponName(n) {
+    const b = stripMagic(n);
+    return Object.keys(SRD.weapons).find((w) => low2(w) === b) || Object.keys(SRD.weapons).find((w) => b.startsWith(low2(w) + " of ")) || "";
+  }
+  function armorName(n) {
+    const b = stripMagic(n);
+    return Object.keys(SRD.armor).find((a) => low2(a) === b) || Object.keys(SRD.armor).find((a) => b.endsWith(" " + low2(a)) || b.startsWith(low2(a) + " of ")) || "";
+  }
+  function ammoRow(n) {
+    const A = SRD.ammunition || {};
+    if (/case|quiver|pouch/.test(n)) return null;
+    const key = /arrow/.test(n) ? "Arrows" : /\bbolt/.test(n) ? "Bolts" : /sling/.test(n) && /bullet/.test(n) ? "Bullets, Sling" : /bullet/.test(n) ? "Bullets, Firearm" : /needle/.test(n) ? "Needles" : "";
+    return key && A[key] ? Object.assign({ key }, A[key]) : null;
+  }
+  function unitWeight(item) {
+    const own = num(item && item.weight);
+    if (own != null && own >= 0) return { w: own, guess: false };
+    const n = low2(item && item.name).replace(/\s*\(.*\)$/, "");
+    if (!n) return { w: DEFAULT_WEIGHT, guess: true };
+    const bag = bagSpec(item);
+    if (bag && bag.fixed != null) return { w: bag.fixed, guess: false };
+    if (/shield$/.test(n)) return { w: SRD.shieldWeight != null ? SRD.shieldWeight : 6, guess: false };
+    const wn = weaponName(n);
+    if (wn) return { w: num(SRD.weapons[wn].weight) || 0, guess: false };
+    const an = armorName(n);
+    if (an) return { w: num(SRD.armor[an].weight) || 0, guess: false };
+    const ammo = ammoRow(n);
+    if (ammo) return { w: ammo.weight / ammo.amount, guess: false };
+    if (GEAR_FIX[n] != null) return { w: GEAR_FIX[n], guess: false };
+    const g = gear(n);
+    if (g) {
+      const w = parseWeight(g.weight);
+      if (w != null) return { w, guess: false };
+      if (GEAR_FIX[low2(g.name)] != null) return { w: GEAR_FIX[low2(g.name)], guess: false };
+    }
+    return { w: DEFAULT_WEIGHT, guess: true };
+  }
+  var qtyOf = (item) => Math.max(1, Math.trunc(Number(item && item.qty) || 1));
+  function itemKind(item) {
+    const n = low2(item && item.name);
+    if (isBag(item)) return "bag";
+    if (/shield$/.test(n)) return "shield";
+    if (weaponName(n)) return "weapon";
+    if (armorName(n)) return "armor";
+    if (ammoRow(n)) return "ammo";
+    if (/potion|elixir|philter|antitoxin/.test(n)) return "potion";
+    return "gear";
+  }
+  function perTile(item) {
+    const n = low2(item && item.name), ammo = ammoRow(n);
+    if (ammo) return ammo.amount;
+    const { w } = unitWeight(item);
+    if (isBag(item) || w >= 1) return 1;
+    return w > 0 ? Math.floor(1 / w) : 10;
+  }
+  function bracket(kind, w) {
+    if (kind === "weapon") return w <= 1 ? [1, 1] : w <= 2 ? [1, 2] : w <= 3 ? [1, 3] : w <= 4 ? [1, 4] : w <= 6 ? [2, 3] : w <= 10 ? [2, 4] : [2, 5];
+    if (kind === "armor") return w <= 12 ? [2, 3] : w <= 20 ? [3, 3] : [3, 4];
+    if (kind === "shield") return [2, 2];
+    return w <= 1 ? [1, 1] : w <= 2 ? [2, 1] : w <= 4 ? [2, 2] : w <= 6 ? [3, 2] : w <= 9 ? [3, 3] : w <= 12 ? [4, 3] : w <= 20 ? [4, 4] : [5, 5];
+  }
+  function footprint(item) {
+    const kind = itemKind(item), per = perTile(item), q = qtyOf(item);
+    let fp;
+    if (per > 1) fp = bracket("gear", Math.ceil(q / per));
+    else {
+      const { w } = unitWeight(item);
+      fp = bracket(kind === "bag" ? "gear" : kind, Math.max(w * (kind === "bag" ? 1 : q), 0.01));
+    }
+    return item && item.rot ? [fp[1], fp[0]] : fp;
+  }
+  var ofSheet = (s) => s && Array.isArray(s.inventory) ? s.inventory : [];
+  var byId = (s, id) => ofSheet(s).find((i) => i && i.id === id) || null;
+  function ensureIds(sheet) {
+    const inv = ofSheet(sheet);
+    let n = 0;
+    for (const it of inv) {
+      const m = /^it(\d+)$/.exec(it && it.id || "");
+      if (m) n = Math.max(n, Number(m[1]));
+    }
+    const seen = /* @__PURE__ */ new Set();
+    for (const it of inv) {
+      if (!it.id || seen.has(it.id)) it.id = "it" + ++n;
+      seen.add(it.id);
+    }
+    return sheet;
+  }
+  var contents = (sheet, bagId) => ofSheet(sheet).filter((i) => i.at && i.at.bag === bagId);
+  function totalWeight(sheet, item) {
+    const own = unitWeight(item).w * qtyOf(item);
+    const bag = bagSpec(item);
+    if (!bag || bag.fixed != null) return round(own);
+    return round(own + contents(sheet, item.id).reduce((s, i) => s + totalWeight(sheet, i), 0));
+  }
+  function load(sheet, bagId, skip) {
+    return round(contents(sheet, bagId).filter((i) => i !== skip).reduce((s, i) => s + totalWeight(sheet, i), 0));
+  }
+  var isTopLevel = (sheet, it) => !it.at || it.at.slot || it.at.bag === OVER || !byId(sheet, it.at.bag);
+  function coinWeight(sheet) {
+    const c = sheet && sheet.coins || {};
+    return round(Object.values(c).reduce((s, v) => s + (Number(v) || 0), 0) / COINS_PER_LB);
+  }
+  function capacity(sheet) {
+    const str4 = Number(sheet && sheet.abilities && sheet.abilities.str) || 10;
+    return str4 * 15 * (/goliath/.test(low2(sheet && sheet.species)) ? 2 : 1);
+  }
+  function carried(sheet) {
+    const items = round(ofSheet(sheet).filter((i) => isTopLevel(sheet, i)).reduce((s, i) => s + totalWeight(sheet, i), 0));
+    const total = round(items + coinWeight(sheet)), cap4 = capacity(sheet);
+    return { total, items, coins: coinWeight(sheet), capacity: cap4, limit: cap4 * 2, slowed: total > cap4 || load(sheet, OVER) > 0, over: total > cap4 * 2 };
+  }
+  function overSpec(sheet) {
+    const cap4 = capacity(sheet);
+    return { name: "Overweight", cap: cap4, cols: 10, rows: Math.max(4, Math.ceil(cap4 / 10)) };
+  }
+  function specOf(sheet, bagId) {
+    if (bagId === OVER) return overSpec(sheet);
+    if (bagId === POCKETS) return POCKETS_SPEC;
+    const b = byId(sheet, bagId);
+    return b ? bagSpec(b) : null;
+  }
+  function ancestors(sheet, bagId) {
+    const out = [];
+    let id = bagId;
+    while (id && id !== OVER && id !== POCKETS && out.length < 20) {
+      out.push(id);
+      const b = byId(sheet, id);
+      id = b && b.at && b.at.bag;
+    }
+    return out;
+  }
+  function bagOrder(sheet) {
+    const inv = ofSheet(sheet), order = [];
+    const add = (it) => {
+      if (!it || !isBag(it) || order.includes(it.id)) return;
+      order.push(it.id);
+      contents(sheet, it.id).forEach(add);
+    };
+    for (const slot of ["back", "belt1", "belt2"]) add(inv.find((i) => i.at && i.at.slot === slot));
+    inv.filter((i) => i.at && i.at.bag && isBag(i)).forEach(add);
+    return order;
+  }
+  var weaponOf = (item) => SRD.weapons[weaponName(low2(item.name))] || null;
+  var isTwoHanded = (item) => {
+    const w = weaponOf(item);
+    return !!w && /Two-Handed/.test(w.properties || "");
+  };
+  var isHeavy = (item) => {
+    const w = weaponOf(item);
+    return !!w && /Heavy/.test(w.properties || "");
+  };
+  var inSlot = (sheet, slot, skip) => ofSheet(sheet).find((i) => i !== skip && i.at && i.at.slot === slot) || null;
+  var BELT_OK = /component pouch|waterskin/;
+  function canPlace(sheet, item, target, opts) {
+    const o = opts || {}, kind = itemKind(item);
+    if (!target) return "nowhere";
+    if (o.adding) {
+      const c = carried(sheet), w2 = unitWeight(item).w * qtyOf(item);
+      if (c.total + w2 > c.limit + 1e-9) return `too heavy: you can drag at most ${c.limit} lb`;
+    }
+    if (target.slot) {
+      const s = target.slot, other = inSlot(sheet, s, item);
+      if (!SLOTS.includes(s)) return "no such slot";
+      if (other) return `${SLOT_NAMES[s]} is taken (${other.name})`;
+      if (s === "armor") return kind === "armor" ? "" : "only armor is worn there";
+      if (kind === "armor") return "armor is worn in the armor slot";
+      if (s === "back") return kind === "bag" ? "" : "only a bag goes on the back";
+      if (s === "belt1" || s === "belt2") return kind === "bag" || BELT_OK.test(low2(item.name)) ? "" : "only a pouch, a quiver, a case or a waterskin goes on the belt";
+      const w2 = totalWeight(sheet, item);
+      if (s === "strap1" || s === "strap2") {
+        const back = inSlot(sheet, "back", item);
+        if (!back || !STRAPS.test(low2(back.name))) return "wear a backpack to strap things to it";
+        if (kind === "weapon" || kind === "shield" || kind === "bag") return kind === "weapon" ? "weapons go in a sheath or on the back" : "that does not go on a strap";
+        return w2 <= STRAP_LB + 1e-9 ? "" : `too heavy to strap on (more than ${STRAP_LB} lb)`;
+      }
+      if (s === "sheath1" || s === "sheath2") {
+        if (kind !== "weapon") return "only a weapon goes in a sheath";
+        if (isTwoHanded(item) || isHeavy(item)) return `${item.name} is too big for a sheath: sling it on the back`;
+        return w2 <= SHEATH_LB + 1e-9 ? "" : `too heavy for a sheath (more than ${SHEATH_LB} lb)`;
+      }
+      if (s === "slung") {
+        if (kind !== "weapon") return kind === "shield" ? "the shield has its own place on the back" : "only a weapon is slung on the back";
+        return w2 <= SLUNG_LB + 1e-9 ? "" : `too heavy to sling (more than ${SLUNG_LB} lb)`;
+      }
+      if (s === "slungShield") return kind === "shield" ? "" : "only a shield goes there";
+      const main = inSlot(sheet, "main", item);
+      if (s === "off" && main && isTwoHanded(main)) return `${main.name} needs both hands`;
+      if (s === "off" && isTwoHanded(item)) return `${item.name} needs both hands: hold it in the main hand`;
+      if (s === "main" && isTwoHanded(item) && inSlot(sheet, "off", item)) return `${item.name} needs both hands: free the off hand first`;
+      if (kind === "bag" && contents(sheet, item.id).length) return "empty the bag first, or wear it";
+      return "";
+    }
+    const spec = specOf(sheet, target.bag);
+    if (!spec) return "no such bag";
+    if (target.bag === item.id || ancestors(sheet, target.bag).includes(item.id)) return "a bag cannot go inside itself";
+    if (target.bag === POCKETS && isBag(item)) return "a bag does not go into your pockets";
+    if (spec.accepts && !spec.accepts.test(low2(item.name))) return `the ${spec.name} only holds ${spec.accepts.source.replace(/\\b/g, "")}s`;
+    if (isBag(item) && EXTRADIMENSIONAL.test(low2(item.name)) && ancestors(sheet, target.bag).some((id) => EXTRADIMENSIONAL.test(low2((byId(sheet, id) || {}).name))))
+      return "never put one extradimensional bag into another: it opens a gate to the Astral Plane (SRD)";
+    const t = Object.assign({}, item, { rot: !!target.rot });
+    const [cw, ch] = footprint(t), x = target.x | 0, y = target.y | 0;
+    if (x < 0 || y < 0 || x + cw > spec.cols || y + ch > spec.rows) return "it does not fit there";
+    for (const other of contents(sheet, target.bag)) {
+      if (other === item) continue;
+      const [ow, oh] = footprint(other), ox = other.at.x | 0, oy = other.at.y | 0;
+      if (x < ox + ow && ox < x + cw && y < oy + oh && oy < y + ch) return `${other.name} is in the way`;
+    }
+    const w = totalWeight(sheet, item), from = item.at && item.at.bag;
+    for (const id of [target.bag, ...ancestors(sheet, target.bag).slice(1)]) {
+      const sp = specOf(sheet, id);
+      if (!sp) break;
+      const here2 = id === from || ancestors(sheet, from).includes(id);
+      if (!here2 && load(sheet, id) + w > sp.cap + 1e-9)
+        return id === OVER ? `too heavy even to drag (${load(sheet, id)} of ${sp.cap} lb overweight)` : `too heavy for the ${sp.name} (${load(sheet, id)} of ${sp.cap} lb)`;
+      if (sp.fixed != null) break;
+    }
+    return "";
+  }
+  function place(sheet, item, target) {
+    if (!target) {
+      delete item.at;
+      delete item.inHand;
+      return item;
+    }
+    if (target.slot) item.at = { slot: target.slot };
+    else item.at = { bag: target.bag, x: target.x | 0, y: target.y | 0 };
+    if (target.rot != null && !target.slot) {
+      if (target.rot) item.rot = true;
+      else delete item.rot;
+    }
+    if (target.slot && /^(main|off|armor)$/.test(target.slot)) item.inHand = true;
+    else delete item.inHand;
+    return item;
+  }
+  function spotIn(sheet, item, bagId, opts) {
+    const spec = specOf(sheet, bagId);
+    if (!spec) return null;
+    for (const rot of [!!item.rot, !item.rot]) {
+      for (let y = 0; y < spec.rows; y++) for (let x = 0; x < spec.cols; x++) {
+        const t = { bag: bagId, x, y, rot };
+        if (!canPlace(sheet, item, t, opts)) return t;
+      }
+    }
+    return null;
+  }
+  function findSpot(sheet, item, opts) {
+    const kind = itemKind(item), slot = (list3) => list3.find((sl) => !canPlace(sheet, item, { slot: sl }, opts));
+    if (BELT_OK.test(low2(item.name))) {
+      const sl = slot(["belt1", "belt2"]);
+      if (sl) return { slot: sl };
+    }
+    if (kind === "weapon" || kind === "shield") {
+      const sl = slot(kind === "shield" ? ["slungShield"] : ["sheath1", "sheath2", "slung"]);
+      if (sl) return { slot: sl };
+    }
+    for (const id of [...bagOrder(sheet), POCKETS]) {
+      const t = spotIn(sheet, item, id, opts);
+      if (t) return t;
+    }
+    if (kind === "gear" || kind === "potion" || kind === "ammo") {
+      const sl = slot(["strap1", "strap2"]);
+      if (sl) return { slot: sl };
+    }
+    if (!(opts && opts.noOver)) return spotIn(sheet, item, OVER, opts);
+    return null;
+  }
+  function organize(sheet) {
+    const inv = ofSheet(sheet);
+    if (!inv.length) return sheet;
+    for (let i = inv.length - 1; i >= 0; i--) {
+      const kit = kitContents(inv[i].name);
+      if (!kit) continue;
+      const q = qtyOf(inv[i]);
+      inv.splice(i, 1, ...kit.map((k2) => ({ name: k2.name, qty: k2.qty * q, notes: "" })));
+    }
+    ensureIds(sheet);
+    const want = inv.map((i) => i.at ? Object.assign({}, i.at, i.rot ? { rot: true } : {}) : null);
+    for (const it of inv) {
+      delete it.at;
+    }
+    const order = inv.map((it, i) => i).sort((a, b) => rank(want[a]) - rank(want[b]) || a - b);
+    function rank(t) {
+      return !t ? 9 : t.slot === "back" ? 0 : t.slot ? 0.5 : t.bag === OVER ? 1 : 2 + depthOf(t.bag);
+    }
+    function depthOf(id) {
+      let d = 0, t = want[inv.findIndex((x) => x.id === id)];
+      while (t && t.bag && t.bag !== OVER && d < 20) {
+        d++;
+        t = want[inv.findIndex((x) => x.id === t.bag)];
+      }
+      return d;
+    }
+    for (const i of order) {
+      const it = inv[i], t = want[i];
+      if (t && !canPlace(sheet, it, t)) place(sheet, it, t);
+    }
+    for (const it of inv) {
+      if (it.at || !it.inHand) continue;
+      const k2 = itemKind(it);
+      const slots = k2 === "armor" ? ["armor"] : k2 === "shield" ? ["off", "main"] : ["main", "off"];
+      const s = slots.find((sl) => !canPlace(sheet, it, { slot: sl }));
+      if (s) place(sheet, it, { slot: s });
+      else delete it.inHand;
+    }
+    for (const it of inv) {
+      if (it.at || !isBag(it)) continue;
+      const s = ["back", "belt1", "belt2"].find((sl) => !canPlace(sheet, it, { slot: sl }));
+      if (s) place(sheet, it, { slot: s });
+    }
+    const loose = inv.filter((it) => !it.at).sort((a, b) => totalWeight(sheet, b) - totalWeight(sheet, a));
+    for (const it of loose) {
+      const t = findSpot(sheet, it);
+      if (t) place(sheet, it, t);
+    }
+    return sheet;
+  }
+  var unpacked = (sheet) => ofSheet(sheet).filter((i) => !i.at);
+  function addItem(sheet, name, qty, opts) {
+    const o = opts || {}, n = String(name || "").trim();
+    qty = Math.max(1, Math.trunc(Number(qty) || 1));
+    if (!n) return { item: null, placed: false, reason: "no name" };
+    if (!Array.isArray(sheet.inventory)) sheet.inventory = [];
+    const kit = kitContents(n);
+    if (kit) {
+      const res = kit.map((k2) => addItem(sheet, k2.name, k2.qty * qty, Object.assign({}, o, { force: true })));
+      return { item: res[0] && res[0].item, placed: res.every((r) => r.placed), reason: res.some((r) => !r.placed) ? "some of it did not fit: not packed" : "" };
+    }
+    ensureIds(sheet);
+    const same = o.same || ((a, b) => low2(a) === low2(b));
+    const probe = { name: n, qty };
+    const c = carried(sheet), w = unitWeight(probe).w * qty;
+    if (c.total + w > c.limit + 1e-9 && !o.force) return { item: null, placed: false, reason: `too heavy: you can drag at most ${c.limit} lb` };
+    const ex = ofSheet(sheet).find((i) => same(i.name, n) && i.at && i.at.bag);
+    if (ex) {
+      const grown = Object.assign({}, ex, { qty: qtyOf(ex) + qty });
+      const at = Object.assign({}, ex.at, { rot: !!ex.rot });
+      const before = ex.qty;
+      ex.qty = grown.qty;
+      if (!canPlace(sheet, ex, at)) return { item: ex, placed: true, reason: "" };
+      ex.qty = before;
+    }
+    const item = { name: n, qty, notes: "" };
+    sheet.inventory.push(item);
+    ensureIds(sheet);
+    const t = findSpot(sheet, item, { adding: false });
+    if (t) {
+      place(sheet, item, t);
+      return { item, placed: true, reason: "" };
+    }
+    if (o.force) return { item, placed: false, reason: "no room: not packed" };
+    sheet.inventory.splice(sheet.inventory.indexOf(item), 1);
+    return { item: null, placed: false, reason: "no room in your bags" };
+  }
+  function removeItem(sheet, item) {
+    const inv = ofSheet(sheet), i = inv.indexOf(item);
+    if (i < 0) return null;
+    inv.splice(i, 1);
+    for (const it of inv) if (it.at && it.at.bag === item.id) delete it.at;
+    organize(sheet);
+    return item;
+  }
+  function splitStack(sheet, item, n) {
+    const q = qtyOf(item);
+    n = Math.trunc(Number(n) || 0);
+    if (q < 2 || n < 1 || n >= q) return null;
+    item.qty = q - n;
+    const part = { name: item.name, qty: n, notes: item.notes || "" };
+    if (item.weight != null) part.weight = item.weight;
+    sheet.inventory.push(part);
+    ensureIds(sheet);
+    const t = findSpot(sheet, part);
+    if (t) place(sheet, part, t);
+    return part;
+  }
+  function carryLine(sheet) {
+    const c = carried(sheet), lb2 = (n) => Math.round(n * 10) / 10;
+    return `Carrying ${lb2(c.total)} of ${c.capacity} lb` + (c.slowed ? ` — overloaded: Speed at most 5 ft (can drag up to ${c.limit} lb)` : "");
+  }
+  function takeInHand(sheet, item) {
+    const slots = itemKind(item) === "armor" ? ["armor"] : itemKind(item) === "shield" ? ["off", "main"] : ["main", "off"];
+    let why = "";
+    for (const sl of slots) {
+      why = canPlace(sheet, item, { slot: sl });
+      if (!why) {
+        place(sheet, item, { slot: sl });
+        return "";
+      }
+    }
+    return why;
+  }
+  function stow(sheet, item) {
+    const was = item.at;
+    delete item.at;
+    delete item.inHand;
+    const t = findSpot(sheet, item);
+    if (t) place(sheet, item, t);
+    else if (was && !was.slot) item.at = was;
+    return item;
+  }
+
   // src/characters/sheet.js
+  function invPlace(i) {
+    const out = {};
+    if (typeof i.id === "string" && /^[\w-]{1,24}$/.test(i.id)) out.id = i.id;
+    const at = i.at;
+    if (at && typeof at === "object") {
+      if (SLOTS.includes(at.slot)) out.at = { slot: at.slot };
+      else if (typeof at.bag === "string" && at.bag) out.at = { bag: at.bag, x: Math.max(0, int(at.x, 0)), y: Math.max(0, int(at.y, 0)) };
+    }
+    if (i.rot === true) out.rot = true;
+    const w = num2(i.weight, NaN);
+    if (Number.isFinite(w) && w >= 0) out.weight = Math.round(w * 100) / 100;
+    return out;
+  }
   var EXT_KEY = "klite_rpmod";
   var SHEET_VERSION = 1;
   var ABILITIES = ["str", "dex", "con", "int", "wis", "cha"];
@@ -22379,15 +22950,15 @@ ${char.mes_example}
     ["survival", "Survival", "wis"]
   ].map(([id, name, ability]) => ({ id, name, ability }));
   var SKILL_IDS = new Set(SKILLS.map((s) => s.id));
-  var num = (v, d = 0) => {
+  var num2 = (v, d = 0) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : d;
   };
-  var int = (v, d = 0) => Math.trunc(num(v, d));
+  var int = (v, d = 0) => Math.trunc(num2(v, d));
   var clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   var str2 = (v) => (v == null ? "" : String(v)).trim();
   function abilityMod(score) {
-    return Math.floor((num(score, 10) - 10) / 2);
+    return Math.floor((num2(score, 10) - 10) / 2);
   }
   function proficiencyBonus(level) {
     return 2 + Math.floor((clamp(int(level, 1), 1, 20) - 1) / 4);
@@ -22425,7 +22996,8 @@ ${char.mes_example}
       build: null,
       // builder choices (builder-rules.js) — used for level up
       inventory: [],
-      // [{ name, qty, notes, inHand? }] — inHand (R8, additive): held or worn; missing = in the backpack
+      // [{ name, qty, notes, inHand?, id?, at?, rot?, weight? }] — inHand (R8): held or worn; R9 (additive):
+      //   id, at = { bag, x, y } | { slot }, rot, weight — see src/game/inventory-rules.js
       coins: { cp: 0, sp: 0, gp: 0, pp: 0 },
       features: "",
       notes: "",
@@ -22464,10 +23036,15 @@ ${char.mes_example}
       damage: str2(a.damage),
       notes: str2(a.notes)
     }));
-    s.inventory = (Array.isArray(s.inventory) ? s.inventory : []).filter((i) => i && str2(i.name)).map((i) => Object.assign({ name: str2(i.name), qty: Math.max(1, int(i.qty, 1)), notes: str2(i.notes) }, i.inHand ? { inHand: true } : {}));
+    s.inventory = (Array.isArray(s.inventory) ? s.inventory : []).filter((i) => i && str2(i.name)).map((i) => Object.assign(
+      { name: str2(i.name), qty: Math.max(1, int(i.qty, 1)), notes: str2(i.notes) },
+      i.inHand ? { inHand: true } : {},
+      invPlace(i)
+    ));
     const coins = Object.assign({}, d.coins, s.coins && typeof s.coins === "object" ? s.coins : {});
     for (const c of Object.keys(d.coins)) coins[c] = Math.max(0, int(coins[c], 0));
     s.coins = coins;
+    organize(s);
     if (s.spellcasting && typeof s.spellcasting === "object" && ABILITIES.includes(s.spellcasting.ability)) {
       const sc = s.spellcasting;
       const keys = (v) => [...new Set((Array.isArray(v) ? v : []).map(str2).filter(Boolean))];
@@ -22579,10 +23156,24 @@ ${char.mes_example}
       lines.push(`Spellcasting (${sp.ability.toUpperCase()}): save DC ${sp.saveDC}, spell attack ${fmt(sp.attack)}` + (sp.slots.length ? `, slots ${sp.slots.map((n, i) => n ? `L${i + 1}×${n}` : "").filter(Boolean).join(" ")}` : "") + (chosen ? `
 Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spells}` : ""));
     }
-    const held = s.inventory.filter((i) => i.inHand), packed = s.inventory.filter((i) => !i.inHand);
-    const list3 = (items) => items.map((i) => i.name + (i.qty > 1 ? ` x${i.qty}` : "")).join(", ");
+    const name = (i) => i.name + (i.qty > 1 ? ` x${i.qty}` : "");
+    const list3 = (items) => items.map(name).join(", ");
+    const inv = s.inventory, slotOf = (i) => i.at && i.at.slot || "";
+    const held = inv.filter((i) => i.inHand);
     if (held.length) lines.push("In hand / worn: " + list3(held));
-    if (packed.length) lines.push((held.length ? "Backpack: " : "Inventory: ") + list3(packed));
+    const WHERE = { sheath1: "sheathed", sheath2: "sheathed", slung: "on the back", slungShield: "on the back", strap1: "strapped to the pack", strap2: "strapped to the pack", belt1: "on the belt", belt2: "on the belt", back: "worn on the back" };
+    const carriedOn = inv.filter((i) => !i.inHand && WHERE[slotOf(i)]);
+    if (carriedOn.length) lines.push("Carried: " + carriedOn.map((i) => `${name(i)} (${WHERE[slotOf(i)]})`).join(", "));
+    const inBag = (id) => inv.filter((i) => i.at && i.at.bag === id);
+    for (const id of bagOrder(s)) {
+      const b = inv.find((i) => i.id === id), c = inBag(id);
+      if (b && c.length) lines.push(`${b.name}: ${list3(c)}`);
+    }
+    if (inBag(POCKETS).length) lines.push("Pockets: " + list3(inBag(POCKETS)));
+    if (inBag(OVER).length) lines.push("Dragged along (overweight): " + list3(inBag(OVER)));
+    const loose = unpacked(s).filter((i) => !i.inHand);
+    if (loose.length) lines.push("Not packed: " + list3(loose));
+    if (inv.length) lines.push(carryLine(s));
     const coins = Object.entries(s.coins).filter(([, v]) => v > 0).map(([k2, v]) => `${v} ${k2}`);
     if (coins.length) lines.push("Coins: " + coins.join(", "));
     return lines.join("\n");
@@ -22670,19 +23261,19 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
   var signed = (n) => (n >= 0 ? "+" : "") + n;
 
   // src/characters/equipment-rules.js
-  var low2 = (s) => String(s == null ? "" : s).trim().toLowerCase();
+  var low3 = (s) => String(s == null ? "" : s).trim().toLowerCase();
   var abilityMod3 = (score) => Math.floor(((Number(score) || 10) - 10) / 2);
   function baseWeapon(name) {
-    const n = low2(name).replace(/^\+\d\s+/, "").replace(/\s+\+\d$/, "");
-    const hit = Object.keys(SRD.weapons).find((w) => low2(w) === n) || Object.keys(SRD.weapons).find((w) => n.startsWith(low2(w) + " of "));
+    const n = low3(name).replace(/^\+\d\s+/, "").replace(/\s+\+\d$/, "");
+    const hit = Object.keys(SRD.weapons).find((w) => low3(w) === n) || Object.keys(SRD.weapons).find((w) => n.startsWith(low3(w) + " of "));
     return hit || "";
   }
-  function weaponOf(name) {
+  function weaponOf2(name) {
     const b = baseWeapon(name);
     return b ? Object.assign({ name: b }, SRD.weapons[b]) : null;
   }
   var isRangedWeapon = (w) => !!w && /ranged$/.test(w.category);
-  var isTwoHanded = (w) => !!w && /Two-Handed/i.test(w.properties || "");
+  var isTwoHanded2 = (w) => !!w && /Two-Handed/i.test(w.properties || "");
   var ITEM_NAMES = null;
   function weaponNames() {
     return ["Unarmed Strike", ...Object.keys(SRD.weapons).sort()];
@@ -22697,27 +23288,27 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
   function itemInfo(name) {
     const n = String(name || "").trim();
     if (!n) return null;
-    const w = weaponOf(n);
+    const w = weaponOf2(n);
     if (w) {
-      const magic = low2(n) !== low2(w.name) ? magicEntry(n) : null;
+      const magic = low3(n) !== low3(w.name) ? magicEntry(n) : null;
       return {
         kind: "weapon",
         name: w.name,
-        hands: isTwoHanded(w) ? 2 : 1,
+        hands: isTwoHanded2(w) ? 2 : 1,
         summary: `${cap2(w.category)} weapon · ${w.damage} ${w.type}${w.properties ? " · " + w.properties : ""}${w.mastery ? " · Mastery: " + w.mastery : ""} · ${w.cost}`,
         text: magic ? magic.text : [],
         ref: magic ? magic.ref : { kind: "equipment", key: "weapon:" + w.name }
       };
     }
-    if (low2(n) === "shield") return { kind: "shield", name: "Shield", hands: 1, summary: `Shield · +2 AC · ${SRD.shieldCost || "10 GP"}`, text: [], ref: entry("equipment", "armor:Shield") ? { kind: "equipment", key: "armor:Shield" } : null };
-    const armorName = Object.keys(SRD.armor).find((a) => low2(a) === low2(n));
-    if (armorName) {
-      const a = SRD.armor[armorName];
+    if (low3(n) === "shield") return { kind: "shield", name: "Shield", hands: 1, summary: `Shield · +2 AC · ${SRD.shieldCost || "10 GP"}`, text: [], ref: entry("equipment", "armor:Shield") ? { kind: "equipment", key: "armor:Shield" } : null };
+    const armorName2 = Object.keys(SRD.armor).find((a) => low3(a) === low3(n));
+    if (armorName2) {
+      const a = SRD.armor[armorName2];
       const ac = `AC ${a.base}${a.dexCap === 0 ? "" : a.dexCap == null ? " + Dex modifier" : ` + Dex modifier (max ${a.dexCap})`}`;
-      return { kind: "armor", name: armorName, hands: 0, summary: `${cap2(a.category)} armor · ${ac} · ${a.cost}`, text: [], ref: { kind: "equipment", key: "armor:" + armorName } };
+      return { kind: "armor", name: armorName2, hands: 0, summary: `${cap2(a.category)} armor · ${ac} · ${a.cost}`, text: [], ref: { kind: "equipment", key: "armor:" + armorName2 } };
     }
     const eq = find(n, "equipment");
-    if (eq && low2(eq.name) === low2(n)) {
+    if (eq && low3(eq.name) === low3(n)) {
       const e = entry(eq.kind, eq.key);
       const d = e && e.data || {};
       const kind = d.equipment === "tool" ? "tool" : "gear";
@@ -22729,7 +23320,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
   }
   function magicEntry(n) {
     const hit = find(n, "item");
-    if (!hit || low2(hit.name) !== low2(n)) return null;
+    if (!hit || low3(hit.name) !== low3(n)) return null;
     const e = entry(hit.kind, hit.key);
     const d = e && e.data || {};
     return { name: e.name, summary: [d.type || "Magic item", d.attunement ? "requires attunement" : ""].filter(Boolean).join(" · "), text: (d.text || []).slice(), ref: { kind: hit.kind, key: hit.key } };
@@ -22739,7 +23330,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
   function attackFromWeapon(name, abilities) {
-    const w = weaponOf(name);
+    const w = weaponOf2(name);
     if (!w) return null;
     const ab = abilities || {};
     const ranged = isRangedWeapon(w), finesse = /Finesse/.test(w.properties || "");
@@ -22757,13 +23348,13 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
   }
   function itemForAttack(inventory, attackName) {
     const inv = Array.isArray(inventory) ? inventory : [];
-    const n = low2(attackName);
+    const n = low3(attackName);
     if (!n) return null;
-    return inv.find((i) => i && low2(i.name) === n) || (weaponOf(attackName) ? inv.find((i) => i && weaponOf(i.name) && low2(i.name) === n) : null) || null;
+    return inv.find((i) => i && low3(i.name) === n) || (weaponOf2(attackName) ? inv.find((i) => i && weaponOf2(i.name) && low3(i.name) === n) : null) || null;
   }
   function attackInHand(inventory, attackName) {
     const it = itemForAttack(inventory, attackName);
-    if (!it || !weaponOf(it.name)) return null;
+    if (!it || !weaponOf2(it.name)) return null;
     return !!it.inHand;
   }
   function handsUsed(inventory) {
@@ -23478,8 +24069,8 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
     function resolveGoName(target, curId) {
       const w = activeWorld();
       const raw = norm5(target);
-      const byId = findById(w.locations, raw);
-      if (byId) return byId;
+      const byId2 = findById(w.locations, raw);
+      if (byId2) return byId2;
       const exits = curId ? playerExits(curId) : [];
       const d = parseDir(raw);
       if (d) {
@@ -23611,8 +24202,8 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
     function exitForTarget(target, curId) {
       const exits = playerExits(curId);
       const raw = norm5(target);
-      const byId = exits.find((e) => e.id === raw || e.to === raw);
-      if (byId) return byId;
+      const byId2 = exits.find((e) => e.id === raw || e.to === raw);
+      if (byId2) return byId2;
       const bare = raw.toLowerCase().replace(/\b(the|a|an)\b/g, " ").trim();
       if (!bare || bare === "door" || bare === "doors") {
         const doors = exits.filter(isDoorExit);
@@ -23655,7 +24246,7 @@ Spells: ${chosen}` : "") + (sp.spells ? `${chosen ? "; " : "\nSpells: "}${sp.spe
       return i > p ? { name: "Investigation", bonus: i } : { name: "Perception", bonus: p };
     }
     function hasThievesTools() {
-      return asArray5(inventoryView().items).some((i) => /thie(f|ves)['’]?s?\s*tools/i.test(norm5(i && i.name)));
+      return asArray5(inventoryView2().items).some((i) => /thie(f|ves)['’]?s?\s*tools/i.test(norm5(i && i.name)));
     }
     function lockpickBonus() {
       const sh = personaSheet();
@@ -25182,7 +25773,7 @@ Where things really stand: ${here2 ? `the party is at ${here2}` : "nothing chang
         rt().xp = (Number(rt().xp) || 0) + xp;
       });
     }
-    function inventoryView() {
+    function inventoryView2() {
       const sh = sheetOwner() && personaSheet();
       const story = asArray5(rt() && rt().inventory);
       if (sh) return { source: "sheet", owner: personaName(), items: asArray5(sh.inventory).concat(story), gp: Number(sh.coins && sh.coins.gp) || 0, xp: Number(sh.xp) || 0, purseText: formatPrice(wealthCp(sh.coins)) };
@@ -25250,7 +25841,7 @@ Where things really stand: ${here2 ? `the party is at ${here2}` : "nothing chang
         return { item: i.item, price, priceText: price == null ? "no price" : formatPrice(price), left };
       });
       const buys = p.shop.buys !== false, seen = /* @__PURE__ */ new Set(), sell = [];
-      if (buys) for (const it of inventoryView().items) {
+      if (buys) for (const it of inventoryView2().items) {
         const n = norm5(it && it.name);
         if (!n || seen.has(n.toLowerCase())) continue;
         seen.add(n.toLowerCase());
@@ -25312,7 +25903,7 @@ Where things really stand: ${here2 ? `the party is at ${here2}` : "nothing chang
       const base = sellBase(p.shop, item);
       const each = base ? sellPrice(base) : 0;
       if (each <= 0) return refuse("not interested (no known price)");
-      const held = inventoryView().items.find((i) => sameName(i.name, item));
+      const held = inventoryView2().items.find((i) => sameName(i.name, item));
       const name = held ? norm5(held.name) : norm5(item);
       inventoryRemove(name, qty);
       changePurse((c) => addCoins(c, each * qty));
@@ -26098,7 +26689,7 @@ The player's purse: ${formatPrice(wealthCp(purse()))}. When the player buys or s
       try {
         const s = C2.cachedSheet(n);
         const it = s && s.inventory.find((i) => norm5(i.name).toLowerCase() === norm5(atk.name).toLowerCase());
-        if (!it || it.inHand || !weaponOf(it.name)) return;
+        if (!it || it.inHand || !weaponOf2(it.name)) return;
         C2.setItemInHand(n, it.name, true);
         combatLog(`${who} draws the ${it.name} as part of the attack.`);
       } catch (_) {
@@ -28367,7 +28958,7 @@ ${xl.join("\n")}`;
       listQuests(mode2) {
         return listQuests(mode2 || aiMode());
       },
-      inventory: () => inventoryView(),
+      inventory: () => inventoryView2(),
       // ----- vendors / shops (R4 extra) -----
       shopRules: shop_rules_exports,
       vendorsHere: () => vendorsHere().map((p) => p.id),
@@ -29346,7 +29937,7 @@ ${xl.join("\n")}`;
       root.appendChild(g);
     }
     const used = {};
-    const place2 = (z) => {
+    const place3 = (z) => {
       const sh = shapes[z];
       if (!sh) return null;
       const i = used[z] = (used[z] || 0) + 1;
@@ -29371,7 +29962,7 @@ ${xl.join("\n")}`;
         outOfRange.push(t);
         continue;
       }
-      const p = place2(z);
+      const p = place3(z);
       if (!p) continue;
       const g = svg("g", { class: `rpm-zone-token rpm-zone-${t.side === "party" ? "party" : "enemy"}` + (t.current ? " rpm-zone-current" : "") + (t.down ? " rpm-zone-down" : "") + (t.hidden ? " rpm-zone-hidden" : ""), "data-token": t.id });
       g.appendChild(svg("title", null, `${t.name}${t.cover ? " — in cover" : ""}${t.hidden ? " — hidden" : ""}${t.down ? " — down" : ""}`));
@@ -29384,9 +29975,9 @@ ${xl.join("\n")}`;
   }
   function initials(name) {
     const s = String(name || "?").trim();
-    const num2 = /(\d+)$/.exec(s);
+    const num3 = /(\d+)$/.exec(s);
     const words = s.replace(/\s*\d+$/, "").split(/\s+/).filter(Boolean);
-    return ((words[0] || "?")[0] + (num2 ? num2[1] : words[1] ? words[1][0] : "")).toUpperCase().slice(0, 3);
+    return ((words[0] || "?")[0] + (num3 ? num3[1] : words[1] ? words[1][0] : "")).toUpperCase().slice(0, 3);
   }
 
   // src/game/combatView.js
@@ -30105,9 +30696,9 @@ ${xl.join("\n")}`;
     const gx = svg2("g"), gr = svg2("g");
     s.appendChild(gx);
     s.appendChild(gr);
-    const byId = new Map(board.rooms.map((r) => [r.id, r]));
+    const byId2 = new Map(board.rooms.map((r) => [r.id, r]));
     for (const e of board.exits) {
-      const a = byId.get(e.from), c = byId.get(e.to);
+      const a = byId2.get(e.from), c = byId2.get(e.to);
       if (!a || !c) continue;
       const { p, q } = exitPoints(a.rect, c.rect, e.dir, cell, R);
       const g = svg2("g", { class: "rpm-map-exit", "data-exit": e.id, "data-type": e.type, "data-state": e.state });
@@ -30996,10 +31587,10 @@ ${xl.join("\n")}`;
     const cur = anchorOf(hereId);
     const around = new Set((A.zonePath(hereId) || []).map((z) => z.id).filter((id) => id !== cur));
     const places = g.nodes.filter((n) => n.type === "location" && !n.mapId && !around.has(n.id));
-    const byId = new Map(places.map((n) => [n.id, n]));
+    const byId2 = new Map(places.map((n) => [n.id, n]));
     const rt = A.runtime || {};
-    const visited = new Set((rt.visitedLocationIds || []).filter((id) => byId.has(id)));
-    const near = new Set(((A.here() || {}).ways || []).map((w2) => anchorOf(w2.id)).filter((id) => byId.has(id) && id !== cur));
+    const visited = new Set((rt.visitedLocationIds || []).filter((id) => byId2.has(id)));
+    const near = new Set(((A.here() || {}).ways || []).map((w2) => anchorOf(w2.id)).filter((id) => byId2.has(id) && id !== cur));
     const shown = places.filter((n) => n.id === cur || visited.has(n.id) || near.has(n.id));
     if (!shown.length) return null;
     let pos = /* @__PURE__ */ new Map();
@@ -34517,7 +35108,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     const popup = hostGet("popupUtils");
     const host = popup && popup.contentElem;
     if (!host) return;
-    const contents = host.firstElementChild || host;
+    const contents2 = host.firstElementChild || host;
     const rerender = () => {
       const s = hostGet("showQuickStartPopup");
       if (typeof s === "function") s();
@@ -34552,7 +35143,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         console.error("[RPmod] Quick Start section failed:", ext.id, e);
         continue;
       }
-      contents.appendChild(section);
+      contents2.appendChild(section);
     }
   }
   function quickStartTile(name, onClick, empty) {
@@ -34811,8 +35402,8 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
             return;
           }
           const n = maxOutput();
-          const low3 = n != null && n < MIN_OUTPUT;
-          if (!low3) {
+          const low4 = n != null && n < MIN_OUTPUT;
+          if (!low4) {
             outSlot.replaceChildren();
             return;
           }
@@ -34932,8 +35523,8 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     let legacy = null;
     let tries = 0;
     const timer = setInterval(() => {
-      const save = window.generate_savefile, load = window.kai_json_load;
-      if (typeof save !== "function" || typeof load !== "function") {
+      const save = window.generate_savefile, load2 = window.kai_json_load;
+      if (typeof save !== "function" || typeof load2 !== "function") {
         if (++tries > 300) clearInterval(timer);
         return;
       }
@@ -34950,13 +35541,13 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         wrappedSave.__rpmodLegacy = true;
         window.generate_savefile = wrappedSave;
       }
-      if (!load.__rpmodLegacy) {
+      if (!load2.__rpmodLegacy) {
         const wrappedLoad = function(storyobj) {
           try {
             legacy = storyobj && storyobj.guided_rp ? storyobj.guided_rp : null;
           } catch (_) {
           }
-          return load.apply(this, arguments);
+          return load2.apply(this, arguments);
         };
         wrappedLoad.__rpmodLegacy = true;
         window.kai_json_load = wrappedLoad;
@@ -35790,8 +36381,12 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     updateSheet(name, (s) => {
       const it = s.inventory.find((i) => i.name.toLowerCase() === n);
       if (!it) return;
-      if (on) it.inHand = true;
-      else delete it.inHand;
+      if (on) {
+        if (takeInHand(s, it)) {
+          delete it.at;
+          it.inHand = true;
+        }
+      } else stow(s, it);
       result = !!on;
     });
     return result;
@@ -36148,13 +36743,13 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
   function armorClass(abilities, items, cls, sheetExtras) {
     const dex = abilityMod(abilities.dex);
     const names = items.map((i) => i.name);
-    const armorName = names.find((n) => SRD.armor[n]);
+    const armorName2 = names.find((n) => SRD.armor[n]);
     const shield = names.includes("Shield") ? 2 : 0;
     const options = [];
-    if (armorName) {
-      const a = SRD.armor[armorName];
+    if (armorName2) {
+      const a = SRD.armor[armorName2];
       const dexPart = a.dexCap === 0 ? 0 : a.dexCap == null ? dex : Math.min(dex, a.dexCap);
-      options.push({ ac: a.base + dexPart + shield + (sheetExtras.defense ? 1 : 0), how: armorName + (shield ? " + Shield" : "") + (sheetExtras.defense ? " + Defense" : "") });
+      options.push({ ac: a.base + dexPart + shield + (sheetExtras.defense ? 1 : 0), how: armorName2 + (shield ? " + Shield" : "") + (sheetExtras.defense ? " + Defense" : "") });
     } else {
       options.push({ ac: 10 + dex + shield, how: "No armor" + (shield ? " + Shield" : "") });
       if (cls && cls.name === "Barbarian") options.push({ ac: 10 + dex + abilityMod(abilities.con) + shield, how: "Unarmored Defense" + (shield ? " + Shield" : "") });
@@ -36239,17 +36834,17 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     const { items, gp } = startingItems(choices);
     const styles = fightingStyles(choices);
     const prevInv = previous && Array.isArray(previous.inventory) ? previous.inventory : null;
-    const gear = prevInv || items;
-    const ac = armorClass(abilities, gear, cls, { defense: styles.includes("Defense"), draconic: choices.class === "sorcerer" && level >= 3 });
+    const gear2 = prevInv || items;
+    const ac = armorClass(abilities, gear2, cls, { defense: styles.includes("Defense"), draconic: choices.class === "sorcerer" && level >= 3 });
     const skills = {};
     for (const s of proficientSkills(choices)) skills[s] = 1;
     for (const s of choices.expertise || []) if (skills[s]) skills[s] = 2;
     let speed = sp ? sp.speed : 30;
     if (choices.species === "elf" && /Wood Elf/.test(choices.speciesOption || "")) speed = 35;
-    const armorWorn = gear.some((i) => SRD.armor[i.name]);
+    const armorWorn = gear2.some((i) => SRD.armor[i.name]);
     const move = cls && cls.columns && cls.columns[level] && cls.columns[level].unarmoredMovement;
-    if (choices.class === "monk" && move && !armorWorn && !gear.some((i) => i.name === "Shield")) speed += move;
-    if (choices.class === "barbarian" && level >= 5 && !gear.some((i) => SRD.armor[i.name] && SRD.armor[i.name].category === "heavy")) speed += 10;
+    if (choices.class === "monk" && move && !armorWorn && !gear2.some((i) => i.name === "Shield")) speed += move;
+    if (choices.class === "barbarian" && level >= 5 && !gear2.some((i) => SRD.armor[i.name] && SRD.armor[i.name].category === "heavy")) speed += 10;
     const hp = hitPoints(choices, abilities);
     const feats = featureList(choices);
     const spell2 = cls && cls.spellcasting;
@@ -36273,7 +36868,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       ac: ac.ac,
       speed,
       hp: { max: hp, current: previous && previous.hp ? Math.min(hp, (Number(previous.hp.current) || 0) + (hp - (Number(previous.hp.max) || hp))) : hp, temp: 0 },
-      attacks: attacksFor(abilities, gear, cls, styles, { martial: MARTIAL_ORDER.includes((orderOf(choices) || {}).value) }).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
+      attacks: attacksFor(abilities, gear2, cls, styles, { martial: MARTIAL_ORDER.includes((orderOf(choices) || {}).value) }).map(({ hitBonus, ...a }) => Object.assign(a, { bonus: hitBonus })),
       // level up keeps what the character owns now; a new character gets the starting equipment,
       // with the armor and shield its AC counts worn (inHand, R8); weapons start in the backpack
       inventory: prevInv || items.map((i) => (SRD.armor[i.name] || i.name === "Shield") && ac.how.includes(i.name) ? Object.assign({}, i, { inHand: true }) : i),
@@ -36408,6 +37003,425 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     return box;
   }
 
+  // src/characters/inventoryView.js
+  var KIND_ICON = { weapon: "sword", armor: "shirt", shield: "shield", ammo: "move-up", potion: "flask-conical", bag: "backpack", gear: "package" };
+  var KIND_NAME = { weapon: "Weapon", armor: "Armor", shield: "Shield", ammo: "Ammunition", potion: "Potion", bag: "Bag", gear: "Item" };
+  var lb = (n) => Math.round(n * 10) / 10 + " lb";
+  var DOLL = [
+    ["Hands", ["main", "off"]],
+    ["Body", ["armor", "back", "slung", "slungShield"]],
+    ["Belt", ["belt1", "belt2", "sheath1", "sheath2"]],
+    ["Straps on the pack", ["strap1", "strap2"]]
+  ];
+  function inventoryView(opts) {
+    const s = opts.sheet, st = opts.state;
+    const inv = s.inventory;
+    const byId2 = (id) => inv.find((i) => i.id === id) || null;
+    const sel2 = st.sel ? byId2(st.sel) : null;
+    if (st.sel && !sel2) st.sel = null;
+    const root = el("div", { class: "rpm-inv" + (sel2 ? " rpm-inv-holding" : ""), "data-inv": "1" });
+    function act(mutate, note) {
+      opts.apply(mutate, note);
+    }
+    function pick2(it) {
+      st.sel = st.sel === it.id ? null : it.id;
+      opts.apply(null);
+    }
+    function putTo(target, item) {
+      const it = item || sel2;
+      if (!it) return;
+      const why = canPlace(s, it, target);
+      if (why) {
+        opts.toast(`${it.name}: ${why}.`, true);
+        return;
+      }
+      const id = it.id;
+      st.sel = null;
+      act(
+        (sh) => {
+          const x = sh.inventory.find((i) => i.id === id);
+          if (x && !canPlace(sh, x, target)) place(sh, x, target);
+        },
+        target.slot ? `${it.name}: ${SLOT_NAMES[target.slot]}` : `${it.name} packed`
+      );
+    }
+    function intoBag(bag, item) {
+      const it = item || sel2;
+      if (!it || it === bag) return;
+      const t = spotIn(s, it, bag.id);
+      if (!t) {
+        opts.toast(`${it.name}: no room in the ${bag.name}` + (canPlace(s, it, { bag: bag.id, x: 0, y: 0 }).startsWith("too heavy") ? " (too heavy)" : "") + ".", true);
+        return;
+      }
+      putTo(t, it);
+    }
+    function rotate() {
+      if (!sel2) return;
+      const id = sel2.id, at = sel2.at;
+      if (at && at.bag) {
+        const t = { bag: at.bag, x: at.x, y: at.y, rot: !sel2.rot };
+        const why = canPlace(s, sel2, t);
+        if (why) {
+          opts.toast(`No room to turn the ${sel2.name} here (${why}).`, true);
+          return;
+        }
+        act((sh) => {
+          const x = sh.inventory.find((i) => i.id === id);
+          if (x) place(sh, x, t);
+        });
+        return;
+      }
+      act((sh) => {
+        const x = sh.inventory.find((i) => i.id === id);
+        if (!x) return;
+        if (x.rot) delete x.rot;
+        else x.rot = true;
+      });
+    }
+    const c = carried(s);
+    root.appendChild(el("div", { class: "rpm-inv-carry", "data-carry": c.slowed ? "slowed" : "ok", title: `You carry up to Str × 15 = ${c.capacity} lb; up to ${c.limit} lb you can only drag (Speed at most 5 ft).` }, [
+      icon("weight", 14),
+      el("span", { class: "rpm-grow", text: `${lb(c.total)} of ${c.capacity} lb` + (c.coins >= 0.1 ? ` (coins ${lb(c.coins)})` : "") }),
+      el("span", { class: "rpm-inv-bar", "aria-hidden": "true" }, [el("span", { style: `width:${Math.min(100, Math.round(c.total / c.capacity * 100))}%` })])
+    ]));
+    if (c.slowed) root.appendChild(el("div", { class: "rpm-inv-warn", role: "status", text: load(s, OVER) > 0 ? "You drag things along (Overweight): Speed at most 5 ft. Pack, drop or sell something." : `More than ${c.capacity} lb: Speed at most 5 ft.` }));
+    const main = el("div", { class: "rpm-inv-main" });
+    root.appendChild(main);
+    const doll = el("div", { class: "rpm-inv-doll", "aria-label": "Carried on the body" });
+    const back = inv.find((i) => i.at && i.at.slot === "back");
+    for (const [title, slots] of DOLL) {
+      if (title === "Straps on the pack" && !(back && /^(backpack|handy haversack)$/i.test(back.name))) continue;
+      doll.appendChild(el("div", { class: "rpm-label", text: title }));
+      doll.appendChild(el("div", { class: "rpm-inv-slots" }, slots.map(slotCell)));
+    }
+    main.appendChild(doll);
+    function slotCell(slot) {
+      const it = inv.find((i) => i.at && i.at.slot === slot);
+      const main2 = inv.find((i) => i.at && i.at.slot === "main");
+      const both = slot === "off" && !it && main2 && /Two-Handed/.test((weaponOf2(main2.name) || {}).properties || "");
+      const label2 = both ? `Off hand — ${main2.name} needs both` : SLOT_NAMES[slot];
+      const cell = el("button", {
+        type: "button",
+        class: "rpm-inv-slot" + (it ? " rpm-full" : "") + (it && it === sel2 ? " rpm-sel" : ""),
+        "data-slot": slot,
+        "data-id": it ? it.id : null,
+        "data-kind": it ? itemKind(it) : null,
+        title: it ? `${it.name} — ${label2}` : `${label2} (empty)`,
+        "aria-label": it ? `${label2}: ${it.name}` : `${label2}, empty`,
+        onclick: () => {
+          if (sel2 && it && it !== sel2 && isBag(it)) return intoBag(it);
+          if (sel2 && !it) return putTo({ slot });
+          if (it) {
+            if (st.sel !== it.id) st.sel = null;
+            pick2(it);
+          }
+        }
+      }, it ? [icon(KIND_ICON[itemKind(it)], 16), el("span", { class: "rpm-inv-name", text: it.name + (it.qty > 1 ? " ×" + it.qty : "") }), el("span", { class: "rpm-inv-where", text: label2 })] : [el("span", { class: "rpm-inv-where", text: label2 })]);
+      if (it) dragSource(cell, it, 0, 0);
+      return cell;
+    }
+    const bags = el("div", { class: "rpm-inv-bags" });
+    main.appendChild(bags);
+    const ids = [...bagOrder(s), POCKETS];
+    if (contents(s, OVER).length || sel2) ids.push(OVER);
+    for (const id of ids) bags.appendChild(bagBox(id));
+    function bagBox(id) {
+      const spec = specOf(s, id), bag = byId2(id);
+      const title = id === OVER ? "Overweight — dragged along" : id === POCKETS ? "Pockets" : bag.name;
+      const parent = bag && bag.at && bag.at.bag ? byId2(bag.at.bag) : null;
+      const box = el("div", { class: "rpm-inv-bag", "data-bag": id });
+      box.appendChild(el("div", { class: "rpm-inv-bag-h" }, [
+        icon(id === OVER ? "weight" : "backpack", 14),
+        el("span", { class: "rpm-grow", text: title + (parent ? ` (in the ${parent.name})` : "") }),
+        el("span", { class: "rpm-muted", text: `${lb(load(s, id))} / ${spec.cap} lb` })
+      ]));
+      const grid = el("div", {
+        class: "rpm-inv-grid",
+        "data-grid": id,
+        role: "grid",
+        "aria-label": title,
+        style: `--cols:${spec.cols};--rows:${spec.rows}`
+      });
+      grid.addEventListener("click", (e) => {
+        if (!sel2 || e.target.closest(".rpm-inv-item")) return;
+        const p = cellAt(grid, e.clientX, e.clientY, spec);
+        if (!p) return;
+        putTo({ bag: id, x: p.x, y: p.y, rot: !!sel2.rot });
+      });
+      grid.addEventListener("pointermove", (e) => preview(grid, id, spec, e));
+      grid.addEventListener("pointerleave", () => {
+        const g = grid.querySelector(".rpm-inv-ghost");
+        if (g) g.remove();
+      });
+      for (const it of contents(s, id)) grid.appendChild(tile(it));
+      box.appendChild(el("div", { class: "rpm-inv-gridwrap" }, [grid]));
+      return box;
+    }
+    function tile(it) {
+      const [w, h] = footprint(it), kind = itemKind(it);
+      const big = w * h > 1;
+      const t = el("button", {
+        type: "button",
+        class: "rpm-inv-item" + (it === sel2 ? " rpm-sel" : ""),
+        "data-item": it.name,
+        "data-id": it.id,
+        "data-kind": kind,
+        style: `--x:${it.at.x};--y:${it.at.y};--w:${w};--h:${h}`,
+        title: `${it.name}${it.qty > 1 ? " ×" + it.qty : ""} · ${lb(totalWeight(s, it))}`,
+        "aria-label": `${it.name}${it.qty > 1 ? ", " + it.qty : ""}`,
+        onclick: (e) => {
+          e.stopPropagation();
+          if (sel2 && it !== sel2 && isBag(it)) return intoBag(it);
+          if (sel2 && it !== sel2) {
+            const grid = t.closest("[data-grid]");
+            const spec = specOf(s, grid.getAttribute("data-grid"));
+            const p = cellAt(grid, e.clientX, e.clientY, spec);
+            if (p && !canPlace(s, sel2, { bag: grid.getAttribute("data-grid"), x: p.x, y: p.y, rot: !!sel2.rot })) return putTo({ bag: grid.getAttribute("data-grid"), x: p.x, y: p.y, rot: !!sel2.rot });
+          }
+          pick2(it);
+        }
+      }, [icon(KIND_ICON[kind], big ? 16 : 14), big ? el("span", { class: "rpm-inv-name", text: it.name }) : null, it.qty > 1 ? el("span", { class: "rpm-inv-qty", text: String(it.qty) }) : null]);
+      dragSource(t, it, w, h);
+      return t;
+    }
+    function cellAt(grid, cx, cy, spec) {
+      const r = grid.getBoundingClientRect();
+      if (!r.width) return null;
+      const x = Math.floor((cx - r.left) / (r.width / spec.cols)), y = Math.floor((cy - r.top) / (r.height / spec.rows));
+      return x >= 0 && y >= 0 && x < spec.cols && y < spec.rows ? { x, y } : null;
+    }
+    function preview(grid, id, spec, e) {
+      if (!sel2) return;
+      const p = cellAt(grid, e.clientX, e.clientY, spec);
+      let g = grid.querySelector(".rpm-inv-ghost");
+      if (!p) {
+        if (g) g.remove();
+        return;
+      }
+      const dx = st.drag ? st.drag.gx : 0, dy = st.drag ? st.drag.gy : 0;
+      const x = p.x - dx, y = p.y - dy, [w, h] = footprint(sel2);
+      const ok = !canPlace(s, sel2, { bag: id, x, y, rot: !!sel2.rot });
+      if (!g) {
+        g = el("div", { class: "rpm-inv-ghost", "aria-hidden": "true" });
+        grid.appendChild(g);
+      }
+      g.style.cssText = `--x:${x};--y:${y};--w:${w};--h:${h}`;
+      g.setAttribute("data-ok", ok ? "1" : "0");
+    }
+    function dragSource(node, it, w, h) {
+      node.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        const r = node.getBoundingClientRect();
+        const gx = w ? Math.min(w - 1, Math.floor((e.clientX - r.left) / (r.width / w))) : 0;
+        const gy = h ? Math.min(h - 1, Math.floor((e.clientY - r.top) / (r.height / h))) : 0;
+        const start = { x: e.clientX, y: e.clientY };
+        let moving = false, ghost = null;
+        const move = (ev) => {
+          if (!moving && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 6) return;
+          if (!moving) {
+            moving = true;
+            st.drag = { gx, gy };
+            if (st.sel !== it.id) {
+              st.sel = it.id;
+            }
+            ghost = el("div", { class: "rpm-inv-dragghost", "data-kind": itemKind(it), "aria-hidden": "true" }, [icon(KIND_ICON[itemKind(it)], 16), el("span", { text: it.name })]);
+            document.body.appendChild(ghost);
+            root.classList.add("rpm-inv-holding");
+          }
+          ghost.style.left = ev.clientX + 8 + "px";
+          ghost.style.top = ev.clientY + 8 + "px";
+          const over = document.elementFromPoint(ev.clientX, ev.clientY);
+          const grid = over && over.closest && over.closest("[data-grid]");
+          if (grid) preview(grid, grid.getAttribute("data-grid"), specOf(s, grid.getAttribute("data-grid")), ev);
+        };
+        const up = (ev) => {
+          document.removeEventListener("pointermove", move);
+          document.removeEventListener("pointerup", up);
+          document.removeEventListener("pointercancel", up);
+          if (ghost) ghost.remove();
+          if (!moving) return;
+          node.addEventListener("click", (c2) => {
+            c2.stopPropagation();
+            c2.preventDefault();
+          }, { once: true, capture: true });
+          const drag = st.drag;
+          st.drag = null;
+          const over = document.elementFromPoint(ev.clientX, ev.clientY);
+          dropOn(over, ev, drag, it);
+        };
+        document.addEventListener("pointermove", move);
+        document.addEventListener("pointerup", up);
+        document.addEventListener("pointercancel", up);
+      });
+    }
+    function dropOn(over, ev, drag, it) {
+      const held = byId2(it.id);
+      if (!held || !over || !over.closest) {
+        opts.apply(null);
+        return;
+      }
+      const slot = over.closest("[data-slot]"), grid = over.closest("[data-grid]"), tileEl = over.closest(".rpm-inv-item"), remove = over.closest("[data-inv-remove]");
+      const target = (() => {
+        if (remove) return "remove";
+        if (slot) {
+          const occ = inv.find((i) => i.at && i.at.slot === slot.getAttribute("data-slot"));
+          if (occ && occ !== held && isBag(occ)) return { bagOf: occ };
+          return { slot: slot.getAttribute("data-slot") };
+        }
+        if (grid) {
+          const id = grid.getAttribute("data-grid"), spec = specOf(s, id), p = cellAt(grid, ev.clientX, ev.clientY, spec);
+          const occ = tileEl ? byId2(tileEl.getAttribute("data-id")) : null;
+          const t = p ? { bag: id, x: p.x - drag.gx, y: p.y - drag.gy, rot: !!held.rot } : null;
+          if (t && !canPlace(s, held, t)) return t;
+          if (occ && occ !== held && isBag(occ)) return { bagOf: occ };
+          return t;
+        }
+        return null;
+      })();
+      st.sel = held.id;
+      if (target === "remove") return removeItem2(held);
+      if (!target) {
+        st.sel = null;
+        opts.apply(null);
+        return;
+      }
+      if (target.bagOf) return intoBag(target.bagOf, held);
+      putTo(target, held);
+    }
+    const loose = unpacked(s).filter((i) => !i.inHand);
+    if (loose.length) {
+      root.appendChild(el("div", { class: "rpm-inv-loose", "data-inv-loose": "1" }, [
+        el("div", { class: "rpm-label", text: "Not packed — no room and too heavy to drag. Make room, then pick it and put it somewhere, or remove it." }),
+        el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, loose.map((it) => {
+          const b = el(
+            "button",
+            { type: "button", class: "rpm-inv-chip" + (it === sel2 ? " rpm-sel" : ""), "data-item": it.name, "data-id": it.id, "data-kind": itemKind(it), onclick: () => pick2(it) },
+            [icon(KIND_ICON[itemKind(it)], 14), el("span", { text: it.name + (it.qty > 1 ? " ×" + it.qty : "") })]
+          );
+          dragSource(b, it, 0, 0);
+          return b;
+        }))
+      ]));
+    }
+    root.appendChild(sel2 ? details(sel2) : el("div", { class: "rpm-muted rpm-inv-hint", text: "Click an item to pick it up, then click where it goes — or drag it. R turns it, Esc puts it back." }));
+    function removeItem2(it) {
+      if (!confirm(`Remove ${it.name}${it.qty > 1 ? " ×" + it.qty : ""} from the inventory?`)) {
+        opts.apply(null);
+        return;
+      }
+      const id = it.id;
+      st.sel = null;
+      act((sh) => {
+        const x = sh.inventory.find((i) => i.id === id);
+        if (x) removeItem(sh, x);
+      }, `${it.name} removed`);
+    }
+    function details(it) {
+      const info = itemInfo(it.name), w = unitWeight(it), kind = itemKind(it), id = it.id;
+      const where = it.at ? it.at.slot ? SLOT_NAMES[it.at.slot] : it.at.bag === OVER ? "Overweight" : it.at.bag === POCKETS ? "Pockets" : (byId2(it.at.bag) || {}).name : "not packed";
+      const setField = (mutate) => act((sh) => {
+        const x = sh.inventory.find((i) => i.id === id);
+        if (x) mutate(x, sh);
+      });
+      const input2 = (value, onChange, props) => {
+        const i = el("input", Object.assign({ class: "form-control rpm-input fullScreenTextEditExclude" }, props));
+        i.value = value == null ? "" : value;
+        i.addEventListener("change", () => onChange(i.value));
+        return i;
+      };
+      const box = el("div", { class: "rpm-inv-details", "data-inv-details": it.name }, [
+        el("div", { class: "rpm-row" }, [
+          icon(KIND_ICON[kind], 16),
+          el("strong", { class: "rpm-grow", text: it.name }),
+          el("span", { class: "rpm-muted", text: `${KIND_NAME[kind]} · ${where} · ${lb(totalWeight(s, it))}` })
+        ]),
+        info ? el("div", { class: "rpm-muted", text: info.summary }) : null,
+        el("div", { class: "rpm-inv-fields" }, [
+          el("label", { class: "rpm-sheet-field" }, [
+            el("span", { class: "rpm-label", text: "Name" }),
+            input2(it.name, (v) => {
+              v = v.trim();
+              if (v) setField((x) => {
+                x.name = v;
+              });
+            }, { type: "text", "aria-label": "Item name", list: "rpm-sheet-items", autocomplete: "off" })
+          ]),
+          el("label", { class: "rpm-sheet-field" }, [
+            el("span", { class: "rpm-label", text: "Quantity" }),
+            input2(it.qty, (v) => setField((x) => {
+              x.qty = Math.max(1, Math.trunc(Number(v) || 1));
+            }), { type: "number", min: 1, inputmode: "numeric", "aria-label": "Quantity" })
+          ]),
+          el("label", { class: "rpm-sheet-field" }, [
+            el("span", { class: "rpm-label", text: w.guess ? "Weight (lb each, a guess)" : "Weight (lb each)" }),
+            input2(
+              it.weight != null ? it.weight : "",
+              (v) => setField((x) => {
+                const n = Number(v);
+                if (v === "" || !Number.isFinite(n) || n < 0) delete x.weight;
+                else x.weight = n;
+              }),
+              { type: "number", min: 0, step: "0.1", placeholder: String(Math.round(w.w * 100) / 100), "aria-label": "Weight per piece in pounds" }
+            )
+          ])
+        ]),
+        input2(it.notes, (v) => setField((x) => {
+          x.notes = v;
+        }), { type: "text", placeholder: "Notes", "aria-label": "Notes" }),
+        el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, [
+          button("rotate-cw", "Turn (R)", rotate, "Turn it by 90°"),
+          it.qty > 1 ? button("split", "Split", () => {
+            const n = Math.floor(it.qty / 2);
+            act((sh) => {
+              const x = sh.inventory.find((i) => i.id === id);
+              if (x) splitStack(sh, x, n);
+            }, `${n} split off`);
+          }, "Split the stack in half") : null,
+          kind !== "bag" && !it.inHand ? button("hand", kind === "armor" ? "Put on" : "Take in hand", () => {
+            const copy = JSON.parse(JSON.stringify(s)), why = takeInHand(copy, copy.inventory.find((i) => i.id === id));
+            if (why) {
+              opts.toast(`${it.name}: ${why}.`, true);
+              return;
+            }
+            st.sel = null;
+            setField((x, sh) => {
+              takeInHand(sh, x);
+            });
+          }, kind === "armor" ? "Wear it" : "Hold it in a free hand") : null,
+          it.inHand ? button("backpack", "Put away", () => {
+            st.sel = null;
+            setField((x, sh) => {
+              stow(sh, x);
+            });
+          }, "A sheath or the back for weapons, else a bag") : null,
+          el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-danger", "data-inv-remove": "1", title: "Remove it from the inventory (or drop it here)", onclick: () => removeItem2(it) }, [icon("trash-2", 14), el("span", { text: "Remove" })]),
+          info && info.ref && opts.openRef ? button("book-marked", "Compendium", () => opts.openRef(info.ref), "Open the SRD entry") : null,
+          button("x", "Put back", () => {
+            st.sel = null;
+            opts.apply(null);
+          }, "Put it back where it was (Esc)")
+        ])
+      ]);
+      return box;
+    }
+    function button(ic, text, onclick, title) {
+      return el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", title, onclick }, [icon(ic, 14), el("span", { text })]);
+    }
+    root.addEventListener("keydown", (e) => {
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+      if ((e.key === "r" || e.key === "R") && sel2) {
+        e.preventDefault();
+        rotate();
+      } else if (e.key === "Escape" && sel2) {
+        e.preventDefault();
+        e.stopPropagation();
+        st.sel = null;
+        opts.apply(null);
+      }
+    });
+    return root;
+  }
+
   // src/characters/characters.js
   var LAST_KEY = "KLITE.sheet.last";
   var TAB_KEY = "KLITE.sheet.tab";
@@ -36422,7 +37436,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       savedTab = localStorage.getItem(TAB_KEY);
     } catch (_) {
     }
-    const V = { name: null, saved: null, draft: null, loading: false, error: "", mode: null, box: null, timer: null, manage: false, spellSearch: {}, tab: savedTab || "overview", notesBuf: {} };
+    const V = { name: null, saved: null, draft: null, loading: false, error: "", mode: null, box: null, timer: null, manage: false, spellSearch: {}, tab: savedTab || "overview", notesBuf: {}, inv: { sel: null, drag: null } };
     const Shell2 = () => window.KLITE_RPMod_Shell;
     const Log = () => window.KLITE_RPMod_Log;
     const autosave = () => {
@@ -36461,6 +37475,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       V.error = "";
       V.manage = false;
       V.notesBuf = {};
+      V.inv = { sel: null, drag: null };
       try {
         localStorage.setItem(LAST_KEY, V.name || "");
       } catch (_) {
@@ -36902,9 +37917,21 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         "aria-label": (on ? "Put into the backpack: " : "Take in hand: ") + it.name,
         text: on ? "(->BP)" : "(<-BP)",
         onclick: () => {
-          if (on) delete V.draft.inventory[i].inHand;
-          else V.draft.inventory[i].inHand = true;
-          edited();
+          const id = it.id;
+          if (!on) {
+            const copy = JSON.parse(JSON.stringify(V.draft));
+            const why = takeInHand(copy, copy.inventory.find((x) => x.id === id));
+            if (why) {
+              toast(`${it.name}: ${why}.`, true);
+              return;
+            }
+          }
+          invApply((sh) => {
+            const x = sh.inventory.find((y) => y.id === id);
+            if (!x) return;
+            if (on) stow(sh, x);
+            else takeInHand(sh, x);
+          });
         }
       });
     }
@@ -37064,61 +38091,55 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       });
       root.appendChild(spells);
     }
-    function itemRow(it, i, set) {
-      const info = itemInfo(it.name);
-      const weaponHeld = it.inHand && info && info.kind === "weapon";
-      const nameIn = textIn(it.name, set((v) => {
-        V.draft.inventory[i].name = v;
-      }), { class: "form-control rpm-input rpm-grow", "aria-label": "Item name", list: "rpm-sheet-items", autocomplete: "off" });
-      const row2 = el("div", { class: "rpm-sheet-item" + (weaponHeld ? " rpm-inhand" : ""), "data-item": it.name }, [
-        el("div", { class: "rpm-sheet-line" }, [
-          handToggle(i),
-          nameIn,
-          numIn(it.qty, set((v) => {
-            V.draft.inventory[i].qty = v;
-          }), { class: "form-control rpm-input rpm-sheet-qty", min: 1, "aria-label": "Quantity" }),
-          el("button", { type: "button", class: "rpm-iconbtn", title: "Remove item", "aria-label": "Remove " + it.name, onclick: () => {
-            V.draft.inventory.splice(i, 1);
-            edited();
-          } }, [icon("trash-2", 14)])
-        ])
-      ]);
-      if (info) row2.appendChild(el("details", { class: "rpm-sheet-def", "data-def": it.name }, [
-        el("summary", { class: "rpm-muted", text: info.summary }),
-        ...info.text.slice(0, 4).map((t) => el("p", { class: "rpm-cmp-p", text: t })),
-        info.ref && window.KLITE_RPMod_Compendium ? btn3("In the compendium", () => window.KLITE_RPMod_Compendium.open(info.ref), { icon: "book-marked", title: "Open the SRD entry" }) : null
-      ]));
-      return row2;
+    function invApply(mutate) {
+      if (!mutate) {
+        render();
+        return;
+      }
+      const same = V.saved && JSON.stringify(V.draft.inventory) === JSON.stringify(V.saved.inventory);
+      mutate(V.draft);
+      V.draft = normalizeSheet(V.draft);
+      if (same && V.name && cachedSheet(V.name)) {
+        updateSheet(V.name, mutate);
+        const fresh = cachedSheet(V.name);
+        if (fresh) V.saved = normalizeSheet(fresh);
+        V.draft.inventory = JSON.parse(JSON.stringify(V.saved.inventory));
+        render();
+      } else edited();
     }
     function inventoryTab(root, D, s, set) {
       root.appendChild(itemList());
-      handsLine(root, s);
-      const groups = [["In hand / worn", s.inventory.map((it, i) => [it, i]).filter(([it]) => it.inHand)], ["Backpack", s.inventory.map((it, i) => [it, i]).filter(([it]) => !it.inHand)]];
-      for (const [title, list3] of groups) {
-        root.appendChild(heading2(title));
-        if (!list3.length) root.appendChild(el("div", { class: "rpm-muted", text: title === "Backpack" ? "Empty." : 'Nothing in hand. "(<-BP)" takes an item out of the backpack.' }));
-        for (const [it, i] of list3) root.appendChild(itemRow(it, i, set));
-      }
+      root.appendChild(inventoryView({
+        sheet: s,
+        state: V.inv,
+        apply: invApply,
+        toast: (m, err) => toast(m, err),
+        openRef: window.KLITE_RPMod_Compendium ? (ref) => window.KLITE_RPMod_Compendium.open(ref) : null
+      }));
       const itemName = el("input", { type: "text", class: "form-control rpm-input rpm-grow", placeholder: "Add an item (SRD names are suggested)", "aria-label": "New item", list: "rpm-sheet-items", autocomplete: "off" });
       itemName.classList.add("fullScreenTextEditExclude");
-      const addItem = () => {
+      const addItem2 = () => {
         const n = itemName.value.trim();
         if (!n) return;
-        V.draft.inventory.push({ name: n, qty: 1, notes: "" });
-        edited();
+        let res = null;
+        invApply((sh) => {
+          res = addItem(sh, n, 1, { force: true, same: sameName });
+        });
+        if (res && !res.placed) toast(`${n}: ${res.reason}.`, true);
       };
       itemName.addEventListener("keydown", (ev) => {
         if (ev.key === "Enter") {
           ev.preventDefault();
-          addItem();
+          addItem2();
         }
       });
-      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:6px" }, [itemName, btn3("", addItem, { icon: "plus", title: "Add item" })]));
+      root.appendChild(el("div", { class: "rpm-row", style: "margin-top:6px" }, [itemName, btn3("", addItem2, { icon: "plus", title: "Add item" })]));
       root.appendChild(el("div", { class: "rpm-muted rpm-sheet-rule", text: HAND_RULE }));
       root.appendChild(heading2("Coins"));
       root.appendChild(el("div", { class: "rpm-sheet-grid4" }, ["cp", "sp", "gp", "pp"].map((c) => field(c.toUpperCase(), numIn(s.coins[c], set((v) => {
         V.draft.coins[c] = v;
       }), { min: 0 })))));
+      root.appendChild(el("div", { class: "rpm-muted", text: `50 coins weigh 1 lb (SRD).` }));
     }
     function featuresTab(root, D, s, set) {
       const list3 = srdFeatures(s);
@@ -38844,7 +39865,7 @@ OK = save and close · Cancel = close and discard them`);
     const Shell2 = () => window.KLITE_RPMod_Shell;
     const W = () => window.KLITE_RPMod_Worlds;
     const S2 = { replies: defaultReplies(), loaded: false, editing: false, saveTimer: null };
-    async function load(key) {
+    async function load2(key) {
       try {
         const R = window.KLITE_RPMod;
         if (R && typeof R.loadFromLiteStorage === "function") return await R.loadFromLiteStorage(key);
@@ -38889,8 +39910,8 @@ OK = save and close · Cancel = close and discard them`);
       }
     };
     async function loadAll() {
-      const saved = parse(await load(QUICK_KEY));
-      const old = saved ? null : parse(await load(OLD_QUICK_KEY));
+      const saved = parse(await load2(QUICK_KEY));
+      const old = saved ? null : parse(await load2(OLD_QUICK_KEY));
       S2.replies = loadReplies(saved, old);
       S2.loaded = true;
       refresh2();
@@ -39900,7 +40921,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
   }
   function reachableLocations(world2, fromId) {
     const locs = asArray4(world2 && world2.locations);
-    const byId = new Map(locs.map((l) => [l.id, l]));
+    const byId2 = new Map(locs.map((l) => [l.id, l]));
     const adj = new Map(locs.map((l) => [l.id, /* @__PURE__ */ new Set()]));
     const link = (a, b) => {
       if (adj.has(a) && adj.has(b)) {
@@ -39914,7 +40935,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       if (l.parentId) link(l.id, l.parentId);
     }
     const seen = /* @__PURE__ */ new Set();
-    if (!byId.has(fromId)) return seen;
+    if (!byId2.has(fromId)) return seen;
     const todo = [fromId];
     while (todo.length) {
       const id = todo.pop();
@@ -40060,7 +41081,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
   // src/adventures/content/drowned-lantern.js
   var ID = "drowned-lantern";
   var VERSION = 7;
-  var place = (id, name, description, extra = {}) => Object.assign({ id, name, description }, extra);
+  var place2 = (id, name, description, extra = {}) => Object.assign({ id, name, description }, extra);
   var room = (id, name, parentId, [x, y], description, extra = {}) => Object.assign({ id, name, parentId, map: { x, y, w: 4, h: 3 }, description }, extra);
   var exit = (id, to, dir, type = "open", extra = {}) => Object.assign({ id, to, dir, type }, extra);
   var flagIs = (key) => ({ type: "flag", key });
@@ -40216,7 +41237,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       start: { locationId: "bw_heron", clock: { day: 1, month: 4, year: 1, time: "morning", season: "spring", weather: "mist over the lake" }, view: "player" },
       locations: [
         // --- the world graph ---
-        place(
+        place2(
           "loc_brindlewick",
           "Brindlewick",
           "A mill village of thatched roofs and stone walls where the Brindle stream leaves the hills for Stillwater Mere. Everyone knows everyone, and everyone is talking about the missing carts.",
@@ -40229,7 +41250,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
             phases: [{ id: "ph_relieved", label: "Goblins driven off", conditions: [questIs("q_hollow_oak", "turnedin")], atmosphere: "relieved", description: "A mill village of thatched roofs and stone walls. The mill wheel turns again, and people talk about the heroes of the Hollow Oak — and, more quietly, about the strange coin they found there." }]
           }
         ),
-        place(
+        place2(
           "loc_forest_road",
           "Forest Road",
           "The old trade road east of Brindlewick, under oak and beech. Ferns crowd the verges; the ruts are deep from carts that no longer come. A side track runs north to a huge dead oak, and the sound of the river comes from the south.",
@@ -40240,13 +41261,13 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
             localLore: [{ id: "ll_cart", content: "Liu Wen's cart lies overturned in the ferns a mile out of the village: the grain sacks are gone, the mule cut loose, and small bare footprints lead north towards the Hollow Oak.", keys: ["cart", "tracks", "footprints"] }]
           }
         ),
-        place(
+        place2(
           "loc_hollow_oak",
           "The Hollow Oak",
           "A dead oak so old and vast that a whole goblin band lives in its trunk and in the burrows between its roots. It smells of smoke, wet earth and stolen bread.",
           { kind: "dungeon", mapStyle: "stone", atmosphere: "menacing", ui: { x: 600, y: 110 } }
         ),
-        place(
+        place2(
           "loc_river_ford",
           "River Ford",
           "Where the Forest Road meets the Brindle river: a ford of flat stones for dry summers and Odo's rope ferry for the rest of the year. Reeds, herons, and now and then a green old coin washed out of the gravel.",
@@ -40533,49 +41554,49 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
   function layer2(w) {
     w.locations.push(
       // --- the world graph ---
-      place(
+      place2(
         "loc_gravel_road",
         "Gravel Road",
         "The mountain road climbs out of the forest in loose grey switchbacks. Halfway up there is an old campfire ring under a leaning pine — the only flat, sheltered spot before the pass, and everyone who uses this road has slept there. It is the quicker way to Lanternport, about a day, if the weather holds.",
         { atmosphere: "lonely", connectedLocationIds: ["loc_forest_road", "loc_windgap"], ui: { x: 900, y: 180 } }
       ),
-      place(
+      place2(
         "loc_windgap",
         "Windgap Pass",
         "A notch between two bare peaks where the wind never stops. Far below, Stillwater Mere shines like a sheet of tin, and on the far shore the roofs of Lanternport. A broken watchtower stands on the crag above the road; a shepherds' trail drops steeply towards the meadows.",
         { atmosphere: "windswept", connectedLocationIds: ["loc_gravel_road", "loc_shepherds_trail"], ui: { x: 1200, y: 180 } }
       ),
-      place(
+      place2(
         "loc_watchtower",
         "Watchtower Ruin",
         "A square tower from the days of the old dam, half its roof gone. Harpies nest at the top, and lately someone has been using the rooms below.",
         { kind: "dungeon", mapStyle: "stone", atmosphere: "eerie", ui: { x: 1200, y: 30 } }
       ),
-      place(
+      place2(
         "loc_shepherds_trail",
         "Shepherds' Trail",
         "A steep, narrow trail between the pass and the meadows, marked with cairns. Sheep use it; carts cannot.",
         { atmosphere: "quiet", connectedLocationIds: ["loc_windgap"], ui: { x: 1200, y: 370 } }
       ),
-      place(
+      place2(
         "loc_meadow_road",
         "Meadow Road",
         "The valley road: wide, flat and slow, through flowering meadows along the Brindle river — two easy days to Lanternport. Old Harrowfield's hut stands by a sheepfold; wild garlic and feverfew grow thick along the ditches. A trampled path leads into a thicket to the south.",
         { atmosphere: "peaceful", connectedLocationIds: ["loc_river_ford"], ui: { x: 900, y: 560 } }
       ),
-      place(
+      place2(
         "loc_owlbear_hollow",
         "Owlbear Hollow",
         "A hollow in a thorn thicket, littered with wool and feathers. Something big lives here.",
         { kind: "dungeon", mapStyle: "stone", atmosphere: "menacing", ui: { x: 900, y: 740 } }
       ),
-      place(
+      place2(
         "loc_outpost",
         "Traveler's Outpost",
         "A walled waystation where the Meadow Road meets the lake road: an inn, stables, a smithy corner and a lantern that burns all night over the gate. Carters, drovers and pilgrims to the Lantern Fair stop here.",
         { kind: "town", mapStyle: "plots", atmosphere: "busy", hub: true, ui: { x: 1200, y: 560 } }
       ),
-      place(
+      place2(
         "loc_lanternport",
         "Lanternport",
         "The market town on the far shore of Stillwater Mere: stone quays, tall narrow houses and lanterns on every corner. In spring it holds its famous Lantern Fair, when the Founders' Lantern is shown in the guildhall.",
@@ -41382,19 +42403,19 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
     ash.phases.unshift({ id: "ph_named", label: "Named in the ledger", conditions: [flagIs("ledger_read")], mood: "frightened; the watch has questions about a ledger" });
     w.locations.push(
       // --- the world graph ---
-      place(
+      place2(
         "loc_hidden_beach",
         "Hidden Beach",
         "A crescent of grey shingle on the south shore of Stillwater Mere, walled in by reeds and cliffs, where the Brindle river slips into the lake. Keel marks and boot prints lead to a dark cave in the cliff; a path climbs east along the shore to the old dam. Giant crabs bask here by day; at night the frogs sing.",
         { atmosphere: "secretive", ui: { x: 450, y: 700 } }
       ),
-      place(
+      place2(
         "loc_sea_cave",
         "The Sea Cave",
         "A sea cave in the cliffs above the hidden beach, big enough to row a boat into — the Reedcloaks' base: a hidden dock, their stores and bunks, and passages that run down under the lake.",
         { kind: "dungeon", mapStyle: "stone", atmosphere: "tense", ui: { x: 300, y: 860 } }
       ),
-      place(
+      place2(
         "loc_old_dam",
         "The Old Dam",
         "The great grey dam at the lake's outflow, two hundred years old, that raised the water and drowned Old Brindle. A sluice house squats on top; somebody still keeps it.",
@@ -41796,7 +42817,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       description: "Former smugglers who now row honest cargo for the Outpost and the fair — mostly honest, anyway."
     });
     w.locations.push(
-      place(
+      place2(
         "loc_lost_chapel",
         "The Lost Chapel",
         "Old Brindle under Stillwater Mere: a drowned village of fallen roofs and mud, and its chapel of the Still Water, held dry under the lake by something that should not be there.",
@@ -42305,10 +43326,10 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       const metas = characterList();
       const key = `${advId}/${g.id}`;
       const rid = remembered()[key];
-      const byId = rid && metas.find((m) => `${m.id}` === `${rid}`);
-      if (byId) {
-        const rec = await loadCharacter(byId.name);
-        if (isPregen(rec, advId, g.id)) return { id: byId.id, name: byId.name };
+      const byId2 = rid && metas.find((m) => `${m.id}` === `${rid}`);
+      if (byId2) {
+        const rec = await loadCharacter(byId2.name);
+        if (isPregen(rec, advId, g.id)) return { id: byId2.id, name: byId2.name };
       }
       const base = String(g.name).toLowerCase();
       for (const m of metas) {

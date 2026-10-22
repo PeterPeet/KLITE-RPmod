@@ -493,6 +493,47 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-sheet-feature { border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); padding: 4px 8px; background: var(--rpm-bg-alt); }
 .rpm-sheet-feature > summary { cursor: pointer; }
 .rpm-sheet-note { min-height: 120px; }
+/* R9 inventory: paper doll + bag grids; a tile is var(--rpm-cell) square, items sit at --x/--y with --w × --h tiles */
+.rpm-inv { --rpm-cell: 30px; display: flex; flex-direction: column; gap: 6px; }
+.rpm-inv-carry { display: flex; align-items: center; gap: 6px; font-size: var(--rpm-fs-sm); }
+.rpm-inv-bar { flex: 0 0 120px; height: 8px; border: 1px solid var(--rpm-border); border-radius: 4px; overflow: hidden; background: var(--rpm-bg-alt); }
+.rpm-inv-bar > span { display: block; height: 100%; background: var(--rpm-success); }
+.rpm-inv-carry[data-carry="slowed"] .rpm-inv-bar > span { background: var(--rpm-danger); }
+.rpm-inv-warn { color: var(--rpm-danger); font-size: var(--rpm-fs-sm); }
+.rpm-inv-main { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
+.rpm-inv-doll { flex: 0 1 200px; min-width: 170px; display: flex; flex-direction: column; gap: 3px; }
+.rpm-inv-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.rpm-inv-slot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 48px; padding: 3px; border: 1px dashed var(--rpm-border-hi); border-radius: var(--rpm-radius); background: transparent; color: var(--rpm-fg-muted); font-size: var(--rpm-fs-sm); cursor: pointer; text-align: center; overflow: hidden; }
+.rpm-inv-slot.rpm-full { border-style: solid; color: var(--rpm-fg-hi); }
+.rpm-inv-where { font-size: 10px; color: var(--rpm-fg-muted); line-height: 1.1; }
+.rpm-inv-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.15; }
+.rpm-inv-bags { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.rpm-inv-bag-h { display: flex; align-items: center; gap: 5px; font-size: var(--rpm-fs-sm); color: var(--rpm-fg-hi); font-weight: bold; }
+.rpm-inv-gridwrap { overflow-x: auto; max-height: 340px; overflow-y: auto; }
+.rpm-inv-grid { position: relative; width: calc(var(--cols) * var(--rpm-cell)); height: calc(var(--rows) * var(--rpm-cell)); border: 1px solid var(--rpm-border); border-radius: var(--rpm-radius); box-sizing: content-box;
+    background-color: var(--rpm-bg-alt); background-image: linear-gradient(var(--rpm-border) 1px, transparent 1px), linear-gradient(90deg, var(--rpm-border) 1px, transparent 1px); background-size: var(--rpm-cell) var(--rpm-cell); }
+.rpm-inv-holding .rpm-inv-grid { cursor: copy; }
+.rpm-inv-bag[data-bag="over"] .rpm-inv-gridwrap { max-height: calc(4.5 * var(--rpm-cell)); }
+.rpm-inv-item, .rpm-inv-ghost { position: absolute; left: calc(var(--x) * var(--rpm-cell) + 2px); top: calc(var(--y) * var(--rpm-cell) + 2px); width: calc(var(--w) * var(--rpm-cell) - 4px); height: calc(var(--h) * var(--rpm-cell) - 4px); box-sizing: border-box; border-radius: 5px; }
+.rpm-inv-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 1px; border: 1px solid var(--rpm-border-hi); font-size: 10px; color: var(--rpm-fg-hi); cursor: grab; overflow: hidden; touch-action: none; }
+.rpm-inv-slot.rpm-full, .rpm-inv-chip { touch-action: none; }
+.rpm-inv-qty { position: absolute; right: 2px; bottom: 0; font-size: 10px; font-weight: bold; }
+.rpm-inv-ghost { pointer-events: none; border: 2px dashed var(--rpm-success); }
+.rpm-inv-ghost[data-ok="0"] { border-color: var(--rpm-danger); }
+.rpm-inv-item.rpm-sel, .rpm-inv-slot.rpm-sel, .rpm-inv-chip.rpm-sel { outline: 2px solid var(--rpm-accent-fg-hi); outline-offset: -1px; }
+.rpm-inv [data-kind="weapon"] { background: color-mix(in srgb, var(--rpm-danger) 18%, transparent); }
+.rpm-inv [data-kind="armor"], .rpm-inv [data-kind="shield"] { background: color-mix(in srgb, var(--rpm-info) 20%, transparent); }
+.rpm-inv [data-kind="ammo"] { background: color-mix(in srgb, var(--rpm-quest) 22%, transparent); }
+.rpm-inv [data-kind="potion"] { background: color-mix(in srgb, var(--rpm-success) 20%, transparent); }
+.rpm-inv [data-kind="bag"] { background: color-mix(in srgb, var(--rpm-accent-fg) 18%, transparent); }
+.rpm-inv [data-kind="gear"] { background: color-mix(in srgb, var(--rpm-fg-muted) 16%, transparent); }
+.rpm-inv-dragghost { position: fixed; z-index: 10; pointer-events: none; display: flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); background: var(--rpm-bg); color: var(--rpm-fg-hi); font-size: var(--rpm-fs-sm); box-shadow: var(--rpm-shadow); }
+.rpm-inv-loose { border: 1px solid var(--rpm-danger); border-radius: var(--rpm-radius); padding: 4px 6px; }
+.rpm-inv-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); color: var(--rpm-fg-hi); font-size: var(--rpm-fs-sm); cursor: grab; }
+.rpm-inv-details { display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); padding: 6px 8px; background: var(--rpm-bg-alt); }
+.rpm-inv-fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+.rpm-inv-hint { font-size: var(--rpm-fs-sm); }
+@media (max-width: 480px) { .rpm-inv { --rpm-cell: 26px; } .rpm-inv-doll { flex-basis: 100%; } .rpm-inv-slots { grid-template-columns: repeat(4, minmax(0, 1fr)); } .rpm-inv-slot { min-height: 44px; } .rpm-inv-fields { grid-template-columns: 1fr 1fr; } }
 .rpm-sheet-notehint { font-size: var(--rpm-fs-sm); color: var(--rpm-fg-muted); }
 .rpm-sheet-notebtns { justify-content: flex-end; margin-bottom: 8px; }
 .rpm-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100002; background: var(--rpm-bg); color: var(--rpm-fg); border: 1px solid var(--rpm-border-hi); box-shadow: inset 3px 0 0 var(--rpm-success), var(--rpm-shadow); border-radius: var(--rpm-radius-lg); padding: 8px 16px; font-family: var(--rpm-font); font-size: var(--rpm-fs); }

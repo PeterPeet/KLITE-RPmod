@@ -68,6 +68,16 @@ const NAMES = {
     'pencil': 'quick replies: edit',
     'arrow-up': 'quick replies: move up',
     'message-square': 'quick replies: a reply that sends',
+    'sword': 'inventory (R9): weapon',
+    'shirt': 'inventory: armor',
+    'move-up': 'inventory: ammunition',
+    'flask-conical': 'inventory: potion',
+    'package': 'inventory: general item',
+    'backpack': 'inventory: bag',
+    'rotate-cw': 'inventory: rotate an item',
+    'split': 'inventory: split a stack',
+    'hand': 'inventory: take in hand',
+    'weight': 'inventory: carried weight',
 };
 
 const pkg = JSON.parse(fs.readFileSync(path.join(PKG, 'package.json'), 'utf8'));

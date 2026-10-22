@@ -60,7 +60,7 @@ test('sheet in the card: extensions.klite_rpmod.sheet; other extensions and old 
     assert.equal(removed.extensions.klite_rpmod.sheet, undefined); assert.equal(removed.extensions.klite_rpmod.rating.overall, 5);
     const stats = S.toCombatStats({ level: 1, abilities: { dex: 16 }, ac: 14, hp: { max: 12 }, attacks: [{ name: 'Bow', ability: 'dex', damage: '1d8+3' }] });
     assert.equal(stats.ac, 14); assert.equal(stats.hpMax, 12); assert.equal(stats.initiativeMod, 3); assert.equal(stats.attacks[0].toHit, 5);
-    assert.match(S.sheetSummary({ className: 'Ranger', level: 3, species: 'Elf', inventory: [{ name: 'Rope', qty: 2 }] }), /Elf Ranger 3 — HP 10\/10, AC 10[\s\S]*Inventory: Rope x2/);
+    assert.match(S.sheetSummary({ className: 'Ranger', level: 3, species: 'Elf', inventory: [{ name: 'Rope', qty: 2 }] }), /Elf Ranger 3 — HP 10\/10, AC 10[\s\S]*Dragged along \(overweight\): Rope x2/);
 });
 
 async function charHost(t, { image } = {}) {
@@ -148,7 +148,7 @@ test('AI context: persona sheet and rolls since the last reply reach the prompt;
     w.KLITE_RPMod_Log.rollAndLog({ who: 'Mira', what: 'Stealth check', expr: '1d20+5', kind: 'skill' });
     await w.prepare_submit_generation();
     assert.match(h.prompt, /\[User Character: Mira\][\s\S]*Character sheet: Ranger 3 — HP 20\/24/);
-    assert.match(h.prompt, /Inventory: Longbow/);
+    assert.match(h.prompt, /Carried: Longbow \(on the back\)/);
     assert.match(h.prompt, /\[Rolls and combat since your last reply\]\n- Mira: Stealth check = 25 \(20\+5\) — natural 20!/);
     w.gametext_arr.push('\n{{[INPUT]}}\nI sneak.\n{{[OUTPUT]}}\n', 'Mira slips past.');   // the turn's input and the reply
     await w.prepare_submit_generation();

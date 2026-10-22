@@ -18,6 +18,21 @@
 
 import { spellName } from './spell-rules.js';
 import { SRD } from '../data/srd52.js';
+import * as IR from '../game/inventory-rules.js';
+
+// R9 inventory fields of an item (additive): id, at (a bag place or a slot), rot, weight (lb, set by the player).
+function invPlace(i) {
+    const out = {};
+    if (typeof i.id === 'string' && /^[\w-]{1,24}$/.test(i.id)) out.id = i.id;
+    const at = i.at;
+    if (at && typeof at === 'object') {
+        if (IR.SLOTS.includes(at.slot)) out.at = { slot: at.slot };
+        else if (typeof at.bag === 'string' && at.bag) out.at = { bag: at.bag, x: Math.max(0, int(at.x, 0)), y: Math.max(0, int(at.y, 0)) };
+    }
+    if (i.rot === true) out.rot = true;
+    const w = num(i.weight, NaN); if (Number.isFinite(w) && w >= 0) out.weight = Math.round(w * 100) / 100;
+    return out;
+}
 
 export const EXT_KEY = 'klite_rpmod';
 export const SHEET_VERSION = 1;
@@ -62,7 +77,8 @@ export function defaultSheet() {
         proficiencies: '',         // weapons / armor / tools / languages (text)
         acNote: '',                // how AC is made up, e.g. "Chain Mail + Shield"
         build: null,               // builder choices (builder-rules.js) — used for level up
-        inventory: [],             // [{ name, qty, notes, inHand? }] — inHand (R8, additive): held or worn; missing = in the backpack
+        inventory: [],             // [{ name, qty, notes, inHand?, id?, at?, rot?, weight? }] — inHand (R8): held or worn; R9 (additive):
+                                   //   id, at = { bag, x, y } | { slot }, rot, weight — see src/game/inventory-rules.js
         coins: { cp: 0, sp: 0, gp: 0, pp: 0 },
         features: '', notes: '',
         extras: null,              // { alert, jackOfAllTrades, skillBonus: { [skill]: ability } } (rules the builder applies)
@@ -93,10 +109,12 @@ export function normalizeSheet(raw) {
         name: str(a.name), ability: ABILITIES.includes(a.ability) ? a.ability : 'str', proficient: a.proficient !== false,
         bonus: int(a.bonus, 0), damage: str(a.damage), notes: str(a.notes),
     }));
-    s.inventory = (Array.isArray(s.inventory) ? s.inventory : []).filter(i => i && str(i.name)).map(i => Object.assign({ name: str(i.name), qty: Math.max(1, int(i.qty, 1)), notes: str(i.notes) }, i.inHand ? { inHand: true } : {}));
+    s.inventory = (Array.isArray(s.inventory) ? s.inventory : []).filter(i => i && str(i.name)).map(i => Object.assign({ name: str(i.name), qty: Math.max(1, int(i.qty, 1)), notes: str(i.notes) },
+        i.inHand ? { inHand: true } : {}, invPlace(i)));
     const coins = Object.assign({}, d.coins, s.coins && typeof s.coins === 'object' ? s.coins : {});
     for (const c of Object.keys(d.coins)) coins[c] = Math.max(0, int(coins[c], 0));
     s.coins = coins;
+    IR.organize(s);   // R9: every item gets a place (older sheets: held → slots, the rest packed); never removes one
     if (s.spellcasting && typeof s.spellcasting === 'object' && ABILITIES.includes(s.spellcasting.ability)) {
         const sc = s.spellcasting;
         const keys = (v) => [...new Set((Array.isArray(v) ? v : []).map(str).filter(Boolean))];
@@ -198,11 +216,23 @@ export function sheetSummary(sheet) {
         lines.push(`Spellcasting (${sp.ability.toUpperCase()}): save DC ${sp.saveDC}, spell attack ${fmt(sp.attack)}` + (sp.slots.length ? `, slots ${sp.slots.map((n, i) => n ? `L${i + 1}×${n}` : '').filter(Boolean).join(' ')}` : '') +
             (chosen ? `\nSpells: ${chosen}` : '') + (sp.spells ? `${chosen ? '; ' : '\nSpells: '}${sp.spells}` : ''));
     }
-    // R8: what is held or worn comes first ("In hand"), the rest is in the backpack
-    const held = s.inventory.filter(i => i.inHand), packed = s.inventory.filter(i => !i.inHand);
-    const list = (items) => items.map(i => i.name + (i.qty > 1 ? ` x${i.qty}` : '')).join(', ');
+    // R8: what is held or worn comes first ("In hand"); R9: then where the rest is carried — sheaths,
+    // the back, straps, each bag, the pockets, what is dragged along — and the weight
+    const name = (i) => i.name + (i.qty > 1 ? ` x${i.qty}` : '');
+    const list = (items) => items.map(name).join(', ');
+    const inv = s.inventory, slotOf = (i) => (i.at && i.at.slot) || '';
+    const held = inv.filter(i => i.inHand);
     if (held.length) lines.push('In hand / worn: ' + list(held));
-    if (packed.length) lines.push((held.length ? 'Backpack: ' : 'Inventory: ') + list(packed));
+    const WHERE = { sheath1: 'sheathed', sheath2: 'sheathed', slung: 'on the back', slungShield: 'on the back', strap1: 'strapped to the pack', strap2: 'strapped to the pack', belt1: 'on the belt', belt2: 'on the belt', back: 'worn on the back' };
+    const carriedOn = inv.filter(i => !i.inHand && WHERE[slotOf(i)]);
+    if (carriedOn.length) lines.push('Carried: ' + carriedOn.map(i => `${name(i)} (${WHERE[slotOf(i)]})`).join(', '));
+    const inBag = (id) => inv.filter(i => i.at && i.at.bag === id);
+    for (const id of IR.bagOrder(s)) { const b = inv.find(i => i.id === id), c = inBag(id); if (b && c.length) lines.push(`${b.name}: ${list(c)}`); }
+    if (inBag(IR.POCKETS).length) lines.push('Pockets: ' + list(inBag(IR.POCKETS)));
+    if (inBag(IR.OVER).length) lines.push('Dragged along (overweight): ' + list(inBag(IR.OVER)));
+    const loose = IR.unpacked(s).filter(i => !i.inHand);
+    if (loose.length) lines.push('Not packed: ' + list(loose));
+    if (inv.length) lines.push(IR.carryLine(s));
     const coins = Object.entries(s.coins).filter(([, v]) => v > 0).map(([k, v]) => `${v} ${k}`);
     if (coins.length) lines.push('Coins: ' + coins.join(', '));
     return lines.join('\n');

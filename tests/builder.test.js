@@ -151,7 +151,7 @@ test('builder window: create a level-1 fighter end to end, then level up keeping
     const up = JSON.parse(await w.indexeddb_load('character_Kara', 'null')).data.extensions.klite_rpmod.sheet;
     assert.equal(up.level, 2); assert.equal(up.hp.max, 12 + 6 + 2); assert.equal(up.xp, 300);
     assert.match(up.features, /Action Surge \(Fighter 2\)/);
-    assert.deepEqual(JSON.parse(JSON.stringify(up.inventory)), [{ name: 'Lucky coin', qty: 1, notes: '' }]);
+    assert.deepEqual(JSON.parse(JSON.stringify(up.inventory)), [{ name: 'Lucky coin', qty: 1, notes: '', id: 'it1', at: { bag: 'pockets', x: 0, y: 0 } }], 'kept (R9: in the pockets)');
     assert.equal(up.notes, 'Owes Bram 5 gp.');
 });
 
