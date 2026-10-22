@@ -14,8 +14,8 @@ import { el, icon } from '../shell/dom.js';
 import * as IR from '../game/inventory-rules.js';
 import * as EQ from './equipment-rules.js';
 
-const KIND_ICON = { weapon: 'sword', armor: 'shirt', shield: 'shield', ammo: 'move-up', potion: 'flask-conical', bag: 'backpack', gear: 'package' };
-const KIND_NAME = { weapon: 'Weapon', armor: 'Armor', shield: 'Shield', ammo: 'Ammunition', potion: 'Potion', bag: 'Bag', gear: 'Item' };
+const KIND_ICON = { weapon: 'sword', ranged: 'bow-arrow', armor: 'shirt', shield: 'shield', ammo: 'move-up', potion: 'flask-conical', bag: 'backpack', gear: 'package' };
+const KIND_NAME = { weapon: 'Melee weapon', ranged: 'Ranged weapon', armor: 'Armor', shield: 'Shield', ammo: 'Ammunition', potion: 'Potion', bag: 'Bag', gear: 'Item' };
 const lb = (n) => (Math.round(n * 10) / 10) + ' lb';
 function hideTip() { for (const t of document.querySelectorAll('.rpm-inv-tip')) t.remove(); }
 const DOLL = [
@@ -97,13 +97,13 @@ export function inventoryView(opts) {
         const both = slot === 'off' && !it && main && /Two-Handed/.test((EQ.weaponOf(main.name) || {}).properties || '');
         const label = both ? `Off hand — ${main.name} needs both` : IR.SLOT_NAMES[slot];
         const cell = el('button', { type: 'button', class: 'rpm-inv-slot' + (it ? ' rpm-full' : '') + (it && it === sel ? ' rpm-sel' : ''), 'data-slot': slot, 'data-id': it ? it.id : null,
-            'data-kind': it ? IR.itemKind(it) : null, title: it ? `${it.name} — ${label}` : `${label} (empty)`,
+            'data-kind': it ? IR.iconKind(it) : null, title: it ? `${it.name} — ${label}` : `${label} (empty)`,
             'aria-label': it ? `${label}: ${it.name}` : `${label}, empty`,
             onclick: () => {
                 if (sel && it && it !== sel && IR.isBag(it)) return intoBag(it);
                 if (sel && !it) return putTo({ slot });
                 if (it) { if (st.sel !== it.id) st.sel = null; pick(it); }   // an occupied slot: pick what is in it
-            } }, it ? [icon(KIND_ICON[IR.itemKind(it)], 16), el('span', { class: 'rpm-inv-name', text: it.name + (it.qty > 1 ? ' ×' + it.qty : '') }), el('span', { class: 'rpm-inv-where', text: label })]
+            } }, it ? [icon(KIND_ICON[IR.iconKind(it)], 16), el('span', { class: 'rpm-inv-name', text: it.name + (it.qty > 1 ? ' ×' + it.qty : '') }), el('span', { class: 'rpm-inv-where', text: label })]
             : [el('span', { class: 'rpm-inv-where', text: label })]);
         if (it) dragSource(cell, it, 0, 0);
         return cell;
@@ -140,7 +140,7 @@ export function inventoryView(opts) {
         return box;
     }
     function tile(it) {
-        const [w, h] = IR.footprint(it), kind = IR.itemKind(it);
+        const [w, h] = IR.footprint(it), kind = IR.iconKind(it);
         const t = el('button', { type: 'button', class: 'rpm-inv-item' + (it === sel ? ' rpm-sel' : ''), 'data-item': it.name, 'data-id': it.id, 'data-kind': kind,
             style: `--x:${it.at.x};--y:${it.at.y};--w:${w};--h:${h}`,
             'aria-label': `${it.name}${it.qty > 1 ? ', ' + it.qty : ''}`,
@@ -154,9 +154,9 @@ export function inventoryView(opts) {
                 }
                 pick(it);
             } }, [
-                // one row high (owner): the name only, no icon — a 1×1 tile on two small lines; the colour still tells the kind
+                // one row high (owner): the name only, no icon; the colour still tells the kind
                 h > 1 ? icon(KIND_ICON[kind], 16) : null,
-                el('span', { class: 'rpm-inv-name' + (h === 1 ? (w === 1 ? ' rpm-inv-small rpm-inv-two' : ' rpm-inv-small') : ''), text: it.name }),
+                el('span', { class: 'rpm-inv-name rpm-inv-two' + (h === 1 || w === 1 ? ' rpm-inv-small' : ''), text: it.name }),   // two lines for every item (owner)
                 it.qty > 1 ? el('span', { class: 'rpm-inv-qty', text: String(it.qty) }) : null]);
         tip(t, it);
         dragSource(t, it, w, h);
@@ -215,7 +215,7 @@ export function inventoryView(opts) {
                 if (!moving) {
                     moving = true; st.drag = { gx, gy };
                     if (st.sel !== it.id) { st.sel = it.id; }
-                    ghost = el('div', { class: 'rpm-inv-dragghost', 'data-kind': IR.itemKind(it), 'aria-hidden': 'true' }, [icon(KIND_ICON[IR.itemKind(it)], 16), el('span', { text: it.name })]);
+                    ghost = el('div', { class: 'rpm-inv-dragghost', 'data-kind': IR.iconKind(it), 'aria-hidden': 'true' }, [icon(KIND_ICON[IR.iconKind(it)], 16), el('span', { text: it.name })]);
                     document.body.appendChild(ghost);
                     root.classList.add('rpm-inv-holding');
                 }
@@ -269,8 +269,8 @@ export function inventoryView(opts) {
         root.appendChild(el('div', { class: 'rpm-inv-loose', 'data-inv-loose': '1' }, [
             el('div', { class: 'rpm-label', text: 'Not packed — no room and too heavy to drag. Make room, then pick it and put it somewhere, or remove it.' }),
             el('div', { class: 'rpm-row', style: 'flex-wrap:wrap' }, loose.map(it => {
-                const b = el('button', { type: 'button', class: 'rpm-inv-chip' + (it === sel ? ' rpm-sel' : ''), 'data-item': it.name, 'data-id': it.id, 'data-kind': IR.itemKind(it), onclick: () => pick(it) },
-                    [icon(KIND_ICON[IR.itemKind(it)], 14), el('span', { text: it.name + (it.qty > 1 ? ' ×' + it.qty : '') })]);
+                const b = el('button', { type: 'button', class: 'rpm-inv-chip' + (it === sel ? ' rpm-sel' : ''), 'data-item': it.name, 'data-id': it.id, 'data-kind': IR.iconKind(it), onclick: () => pick(it) },
+                    [icon(KIND_ICON[IR.iconKind(it)], 14), el('span', { text: it.name + (it.qty > 1 ? ' ×' + it.qty : '') })]);
                 dragSource(b, it, 0, 0);
                 return b;
             })),
@@ -286,7 +286,7 @@ export function inventoryView(opts) {
         act((sh) => { const x = sh.inventory.find(i => i.id === id); if (x) IR.removeItem(sh, x); }, `${it.name} removed`);
     }
     function details(it) {
-        const info = EQ.itemInfo(it.name), w = IR.unitWeight(it), kind = IR.itemKind(it), id = it.id;
+        const info = EQ.itemInfo(it.name), w = IR.unitWeight(it), kind = IR.iconKind(it), id = it.id;
         const where = it.at ? (it.at.slot ? IR.SLOT_NAMES[it.at.slot] : it.at.bag === IR.OVER ? 'Overweight' : it.at.bag === IR.POCKETS ? 'Pockets' : (byId(it.at.bag) || {}).name) : 'not packed';
         const setField = (mutate) => act((sh) => { const x = sh.inventory.find(i => i.id === id); if (x) mutate(x, sh); });
         const input = (value, onChange, props) => {

@@ -21,6 +21,7 @@ export const RPMOD_THEME_DEFAULTS = {
     '--theme_color_rpmod_danger': '#d9534f',     // combat, damage, destructive actions
     '--theme_color_rpmod_success': '#5cb85c',    // enabled / healed / completed
     '--theme_color_rpmod_info': '#5bc0de',       // player lens, hints, tracked state
+    '--theme_color_rpmod_potion': '#c678dd',     // inventory: potions (R9; ranged weapons use success green)
 };
 
 export const SHELL_CSS = `
@@ -50,6 +51,7 @@ ${Object.entries(RPMOD_THEME_DEFAULTS).map(([k, v]) => `    ${k}: ${v};`).join('
     --rpm-danger: var(--theme_color_rpmod_danger);
     --rpm-success: var(--theme_color_rpmod_success);
     --rpm-info: var(--theme_color_rpmod_info);
+    --rpm-potion: var(--theme_color_rpmod_potion);
     --rpm-font: var(--theme_font_family, Helvetica, sans-serif);
     --rpm-fs-sm: var(--theme_font_size_small, 9pt);
     --rpm-fs: var(--theme_font_size_medium, 10pt);
@@ -527,7 +529,8 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-inv [data-kind="weapon"] { background: color-mix(in srgb, var(--rpm-danger) 18%, transparent); }
 .rpm-inv [data-kind="armor"], .rpm-inv [data-kind="shield"] { background: color-mix(in srgb, var(--rpm-info) 20%, transparent); }
 .rpm-inv [data-kind="ammo"] { background: color-mix(in srgb, var(--rpm-quest) 22%, transparent); }
-.rpm-inv [data-kind="potion"] { background: color-mix(in srgb, var(--rpm-success) 20%, transparent); }
+.rpm-inv [data-kind="ranged"] { background: color-mix(in srgb, var(--rpm-success) 20%, transparent); }
+.rpm-inv [data-kind="potion"] { background: color-mix(in srgb, var(--rpm-potion) 22%, transparent); }
 .rpm-inv [data-kind="bag"] { background: color-mix(in srgb, var(--rpm-accent-fg) 18%, transparent); }
 .rpm-inv [data-kind="gear"] { background: color-mix(in srgb, var(--rpm-fg-muted) 16%, transparent); }
 .rpm-inv-dragghost { position: fixed; z-index: 10; pointer-events: none; display: flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); background: var(--rpm-bg); color: var(--rpm-fg-hi); font-size: var(--rpm-fs-sm); box-shadow: var(--rpm-shadow); }

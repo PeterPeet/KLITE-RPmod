@@ -25,8 +25,10 @@
     // combat, damage, destructive actions
     "--theme_color_rpmod_success": "#5cb85c",
     // enabled / healed / completed
-    "--theme_color_rpmod_info": "#5bc0de"
+    "--theme_color_rpmod_info": "#5bc0de",
     // player lens, hints, tracked state
+    "--theme_color_rpmod_potion": "#c678dd"
+    // inventory: potions (R9; ranged weapons use success green)
   };
   var SHELL_CSS = `
 :root {
@@ -55,6 +57,7 @@ ${Object.entries(RPMOD_THEME_DEFAULTS).map(([k2, v]) => `    ${k2}: ${v};`).join
     --rpm-danger: var(--theme_color_rpmod_danger);
     --rpm-success: var(--theme_color_rpmod_success);
     --rpm-info: var(--theme_color_rpmod_info);
+    --rpm-potion: var(--theme_color_rpmod_potion);
     --rpm-font: var(--theme_font_family, Helvetica, sans-serif);
     --rpm-fs-sm: var(--theme_font_size_small, 9pt);
     --rpm-fs: var(--theme_font_size_medium, 10pt);
@@ -532,7 +535,8 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-inv [data-kind="weapon"] { background: color-mix(in srgb, var(--rpm-danger) 18%, transparent); }
 .rpm-inv [data-kind="armor"], .rpm-inv [data-kind="shield"] { background: color-mix(in srgb, var(--rpm-info) 20%, transparent); }
 .rpm-inv [data-kind="ammo"] { background: color-mix(in srgb, var(--rpm-quest) 22%, transparent); }
-.rpm-inv [data-kind="potion"] { background: color-mix(in srgb, var(--rpm-success) 20%, transparent); }
+.rpm-inv [data-kind="ranged"] { background: color-mix(in srgb, var(--rpm-success) 20%, transparent); }
+.rpm-inv [data-kind="potion"] { background: color-mix(in srgb, var(--rpm-potion) 22%, transparent); }
 .rpm-inv [data-kind="bag"] { background: color-mix(in srgb, var(--rpm-accent-fg) 18%, transparent); }
 .rpm-inv [data-kind="gear"] { background: color-mix(in srgb, var(--rpm-fg-muted) 16%, transparent); }
 .rpm-inv-dragghost { position: fixed; z-index: 10; pointer-events: none; display: flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); background: var(--rpm-bg); color: var(--rpm-fg-hi); font-size: var(--rpm-fs-sm); box-shadow: var(--rpm-shadow); }
@@ -900,8 +904,10 @@ body.rpm-docked #maincontainer {
     "arrow-up": [["path", { "d": "m5 12 7-7 7 7" }], ["path", { "d": "M12 19V5" }]],
     // quick replies: a reply that sends
     "message-square": [["path", { "d": "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" }]],
-    // inventory (R9): weapon
+    // inventory (R9): melee weapon
     "sword": [["path", { "d": "m11 19-6-6" }], ["path", { "d": "m5 21-2-2" }], ["path", { "d": "m8 16-4 4" }], ["path", { "d": "M9.5 17.5 20.414 6.586A2 2 0 0021 5.172V3h-2.172a2 2 0 00-1.414.586L6.5 14.5" }]],
+    // inventory: ranged weapon
+    "bow-arrow": [["path", { "d": "M17 3h4v4" }], ["path", { "d": "M18.575 11.082a13 13 0 0 1 1.048 9.027 1.17 1.17 0 0 1-1.914.597L14 17" }], ["path", { "d": "M7 10 3.29 6.29a1.17 1.17 0 0 1 .6-1.91 13 13 0 0 1 9.03 1.05" }], ["path", { "d": "M7 14a1.7 1.7 0 0 0-1.207.5l-2.646 2.646A.5.5 0 0 0 3.5 18H5a1 1 0 0 1 1 1v1.5a.5.5 0 0 0 .854.354L9.5 18.207A1.7 1.7 0 0 0 10 17v-2a1 1 0 0 0-1-1z" }], ["path", { "d": "M9.707 14.293 21 3" }]],
     // inventory: armor
     "shirt": [["path", { "d": "M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" }]],
     // inventory: ammunition
@@ -22576,6 +22582,13 @@ ${char.mes_example}
     if (/potion|elixir|philter|antitoxin/.test(n)) return "potion";
     return "gear";
   }
+  function iconKind(item) {
+    const n = low2(item && item.name), k2 = itemKind(item);
+    if (/\bthrowing\b/.test(n) && k2 !== "ammo") return "ranged";
+    if (k2 !== "weapon") return k2;
+    const w = SRD.weapons[weaponName(n)];
+    return w && (/ranged$/.test(w.category || "") || weaponName(n) === "Javelin") ? "ranged" : "weapon";
+  }
   function perTile(item) {
     const n = low2(item && item.name), ammo = ammoRow(n);
     if (ammo) return Math.max(1, Math.floor(ammo.amount / bundleOf(item)));
@@ -37250,8 +37263,8 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
   }
 
   // src/characters/inventoryView.js
-  var KIND_ICON = { weapon: "sword", armor: "shirt", shield: "shield", ammo: "move-up", potion: "flask-conical", bag: "backpack", gear: "package" };
-  var KIND_NAME = { weapon: "Weapon", armor: "Armor", shield: "Shield", ammo: "Ammunition", potion: "Potion", bag: "Bag", gear: "Item" };
+  var KIND_ICON = { weapon: "sword", ranged: "bow-arrow", armor: "shirt", shield: "shield", ammo: "move-up", potion: "flask-conical", bag: "backpack", gear: "package" };
+  var KIND_NAME = { weapon: "Melee weapon", ranged: "Ranged weapon", armor: "Armor", shield: "Shield", ammo: "Ammunition", potion: "Potion", bag: "Bag", gear: "Item" };
   var lb = (n) => Math.round(n * 10) / 10 + " lb";
   function hideTip() {
     for (const t of document.querySelectorAll(".rpm-inv-tip")) t.remove();
@@ -37354,7 +37367,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         class: "rpm-inv-slot" + (it ? " rpm-full" : "") + (it && it === sel2 ? " rpm-sel" : ""),
         "data-slot": slot,
         "data-id": it ? it.id : null,
-        "data-kind": it ? itemKind(it) : null,
+        "data-kind": it ? iconKind(it) : null,
         title: it ? `${it.name} — ${label2}` : `${label2} (empty)`,
         "aria-label": it ? `${label2}: ${it.name}` : `${label2}, empty`,
         onclick: () => {
@@ -37365,7 +37378,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
             pick2(it);
           }
         }
-      }, it ? [icon(KIND_ICON[itemKind(it)], 16), el("span", { class: "rpm-inv-name", text: it.name + (it.qty > 1 ? " ×" + it.qty : "") }), el("span", { class: "rpm-inv-where", text: label2 })] : [el("span", { class: "rpm-inv-where", text: label2 })]);
+      }, it ? [icon(KIND_ICON[iconKind(it)], 16), el("span", { class: "rpm-inv-name", text: it.name + (it.qty > 1 ? " ×" + it.qty : "") }), el("span", { class: "rpm-inv-where", text: label2 })] : [el("span", { class: "rpm-inv-where", text: label2 })]);
       if (it) dragSource(cell, it, 0, 0);
       return cell;
     }
@@ -37407,7 +37420,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       return box;
     }
     function tile(it) {
-      const [w, h] = footprint(it), kind = itemKind(it);
+      const [w, h] = footprint(it), kind = iconKind(it);
       const t = el("button", {
         type: "button",
         class: "rpm-inv-item" + (it === sel2 ? " rpm-sel" : ""),
@@ -37428,9 +37441,10 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           pick2(it);
         }
       }, [
-        // one row high (owner): the name only, no icon — a 1×1 tile on two small lines; the colour still tells the kind
+        // one row high (owner): the name only, no icon; the colour still tells the kind
         h > 1 ? icon(KIND_ICON[kind], 16) : null,
-        el("span", { class: "rpm-inv-name" + (h === 1 ? w === 1 ? " rpm-inv-small rpm-inv-two" : " rpm-inv-small" : ""), text: it.name }),
+        el("span", { class: "rpm-inv-name rpm-inv-two" + (h === 1 || w === 1 ? " rpm-inv-small" : ""), text: it.name }),
+        // two lines for every item (owner)
         it.qty > 1 ? el("span", { class: "rpm-inv-qty", text: String(it.qty) }) : null
       ]);
       tip(t, it);
@@ -37500,7 +37514,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
             if (st.sel !== it.id) {
               st.sel = it.id;
             }
-            ghost = el("div", { class: "rpm-inv-dragghost", "data-kind": itemKind(it), "aria-hidden": "true" }, [icon(KIND_ICON[itemKind(it)], 16), el("span", { text: it.name })]);
+            ghost = el("div", { class: "rpm-inv-dragghost", "data-kind": iconKind(it), "aria-hidden": "true" }, [icon(KIND_ICON[iconKind(it)], 16), el("span", { text: it.name })]);
             document.body.appendChild(ghost);
             root.classList.add("rpm-inv-holding");
           }
@@ -37571,8 +37585,8 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, loose.map((it) => {
           const b = el(
             "button",
-            { type: "button", class: "rpm-inv-chip" + (it === sel2 ? " rpm-sel" : ""), "data-item": it.name, "data-id": it.id, "data-kind": itemKind(it), onclick: () => pick2(it) },
-            [icon(KIND_ICON[itemKind(it)], 14), el("span", { text: it.name + (it.qty > 1 ? " ×" + it.qty : "") })]
+            { type: "button", class: "rpm-inv-chip" + (it === sel2 ? " rpm-sel" : ""), "data-item": it.name, "data-id": it.id, "data-kind": iconKind(it), onclick: () => pick2(it) },
+            [icon(KIND_ICON[iconKind(it)], 14), el("span", { text: it.name + (it.qty > 1 ? " ×" + it.qty : "") })]
           );
           dragSource(b, it, 0, 0);
           return b;
@@ -37593,7 +37607,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
       }, `${it.name} removed`);
     }
     function details(it) {
-      const info = itemInfo(it.name), w = unitWeight(it), kind = itemKind(it), id = it.id;
+      const info = itemInfo(it.name), w = unitWeight(it), kind = iconKind(it), id = it.id;
       const where = it.at ? it.at.slot ? SLOT_NAMES[it.at.slot] : it.at.bag === OVER ? "Overweight" : it.at.bag === POCKETS ? "Pockets" : (byId2(it.at.bag) || {}).name : "not packed";
       const setField = (mutate) => act((sh) => {
         const x = sh.inventory.find((i) => i.id === id);

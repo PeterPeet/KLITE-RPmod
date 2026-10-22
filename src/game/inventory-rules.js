@@ -160,6 +160,17 @@ export function itemKind(item) {
     return 'gear';
 }
 
+// The kind for the icon and colour (owner, UI play test 2026-10-22): weapons by their main use —
+// 'ranged' for the SRD's ranged weapons (bows, crossbows, darts, sling, blowgun), javelins and
+// anything called a throwing knife, dagger or axe; in the rules they stay weapons (sheaths, hands).
+export function iconKind(item) {
+    const n = low(item && item.name), k = itemKind(item);
+    if (/\bthrowing\b/.test(n) && k !== 'ammo') return 'ranged';
+    if (k !== 'weapon') return k;
+    const w = SRD.weapons[weaponName(n)];
+    return w && (/ranged$/.test(w.category || '') || weaponName(n) === 'Javelin') ? 'ranged' : 'weapon';
+}
+
 // ---- footprint -----------------------------------------------------------------------------
 // Pieces of up to 1 lb share a tile (2 potions, 4 darts; ammunition: one table amount per tile,
 // 20 arrows, 50 needles); everything else takes tiles by its stack's weight and its kind.

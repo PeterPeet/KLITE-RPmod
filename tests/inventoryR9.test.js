@@ -49,6 +49,11 @@ test('SRD 5.2.1 weights: weapons, armor, the Shield, ammunition, gear', () => {
 test('kinds and footprints: weight brackets per kind, small things share a tile, rotation', () => {
     const k = (name) => R.itemKind({ name });
     assert.deepEqual(['Longsword', 'Chain Mail', 'Shield', 'Arrow', 'Potion of Healing', 'Backpack', 'Rope'].map(k), ['weapon', 'armor', 'shield', 'ammo', 'potion', 'bag', 'gear']);
+    // the icon and colour by main use: ranged weapons apart from melee (owner)
+    const ik = (name) => R.iconKind({ name });
+    assert.deepEqual(['Shortbow', 'Light Crossbow', 'Dart', 'Sling', 'Javelin', 'Throwing Knife', 'Dagger', 'Longsword', 'Handaxe', 'Arrow', 'Potion of Healing'].map(ik),
+        ['ranged', 'ranged', 'ranged', 'ranged', 'ranged', 'ranged', 'weapon', 'weapon', 'weapon', 'ammo', 'potion']);
+    assert.equal(R.itemKind({ name: 'Shortbow' }), 'weapon', 'in the rules still a weapon');
     const fp = (name, qty, rot) => R.footprint({ name, qty: qty || 1, rot }).join('x');
     assert.equal(fp('Dagger'), '1x1');
     assert.equal(fp('Longsword'), '1x3');

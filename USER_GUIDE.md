@@ -640,8 +640,11 @@ applies everywhere; the sheet remembers the tab you used last.
 
 The **Inventory** tab works like a backpack in a computer RPG: every item takes **tiles** in a
 grid, and how many depends on its **weight** (SRD 5.2.1), not its type — a dagger is 1×1, a longsword a
-long 1×3, a 7 lb bedroll a 3×3 block; 20 arrows or 2 potions share one tile. Five colours and icons
-tell weapons, armor, ammunition, potions, bags and other gear apart.
+long 1×3, a 7 lb bedroll a 3×3 block; 20 arrows or 2 potions share one tile. Colours and icons tell
+melee weapons (red, a sword), ranged weapons (green, a bow — bows, crossbows, darts, javelins, throwing knives),
+armor and shields (blue), ammunition (yellow), potions (violet), bags and other gear apart; the potion colour is
+editable in Esolite's theme editor like RPmod's other colours. Names wrap onto two lines; a tile one row high
+shows only the name. Hover over an item (or focus it with the keyboard) for its name, weight and where it is.
 
 - **Carrying:** you carry up to **Str × 15 lb** (a Goliath twice that, Powerful Build); 50 coins weigh
   1 lb. The bar at the top shows it. Up to twice that you can only **drag** things along: they go into
