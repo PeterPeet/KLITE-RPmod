@@ -53,7 +53,7 @@ export const CHAPTERS = [
             { p: 'Settings that matter:' },
             { list: [
                 'Max Output: 16,000 tokens (Settings → Samplers → Max Output; the slider stops at 2048 — type the number into the field). Models that think need room for it: a reply cut off while thinking changes nothing in the game, and you have to press Generate More or Retry.',
-                'Context Size: 32,768 (Settings → Samplers, next to Max Output). Set it first — Esolite keeps Max Output below 85% of the Context Size, so with a small context your 16,000 quietly becomes less. A large context also helps the AI remember the story.',
+                'Context Size: 32,768 (Settings → Samplers, next to Max Output). Set it first — Esolite keeps Max Output below 85% of the Context Size, so with a small context your 16,000 quietly becomes less. Never set it above what the model offers at your provider, better a little below: the prompt and the reply together must fit, and Esolite only estimates the prompt\'s length, so a provider may reject a request that is just over its limit. A large context also helps the AI remember the story.',
                 'Reasoning: off or low is enough for most models. Off is fastest; more reasoning makes replies slower, not always better.',
                 'World Info "Before A/N" with the Author\'s Note "Turn based", 1 user turn: RPmod asks once and keeps it set — say Yes.',
             ] },

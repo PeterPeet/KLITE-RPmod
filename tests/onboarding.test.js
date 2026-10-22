@@ -317,6 +317,7 @@ test('Guide: a chapter on the AI model and the settings that matter', () => {
     assert.match(text, /Max Output: 16,000 tokens \(Settings → Samplers → Max Output/);
     assert.match(text, /Before A\/N/);
     assert.match(text, /Context Size: 32,768 .*85% of the Context Size/);
+    assert.match(text, /Never set it above what the model offers at your provider/);
 });
 
 test('"New here?" warns while Max Output is below 16,000 and stops once it is set', async (t) => {
