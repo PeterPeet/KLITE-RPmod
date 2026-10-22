@@ -1,0 +1,27 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "esolite-rpmod",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "exec python3 -m http.server --directory \"${ESOLITE_DIR:-$HOME/.cache/klite-rpmod/esolite}\" \"${PORT:-8747}\""
+      ],
+      "port": 8747,
+      "autoPort": true
+    },
+    {
+      "name": "rp-lite-pages",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "--directory",
+        "../rp-lite.koboldai.net",
+        "8748"
+      ],
+      "port": 8748
+    }
+  ]
+}

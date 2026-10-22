@@ -1,2 +1,15 @@
 Backup
 Artifacts
+
+# tooling
+node_modules/
+.npm-cache/
+.DS_Store
+
+# Reference material (SRD 5.2.1 PDF, UDT, the Phandelver starter set …): read-only sources, some
+# copyrighted — never commit anything in here
+docs/reference/
+__pycache__/
+
+# SillyTavern round-trip test files (scripts/roundtrip-card.js)
+roundtrip/

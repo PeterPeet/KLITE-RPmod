@@ -1,0 +1,1280 @@
+# Roadmap
+
+> The plan for turning KLITE RPmod into the product described in
+> [USERSTORY.md](USERSTORY.md). **Keep this file current:** after each phase (or any
+> significant change) update the status markers and the "Current state" section, so work
+> can resume without any chat history.
+>
+> Status: ⬜ not started · 🟨 in progress · ✅ done · ⏸ deferred
+> Last updated: 2026-10-20 (first real-backend play test with Gemma 4 31B and DeepSeek V4 Pro: twelve fixes — combat turns, Retry, the game log on reload, `<go>` names, thinking blocks, the combat prompt, World Info placement, containers; open items under R8 step 8; before: 2026-09-26 — open items fixed; play/build split; character sheet overhaul; reload keeps the story's state; R8 steps 5–7: Lanternport and the Lantern Fair, the south shore, the Lost Chapel and the endings)
+
+## Current state
+
+**Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
+is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). R5 is done
+(✅ 2026-09-25: spells in the Combat window, companions' HP, Long rest, the Encounter node), and
+R3 too (✅ 2026-09-25: the SRD 5.2.1 Compendium). The R4 extras are done too (2026-09-25: `<take>` semantics, faction phases, kill reputation, repeatable/daily quests, quest-giver dialogue, vendors/shops). R6 is done too (2026-09-25). The real-backend play
+test (known issue 5) is postponed (owner, 2026-09-25). R7 is done (✅ 2026-09-25, acceptance passed).
+R7 steps 1 (location kinds + dungeon/town editor), 2 (mini-map, moving room by room, AI context,
+issue 12), 3 (AI map tags, fog, doors, Search checks), 4 (dungeon/town generator) and 5 (zone
+combat: zones of the room, moving/fleeing, cover, hiding, Guide tab) are done.
+Done since R1: R2 characters (✅ 2026-09-25), R5 combat (✅ 2026-09-25), R4 quests & world (✅), R7 world map (✅ 2026-09-25), R3 compendium
+(✅ 2026-09-25), R6 chat power features (✅ 2026-09-25: slash commands, quick replies, hidden tags, lorebook
+round trip; design `docs/design/R6-chat-power.md`). All phases R1–R7 are done; next: the real-backend play test
+(known issue 5) and the open items below.
+
+Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
+Supported host: **current Esobold** (esolithe/esobold `remoteManagement`), run from the local
+clone `../esobold` via `npm run build:host` (2026-09-24; ARCHITECTURE §2; since 2026-10-21 the clone tracks
+`remoteManagement`). The repo's Esolite 1.35.0 copy was removed (git history; 1.32.0 is archived in `BackupData/`).
+Esobold has mod hooks contributed by RPmod — Quick Start (esolithe/esobold#65), settings tabs (#66), a top-bar Guide with
+mod tabs (#67) and V2 character downloads with two "Upload all" data-loss fixes (#68): **all merged** into
+`remoteManagement` and part of the release; RPmod keeps fallbacks for hosts without them.
+**License (owner, 2026-10-22): AGPL-3.0** (`LICENSE.md`, the host's license; before: GPL-3.0, whose file was lost in
+2025-11), README restored with the model comparison.
+
+**2026-09-26 (this session):** the owner's play-test items are fixed (connections, town travel, regional map,
+inspector, persona on start, New Session, Reset ALL), the panels are split into play (left) and build (right, three
+named header rows), the character sheet has tabs, SRD autocomplete, in hand vs. backpack, Features and notes, a page
+reload keeps the story's world state (known issue 26), and R8 steps 5 (Lanternport, the Lantern Fair) and 6 (the south
+shore: hidden beach, sea cave, Old Dam, the boat; the "let them run" branch of the last night) and 7 (the Lost Chapel,
+the endings, the XP balance) are built — the adventure is complete. Next: the owner's play test / R8 step 8 (real backend).
+
+### What works (verified headless 2026-10-20 — `npm test`, 444 tests)
+- Bundle builds (esbuild, ES-module sources); modules: app shell, context, ALPHA core, Worlds engine, Worlds UI, onboarding.
+- **Context owner:** one wrapper/channel for everything RPmod adds to the prompt; persona
+  and AI character (Tools tab / group-chat speaker) now actually reach the AI.
+- **Worlds engine:** graph world model (locations, NPCs/persons, factions, objects,
+  events, quests, lore), compile-to-WI injection (transient/persistent, websearch- and
+  agent-mode-safe), per-turn active slice, 16 chat tags, import/export, example world
+  ("Eldoria").
+- **Two-slot runtime** (base/working), shown as **Game state**: Live game / Start state with Back to start,
+  Save as start and (Creator view) Edit start state; saved in the story file; Guide chapter "Game state".
+- **Persons** linked to library characters (`KLITE_RPMod.characters`) + optional d20 stats.
+- **Quests:** giver/turn-in, yellow `!`/`?` markers, quest log, hidden/discovered,
+  per-world `aiMode` (gm/player); repeatable/daily quests, the giver's words (R4 extras).
+- **Vendors:** shops on persons, SRD prices, reputation prices, Shop window (R4 extras).
+- **Trigger bus:** event triggers/conditions/effects with chains; faction HQs.
+- **Combat:** dice, initiative, attack vs AC, HP, checks, 330 SRD 5.2.1 monsters; **zone combat**
+  (R7 step 5): positions in zones of the room, moving/fleeing with opportunity attacks, reach and
+  range by zone, −3 in melee, cover and hiding, drawn in the Combat window, explained in the Guide.
+- **UI (in the app shell):** World tab, Party + Quests sections, Quest log / Combat /
+  World editor (node graph) windows; Creator/Player lens.
+- **Delivery:** usermod bundle, or `index.rpmod.html` that autoloads the mod after
+  Esolite's `load` event; online at https://rp-lite.koboldai.net (released Esobold + RPmod,
+  published with `npm run deploy:pages -- --push`; first deploy 2026-09-25; **v0.10.0 released 2026-10-21** on Esolite
+  origin/remoteManagement @ a90fe85a6 — Esolite unchanged since the previous release f4d807885, our four Esobold PRs
+  merged upstream; the local Esobold clone now tracks remoteManagement, not guide-extensions).
+- **Credits:** the exact SRD 5.2.1 attribution, the Ultimate Dungeon Terrain credit (zone combat idea)
+  and Lucide appear in the Guide's **Credits** chapter, the header of `KLITE-RPmod.js` (taken verbatim
+  from `src/data/srd52.js` at build time) and USER_GUIDE "Credits"; the SRD text also under every
+  Compendium entry and in the Character builder.
+- **Chat power (R6):** slash commands through the engine (`/go`, `/buy`, `/accept`, `/check` …, `/help`), quick
+  replies with a world-aware Here row, optional hiding of control tags, lorebook round trip (SillyTavern / V3 /
+  Esolite WI / Esolite's Library), `/summary` = Esolite's AutoGenerate Memory.
+- RP panels (formerly "ALPHA"; split and restyled onto the shell in the R1 cleanup 2026-09-25): CHARS/ROLES/TOOLS/CONTEXT/IMAGES panels, card import
+  (V2, partial V3), personas, group chat speaker modes, quick actions, chapters, image gen.
+
+### Gap analysis vs. the user story
+✅ done · 🟡 partial · ❌ missing
+
+| From | Feature | Now |
+|---|---|---|
+| D&D Beyond | Step-by-step character builder | ✅ levels 1–20 with spells (SRD 5.2.1) |
+| | Interactive sheet (modifiers, saves, skills, AC) | ✅ click-to-roll, stored in the card |
+| | Rules compendium | ✅ Compendium window (R3): 330 monsters, 339 spells, 258 magic items, equipment, 155 rules terms |
+| | Encounter builder with difficulty | ✅ SRD XP budget, 330 monsters, saved encounters |
+| | Combat tracker | ✅ sides, conditions, death saves, auto enemy turns (spell slots not used in combat) |
+| | Click-to-roll + game log | ✅ dice log the AI sees (combat log separate) |
+| | Leveling / XP | ✅ level up 1–20; XP from quest rewards and fights is paid to the persona's sheet |
+| SillyTavern | Character cards V1/V2/V3 | ✅ V2, 🟡 V3 (ALPHA) |
+| | Personas, group chat | ✅ ALPHA |
+| | World Info / lorebooks | ✅ Esolite + Worlds graph; round trip SillyTavern / V3 / Esolite (R6 step 4) |
+| | Quick replies | ✅ R6 step 2: left dock, editor, world-aware "Here" row |
+| | Slash commands | ✅ R6 step 1: `/go`, `/buy`, `/accept`, `/check` … through the engine |
+| | RAG, TTS, image gen, summaries | ✅ Esolite's (`/summary`, running memory, TextDB) / RP panels |
+| WoW | Marker set incl. grey `!`/`?` | ✅ |
+| | Quest log: counters, track, abandon | ✅ |
+| | Chains & prerequisites | ✅ level/quest/flag/reputation, item-started |
+| | Rewards XP/gold/choose-one | ✅ paid to the persona's sheet |
+| | Zones/subzones, hubs, phasing | ✅ |
+| | Factions & reputation | ✅ tiers, faction phases, standing lost for defeating members, vendor prices |
+| | Vendors, repeatable/daily quests, quest-giver dialogue | ✅ R4 extras (2026-09-25) |
+| Map | Places room by room, board, fog, zone combat (no VTT) | ✅ R7: dungeon/town editor, mini-map with fog, moving with door rules, AI map tags, doors/Search checks, seeded generator, zone combat with cover and hiding |
+
+### Known issues / tech debt
+0. ~~Very high disk reads/writes (player report 2026-10-20)~~ — every game change to a sheet rewrote the whole
+   character record with its portrait (2.9 MB per HP change measured with a 2.8 MB portrait, plus two reads). Fixed
+   with the **live sheet** (ARCHITECTURE §5b, store): game changes go into `rpmod_sheet_<id>` (a few KB), the card is
+   written after 15 s of quiet / after a fight / when the page is hidden. Idle RPmod writes nothing (measured).
+1. ~~"Monster / NPC combatant" flag does nothing~~ — decides the combat side since R5 (a monster is
+   never an ally; victory = every enemy down).
+2. ~~Chat tags remain visible~~ — optional since R6 step 3 (2026-09-25): Settings → RPmod → Display → "Hide control
+   tags in the chat" (off by default) removes them from the shown chat; the story keeps them.
+3. ~~Worlds panel overlaps ALPHA's right panel~~ — fixed by the shell (2026-09-23).
+4. ~~Two systems inject character data~~ — one owner since 2026-09-23 (`src/context/`); the
+   remaining double card (Start RP's `<name>_imported_memory` WI + the context's copy) fixed
+   2026-09-25, owner's decision: **Esolite's WI carries the card text** (Esolite already picks
+   the persona's and the current speaker's entries each turn); the context then adds only the
+   d20 sheet. Without such entries the context sends the card as before. Live-checked: the
+   captured prompt holds the card once. "Load as scenario" still writes Memory (story data).
+5. **Real-backend play test: started 2026-10-20** (see R8 step 8): Gemma 4 31B and DeepSeek V4 Pro (Novita, OpenAI-
+   compatible chat completions) through the starter adventure's layer 1 in the browser — Brindlewick, the Forest Road
+   ambush, the Hollow Oak (trap, wolves, the chief, the chest, a locked door), up to a total party kill. Twelve RPmod bugs
+   found and fixed the same day (known issues 27–34 and the commits of that day); the open items are listed under R8.
+6. `index.rpmod.html` boots the bundle at `window.load` (later than the usermod path); verify
+   top-bar icon layout matches the usermod install.
+7. ~~Monster presets are SRD 5.1~~ — replaced by the 330 SRD 5.2.1 monsters (R5, 2026-09-23).
+8. ~~ALPHA is a 17.7k-line monolith~~ — split 2026-09-25 (R1 cleanup, step 2) into `src/rpmod/`
+   (core, host helpers, templates, styles, RP mode, boot), `src/panels/` (tools, context, scenario,
+   roles, chars) and `src/characters/cardEditor.js`, moving code without rewriting it; the
+   "ALPHA" name is gone from the code. Still large: `rpmod/core.js` (one object literal, ~4k
+   lines) and `panels/chars.js` (~2.5k).
+9. ~~`<take>Item</take>` without a count removed the whole stack~~ — decided 2026-09-25 (R4):
+   `<take>` without a count removes one, like `<give>` adds one; `<take>Item x all</take>` removes
+   the stack. Covered by a test.
+10. ~~Six duplicate object keys in ALPHA~~ — removed 2026-09-25 (R1 cleanup, step 1): the dead
+    earlier copies of `updateSubmitBtn`, `setMode`, `loadSettings`, `saveSettings`,
+    `extractTalkativeness`, `importWorldInfoEntry`; esbuild builds without warnings. Behaviour is
+    unchanged (the last copy always won). Two dead copies did more than the live ones: the old
+    `setMode` also switched RP formatting on/off and set `inject_chatnames_instruct` for chat/RP
+    modes, and the old `extractTalkativeness` also scored lorebook entries and example-dialogue
+    length — if either is wanted, it is a new feature (git history has the code). With them went
+    69 methods nothing referenced (old overlay UI, an unused "unified save", PNG export helpers,
+    character modal extras) — ALPHA 17,494 → 15,018 lines.
+11. **Host bug (Esolite 1.35.0, not ours):** the plain `index.html` logs
+    `SyntaxError: Identifier 'lastPendingResponse' has already been declared`
+    (`static/js/postSubmitHandler.js`). Seen with and without the mod; no visible effect so
+    far. Recheck on the next host upgrade.
+12. ~~World state changed by AI chat tags reaches the UI only at the next send~~ — fixed in R7
+    step 2: tags are parsed when the reply arrives (wrapper around Esolite's
+    `handle_incoming_text`); the per-turn clock step stays at generation.
+13. ~~The RP panels' inner markup carries many inline styles~~ — moved onto the shell's classes
+    and spacing scale 2026-09-25 (R1 cleanup, step 3); a test keeps inline styles out.
+14. **Quick Start adapter depends on Esolite internals** (`showQuickStartPopup`,
+    `applyQuickStartSelection`, `clearAllQuickStartSelections`, `popupUtils.contentElem`).
+    Falls back gracefully (no RPmod section) if they change. Only used on hosts without
+    Esolite's mod hooks: Esobold merged the Quick Start hook (esolithe/esobold#65,
+    `QuickStartExtension`), which RPmod prefers (2026-09-24). The same holds for RPmod's
+    own settings tab (hook: #66) and guide window (hook: #67). Drop the fallbacks once the
+    supported host version has the hooks.
+15. ~~Two character libraries~~ — decided: Esolite's Library is the master; the RP core's
+    `KLITE_RPMod.characters` is a gallery view rebuilt from it (plus RPmod-only rating/
+    talkativeness/tag cache in `characters_v3`). Finished 2026-09-25: entries are keyed by the
+    **Library id** (extras survive add/delete/rename; old position ids matched by name once;
+    saved group participants, persona and AI character relinked), and the 5 s poll is replaced
+    by wrapping Esolite's `updateCharacterListFromAll` + `upsertCharacterMetadata` (Esolite has
+    no Library events; the poll stays only as a fallback without them). Live-checked: a new
+    character shows up in ~50 ms; rename keeps id and rating; delete is picked up.
+16. **Esolite 1.35 Library internals used by RPmod** (`resolveCharacterNameAndId`,
+    `upsertCharacterMetadata`, `updateCharacterListFromAll`, `findCharacterMetaByName`,
+    `getNextAutoincrementName`, `STORAGE_PREFIX`, `allCharacterNames`; the two list functions are also
+    wrapped for syncing, issue 15): recheck on every host upgrade; a small official save/delete API
+    with a "Library changed" event would be a good next proposal to Jaxxks.
+17. ~~Combat HP and sheet HP are separate~~ — the fight starts at the persona sheet's current HP
+    and writes HP/XP back (R5, owner's decision). Companions keep their HP too since 2026-09-25
+    (their sheet, else the story's `partyHp`); the Long rest restores it.
+18. ~~Flaky test seen once (2026-09-23)~~: "Combat window: build an encounter…" failed in one full
+    run and passed in ~10 runs since; the failure text was not captured. Full-run output is now
+    kept while developing; investigate if it shows up again. **Seen again 2026-09-24** (one full run
+   during R7 step 3; passed in 6 isolated runs and the next full run; the failure text was again not
+   captured — keep the full `npm test` output next time it fails).
+   **Fixed 2026-09-25 (root cause found):** the failure was "Cannot read properties of null" —
+   the Combat window had vanished. A second `load` event started WorldsUI again; registering its
+   views a second time force-closed the open window (`registerView` of an existing id unregisters
+   it). Reproduced under parallel load with a removal trace. Every module's load-time start now
+   runs once (`{ once: true }`, plus run-once guards in the Worlds engine and WorldsUI); test
+   "startup runs once" in `tests/rpmodPanels.test.js` fails without the fix.
+19. ~~Worlds created right after page load could overwrite the stored worlds~~ — fixed 2026-09-25
+    (found during the R7 acceptance check): the Worlds API exists before the library has loaded
+    from IndexedDB, so an early "New world" / "Load example" saved a library without the stored
+    worlds. Saves now wait for the load, the load keeps worlds created meanwhile, and a library
+    that cannot be read is copied to `KLITE_WORLDS_LIBRARY_corrupt_<time>` before anything is saved
+    over it. Tests in `tests/engine.test.js` ("library: …"). Whether this caused the example world
+    to disappear from the test browser is unknown (another chat also used that browser).
+20. **Two speaker choices in group chat** (found 2026-09-25 in the live check of issue 4): the
+    Roles tab keeps its own "Next" speaker (speaker modes, round robin, talkativeness), but a
+    normal chat submit lets Esolite's group chat pick the speaker itself (seen: Roles "Next:
+    Borin", Esolite answered as Aria). They agree only when the turn is started with **Trigger
+    Speaker**, which sets Esolite's opponent. The per-turn context follows the Roles choice, so on
+    a normal submit the sheet it adds can belong to a different character than the one speaking.
+    Decide: let Roles set Esolite's speaker on every submit, or follow Esolite's choice.
+21. ~~Reset/Swap replayed chat tags~~ — fixed 2026-09-25: the chat position up to which tags were
+    applied (`lastParsedIndex`) was stored in each state slot, so "Reset" (now **Back to start**)
+    brought back an older position and the next turn applied every tag since then again (moves,
+    flags, even `<give>` items onto the persona sheet a second time); switching slots did the same.
+    The position now stays with the chat across Reset/Swap, and a new runtime starts at the current
+    end of the chat (enabling a world mid-chat no longer applies that chat's older tags). Tests in
+    `tests/engine.test.js` fail without the fix.
+22. ~~Start state of your own worlds~~ — fixed 2026-09-26 (R8 step 1): a world has a start
+    (`world.start`: place, clock, view; editor: world node → "Start of a new game"), and each world
+    keeps its own game in the story — switching parks the current one (saved with the story) and
+    brings back the other's, or begins it at its start. New worlds and lorebook restores go the
+    same way, so no world inherits another's places any more.
+23. ~~Sheet changes lost when rewards arrive close together~~ — fixed 2026-09-26 (found by the R8 layer-1
+    playthrough): `updateSheet` saves in the background, and a finished save (or the Library change
+    it fires) replaced the cached sheet with the copy it had saved, dropping changes made meanwhile;
+    the next save wrote the older sheet back. In play: XP, gold or items vanished when a turn-in or a
+    fight's end followed a `<give>` closely. The cache now counts changes and never lets what is read
+    from the card replace unsaved ones. Test in `tests/characters.test.js`.
+24. ~~A total party kill just ended as "Defeat"; dying companions never rolled death saves~~ — owner's
+    play test 2026-09-26: the whole party died. Now: **Game over** when everyone in the party has died
+    (window + Party banner: restart from the start, with an optional reset of the adventure's pregens,
+    create a new hero, choose another character; the AI ends the story); fallen-but-stable stays a
+    defeat. Dying companions roll their own death saves (before, such a fight could never end).
+    Tests: `tests/gameover.test.js`.
+26. ~~The story's world state and persona were lost on every page reload~~ — fixed 2026-09-26 (found while
+    checking the sheet overhaul in the browser): Esolite restores its autosaved story during its own start-up,
+    before RPmod wraps `kai_json_load`, and autosaves it again without RPmod's blocks. RPmod now keeps a side
+    copy of its blocks per chat (`src/context/storyCopy.js`) and restores it at start-up when the chat matches;
+    starting an adventure (or a game-over restart, or Quick Start with a world) also autosaves once the world is
+    chosen. Tests in `tests/openItemsR8.test.js`.
+25. ~~Play-test feedback (owner, 2026-09-26)~~ — done 2026-09-26: the AI did not notice moves/searches made
+    on the mini-map. The map is now a view (places as points outside dungeons/towns, the room board
+    inside); walking, doors, unlocking, searching and "Ask to join" come from the Here quick replies
+    (which send a message); a **Quick travel** checkbox allows clicking to move, and the AI is told the
+    journey was skipped. The Quest log shows accepted quests (+ those offered here); a **Quest editor**
+    (Creator view) lists every quest; **Reputation** is its own window and shows only factions met.
+    Arriving at a place now counts as visited. Tests: `tests/questlogR8.test.js`, reworked map tests.
+27. ~~Encounter turn bugs~~ — fixed 2026-10-20 (owner: "the encounter system seems to have problems"; found by
+    reading the code, reproduced headless): (a) a **dying companion never got a turn** in the real turn order —
+    `canTakeTurn` let only the player act while down, so End turn skipped it and its death saves were never
+    rolled (the game-over test called `autoTurn` directly and missed it); (b) as a result a fight with the player
+    stable or dead and a companion dying **never ended** (the enemies looped "has no one left to attack");
+    (c) the player could **attack any number of times per turn**, with zones (`attacked` never blocked) and
+    without. Now: dying party members take their turn (automatic: the death save; with automatic turns off the
+    turn panel shows *Roll death save* for the companion too); **one Attack action per turn** (`cb.turnUse`,
+    API `attacksLeft`) with **Extra Attack** from the sheet's class and level (`attacksPerAction` in
+    `sheet.js`, SRD: 2 at level 5, the Fighter 3 at 11 and 4 at 20) and Multiattack for monsters; an action
+    spell and the Attack action exclude each other (zones did this already), a bonus action spell does not;
+    reactions and the GM's tools are not limited. Tests: `tests/combatTurns.test.js` (fail without the fix).
+    Not changed (noted): a party member who starts a fight at 0 HP starts it dying rather than stable; a
+    fight the AI starts with `<encounter>` does not run the enemies' first turns at once (the window's Start
+    does); saving an encounter from the builder keeps only its enemies, not chosen allies.
+28. ~~Retry lost the fight's results~~ — fixed 2026-10-20 (found in the real-backend play test with Gemma 4 31B):
+    the game log marked "rolls since your last reply" as narrated when a turn was sent, so Esolite's **Retry**
+    (and Undo + resend, or a request that failed) sent the next attempt without them — the model then invented
+    its own rolls. The mark now follows the chat (`rpmod_log.marks`, additive: `{ chat, from }` per turn): while
+    the turn's reply is not in the chat any more, the next send carries those results again. Test in
+    `tests/characters.test.js`.
+29. ~~`<go>` refused RPmod's own place names; tags inside a model's thinking were applied~~ — fixed 2026-10-20 (play
+    test, Gemma 4 31B with thinking): the AI copies an exit the way the prompt lists it — `<go>Wolf Den (corridor)</go>`
+    — and RPmod answered "there is no such place". `<go>` now also understands "Name (exit type or state)",
+    "Town (Room)" (as the Here row names it) and "east: Name". And reasoning models put their thinking into the reply
+    (`<think>…</think>`, Esolite's thinking tags): RPmod read tags there too, so a tag the model only considered was
+    applied, and one it wrote in both places counted twice (a `<give>` gave two). The thinking is skipped now (also
+    an unclosed block of a cut-off reply). Tests: `tests/playtestR8.test.js`.
+30. ~~The combat prompt contradicted itself~~ — fixed 2026-10-20 (play test): on the player's turn it said "It is the
+    player's turn: set the scene and wait for their action", but the player acts in the Combat window first and then
+    writes in the chat, so the results above already showed their attack. Gemma 4 with thinking spent its whole
+    reasoning on that contradiction (a loop until the reply was cut off). The prompt now says whether the player has
+    acted this turn (`turnUse`, the zone turn), asks to narrate every result in order, and that other turns are told
+    only once RPmod has run them. Test in `tests/playtestR8.test.js`.
+31. ~~RPmod's context sat before the whole chat~~ — done 2026-10-20 (owner's decision after the play test: a wolf the
+    AI had narrated earlier was "still circling" although RPmod reported "Victory"; the context sat at character 785
+    of 30,000, before ~29,000 characters of chat): RPmod needs World Info **"Before A/N" + "Strong"**. It asks once
+    (Yes/No) when a story is set otherwise, and after Yes keeps it set after every New Session and story load
+    (`src/settings/contextPlacement.js`, setting `context_placement_auto`). Tests: `tests/contextPlacement.test.js`.
+    RPmod waits while Esolite's Yes/No box shows its own question (the reconnect question after a reload).
+32. ~~The game log was empty after a page reload~~ — fixed 2026-10-20 (play test): known issue 26 gave the world state
+    and the RP block a side copy for Esolite's start-up autosave, but not the dice/combat log (`rpmod_log`), so the
+    log — and with it the results a Retry sends again — was gone after every reload. The log now keeps its side copy
+    too (`rpmod_storycopy_log`, same chat only). Test in `tests/playtestR8.test.js`.
+33. ~~A Here-row move led on through a second, unasked exit~~ — fixed 2026-10-20 (play test): "/go east | I go to
+    unexplored room." moved the party into the storeroom; the AI echoed `<go>unexplored room</go>`, which by then meant
+    the next unknown exit (a secret door just found), and the party stood in the chief's hollow. The Here row's
+    message is now "I go to {here}.", filled with the place the move really led to; the AI's echo of it is a move to
+    where the party already is (nothing happens). Test in `tests/playtestR8.test.js`.
+34. ~~Containers never handed out what is inside~~ — fixed 2026-10-20 (play test, the chief's chest): `contains[]` was
+    stored but nothing used it — the AI was not told the contents and made some up, and the keys of locked doors
+    (Bone/Iron/Brass Key) and quest items (the Lake-green Coin) lying in containers could not be had (the content
+    test assumed the AI would write `<give>`). Now a container is opened once — `<open>name</open>`, `/open`, the Here
+    row's **Open: …** — and its contents go to the inventory, coins to the purse; the prompt says unopened/emptied.
+    `<give>14 gp</give>` gives coins (it made an item "14 gp"). Test in `tests/playtestR8.test.js`.
+
+## Phases
+
+Each phase ends **playable and tested**: `npm test` green, `ROADMAP.md` updated, commit.
+
+### R0 — Foundation ✅ (2026-09-23)
+Goal: restart on a clean, documented, tested base without changing behavior.
+- [x] Baseline tag `worlds-baseline-2026-07`.
+- [x] Repo cleanup: single host reference (`Esobold Esolite a fork of KoboldAI Lite very
+      newest/`); older host copy + `klite.embd` + old `AGENTS.md` → `BackupData/`; guide
+      exports → `docs/exports/`; generated files untracked + `.gitignore`.
+- [x] Sources in `src/`, build scripts in `scripts/`, `package.json` with npm scripts.
+- [x] Test suite in `tests/` (Node test runner + jsdom): syntax, engine, quests, triggers,
+      combat, UI, bundle — 28 tests at R0, ~1.5 s.
+- [x] Docs: `CLAUDE.md` (replaces outdated `AGENTS.md`), `docs/USERSTORY.md`,
+      `docs/ROADMAP.md`, `docs/ARCHITECTURE.md`.
+Acceptance: `npm run build` produces an identical-behaving bundle; `npm test` green;
+no functional change. ✔
+
+### R1 — App shell + design system ✅ (2026-09-23)
+Goal: one coherent application inside Esolite instead of three overlapping UIs.
+- [x] Convert sources to ES modules bundled with **esbuild** into the same single file
+      (2026-09-23). Sloppy-mode audit: nothing to fix — all four sources already ran as
+      `'use strict'` IIFEs with no code outside them. Live-checked in `index.rpmod.html`.
+- [x] Host upgraded to Esolite RMv1.35.0; Worlds no longer treats Esolite's new slash
+      commands as game turns (test).
+- [x] Shell layout decided with the owner (2026-09-23): **two docked sidebars** (left:
+      party/character + quest tracker; right: tabbed tools) around Esolite's chat;
+      bigger views (sheet, quest log, compendium, combat, editor, map) as **floating
+      windows** (drag, resize, several open, positions remembered); **neutral style
+      matching Esolite** (bind to its `--theme_color_*` variables); GuidedRP becomes a
+      **first-run "start a session" flow** inside the shell.
+- [x] Shell skeleton (2026-09-23, `src/shell/`): left/right docks (docked ⇄ overlay ⇄
+      compact), view registry, floating window manager, layout persistence, `--rpm-*`
+      design tokens bound to Esolite's theme, single top-bar button. Live-checked in
+      Esolite 1.35 at 1440×900 and 375×812, dark theme + simulated light theme.
+- [x] Worlds migrated: World tab (right), Party + Quests tracker (left), Quest log + Combat
+      windows; views refresh on the engine's new `klite:worlds-change` event. Old floating
+      `#wm-panel` and 🌐 navbar button removed.
+- [x] ALPHA's right panel adopted as the **Characters** tab (no more overlap — known
+      issue 3 fixed).
+- [x] **Unified look (2026-09-23):** shell, Worlds views, Worlds editor, ALPHA panels and
+      modals, GuidedRP variables all use Esolite's theme variables and native control
+      classes (`btn-primary`, `form-control`, `nav-link`); RPmod's semantic colours are
+      `--theme_color_rpmod_*` and show up in Esolite's theme editor. ALPHA's sub-tabs are
+      shell tabs (Chars/Roles/Scenario/Tools). Live-checked in "Default (Cedo)", "Tako"
+      and "Light Sand". Test guard against duplicate function names added.
+- [x] **Onboarding (2026-09-23):** builds on Esolite's **Quick Start** (Jaxxks) instead of a
+      wizard — RPmod adds an "RPmod world" section (adapter now; official hook proposed in
+      `docs/proposals/quick-start-extensions.md`). New **RPmod Guide** window (11 chapters, 12 since R2,
+      "Show me" highlights), "New here?" card and `?` button. **GuidedRP retired** (source in
+      `BackupData/legacy/`, `guided_rp` save blocks preserved). Live-checked in Esolite.
+- [x] **Esolite mod hooks (2026-09-24):** contributed upstream and adopted — Quick Start
+      section via `QuickStartExtension` (esolithe/esobold#65, merged), RPmod settings tab via
+      `SettingsExtension` (#66), RPmod Guide as a tab of Esolite's new top-bar Guide via
+      `GuideExtension` (#67). Each falls back to RPmod's own adapter/tab/window on older
+      hosts. Host now = the local Esobold clone: `npm run build:host` / `build:index` /
+      `serve`; the 1.35.0 copy is removed from the repo.
+      Two timing-sensitive tests (Combat window, reputation Quest log) now wait for their
+      window instead of a fixed delay.
+- [x] Test runner guard: `npm test` fails if fewer tests ran than `tests/.test-count`
+      (a test file had been ending early without any failure).
+- [x] **World editor is a shell window** (2026-09-23): the full-screen `#wm-overlay` is
+      gone; view `editor` opens large (`window.large`), edge to edge (`flush`), is not
+      restored at startup (`restore:false`) and cleans up via the new `unmount` hook. All
+      windows gained **maximize/restore** (button or title-bar double-click, remembered).
+      Narrow windows/phones stack palette strip → canvas → inspector. Live-checked in
+      Esolite at 1024×768 and 375×812.
+- [x] **Single context-injection owner** (2026-09-23): `src/context/context.js`
+      (`KLITE_RPMod_Context`) owns the one `prepare_submit_generation` wrapper and the one
+      channel (constant WI entries, wigroup `__rpmod__`, transient/persistent, websearch-
+      and agent-safe, stripped from saves). Providers: **worlds** (the slice) and
+      **characters** (ALPHA persona + AI character / group-chat speaker). A character
+      described in full is only listed under Nearby NPCs. Found and removed three ALPHA
+      paths that never reached the AI: group-chat text in `pending_context_preinjection`
+      (Esolite overwrites it in chat mode and prints it into the reply otherwise), the
+      Tools persona/character injection (hooked on the wrong object; would have written
+      into the input box) and the panels-only-disabled `chat_submit_generation` wrapper.
+      Group-chat triggers run as one context turn (`run`). Known issue 4 resolved.
+      Live-checked the hook chain in Esolite (no backend).
+- [x] **Character store decided + data-loss bug fixed** (2026-09-23): Esolite's Library is
+      the master (USERSTORY decision); ALPHA's gallery is a Chub.ai-style view on it.
+      Found that on Esolite 1.35 ALPHA's gallery **edit and import made characters vanish
+      from the Library** (it wrote `character_<name>` and id-less list entries, which 1.35's
+      `updateCharacterListFromAll` drops; the record stayed in storage). New
+      `src/library/esoliteLibrary.js` writes through Esolite's own id-based functions
+      (edit keeps id + favorite, rename keeps id, import follows Esolite's `Name_1` rule,
+      delete by id) and **recovers orphans** once per load (only id-less, unreferenced
+      TavernCard records; waits for Esolite's id migration). Worlds now resolves linked
+      characters by name first (gallery ids are list positions) and the editor dropdown
+      links by name (the numeric id never matched). Reproduced and verified live.
+- [x] **Icon set** (2026-09-23): Lucide (ISC; Feather-derived icons MIT) — dev dependency
+      `lucide-static` (1.43.0, the newest version the npm min-release-age policy allowed),
+      `npm run icons` copies the used subset into the committed `src/shell/icons.js` with
+      the licence as a legal comment (kept in the bundle). Shell chrome, Worlds views,
+      editor, Guide and "New here?" use it; ALPHA's emoji stay until its panels migrate.
+- [x] Test runner: dropped `--test-force-exit` — on Node 22 it ended a test file part-way
+      (exit 0) once that file ran ~1 s, silently dropping tests; the count guard caught it.
+      A 180 s timeout replaces it.
+- [x] **RPmod settings in Esolite's Settings dialog + world autosave option** (2026-09-23):
+      `src/settings/settings.js` adds an **RPmod** tab built like Esobold's own tabs
+      (values in `localsettings.rpmod_*`, applied on OK, discarded on Cancel); ALPHA's
+      debug/Corpo options moved there from Misc; the obsolete "sidepanel overlays chat" option
+      is gone (it could push the chat aside next to the shell). Worlds: **"Autosave world
+      edits"** (default off, owner's call); unsaved-change tracking (`Save •`, World-tab card,
+      ask on editor close, browser warning on leave), **Revert to saved**. Live-checked.
+- **R1 acceptance met** (no overlapping panels, everything reachable from the shell, tests
+  green, live-checked). Carried into later phases: ALPHA's code still lives in the
+  monolith (known issues 8, 10, 13) — its panels migrate as R2 rebuilds characters.
+- **Cleanup of the old panel code (reopened 2026-09-25, owner).** The name "ALPHA" is a legacy
+  version label and goes; the code ships in the one usermod file as before (Esobold runs a mod
+  as one classic script via `new Function`; esbuild bundles `src/`).
+  - [x] Step 1 (2026-09-25): duplicate keys and 69 unreferenced methods removed (issue 10), the
+        fallback gallery grid removed; regression tests `tests/rpmodPanels.test.js` (`rpmod` save
+        round trip, all panels render); found and fixed on the way: known issue 18 (double
+        start-up closed open windows).
+  - [x] Step 2 (2026-09-25): split into `src/rpmod/` (index, debug, characterContext, host,
+        templates, liteApi, styles, core, rpMode, boot), `src/panels/` (tools, context, scenario,
+        roles, chars) and `src/characters/cardEditor.js` — each part an `install…(S)` holding its
+        old section unchanged, started in the old order (issue 8). Also removed: the 2,700-line
+        overlay stylesheet `STYLES`, never injected (only `STYLES_PANELS_ONLY` is); the syntax
+        test's legacy exemption (the new files pass the strict check). The "ALPHA" name is gone
+        from code, tests and CLAUDE.md/ARCHITECTURE (kept in history notes); settings block id
+        `alpha` → `rp-panels` (a DOM id, no stored data). Bundle 2.64 → 2.40 MB. Not split
+        further: the image panel and the character selection modal live inside `core.js`'s
+        object literal (moving them would mean rewriting). Live-checked in Esolite: all panels,
+        New Character editor, context calculation, dice, gallery, `rpmod` save/load.
+  - [x] Step 3 (2026-09-25): the RP panels (Chars incl. detail view and card editor, Roles,
+        Scenario, Tools incl. Context and image panels), their two modals and the RPmod block in
+        Esolite's settings use the shell's classes and spacing scale (issue 13): ~260 inline styles
+        and ~70 style assignments gone; left only where a value comes from data (token-bar widths,
+        auto-sender progress, image sizes). `STYLES_PANELS_ONLY` rewritten on `--rpm-*` tokens and
+        trimmed to what the shell lacks (sections, modals, character rows, insets, token bar); the
+        dead pre-shell rules (fixed panel, handle, own tab bar) and the shell's `!important`
+        overrides of them are gone, as are the page-wide `:root` `--bg/--text/…` aliases. New shell
+        helpers: `rpm-stack/wrap/fill/grid2/grid4/mt/mb/center/small/empty/check/note/avatar/tag/
+        dim/disabled/text-*`, button sizes `rpm-sm`, `rpm-warning`. Also removed: the dead grid
+        renderers of the old CHARS gallery (drew into the removed `#char-gallery`) and a no-op
+        theme observer. Found and fixed on the way: untrusted names/fields went into HTML
+        unescaped (group list, custom-character modal, Scenario fields from cards, lorebook
+        "Import to WI", quick actions); `escapeHtml` now also escapes quotes. Visible changes:
+        spacing on the 4/8/12 px scale; the token bar's story/quest and "next speaker" colours
+        come from the theme's RPmod colours; the "Add Custom Character" modal (previously
+        unstyled) has a title bar and padding; the selection modal's filters wrap on phones.
+        Compared before/after in the browser (dark and light theme, dock 300/350/520 px, phone
+        portrait/landscape). Tests: `tests/rpmodPanels.test.js` (no inline styles or old control
+        classes in any panel view or modal, stylesheet on tokens only, names stay text).
+  - [ ] Step 4: top-bar icons, usermod install vs `index.rpmod.html` (issue 6).
+- App shell: docked sidebars + a window manager for sheet, quest log, compendium, combat,
+  editor, map; one entry point in the Esolite top bar.
+- Design system: tokens (color, type, spacing) bound to Esolite's theme variables,
+  neutral look matching Esolite; icon set (Lucide, ISC) bundled offline.
+- Migrate the Worlds panel and editor into the shell; migrate ALPHA panels one by one;
+  onboarding on top of Esolite's Quick Start + RPmod Guide (GuidedRP retired).
+- **Single context-injection owner** (resolve known issue 4).
+Acceptance: no overlapping panels; all existing features reachable from the shell; tests
+green; live check in `index.rpmod.html`.
+
+### R2 — Characters (D&D Beyond × SillyTavern) ✅ (2026-09-25)
+Rollback point before R2: tag **`r1-complete-2026-09-23`** (R2 started before the first
+play test with a real backend, owner's decision 2026-09-23).
+- [x] **Step 1 — sheet on the card** (2026-09-23): `src/characters/` — sheet model (SRD 5.2
+      rules: modifiers, proficiency by level, saves, 18 skills incl. expertise, initiative,
+      passive Perception, attacks, inventory, coins) stored in the card at
+      `data.extensions.klite_rpmod.sheet` (older `klite_rpmod` keys such as ratings are kept);
+      **Character sheet** window (any Library character; click-to-roll with advantage/
+      disadvantage; draft + Save/Revert, optional autosave setting, ask on close; keyboard
+      focus kept across re-renders); **dice + game log** `src/game/log.js` (per story, saved
+      as `rpmod_log`; AI sees rolls since its last reply); persona/character sheet summary
+      in the prompt; Worlds persons linked to a card use its sheet when they have no stat
+      block, the player uses the persona sheet. Portrait PNG: old card chunks stripped, V2
+      card embedded (Esolite appends chunks and embeds only the inner object — tell
+      Jaxxks). Live-checked in Esolite.
+- [x] **Character gallery** (2026-09-23, owner: new view, "I want to see my characters",
+      big images like wyvern.chat, full screen): `src/characters/gallery.js` — window
+      `gallery` (opens maximized, remembers a user-chosen smaller size), Wyvern-style cards
+      (2:3 portrait, name/creator/tagline/tags/tokens over a dark gradient, badges You/AI/
+      sheet), sizes Large/Medium/Small/List (ALPHA's views), search, sort, tag chips with
+      counts, detail page (full card text, rating, actions: play as persona, AI plays, sheet,
+      edit via ALPHA's editor, download/favorite via Esolite, delete). Lazy loading of records
+      and full images (IntersectionObserver), summary cache `KLITE.gallery.index`. ALPHA's
+      selection logic extracted to `TOOLS.usePersona/useCharacter`. Live-checked.
+- [x] **SRD 5.2.1 data** (2026-09-23): official PDF downloaded (owner's request) to
+      `docs/reference/` (git-ignored); `scripts/extract-srd.py` (pypdf) → `src/data/srd52.js`
+      (114 KB): 12 classes (core traits, level 1–3 features, SRD subclass, spell progression,
+      standard-array suggestion), 4 backgrounds, 9 species with traits, origin + fighting
+      style feats, weapons, armor, XP table, languages, alignments, exact attribution.
+- [x] **Character builder + level up (levels 1–3)** (2026-09-23): `builder-rules.js` (pure:
+      standard array / point buy / 4d6, background +2/+1 or +1/+1/+1 capped at 20, skills incl.
+      Human/Elf/Barbarian/Skilled picks, expertise, fighting styles, HP with fixed per-level
+      values and Dwarven Toughness, AC from armor/shield/Unarmored Defense/Draconic Resilience
+      /Defense, speed incl. Wood Elf and Unarmored Movement, weapon attacks with finesse and
+      proficiency, starting equipment + coins, spellcasting incl. Pact Magic, feature list),
+      `builder.js` (7-step window, SRD texts, review, create new Library character or sheet
+      on an existing one), sheet: spellcasting section (DC, spell attack roll, slot tracking,
+      spells text), proficiencies, AC note, **Level up**. Choices stored in `sheet.build`.
+      Acceptance "build a level-1 character end to end, roll from the sheet, level up" covered
+      by tests + live check; "export and re-import as a card": SillyTavern round trip done
+      2026-09-24 (below).
+- [x] **Party shows the persona; person blurbs from linked cards** (2026-09-23): the Party
+      section shows the enabled persona (name, species · class level, HP bar, AC, speed; the
+      combat tracker's HP during a fight), "Choose in gallery" without a persona and **Build**
+      when its card has no sheet; it follows persona changes (`klite:persona-change`) and
+      sheet saves. A Worlds person linked to a card and without its own text now gets a short
+      blurb from the card (personality, else description) — before, the link only worked when
+      ALPHA's gallery happened to hold the text. Card edits refresh it (`klite:library-change`).
+      Worlds' player sheet now follows the *enabled* persona (as the AI context already did).
+      Live-checked in Esolite.
+- [x] **ALPHA's Chars tab → gallery** (2026-09-23): the tab keeps import (drop zone), backup
+      and ALPHA's card editor (**New Character**, the gallery's **Edit**) and lists the Library's
+      characters (favorites first) as shortcuts into the gallery; ALPHA's second gallery grid is
+      no longer shown (its code stays as a fallback until ALPHA's CHARS code is removed). The
+      gallery gained **Import** (Esolite's importer) and refreshes on Library writes. Live-checked.
+- [x] **Exported card = complete V2** (2026-09-23): the card embedded in the portrait PNG fills
+      every field the V2 spec requires (empty values; builder/editor cards lacked several) and
+      leaves out ALPHA's WI-group *name* stored in `character_book` (the spec wants a lorebook
+      object). The stored record is unchanged. (SillyTavern round trip and the portrait-less
+      download: see below.)
+- [x] **Levels 4–20** (2026-09-23): `extract-srd.py` now parses the 12 class tables (features,
+      class resources, spell slots per level 1–20; level 1–3 results asserted against the old
+      hand-checked values), all class/subclass feature levels and the 7 Epic Boon feats.
+      Builder: start at any level, **Feats** step at Ability Score Improvement / Epic Boon levels
+      (ASI +2 or +1/+1 max 20, Grappler, origin feats, fighting styles, boons max 30, with
+      prerequisites and "already have it" checks), expertise at Rogue 6 / Bard 9 / Ranger 9,
+      Champion's second fighting style, capstones, extra saves, movement, class resources on the
+      sheet. Fixes found on the way: **Draconic Resilience HP** was missing (sorcerer 3+);
+      **level up dropped the spells** written on the sheet (now kept, with used slots); level up
+      computed AC/attacks from the starting equipment instead of the current inventory.
+      Not modelled then (text only): Alert's initiative bonus, Jack of All Trades, Cleric/Druid
+      order choices, Magic Initiate spells — all done since (spells and small rules, below). Live-checked.
+- [x] **SillyTavern round trip** (2026-09-24, owner, SillyTavern; test card from
+      `scripts/roundtrip-card.js make`, returned files checked with `… check`): RPmod's PNG comes back
+      from SillyTavern as a **V3** card (`chara` + `ccv3`, same data) with **every field, the
+      lorebook, an unknown extension and the RPmod sheet intact** — also after editing the card
+      in SillyTavern (only line endings become CRLF). SillyTavern's edited V3 PNG imported back
+      through Esolite's real importer (`managerUploadHandler`) keeps the sheet: RPmod reads it
+      (live check). The **bare inner JSON** Esolite downloads for a character without a portrait
+      is read as V1 and loses system prompt, post-history instructions, version, alternate
+      greetings, lorebook and all extensions (the sheet) — so RPmod's gallery **Download** now
+      writes a complete V2 JSON for such characters. Upstream fix for Esolite's own Library download
+      (and two existing "Upload all" data-loss bugs found while testing it: a name race and old
+      archives' empty-description characters): **esolithe/esobold#68** (open). Fixtures `tests/fixtures/sillytavern/`, test
+      `tests/roundtrip.test.js`. **R2 acceptance met** except spells.
+- [x] **Spells** (2026-09-25; SRD spell data pulled forward from R3 like the monsters):
+      `extract-srd.py` → `src/data/srd52-spells.js` — **339 spells** (level, school, classes,
+      casting time, range, components/material, duration, concentration, ritual, text, higher-level
+      and cantrip-upgrade notes, best-effort attack/save/damage/heal; the summoned creatures' stat
+      blocks attached to Animate Objects, Find Steed, Giant Insect, Summon Dragon). Checked against the
+      eight class spell lists; SRD inconsistencies are reported (Flaming Sphere's school, Mind Spike
+      and Phantasmal Force missing from lists — the spell's own header wins). `SPELL_GRANTS`: species
+      spells (elf lineages, gnome lineages, tiefling legacies + Thaumaturgy) and the SRD subclass
+      spells (Life Domain, Circle of the Land by land type, Oath of Devotion, Draconic, Fiend),
+      transcribed and checked against the text. Rules `src/characters/spell-rules.js` (limits from the
+      class table incl. pact magic and the wizard's spellbook 6 + 2/level, always-prepared spells,
+      **Magic Initiate** from Acolyte/Sage/human origin feat/ASI feats with a different list each
+      time, blocking errors for too many/invalid spells, non-blocking reminders, cantrip scaling,
+      slot choice). Builder: **Spells** step (also at level up; optional, "choose later on the
+      sheet"), species spell ability, land type. Sheet: spells by level with text, Hit/Dmg/Heal,
+      save DC, **Cast** (lowest free slot, logged for the AI), free casts (once or PB per Long Rest),
+      restore slots, **Change spells** (kept in `build.spells` for level up); the AI summary lists the
+      spells. Sheet fields additive (`cantripsKnown, preparedSpells, spellbook, granted, freeUsed`;
+      unknown spellcasting fields are now kept). Shared picker `spellPicker.js`. Tests
+      `tests/spells.test.js`. Live-checked in Esolite (Life Domain cleric 3 with Magic Initiate).
+- [x] **Small rules** (2026-09-25): **Alert** (from the human origin feat, the Criminal background
+      or a feat level) adds the Proficiency Bonus to Initiative — on the sheet and in combat
+      (`toCombatStats`); **Jack of All Trades** (Bard 2+) adds half the PB to skill checks without
+      proficiency (and passive Perception); **Divine Order** (Cleric 1: Protector — Martial weapons +
+      Heavy armor training; Thaumaturge — one extra cantrip + WIS modifier, min +1, on Arcana and
+      Religion) and **Primal Order** (Druid 1: Magician — extra cantrip + WIS on Arcana and Nature;
+      Warden — Martial weapons + Medium armor) are chosen in *Skills & choices* (required, like a
+      Fighting Style; an older built sheet asks for it at level up). Sheet field `extras { alert,
+      jackOfAllTrades, skillBonus }` (additive; `derive` applies it, so it follows level and scores).
+      Tests in `tests/builder.test.js`. Live-checked (order cards with the SRD text).
+- **R2 done** — acceptance ("build a level-1 character end to end, roll from the sheet, level up,
+  export and re-import as a card without data loss") met, incl. the SillyTavern round trip.
+  Carried over (not blocking): casting a spell at a higher level (Cast uses the lowest free slot),
+  ritual casting and copying spells into a wizard's spellbook are narrated; spells in the Combat
+  window came with R5 (2026-09-25; there a higher slot can be chosen). Done since: the old card code split out of the monolith (known issues 8,
+  10) and the character list on Library ids / one copy of a card (known issues 15, 4; 2026-09-25).
+- One **Character model** = TavernCard V2/V3 fields + d20 sheet (species, class, level,
+  background, abilities, proficiencies, skills, saves, AC, HP, speed, equipment,
+  inventory, spells, features). Migration from existing `characterRef` + `stats`.
+- Step-by-step **builder** (SRD 5.2 species/classes/backgrounds).
+- **Interactive sheet** with click-to-roll → game log.
+- **Leveling / XP**; persona = player character; NPC persons use the same model.
+Acceptance: build a level-1 character end to end, roll from the sheet, level up, export
+and re-import as a card without data loss.
+
+### R3 — Compendium (SRD 5.2) ✅ (2026-09-25)
+- [x] **Data** (2026-09-25): `scripts/extract-srd.py compendium` → `src/data/srd52-compendium.js`
+      (~315 KB): the **Rules Glossary** (155 entries with their tags: conditions, actions, areas of
+      effect, attitudes, hazards), **Magic Items A–Z** (258: category, rarity, attunement, text) and
+      **tools + adventuring gear** (105: cost, weight, ability, text); monsters, spells, weapons and
+      armor were already bundled. SRD 5.1 presets were replaced in R5 (known issue 7).
+- [x] **Compendium window** (2026-09-25): search over all 1,237 entries (names, summaries, full
+      text), kind chips, entry views (monster stat block, spell, item, equipment, rule), monsters →
+      **Add** to a saved encounter / **Fight it now**; the exact SRD attribution under every entry;
+      one column with Back on narrow windows and phones. Cross-links from spell texts (sheet,
+      builder), the Combat window's monster list and the encounter inspector.
+      Tests `tests/compendium.test.js`; live-checked (desktop and phone).
+- **R3 done** — acceptance ("search any SRD monster/spell, open it, add a monster to an encounter")
+  met. Carried over: links from the chat (e.g. a `/lookup` command — R6 slash commands).
+Acceptance: search any SRD monster/spell, open it, add a monster to an encounter.
+
+### R4 — Quests & world (WoW) ✅ (2026-09-23)
+Owner's decision (2026-09-23): **one inventory — the persona's sheet.** Quest rewards,
+`<give>`/`<take>` and "collect" objectives use the persona's card; the story inventory is only
+the fallback without a persona (items stay with the character across stories; resetting the
+world's state slots does not take them back).
+- [x] **Step 1 — rewards, abandon, one inventory** (2026-09-23): `src/game/quest-rules.js` (pure:
+      rewards, objectives, prerequisites, reputation tiers, phases); turn-in pays XP, gold, items,
+      reputation and "choose one of N" once (`rewardsPaid`), to the persona's sheet via the new
+      `updateSheet` (applied at once, saved in the background; an unsaved sheet draft takes the
+      game's changes to items/coins/XP/HP so Save cannot undo a reward); abandon; quest events in
+      the game log (the AI narrates them); Quest log shows rewards with a picker; World tab
+      shows the character's inventory, gold and XP.
+- [x] **Step 2 — objectives with counters** (2026-09-23): kinds manual / kill (monster or person;
+      counts every defeat in a fight) / collect (follows the inventory; handed over on turn-in) /
+      talk (the person is here and named in a message, or `<talk>Name</talk>`) / visit (standing
+      there; a zone counts its places). All done → "ready to turn in"; a collect objective lost
+      again → back to active. Quest log (tick manual objectives) and tracker show counters;
+      editor adds objectives by kind with target and count. Item stacks merge singular/plural.
+- [x] **Step 3 — prerequisites, chains, item-started quests, marker set** (2026-09-23): level,
+      earlier quests (turned in), flags, reputation tier; linking quest → quest in the editor makes
+      a chain ("unlocks" edge). Accept refuses (with the reason in the log); the player sees a
+      level-locked quest greyed, other locked quests not at all. Markers: yellow ? (turn in here)
+      > yellow ! > grey ? (in progress) > grey ! (level too low) — editor badges grey; the AI only
+      hears the yellow ones. `startItem`: the quest appears (and is announced) once the item is
+      held. Quest editor: "Requires" (level, quests, flags, reputation) and starting item.
+- [x] **Step 4 — factions & reputation** (2026-09-23): standing per faction in the story
+      (`rt().reputation`, start value `faction.startReputation`), our own tier scale Hated (< −1000)
+      · Hostile · Unfriendly (−300) · Neutral · Friendly (100) · Honored (500) · Revered (1200) ·
+      Exalted (2500). Changed by quest rewards (`rep <faction> +N`), the event effect
+      *reputation*, the tag `<rep>Faction=+N</rep>` and the creator's ±50 buttons; trigger
+      *onReputation* (tier reached: above Neutral "or better", below "or worse") and condition fields `rep.<id>` /
+      `tier.<id>`. Effects: the AI gets a Reputation section (tier + what it means) and each
+      faction member's attitude; members of Hostile/Hated factions are "hostile to the player".
+      Vendors/prices are narrated (no shop system yet). Quest log lists the standings with bars.
+- [x] **Step 5 — zones, hubs, phasing** (2026-09-23): `location.parentId` (zones, no cycles),
+      `hub`; phases on locations and persons (name/description/atmosphere/mood/location/gone)
+      chosen by conditions; readable condition kinds (flag / quest / reputation / time /
+      location) for phases and — new — event conditions in the editor; "Part of", "Places within",
+      zone among the exits; dashed zone/unlocks edges.
+- [x] **Step 6 — example world + acceptance** (2026-09-23): Eldoria now has a zone (Brookvale)
+      with a hub village, a chain (The Missing Merchant → Bandit Bounty) with visit/talk/kill
+      objectives, every reward type, reputation changes (Royal Guard up, Red Hand down), a saved
+      encounter (Red Hand ambush) and phases after the bounty (Abandoned Camp, celebrating
+      village, Kell gone, Rowan relaxed). Acceptance "play the example world's quest chain start
+      to finish with rewards, a phased location and a reputation change" = test
+      `acceptance: the example chain…` + live check in Esolite.
+      Found on the way: the persona now wins over a world's default player stats in combat;
+      combat's HP/XP write-back raced with quest rewards (now one queue); "Load example world"
+      no longer overwrites a saved (maybe edited) example — it adds "Eldoria (Example 2)"; the
+      example tavern was renamed "The Crooked Kettle" (it carried another work's inn name).
+- **R4 extras** (started 2026-09-25, worked through autonomously while the owner was away;
+  decisions below are the recommended defaults and can be revisited):
+  - [x] **`<take>` semantics** (known issue 9): without a count it removes one; `x all` the stack.
+  - [x] **Faction phases**: name, description, headquarters (moved / none) and *disbanded*
+        (not in the AI's Reputation section; the standing is kept). Example: after the bounty the
+        Red Hand is *Scattered* and has no headquarters.
+  - [x] **Reputation from defeating faction members**: a person of the faction, or a monster of
+        a saved encounter linked to the faction (new link encounter → faction), changes the
+        standing by the faction's *killReputation* (default −25, 0 = off). Decision: no automatic
+        gain with rival factions (events with *onReputation* can do that).
+  - [x] **Repeatable/daily quests**: `repeat` = repeatable (again right after turn-in) or daily
+        (again on a later in-game day); rewards pay each time; chains and "turned in" conditions
+        count the first turn-in. Example: Captain Rowan's daily *Road Patrol*.
+  - [x] **Quest-giver dialogue**: the giver's words on offering / in progress / on turn-in;
+        Quest log shows them, the AI gets a *Quest givers here* section and the new tags
+        `<accept>quest</accept>` / `<turnin>quest</turnin>` (through the rules; a choose-one
+        reward stays with the Quest log).
+  - [x] **Vendors/shops**: a person with a shop (editor: wares, price — empty = SRD 5.2.1 list
+        price —, daily stock, buys or not, a note); Shop window where the player stands; prices ×
+        reputation factor of the vendor's faction (Friendly −5 % … Exalted −20 %, Unfriendly
+        +25 %, Hostile: no trade — our own numbers); the vendor buys at half price; the purse is
+        the persona's coins (small coins first, change back); tags `<buy>`/`<sell>`; AI section
+        *Trade*. SRD weapon and armor costs added to `srd52.js` (extractor checks them against
+        the PDF) and shown in the Compendium. Example: Innkeeper Bram, Quartermaster Wren.
+        Decisions: sell price is not changed by reputation; no buy-back list; stock refills daily.
+  Tests `tests/r4extras.test.js` (+ Compendium costs); live-checked in Esolite (Shop window,
+  buying, the vendor editor).
+- Full marker set (yellow/grey `!`, yellow/grey `?`).
+- Prerequisites (level, previous quest, flag, reputation); chains; item-started quests.
+- Objective types with counters (kill/collect/talk/visit), auto-progress from tags/events.
+- **Rewards paid out** on turn-in (XP, gold, items, choose-one-of-N); abandon.
+- Zones/subzones (location hierarchy), hub flag, **phasing** (location/NPC variants by state).
+- Faction **reputation** tiers (Hated → Exalted) with effects.
+Acceptance: play the example world's quest chain start to finish with rewards, a phased
+location and a reputation change.
+
+### R5 — Encounters & combat (D&D Beyond) ✅ (2026-09-25)
+Started before R3 (owner, 2026-09-23: "so I can already play"); R3's monster *data* was pulled
+forward, the compendium window stays in R3. Owner's decisions: the mod rolls monster turns and
+the AI narrates; HP and XP are written back to the persona sheet; all SRD monsters bundled.
+- [x] **Step 1 — data + engine** (2026-09-23): 330 SRD 5.2.1 monsters (`src/data/srd52-monsters.js`,
+      parsed stat blocks incl. attacks and saving-throw actions), 15 conditions, XP budget table;
+      `src/game/combat-rules.js` (pure); Worlds combat v2: monster instances, sides, victory/
+      defeat, death saves, conditions with attack effects and durations, automatic monster
+      turns, saving-throw actions, saved encounters per world, `<encounter>` tag and trigger
+      effect, combat events in the game log, persona HP/XP write-back. SRD 5.1 presets replaced
+      (known issue 7), `isMonster` now decides sides (known issue 1), combat HP = sheet HP
+      (known issue 17).
+- [x] **Step 2 — Combat window** (2026-09-23): encounter builder (XP meter Low/Moderate/High for
+      the party, monster search by name/type/CR, counts, persons as enemies/allies, saved
+      encounters), fight view (party/enemies with HP, AC, conditions, death saves; your turn:
+      weapon, target, advantage → Attack → End turn runs the enemies), tools (damage/heal,
+      conditions with rounds, monster save actions), outcome banner. Setting "Run enemy turns
+      automatically" (default on). AI: "Starting a fight" hint + `<encounter>` tag; event effect
+      *encounter* in the editor. Combat log lines state the cause before the result. Live-checked
+      (a wolf fight to victory in Esolite).
+- [x] **Spells in combat + companions' HP** (2026-09-25): the turn panel has **Weapon / Spell**
+      for the persona and companions with a sheet: spell, slot level (upcast; free casts), target(s),
+      Cast. Rules `spell-rules.js` (`combatUse`, `rangeProfile`, `castDamage/castHealing` with the
+      "higher-level slot" text — 51 of 109 spells scale automatically — `dartCount`, `spendSlot`);
+      engine `castSpell`: spell attacks like weapon attacks (zones, cover, crits), save spells (one
+      damage roll, every target saves, half when the text says so; area spells take several
+      targets), healing (+ ability modifier, wakes a dying ally), Magic Missile's darts, everything
+      else narrated (slot spent, logged; conditions with the Tools). Zones: the spell's range (Touch
+      = same zone), Action vs Bonus Action. The slot is spent on the sheet through `updateSheet`; an
+      open sheet takes it into its draft (`spellcasting` joined the game fields). Companions keep
+      their HP between fights (sheet, else runtime `partyHp`; who fought on your side: runtime
+      `companions`); the **Party** section lists them; **Long rest** there restores HP, slots and
+      free casts. Tests `tests/spellsCombat.test.js`; live-checked in Esolite (cleric 3 + a fighter
+      companion vs two wolves: Guiding Bolt, Healing Word, write-back, Long rest).
+- [x] **Encounter node** (2026-09-25): saved encounters are nodes of the world graph (palette
+      **+ Encounter**, dark red); edges Encounter → place (`at`), → person (`fights`), Event →
+      Encounter (`starts`, the event effect); inspector with monster search/counts, place, enemy
+      start, difficulty for the party, *Start this encounter now*; the event effect *encounter* is
+      a select. Tests `tests/encounterNode.test.js`; live-checked in the editor.
+- **R5 done** — acceptance met (tests + live checks). Carried over (not blocking): a play test with
+  a real backend (does the AI stick to the logged results? known issue 5); monster recharge and
+  legendary actions are manual (Tools);
+  spells: concentration, monsters' spellcasting, companions casting on their automatic turns, and
+  conditions from spells (added with the Tools). Range and movement exist since R7 (zone combat). Acceptance "build a Moderate encounter, fight it through victory and through defeat"
+  is covered by tests (`tests/encounter.test.js`) and the live check.
+- Encounter builder with SRD 5.2 XP budget / difficulty; Encounter node linked to
+  locations/events. *(done)*
+- Combat sides from `isMonster` (known issue 1) with victory/defeat detection.
+- Conditions, spell slots/resources, death saves; AI turn hints for monsters.
+- Shared game log (dice + combat), visible to the AI.
+Acceptance: build a "medium" encounter, fight it through victory and through defeat.
+
+### R6 — Chat power features (SillyTavern) ✅ (2026-09-25)
+**Design: [docs/design/R6-chat-power.md](design/R6-chat-power.md)** (2026-09-25: how Esolite's slash
+commands / custom tools, display pipeline, summaries and lorebook import work; decisions; commands → engine).
+- [x] **Step 1 — slash commands** (2026-09-25): `/go`, `/look`, `/search`, doors, `/talk`, `/give`/`/take`/`/inv`,
+      `/buy`/`/sell`/`/shop`, `/accept`/`/turnin`/`/abandon`/`/track`/`/quests`, `/rep`, `/roll`, `/check` (persona sheet),
+      `/encounter`/`/attack`/`/endturn`/`/rest`, clock and flags, `/map`/`/sheet`/`/lookup`, `/summary` (Esolite's
+      AutoGenerate Memory), `/help`; ` | ` and new lines chain commands and a message. Not in the user's custom
+      tools: a wrapper on `prepare_submit_generation` handles only RPmod names (a user tool of the same name wins).
+      Found and fixed on the way: the Tools panel's sender (`sendTextToEsolite`) called an undefined `this.log` and
+      sent nothing — Quick Actions, Auto Sender and Trigger Narrator did nothing (since the ALPHA code). Tests
+      `tests/slash.test.js`.
+- [x] **Step 2 — quick replies** (2026-09-25): left-dock section "Quick replies" with an editor; the Tools panel's
+      Quick Actions are migrated once (custom ones kept, sent as messages). The **Here** row follows the world
+      (`W.here()`: ways out, people with quest markers, quests to accept/turn in, shop, search) — a session can be
+      played by clicking. Tests `tests/quickReplies.test.js`.
+- [x] **Step 3 — hide control tags** (2026-09-25, known issue 2): a Display setting; wrapper on Esolite's
+      `apply_display_only_regex`, so only the shown chat changes (Allow Editing shows the tags, the engine reads them).
+      Tests `tests/hideTags.test.js`.
+- [x] **Step 4 — lorebook round trip** (2026-09-25): export as SillyTavern World Info (read by SillyTavern and by
+      Esolite's own `load_tavern_wi` — tested with Esolite's function), Lorebook V3, Esolite WI, or into Esolite's
+      Library; each entry has a `[Location: …]` header and `extensions.rpmod`, the book carries the world. Import
+      restores that world as a copy with edits made elsewhere, or types entries by their header; other entries become
+      Lore (disabled ones stay off). The World tab's Import also reads World JSON. Tests `tests/lorebook.test.js`.
+- [x] **Step 5 — summaries / memory** (2026-09-25): Esolite's own tools, no RPmod summariser: `/summary` opens the
+      Context dialog and runs Esolite's AutoGenerate Memory; the User Guide explains running memory and TextDB.
+- **R6 done** — acceptance met (2026-09-25): `tests/acceptance-r6.test.js` plays the example world's first quest from
+  offer to reward, shopping and a fight with slash commands and quick replies only (only the text parts reach the
+  AI), then exports the world as a lorebook and re-imports it identical. Live in Esolite: commands through the real
+  Send button and input box, `/look` in Esolite's msgbox, quick replies and the Here row in the left dock, tags hidden
+  in the real display pipeline (instruct mode) and shown with Allow Editing, Esolite's own `load_tavern_wi` reading
+  the exported book and RPmod restoring it. The AI's narration with a real backend stays with known issue 5.
+- Quick replies panel; slash commands (`/roll`, `/move`, `/give`, …) mapped to the engine.
+- Optional stripping of control tags from displayed chat (known issue 2).
+- Lorebook round-trip (Worlds ↔ WI V2/V3); summaries / memory.
+Acceptance: run a session using only slash commands and quick replies; export a world
+as a lorebook and re-import it.
+
+### R7 — World map: dungeons & towns, room by room ✅ (2026-09-25; revised 2026-09-23)
+**Design: [docs/design/R7-world-map.md](design/R7-world-map.md)** (decisions, data model, AI
+interface, UI, generator, zone combat, AI-capability analysis). Owner's decisions: no VTT;
+room-by-room movement, towns as places; location kinds `location` / `dungeon` / `town`; a
+dungeon/town is one node in the world graph with its own **dungeon/town editor over the world
+editor**; rooms stay locations (`parentId`) hidden from the world graph; world state is the truth,
+the board is derived (the LLM never writes coordinates); dungeons from editor, generator and AI;
+**mini-map** for the player; **zone combat** (revised 2026-09-25 from "distance bands", which
+misread the reference: creatures stand in zones of the room).
+- [x] **Step 1 — location kinds + dungeon/town editor** (2026-09-23): `src/game/map-rules.js` (pure)
+      + engine: `kind` dungeon/town, rooms = locations inside (hidden from the world graph, edges drawn
+      at the dungeon/town node, labels "Crypt › Hall" in dropdowns), **exits stored once and read from
+      both sides** (decision: one door state and one "found" per exit; legacy `connectedLocationIds`
+      and `exits[{locationId}]` stay valid, migrated additively), doors (state/material/lock DC/key),
+      secret exits/rooms, light, hazards, features (world objects with a kind), grid layout, runtime
+      exploration `explored/found/doorState` in both slots (old saves migrated), unfound secrets and
+      unknown dungeon rooms kept out of the AI slice. **Dungeon/town editor** window over the world
+      editor (`src/map/mapEditor.js`): board, add/drag/resize, Connect tool, door markers, inspector
+      (room, exits, way out, features, inhabitants, encounter), nested levels, styles stone/parchment/
+      streets/plots; delete asks and takes the rooms along. Tests `tests/map.test.js`,
+      `tests/mapEditor.test.js`. Live-checked in Esolite (build, drag, inspector, back to the world).
+- [x] **Step 2 — mini-map + moving room by room** (2026-09-23): `go()` (known exits only, a closed
+      door opens, locked/barred refuses, entrance room when going to a dungeon/town, leave only
+      through a way out; direction words and forgiving names), refusals and UI moves in the game log
+      (the AI narrates them), `<move>` through the same rules inside/into maps; AI context per room
+      (light, hazards, exits with exact names/directions/door states, unfound traps hidden, "Moving"
+      hint, optional text map — Settings → RPmod → Map, default off); **known issue 12 fixed** (tags
+      parsed on reply arrival; clock step unchanged); left-dock **Map** section (fog, you are here,
+      click a neighbour, exit buttons, refusal) and **Map** window (`src/map/minimap.js`, shared drawing
+      `src/map/board.js`). Tests `tests/move.test.js`. Live-checked in Esolite, incl. replies through
+      the real `handle_incoming_text`.
+- [x] **Step 3 — AI tags + exploration** (2026-09-24): `src/game/map-tags.js` (pure) — map tags in
+      **reply order** (`<go>`/`<move>`, `<open>`, `<close>`, `<unlock>`, `<search>`, `<room>`, `<door>`,
+      `<light>`), forgiving targets (direction, name, plural, material, "door"), self-closing/empty tags.
+      **Fog:** known (behind a closed door; name hidden from player and AI — "unexplored room", "?")
+      / seen (open way or door) / visited. **Doors:** Open/Close/Unlock in the mini-map and by tag;
+      key without a roll, else thieves' tools d20 + DEX (+PB) vs lock DC; barred refuses. **Search:**
+      d20 + better of Perception/Investigation vs secret doors, secret rooms and traps (DC 15 default,
+      never shown), passive Perception on entering; results in the log and the AI context.
+      **`<room>`**: the AI adds a room beside the current one (placed, named, open door; stored in the
+      world with `origin: 'ai'`, "AI" badge in the editor); **`<door>`** only makes doors harder;
+      **`<light>`** per story. Owner's decisions on these four points: 2026-09-24 (design doc, step 3).
+      New runtime fields `found.searched`, `roomLight` (additive, migration tested). Tests
+      `tests/explore.test.js`. Live-checked in Esolite (clicks + replies through the real
+      `handle_incoming_text`, editor badge).
+- [x] **Step 4 — generator** (2026-09-24): `src/game/map-gen.js` (pure, seeded — the same seed gives
+      the same map). Dungeons: size small/medium/large (5/8/12 rooms + a secret room), themes crypt/
+      cave/ruin/sewer (doors or passages, light, furniture, containers, traps, hazards), all rooms
+      reachable with a few loops, one secret room behind a secret door, one locked door with its key
+      in a chest on the near side, optional encounters (none/few/some) from the theme's SRD 5.2.1
+      monsters within the party's XP budget (deepest room moderate). Towns: the ticked places (16 to
+      choose from) around a Town Square, open streets. Engine `generateMap` (world edit; replace only
+      on request and never with the player inside; way out to the map's world neighbour, a level gets
+      stairs up); dungeon/town editor **Generate** panel with seed and dice. Placeholder rooms
+      ("Room 4") are named by the AI once with `<room>Name, here: …</room>`; saved encounters of a
+      place reach the AI as **Waiting here** until started (runtime `startedEncounters`, additive).
+      Tests `tests/generator.test.js`. Live-checked in Esolite (generate in the editor, play in,
+      naming by a reply through the real `handle_incoming_text`).
+- [x] **Step 5 — zone combat** (2026-09-25): `src/game/zone-rules.js` (pure) — layouts from the
+      room (small ≤ 30 × 30 ft = one zone; large = centre + four sides; corridor = middle + its
+      passages; plus just outside / out of range; 1 cell = 10 ft; `room.combatSpace` overrides),
+      adjacency, line of fire, reach/range profiles (monster range text, SRD weapon properties),
+      cover defaults by feature name, start positions. Engine: `cb.zones` (additive — fights saved
+      without it keep the old rules; plain JSON), party on the side it came in by (`runtime.entry`,
+      additive), enemies across/beside/next zone/outside (builder, saved encounters' `start`);
+      move one zone (60 ft: two), **flee** two without attacking (opportunity attacks from the zone
+      left; a one-zone retreat is safe), melee same zone, ranged ≤ 30 ft next zone / longer any in
+      line of fire, **−3** vs. a melee attacker of last round (owner's choice over SRD
+      disadvantage), one ranged attack per round through a doorway, **cover** +2/+5 from room
+      features in the zone (SRD), **Hide** DC 15 → Invisible, **Search**; monster tactics (close
+      in / dash / shoot; archers step out of melee and take cover; search when blind). AI:
+      "Battlefield" + each combatant's zone/cover/hidden; everything in the combat log. Combat
+      window: zone board drawn like the reference (`src/game/zoneBoard.js`), click to move,
+      Move/Flee/Take cover/Hide/Search, attack reasons, "Enemies start", Tools "Put there".
+      Dungeon editor: room fighting space, feature cover and zone. **Guide tab "Zone combat"**
+      (Esolite's Guide gets a second RPmod tab `rpmod-zones`; RPmod's own guide window gets book
+      tabs) with a diagrams window; linked from the Combat window and the "Dice & combat" chapter.
+      Setting `combat_zones` (default on). Tests `tests/zones.test.js` (+ onboarding/editor).
+      Live-checked in Esolite (a fight in a large hall: shoot, move, take cover, enemies close in;
+      Guide tab and diagrams).
+- **Open (step 5):** positions are per zone only (no facing, no flanking, no difficult terrain);
+  areas of effect and spells in zones wait for spells in the Combat window (R5 — "a spell of 30 ft
+  or less reaches the next zone" is prepared in the rules text only); companions use the same
+  tactics as monsters; the player's own opportunity attacks are rolled automatically with their
+  best melee attack; the AI cannot move creatures between zones by tag (it narrates, the UI acts);
+  a fight stays in the room it started in (moving rooms mid-fight is not modelled).
+- **Open (step 4):** generated rooms have no descriptions (the AI describes and names them in play);
+  no multi-level dungeons from one click (generate a level inside a room instead); a generated key
+  sits in a container but taking it is narrated (`<give>`), containers have no loot system; town
+  places get no people (link persons in the inspector).
+- **Open (step 3):** traps are only *found* — triggering, disarming and damage are not modelled;
+  no forcing doors (Athletics); a door locked by the AI has no key unless the tag names one, so
+  without thieves' tools it stays shut (by design: RPmod decides); `<room>` adds only beside the
+  current room (no up/down stairs by tag); searching is unlimited (no time cost yet).
+- **Open (step 1):** moving a room does not re-aim its exits' stored direction (set it in the
+  inspector); a saved encounter keeps its room id when the room is deleted (it just no longer
+  matches a place; regenerating a map does remove the encounters at its rooms).
+Steps:
+1. ~~Location kinds + dungeon/town editor~~ (done, see above).
+2. ~~Mini-map + room-by-room movement~~ (done, see above).
+3. ~~AI tags + exploration~~ (done, see above).
+4. ~~Generator~~ (done, see above).
+5. ~~Zone combat (zones of the room, moving/fleeing, cover, hiding, Guide tab)~~ (done, see above).
+Acceptance: build a small dungeon and a town in the editor, generate a second dungeon, let the AI
+add a room with a locked door, explore room by room with fog on the mini-map, find a secret door
+by searching, and fight an encounter using zones and cover. **✅ Passed 2026-09-25:** end-to-end test `tests/acceptance-r7.test.js` (whole bundle + UI, AI
+replies through `handle_incoming_text`) and live in Esolite (hand-built mine + town, generated
+tomb, mini-map clicks with fog, the AI's `<room>`/`<door>` reply through Esolite's real reply
+handler, Search button finding the secret door, `<encounter>` reply → zone fight in the large
+hall: move, take cover, enemies close in, victory). A real AI backend is the separate play test
+(known issue 5).
+
+### R8 — Starter adventure "The Drowned Lantern" 🟨 (approved 2026-09-25)
+Design (approved): [design/R8-starter-adventure.md](design/R8-starter-adventure.md).
+An original adventure for levels 1–5 built into RPmod (two settlements, two routes, a hidden lake
+side, two questlines that meet at a finale), four pregenerated characters added to Esolite's Library
+on load, starting in the Player view. Only SRD 5.2.1 content; the reference material in
+`docs/reference/` is used for size and structure only.
+- [x] Owner review of the design (2026-09-25: XP divided among the party, fights for two; names kept; tone; fair 3 days; initials)
+- [x] Step 1 (2026-09-26): adventure package + loader (`src/adventures/`), `world.start` + worlds per story (known issue 22), per-world view, pregen picker, validator, forbidden-names guard — tested with a fixture adventure; nothing bundled yet
+- [x] Step 2 (2026-09-26): combat XP divided evenly among the party-side combatants (SRD); the persona and companions with a sheet get a share (`xpShares`/`xpEach`, additive)
+- [x] Step 3 (2026-09-26): layer 1 — Brindlewick (town, 8 places), Forest Road, the Hollow Oak (dungeon, 7 rooms: a trap,
+  a locked door with a key, a secret passage), River Ford; quests Missing Carts, The Hollow Oak, An Old Coin, Rats in the Mill;
+  7 encounters; the four pregens (builder-made sheets); the travelling party (join/leave) the companions need; a headless
+  playthrough test. Found and fixed on the way: sheet writes lost XP/gold/items when rewards arrived during a save
+  (known issue 23), companions were left out of event/saved-encounter fights, the builder's "Gaming Set (same as above)".
+- [x] Step 4 (2026-09-26): layer 2 — the mountain route (Gravel Road with a night ambush at the campfire, Windgap
+  Pass, the Watchtower Ruin: 6 rooms, harpies, Reedcloak guards, a locked cellar with the real stablemaster) and the
+  valley route (Meadow Road, Owlbear Hollow: 3 rooms), the shepherds' trail, the Traveler's Outpost (town, 6 places);
+  quests Kitchen Stores (daily), The Sick Mare, Night Raid, Harrowfield's Sheep, The Old Watchtower, The Stablemaster
+  (the Doppelganger); factions Outpost and Reedcloaks; Lanternport as a place. Content version 2. Playthrough test.
+- [x] Step 5 (2026-09-26): layer 3 — **Lanternport** (town, 10 places: Hilltop, Temple of the Lantern, Lake Gate &
+  Market Square, Guildhall & Counting House, Crafts Lane, the Lamplighter, Watch House, Warehouse Row, Docks & Fish
+  Market, Fairground; the lake road from the Outpost enters at the Lake Gate, the hill road from Windgap at the
+  Hilltop), 12 people (4 vendors + Aurelio's healing shop), the faction Lanternport (phase once the truth is out);
+  the hook *Word to Lanternport* (Elder Holt → the mayor) and questline B: *A Stranger at the Fair* (sign-up opens
+  the fair), four daily **contests** (archery DEX, arm-wrestling and the boat race Athletics, the riddle tent INT)
+  as the new **check objectives** RPmod rolls (`/try`, Here row "Try", Quest log button; once per in-game day,
+  at the place), *The Great Cook-off* (Baba comes to the fairground while the fair runs), *Champion of the Fair*
+  (+1 weapon), *Whispers on the Docks* (three clues, toughs in Warehouse Row) and *The Last Night* (the thieves
+  come with the fireworks on the third night; `fair_day` 1–3 advanced by a night and the next morning; the
+  contests end with the fair via the new `prerequisites.notFlags`). Content version 4. Found on the way: going to a
+  town from inside another one entered by the first room with any way out — now the room whose way out leads to
+  where you come from. Playthrough test (`tests/adventureContent.test.js`), mechanics `tests/contestsR8.test.js`.
+- [x] Step 6 (2026-09-26): layer 4 — the **south shore**: the **Hidden Beach** (a hidden way from the River Ford, DC 14:
+  found by a Search or by passive Perception — Pell notices it — or shown by Odo when he gives *Follow the River*;
+  giant crabs by day, a giant toad and frogs at night), the **Sea Cave** (dungeon, 10 rooms: cave mouth, hidden dock,
+  lookout ledge, the captain's cabin with a secret bolt-hole (DC 17), stolen stores, grotto pool, bunkroom, galley
+  with Brisco the cook, the sorting room of dredged relics behind a locked grille (brass key), the flooded passage
+  that dives under the lake — step 7 continues it), the **Old Dam** (3 rooms: crest with Reedcloak dredgers, sluice
+  house, the keeper's undercroft with the wall of names). Quests: A4 *Follow the River*, A5 *The Reedcloaks' Cave*
+  (Captain Vesna Kral = Bandit Captain; the ledger names "the stablemaster", "the lord on the hill" and "Mother R.",
+  and now also unlocks *The Stablemaster* — its prerequisite is the flag `stablemaster_suspected`, set by the
+  Watchtower or by the ledger), the side quest *The Sluice* (bring back the keeper's crank; opening the gates for
+  low water — at the cost of Brindlewick's mill — comes with step 7, where it leads somewhere), *A Boat for Hire*
+  (buy a passage from Ines Calder at the docks → the boat to the hidden beach), and B4's other way *Let Them Run*
+  (accepting it or *The Last Night* closes the other: flags `stop_plan`/`follow_plan`; the thieves take the Lantern
+  on the third night — `lantern_stolen`, the fair ends, the plinth is empty, Dahl's watch boat waits — "Slate" (Spy)
+  and his crew are in the sorting room with it; returning it: `lantern_recovered` + `lantern_saved`, more gold and a
+  better prize, less standing than stopping it). Engine: the event effect **`reveal`** (a secret exit/room or a
+  hidden feature becomes known; in the editor's effect list), hidden features shown once revealed, a feature phase
+  with `gone` (the stolen Lantern), a secret way that is no door is found as "a hidden way". Content version 5. XP
+  estimate 6,275 per character (both branches of the last night counted). Playthrough tests in
+  `tests/adventureContent.test.js` (south shore; the "let them run" branch). Checked in the browser (map at the ford
+  and in the cave, phone width, the effect editor).
+- [x] Step 7 (2026-09-26): layer 5 — **the Lost Chapel** (dungeon, 14 rooms: the drowned village — causeway, high
+  street, old mill, houses, chapel square — and the chapel — narthex, nave, bell tower, vestry, crypt stair, crypt,
+  ossuary, flooded cistern, the sanctum behind bronze doors that only the Founders' Lantern opens). Mother Reedwater's
+  magic holds the lake off Old Brindle "like a glass bell". Two ways in: **low water** (*Low Water*: Athletics DC 14 at
+  the sluice house; Brindlewick −150, the mill runs dry — phases on Brindlewick and Tobias; a causeway from the hidden
+  beach) or **the long swim** from the sea cave's flooded passage (revealed by C1; the drowned wait in the cistern).
+  Quests: C1 *What the Hag Wants* (Brother Aurelio; after A5 and either way of B4; the town lends you the Lantern),
+  C2 *Into the Mere* (to Brother Oswin, the ghost of the last keeper), C3 *The Drowned Light* (Sir Aldric = Wight,
+  Mother Reedwater = Green Hag + 2 ghouls), the choice *Let the Light Rest* (Religion DC 12 at the altar; the drowned
+  sleep, Lanternport's relic goes dark) or *Carry the Light Home* (to Mayor Varga, still burning), C4 *Home* (Elder
+  Holt → Mayor Varga; phases: peace on the road). Side quests *Lights on the Lake* (Will-o'-Wisp, from Ines) and
+  *Honest Work* (Brisco; the Reedcloaks recruited by the Outpost). Faction *The Drowned*. Content version 6.
+  **XP balance** test: a typical path (one companion, no owlbear, no repeats) is level 2 after layer 1, 3 after
+  layer 2, 4 from the fair on, 5 inside the chapel before the hag, never 6; the validator's all-content estimate is
+  10,125 per character. Playthrough test (low water → hag → light put out → home; the long swim). Not yet checked in
+  the browser — the owner's play test covers it.
+- [ ] Step 8: real-backend play test (known issue 5), then the World Building guide — 🟨 first session 2026-10-20 (layer 1
+  with Gemma 4 31B and DeepSeek V4 Pro; results below); next: the open items, then layers 2–5.
+
+**Real-backend play test, 2026-10-20 — what a model needs (findings):**
+- **World Info "Before A/N" + "Strong"** (RPmod now asks and keeps it, known issue 31): with "After Memory" the context
+  sat before ~29,000 characters of chat and the model followed the chat (a dead wolf "still circling").
+- **Thinking on, enough output:** Gemma 4 31B without thinking invented rolls and narrated stale states; with thinking
+  ("high", 4096 output) it narrated every result in order. "High" with 2048 tokens cut replies off mid-thinking.
+- **Gemma 4 31B** keeps its own inventions against RPmod's facts (an invented key "opened" a door RPmod kept locked);
+  **DeepSeek V4 Pro** respected the same refusal in two of two tries, started prepared encounters by name and ended
+  a game over as asked. Both sometimes narrate a move without writing `<go>` (the party stays where it was).
+- DeepSeek's reasoning came once untagged (no `<think>`, cut off) and RPmod applied the tags in it — a junk room "Name",
+  a locked door, a move (repaired by hand). With reasoning "low" it was tagged (still up to 13,000 characters).
+
+**Owner's decisions 2026-10-20 (done):**
+- [x] **"Story: go to …"** — a reply that moved no one but names a place reachable from here (an exit that is not locked
+  or barred, or a visited room of the same dungeon/town with a known route) offers it in the Here row (`runtime.storyGo`,
+  only while that reply is the last one); `/storygo` moves with source `story` (routes like Quick travel, stops at
+  events, logs "As the story told, the party went via … to …") and sends nothing. Test in `tests/playtestR8.test.js`.
+- [x] **Branch, Allow Editing, the chat tree** — a notice once per page while a world is active (wrapped `btn_branch`,
+  `toggle_editable` when switched on, `btn_editmode`, `treeViewer.openTreeView/openPaginatedTreeView`); the action goes on.
+  Test in `tests/playtestR8.test.js`.
+
+- [x] **World Info "Before A/N" + "Turn based", 1 user turn** (owner, 2026-10-20) instead of "Strong": Strong inserts 160
+  characters before the end and cut longer player messages in half (DeepSeek: "User pasted large system prompt maybe? …
+  They [World: etc] then push through the plank door"). Stories set to Strong are moved over without asking (after the
+  earlier Yes); older hosts keep Strong. Tests in `tests/contextPlacement.test.js`.
+- [x] **Prepared encounters start where they belong** — live test 2026-10-20: DeepSeek wrote `<encounter>Chief Snagtooth and a
+  guard</encounter>` in the Stolen Stores (the chief sits in the next room) and RPmod started it. A saved encounter with a
+  `locationId` now starts by the AI's tag only there (or inside it); elsewhere it is refused (logged → story correction).
+  Ad-hoc lists, events and the Combat window are unchanged. Test in `tests/playtestR8.test.js`.
+
+**Live test of the new features, 2026-10-20 (DeepSeek V4 Pro, then V4 Flash):** all of them worked in the real game —
+pregen reset in the picker, first turns of a fight on arrival (the AI then narrated the companion's real blow), `<cast>`
+written by the model itself, the Combat window closing, Retry/Undo undoing a reply (a wrongly started boss fight with its
+move, secret door and attacks), cut-off replies at 512 tokens (nothing applied; Generate More's answer after `</think>`
+parsed; Generate More after a finished answer: the model returns nothing, state unchanged), the refused encounter in the
+wrong room with the story correction next turn, containers, "Turn based" placement keeping the player's message whole.
+
+**Model comparison (same scenes):**
+| | DeepSeek V4 Pro (low) | DeepSeek V4 Flash (low) | V4 Flash (high) |
+|---|---|---|---|
+| Time per reply | 20–60 s | ~7 s | 3–7 s |
+| Thinking | 6,000–15,000 chars, often cut off at 4096 | 500–2,800 | 70–1,900 (uneven) |
+| A miss narrated as a miss | yes | 1 of 3 (2 invented kills) | 2 of 3 (1 left open) |
+| Tags (`<accept>`, `<join>`, `<cast>`, `<encounter>`) | reliable, sometimes in the wrong place | reliable for simple ones | walked three rooms with **no** `<go>` |
+| Respects a refusal | yes (after the correction, but invents a substitute) | — | — |
+Pro is the more reliable game master; Flash on "high" is close in fights but loses track of moves. Both tie in well
+with RPmod's safety nets (refusals, correction, cut-off handling, undo).
+
+**Goal (owner, 2026-10-20): RPmod plays well with cheap "Flash" models** — DeepSeek V4 Flash and Z.ai GLM 5.3 Flash,
+so that users can run the mod for little money. Method: the same scene set for every model (start + quest + join, the
+ambush narrated from the log, a missed attack narrated ×3 with Retry, `<cast>` after a fight, the trap, the walk "east
+through the door and on south" — moves and refusals), scored per scene; then prompt and safety-net changes, measured
+again on the same set. Results so far: the comparison table above; GLM 5.3 Flash next.
+
+- [x] **A new session starts with an empty game log** — found with GLM 5.3 Flash 2026-10-20 ("this seems to be a replay/loop
+  of the same day"): New Session / an adventure start kept the old story's 200 log entries, and as the chat was short
+  again the Retry marks rewound to the oldest — **12,391 characters of other runs' fights** went to the AI as "since your
+  last reply" (it affected every test after the first restart, and likely the long reasoning of DeepSeek Pro). The log
+  now clears on `restart_new_game`. Test in `tests/playtestR8.test.js`.
+- [x] **"Story: go to" only for a sentence that moves** — "Liu Wen's farm is west of here" was offered as a move; the place
+  must now stand in a sentence with a word of movement (step, walk, enter, reach, into, through, …).
+
+**GLM 5.3 Flash (Novita, `zai-org/glm-5.3-flash`, GLM instruct tags, thinking in `<think>…</think>`), same scenes:**
+| Scene | Result |
+|---|---|
+| Start, quest, join | both tags right; tags drafted several times in its thinking were applied once (stripping works) |
+| Ambush from the log | correct and vivid; on "high" (4096) cut off mid-answer; **Generate More does not continue** — GLM writes the whole answer again (no assistant prefill) |
+| Missed attack ×3 ("medium", 16k) | **3 of 3 correct misses**, no one else's turn, ends on the player — 30–36 s, 9,000–12,000 chars of thinking |
+| `<cast>` after the fight | written by itself, healing applied |
+| Trap | correct, credited to the right character |
+| Waiting encounter | started itself by exact name (`Goblin wolves`) |
+| "East and on south" | a `<go>` for every move (best discipline so far), but **invented a room** behind the unexplored door (`<room>Mule Pen…`, refused) and moved Liu's grain into another room — 100 s, 32,000 chars of thinking |
+Text quality: the best of the cheap models (owner). Weak spots: slow on "medium"/"high", long thinking.
+
+**GLM 5.3 (full, `zai-org/glm-5.3`, reasoning "low"), same scenes — compared with DeepSeek V4 Pro on low:**
+| Scene | Result |
+|---|---|
+| Start, quest, join | both tags right, 52 s, 14,700 chars of thinking (16k) |
+| Ambush from the log | correct and vivid (the hit on Oona, ends on Tove's turn), 91 s, 27,000 chars (16k) |
+| Missed attack ×4 (2× 16k, 2× 4096) | **4 of 4 correct misses**, 19–47 s, 5,000–12,000 chars. On `reasoning_effort: "low"`, max output does **not** scale GLM's thinking (owner's question): at 4k vs. 16k the thinking was about the same length — 4096 gave 5,200 and 11,800 chars, 16k 10,300 and 11,400 ("high" not measured) |
+| `<cast>` after the fight | `<cast>Cure Wounds = Oona</cast>` by itself, healing and slot applied, 43 s |
+| Trap (4096) | cut off while thinking; Generate More: a fresh short think and a whole reply (14 s), trap credited to Tove |
+| Waiting encounter (4096) | cut off twice (75 s each), a Retry fitted (35 s, wolves asleep — right); on the attack `<encounter>Goblin wolves</encounter>` by exact name (22 s), but it narrated **four** wolves for two (the prompt gave no count → fixed) |
+| "East and on south" (4096) | cut off twice (50 s, 55 s); its reasoning: it never wrote `<go>` before (the buttons moved the party), so it concludes "RPmod parses prose"; plans `<room>Grain Store…</room>` behind the unexplored door |
+At 4096, 4 of 8 replies were cut off; the safety net held every time (no tag applied). Text quality: the best so far.
+Slower and longer-thinking than V4 Pro on low; the game-master rules hold better (misses, `<cast>`, encounter by name).
+
+- [x] **Cut-off reasoning no longer reaches the AI** — found with GLM 5.3: the untagged reasoning of a reply cut off while
+  thinking was sent as the assistant's reply (17,000 characters in a 31,000-character request), and every Generate More
+  (GLM starts over) added another. RPmod folds it in the thinking tags once a finished reply does not continue it (or the
+  player writes on); DeepSeek's continuation with a lone `</think>` is left to Esolite. Test in `tests/playtestR8.test.js`.
+- [x] **Waiting encounters say who is in them** ("Goblin wolves: 2 Wolf"); an `<encounter>` with that line ("2 Wolf",
+  "Goblin wolves: 2 Wolf") starts the prepared encounter — GLM without reasoning copied the line as the name and RPmod had
+  started a second, ad-hoc pack.
+
+**GLM 5.3 without reasoning** (reasoning "none", 4096; Esolite's GLM preset ends the instruct with `/nothink` and an empty
+closed thought — the model still writes a one-line `<think>` plan), same scenes:
+| Scene | Result |
+|---|---|
+| Start, quest, join | both tags right, **8 s** |
+| Ambush | correct (Tove won initiative: no blows invented), ends on Tove's turn, 10 s; one meta line "**Combat begins!**" |
+| Missed attack ×3 | **3 of 3 correct misses**, 6–10 s; one slip: a goblin calls Tove (they) "mountain man" |
+| `<cast>` after the fight | by itself, healing applied, no invented amount, 10 s |
+| Trap | correct, credited to Tove, 9 s |
+| Waiting encounter | started on arrival when the wolves noticed the party (`<encounter>2 Wolf</encounter>` → fixed above), 8 s |
+| "East and on south" | **invented a room** (`<room>Grain Cache…</room>`, refused) and **moved to an invented name** (`<go>South Burrow</go>`, refused), narrated two rooms in one reply; 14 s |
+| Story correction next turn | followed at once ("that plank door to the east is still shut…"), kept an invented detail (a chapel smell), called the dead wolves "sleeping" |
+No reply cut off; 6–14 s each (low: 20–90 s). Fights, spells and encounters as reliable as on "low"; exploring has the same
+weak spot as GLM Flash and the "low" run — which the two prompt items below address. **GLM 5.3 without reasoning is the
+best price/quality so far.**
+Without Esolite's no-think preset (owner's question): the same — the chat-completions request never carried `/nothink`
+(Esolite sends no instruct tags to an OpenAI-compatible API); `reasoning_effort: "none"` alone does it (start 9 s, ambush
+10 s narrated as rolled, misses 2 of 2 in 6 s each, a one-line `<think>` plan still). New slip in both runs: the reply
+names the mod ("RPmod will roll whatever you do") — the prompt should say never to mention RPmod or the rules engine.
+
+**Next for the Flash goal (from both Flash models):**
+- [x] **The AI builds only where the author lets it:** world setting "The AI may add rooms and doors to the maps"
+  (`world.aiBuild`, **off by default** — owner 2026-10-20: adventures and own worlds are the same thing, the author
+  decides); off → `<room>`/`<door>` refused ("the map is fixed in this world") and [Exploring] says "never invent rooms,
+  ways or doors — an unexplored exit is unknown until the party goes through it with `<go>`". Naming a generated "Room 3"
+  stays allowed. Tests in `tests/playtestR8.test.js`, `move.test.js`.
+- [x] **Moves:** Flash walked three rooms without `<go>`; GLM Flash wrote them. GLM 5.3's reasoning shows why a model skips it: the button moves ("I go to Wolf Den.") are done by RPmod before the reply, so the chat has no `<go>` of the AI's and it concludes RPmod reads prose; it also wondered whether the Exploring tags are meant for the player. Say they are the narrator's, and that a button move is already done. A short rule in the Exploring section ("every
+  move needs `<go>`; one room per reply, then stop") — measure on the same scene with both.
+  Done: [Exploring] now says the tags are the narrator's, every move needs `<go>`, one room per reply, a move the log
+  already shows is done. **[Game notes]** (new, every turn): the notes come from RPmod — never name RPmod, the log, the
+  tags or the notes in the story. Measure next on the "east and on south" scene (GLM 5.3 / GLM Flash without reasoning).
+  **Measured 2026-10-20 (GLM 5.3, no reasoning):** "east and on south" → `<go>east</go>`, one room, stops and asks (its plan:
+  "rule says one room per reply. So do east only"), no invented room, 10 s; `<encounter>2 Wolf</encounter>` starts the
+  prepared encounter. **New structural problem:** the AI writes the room *before* RPmod moves the party, so it does not know
+  what is there — it invented a flooded room with a chapel lantern (real: "a dry burrow" of grain sacks, barrels, crates),
+  and on the next turn kept its version although the real description was in the prompt. Same with `<search>`: it narrated
+  a hidden door found, RPmod rolled "9 — nothing found"; the secret door RPmod's passive Perception had found (south) went
+  into the west wall.
+- [ ] **Results of the AI's own tags** (move into an unseen room, `<search>`, `<unlock>`): the reply is written before the
+  result. Options: (a) give the AI what lies behind each visible, unvisited exit ("for the narrator: east → Stolen Stores:
+  …; narrate only when the party enters") and what passive Perception would notice there — one reply stays true, but the
+  AI then knows more than the player (secret rooms stay out); (b) the reply ends on the attempt and the next reply
+  narrates the result from the log (one more turn per move); (c) RPmod asks for a short follow-up automatically after
+  such a tag. Owner to decide.
+- [ ] **Generate More with GLM:** check Esolite's prefill/"Non-Standard Fields"/end-token options for assistant prefill.
+
+- [ ] **Deeper undo history with Redo** (owner, 2026-10-20, after the live sheet): one snapshot per reply (game state,
+  world changes, log length, sheets — a few KB each now that sheets are small) in IndexedDB: Undo/Retry several replies
+  deep, Esolite's Redo (`btn_redo`) re-applies the state after the reply, survives a page reload.
+- [ ] **Upstream prototype for Jaxxks (later; our own bugs first — owner 2026-10-20):** a Library character's portrait in
+  its own IndexedDB entry (`character_<id>` = { id, name, data }, `character_img_<id>` = the PNG; the card embedded into
+  the PNG only on export), so edits of the card data stop rewriting the image (Esolite's own edits and every mod).
+  Jaxxks: build a prototype; if it holds up, it goes upstream (PR to esolithe/esobold). Old records with an inline
+  `image` keep working and migrate on their first save; `getCharacterData` keeps returning { id, name, data, image }.
+
+**UI play test 2026-10-20 (character sheet, inventory, character builder — clicked through in the browser):** Overview,
+rolls (advantage, dice log), Combat tab, attacks with SRD autocomplete, Revert, Inventory (in hand / backpack, the
+two-hands warning, SRD definitions, coins), Save into the card, the left panel's Inventory in sync with an open sheet
+(also a game change into an unsaved draft), Spells, Features, Notes, the builder (wizard / Sage / High Elf: every step,
+the review's numbers) and a level up to 2 — all correct by SRD 5.2.1. Fixed:
+- [x] **Cast on the sheet** only ticked the slot in the draft while the game log had already told the AI — a Revert or
+  "discard" gave the slot back. It is a game change now (`spendSpell`, as in a fight); the free cast too.
+- [x] **Level up offered every class** — a click turned a wizard into a "Fighter 2" and dropped its skills. Only the own
+  class is shown (no multiclassing).
+- [x] **Wizard's Scholar** (level 2: Expertise in Arcana, History, Investigation, Medicine, Nature or Religion) was missing.
+- [x] **Enter** in the new-item / new-attack field did nothing; it adds now.
+- [x] **The pregens had only Common** — SRD 5.2.1: Common plus two standard languages (the builder asks; the pregens'
+  choices lacked them): Oona Orc + Goblin, Tove Dwarvish + Elvish, Kasimir Draconic + Elvish, Pell Halfling + Goblin.
+  Existing pregen cards get them with the picker's "starting sheets back".
+- [x] **The Combat window stayed open across New Session / an adventure start** without a fight; it closes now.
+Tests in `tests/uiPlaytest.test.js`, `spells.test.js`, `adventureContent.test.js`. Open (small):
+- [ ] A stack in the backpack goes into the hand as a whole (Holy Symbol ×2 → both); taking one should split it. And the
+  SRD lets a cleric wear the holy symbol on the shield (no hand).
+- [ ] The left panel's Inventory does not show what is in hand / worn.
+- [ ] The roll mode (Advantage / Disadvantage) stays on across characters and sessions — easy to forget.
+- [ ] After *Create character* the sheet opens on the last tab used (Notes) — a new character should open on Overview.
+- [ ] *New character* takes a second or two to show the builder, without a sign that it is coming.
+
+**New open items from this live test:**
+- [ ] **Capture after a defeat:** the AI narrates the party tied up and dragged next door; RPmod has no "captured" state
+  (the party lies at 0 HP where it fell).
+- [ ] **Content:** "Grain Sack" reads as an empty sack to the AI ("three empty grain sacks") — "Sack of Seed Grain".
+- [ ] **Gifts without `<give>`:** the AI hands out coins or items in prose ("she slides a few coins across the table").
+- [ ] **Junk from cut-off chunks stays in the chat** and goes back to the model as its own earlier answer (Retry/Undo it).
+- [ ] **Esolite (upstream):** the stream parser drops a network packet that holds several `data:` events ("Cannot parse a
+  chunk") — the provider's `finish_reason: "stop"` and, in one Gemma case, the end of the answer were lost. A small PR
+  for esobold (split the packet into lines).
+- [ ] Flash credits its own noticing to a companion ("Oona spots the cord" while RPmod's passive Perception was Tove's).
+
+**Open items from the play test (owner to prioritise):**
+- [x] **Story correction** — done 2026-10-20: the refusals of the AI's own tags in a reply (`refused`, `cannot`, …) are kept
+  (`runtime.storyCorrection`, additive) and the next prompt opens with **[Set the story straight]** (priority 97): what
+  did not happen, where the party really is, "only the items listed in the inventory exist", and to correct it in one
+  or two sentences in the story's voice. Gone once that reply is retried or undone, or a clean reply arrives. Test in
+  `tests/playtestR8.test.js`. Not yet checked with a real model.
+- [x] **Don't parse a reply that is only reasoning / cut off** — done 2026-10-20: Esolite wraps streamed reasoning in
+  `<think>…</think>` only on a proper stop (`close()`: `last_stop_reason == "stop"`); a reply cut off at max_tokens while
+  thinking stays untagged so that **Generate More** continues the thought, which then ends with a lone `</think>`
+  (Esolite's `handle_mismatched_think`). RPmod now applies no tags of a reply that arrives cut off while thinking
+  (reasoning requested, no proper stop, no thinking tag — logged: "use Generate More or Retry") and treats everything
+  before a lone closing tag as thinking. Test in `tests/playtestR8.test.js`. **Live-tested** with DeepSeek V4 Pro at 512
+  max tokens / reasoning "high": two cut-off chunks applied nothing, the third (after Generate More) was parsed after its
+  `</think>`. Found there: Novita/DeepSeek leave `last_stop_reason` empty even for a reply that ended by itself, so a reply
+  only counts as cut off when it also used up its budget (length ≥ 60 % of max_tokens × 4 characters).
+- [x] **Spells outside a fight** — done 2026-10-20: `/cast Cure Wounds on Oona` and the AI's `<cast>Cure Wounds = Oona</cast>`
+  (prompt section "Casting spells" when the persona has spells; "=" because a tag cannot hold ">") spend the slot or free
+  cast like in a fight; healing is rolled onto the persona or a companion (sheet, else the story's companion HP); other
+  spells are logged for the AI to narrate; refused in a fight (Combat window). Test in `tests/playtestR8.test.js`.
+  Still open: a Cast button on the sheet's Spells tab.
+- [x] **Fights started outside the Combat window** — done 2026-10-20: a fight from the AI's `<encounter>` or an event's
+  effect (entering a room) runs the first automatic turns at once, like the window's Start (setting "Run enemy turns
+  automatically"), and opens the Combat window. Test in `tests/playtestR8.test.js`. (A fight from the AI's tag still
+  begins after its reply — the next reply narrates the first turns.)
+- [x] **A dying player at a victory** — done 2026-10-20: whoever is still dying when the fight is won is stabilised and
+  comes round with 1 HP (RPmod simplification of "a stable creature regains 1 HP after 1d4 hours"); the dead stay dead.
+  Test in `tests/combatTurns.test.js`.
+- [x] **Long Rest** — done 2026-10-20: it takes the night (the clock runs slot by slot to the next morning, so night events
+  fire); a fight breaking out interrupts it and nothing is restored. Content version 7: the campfire wolves (Gravel Road)
+  also come when the night falls while resting there (`onTime` + location). Test in `tests/playtestR8.test.js`.
+- [x] **New adventure start keeps the pregens' sheets** — done 2026-10-20: the picker lists the pregens that differ from
+  their starting sheets ("Oona Greycairn: 225 XP, HP 0/12") and offers "Give the characters their starting sheets back"
+  (ticked; untick to keep them); `start(…, { resetPregens })`. Test in `tests/playtestR8.test.js`.
+- [x] **Objectives that complete on arrival** — done 2026-10-20: the talk check matched the name part "Wen" in "Wen's
+  Farm"; place names no longer count as naming a person. (The quest being ready during the ambush is by design: the
+  objective is to find the cart.) Test in `tests/playtestR8.test.js`.
+- [x] **The AI only sees companions' maximum HP** — done 2026-10-20: a person with a sheet gets "Armour: Chain Mail" (the
+  sheet's `acNote`), a companion "HP now 2/12 (badly hurt)". Test in `tests/playtestR8.test.js`.
+- [~] **Pronouns of absent people:** Liu Wen became "he" at the inn (her description reaches the AI only nearby) —
+  content version 7: the Elder's offer says "at her farm". A general rule (people named in quest texts get their
+  pronouns) is still open.
+- [x] **Retry keeps the retried reply's tag effects** — done 2026-10-20 (owner: "detect sheet edits and warn"): when a reply
+  arrives, RPmod keeps the story's game state (slot), the world, the log length and the sheets in play as they were
+  before, and as they were right after; Retry/Undo of exactly that reply (wrapped `btn_retry`/`btn_back`) restores them.
+  If a sheet, the game state (fight turns, moves) or the world changed since, Esolite's Yes/No box asks: undo everything
+  or keep the game. In memory, one reply deep. Tests in `tests/playtestR8.test.js`.
+- [x] **"Close the fight" switches the window to the encounter builder** — done 2026-10-20: closing (or ending) the fight
+  closes the window; after a reload it reopens only while a fight runs (shell `window.restore` may be a function). Tests
+  in `tests/encounter.test.js`, `tests/playtestR8.test.js`.
+- [x] Log wording — done 2026-10-20: "1 success / 2 failures"; "is back up" (no pronoun); the natural 20 is logged before
+  it; "has no one left to attack" once per combatant and fight. Test in `tests/combatTurns.test.js`.
+- [ ] The browser pane of the test answers `confirm()` with "no" (test environment only; Esolite's own dialogs work).
+
+**Open items (owner's play test, 2026-09-26)** — not done yet:
+- [x] World editor: the inspector does not refresh after linking two elements. — fixed 2026-09-26 (Link tool
+  re-renders the inspector).
+- [x] Starter adventure: the Brindlewick ↔ Forest Road connection exists twice; removing one hides both in the
+  inspector, and the exit from Brindlewick to the Forest Road cannot be fixed — travel there is blocked. — fixed
+  2026-09-26: the graph has **one `exit` edge per pair of nodes** (links stored on both sides and the exits of rooms
+  inside a dungeon/town merge; `via` lists the room exits; the inspector says "exit (Village Green)"); removing it
+  also removes those room exits; a link on a **town/dungeon node** is a way out (from any place of a town, from a
+  dungeon's entrance room). Travel was blocked because you could leave Brindlewick only from the Village Green:
+  now you **walk out of a town from any of its places** (routed through its places, "Goes via Village Green to
+  Forest Road"; the Here row offers the road from the inn). Content version 3 stores each connection once.
+- [x] Mini-map: Forest Road is not shown. — done 2026-09-26: inside a dungeon/town the Map section shows the
+  **regional map** (places around it, the town/dungeon as "you are here") above the local board.
+- [x] (owner, during the fix) Quick travel through several places must stop when something happens on the way —
+  done 2026-09-26: every place on a routed way is really entered; an event or a fight there stops the journey
+  ("Quick travel to Lanternport stops at …: a fight starts here"); no quick travel during a fight.
+- [x] Starting the adventure with a character already selected in Roles does not replace the persona with the pregen.
+  — fixed 2026-09-26: the new session's panel reload re-read the old persona from storage (the Tools panel's
+  `loadSettings` runs on every panel load and raced the pregen's save). Storage is now read once per page, and a
+  choice made while the read is pending wins.
+- [x] Esolite's **New Session** keeps the player character (persona) in the Party section; RPmod should reset to a
+  blank state (persona, party, world state for the story). — fixed 2026-09-26: the reset existed but was not
+  saved (the old persona came back from storage, as above); the Worlds engine now clears the story's world state
+  on `restart_new_game` too (no world, no runtime, no party); RPmod's own restarts (adventure start, game over)
+  choose their world again right after.
+- [x] Esolite's **Settings → Misc → Reset ALL Settings** should also reset RPmod's Guide state, so the "New here?"
+  section shows again. — done 2026-09-26 (`klite:reset-all`). Found on the way: RPmod cleared its stored settings
+  when Reset ALL was **clicked**, even when the user then cancelled; now only the confirmed reset clears them.
+  Tests for all open items: `tests/openItemsR8.test.js`.
+
+**Next: play vs. build split + character sheet overhaul (owner, 2026-09-26)** — agreed; do after the open
+items above and before R8 step 5. Principle: the **left panel (Adventure) is everything a player needs**; the
+**right panel is for creators** (and the RP tools). A creator must be able to build with only the right panel
+open (e.g. on an iPad, where the left panel is closed).
+- [x] **Right panel header: three named rows** (replaces the old "step B": four tabs with icons in the tab row).
+  — done 2026-09-26: shell view `group` (`rp`/`adventure`) + `addQuickLink` (Guide, Gallery, Compendium, Editor,
+  Quest editor — hidden in the Player view); the right icon row is gone; Scenario → the **RPmod role play**
+  section of Quick Start (`roleplayQuickStart.js`, `SCENARIO.startRoleplay(vals)`); D&D Compendium = the
+  compendium docked (`dnd-compendium`). Checked in the browser at desktop and phone width (rows wrap; Quick
+  Links open full screen).
+  The Scenario tab goes away; its "Start Role Play" folds into Esolite's Quick Start. The extra header row goes.
+  ```
+  RP           [Chars] [Roles] [Tools]
+  Adventure    [World Management] [World Creation] [D&D Compendium]
+  Quick Links  (Guide) (Gallery) (Compendium) (Editor) (Quest editor)
+  ```
+  RP and Adventure buttons are tabs: they show their view in the right panel (the D&D Compendium tab is a
+  docked rules reference). Quick Links open their element directly as an undocked window; in mobile mode full
+  screen. The Guide stays reachable from the left panel's "?" too. The Quest editor link is hidden in the
+  Player view.
+- [x] **World Management** (from the World panel; view id stays `world`): world selection; New / **Rename** (replaces Example) /
+  Import / Export; the save-slot part of Game State (Back to start, Save as start, Edit start state);
+  **Premade worlds**: "Play the built-in adventure", "Load minimal example world".
+- [x] **World Creation** (from the World panel; view `worldcreate`; creator windows `questlog-all`, `repeditor`): Creator view / Player view switch (renamed; the Player view is
+  a comfort feature to check the player's side without leaving the right panel); Quest log, Reputation (the
+  creator versions: all quests/factions, editable); Combat; Editor; Quest editor (Creator view only); Preview
+  what the AI sees; **State editor** — all adventure data editable (place, time, flags, …) **except the
+  inventory**.
+- [x] **Inventory only in the left panel:** a new Inventory section in the Adventure panel (same list as the
+  sheet — `giveItem` already writes to the sheet).
+- [x] Left panel header: a **Compendium** button next to the "?". (All five done 2026-09-26; tests in
+  `ui`, `shell`, `onboarding`, `compendium`, `questlogR8`.)
+- [x] **Character sheet overhaul** — done 2026-09-26 (all points below; `equipment-rules.js`, the sheet's tabs,
+  `inHand` additive with tests, draw-as-part-of-the-attack in combat, Features from `featureList`, notes; tests
+  `tests/sheetR8.test.js`): tabs like Esolite's Settings dialog (split like the builder): Overview
+  (abilities, saves, skills) · Combat (AC, HP, attacks) · Spells · Inventory · Features · Notes.
+  - Attacks: **SRD autocomplete** (typing "Lo" offers Longsword…); picking a weapon fills damage and ability
+    (finesse → DEX).
+  - Inventory: the same SRD autocomplete (weapons, armor, gear, magic items); each item can show its SRD
+    definition.
+  - **In hand vs. backpack:** new `inHand` flag on inventory items (additive; old sheets = all in the backpack).
+    Toggle `(<-BP)` / `(->BP)` with a tooltip. Weapons in hand are highlighted green in Attacks and Inventory;
+    attacks whose weapon is stowed are dimmed. Rule (SRD): draw or stow one weapon as part of each attack;
+    other items need the Utilize action — the combat view says so; warn when more than two hands are used
+    (shield, two-handed).
+  - **Features:** a large, full-height tab, **filled automatically** with the SRD text of the character's class,
+    subclass, species, background and feat features (the rule overview), level-appropriate.
+  - **Character notes:** one text, saved in the character, permanent; Delete / Cancel / Save.
+  - **Adventure notes:** one text, saved in the adventure (world) state, wiped on a new start / Back to start;
+    Delete / Cancel / Save; a grey note under the box says so. For things that matter only in this play.
+
+Also planned (owner, 2026-09-25): **1:1 roleplay audit** — play a 1:1 scenario with a real backend, and a per-story **play style** (Adventure with a world / Roleplay without).
+
+## Working agreement
+1. Plan the phase (or item) briefly; confirm scope with the owner when unclear.
+2. Implement in `src/`; never edit generated files (`KLITE-RPmod.js`, `index.rpmod.html`).
+3. `npm test` must be green; add tests for new behavior.
+4. Update this file (status + current state) and commit.

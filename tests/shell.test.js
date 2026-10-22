@@ -1,0 +1,268 @@
+'use strict';
+// App shell (src/shell/): docks, views, floating windows, layout persistence, Esolite
+// layout push, RP panel adoption.
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { createHost, click, sleep } = require('./helpers/host');
+
+async function shellHost(t, { width } = {}) {
+    const h = createHost(); t.after(h.close);
+    if (width) { h.window.innerWidth = width; }
+    h.load('shell');
+    h.window.dispatchEvent(new h.window.Event('load'));
+    await sleep(10);
+    return h;
+}
+const $ = (h, sel) => h.window.document.querySelector(sel);
+const $$ = (h, sel) => [...h.window.document.querySelectorAll(sel)];
+const cssVar = (h, name) => h.window.document.documentElement.style.getPropertyValue(name);
+
+function addViews(sh) {
+    const log = [];
+    sh.registerView({ id: 'a', title: 'Alpha', place: 'right', order: 20, mount: (c) => { log.push('mount a'); c.textContent = 'view A'; } });
+    sh.registerView({ id: 'b', title: 'Beta', place: 'right', order: 10, mount: (c) => { log.push('mount b'); c.textContent = 'view B'; }, update: (c) => { log.push('update b'); } });
+    sh.registerView({ id: 'side', title: 'Side', place: 'left', mount: (c) => { c.textContent = 'side view'; } });
+    sh.registerView({ id: 'win', title: 'A Window', place: 'window', window: { width: 300, height: 200 }, mount: (c) => { c.textContent = 'window body'; } });
+    return log;
+}
+
+test('shell: docks, top-bar button, tabs in order, lazy mount', async (t) => {
+    const h = await shellHost(t); const sh = h.shell();
+    assert.ok($(h, '#rpm-shell'), 'shell root');
+    assert.ok($(h, '#rpm-navbtn'), 'single top-bar entry');
+    assert.ok($(h, '#rpm-shell-styles'), 'styles injected');
+    const log = addViews(sh);
+
+    const tabs = $$(h, '#rpm-dock-right [role=tab]').map(b => b.textContent);
+    assert.deepEqual(tabs, ['Beta', 'Alpha'], 'tabs sorted by order');
+    // 'a' was the only view when it registered, so it mounted; once 'b' (lower order)
+    // exists, b is the default tab. The default is not saved as a user choice.
+    assert.deepEqual(log, ['mount a', 'mount b']);
+    assert.equal($(h, '[data-tab="b"]').getAttribute('aria-selected'), 'true', 'first by order is the default');
+    assert.equal(sh.layout().right.tab, null, 'default not persisted');
+    click($(h, '[data-tab="a"]'), h.window);
+    assert.equal(sh.layout().right.tab, 'a', 'explicit choice persisted');
+    assert.deepEqual(log, ['mount a', 'mount b'], 'already mounted: no re-mount on tab switch');
+    assert.equal($(h, '[data-tab="a"]').getAttribute('aria-selected'), 'true');
+    assert.ok($(h, '#rpm-view-a').classList.contains('rpm-active'));
+    assert.ok(!$(h, '#rpm-view-b').classList.contains('rpm-active'));
+
+    // refresh: hidden view is marked dirty, updated when shown again
+    sh.refresh(['b']);
+    assert.deepEqual(log, ['mount a', 'mount b']);
+    click($(h, '[data-tab="b"]'), h.window);
+    assert.deepEqual(log, ['mount a', 'mount b', 'update b']);
+
+    assert.match($(h, '[data-section="side"]').textContent, /side view/);
+});
+
+test('shell: the right panel has three named header rows — RP tabs, Adventure tabs, Quick Links (R8)', async (t) => {
+    const h = await shellHost(t); const sh = h.shell(); const w = h.window;
+    addViews(sh);
+    sh.registerView({ id: 'rp1', title: 'Chars', place: 'right', group: 'rp', order: 50, mount: (c) => { c.textContent = 'rp one'; } });
+    const rows = $$(h, '#rpm-dock-right .rpm-tabrow').map(r => [r.getAttribute('data-group'), r.querySelector('.rpm-tabrow-label').textContent, r.hidden]);
+    assert.deepEqual(rows, [['rp', 'RP', false], ['adventure', 'Adventure', false], ['links', 'Quick Links', true]], 'no links yet: that row is hidden');
+    assert.ok($(h, '.rpm-tabrow[data-group="rp"] [data-tab="rp1"]'), 'a view of group rp is in the RP row');
+    assert.ok($(h, '.rpm-tabrow[data-group="adventure"] [data-tab="a"]'), 'no group: the Adventure row');
+    // Quick Links open things directly; a link can hide itself (e.g. the Quest editor in the Player view)
+    let opened = 0, show = true;
+    sh.addQuickLink({ id: 'guide', title: 'Guide', icon: 'circle-help', order: 10, onClick: () => { opened++; } });
+    sh.addQuickLink({ id: 'qe', title: 'Quest editor', order: 50, onClick: () => {}, visible: () => show });
+    assert.equal($(h, '.rpm-tabrow[data-group="links"]').hidden, false);
+    assert.deepEqual($$(h, '#rpm-dock-right [data-link]').map(b => b.textContent), ['Guide', 'Quest editor']);
+    click($(h, '[data-link="guide"]'), w); assert.equal(opened, 1);
+    show = false; sh.refreshLinks();
+    assert.deepEqual($$(h, '#rpm-dock-right [data-link]').map(b => b.getAttribute('data-link')), ['guide']);
+    // the old icon row: empty and hidden (addDockAction('right') still works for other mods)
+    const css = $(h, '#rpm-shell-styles').textContent;
+    assert.match(css, /\.rpm-dock-right \.rpm-dock-actions:empty \{ display: none; \}/);
+    assert.match(css, /\.rpm-tabrow\[hidden\] \{ display: none; \}/);
+});
+
+test('shell: docked mode pushes Esolite in; top-bar button hides both docks', async (t) => {
+    const h = await shellHost(t); const sh = h.shell(); addViews(sh);
+    assert.equal(sh.mode(), 'docked');
+    assert.ok(h.window.document.body.classList.contains('rpm-docked'));
+    assert.equal(cssVar(h, '--rpm-push-left'), '260px');
+    assert.equal(cssVar(h, '--rpm-push-right'), '350px');
+
+    click($(h, '#rpm-navbtn'), h.window);
+    assert.ok(!sh.dockOpen('left') && !sh.dockOpen('right'));
+    assert.equal(cssVar(h, '--rpm-push-right'), '0px');
+    assert.ok($(h, '#rpm-dock-right').classList.contains('rpm-closed'));
+    assert.equal($(h, '.rpm-handle-right').hidden, false, 'edge handle to reopen');
+    click($(h, '.rpm-handle-right'), h.window);
+    assert.ok(sh.dockOpen('right') && !sh.dockOpen('left'));
+    assert.equal(sh.layout().left.open, false, 'dock state persisted');
+});
+
+test('shell: narrow screens switch to overlay drawers (no push, one at a time)', async (t) => {
+    const h = await shellHost(t); const sh = h.shell(); addViews(sh);
+    await h.resize(900);
+    assert.equal(sh.mode(), 'overlay');
+    assert.ok(!h.window.document.body.classList.contains('rpm-docked'));
+    assert.ok(!sh.dockOpen('left') && !sh.dockOpen('right'), 'drawers start closed');
+    sh.setDockOpen('left', true); sh.setDockOpen('right', true);
+    assert.ok(sh.dockOpen('right') && !sh.dockOpen('left'), 'only one drawer open');
+    assert.equal(cssVar(h, '--rpm-push-right'), '0px', 'overlay does not push the chat');
+    await h.resize(1400);
+    assert.equal(sh.mode(), 'docked');
+    assert.ok(sh.dockOpen('left') && sh.dockOpen('right'), 'docked layout restored from prefs');
+});
+
+test('windows: open, focus, drag (clamped), resize, close; geometry remembered', async (t) => {
+    const h = await shellHost(t); const sh = h.shell(); const w = h.window; addViews(sh);
+    sh.open('win');
+    const win = $(h, '[data-window="win"]');
+    assert.ok(win, 'window open');
+    assert.match(win.textContent, /window body/);
+    assert.equal(win.style.width, '300px');
+    assert.equal(win.getAttribute('role'), 'dialog');
+
+    // drag the title bar far off-screen: must stay reachable (title bar on screen)
+    const head = win.querySelector('.rpm-window-head');
+    const P = (type, x, y) => new w.PointerEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
+    head.dispatchEvent(P('pointerdown', 100, 100));
+    w.dispatchEvent(P('pointermove', 5000, -500));
+    w.dispatchEvent(P('pointerup', 5000, -500));
+    assert.equal(win.style.top, '0px', 'not above the viewport');
+    assert.ok(parseInt(win.style.left, 10) <= 1400 - 48, 'right edge clamp');
+
+    // resize via grip, respecting min size
+    const grip = win.querySelector('.rpm-window-grip');
+    grip.dispatchEvent(P('pointerdown', 0, 0));
+    w.dispatchEvent(P('pointermove', -1000, -1000));
+    w.dispatchEvent(P('pointerup', -1000, -1000));
+    assert.equal(win.style.width, '240px', 'min width');
+    assert.equal(win.style.height, '140px', 'min height');
+    const saved = sh.layout().windows.win;
+    assert.equal(saved.w, 240); assert.equal(saved.open, true);
+
+    // focus raises
+    sh.registerView({ id: 'win2', title: 'Two', place: 'window', mount: () => {} });
+    sh.open('win2');
+    const z = (id) => Number($(h, `[data-window="${id}"]`).style.zIndex);
+    assert.ok(z('win2') > z('win'));
+    $(h, '[data-window="win"]').dispatchEvent(P('pointerdown', 1, 1));
+    assert.ok(z('win') > z('win2'));
+
+    click(win.querySelector('[data-winbtn="close"]'), w);
+    assert.equal($(h, '[data-window="win"]'), null, 'closed');
+    assert.equal(sh.layout().windows.win.open, false);
+    assert.equal(sh.layout().windows.win.w, 240, 'geometry kept after close');
+});
+
+test('windows: maximize/restore, large + flush options, unmount hook, restore:false', async (t) => {
+    const h = await shellHost(t); const sh = h.shell(); const w = h.window; addViews(sh);
+    sh.open('win');
+    const win = $(h, '[data-window="win"]');
+    const maxBtn = win.querySelector('[data-winbtn="max"]');
+    click(maxBtn, w);
+    assert.ok(win.classList.contains('rpm-maximized'));
+    assert.equal(win.style.width, '1400px'); assert.equal(win.style.left, '0px');
+    assert.equal(maxBtn.getAttribute('aria-pressed'), 'true');
+    assert.equal(sh.layout().windows.win.max, true);
+    assert.equal(sh.layout().windows.win.w, 300, 'normal geometry kept while maximized');
+    // dragging a maximized window does nothing
+    const P = (type, x, y) => new w.PointerEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 });
+    win.querySelector('.rpm-window-head').dispatchEvent(P('pointerdown', 100, 100));
+    w.dispatchEvent(P('pointermove', 300, 300)); w.dispatchEvent(P('pointerup', 300, 300));
+    assert.equal(win.style.left, '0px');
+    // double-click on the title bar restores
+    win.querySelector('.rpm-window-title').dispatchEvent(new w.MouseEvent('dblclick', { bubbles: true }));
+    assert.ok(!win.classList.contains('rpm-maximized'));
+    assert.equal(win.style.width, '300px');
+    assert.equal(sh.layout().windows.win.max, false);
+
+    // large + flush, unmount on close, never restored at startup
+    const log = [];
+    sh.registerView({ id: 'big', title: 'Big', place: 'window', window: { large: true, flush: true, restore: false },
+        mount: (c) => log.push('mount'), unmount: (c) => log.push('unmount:' + !!c) });
+    sh.open('big');
+    const big = $(h, '[data-window="big"]');
+    assert.ok(parseInt(big.style.width, 10) >= 1300, 'large window fills most of the screen');
+    assert.ok(big.querySelector('.rpm-window-body-flush'));
+    sh.maximize('big');
+    const saved = h.window.localStorage.getItem('KLITE.shell.layout');
+    sh.close('big');
+    assert.deepEqual(log, ['mount', 'unmount:true']);
+
+    const h2 = createHost(); t.after(h2.close);
+    const saved2 = JSON.parse(saved); saved2.windows.big.open = true;
+    h2.window.localStorage.setItem('KLITE.shell.layout', JSON.stringify(saved2));
+    h2.load('shell'); h2.window.dispatchEvent(new h2.window.Event('load')); await sleep(10);
+    addViews(h2.shell());
+    h2.shell().registerView({ id: 'big', title: 'Big', place: 'window', window: { large: true, restore: false }, mount: () => {} });
+    assert.equal(h2.window.document.querySelector('[data-window="big"]'), null, 'restore:false window stays closed');
+    assert.ok(h2.window.document.querySelector('[data-window="win"]'), 'other window restored');
+    h2.shell().open('big');
+    assert.ok(h2.window.document.querySelector('[data-window="big"]').classList.contains('rpm-maximized'), 'maximized state remembered');
+});
+
+test('layout persists across reloads (localStorage) and survives corrupt data', async (t) => {
+    const h = await shellHost(t); const sh = h.shell(); addViews(sh);
+    click($(h, '[data-tab="a"]'), h.window);
+    sh.open('win');
+    const saved = h.window.localStorage.getItem('KLITE.shell.layout');
+
+    const h2 = createHost(); t.after(h2.close);
+    h2.window.localStorage.setItem('KLITE.shell.layout', saved);
+    h2.load('shell'); h2.window.dispatchEvent(new h2.window.Event('load')); await sleep(10);
+    addViews(h2.shell());
+    assert.equal(h2.window.document.querySelector('[data-tab="a"]').getAttribute('aria-selected'), 'true', 'tab restored');
+    assert.ok(h2.window.document.querySelector('[data-window="win"]'), 'open window restored');
+
+    // phones: the open window is not restored at startup (it would cover the chat)
+    const h4 = createHost(); t.after(h4.close);
+    h4.window.innerWidth = 375;
+    h4.window.localStorage.setItem('KLITE.shell.layout', saved);
+    h4.load('shell'); h4.window.dispatchEvent(new h4.window.Event('load')); await sleep(10);
+    addViews(h4.shell());
+    assert.equal(h4.window.document.querySelector('[data-window="win"]'), null);
+
+    const h3 = createHost(); t.after(h3.close);
+    h3.window.localStorage.setItem('KLITE.shell.layout', '{not json');
+    h3.load('shell'); h3.window.dispatchEvent(new h3.window.Event('load')); await sleep(10);
+    addViews(h3.shell());
+    assert.equal(h3.shell().mode(), 'docked', 'defaults used');
+});
+
+test('a failing view shows a message instead of breaking the shell', async (t) => {
+    const h = await shellHost(t); const sh = h.shell();
+    const origErr = h.window.console.error; h.window.console.error = () => {};
+    t.after(() => { h.window.console.error = origErr; });
+    sh.registerView({ id: 'bad', title: 'Bad', place: 'right', mount: () => { throw new Error('boom'); } });
+    sh.registerView({ id: 'good', title: 'Good', place: 'left', mount: (c) => { c.textContent = 'fine'; } });
+    assert.match($(h, '#rpm-view-bad').textContent, /failed to load/);
+    assert.match($(h, '[data-section="good"]').textContent, /fine/);
+    assert.throws(() => sh.registerView({ id: 'x', place: 'nowhere', mount() {} }));
+});
+
+test("the RP panels are adopted and split into three shell tabs in the RP row (Chars/Roles/Tools)", async (t) => {
+    const h = await shellHost(t); const doc = h.window.document; const w = h.window;
+    h.shell().registerView({ id: 'first', title: 'First', place: 'right', order: 1, mount: () => {} });
+    // stand-in for the RP core's API: switchTab re-renders the requested sub-tab
+    const calls = [];
+    w.KLITE_RPMod = { state: { tabs: { right: 'CHARS' } }, switchTab(side, key) { calls.push(side + ':' + key); this.state.tabs.right = key; } };
+    // what the RP core's buildPanelsOnlyUI() creates, asynchronously
+    const wrap = doc.createElement('div'); wrap.id = 'klite-panels-only';
+    wrap.innerHTML = '<div class="klite-panel klite-panel-right collapsed" id="panel-right"><div class="klite-handle" data-panel="right">▶</div><div class="klite-tabs" data-panel="right"></div><div class="klite-content" id="content-right">chars</div></div>';
+    doc.body.appendChild(wrap);
+    await sleep(400);
+    const panel = doc.getElementById('panel-right');
+    assert.ok(panel.closest('#rpm-shell'), 'moved into the shell at once (never floats over the page)');
+    assert.ok(panel.closest('.rpm-stash'), 'parked hidden while no RP panel tab is shown');
+    assert.ok(!panel.classList.contains('collapsed'), 'the old collapse state neutralised');
+    assert.deepEqual($$(h, '#rpm-dock-right [role=tab]').map(b => b.textContent), ['Chars', 'Roles', 'Tools', 'First'], 'the RP row comes first');
+    assert.deepEqual($$(h, '.rpm-tabrow[data-group="rp"] [role=tab]').map(b => b.textContent), ['Chars', 'Roles', 'Tools']);
+
+    click($(h, '[data-tab="tools"]'), w);
+    assert.ok(panel.closest('#rpm-view-tools'), 'panel moved into the Tools tab');
+    assert.deepEqual(calls, ['right:TOOLS']);
+    click($(h, '[data-tab="chars"]'), w);
+    assert.ok(panel.closest('#rpm-view-chars'));
+    assert.deepEqual(calls, ['right:TOOLS', 'right:CHARS']);
+    click($(h, '[data-tab="chars"]'), w);
+    assert.deepEqual(calls.length, 2, 're-clicking the shown tab does not re-render');
+    assert.equal(doc.querySelectorAll('#panel-right').length, 1);
+});

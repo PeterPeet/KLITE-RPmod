@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Filesystem Browser</title>
+    <link rel="stylesheet" href="/static/css/fs_browser.css">
+    <link rel="stylesheet" href="/static/css/popupUtils.css">
+</head>
+<body>
+    <div id="app">
+        <header id="header">
+            <div id="header-left">
+                <span id="title">&#128193; Filesystem Browser</span>
+                <nav id="breadcrumbs"></nav>
+            </div>
+            <div id="header-right">
+                <button id="btn-view-mode" class="btn btn-secondary" type="button" aria-pressed="false">&#9638; Tile View</button>
+                <a id="btn-zip" class="btn btn-secondary" href="#">&#8659; Download ZIP</a>
+                <button id="btn-create-folder" class="btn btn-secondary" type="button">&#128193; New Folder</button>
+                <label class="btn btn-primary" id="upload-label">
+                    &#8657; Upload Files
+                    <input type="file" id="file-input" multiple>
+                </label>
+            </div>
+        </header>
+
+        <div id="dropzone" aria-label="Drop files here to upload">
+            <div id="dropzone-inner">
+                <span id="dropzone-icon">&#128229;</span>
+                <span id="dropzone-text">Drop files here to upload to this directory</span>
+                <span id="dropzone-hint">ZIP files will be automatically extracted</span>
+            </div>
+        </div>
+
+        <div id="status-bar" hidden>
+            <div id="progress-wrap">
+                <div id="progress-bar"></div>
+            </div>
+            <span id="status-msg"></span>
+        </div>
+
+        <div id="listing-container">
+            <table id="listing">
+                <thead>
+                    <tr>
+                        <th class="col-name">Name</th>
+                        <th class="col-size">Size</th>
+                        <th class="col-modified">Modified</th>
+                        <th class="col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="listing-body">
+                    <tr id="loading-row"><td colspan="4">Loading&hellip;</td></tr>
+                </tbody>
+            </table>
+            <div id="tile-grid" hidden></div>
+        </div>
+
+        <div id="empty-notice" hidden>
+            <span>This directory is empty.</span>
+            <span>Upload files using the button above or drop them onto the page.</span>
+        </div>
+    </div>
+
+    <script src="/static/js/fs.js"></script>
+    <script src="/static/js/popupUtils.js"></script>
+    <script type="module" src="/static/js/editorPopup.js"></script>
+    <script src="/static/js/fs_browser.js"></script>
+    <style>
+        .popupcontainer {
+            position: fixed;
+            top: 0px;
+            left: 0px;
+            z-index: 3;
+            display: flex;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-around;
+        }
+
+        .popupbg {
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: -1;
+            background-color: rgba(0, 0, 0, 0.5);
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #popupContainer > .nspopup {
+            background: var(--accent2);
+            max-height: 80%;
+            max-width: 80%;
+            margin-top: unset !important;
+            border-radius: 5px;
+        }
+
+        #popupContainer .popuptitlebar {
+            height: 40px;
+            padding: 6px;
+            font-weight: bold;
+        }
+
+        #popupContainer .popupContent {
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        #popupContainer .popupfooter {
+            display: block;
+        }
+
+        #popupContainer .popupfooter button {
+            width: unset;
+        }
+
+        #popupContainer .popupContent input[type="text"],
+        #popupContainer .popupContent input[type="file"],
+        #popupContainer .popupContent textarea,
+        #popupContainer .popupContent select {
+            background-color: var(--theme_color_input_bg);
+            border-color: var(--theme_color_border);
+            color: var(--theme_color_input_fg);
+            border: 1px solid var(--theme_color_border, #ccc);
+            border-radius: 6px;
+            padding: 6px 8px;
+            box-sizing: border-box;
+        }
+
+        .esoEditorPopup,
+        .esoAceEditor {
+            height: 100%;
+            width: 100%;
+        }
+
+        .ace_editor {
+            font-size: var(--theme_font_size_content, 14px);
+        }
+    </style>
+</body>
+</html>

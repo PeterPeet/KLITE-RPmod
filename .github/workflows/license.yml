@@ -1,0 +1,24 @@
+# License check (owner, 2026-10-22): every pull request into development or main must keep the project's license —
+# LICENSE.md with the unchanged AGPL-3.0 text and package.json's "license" field. Branch protection requires this
+# check ("license") before a merge. Changing the license on purpose: update the expected hash below in the same PR.
+name: license
+on:
+  pull_request:
+    branches: [development, main]
+  push:
+    branches: [development, main]
+jobs:
+  license:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: LICENSE.md is the AGPL-3.0 text, package.json says AGPL-3.0-only
+        run: |
+          set -e
+          test -f LICENSE.md || { echo "::error file=LICENSE.md::LICENSE.md is missing"; exit 1; }
+          expected=0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0
+          actual=$(sha256sum LICENSE.md | cut -d' ' -f1)
+          [ "$actual" = "$expected" ] || { echo "::error file=LICENSE.md::LICENSE.md is not the expected AGPL-3.0 text ($actual)"; exit 1; }
+          license=$(node -p "require('./package.json').license")
+          [ "$license" = "AGPL-3.0-only" ] || { echo "::error file=package.json::package.json license is '$license', expected AGPL-3.0-only"; exit 1; }
+          echo "License OK: AGPL-3.0"

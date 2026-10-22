@@ -1,0 +1,32 @@
+<svg viewBox="0 0 740 360" xmlns="http://www.w3.org/2000/svg" font-family="system-ui,Segoe UI,Roboto,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#8a8a8a"/></marker>
+  </defs>
+
+  <text x="20" y="34" fill="#8a8a8a" font-size="15" font-weight="600">Classic lorebook — keyword → text</text>
+  <g>
+    <rect x="20"  y="52" width="150" height="46" rx="8" fill="#5F5E5A"/><text x="95"  y="80" fill="#fff" font-size="13" text-anchor="middle">Chat keywords</text>
+    <rect x="210" y="52" width="150" height="46" rx="8" fill="#5F5E5A"/><text x="285" y="80" fill="#fff" font-size="13" text-anchor="middle">Match key</text>
+    <rect x="400" y="52" width="150" height="46" rx="8" fill="#5F5E5A"/><text x="475" y="80" fill="#fff" font-size="13" text-anchor="middle">Insert lore text</text>
+    <rect x="590" y="52" width="130" height="46" rx="8" fill="#5F5E5A"/><text x="655" y="80" fill="#fff" font-size="13" text-anchor="middle">Prompt</text>
+    <line x1="170" y1="75" x2="208" y2="75" stroke="#8a8a8a" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="360" y1="75" x2="398" y2="75" stroke="#8a8a8a" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="550" y1="75" x2="588" y2="75" stroke="#8a8a8a" stroke-width="1.6" marker-end="url(#ar)"/>
+  </g>
+  <text x="20" y="122" fill="#8a8a8a" font-size="11.5">Every matched entry is dumped in, no sense of place or time.</text>
+
+  <line x1="20" y1="150" x2="720" y2="150" stroke="#8a8a8a" stroke-opacity=".35" stroke-width="1"/>
+
+  <text x="20" y="188" fill="#8a8a8a" font-size="15" font-weight="600">Worlds — state → relevant slice</text>
+  <g>
+    <rect x="20"  y="206" width="160" height="52" rx="8" fill="#1D9E75"/><text x="100" y="230" fill="#fff" font-size="13" text-anchor="middle">Where &amp; when</text><text x="100" y="247" fill="#ffffffcc" font-size="10.5" text-anchor="middle">location + time</text>
+    <rect x="220" y="206" width="150" height="52" rx="8" fill="#7F77DD"/><text x="295" y="230" fill="#fff" font-size="13" text-anchor="middle">Nearby graph</text><text x="295" y="247" fill="#ffffffcc" font-size="10.5" text-anchor="middle">NPCs · objects · lore</text>
+    <rect x="410" y="206" width="150" height="52" rx="8" fill="#BA7517"/><text x="485" y="230" fill="#fff" font-size="13" text-anchor="middle">Active slice</text><text x="485" y="247" fill="#ffffffcc" font-size="10.5" text-anchor="middle">just what matters</text>
+    <rect x="600" y="206" width="120" height="52" rx="8" fill="#5F5E5A"/><text x="660" y="236" fill="#fff" font-size="13" text-anchor="middle">Prompt</text>
+    <line x1="180" y1="232" x2="218" y2="232" stroke="#8a8a8a" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="370" y1="232" x2="408" y2="232" stroke="#8a8a8a" stroke-width="1.6" marker-end="url(#ar)"/>
+    <line x1="560" y1="232" x2="598" y2="232" stroke="#8a8a8a" stroke-width="1.6" marker-end="url(#ar)"/>
+  </g>
+  <text x="20" y="286" fill="#8a8a8a" font-size="11.5">Only the current location's characters, objects, events and relevant lore — not the whole world.</text>
+  <text x="20" y="322" fill="#8a8a8a" font-size="11.5">Result: less prompt bloat, better consistency, real location &amp; time awareness.</text>
+</svg>

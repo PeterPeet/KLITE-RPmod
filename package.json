@@ -1,0 +1,24 @@
+{
+  "name": "klite-rpmod",
+  "version": "0.10.0",
+  "private": true,
+  "description": "KLITE RPmod — tabletop-RPG roleplay layer for Esobold Esolite (KoboldAI Lite fork)",
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "build": "node scripts/build-bundle.js",
+    "build:host": "node scripts/build-host.js",
+    "build:index": "node scripts/build-integrated-index.js",
+    "serve": "node scripts/serve-host.js",
+    "deploy:pages": "node scripts/deploy-pages.js",
+    "test": "npm run build && node scripts/run-tests.js",
+    "icons": "node scripts/build-icons.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "jsdom": "^28.1.0",
+    "lucide-static": "1.43.0"
+  }
+}

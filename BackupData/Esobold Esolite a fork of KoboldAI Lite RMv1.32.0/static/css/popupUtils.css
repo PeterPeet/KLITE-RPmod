@@ -1,0 +1,186 @@
+	.containAndScaleImage {
+	    aspect-ratio: 1;
+	    background-clip: content-box;
+	    background-position: 50% 50%;
+	    background-size: 100% 100%;
+	    background-origin: content-box;
+	    background-repeat: no-repeat;
+	}
+
+	#popupContainer>.nspopup {
+	    max-height: 80%;
+	    max-width: 80%;
+	}
+
+	#popupContainer .popuptitlebar {
+	    height: 40px;
+	}
+
+	#popupContainer .popupContent {
+	    overflow-y: auto;
+	    overflow-x: hidden;
+	}
+
+	#popupContainer .popupfooter {
+	    display: block;
+	}
+
+	#popupContainer .popupfooter button {
+	    width: unset;
+	}
+
+	/* Ensure form fields are readable inside popups */
+	#popupContainer .popupContent input[type="text"],
+	#popupContainer .popupContent input[type="file"],
+	#popupContainer .popupContent textarea,
+	#popupContainer .popupContent select {
+	    background-color: var(--theme_color_input_bg);
+	    border-color: var(--theme_color_border);
+	    color: var(--theme_color_input_fg);
+	    border: 1px solid var(--theme_color_border, #ccc);
+	    border-radius: 6px;
+	    padding: 6px 8px;
+	    box-sizing: border-box;
+	}
+
+	.containAndScaleImage.tile {
+		height: 128px;
+		width: 128px;
+		border-radius: 18px;
+		text-align: center;
+		word-wrap: break-word;
+		cursor: pointer;
+		transition: filter 0.15s ease, transform 0.1s ease;
+		box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+	}
+
+	.containAndScaleImage.tile:hover {
+		filter: brightness(1.18);
+		transform: scale(1.05);
+	}
+
+	.containAndScaleImage.tile.quick_start_selected {
+		outline: 3px solid var(--theme_color_fg);
+		box-shadow: 0 0 0 2px rgba(0,0,0,0.2), 0 0 14px rgba(255,255,255,0.2);
+	}
+
+	.quick_start_preview_grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+		gap: 8px;
+		width: 100%;
+	}
+
+	.containAndScaleImage.tile.quick_start_preview_tile {
+		height: 86px;
+		width: 86px;
+		border-radius: 12px;
+		background-size: cover;
+		background-position: center;
+	}
+
+	.containAndScaleImage.tile.quick_start_preview_tile.quick_start_preview_tile_empty {
+		opacity: 0.85;
+		cursor: default;
+	}
+
+	.containAndScaleImage.tile>b {
+	    color: white;
+	    background-color: rgba(0,0,0,0.65);
+	    border-radius: 4px;
+	    font-weight: bold;
+	    padding: 2px 4px;
+	}
+
+	/* Section header tiles: not interactive, show label in accent colour */
+	.containAndScaleImage.tile.library_section_header {
+		cursor: default;
+		pointer-events: none;
+		background-size: 55%;
+		background-position: 50% 70%;
+		box-shadow: none;
+	}
+
+	.containAndScaleImage.tile.library_section_header:hover {
+		filter: none;
+		transform: none;
+	}
+
+	.fillContainer {
+	    height: 100%;
+	    width: 100%;
+	}
+
+	.autoGrid {
+	    display: grid;
+		border: 1px dashed var(--theme_color_border);
+		border-radius: 10px;
+	    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+	    padding: 12px;
+	    gap: 14px;
+	}
+
+	.autoGrid>* {
+	    display: block;
+	}
+
+	.characterCreatorGrid {
+	    color: var(--theme_color_fg);
+	    padding: 10px;
+	    display: grid;
+	    grid-template-columns: 1fr 1fr;
+	    gap: 8px;
+	    min-width: 600px;
+	}
+
+	#popupContainer .popupfooter .navtoggler {
+		display: none;
+	}
+
+	@media (max-width: 800px) {
+	    .characterCreatorGrid {
+	        grid-template-columns: 1fr;
+	    }
+		#popupContainer.mobileMenu:not(.expanded) .popupfooter {
+			height: 70px;
+		}
+		#popupContainer.mobileMenu:not(.expanded) .popupfooter > * {
+			display: none;
+		}
+		#popupContainer.mobileMenu .popupfooter {
+			overflow-y: auto;
+		}
+		#popupContainer.mobileMenu .popupfooter .navtoggler {
+			display: block;
+			width: 60px;
+		}
+	}
+
+	/* Fix for weird sizing issue in sidebars */
+	#settingscontainer.side.popupcontainer,
+	.popupcontainer.sideright {
+	    justify-content: unset;
+	}
+
+	.buttonGroup > span {
+		color: var(--theme_color_fg);
+		background-color: var(--theme_color_topbtn);
+		border-radius: 10px;
+		text-align: center;
+		padding-top: 10px;
+	}
+
+	.scrollToButtons {
+		position: sticky;
+		top: 0px;
+		float: right;
+	}
+
+	.esoEditorPopup, .esoAceEditor {
+		height: 100%;
+		width: 100%;
+	}
+
+	.ace_editor {
+		font-size: var(--theme_font_size_content);
+	}

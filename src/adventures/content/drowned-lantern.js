@@ -1,0 +1,962 @@
+// =============================================================================
+// KLITE RPmod — Starter adventure "The Drowned Lantern" (R8). Original content; SRD 5.2.1 rules
+// and monsters only (the attribution is in `credits`). Design: docs/design/R8-starter-adventure.md.
+// -----------------------------------------------------------------------------
+// Built layer by layer (R8 steps 3–7). Layer 1 (step 3): Brindlewick, the Forest Road, the Hollow
+// Oak goblin den, the River Ford; quests A1–A3 and the mill; the four pregenerated characters.
+// Layer 2 (step 4): the mountain route (Gravel Road, Windgap Pass, the Watchtower ruin) and the
+// valley route (Meadow Road, Owlbear Hollow, the Traveler's Outpost), the shepherds' trail between
+// them, Lanternport as a place (its streets come with step 5); the Outpost quests and the
+// Doppelganger in the stables.
+// Layer 3 (step 5): Lanternport (town, 10 places) and questline B, the Lantern Fair — sign-up, daily
+// contests (check objectives RPmod rolls), the cook-off, the champion, the whispers on the docks
+// and the last night; the fair runs three in-game days (flags fair_day 1–3, advanced by events at
+// night and the next morning); a hook quest from Brindlewick to the mayor.
+// Layer 4 (step 6): the south shore — the hidden beach (by the river, or by boat from Lanternport),
+// the Reedcloaks' sea cave (A4, A5: the ledger), the Old Dam ("The Sluice"), and the other way of
+// the last night: let the thieves take the Lantern and follow them.
+// Layer 5 (step 7): the Lost Chapel under the lake (low water or the long swim), Mother Reedwater, and
+// the endings; side quests Lights on the Lake and Honest Work.
+// Fights started by events have no place of their own (`locationId`), so the AI is not hinted at
+// them before they happen ("waiting here").
+// Raise VERSION whenever the content changes: a player's Library then gets the new world beside
+// the old one (never overwritten), while their pregens keep their sheets.
+// The pregens are built with the character builder when the bundle loads, so their sheets always
+// follow the builder's rules.
+// =============================================================================
+import { SRD } from '../../data/srd52.js';
+import { buildSheet } from '../../characters/builder-rules.js';
+import { writeSheet } from '../../characters/sheet.js';
+
+export const ID = 'drowned-lantern';
+export const VERSION = 7;   // 7: play-test fixes (the campfire wolves also come while resting there at night; Liu's pronoun in the offer); 2: layer 2 (routes, Outpost, Watchtower, Owlbear Hollow); 3: each connection stored once (links only where no room exit leads out); 4: layer 3 (Lanternport, the Lantern Fair); 5: layer 4 (the south shore); 6: layer 5 (the Lost Chapel, the endings)
+
+// ---- small helpers for the data below ----
+const place = (id, name, description, extra = {}) => Object.assign({ id, name, description }, extra);
+const room = (id, name, parentId, [x, y], description, extra = {}) => Object.assign({ id, name, parentId, map: { x, y, w: 4, h: 3 }, description }, extra);
+const exit = (id, to, dir, type = 'open', extra = {}) => Object.assign({ id, to, dir, type }, extra);
+const flagIs = (key) => ({ type: 'flag', key });
+const questIs = (questId, state) => ({ type: 'quest', questId, state });
+
+// ---- the pregenerated characters ---------------------------------------------------------
+// Each: builder choices (validated by tests/adventureContent.test.js; SRD 5.2.1: Common plus two standard languages —
+// UI play test 2026-10-20: the pregens had none), a line for the picker,
+// pronouns, the card text (how the AI should play them) and sheet notes.
+const PREGENS = [
+    {
+        id: 'oona', pronouns: 'she/her', line: 'Orc Fighter, Soldier · steady veteran with a prosthetic leg',
+        choices: { name: 'Oona Greycairn', class: 'fighter', level: 1, background: 'soldier', species: 'orc', method: 'standard',
+            scores: { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 }, bgBonus: { plus2: 'str', plus1: 'con' },
+            classSkills: ['perception', 'survival'], fightingStyle: 'Great Weapon Fighting', languages: ['Orc', 'Goblin'], classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Lawful Good' },
+        description: 'Oona Greycairn (she/her) is an orc woman in her mid-forties, broad and weathered, with grey braids and a greatsword she carries like a walking staff. Her left leg ends below the knee in a prosthetic of carved oak and iron that she built and keeps repaired herself; she walks, runs and fights on it as she always has, and it creaks on cold mornings. For twenty years she guarded caravans between Brindlewick and the lake. Six years ago her crew was ambushed on the Forest Road and she was the only one to come home. She has worked odd jobs in the village since, and the vanishing carts have woken something in her.',
+        personality: 'Steady, protective, dry humour; slow to speak and quick to act. Treats younger companions like recruits she has decided to keep alive. Hates waste and bragging. Softens around children and animals.',
+        notes: 'Prosthetic left leg (oak and iron): part of who Oona is, not a weakness — no rules penalty. Bond: her old caravan crew was lost on the Forest Road.',
+    },
+    {
+        id: 'tove', pronouns: 'they/them', line: 'Dwarf Cleric, Acolyte · warm, loud, very short-sighted',
+        choices: { name: 'Tove Emberfall', class: 'cleric', level: 1, background: 'acolyte', species: 'dwarf', method: 'standard',
+            scores: { str: 13, dex: 10, con: 14, int: 8, wis: 15, cha: 12 }, bgBonus: { plus2: 'wis', plus1: 'cha' },
+            classSkills: ['medicine', 'persuasion'], divineOrder: 'protector', languages: ['Dwarvish', 'Elvish'], classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Neutral Good',
+            spells: { cantrips: ['guidance', 'sacred-flame', 'thaumaturgy'], prepared: ['bless', 'cure-wounds', 'healing-word', 'shield-of-faith'] },
+            magicInitiate: { background: { cantrips: ['spare-the-dying', 'light'], spell: 'sanctuary' } } },
+        description: 'Tove Emberfall (they/them) is a dwarf cleric of the Still Water, an old order that tends shrines along rivers and lakes. Tove is very short-sighted and refuses to wear glasses ("my eyes are fine — the world is blurry"). They see their surroundings as soft shapes and colours, cannot tell faces apart beyond a few steps and recognise people by their voices, their footsteps and their smell of bread or smoke. Up close they notice everything. Their order once kept a chapel in a village that drowned when the old dam was built; Tove carries a copy of its prayer book and has always wanted to know what became of it.',
+        personality: 'Warm, loud, curious and stubborn; laughs easily, hugs without asking first, greets strangers by the wrong name and does not mind being corrected. Deeply kind to the hurt and the frightened. Never admits the glasses would help.',
+        notes: 'Very short-sighted, refuses glasses: sees the world as a blur beyond a few steps, knows people by voice. Story flavour only — no rules penalty. Bond: their order kept the chapel of the drowned village.',
+    },
+    {
+        id: 'kasimir', pronouns: 'he/him', line: 'Human Wizard, Sage · curious scholar of the drowned village',
+        choices: { name: 'Kasimir Adeyemi', class: 'wizard', level: 1, background: 'sage', species: 'human', method: 'standard',
+            scores: { str: 8, dex: 13, con: 14, int: 15, wis: 12, cha: 10 }, bgBonus: { plus2: 'int', plus1: 'con' },
+            classSkills: ['investigation', 'nature'], speciesSkills: ['perception'], originFeat: 'Alert', languages: ['Draconic', 'Elvish'], classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Chaotic Good',
+            spells: { cantrips: ['fire-bolt', 'mage-hand', 'minor-illusion'], spellbook: ['magic-missile', 'shield', 'sleep', 'burning-hands', 'detect-magic', 'mage-armor'], prepared: ['magic-missile', 'shield', 'sleep', 'burning-hands'] },
+            magicInitiate: { background: { cantrips: ['light', 'prestidigitation'], spell: 'find-familiar' } } },
+        description: 'Kasimir Adeyemi (he/him) is a young human wizard, twenty-three, tall and ink-stained, who came to the lake country to write the history of the village that drowned under Stillwater Mere when the old dam was built. He has maps, rumours and three notebooks, and no idea yet how dangerous the questions are. He talks to his notebook when he thinks, and his familiar (a small grey owl called Footnote) comments with disapproving hoots.',
+        personality: 'Curious, earnest, over-prepared; explains too much when nervous and apologises for it. Brave in a surprised way. Loves old things, maps and a good argument.',
+        notes: 'Bond: studies the drowned village and the dam. Familiar: Footnote, an owl (Find Familiar).',
+    },
+    {
+        id: 'pell', pronouns: 'she/her', line: 'Halfling Rogue, Criminal · quick hands, guilty conscience',
+        choices: { name: 'Pell Marrow', class: 'rogue', level: 1, background: 'criminal', species: 'halfling', method: 'standard',
+            scores: { str: 8, dex: 15, con: 14, int: 13, wis: 12, cha: 10 }, bgBonus: { plus2: 'dex', plus1: 'con' },
+            classSkills: ['acrobatics', 'deception', 'perception', 'investigation'], expertise: ['stealth', 'perception'], languages: ['Halfling', 'Goblin'], classEquipment: 'A', backgroundEquipment: 'A', alignment: 'Chaotic Good' },
+        description: 'Pell Marrow (she/her) is a halfling in her early thirties with a quick grin, quicker hands and a boatman\'s shoulders. For two summers she rowed night crossings on Stillwater Mere for a crew of smugglers who wore reed-green cloaks; she left when the cargo stopped being barrels and started being things they would not let her see. She knows the lake\'s moods, a hidden beach and a few people she would rather not meet again. She is back in the lake country to make up for something, though she will not say what.',
+        personality: 'Quick, funny, restless; deflects with jokes, notices exits first. Loyal once trust is earned, and ashamed of her past in a way she hides badly. Hates bullies.',
+        notes: 'Bond: once rowed for the smugglers (the Reedcloaks) and knows the hidden beach; wants to make amends.',
+    },
+];
+
+function pregenCard(p) {
+    const sheet = buildSheet(p.choices);
+    sheet.notes = p.notes;
+    const data = writeSheet({
+        name: p.choices.name, description: p.description, personality: p.personality,
+        scenario: '', first_mes: '', mes_example: '', alternate_greetings: [],
+        creator_notes: 'Pregenerated character for the RPmod starter adventure "The Drowned Lantern". Rules: SRD 5.2.1.',
+        system_prompt: '', post_history_instructions: '', tags: ['RPmod pregen', 'The Drowned Lantern'],
+        creator: 'KLITE RPmod', character_version: String(VERSION), extensions: {},
+    }, sheet);
+    Object.assign(data.extensions.klite_rpmod, { adventure: ID, pregen: p.id, line: p.line, pronouns: p.pronouns });
+    return { spec: 'chara_card_v2', spec_version: '2.0', data };
+}
+// the builder choices, for the content tests
+export const PREGEN_CHOICES = Object.fromEntries(PREGENS.map(p => [p.id, p.choices]));
+
+// A pregen as a world person: at the Tipsy Heron, can join the party, and gone from the world
+// when it is the player's own character (flag pregen_<id>, set by the loader).
+const pregenPerson = (p, x, y) => ({ id: `npc_${p.id}`, name: p.choices.name, characterRef: { pregen: p.id }, homeLocationId: 'bw_heron', canJoin: true,
+    phases: [{ id: 'ph_you', label: 'is you', conditions: [flagIs(`pregen_${p.id}`)], gone: true }], ui: { x, y } });
+
+// ---- the world ----------------------------------------------------------------------------
+function world() {
+    return {
+        id: 'world_drowned_lantern', name: 'The Drowned Lantern',
+        description: 'The lake country around Stillwater Mere: the village of Brindlewick, the lakeside town of Lanternport, the roads between them and the drowned village under the lake. Supply carts between Brindlewick and Lanternport keep vanishing, and each place blames the other.',
+        rules: [
+            'Classic heroic fantasy with light humour; the lake and everything drowned are eerie and quiet, never gory.',
+            'Keep replies vivid but concise, and end on a moment the player can act on.',
+            'RPmod rolls the dice and runs every fight: never invent rolls, hits, damage or deaths — narrate the results RPmod reports.',
+            'People are what their descriptions say: respect pronouns and portray every trait (a prosthetic leg, short sight) as part of the person, never as a joke or a problem to fix.',
+        ],
+        ruleset: { aiMode: 'gm' },
+        ui: { x: 80, y: 300 },
+        start: { locationId: 'bw_heron', clock: { day: 1, month: 4, year: 1, time: 'morning', season: 'spring', weather: 'mist over the lake' }, view: 'player' },
+        locations: [
+            // --- the world graph ---
+            place('loc_brindlewick', 'Brindlewick', 'A mill village of thatched roofs and stone walls where the Brindle stream leaves the hills for Stillwater Mere. Everyone knows everyone, and everyone is talking about the missing carts.',
+                { kind: 'town', mapStyle: 'plots', atmosphere: 'worried', hub: true, ui: { x: 300, y: 300 },
+                  phases: [{ id: 'ph_relieved', label: 'Goblins driven off', conditions: [questIs('q_hollow_oak', 'turnedin')], atmosphere: 'relieved', description: 'A mill village of thatched roofs and stone walls. The mill wheel turns again, and people talk about the heroes of the Hollow Oak — and, more quietly, about the strange coin they found there.' }] }),
+            place('loc_forest_road', 'Forest Road', 'The old trade road east of Brindlewick, under oak and beech. Ferns crowd the verges; the ruts are deep from carts that no longer come. A side track runs north to a huge dead oak, and the sound of the river comes from the south.',
+                { atmosphere: 'tense', connectedLocationIds: ['loc_river_ford', 'loc_gravel_road'], ui: { x: 600, y: 300 },
+                  localLore: [{ id: 'll_cart', content: 'Liu Wen\'s cart lies overturned in the ferns a mile out of the village: the grain sacks are gone, the mule cut loose, and small bare footprints lead north towards the Hollow Oak.', keys: ['cart', 'tracks', 'footprints'] }] }),
+            place('loc_hollow_oak', 'The Hollow Oak', 'A dead oak so old and vast that a whole goblin band lives in its trunk and in the burrows between its roots. It smells of smoke, wet earth and stolen bread.',
+                { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'menacing', ui: { x: 600, y: 110 } }),
+            place('loc_river_ford', 'River Ford', 'Where the Forest Road meets the Brindle river: a ford of flat stones for dry summers and Odo\'s rope ferry for the rest of the year. Reeds, herons, and now and then a green old coin washed out of the gravel.',
+                { atmosphere: 'calm', connectedLocationIds: ['loc_forest_road', 'loc_meadow_road'], ui: { x: 600, y: 490 } }),
+
+            // --- Brindlewick (town map) ---
+            room('bw_green', 'Village Green', 'loc_brindlewick', [5, 4], 'Grass, geese and an old stone trough in the middle of Brindlewick. The notice board is covered in "missing" notes about carts and goods.',
+                { exits: [exit('ex_bw_green_heron', 'bw_heron', 'n'), exit('ex_bw_green_mill', 'bw_mill', 'w'), exit('ex_bw_green_smithy', 'bw_smithy', 's'), exit('ex_bw_green_road', 'loc_forest_road', 'e')] }),
+            room('bw_heron', 'The Tipsy Heron', 'loc_brindlewick', [5, 0], 'The village inn: low beams, a fire that never quite goes out, and a stuffed heron over the bar that leans a little to the left. Travellers and villagers share the long tables.',
+                { light: 'bright', exits: [exit('ex_bw_heron_shrine', 'bw_shrine', 'e'), exit('ex_bw_heron_farm', 'bw_farm', 'w')] }),
+            room('bw_mill', "Quill's Mill", 'loc_brindlewick', [0, 4], 'The water mill on the Brindle stream. Its wheel stands still: the grain carts are gone, and something squeaks in the cellar.',
+                { exits: [exit('ex_bw_mill_farm', 'bw_farm', 'n'), exit('ex_bw_mill_cellar', 'bw_mill_cellar', 'down', 'stairs', { door: { state: 'closed', material: 'wooden trapdoor' } })] }),
+            room('bw_mill_cellar', 'Mill Cellar', 'loc_brindlewick', [0, 8], 'A damp cellar of flour sacks and gnawed beams. The rats have become bold since the goblins took the grain.',
+                { light: 'dark', hazards: ['slippery flour dust'] }),
+            room('bw_smithy', "Brandt's Smithy", 'loc_brindlewick', [5, 8], 'An open forge, a stone anvil and racks of tools and weapons. Oskar Brandt sings while he hammers.',
+                { exits: [exit('ex_bw_smithy_elder', 'bw_elder', 'e')] }),
+            room('bw_shrine', 'Shrine of the Still Water', 'loc_brindlewick', [10, 0], 'A small round shrine of river stones with a basin of still water at its heart. Candles float on it in paper boats.',
+                { light: 'dim' }),
+            room('bw_elder', "Elder Holt's House", 'loc_brindlewick', [10, 8], 'A tidy house with a herb garden and a long table covered in ledgers: who owes what, whose cart went missing when.'),
+            room('bw_farm', "Wen's Farm", 'loc_brindlewick', [0, 0], 'Fields, a goose pond and an empty cart shed. Liu Wen\'s mule came home alone two days ago.'),
+
+            // --- the Hollow Oak (dungeon map) ---
+            room('ho_roots', 'Root Tunnel', 'loc_hollow_oak', [0, 4], 'A tunnel between the oak\'s great roots, just high enough to walk bent over. Bones and bread crusts in the dirt.',
+                { light: 'dark', exits: [exit('ex_ho_out', 'loc_forest_road', 'w'), exit('ex_ho_roots_pen', 'ho_wolfpen', 'e', 'corridor')] }),
+            room('ho_wolfpen', 'Wolf Den', 'loc_hollow_oak', [5, 4], 'A low cave under the trunk that stinks of wet fur. Gnawed harness straps from the stolen mules lie in the straw.',
+                { light: 'dark', exits: [exit('ex_ho_pen_trunk', 'ho_trunk', 'n', 'corridor'), exit('ex_ho_pen_stores', 'ho_stores', 'e', 'door', { door: { state: 'closed', material: 'plank' } }), exit('ex_ho_pen_burrow', 'ho_burrow', 's', 'corridor')] }),
+            room('ho_trunk', 'Hollow Trunk', 'loc_hollow_oak', [5, 0], 'Inside the dead trunk: a tall dark shaft with rope ladders up to a lookout knot-hole over the road.',
+                { light: 'dim' }),
+            room('ho_stores', 'Stolen Stores', 'loc_hollow_oak', [10, 4], 'Grain sacks, barrels and crates from the missing carts, stacked in a dry burrow — some still marked with the Brindlewick mill\'s stamp.',
+                { light: 'dark', exits: [exit('ex_ho_stores_chief', 'ho_chief', 's', 'secret', { secretDC: 13 })] }),
+            room('ho_burrow', 'Sleeping Burrow', 'loc_hollow_oak', [5, 8], 'A burrow of moss beds and stolen blankets where the goblins sleep, gamble and quarrel.',
+                { light: 'dim', exits: [exit('ex_ho_burrow_flooded', 'ho_flooded', 'w', 'corridor'), exit('ex_ho_burrow_chief', 'ho_chief', 'e', 'door', { door: { state: 'locked', material: 'bone-studded plank', lockDC: 13, keyItem: 'Bone Key' } })] }),
+            room('ho_flooded', 'Flooded Burrow', 'loc_hollow_oak', [0, 8], 'A burrow where groundwater has risen knee-deep. Rats swarm over a half-sunken sack.',
+                { light: 'dark', hazards: ['knee-deep muddy water'] }),
+            room('ho_chief', "Chief's Hollow", 'loc_hollow_oak', [10, 8], 'The goblin chief\'s hall: a firepit, a throne of cart wheels and a chest the chief never lets out of sight.',
+                { light: 'dim', secret: false }),
+        ],
+        objects: [
+            { id: 'obj_notice_board', name: 'Notice board', desc: '"MISSING: one cart of seed grain (Wen)." "MISSING: two barrels of cider (the Heron)." "Anyone travelling to Lanternport, ask for news of the Quill cart."', locationId: 'bw_green', kind: 'furniture' },
+            { id: 'obj_wrecked_cart', name: "Liu Wen's cart", desc: 'Overturned in the ferns, one wheel broken. Small bare footprints lead north towards a huge dead oak.', locationId: 'loc_forest_road' },
+            { id: 'obj_basin', name: 'Basin of still water', desc: 'Offerings to the Still Water float here. An old carving on the rim shows a lantern over a church roof.', locationId: 'bw_shrine', kind: 'furniture' },
+            { id: 'obj_snare', name: 'Snare line', desc: 'A cord hidden in the dirt that drops a net of thorn branches.', locationId: 'ho_roots', kind: 'trap', trapDC: 12 },
+            { id: 'obj_grain', name: 'Stolen grain sacks', desc: 'Three sacks with the mill\'s stamp, still dry.', locationId: 'ho_stores', kind: 'container', contains: ['Grain Sack x3'] },
+            { id: 'obj_sunken_sack', name: 'Half-sunken sack', desc: 'Soggy, heavy, gnawed open at one corner; something hard inside.', locationId: 'ho_flooded', kind: 'container', contains: ['Bone Key', '6 sp'] },
+            { id: 'obj_chief_chest', name: "The chief's chest", desc: 'A battered strongbox under the cart-wheel throne.', locationId: 'ho_chief', kind: 'container', contains: ['Lake-green Coin', '14 gp', 'Potion of Healing'] },
+            { id: 'obj_firepit', name: 'Firepit', desc: 'Smoky and low; a good place to duck behind.', locationId: 'ho_chief', kind: 'light', lit: true },
+        ],
+        factions: [
+            { id: 'fac_brindlewick', name: 'Brindlewick', description: 'The villagers of Brindlewick: millers, farmers and one inn.', hqLocationId: 'loc_brindlewick', startReputation: 0, ui: { x: 80, y: 120 },
+              goals: 'Get the carts moving again; find out who is behind the thefts (they suspect Lanternport).' },
+        ],
+        npcs: [
+            { id: 'npc_maren', name: 'Elder Maren Holt', personality: 'The village elder, sixty, sharp-eyed and dry; keeps ledgers of everything and suspects Lanternport of "letting the road go wild".', factionId: 'fac_brindlewick', homeLocationId: 'bw_elder', mood: 'worried',
+              schedule: [{ time: 'morning', locationId: 'bw_heron' }, { time: 'noon', locationId: 'bw_green' }], ui: { x: 140, y: 420 } },
+            { id: 'npc_tobias', name: 'Tobias Quill', personality: 'The miller, round and anxious; his wheel stands still without grain, and his cellar is full of rats.', factionId: 'fac_brindlewick', homeLocationId: 'bw_mill', mood: 'fretful', ui: { x: 140, y: 500 } },
+            { id: 'npc_ada', name: 'Ada Fenn', personality: 'Keeper of the Tipsy Heron; brisk, warm, hears every rumour and repeats the good ones.', factionId: 'fac_brindlewick', homeLocationId: 'bw_heron', mood: 'busy', ui: { x: 140, y: 580 },
+              shop: { items: [{ item: 'Hot meal', price: '3 sp' }, { item: 'Ale', price: '4 cp' }, { item: 'Rations', price: '' }, { item: 'Torch', price: '' }, { item: 'Waterskin', price: '' }, { item: 'Oil', price: '' }, { item: 'Potion of Healing', price: '', stock: 1 }], buys: true, note: 'A bed in the loft is 5 sp a night; friends of the village eat for less.' } },
+            { id: 'npc_oskar', name: 'Oskar Brandt', personality: 'The smith, huge and gentle, sings while he works and haggles badly.', factionId: 'fac_brindlewick', homeLocationId: 'bw_smithy', mood: 'cheerful', ui: { x: 220, y: 420 },
+              shop: { items: [{ item: 'Dagger', price: '' }, { item: 'Handaxe', price: '' }, { item: 'Spear', price: '' }, { item: 'Shortsword', price: '' }, { item: 'Mace', price: '' }, { item: 'Shield', price: '' }, { item: 'Leather Armor', price: '' }, { item: 'Chain Shirt', price: '', stock: 1 }, { item: 'Arrows (20)', price: '1 gp' }], buys: true, note: 'He buys old iron and anything goblin-made, "for scrap".' } },
+            { id: 'npc_imani', name: 'Sister Imani', personality: 'Keeper of the Shrine of the Still Water; calm, tall, speaks slowly and remembers the old lake stories.', factionId: 'fac_brindlewick', homeLocationId: 'bw_shrine', mood: 'serene', ui: { x: 220, y: 500 },
+              shop: { items: [{ item: "Healer's Kit", price: '' }, { item: 'Holy Water', price: '' }, { item: 'Potion of Healing', price: '', stock: 2 }], buys: false, note: 'Healing at the shrine is free for anyone hurt defending the village.' } },
+            { id: 'npc_liu', name: 'Liu Wen', personality: 'A farmer in her thirties, blunt and angry; her seed grain was on the lost cart and her mule came home alone.', factionId: 'fac_brindlewick', homeLocationId: 'bw_farm', mood: 'angry', ui: { x: 220, y: 580 },
+              phases: [{ id: 'ph_grateful', label: 'Grain back', conditions: [questIs('q_hollow_oak', 'turnedin')], mood: 'grateful, a little embarrassed about her temper' }] },
+            { id: 'npc_odo', name: 'Odo the ferryman', personality: 'An old man with a pipe and a rope ferry; has seen everything the river carried in fifty years and believes half of it.', homeLocationId: 'loc_river_ford', mood: 'unhurried', ui: { x: 760, y: 560 } },
+            pregenPerson(PREGENS[0], 40, 640), pregenPerson(PREGENS[1], 110, 640), pregenPerson(PREGENS[2], 180, 640), pregenPerson(PREGENS[3], 250, 640),
+        ],
+        quests: [
+            { id: 'q_missing_carts', title: 'Missing Carts', giverPersonId: 'npc_maren', turninPersonId: 'npc_maren', ui: { x: 420, y: 420 },
+              description: 'Liu Wen\'s grain cart never reached the mill. Elder Holt wants to know what happened on the Forest Road.',
+              offerText: 'Third cart this month. Liu Wen\'s, with the seed grain — the mule came home alone. Lanternport says the road is our business; I say it\'s theirs. Talk to Liu at her farm, then go and look. Please.',
+              progressText: 'Anything on the road?', completionText: 'Goblins? That close to the village… and here I was blaming Lanternport. Well. We\'ll have to do something about that oak.',
+              objectives: [{ id: 'o1', kind: 'talk', target: 'npc_liu', text: 'Ask Liu Wen about the cart' }, { id: 'o2', kind: 'visit', target: 'loc_forest_road', text: 'Find the cart on the Forest Road' }],
+              rewards: [{ type: 'xp', xp: 50 }, { type: 'gold', gold: 5 }, { type: 'reputation', factionId: 'fac_brindlewick', amount: 50 }] },
+            { id: 'q_hollow_oak', title: 'The Hollow Oak', giverPersonId: 'npc_maren', turninPersonId: 'npc_tobias', prerequisites: { quests: ['q_missing_carts'] }, ui: { x: 420, y: 500 },
+              description: 'Goblins in the Hollow Oak are stealing from the road. Drive them out and bring the miller back his grain.',
+              offerText: 'The goblins sit in that dead oak off the road and eat our winter. Drive them out — and bring Tobias his grain, or the wheel won\'t turn this spring.',
+              progressText: 'The oak still full of goblins?', completionText: 'My grain! Oh, my grain. The wheel turns tonight — and you eat at the Heron on me for a week, I\'ll tell Ada.',
+              objectives: [{ id: 'o1', kind: 'kill', target: 'Goblin Boss', count: 1, text: 'Defeat the goblin chief' }, { id: 'o2', kind: 'collect', target: 'Grain Sack', count: 3, text: 'Bring back the grain sacks' }],
+              rewards: [{ type: 'xp', xp: 150 }, { type: 'gold', gold: 25 }, { type: 'reputation', factionId: 'fac_brindlewick', amount: 100 },
+                        { type: 'choice', options: [{ item: 'Potion of Healing', qty: 2 }, { item: 'Shield', qty: 1 }, { item: 'Light Crossbow', qty: 1 }] }] },
+            { id: 'q_old_coin', title: 'An Old Coin', giverPersonId: 'npc_imani', turninPersonId: 'npc_imani', startItem: 'Lake-green Coin', ui: { x: 420, y: 580 },
+              description: 'The goblin chief was paid in a strange green coin. Someone in the village may know where it comes from.',
+              offerText: 'May I? …Lake-green, and the stamp is a lantern over a church roof. This is from Old Brindle — the village under the lake. Ask Odo at the ford; the river gives these up now and then.',
+              progressText: 'What did Odo say?', completionText: 'Coins that washed out at the ford — and more of them in goblin hands. Someone is bringing things up from the drowned village. Follow the river, and ask the temple in Lanternport what the lantern means.',
+              objectives: [{ id: 'o1', kind: 'talk', target: 'npc_imani', text: 'Show the coin to Sister Imani' }, { id: 'o2', kind: 'talk', target: 'npc_odo', text: 'Ask Odo the ferryman about green coins' }, { id: 'o3', kind: 'visit', target: 'loc_river_ford', text: 'Go to the River Ford' }],
+              rewards: [{ type: 'xp', xp: 100 }, { type: 'reputation', factionId: 'fac_brindlewick', amount: 25 }] },
+            { id: 'q_mill_rats', title: 'Rats in the Mill', giverPersonId: 'npc_tobias', turninPersonId: 'npc_tobias', ui: { x: 500, y: 420 },
+              description: 'The rats in the mill cellar have grown bold. Tobias would be grateful.',
+              offerText: 'Without grain the rats go for the sacks, the beams — my boots! There\'s a whole swarm down there. Would you…?',
+              progressText: 'Still squeaking down there?', completionText: 'Quiet! Blessed quiet. Here — it isn\'t much.',
+              objectives: [{ id: 'o1', kind: 'kill', target: 'Swarm of Rats', count: 1, text: 'Clear the rats from the mill cellar' }],
+              rewards: [{ type: 'xp', xp: 25 }, { type: 'gold', gold: 5 }, { type: 'reputation', factionId: 'fac_brindlewick', amount: 25 }] },
+        ],
+        encounters: [
+            { id: 'enc_road_ambush', name: 'Goblin ambush on the road', monsters: [{ key: 'goblin-warrior', count: 2 }], personIds: [], start: 'near', ui: { x: 760, y: 300 } },
+            { id: 'enc_mill_rats', name: 'Rats in the mill cellar', monsters: [{ key: 'swarm-of-rats', count: 1 }], personIds: [], locationId: 'bw_mill_cellar', start: 'same' },
+            { id: 'enc_den_wolves', name: 'Goblin wolves', monsters: [{ key: 'wolf', count: 2 }], personIds: [], locationId: 'ho_wolfpen', start: 'auto' },
+            { id: 'enc_den_lookout', name: 'Lookouts in the trunk', monsters: [{ key: 'goblin-warrior', count: 2 }], personIds: [], locationId: 'ho_trunk', start: 'auto' },
+            { id: 'enc_den_burrow', name: 'Goblins in the sleeping burrow', monsters: [{ key: 'goblin-warrior', count: 3 }], personIds: [], locationId: 'ho_burrow', start: 'auto' },
+            { id: 'enc_den_rats', name: 'Rats in the flooded burrow', monsters: [{ key: 'swarm-of-rats', count: 2 }], personIds: [], locationId: 'ho_flooded', start: 'auto' },
+            { id: 'enc_den_chief', name: 'Chief Snagtooth and a guard', monsters: [{ key: 'goblin-boss', count: 1 }, { key: 'goblin-warrior', count: 1 }], personIds: [], locationId: 'ho_chief', start: 'auto' },
+        ],
+        events: [
+            { id: 'ev_road_ambush', name: 'Ambush at the cart', description: 'Two goblins burst out of the ferns beside the wrecked cart, rusty blades up.',
+              triggers: [{ type: 'onEnterLocation', locationId: 'loc_forest_road' }], conditions: [questIs('q_missing_carts', 'active')],
+              effects: [{ type: 'encounter', value: 'enc_road_ambush' }], repeatable: false, ui: { x: 760, y: 200 } },
+        ],
+        globalLore: [
+            { id: 'gl_mere', label: 'Stillwater Mere', content: 'Stillwater Mere is the long lake south of Brindlewick. Fishermen say it is never quite still at night, and that bells ring under it in storms.', keys: ['mere', 'lake', 'Stillwater'] },
+            { id: 'gl_old_brindle', label: 'Old Brindle', content: 'Two hundred years ago the old dam at the lake\'s outflow raised the water, and the village of Old Brindle, with its chapel of the Still Water, drowned. Its people moved uphill and founded Brindlewick.', keys: ['Old Brindle', 'drowned village', 'dam', 'chapel'] },
+            { id: 'gl_lanternport', label: 'Lanternport', content: 'Lanternport is the market town on the far side of the lake, famous for its spring Lantern Fair. Brindlewick sells it grain and buys its fish, and the two have argued about the road between them for as long as anyone remembers.', keys: ['Lanternport', 'fair', 'town'] },
+            { id: 'gl_still_water', label: 'The Still Water', content: 'The Still Water is an old, quiet order of shrine keepers along rivers and lakes; their sign is a lantern reflected in water.', keys: ['Still Water', 'shrine', 'order'] },
+        ],
+    };
+}
+
+// ---- layer 2 (R8 step 4): the roads to Lanternport ----------------------------------------------
+function layer2(w) {
+    w.locations.push(
+        // --- the world graph ---
+        place('loc_gravel_road', 'Gravel Road', 'The mountain road climbs out of the forest in loose grey switchbacks. Halfway up there is an old campfire ring under a leaning pine — the only flat, sheltered spot before the pass, and everyone who uses this road has slept there. It is the quicker way to Lanternport, about a day, if the weather holds.',
+            { atmosphere: 'lonely', connectedLocationIds: ['loc_forest_road', 'loc_windgap'], ui: { x: 900, y: 180 } }),
+        place('loc_windgap', 'Windgap Pass', 'A notch between two bare peaks where the wind never stops. Far below, Stillwater Mere shines like a sheet of tin, and on the far shore the roofs of Lanternport. A broken watchtower stands on the crag above the road; a shepherds\' trail drops steeply towards the meadows.',
+            { atmosphere: 'windswept', connectedLocationIds: ['loc_gravel_road', 'loc_shepherds_trail'], ui: { x: 1200, y: 180 } }),
+        place('loc_watchtower', 'Watchtower Ruin', 'A square tower from the days of the old dam, half its roof gone. Harpies nest at the top, and lately someone has been using the rooms below.',
+            { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'eerie', ui: { x: 1200, y: 30 } }),
+        place('loc_shepherds_trail', "Shepherds' Trail", 'A steep, narrow trail between the pass and the meadows, marked with cairns. Sheep use it; carts cannot.',
+            { atmosphere: 'quiet', connectedLocationIds: ['loc_windgap'], ui: { x: 1200, y: 370 } }),
+        place('loc_meadow_road', 'Meadow Road', 'The valley road: wide, flat and slow, through flowering meadows along the Brindle river — two easy days to Lanternport. Old Harrowfield\'s hut stands by a sheepfold; wild garlic and feverfew grow thick along the ditches. A trampled path leads into a thicket to the south.',
+            { atmosphere: 'peaceful', connectedLocationIds: ['loc_river_ford'], ui: { x: 900, y: 560 } }),
+        place('loc_owlbear_hollow', 'Owlbear Hollow', 'A hollow in a thorn thicket, littered with wool and feathers. Something big lives here.',
+            { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'menacing', ui: { x: 900, y: 740 } }),
+        place('loc_outpost', "Traveler's Outpost", 'A walled waystation where the Meadow Road meets the lake road: an inn, stables, a smithy corner and a lantern that burns all night over the gate. Carters, drovers and pilgrims to the Lantern Fair stop here.',
+            { kind: 'town', mapStyle: 'plots', atmosphere: 'busy', hub: true, ui: { x: 1200, y: 560 } }),
+        place('loc_lanternport', 'Lanternport', 'The market town on the far shore of Stillwater Mere: stone quays, tall narrow houses and lanterns on every corner. In spring it holds its famous Lantern Fair, when the Founders\' Lantern is shown in the guildhall.',
+            { kind: 'town', mapStyle: 'streets', atmosphere: 'lively', hub: true, ui: { x: 1500, y: 370 },
+              phases: [{ id: 'ph_fair', label: 'The Lantern Fair', conditions: [flagIs('fair_open')], atmosphere: 'festive, crowded, noisy' },
+                       { id: 'ph_saved', label: 'The Lantern saved', conditions: [flagIs('lantern_saved')], atmosphere: 'grateful, celebrating' }] }),
+
+        // --- the Traveler's Outpost (town map) ---
+        room('op_yard', 'Outpost Yard', 'loc_outpost', [5, 4], 'A cobbled yard with a well, a mounting block and the all-night lantern over the gate. Carts come in from the Meadow Road and leave for Lanternport.',
+            { exits: [exit('ex_op_yard_common', 'op_common', 'n'), exit('ex_op_yard_stables', 'op_stables', 's'), exit('ex_op_out_meadow', 'loc_meadow_road', 'w'), exit('ex_op_out_lanternport', 'lp_gate', 'e')] }),
+        room('op_common', 'Common Room', 'loc_outpost', [5, 0], 'Long tables, a roaring hearth, travellers from everywhere and a board of rooms for rent. It smells of stew and wet wool.',
+            { light: 'bright', exits: [exit('ex_op_common_kitchen', 'op_kitchen', 'e'), exit('ex_op_common_rooms', 'op_rooms', 'w')] }),
+        room('op_kitchen', 'Kitchen', 'loc_outpost', [10, 0], 'Baba Okafor\'s kingdom: copper pots, strings of onions, and a cook who tastes everything twice.',
+            { light: 'bright', exits: [exit('ex_op_kitchen_cellar', 'op_cellar', 'down', 'stairs', { door: { state: 'closed', material: 'oak trapdoor' } })] }),
+        room('op_rooms', 'Guest Rooms', 'loc_outpost', [0, 0], 'A narrow upstairs corridor of small clean rooms, each with a bed, a basin and a shutter over the meadows.'),
+        room('op_stables', 'Stables', 'loc_outpost', [5, 8], 'Two rows of stalls, hay to the rafters, and a tack room. The horses are restless lately, and the mare in the end stall is ill.',
+            { exits: [exit('ex_op_stables_trail', 'loc_shepherds_trail', 's')] }),
+        room('op_cellar', 'Outpost Cellar', 'loc_outpost', [10, 4], 'Barrels, sacks and a cold store. Baba\'s stores are running low: the carts from Brindlewick have stopped.',
+            { light: 'dark' }),
+
+        // --- Watchtower Ruin (dungeon map) ---
+        room('wt_gate', 'Broken Gate', 'loc_watchtower', [0, 4], 'The gate arch still stands; its door lies rotting in the grass. Fresh boot prints lead inside.',
+            { exits: [exit('ex_wt_out', 'loc_windgap', 'w'), exit('ex_wt_gate_hall', 'wt_hall', 'e')] }),
+        room('wt_hall', 'Fallen Hall', 'loc_watchtower', [5, 4], 'The ground floor, open to the sky where the upper floors fell in. Rubble, nettles and a gap in the east wall towards the shepherds\' trail.',
+            { light: 'dim', hazards: ['rubble underfoot'], exits: [exit('ex_wt_hall_stairs', 'wt_stairs', 'n', 'corridor'), exit('ex_wt_hall_guard', 'wt_guard', 's', 'door', { door: { state: 'closed', material: 'patched plank' } }), exit('ex_wt_out_trail', 'loc_shepherds_trail', 'e')] }),
+        room('wt_stairs', 'Spiral Stair', 'loc_watchtower', [5, 0], 'A stone stair winding up inside the wall; some steps are missing, others only look safe. Bats hang in the dark above.',
+            { light: 'dark', exits: [exit('ex_wt_stairs_top', 'wt_top', 'e', 'stairs')] }),
+        room('wt_top', 'Harpies\' Roost', 'loc_watchtower', [10, 0], 'The open top of the tower, ringed by broken battlements. A nest of stolen cloth, bones and shiny things. The view reaches from the pass to the lake.',
+            { light: 'bright' }),
+        room('wt_guard', 'Guardroom', 'loc_watchtower', [5, 8], 'Someone lives here now: bedrolls, a cold brazier, dice, and cloaks the green of lake reeds hung on pegs.',
+            { light: 'dim', exits: [exit('ex_wt_guard_cellar', 'wt_cellar', 'e', 'door', { door: { state: 'locked', material: 'iron-bound trapdoor', lockDC: 14, keyItem: 'Iron Key' } })] }),
+        room('wt_cellar', 'Cellar', 'loc_watchtower', [10, 8], 'A damp cellar with one barred window slit. A man in torn stable clothes sits chained to the wall — and he has the face of the Outpost\'s stablemaster.',
+            { light: 'dark' }),
+
+        // --- Owlbear Hollow (dungeon map) ---
+        room('oh_thicket', 'Thorn Thicket', 'loc_owlbear_hollow', [0, 4], 'A tunnel through thorns, snagged with wool. Deep claw marks on the trees.',
+            { light: 'dim', exits: [exit('ex_oh_out', 'loc_meadow_road', 'w'), exit('ex_oh_thicket_den', 'oh_den', 'e', 'corridor')] }),
+        room('oh_den', 'The Den', 'loc_owlbear_hollow', [5, 4], 'A hollow of flattened grass and bones under an overhanging rock. The air is thick with musk.',
+            { light: 'dim', exits: [exit('ex_oh_den_back', 'oh_back', 'e', 'corridor')] }),
+        room('oh_back', 'Back Cave', 'loc_owlbear_hollow', [10, 4], 'A low cave behind the den. Something small bleats in the dark.',
+            { light: 'dark' }),
+    );
+    w.objects.push(
+        { id: 'obj_campfire', name: 'Old campfire ring', desc: 'Blackened stones, a stack of dry wood someone left for the next traveller. A good place to rest — if you keep watch.', locationId: 'loc_gravel_road', kind: 'furniture' },
+        { id: 'obj_herbs', name: 'Wild garlic and feverfew', desc: 'Thick along the ditches of the Meadow Road; easy to gather.', locationId: 'loc_meadow_road', kind: 'container', contains: ['Wild Garlic x3', 'Feverfew x2'] },
+        { id: 'obj_room_board', name: 'Board of rooms', desc: 'Chalk: "Beds 5 sp · Meals 3 sp · Stable & feed 5 sp · NO fighting in the yard — H. Morrow."', locationId: 'op_common', kind: 'furniture' },
+        { id: 'obj_loose_steps', name: 'Loose steps', desc: 'Three steps that tip under weight over a long drop.', locationId: 'wt_stairs', kind: 'trap', trapDC: 13 },
+        { id: 'obj_nest', name: 'Harpy nest', desc: 'Cloth, bones and glittering things.', locationId: 'wt_top', kind: 'container', contains: ['Potion of Healing', '32 gp', 'Silver Mirror'] },
+        { id: 'obj_guard_chest', name: 'Chest under the bedrolls', desc: 'Unlocked; the guards trusted each other.', locationId: 'wt_guard', kind: 'container', contains: ['Iron Key', 'Reed-green Cloak', '11 gp'] },
+        { id: 'obj_brazier', name: 'Cold brazier', desc: 'Heavy iron; good cover.', locationId: 'wt_guard', kind: 'furniture', cover: 'half' },
+        { id: 'obj_lamb', name: 'A lamb in the dark', desc: 'A muddy, frightened lamb with a notched ear, wedged behind a rock — alive.', locationId: 'oh_back', kind: 'container', contains: ['Lost Lamb'] },
+        { id: 'obj_bones', name: 'Old bones', desc: 'Sheep bones — and a shepherd\'s crook with a carved ram\'s head.', locationId: 'oh_den', kind: 'container', contains: ["Harrowfield's Crook", '8 sp'] },
+    );
+    w.factions.push(
+        { id: 'fac_outpost', name: "Traveler's Outpost", description: 'Hedda Morrow\'s waystation and the people who work there.', hqLocationId: 'loc_outpost', startReputation: 100, ui: { x: 1380, y: 700 },
+          goals: 'Keep the road open and the beds full for the Lantern Fair.' },
+        { id: 'fac_reedcloaks', name: 'The Reedcloaks', description: 'Smugglers in reed-green cloaks who move goods across Stillwater Mere at night.', startReputation: -100, killReputation: -25, ui: { x: 1380, y: 40 },
+          goals: 'Move the cargo, pay no tolls, and keep the lake road quiet.' },
+    );
+    w.npcs.push(
+        { id: 'npc_hedda', name: 'Hedda Morrow', personality: 'Keeper of the Outpost (she/her): tall, grey-haired, speaks like a quartermaster and misses nothing. Proud of her waystation and worried about the empty roads.', factionId: 'fac_outpost', homeLocationId: 'op_common', mood: 'watchful', ui: { x: 1380, y: 520 },
+          shop: { items: [{ item: 'Hot meal', price: '3 sp' }, { item: 'Rations', price: '' }, { item: 'Rope', price: '' }, { item: 'Torch', price: '' }, { item: 'Oil', price: '' }, { item: 'Tinderbox', price: '' }, { item: "Healer's Kit", price: '' }, { item: 'Potion of Healing', price: '', stock: 2 }], buys: true, note: 'A bed is 5 sp a night; friends of the Outpost stay for free.' } },
+        { id: 'npc_baba', name: 'Babajide "Baba" Okafor', personality: 'The Outpost\'s cook (he/him): large, cheerful, sings to his stew, and takes food far more seriously than danger. Enters the Lantern Fair\'s cook-off every year.', factionId: 'fac_outpost', homeLocationId: 'op_kitchen', mood: 'busy', ui: { x: 1480, y: 520 } },
+        { id: 'npc_pip', name: 'Pip', personality: 'Stable hand, fourteen (she/her): fearless with horses, shy with people, notices everything. She is sure the stablemaster "came back wrong" from the pass.', factionId: 'fac_outpost', homeLocationId: 'op_stables', mood: 'uneasy', ui: { x: 1380, y: 620 },
+          phases: [{ id: 'ph_relieved', label: 'Mr Lark is back', conditions: [questIs('q_stablemaster', 'turnedin')], mood: 'happy, talkative for once' }] },
+        { id: 'npc_corwin', name: 'Corwin Lark', personality: 'The Outpost\'s stablemaster (he/him): friendly, helpful, a little too interested in which carts leave when — and oddly forgetful about horses he has known for years.', factionId: 'fac_outpost', homeLocationId: 'op_stables', mood: 'friendly', ui: { x: 1480, y: 620 },
+          phases: [{ id: 'ph_unmasked', label: 'Unmasked', conditions: [flagIs('corwin_unmasked')], gone: true }] },
+        { id: 'npc_prisoner', name: 'Chained prisoner', personality: 'A man in torn stable clothes (he/him), thin and bruised, chained in the tower cellar for weeks. He says he is Corwin Lark, stablemaster of the Outpost, taken on the pass by men in green cloaks and "a thing that stole my face".', homeLocationId: 'wt_cellar', mood: 'weak, desperate', canJoin: true, ui: { x: 1480, y: 40 },
+          phases: [{ id: 'ph_home', label: 'Home again', conditions: [questIs('q_watchtower', 'turnedin'), questIs('q_stablemaster', 'turnedin')], name: 'Corwin Lark', homeLocationId: 'op_stables', mood: 'grateful, recovering' }] },
+        { id: 'npc_harrowfield', name: 'Old Harrowfield', personality: 'A shepherd (he/him), eighty if a day, who has lost six sheep and a lamb to "a bear with a beak" and will tell you all their names.', homeLocationId: 'loc_meadow_road', mood: 'grieving, stubborn', ui: { x: 1000, y: 640 } },
+    );
+    w.quests.push(
+        { id: 'q_kitchen_stores', title: 'Kitchen Stores', giverPersonId: 'npc_baba', turninPersonId: 'npc_baba', repeat: 'daily', ui: { x: 1560, y: 460 },
+          description: 'The carts have stopped and Baba\'s stores are low. Wild garlic grows along the Meadow Road.',
+          offerText: 'No carts, no stores, no stew! Bring me wild garlic from the meadow ditches — three good bunches — and you eat like lords tonight.',
+          progressText: 'Garlic?', completionText: 'Now THIS is garlic. Sit, sit — the stew will be ready when you have washed.',
+          objectives: [{ id: 'o1', kind: 'collect', target: 'Wild Garlic', count: 3, text: 'Gather wild garlic on the Meadow Road' }],
+          rewards: [{ type: 'xp', xp: 50 }, { type: 'reputation', factionId: 'fac_outpost', amount: 25 }, { type: 'item', item: 'Rations', qty: 2 }] },
+        { id: 'q_sick_mare', title: 'The Sick Mare', giverPersonId: 'npc_pip', turninPersonId: 'npc_pip', ui: { x: 1560, y: 620 },
+          description: 'The mare in the end stall has a fever. Pip knows feverfew helps, but she cannot leave the horses.',
+          offerText: 'She is burning up. Feverfew — the little white daisies by the road ditches. Two handfuls. Please? Mr Lark says leave her, but… Mr Lark would never say that.',
+          progressText: 'Did you find the flowers?', completionText: 'She is drinking! Thank you. …Mr Lark did not even come to look at her.',
+          objectives: [{ id: 'o1', kind: 'collect', target: 'Feverfew', count: 2, text: 'Bring feverfew from the Meadow Road' }],
+          rewards: [{ type: 'xp', xp: 75 }, { type: 'reputation', factionId: 'fac_outpost', amount: 50 }] },
+        { id: 'q_night_raid', title: 'Night Raid', giverPersonId: 'npc_hedda', turninPersonId: 'npc_hedda', prerequisites: { quests: ['q_kitchen_stores'] }, ui: { x: 1560, y: 540 },
+          description: 'Someone has been creeping into the Outpost yard at night. Hedda wants them caught.',
+          offerText: 'Twice now someone has been in my yard after dark, looking at the carts and the stable doors. Stay tonight and keep watch. Catch whoever leads them.',
+          progressText: 'Anything in the yard last night?', completionText: 'Green cloaks. Reed green. Those are lake smugglers — this far up the road? Somebody is telling them which carts to watch.',
+          objectives: [{ id: 'o1', kind: 'kill', target: 'Scout', count: 1, text: 'Stop the night raiders\' leader in the Outpost yard' }],
+          rewards: [{ type: 'xp', xp: 100 }, { type: 'gold', gold: 15 }, { type: 'reputation', factionId: 'fac_outpost', amount: 100 }] },
+        { id: 'q_lost_sheep', title: "Harrowfield's Sheep", giverPersonId: 'npc_harrowfield', turninPersonId: 'npc_harrowfield', ui: { x: 1000, y: 800 },
+          description: 'Something is taking Old Harrowfield\'s sheep. The trail leads into the thorn thicket south of the Meadow Road.',
+          offerText: 'Dilly, Brannoch, Old Margery, the twins, Soot — and now the lamb. A bear, it was, with an owl\'s beak, I swear it. In the thorns. Get my lamb back, if she lives.',
+          progressText: 'My lamb?', completionText: 'Little Nettle! Oh, you brave, stupid lot. Here — it is not much, but it is yours.',
+          objectives: [{ id: 'o1', kind: 'kill', target: 'Owlbear', count: 1, text: 'Deal with the beast in the thorn thicket' }, { id: 'o2', kind: 'collect', target: 'Lost Lamb', count: 1, consume: true, text: 'Bring back the lamb' }],
+          rewards: [{ type: 'xp', xp: 200 }, { type: 'gold', gold: 30 }, { type: 'choice', options: [{ item: 'Potion of Healing', qty: 2 }, { item: 'Shortbow', qty: 1 }, { item: 'Chain Shirt', qty: 1 }] }] },
+        { id: 'q_watchtower', title: 'The Old Watchtower', giverPersonId: 'npc_pip', turninPersonId: 'npc_pip', prerequisites: { quests: ['q_sick_mare'] }, ui: { x: 1560, y: 700 },
+          description: 'Pip saw lights in the ruined watchtower on Windgap Pass — the week Mr Lark "came back wrong" from there.',
+          offerText: 'Mr Lark went up to the pass in winter to buy a horse. He came back without one, and… wrong. He calls the horses by the wrong names. And there are lights in the old tower at night. Would you look? Please don\'t tell him I asked.',
+          progressText: 'The tower?', completionText: 'He is ALIVE? Then the man in our stables… oh. Oh no. Hedda has to know — we have to do something.',
+          objectives: [{ id: 'o1', kind: 'visit', target: 'wt_hall', text: 'Search the Watchtower Ruin on Windgap Pass' }, { id: 'o2', kind: 'talk', target: 'npc_prisoner', text: 'Find out who is held in the cellar' }],
+          rewards: [{ type: 'xp', xp: 150 }, { type: 'reputation', factionId: 'fac_outpost', amount: 50 }] },
+        // unlocked by finding the real Corwin in the Watchtower, or by the Reedcloaks' ledger (layer 4)
+        { id: 'q_stablemaster', title: 'The Stablemaster', giverPersonId: 'npc_hedda', turninPersonId: 'npc_hedda', prerequisites: { flags: ['stablemaster_suspected'] }, ui: { x: 1560, y: 780 },
+          description: 'Something wearing the stablemaster\'s face works in the Outpost stables and tells the smugglers which carts to hit.',
+          offerText: 'Pip swears Mr Lark came back from the pass wrong — and now I hear the smugglers have "the stablemaster" in their pay. If that is not Corwin in my stables, what is it? …I have a crossbow and a very bad temper. Go and face it with me.',
+          progressText: 'It is still in the stables.', completionText: 'A shapechanger. In my stables, for a whole season, telling smugglers our carts. You have a room here for as long as you live.',
+          objectives: [{ id: 'o1', kind: 'kill', target: 'Doppelganger', count: 1, text: 'Unmask the false stablemaster' }],
+          rewards: [{ type: 'xp', xp: 300 }, { type: 'gold', gold: 50 }, { type: 'reputation', factionId: 'fac_outpost', amount: 200 }, { type: 'reputation', factionId: 'fac_reedcloaks', amount: -100 },
+                    { type: 'choice', options: [{ item: 'Cloak of Protection', qty: 1 }, { item: 'Potion of Healing', qty: 3 }] }] },
+    );
+    w.encounters.push(
+        { id: 'enc_campfire_wolves', name: 'Wolves at the campfire', monsters: [{ key: 'dire-wolf', count: 1 }, { key: 'wolf', count: 2 }], personIds: [], start: 'near' },
+        { id: 'enc_tower_bats', name: 'Bats on the stair', monsters: [{ key: 'swarm-of-bats', count: 1 }], personIds: [], locationId: 'wt_stairs', start: 'same' },
+        { id: 'enc_tower_harpies', name: 'Harpies on the roost', monsters: [{ key: 'harpy', count: 2 }], personIds: [], locationId: 'wt_top', start: 'auto' },
+        { id: 'enc_tower_guards', name: 'Reedcloak guards', monsters: [{ key: 'bandit', count: 3 }, { key: 'scout', count: 1 }], personIds: [], locationId: 'wt_guard', start: 'auto', factionId: 'fac_reedcloaks' },
+        { id: 'enc_night_raid', name: 'Night raiders in the yard', monsters: [{ key: 'bandit', count: 3 }, { key: 'scout', count: 1 }], personIds: [], start: 'near', factionId: 'fac_reedcloaks' },
+        { id: 'enc_owlbear', name: 'The owlbear', monsters: [{ key: 'owlbear', count: 1 }], personIds: [], locationId: 'oh_den', start: 'auto' },
+        { id: 'enc_doppelganger', name: 'The false stablemaster', monsters: [{ key: 'doppelganger', count: 1 }], personIds: [], start: 'same', factionId: 'fac_reedcloaks' },
+    );
+    w.events.push(
+        { id: 'ev_campfire_night', name: 'Eyes beyond the firelight', description: 'Eyes gleam beyond the firelight: a big grey wolf and two smaller ones, circling the camp.',
+          // 7: also when the night falls while resting at the campfire (the Long Rest takes the night)
+          triggers: [{ type: 'onEnterLocation', locationId: 'loc_gravel_road' }, { type: 'onTime' }], conditions: [{ field: 'time', op: '==', value: 'night' }, { field: 'location', op: '==', value: 'loc_gravel_road' }],
+          effects: [{ type: 'encounter', value: 'enc_campfire_wolves' }], repeatable: false, ui: { x: 900, y: 60 } },
+        { id: 'ev_night_raid', name: 'Raiders in the yard', description: 'Shadows in reed-green cloaks slip over the Outpost wall and make for the carts.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'op_yard' }, { type: 'onTime' }], conditions: [questIs('q_night_raid', 'active'), { field: 'time', op: '==', value: 'night' }, { field: 'location', op: '==', value: 'op_yard' }],
+          effects: [{ type: 'encounter', value: 'enc_night_raid' }], repeatable: false, ui: { x: 1560, y: 380 } },
+        { id: 'ev_suspect_tower', name: 'Corwin is alive', description: 'The real Corwin Lark is alive — so who works in the Outpost stables?',
+          triggers: [{ type: 'onQuestState', questId: 'q_watchtower', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'flag', key: 'stablemaster_suspected', value: true }], repeatable: false, ui: { x: 1640, y: 700 } },
+        { id: 'ev_unmask', name: 'The mask slips', description: 'Corwin Lark turns from the horses — and his face runs like wax into something grey and smooth.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'op_stables' }], conditions: [questIs('q_stablemaster', 'active')],
+          effects: [{ type: 'flag', key: 'corwin_unmasked', value: true }, { type: 'encounter', value: 'enc_doppelganger' }], repeatable: false, ui: { x: 1560, y: 860 } },
+    );
+    w.globalLore.push(
+        { id: 'gl_reedcloaks', label: 'The Reedcloaks', content: 'On the lake they speak of smugglers who wear cloaks the green of lake reeds and row at night without lights.', keys: ['Reedcloak', 'green cloak', 'smuggler'] },
+        { id: 'gl_watchtower', label: 'The old watchtower', content: 'The watchtower on Windgap Pass was built with the old dam, to watch the road and the water. It has stood empty for a century.', keys: ['watchtower', 'tower', 'Windgap'] },
+    );
+    return w;
+}
+
+// ---- layer 3 (R8 step 5): Lanternport and the Lantern Fair ------------------------------------------
+const fairDay = (n) => ({ field: 'flag.fair_day', op: '==', value: n });
+// A contest of the fair: a daily quest from the fair master, one check objective RPmod rolls.
+const contest = (id, title, at, check, text, words, ui) => ({
+    id, title, giverPersonId: 'npc_marlow', turninPersonId: 'npc_marlow', repeat: 'daily', ui,
+    prerequisites: { quests: ['q_fair_signup'], notFlags: ['fair_over'] },
+    description: words.description, offerText: words.offer, progressText: 'Go on — the crowd is waiting.', completionText: words.done,
+    objectives: [Object.assign({ id: 'o1', kind: 'check', text, at }, check)],
+    rewards: [{ type: 'xp', xp: 50 }, { type: 'gold', gold: 5 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 15 }] });
+function layer3(w) {
+    w.locations.push(
+        // --- Lanternport (town map): three columns of streets from the hill down to the shore ---
+        room('lp_hilltop', 'The Hilltop', 'loc_lanternport', [5, 0], 'The quiet top of the town: old trees, walled gardens and Ashcombe House behind its iron gate. The hill road climbs from here to Windgap Pass.',
+            { exits: [exit('ex_lp_hill_windgap', 'loc_windgap', 'n'), exit('ex_lp_hill_temple', 'lp_temple', 'e')] }),
+        room('lp_temple', 'Temple of the Lantern', 'loc_lanternport', [10, 0], 'A tall white temple with a lantern carved over the door. Inside, a hundred candles, and an empty bracket where the Founders\' Lantern hangs when it is not on show.',
+            { light: 'dim' }),
+        room('lp_gate', 'Lake Gate & Market Square', 'loc_lanternport', [5, 4], 'The lake road enters under a gate of green stone into a square of stalls, awnings and gossip. A lantern pole stands in the middle, hung with ribbons for the fair.',
+            { exits: [exit('ex_lp_gate_hill', 'lp_hilltop', 'n'), exit('ex_lp_gate_guild', 'lp_guildhall', 'e'), exit('ex_lp_gate_inn', 'lp_inn', 's')] }),
+        room('lp_guildhall', 'Guildhall & Counting House', 'loc_lanternport', [10, 4], 'The merchants\' hall: a great timbered room with the guild banners, a gallery, and behind it the counting house with its iron-bound doors. During the fair the Founders\' Lantern stands here on a plinth under guard.',
+            { light: 'bright', exits: [exit('ex_lp_guild_watch', 'lp_watch', 's', 'door', { door: { state: 'closed', material: 'oak' } })] }),
+        room('lp_crafts', 'Crafts Lane', 'loc_lanternport', [0, 8], 'A crooked lane of workshops: hammering from Dagna Holloway\'s forge, strange smells from Yara Sels\' shop of bottles.',
+            { exits: [exit('ex_lp_crafts_ware', 'lp_warehouses', 's')] }),
+        room('lp_inn', 'The Lamplighter', 'loc_lanternport', [5, 8], 'The town\'s big inn, loud and warm, with a stage for fiddlers and an arm-wrestling table everyone pretends is for dining.',
+            { light: 'bright', exits: [exit('ex_lp_inn_crafts', 'lp_crafts', 'w'), exit('ex_lp_inn_watch', 'lp_watch', 'e'), exit('ex_lp_inn_docks', 'lp_docks', 's')] }),
+        room('lp_watch', 'Watch House', 'loc_lanternport', [10, 8], 'A squat stone house with barred cells, a map of the town on the wall and a kettle that is never off the fire.',
+            { exits: [exit('ex_lp_watch_fair', 'lp_fairground', 's')] }),
+        room('lp_warehouses', 'Warehouse Row', 'loc_lanternport', [0, 12], 'Tall warehouses along a dark canal, rope and tar and gulls. Old Fisk keeps a "shop" in the last one, where nothing has a receipt.',
+            { light: 'dim', hazards: ['slick cobbles by the canal'] }),
+        room('lp_docks', 'Docks & Fish Market', 'loc_lanternport', [5, 12], 'Stone quays, fishing boats, nets drying on poles and a fish market that starts before dawn. The boat race starts and ends here.',
+            { exits: [exit('ex_lp_docks_ware', 'lp_warehouses', 'w'), exit('ex_lp_docks_fair', 'lp_fairground', 'e')] }),
+        room('lp_fairground', 'Fairground', 'loc_lanternport', [10, 12], 'The meadow on the shore, full of tents and banners: the archery butts, the riddle tent, cook fires, jugglers — and every night, lanterns on the water.',
+            { light: 'bright' }),
+    );
+    w.objects.push(
+        { id: 'obj_founders_lantern', name: "The Founders' Lantern", desc: 'A tall lantern of green bronze and old glass on a plinth, its flame pale and strangely steady. The guard says it came from the old chapel "before the water".', locationId: 'lp_guildhall', kind: 'light', lit: true },
+        { id: 'obj_fair_board', name: 'Fair programme', desc: '"THE LANTERN FAIR — three days! Archery at the butts · The Riddle Tent · Arm-wrestling at the Lamplighter · The Boat Race from the docks · The great Cook-off · Fireworks on the last night. Contestants sign up with Magpie Marlow."', locationId: 'lp_gate', kind: 'furniture' },
+        { id: 'obj_fisk_crates', name: 'Unmarked crates', desc: 'Crates stamped with the Brindlewick mill\'s mark, painted over in a hurry.', locationId: 'lp_warehouses', kind: 'container', contains: ['Grain Sack x2'] },
+        { id: 'obj_stalls', name: 'Market stalls', desc: 'Cloth, pots, sweets and fish; good cover if a fight breaks out.', locationId: 'lp_gate', kind: 'furniture', cover: 'half' },
+    );
+    w.factions.push(
+        { id: 'fac_lanternport', name: 'Lanternport', description: 'The town: its guild, its watch and its people.', hqLocationId: 'loc_lanternport', startReputation: 0, ui: { x: 1700, y: 120 },
+          goals: 'A fair without trouble; the road to Brindlewick safe again (they suspect Brindlewick of stealing the carts).',
+          phases: [{ id: 'ph_truth', label: 'The truth is out', conditions: [questIs('q_whispers', 'turnedin')], goals: 'Catch the smugglers and whoever inside the town helps them; make peace with Brindlewick.' }] },
+    );
+    w.npcs.push(
+        { id: 'npc_varga', name: 'Mayor Isolde Varga', personality: 'The mayor (she/her): fifty, brisk, elegant, carries a ledger like a shield. Blames Brindlewick for the missing carts until someone shows her better.', factionId: 'fac_lanternport', homeLocationId: 'lp_guildhall', mood: 'harried', ui: { x: 1700, y: 200 } },
+        { id: 'npc_almeer', name: 'Guildmaster Rashid Almeer', personality: 'Head of the merchants\' guild (he/him): soft-spoken, precise, knows every debt in town and hates gossip — unless it is true.', factionId: 'fac_lanternport', homeLocationId: 'lp_guildhall', mood: 'careful', ui: { x: 1780, y: 200 } },
+        { id: 'npc_dahl', name: 'Captain Sunniva Dahl', personality: 'Captain of the town watch (she/her): tall, freckled, blunt and tired; has too few guards for the fair and knows it.', factionId: 'fac_lanternport', homeLocationId: 'lp_watch', mood: 'tense', ui: { x: 1860, y: 200 } },
+        { id: 'npc_aurelio', name: 'Brother Aurelio', personality: 'Keeper of the Temple of the Lantern (he/him): old, gentle, a little deaf, and the only person in town who still reads the chapel\'s records.', factionId: 'fac_lanternport', homeLocationId: 'lp_temple', mood: 'serene', ui: { x: 1700, y: 280 },
+          shop: { items: [{ item: 'Holy Water', price: '' }, { item: "Healer's Kit", price: '' }, { item: 'Potion of Healing', price: '', stock: 2 }], buys: false, note: 'He heals the hurt for a donation, or for nothing.' } },
+        { id: 'npc_nell', name: 'Nell', personality: 'Keeper of the Lamplighter (she/her): round, quick-tongued, remembers every face and every tab.', factionId: 'fac_lanternport', homeLocationId: 'lp_inn', mood: 'busy', ui: { x: 1780, y: 280 },
+          shop: { items: [{ item: 'Hot meal', price: '4 sp' }, { item: 'Ale', price: '4 cp' }, { item: 'Rations', price: '' }, { item: 'Torch', price: '' }, { item: 'Lantern, Hooded', price: '' }, { item: 'Oil', price: '' }, { item: 'Potion of Healing', price: '', stock: 1 }], buys: true, note: 'A bed is 8 sp a night during the fair.' } },
+        { id: 'npc_tam', name: 'Tam', personality: 'Nell\'s brother (he/him): fiddler, cook and the town\'s worst liar; knows every rumour on the waterfront.', factionId: 'fac_lanternport', homeLocationId: 'lp_inn', mood: 'cheerful', ui: { x: 1860, y: 280 } },
+        { id: 'npc_greta', name: 'Greta Salt', personality: 'A fish seller at the market (she/her): loud, weather-beaten, sells the best lake fish and has opinions about the boat race.', factionId: 'fac_lanternport', homeLocationId: 'lp_docks', mood: 'loud', ui: { x: 1700, y: 360 },
+          shop: { items: [{ item: 'Lake Fish', price: '1 sp' }, { item: 'Smoked Eel', price: '3 sp' }, { item: 'Fishing Tackle', price: '1 gp' }], buys: false } },
+        { id: 'npc_jory', name: 'Jory', personality: 'A dockhand (he/him): young, strong, frightened of the wrong people; has seen boats without lights going out at night.', homeLocationId: 'lp_docks', mood: 'nervous', ui: { x: 1780, y: 360 } },
+        { id: 'npc_fisk', name: 'Old Fisk', personality: 'A "dealer in second-hand goods" in Warehouse Row (he/him): toothless, charming, a fence for anyone who pays. Knows exactly whose goods he sells and would rather not say.', homeLocationId: 'lp_warehouses', mood: 'sly', ui: { x: 1860, y: 360 },
+          shop: { items: [{ item: "Thieves' Tools", price: '' }, { item: 'Caltrops', price: '' }, { item: 'Lantern, Bullseye', price: '' }, { item: 'Reed-green Cloak', price: '2 gp' }], buys: true, note: 'He buys anything and asks nothing.' } },
+        { id: 'npc_ashcombe', name: 'Lord Percival Ashcombe', personality: 'The last of an old family (he/him): charming, beautifully dressed, deep in debt, and nervous whenever the fair or the Lantern is mentioned.', homeLocationId: 'lp_hilltop', mood: 'jittery', ui: { x: 1700, y: 440 },
+          phases: [{ id: 'ph_caught', label: 'Found out', conditions: [flagIs('lantern_saved')], mood: 'disgraced, under guard' }] },
+        { id: 'npc_marlow', name: 'Magpie Marlow', personality: 'The fair master (they/them): quick, theatrical, in a coat of a hundred patches; runs every contest and loves a good loser as much as a winner.', factionId: 'fac_lanternport', homeLocationId: 'lp_fairground', mood: 'exuberant', ui: { x: 1780, y: 440 } },
+        { id: 'npc_yara', name: 'Yara Sels', personality: 'The alchemist of Crafts Lane (she/her): precise, dry, gloves stained every colour; sells remedies and spices and sniffs every customer.', factionId: 'fac_lanternport', homeLocationId: 'lp_crafts', mood: 'focused', ui: { x: 1860, y: 440 },
+          shop: { items: [{ item: 'Potion of Healing', price: '', stock: 3 }, { item: 'Antitoxin', price: '' }, { item: "Alchemist's Fire", price: '' }, { item: 'Potion of Climbing', price: '75 gp', stock: 1 }, { item: 'Lakeshore Saffron', price: '5 sp' }], buys: true } },
+        { id: 'npc_dagna', name: 'Dagna Holloway', personality: 'The smith of Crafts Lane (she/her): huge, soot-black to the elbows, laughs like a bellows; makes the best blades on the lake.', factionId: 'fac_lanternport', homeLocationId: 'lp_crafts', mood: 'cheerful', ui: { x: 1940, y: 440 },
+          shop: { items: [{ item: 'Longsword', price: '' }, { item: 'Rapier', price: '' }, { item: 'Warhammer', price: '' }, { item: 'Longbow', price: '' }, { item: 'Light Crossbow', price: '' }, { item: 'Arrows (20)', price: '1 gp' }, { item: 'Scale Mail', price: '' }, { item: 'Chain Mail', price: '', stock: 1 }, { item: 'Shield', price: '' }], buys: true } },
+    );
+    // Baba comes to the fair for the cook-off (while it runs)
+    const baba = w.npcs.find(n => n.id === 'npc_baba');
+    baba.phases = [{ id: 'ph_fair', label: 'At the fair', conditions: [flagIs('fair_open'), { field: 'flag.fair_over', op: '!=', value: true }], homeLocationId: 'lp_fairground', mood: 'excited, competitive' }];
+    w.quests.push(
+        // the hook from Brindlewick
+        { id: 'q_word_lanternport', title: 'Word to Lanternport', giverPersonId: 'npc_maren', turninPersonId: 'npc_varga', prerequisites: { quests: ['q_hollow_oak'] }, ui: { x: 1780, y: 540 },
+          description: 'Elder Holt wants Lanternport\'s mayor to hear that goblins — not Brindlewick — took the carts, and to see the strange green coin.',
+          offerText: 'Lanternport says we steal our own carts to cheat them. Take this letter to Mayor Varga — in person — and show her that coin. Tell her about the oak. Maybe then she\'ll help with the road.',
+          progressText: 'You have a letter from Brindlewick?', completionText: 'Goblins, paid in coins from under the lake. …I owe your elder an apology, and I hate owing people apologies. Stay for the fair — and keep your eyes open.',
+          objectives: [{ id: 'o1', kind: 'visit', target: 'loc_lanternport', text: 'Go to Lanternport' }, { id: 'o2', kind: 'talk', target: 'npc_varga', text: 'Give the letter to Mayor Varga' }],
+          rewards: [{ type: 'xp', xp: 100 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 50 }, { type: 'reputation', factionId: 'fac_brindlewick', amount: 50 }] },
+        // B1
+        { id: 'q_fair_signup', title: 'A Stranger at the Fair', giverPersonId: 'npc_marlow', turninPersonId: 'npc_marlow', ui: { x: 1940, y: 540 },
+          description: 'The Lantern Fair needs contestants, and Magpie Marlow has decided you are one.',
+          offerText: 'A new face! Wonderful. The fair opens the moment I have enough fools — sorry, contestants. Get a ribbon from Nell at the Lamplighter, go and see the Lantern in the guildhall for luck, and come back to me.',
+          progressText: 'Ribbon? Lantern? Tick tock!', completionText: 'Marvellous. The Lantern Fair is OPEN! Three days, four contests, one cook-off, and fireworks on the last night. Try anything once a day — I remember every winner.',
+          objectives: [{ id: 'o1', kind: 'talk', target: 'npc_nell', text: 'Get a contestant\'s ribbon from Nell at the Lamplighter' }, { id: 'o2', kind: 'visit', target: 'lp_guildhall', text: 'See the Founders\' Lantern in the guildhall' }],
+          rewards: [{ type: 'xp', xp: 50 }, { type: 'item', item: "Contestant's Ribbon", qty: 1 }] },
+        // B2: the contests (daily) and the cook-off
+        contest('q_contest_archery', 'Archery at the Butts', 'lp_fairground', { ability: 'dex', dc: 13 }, 'Hit the gold at the archery butts',
+            { description: 'Three arrows at the painted butts on the shore.', offer: 'Three arrows, one straw man, and the whole town watching. Dexterity, darling — and do not shoot the goat.', done: 'Gold! The crowd loves you. Same time tomorrow?' }, { x: 2020, y: 460 }),
+        contest('q_contest_arms', 'Arm-Wrestling at the Lamplighter', 'lp_inn', { skill: 'athletics', dc: 13 }, 'Win a bout at the Lamplighter\'s arm-wrestling table',
+            { description: 'The Lamplighter\'s famous table, where dockhands and farmers settle arguments.', offer: 'The Lamplighter\'s table: elbow down, grip, and try not to break the furniture.', done: 'The table survived — barely. Well pulled!' }, { x: 2020, y: 540 }),
+        contest('q_contest_riddles', 'The Riddle Tent', 'lp_fairground', { ability: 'int', dc: 13 }, 'Answer the riddle-keeper\'s three riddles',
+            { description: 'A tent of silk and puzzles; the riddle-keeper never smiles.', offer: 'In the striped tent sits a woman who has never smiled. Answer her three riddles and you will see her try.', done: 'She SMILED. I owe Tam a silver piece.' }, { x: 2020, y: 620 }),
+        contest('q_contest_boats', 'The Boat Race', 'lp_docks', { skill: 'athletics', dc: 14 }, 'Row the boat race from the docks around the buoy and back',
+            { description: 'Rowing boats from the docks around the red buoy and back.', offer: 'From the docks to the red buoy and back, before the bell. Oars are provided. Swimming is discouraged.', done: 'First to the bell! The fishwives are already arguing about it.' }, { x: 2020, y: 700 }),
+        { id: 'q_cookoff', title: 'The Great Cook-off', giverPersonId: 'npc_baba', turninPersonId: 'npc_baba', prerequisites: { quests: ['q_fair_signup'], notFlags: ['fair_over'] }, ui: { x: 2100, y: 460 },
+          description: 'Baba Okafor has come to the fair to win the cook-off at last, and he needs fresh lake fish and saffron.',
+          offerText: 'Every year Lanternport\'s cooks win with fish. This year I use THEIR fish and MY spice. Two lake fish from the market and saffron from the alchemist — quickly, before they see my face!',
+          progressText: 'Fish? Saffron? My pot is waiting!', completionText: 'Taste. TASTE. …We won. Twenty years! Hedda will never believe it.',
+          objectives: [{ id: 'o1', kind: 'collect', target: 'Lake Fish', count: 2, text: 'Buy two lake fish at the fish market' }, { id: 'o2', kind: 'collect', target: 'Lakeshore Saffron', count: 1, text: 'Buy saffron from Yara Sels in Crafts Lane' }],
+          rewards: [{ type: 'xp', xp: 100 }, { type: 'gold', gold: 10 }, { type: 'reputation', factionId: 'fac_outpost', amount: 50 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 25 }] },
+        { id: 'q_fair_champion', title: 'Champion of the Fair', giverPersonId: 'npc_marlow', turninPersonId: 'npc_marlow', prerequisites: { quests: ['q_contest_archery', 'q_contest_arms', 'q_contest_riddles', 'q_contest_boats'] }, ui: { x: 2100, y: 540 },
+          description: 'You have won every contest of the fair at least once. Magpie wants to crown you.',
+          offerText: 'Archery, arms, riddles, oars — all four! Stand on the barrel, champion, and choose your prize before the guild changes its mind.',
+          progressText: 'On the barrel!', completionText: 'THE CHAMPION OF THE LANTERN FAIR! Lanternport will be singing about you for a week. Badly.',
+          objectives: [{ id: 'o1', kind: 'talk', target: 'npc_marlow', text: 'Be crowned by Magpie Marlow' }],
+          rewards: [{ type: 'xp', xp: 150 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 100 },
+                    { type: 'choice', options: [{ item: '+1 Longsword', qty: 1 }, { item: '+1 Shortbow', qty: 1 }, { item: '+1 Rapier', qty: 1 }, { item: '+1 Mace', qty: 1 }] }] },
+        // B3
+        { id: 'q_whispers', title: 'Whispers on the Docks', giverPersonId: 'npc_dahl', turninPersonId: 'npc_dahl', prerequisites: { quests: ['q_fair_signup'] }, ui: { x: 2180, y: 460 },
+          description: 'Captain Dahl has heard that someone plans to rob the fair. Three people may know more: the fence in Warehouse Row, the dockhands, and the guildmaster.',
+          offerText: 'Word on the water is that someone means to rob the fair. I have six guards and a thousand visitors. Ask Old Fisk what he is selling, ask the dockhands about boats without lights, and ask Guildmaster Almeer who in this town owes too much money.',
+          progressText: 'What have you heard?', completionText: 'Brindlewick grain in Fisk\'s shop, boats without lights, and Lord Ashcombe owing half the guild — and last week he asked to see the guildhall\'s night-watch plan. On the last night, when the fireworks go up, someone comes for the Lantern.',
+          objectives: [{ id: 'o1', kind: 'talk', target: 'npc_fisk', text: 'Ask Old Fisk what he sells in Warehouse Row' }, { id: 'o2', kind: 'talk', target: 'npc_jory', text: 'Ask the dockhands about boats at night' }, { id: 'o3', kind: 'talk', target: 'npc_almeer', text: 'Ask Guildmaster Almeer who owes too much' }],
+          rewards: [{ type: 'xp', xp: 200 }, { type: 'gold', gold: 20 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 100 }] },
+        // B4
+        // B4 "stop it"; the other way, "Let Them Run" (follow the thieves), comes with layer 4 — accepting one closes the other
+        { id: 'q_last_night', title: 'The Last Night', giverPersonId: 'npc_dahl', turninPersonId: 'npc_dahl', prerequisites: { quests: ['q_whispers'], notFlags: ['follow_plan'] }, ui: { x: 2180, y: 540 },
+          description: 'On the fair\'s last night, when the fireworks go up, thieves will come for the Founders\' Lantern in the guildhall.',
+          offerText: 'The last night of the fair. The fireworks start at nightfall; the guildhall will be half empty, and Ashcombe\'s friends know the watch plan. Be in the guildhall when the sky lights up. I will be there too.',
+          progressText: 'Tonight? Or have they come already?', completionText: 'The Lantern is safe, the thieves are in my cells, and Lord Ashcombe is explaining himself to the mayor. One of them had a green coin like yours… and a map of the lake with a cave marked on it.',
+          objectives: [{ id: 'o1', kind: 'visit', target: 'lp_guildhall', text: 'Be in the guildhall on the fair\'s last night' }, { id: 'o2', kind: 'kill', target: 'Spy', count: 1, text: 'Stop the thieves\' leader' }],
+          rewards: [{ type: 'xp', xp: 300 }, { type: 'gold', gold: 50 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 250 }, { type: 'reputation', factionId: 'fac_reedcloaks', amount: -100 },
+                    { type: 'choice', options: [{ item: 'Potion of Heroism', qty: 1 }, { item: 'Potion of Healing', qty: 3 }, { item: 'Cloak of Protection', qty: 1 }] }] },
+    );
+    w.encounters.push(
+        { id: 'enc_warehouse_toughs', name: 'Toughs in Warehouse Row', monsters: [{ key: 'tough', count: 2 }, { key: 'bandit', count: 1 }], personIds: [], start: 'near', factionId: 'fac_reedcloaks' },
+        { id: 'enc_heist', name: 'The Lantern thieves', monsters: [{ key: 'spy', count: 1 }, { key: 'bandit', count: 2 }, { key: 'scout', count: 1 }], personIds: [], start: 'near', factionId: 'fac_reedcloaks' },
+    );
+    w.events.push(
+        // the fair: opens with the sign-up and runs three days (a night, then the next morning)
+        { id: 'ev_fair_opens', name: 'The Lantern Fair opens', description: 'Drums, bunting and a hundred lanterns: the Lantern Fair of Lanternport is open, and Magpie Marlow announces the first contests.',
+          triggers: [{ type: 'onQuestState', questId: 'q_fair_signup', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'flag', key: 'fair_open', value: true }, { type: 'flag', key: 'fair_day', value: 1 }], repeatable: false, ui: { x: 2260, y: 300 } },
+        { id: 'ev_fair_night1', name: 'Lanterns on the water', description: 'The first night of the fair: lanterns float out on the lake and the Lamplighter is full until dawn.',
+          triggers: [{ type: 'onTime' }], conditions: [fairDay(1), { field: 'time', op: '==', value: 'night' }],
+          effects: [{ type: 'flag', key: 'fair_night1', value: true }], repeatable: false, ui: { x: 2260, y: 360 } },
+        { id: 'ev_fair_day2', name: 'The fair\'s second day', description: 'The second day of the Lantern Fair: the boat crews practise at the docks and the riddle tent has a queue.',
+          triggers: [{ type: 'onTime' }], conditions: [fairDay(1), flagIs('fair_night1'), { field: 'time', op: '==', value: 'morning' }],
+          effects: [{ type: 'flag', key: 'fair_day', value: 2 }], repeatable: false, ui: { x: 2260, y: 420 } },
+        { id: 'ev_fair_night2', name: 'Music at the Lamplighter', description: 'The second night of the fair: fiddles at the Lamplighter, and boats without lights slipping out from the far end of the docks.',
+          triggers: [{ type: 'onTime' }], conditions: [fairDay(2), { field: 'time', op: '==', value: 'night' }],
+          effects: [{ type: 'flag', key: 'fair_night2', value: true }], repeatable: false, ui: { x: 2260, y: 480 } },
+        { id: 'ev_fair_day3', name: 'The fair\'s last day', description: 'The last day of the Lantern Fair: the town is packed, the fireworks are stacked on the shore for tonight, and the guard at the guildhall is thin.',
+          triggers: [{ type: 'onTime' }], conditions: [fairDay(2), flagIs('fair_night2'), { field: 'time', op: '==', value: 'morning' }],
+          effects: [{ type: 'flag', key: 'fair_day', value: 3 }], repeatable: false, ui: { x: 2260, y: 540 } },
+        { id: 'ev_heist', name: 'Fireworks and broken glass', description: 'The first rockets burst over the lake — and in the guildhall a window shatters. Figures in dark coats, one with a face you would forget at once, make for the Lantern.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'lp_guildhall' }, { type: 'onTime' }], conditions: [questIs('q_last_night', 'active'), fairDay(3), { field: 'time', op: '==', value: 'night' }, { field: 'location', op: '==', value: 'lp_guildhall' }],
+          effects: [{ type: 'flag', key: 'heist_night', value: true }, { type: 'encounter', value: 'enc_heist' }], repeatable: false, ui: { x: 2260, y: 600 } },
+        { id: 'ev_fair_closes', name: 'The Lantern saved', description: 'The Founders\' Lantern is back on its plinth; the fair ends with cheering on the shore.',
+          triggers: [{ type: 'onQuestState', questId: 'q_last_night', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'flag', key: 'lantern_saved', value: true }, { type: 'flag', key: 'fair_over', value: true }], repeatable: false, ui: { x: 2260, y: 660 } },
+        { id: 'ev_warehouse_toughs', name: 'Unfriendly dockworkers', description: 'Three broad men step out of a warehouse door with cudgels: someone does not like your questions.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'lp_warehouses' }], conditions: [questIs('q_whispers', 'active')],
+          effects: [{ type: 'encounter', value: 'enc_warehouse_toughs' }], repeatable: false, ui: { x: 2260, y: 720 } },
+    );
+    w.globalLore.push(
+        { id: 'gl_lantern', label: "The Founders' Lantern", content: 'The Founders\' Lantern is Lanternport\'s relic, brought from the drowned village\'s chapel when the dam was built. Its flame is said never to have gone out. It is shown in the guildhall during the Lantern Fair.', keys: ['Lantern', 'Founders', 'relic'] },
+        { id: 'gl_fair', label: 'The Lantern Fair', content: 'The Lantern Fair lasts three days in spring: contests (archery, arm-wrestling, riddles, the boat race), a cook-off, and fireworks over the lake on the last night.', keys: ['fair', 'contest', 'fireworks'] },
+    );
+    return w;
+}
+
+// ---- layer 4 (R8 step 6): the south shore — the hidden beach, the sea cave, the Old dam -----------------
+// The beach is found by following the river from the ford (a hidden way: Search, or Odo shows it when
+// he gives "Follow the River") or reached by boat from Lanternport's docks once one is hired (the
+// `reveal` effect). The sea cave is the Reedcloaks' base (A5, the ledger); the Old dam holds the lore of
+// the drowned village and "The Sluice". B4's other way: let the thieves take the Lantern and follow them
+// here ("Let Them Run": flags follow_plan → lantern_stolen → lantern_recovered).
+const notFlag = (key) => ({ field: 'flag.' + key, op: '!=', value: true });
+function layer4(w) {
+    const at = (id) => w.locations.find(l => l.id === id);
+    // the hidden way along the river, and the boat from the docks (never found by searching: it must be hired)
+    at('loc_river_ford').exits = [exit('ex_ford_beach', 'loc_hidden_beach', 's', 'open', { secretDC: 14 })];
+    at('lp_docks').exits.push(exit('ex_lp_docks_boat', 'loc_hidden_beach', 's', 'open', { secretDC: 99, note: 'by boat, once hired' }));
+    at('loc_river_ford').description += ' Downstream, past the ferry, the reeds grow so thick that the river seems to end.';
+    // the Lantern stolen (the other way of the last night)
+    at('loc_lanternport').phases.splice(1, 0, { id: 'ph_robbed', label: 'The Lantern stolen', conditions: [flagIs('lantern_stolen')], atmosphere: 'shocked, angry, full of rumours' });
+    at('lp_guildhall').phases = [{ id: 'ph_empty', label: 'The plinth is empty', conditions: [flagIs('lantern_stolen'), notFlag('lantern_recovered')],
+        description: 'The merchants\' hall, quiet and ashamed: the plinth where the Founders\' Lantern stood is empty, a broken window boarded up behind it, and two guards watch nothing.' }];
+    w.objects.find(o => o.id === 'obj_founders_lantern').phases = [{ id: 'ph_stolen', label: 'Stolen', conditions: [flagIs('lantern_stolen'), notFlag('lantern_recovered')], gone: true }];
+    w.factions.find(f => f.id === 'fac_reedcloaks').phases = [{ id: 'ph_scattered', label: 'Scattered', conditions: [questIs('q_reedcloak_cave', 'turnedin')],
+        description: 'Smugglers in reed-green cloaks. Their captain has fallen and their cave is taken; the crews that are left row at night for whoever pays.' }];
+    const ash = w.npcs.find(n => n.id === 'npc_ashcombe');
+    ash.phases.unshift({ id: 'ph_named', label: 'Named in the ledger', conditions: [flagIs('ledger_read')], mood: 'frightened; the watch has questions about a ledger' });
+
+    w.locations.push(
+        // --- the world graph ---
+        place('loc_hidden_beach', 'Hidden Beach', 'A crescent of grey shingle on the south shore of Stillwater Mere, walled in by reeds and cliffs, where the Brindle river slips into the lake. Keel marks and boot prints lead to a dark cave in the cliff; a path climbs east along the shore to the old dam. Giant crabs bask here by day; at night the frogs sing.',
+            { atmosphere: 'secretive', ui: { x: 450, y: 700 } }),
+        place('loc_sea_cave', 'The Sea Cave', 'A sea cave in the cliffs above the hidden beach, big enough to row a boat into — the Reedcloaks\' base: a hidden dock, their stores and bunks, and passages that run down under the lake.',
+            { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'tense', ui: { x: 300, y: 860 } }),
+        place('loc_old_dam', 'The Old Dam', 'The great grey dam at the lake\'s outflow, two hundred years old, that raised the water and drowned Old Brindle. A sluice house squats on top; somebody still keeps it.',
+            { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'melancholy', ui: { x: 620, y: 860 } }),
+
+        // --- the Sea Cave (dungeon map): the dock in the middle, stores and the captain above, the deep passages behind ---
+        room('sc_mouth', 'Cave Mouth', 'loc_sea_cave', [0, 4], 'The tide-worn mouth of the cave: slick rocks, knee-deep water at the edges and the smell of tar. The beach is a bright arch behind you.',
+            { light: 'dim', hazards: ['slick rocks', 'knee-deep water'], exits: [exit('ex_sc_out', 'loc_hidden_beach', 'w'), exit('ex_sc_mouth_dock', 'sc_dock', 'e', 'corridor')] }),
+        room('sc_dock', 'Hidden Dock', 'loc_sea_cave', [5, 4], 'A plank jetty on tarred posts in a cavern of black water. Two long rowing boats are tied up, reed-green cloth over their cargo. Lanterns hang low, hooded towards the wall.',
+            { light: 'dim', exits: [exit('ex_sc_dock_lookout', 'sc_lookout', 'n', 'stairs'), exit('ex_sc_dock_stores', 'sc_stores', 'e', 'door', { door: { state: 'closed', material: 'tarred plank' } }), exit('ex_sc_dock_bunks', 'sc_bunks', 's', 'corridor')] }),
+        room('sc_lookout', 'Lookout Ledge', 'loc_sea_cave', [5, 0], 'A ledge high in the cliff with a slit over the lake and a bell on a rope. Whoever stands here sees every boat on the south shore.',
+            { light: 'dim', hazards: ['a long drop to the water'], exits: [exit('ex_sc_lookout_cabin', 'sc_captain', 'e', 'secret', { secretDC: 17, door: { state: 'closed', material: 'plank behind a sailcloth' } })] }),
+        room('sc_captain', "Captain's Cabin", 'loc_sea_cave', [10, 0], 'A cabin built into a dry cave: a real bed, a chart table with the lake drawn in red ink, a strongbox, and a bottle of good wine. Captain Vesna Kral does not live like her crews.',
+            { light: 'dim', exits: [exit('ex_sc_cabin_stores', 'sc_stores', 's', 'door', { door: { state: 'closed', material: 'iron-bound oak' } })] }),
+        room('sc_stores', 'Stolen Stores', 'loc_sea_cave', [10, 4], 'Crates, barrels and sacks from a season of missing carts, stacked to the roof — Brindlewick\'s mill stamp, the Outpost\'s brand, Lanternport\'s guild seal. Tools on pegs by the door.',
+            { light: 'dark', exits: [exit('ex_sc_stores_grotto', 'sc_grotto', 'e', 'corridor'), exit('ex_sc_stores_relics', 'sc_relics', 's', 'door', { door: { state: 'locked', material: 'iron grille', lockDC: 14, keyItem: 'Brass Key' } })] }),
+        room('sc_grotto', 'Grotto Pool', 'loc_sea_cave', [15, 4], 'A round grotto around a pool of still, dark water. The Reedcloaks throw their scraps in here, and something big has learned to wait for them.',
+            { light: 'dark', hazards: ['deep water at the edge'], exits: [exit('ex_sc_grotto_flooded', 'sc_flooded', 's', 'corridor')] }),
+        room('sc_bunks', 'Bunkroom', 'loc_sea_cave', [5, 8], 'Hammocks, sea chests and wet boots; dice on an upturned barrel. It smells of damp wool and pipe smoke.',
+            { light: 'dim', exits: [exit('ex_sc_bunks_galley', 'sc_galley', 'w', 'open')] }),
+        room('sc_galley', 'Galley', 'loc_sea_cave', [0, 8], 'A smoky cook-cave with a fire under a crack in the rock, a stew pot and one tired cook who does not look like a fighter.',
+            { light: 'dim' }),
+        room('sc_relics', 'Sorting Room', 'loc_sea_cave', [10, 8], 'Long tables covered in things dredged from the lake: green coins, a church bell\'s clapper, candlesticks, a stone saint with no face. Everything is sorted, cleaned and labelled — "for Mother R.".',
+            { light: 'dim', exits: [exit('ex_sc_relics_flooded', 'sc_flooded', 'e', 'corridor')] }),
+        room('sc_flooded', 'Flooded Passage', 'loc_sea_cave', [15, 8], 'The passage slopes down under the lake until black water fills it to the roof. The air is cold and smells of old stone; now and then, very far below, something rings like a bell. Old marks on the wall — a lantern over water — point down into the water.',
+            { light: 'dark', hazards: ['deep cold water', 'the passage dives under the lake'] }),
+
+        // --- the Old Dam (dungeon map) ---
+        room('od_crest', 'Dam Crest', 'loc_old_dam', [0, 4], 'A broad stone walkway along the top of the dam: the Mere laps at one side, and on the other a dry gorge falls away to the millrace. A raft is moored below, with grappling hooks and nets.',
+            { exits: [exit('ex_od_out', 'loc_hidden_beach', 'w'), exit('ex_od_crest_sluice', 'od_sluice', 'e', 'door', { door: { state: 'closed', material: 'weathered oak' } })] }),
+        room('od_sluice', 'Sluice House', 'loc_old_dam', [5, 4], 'A stone house over the sluice gates: great winches, chains thick as an arm, and a gauge that shows how high the Mere stands. The big winch has no crank.',
+            { light: 'dim', exits: [exit('ex_od_sluice_under', 'od_under', 'down', 'stairs')] }),
+        room('od_under', "Keeper's Undercroft", 'loc_old_dam', [5, 8], 'A vault inside the dam where the keepers have always lived: a bunk, a stove, and on the walls the names of every family of Old Brindle, carved when the water came.',
+            { light: 'dim' }),
+    );
+    w.objects.push(
+        { id: 'obj_keel_marks', name: 'Keel marks', desc: 'Fresh grooves in the shingle where boats are dragged up, and boot prints leading to a dark cave in the cliff.', locationId: 'loc_hidden_beach' },
+        { id: 'obj_driftwood', name: 'Driftwood pile', desc: 'Bleached logs piled high by the spring floods; good cover.', locationId: 'loc_hidden_beach', kind: 'furniture', cover: 'half' },
+        { id: 'obj_mouth_bell', name: 'Alarm bell', desc: 'A ship\'s bell on a rope; one pull and the whole cave knows.', locationId: 'sc_lookout', kind: 'furniture' },
+        { id: 'obj_cave_crates', name: 'Crates from the carts', desc: 'Grain, cider, cloth and tools from a season of missing carts. And, on a peg by the door, a heavy iron crank.', locationId: 'sc_stores', kind: 'container', contains: ['Sluice Crank', 'Grain Sack x2', 'Rope'] },
+        { id: 'obj_sea_chests', name: 'Sea chests', desc: 'The crews\' chests, mostly unlocked: pay, pipes, letters home. One holds a small brass key on a string.', locationId: 'sc_bunks', kind: 'container', contains: ['Brass Key', '18 gp', 'Reed-green Cloak'] },
+        { id: 'obj_strongbox', name: "The captain's strongbox", desc: 'Iron, bolted to the rock, unlocked with the captain\'s own key: coin, and a thick ledger in oilcloth.', locationId: 'sc_captain', kind: 'container', contains: ['Reedcloak Ledger', '85 gp', 'Potion of Healing x2'] },
+        { id: 'obj_chart_table', name: 'Chart table', desc: 'The Mere in red ink: the beach, the dam, Lanternport\'s docks — and in the middle of the lake a circle labelled "chapel — low water or the long swim".', locationId: 'sc_captain', kind: 'furniture', cover: 'half' },
+        { id: 'obj_relic_tables', name: 'Relic tables', desc: 'Relics of Old Brindle, cleaned and labelled "for Mother R.". A crate is packed for the next boat.', locationId: 'sc_relics', kind: 'container', contains: ['Lake-green Coin x3', 'Bronze Candlestick'] },
+        { id: 'obj_stolen_lantern', name: "The Founders' Lantern", desc: 'The Founders\' Lantern, on the sorting table among the relics, its pale flame burning steadily in the dark.', locationId: 'sc_relics', kind: 'light', lit: true, hidden: true, contains: ["Founders' Lantern"],
+          phases: [{ id: 'ph_back', label: 'Taken back', conditions: [flagIs('lantern_recovered')], gone: true }] },
+        { id: 'obj_winch', name: 'The great winch', desc: 'It opens the sluice gates — if it had its crank. Turning it would take a strong back even then.', locationId: 'od_sluice', kind: 'furniture', cover: 'half' },
+        { id: 'obj_names_wall', name: 'The wall of names', desc: 'The families of Old Brindle, carved in rows: Quill, Fenn, Holt, Wen… and above them the chapel\'s sign, a lantern over a church roof. At the bottom, newer letters: "The Still Water keeps them."', locationId: 'od_under', kind: 'furniture' },
+    );
+    w.npcs.push(
+        { id: 'npc_ines', name: 'Ines Calder', personality: 'A boatwoman at Lanternport\'s docks (she/her): wiry, sun-browned, sixty, rows anyone anywhere on the Mere for a fair price and never asks why — though she has opinions about boats that go out without lights.', factionId: 'fac_lanternport', homeLocationId: 'lp_docks', mood: 'unbothered', ui: { x: 1940, y: 360 },
+          shop: { items: [{ item: 'Boat Passage', price: '5 gp' }, { item: 'Fishing Tackle', price: '1 gp' }], buys: false, note: 'Passage to the south shore is five gold; she waits an hour, not a minute more.' } },
+        { id: 'npc_anselm', name: 'Keeper Anselm Roe', personality: 'Keeper of the Old Dam (he/him): seventy, stooped, gentle and stubborn; the last of a line of keepers who swore never to open the sluice "unless the Still Water asks". Knows every name on the wall of the undercroft.', homeLocationId: 'od_sluice', mood: 'worried', ui: { x: 700, y: 960 } },
+        { id: 'npc_brisco', name: 'Brisco', personality: 'The Reedcloaks\' cook (he/him): big, soft-spoken, sick of smuggling and sicker of the things they have been dredging up. Will talk if nobody threatens him; knows Pell from the old days.', factionId: 'fac_reedcloaks', homeLocationId: 'sc_galley', mood: 'weary', ui: { x: 200, y: 960 } },
+    );
+    w.quests.push(
+        // A4
+        { id: 'q_follow_river', title: 'Follow the River', giverPersonId: 'npc_odo', turninPersonId: 'npc_odo', prerequisites: { quests: ['q_old_coin'] }, ui: { x: 500, y: 660 },
+          description: 'The green coins wash down the river from the south shore, where the Brindle slips into the Mere. Odo knows a path through the reeds.',
+          offerText: 'Green coins come down with the spring floods — from the south, where the river runs out into the Mere past the old dam. There\'s a path through the reeds the night-rowers use. I\'ll show you where it starts. Mind the crabs.',
+          progressText: 'Found where the path goes?', completionText: 'A cave, boats and green cloaks. Aye — I thought as much, and I thought better of saying so. You\'d best tell someone braver than me.',
+          objectives: [{ id: 'o1', kind: 'visit', target: 'loc_hidden_beach', text: 'Follow the river to the hidden beach' }],
+          rewards: [{ type: 'xp', xp: 100 }, { type: 'reputation', factionId: 'fac_brindlewick', amount: 25 }] },
+        // A5
+        { id: 'q_reedcloak_cave', title: "The Reedcloaks' Cave", giverPersonId: 'npc_odo', turninPersonId: 'npc_maren', prerequisites: { quests: ['q_follow_river'] }, ui: { x: 500, y: 740 },
+          description: 'The smugglers in green cloaks work from a cave above the hidden beach. Take it, find out who pays them, and bring Elder Holt proof.',
+          offerText: 'Those are the ones who pay goblins in drowned coins. Somebody has to go into that cave, and it won\'t be me. Bring the elder something with writing on it — smugglers always keep books.',
+          progressText: 'The cave?', completionText: '"The stablemaster: carts, days, guards." "The lord on the hill: the watch plan, against his debts." "Mother R. wants the Lantern. Only the Lantern." …There is one stablemaster on that road, Corwin Lark at the Outpost — Hedda Morrow must hear this. And who under the Mere is Mother R.?',
+          objectives: [{ id: 'o1', kind: 'kill', target: 'Bandit Captain', count: 1, text: 'Defeat the Reedcloaks\' captain, Vesna Kral' }, { id: 'o2', kind: 'collect', target: 'Reedcloak Ledger', count: 1, text: 'Find the Reedcloaks\' ledger' }],
+          rewards: [{ type: 'xp', xp: 300 }, { type: 'gold', gold: 60 }, { type: 'reputation', factionId: 'fac_brindlewick', amount: 150 }, { type: 'reputation', factionId: 'fac_reedcloaks', amount: -100 },
+                    { type: 'choice', options: [{ item: 'Potion of Healing', qty: 3 }, { item: 'Cloak of Protection', qty: 1 }, { item: 'Longbow', qty: 1 }] }] },
+        // side quest at the Old Dam
+        { id: 'q_sluice', title: 'The Sluice', giverPersonId: 'npc_anselm', turninPersonId: 'npc_anselm', ui: { x: 700, y: 1040 },
+          description: 'Men in green cloaks stole the crank of the Old Dam\'s great winch. Without it the keeper cannot work the sluice gates at all.',
+          offerText: 'They came in a raft and asked me to open the gates — to lower the Mere, so the old village comes up out of the water. I said no, and they took my crank. Without it I can\'t open the gates, and I can\'t close them in a flood either. Bring it back. Please.',
+          progressText: 'My crank?', completionText: 'Oh, you beauty. …You should know what this does. Open the gates and the Mere drops by a man\'s height; the roofs of Old Brindle come up out of the water — and the Brindle runs dry below the dam, and the mill with it, for a season. I won\'t do it. Unless someone gives me a very good reason.',
+          objectives: [{ id: 'o1', kind: 'collect', target: 'Sluice Crank', count: 1, consume: true, text: 'Bring back the sluice crank the Reedcloaks took' }],
+          rewards: [{ type: 'xp', xp: 100 }, { type: 'gold', gold: 15 }, { type: 'reputation', factionId: 'fac_brindlewick', amount: 50 }] },
+        // the boat from Lanternport's docks
+        { id: 'q_hire_boat', title: 'A Boat for Hire', giverPersonId: 'npc_ines', turninPersonId: 'npc_ines', ui: { x: 2020, y: 380 },
+          description: 'Ines Calder rows anyone anywhere on the Mere — even to the smugglers\' beach on the south shore — for five gold.',
+          offerText: 'Anywhere on the Mere. The south shore? There\'s a cove there nobody fishes; the lightless boats go there. Five gold for that one — buy your passage and I\'ll row you whenever you like.',
+          progressText: 'Five gold, love. I don\'t row for smiles.', completionText: 'Paid and done. When you want the south shore, come down to the docks and get in.',
+          objectives: [{ id: 'o1', kind: 'collect', target: 'Boat Passage', count: 1, consume: true, text: 'Buy a passage from Ines Calder' }],
+          rewards: [] },
+        // B4, the other way: let the thieves take the Lantern and follow them to their base
+        { id: 'q_follow_thieves', title: 'Let Them Run', giverPersonId: 'npc_dahl', turninPersonId: 'npc_dahl', prerequisites: { quests: ['q_whispers'], notFlags: ['stop_plan'] }, ui: { x: 2180, y: 620 },
+          description: 'Instead of stopping the thieves on the fair\'s last night, let them take the Founders\' Lantern — and follow them to whoever pays them. A gamble: the town will not forgive a lost Lantern.',
+          offerText: 'Or… we let them take it. Stop them in the hall and we catch the hands, never the head. Let them run with the Lantern and follow them home, and we get the lot. It is a gamble — lose the Lantern and this town will never forgive either of us. My watch boat will be waiting at the docks.',
+          progressText: 'Where is the Lantern?', completionText: 'The Lantern! Intact, still burning — and their whole nest found. The mayor will shout at me for a week, and then she will give us both a medal. Here — you earned more than a medal.',
+          objectives: [{ id: 'o1', kind: 'visit', target: 'lp_guildhall', text: 'Be in the guildhall on the fair\'s last night — and let them take it' },
+                       { id: 'o2', kind: 'visit', target: 'loc_hidden_beach', text: 'Follow the thieves\' boat across the Mere' },
+                       { id: 'o3', kind: 'kill', target: 'Spy', count: 1, text: 'Catch the thieves\' leader, "Slate"' },
+                       { id: 'o4', kind: 'collect', target: "Founders' Lantern", count: 1, consume: true, text: 'Bring back the Founders\' Lantern' }],
+          rewards: [{ type: 'xp', xp: 350 }, { type: 'gold', gold: 120 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 100 }, { type: 'reputation', factionId: 'fac_reedcloaks', amount: -150 },
+                    { type: 'choice', options: [{ item: 'Bag of Holding', qty: 1 }, { item: 'Cloak of Protection', qty: 1 }, { item: 'Potion of Healing', qty: 4 }] }] },
+    );
+    w.encounters.push(
+        { id: 'enc_beach_crabs', name: 'Giant crabs on the beach', monsters: [{ key: 'giant-crab', count: 4 }], personIds: [], start: 'near' },
+        { id: 'enc_beach_frogs', name: 'The night chorus', monsters: [{ key: 'giant-toad', count: 1 }, { key: 'giant-frog', count: 2 }], personIds: [], start: 'near' },
+        { id: 'enc_dam_dredgers', name: 'Reedcloak dredgers on the dam', monsters: [{ key: 'bandit', count: 2 }, { key: 'tough', count: 2 }], personIds: [], locationId: 'od_crest', start: 'auto', factionId: 'fac_reedcloaks' },
+        { id: 'enc_cave_dock', name: 'Guards at the hidden dock', monsters: [{ key: 'bandit', count: 2 }, { key: 'tough', count: 1 }, { key: 'scout', count: 1 }], personIds: [], locationId: 'sc_dock', start: 'auto', factionId: 'fac_reedcloaks' },
+        { id: 'enc_cave_lookout', name: 'Lookouts on the ledge', monsters: [{ key: 'scout', count: 2 }], personIds: [], locationId: 'sc_lookout', start: 'auto', factionId: 'fac_reedcloaks' },
+        { id: 'enc_cave_bunks', name: 'The off-watch crew', monsters: [{ key: 'bandit', count: 3 }, { key: 'tough', count: 1 }], personIds: [], locationId: 'sc_bunks', start: 'auto', factionId: 'fac_reedcloaks' },
+        { id: 'enc_cave_grotto', name: 'What waits in the pool', monsters: [{ key: 'crocodile', count: 2 }], personIds: [], locationId: 'sc_grotto', start: 'auto' },
+        { id: 'enc_cave_captain', name: 'Captain Vesna Kral', monsters: [{ key: 'bandit-captain', count: 1 }, { key: 'bandit', count: 2 }], personIds: [], start: 'auto', factionId: 'fac_reedcloaks' },
+        { id: 'enc_cave_slate', name: '"Slate" and the Lantern thieves', monsters: [{ key: 'spy', count: 1 }, { key: 'bandit', count: 2 }, { key: 'tough', count: 1 }], personIds: [], start: 'auto', factionId: 'fac_reedcloaks' },
+    );
+    w.events.push(
+        { id: 'ev_river_path', name: 'Odo shows the way', description: 'Odo walks you down past the ferry and parts the reeds with his pole: a narrow path along the bank, heading south towards the Mere.',
+          triggers: [{ type: 'onQuestState', questId: 'q_follow_river', state: 'active' }], conditions: [],
+          effects: [{ type: 'reveal', id: 'ex_ford_beach' }], repeatable: false, ui: { x: 360, y: 660 } },
+        { id: 'ev_beach_crabs', name: 'Crabs in the sun', description: 'The grey rocks along the waterline get up on long legs: giant crabs, claws raised, sidling towards you.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'loc_hidden_beach' }], conditions: [{ field: 'time', op: '!=', value: 'night' }],
+          effects: [{ type: 'encounter', value: 'enc_beach_crabs' }], repeatable: false, ui: { x: 360, y: 740 } },
+        { id: 'ev_beach_frogs', name: 'The night chorus', description: 'The frog song stops all at once. Something huge and warty heaves itself out of the shallows, and two more follow.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'loc_hidden_beach' }, { type: 'onTime' }], conditions: [{ field: 'time', op: '==', value: 'night' }, { field: 'location', op: '==', value: 'loc_hidden_beach' }],
+          effects: [{ type: 'encounter', value: 'enc_beach_frogs' }], repeatable: false, ui: { x: 360, y: 820 } },
+        { id: 'ev_boat_hired', name: 'A boat for hire', description: 'Ines Calder will row you to the hidden beach on the south shore whenever you come down to the docks.',
+          triggers: [{ type: 'onQuestState', questId: 'q_hire_boat', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'reveal', id: 'ex_lp_docks_boat' }, { type: 'flag', key: 'boat_hired', value: true }], repeatable: false, ui: { x: 2020, y: 300 } },
+        { id: 'ev_cave_captain', name: 'The captain\'s cabin', description: 'Captain Vesna Kral — tall, scarred, in a reed-green coat with silver buttons — puts down her wine and draws a curved sword. "You must be the ones who have been costing me money."',
+          triggers: [{ type: 'onEnterLocation', locationId: 'sc_captain' }], conditions: [],
+          effects: [{ type: 'encounter', value: 'enc_cave_captain' }], repeatable: false, ui: { x: 200, y: 1040 } },
+        { id: 'ev_ledger', name: 'The ledger read', description: 'The Reedcloaks\' ledger names "the stablemaster", "a lord on the hill" and "Mother R.", who wants the Lantern.',
+          triggers: [{ type: 'onQuestState', questId: 'q_reedcloak_cave', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'flag', key: 'ledger_read', value: true }, { type: 'flag', key: 'stablemaster_suspected', value: true }], repeatable: false, ui: { x: 500, y: 820 } },
+        // the last night, both ways: accepting one plan closes the other
+        { id: 'ev_plan_stop', name: 'Stop them in the hall', description: 'You and Captain Dahl will stop the thieves in the guildhall.',
+          triggers: [{ type: 'onQuestState', questId: 'q_last_night', state: 'active' }], conditions: [],
+          effects: [{ type: 'flag', key: 'stop_plan', value: true }], repeatable: false, ui: { x: 2340, y: 540 } },
+        { id: 'ev_plan_follow', name: 'Let them run', description: 'You and Captain Dahl will let the thieves take the Lantern and follow them.',
+          triggers: [{ type: 'onQuestState', questId: 'q_follow_thieves', state: 'active' }], conditions: [],
+          effects: [{ type: 'flag', key: 'follow_plan', value: true }], repeatable: false, ui: { x: 2340, y: 620 } },
+        { id: 'ev_heist_follow', name: 'The Lantern taken', description: 'The first rockets burst over the lake — a window shatters, and figures in dark coats snatch the Founders\' Lantern and run for the docks. As agreed, nobody stops them. A boat without lights pulls away towards the south shore, and Captain Dahl\'s watch boat is waiting at the quay.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'lp_guildhall' }, { type: 'onTime' }], conditions: [questIs('q_follow_thieves', 'active'), fairDay(3), { field: 'time', op: '==', value: 'night' }, { field: 'location', op: '==', value: 'lp_guildhall' }],
+          effects: [{ type: 'flag', key: 'heist_night', value: true }, { type: 'flag', key: 'lantern_stolen', value: true }, { type: 'flag', key: 'fair_over', value: true },
+                    { type: 'reveal', id: 'ex_lp_docks_boat' }, { type: 'reveal', id: 'obj_stolen_lantern' }], repeatable: false, ui: { x: 2340, y: 700 } },
+        { id: 'ev_cave_slate', name: 'Slate with the Lantern', description: 'Among the relics, the Founders\' Lantern burns on the sorting table. A man with a face you forget while you look at it — "Slate" — turns from it with a knife in each hand, and his crew close in.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'sc_relics' }], conditions: [flagIs('lantern_stolen')],
+          effects: [{ type: 'encounter', value: 'enc_cave_slate' }], repeatable: false, ui: { x: 200, y: 1120 } },
+        { id: 'ev_lantern_back', name: 'The Lantern returned', description: 'The Founders\' Lantern is back on its plinth in the guildhall, and Lanternport cannot decide whether to cheer or to scold.',
+          triggers: [{ type: 'onQuestState', questId: 'q_follow_thieves', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'flag', key: 'lantern_recovered', value: true }, { type: 'flag', key: 'lantern_saved', value: true }], repeatable: false, ui: { x: 2340, y: 780 } },
+    );
+    w.globalLore.push(
+        { id: 'gl_old_dam', label: 'The Old Dam', content: 'The Old Dam at the lake\'s outflow was built two hundred years ago to power the mills downstream. Its sluice gates can lower the Mere by a man\'s height — enough to bring the roofs of Old Brindle out of the water, and to leave Brindlewick\'s millrace dry for a season. A keeper has always lived inside it.', keys: ['dam', 'sluice', 'keeper'] },
+        { id: 'gl_sea_cave', label: 'The south shore', content: 'The south shore of Stillwater Mere is cliffs and reeds; fishermen avoid it. People say boats without lights put in at a hidden beach there.', keys: ['south shore', 'beach', 'cave'] },
+    );
+    return w;
+}
+
+// ---- layer 5 (R8 step 7): the Lost Chapel and the endings ------------------------------------------------
+// Mother Reedwater's magic holds the lake off Old Brindle like a glass bell. Two ways in: at low water
+// (open the Old Dam's sluice — the mill loses a season) a causeway leads from the hidden beach to the
+// village streets; or the long swim from the sea cave's flooded passage (shown by Brother Aurelio) comes
+// up in the chapel's cistern, where the drowned wait. The sanctum opens only with the Founders' Lantern.
+// Endings (flags): the Lantern's drowned light put out (lantern_doused) or carried home lit
+// (lantern_home); the mill's season lost (low_water) or kept; the Reedcloaks scattered or recruited
+// (reedcloaks_recruited, Brisco's way out — Pell's bond).
+function layer5(w) {
+    const at = (id) => w.locations.find(l => l.id === id);
+    const person = (id) => w.npcs.find(n => n.id === id);
+    // the dive from the sea cave, and the causeway at low water (both revealed by events)
+    at('sc_flooded').exits = [exit('ex_sc_flooded_cistern', 'lc_cistern', 'down', 'open', { secretDC: 99, note: 'the long swim under the lake' })];
+    at('loc_brindlewick').phases.push(
+        { id: 'ph_dry', label: 'The mill runs dry', conditions: [flagIs('low_water')], atmosphere: 'grumbling', description: 'A mill village of thatched roofs and stone walls. The Brindle runs thin below the dam this season and the mill wheel stands still again; people know why, and they are not sure yet whether to thank you.' },
+        { id: 'ph_peace', label: 'Peace on the road', conditions: [questIs('q_home', 'turnedin')], atmosphere: 'festive', description: 'A mill village of thatched roofs and stone walls, busy again: carts go to Lanternport every week, and there is talk of a Brindlewick stall at next year\'s fair.' });
+    at('loc_lanternport').phases.push({ id: 'ph_peace', label: 'Friends with Brindlewick', conditions: [questIs('q_home', 'turnedin')], atmosphere: 'relieved, generous' });
+    at('loc_hidden_beach').phases = [{ id: 'ph_low', label: 'Low water', conditions: [flagIs('low_water')], description: 'The Mere has drawn back from the hidden beach, leaving mud, stranded reeds and — running out into the lake — a causeway of old road stones towards roofs that have not seen the sky for two hundred years.' }];
+    at('loc_forest_road').phases = [{ id: 'ph_safe', label: 'The road is safe', conditions: [questIs('q_home', 'turnedin')], atmosphere: 'peaceful', description: 'The old trade road east of Brindlewick, under oak and beech. Carts come and go again, and someone has set a lantern on a post where Liu Wen\'s cart once lay.' }];
+    person('npc_tobias').phases = [{ id: 'ph_dry', label: 'The mill dry', conditions: [flagIs('low_water')], mood: 'sulking; understands, does not forgive yet' }];
+    // the Lantern leaves the guildhall with you (lent by the town) and comes back only if carried home
+    w.objects.find(o => o.id === 'obj_founders_lantern').phases.push(
+        { id: 'ph_lent', label: 'Lent to the heroes', conditions: [flagIs('lantern_lent'), notFlag('lantern_home')], gone: true });
+    const brisco = person('npc_brisco');
+    brisco.phases = [{ id: 'ph_honest', label: 'Honest work', conditions: [flagIs('reedcloaks_recruited')], homeLocationId: 'op_kitchen', mood: 'happy, peeling onions for Baba' }];
+    w.factions.find(f => f.id === 'fac_reedcloaks').phases.push({ id: 'ph_honest', label: 'Honest boatmen', conditions: [flagIs('reedcloaks_recruited')],
+        description: 'Former smugglers who now row honest cargo for the Outpost and the fair — mostly honest, anyway.' });
+
+    w.locations.push(
+        place('loc_lost_chapel', 'The Lost Chapel', 'Old Brindle under Stillwater Mere: a drowned village of fallen roofs and mud, and its chapel of the Still Water, held dry under the lake by something that should not be there.',
+            { kind: 'dungeon', mapStyle: 'stone', atmosphere: 'drowned, silent, cold', ui: { x: 450, y: 1040 } }),
+        // --- the drowned village ---
+        room('lc_causeway', 'Drowned Causeway', 'loc_lost_chapel', [0, 4], 'Old road stones slick with weed, running out from the beach into the lake. Where the water ends a shimmer hangs in the air like the wall of a glass bell, and beyond it the village is dry.',
+            { light: 'dim', hazards: ['slick weed on the stones'], exits: [exit('ex_lc_causeway_beach', 'loc_hidden_beach', 'w', 'open', { secretDC: 99, note: 'only at low water' }), exit('ex_lc_causeway_street', 'lc_street', 'e')] }),
+        room('lc_street', 'Old Brindle High Street', 'loc_lost_chapel', [5, 4], 'A street of mud and fallen thatch under a sky of dark water. Fish flap in the doorways. Figures stand in the houses, too still, facing the chapel.',
+            { light: 'dim', hazards: ['deep mud'], exits: [exit('ex_lc_street_mill', 'lc_mill', 'n'), exit('ex_lc_street_houses', 'lc_houses', 's'), exit('ex_lc_street_square', 'lc_square', 'e')] }),
+        room('lc_mill', 'The Old Mill', 'loc_lost_chapel', [5, 0], 'The Quill family\'s first mill, its wheel rotted to ribs. Something has been eating in here, and not grain.',
+            { light: 'dark' }),
+        room('lc_houses', 'Drowned Houses', 'loc_lost_chapel', [5, 8], 'A row of cottages with their doors open, tables laid for a supper two hundred years cold. A well in the middle of the lane.',
+            { light: 'dark' }),
+        room('lc_square', 'Chapel Square', 'loc_lost_chapel', [10, 4], 'A small square before the chapel steps, with a stone lantern post whose top is carved like the Founders\' Lantern. The chapel doors are swollen oak, shut tight.',
+            { light: 'dim', exits: [exit('ex_lc_square_narthex', 'lc_narthex', 'e', 'door', { door: { state: 'closed', material: 'swollen oak' } })] }),
+        // --- the chapel ---
+        room('lc_narthex', 'Narthex', 'loc_lost_chapel', [15, 4], 'The chapel porch: a font of still water that has never dried, and the sign of the Still Water — a lantern over water — worn smooth by hands.',
+            { light: 'dim', exits: [exit('ex_lc_narthex_nave', 'lc_nave', 'e', 'corridor')] }),
+        room('lc_nave', 'The Nave', 'loc_lost_chapel', [20, 4], 'Rows of rotting pews under a vault of dripping stone. Pale shapes drift between them. Behind the altar, bronze doors with a lock shaped like a lantern.',
+            { light: 'dark', exits: [exit('ex_lc_nave_bell', 'lc_bell', 'n', 'stairs'), exit('ex_lc_nave_stair', 'lc_crypt_stair', 's', 'corridor'),
+                exit('ex_lc_nave_sanctum', 'lc_sanctum', 'e', 'door', { door: { state: 'locked', material: 'bronze doors with a lantern-shaped lock', lockDC: 30, keyItem: "Founders' Lantern" } })] }),
+        room('lc_bell', 'Bell Tower', 'loc_lost_chapel', [20, 0], 'The tower stair winds up to the bell that rings under the lake in storms. The top of the tower is inside the glass bell; above it, black water and fish.',
+            { light: 'dark', exits: [exit('ex_lc_bell_vestry', 'lc_vestry', 'e', 'door', { door: { state: 'closed', material: 'iron-studded' } })] }),
+        room('lc_vestry', 'Vestry', 'loc_lost_chapel', [25, 0], 'The keepers\' robing room: cupboards of mouldering vestments, and on a lectern, dry as the day it was written, the chapel\'s own book of prayers.',
+            { light: 'dark' }),
+        room('lc_crypt_stair', 'Crypt Stair', 'loc_lost_chapel', [20, 8], 'Narrow steps down under the nave, their edges worn into cups. The air gets colder with every step.',
+            { light: 'dark', exits: [exit('ex_lc_stair_crypt', 'lc_crypt', 'down', 'stairs')] }),
+        room('lc_crypt', 'The Crypt', 'loc_lost_chapel', [20, 12], 'Tombs of the chapel\'s keepers and one knight in armour on a stone bier — Sir Aldric, who guarded the chapel when the water came, and guards it still for someone else.',
+            { light: 'dark', exits: [exit('ex_lc_crypt_ossuary', 'lc_ossuary', 'w', 'corridor')] }),
+        room('lc_ossuary', 'Ossuary', 'loc_lost_chapel', [15, 12], 'Bones stacked in patterns along every wall, skulls in rows like pews. Some of the rows have been taken apart and eaten.',
+            { light: 'dark', exits: [exit('ex_lc_ossuary_cistern', 'lc_cistern', 'w', 'corridor')] }),
+        room('lc_cistern', 'Flooded Cistern', 'loc_lost_chapel', [10, 12], 'The chapel\'s cistern, half full of black water where the long swim from the sea cave comes up. The drowned stand in the water up to their chests, waiting.',
+            { light: 'dark', hazards: ['chest-deep water'] }),
+        room('lc_sanctum', 'The Sanctum', 'loc_lost_chapel', [25, 4], 'The heart of the chapel: an altar of green stone under a hanging chain where a lantern once hung. The water of the Mere stands like a wall where the east window was — and in it, looking in, a face.',
+            { light: 'dim' }),
+    );
+    w.objects.push(
+        { id: 'obj_lantern_post', name: 'Stone lantern post', desc: 'Its top is carved like the Founders\' Lantern; the carving is newer than the post — the drowned keep it clean.', locationId: 'lc_square', kind: 'furniture', cover: 'half' },
+        { id: 'obj_font', name: 'Font of still water', desc: 'Water that has not moved in two hundred years. Anyone of the Still Water knows the blessing for it.', locationId: 'lc_narthex', kind: 'furniture' },
+        { id: 'obj_pews', name: 'Rotting pews', desc: 'Rows of them, heavy and soft; good cover.', locationId: 'lc_nave', kind: 'furniture', cover: 'half' },
+        { id: 'obj_rotten_steps', name: 'Rotten steps', desc: 'Tower steps eaten hollow by two centuries of damp.', locationId: 'lc_bell', kind: 'trap', trapDC: 14 },
+        { id: 'obj_prayer_book', name: 'The chapel\'s book of prayers', desc: 'The Still Water\'s rite for the dead, including the last prayer "that lets the light go out and the drowned sleep".', locationId: 'lc_vestry', kind: 'container', contains: ['Book of the Still Water', 'Potion of Healing x2', 'Holy Water x2'] },
+        { id: 'obj_aldric_bier', name: 'Sir Aldric\'s bier', desc: 'A stone bier with an empty hollow where the knight lay; his sword belt hangs on it.', locationId: 'lc_crypt', kind: 'container', contains: ['+1 Longsword', '40 gp'] },
+        { id: 'obj_mill_hoard', name: 'The ghouls\' hoard', desc: 'Among the bones: rings, buckles and coins from travellers the lake took.', locationId: 'lc_mill', kind: 'container', contains: ['62 gp', 'Silver Ring'] },
+        { id: 'obj_altar', name: 'Altar of green stone', desc: 'Carved with the drowned village\'s names and a hollow for a lantern. The hag\'s offerings lie on it: every relic the Reedcloaks dredged.', locationId: 'lc_sanctum', kind: 'container', contains: ['Lake-green Coin x12', 'Periapt of Wound Closure'] },
+    );
+    w.factions.push(
+        { id: 'fac_drowned', name: 'The Drowned', description: 'Mother Reedwater\'s dead: the people of Old Brindle, kept from their rest under the lake.', startReputation: -1500, killReputation: 0, ui: { x: 80, y: 1100 },
+          goals: 'Obey Mother Reedwater; guard the chapel; wait for the Lantern.' },
+    );
+    w.npcs.push(
+        { id: 'npc_oswin', name: 'Brother Oswin', personality: 'The ghost of the chapel\'s last keeper (he/him), of the Still Water, a gentle old man in a grey habit who drowned ringing the bell. He is kind, sad and very tired, speaks of the villagers as "my people", and knows the Still Water\'s prayers — and Tove\'s order — by heart.', homeLocationId: 'lc_narthex', mood: 'sorrowful, hopeful', ui: { x: 300, y: 1180 },
+          phases: [{ id: 'ph_rest', label: 'At rest', conditions: [flagIs('lantern_doused')], gone: true }] },
+    );
+    w.quests.push(
+        // C1
+        { id: 'q_hag_wants', title: 'What the Hag Wants', giverPersonId: 'npc_aurelio', turninPersonId: 'npc_aurelio', prerequisites: { quests: ['q_reedcloak_cave'], flags: ['lantern_saved'] }, ui: { x: 300, y: 1260 },
+          description: '"Mother R. wants the Lantern." Brother Aurelio keeps the old chapel\'s records; the keeper of the dam and Sister Imani may know the rest.',
+          offerText: 'Mother R. … I have read that name, in a book no one has opened in a hundred years. Ask the keeper of the old dam what his vows are for, and Sister Imani in Brindlewick what the Still Water sings for the drowned. Then come back, and I will tell you what I fear.',
+          progressText: 'What did they say?', completionText: 'Then it is as I feared. Mother Reedwater is a hag of the deep water. When the dam drowned Old Brindle, she took the chapel and its dead for her own; the Lantern was carried out, and it is the key to the sanctum. With it lit on her altar she wakes the drowned and the Mere is hers. …The mayor agrees: take the Lantern to her — and end it. The records show the monks\' way in: the long swim from the cave under the south cliffs. Or ask the keeper to lower the water.',
+          objectives: [{ id: 'o1', kind: 'talk', target: 'npc_anselm', text: 'Ask Keeper Anselm Roe about his vows' }, { id: 'o2', kind: 'talk', target: 'npc_imani', text: 'Ask Sister Imani what the Still Water sings for the drowned' }],
+          rewards: [{ type: 'xp', xp: 200 }, { type: 'item', item: "Founders' Lantern", qty: 1 }] },
+        // the low-water way (the sluice)
+        { id: 'q_low_water', title: 'Low Water', giverPersonId: 'npc_anselm', turninPersonId: 'npc_anselm', prerequisites: { quests: ['q_sluice', 'q_hag_wants'] }, ui: { x: 380, y: 1260 },
+          description: 'Opening the Old Dam\'s sluice gates would lower the Mere and bring Old Brindle out of the water — and leave Brindlewick\'s mill dry for a season.',
+          offerText: 'So that is what my vows were for. "Unless the Still Water asks." …Very well. Turn the great winch with me — it takes a strong back — and the water will go down by nightfall. Brindlewick will curse us both at the mill.',
+          progressText: 'The winch will not turn itself.', completionText: 'Listen — the water is going out. By nightfall there will be a road to Old Brindle for the first time in two hundred years. May the Still Water forgive us the mill.',
+          objectives: [{ id: 'o1', kind: 'check', skill: 'athletics', dc: 14, at: 'od_sluice', text: 'Turn the great winch and open the sluice gates' }],
+          rewards: [{ type: 'xp', xp: 100 }] },
+        // C2
+        { id: 'q_into_mere', title: 'Into the Mere', giverPersonId: 'npc_aurelio', turninPersonId: 'npc_oswin', prerequisites: { quests: ['q_hag_wants'] }, ui: { x: 460, y: 1260 },
+          description: 'Reach the drowned chapel of Old Brindle: at low water by the causeway from the hidden beach, or by the long swim from the sea cave\'s flooded passage.',
+          offerText: 'Go by the causeway if the keeper opens the gates, or by the long swim if you must. The chapel\'s keepers were called the Still Water; if any of them are still there, they will know the Lantern.',
+          progressText: 'You are still dripping.', completionText: 'The Lantern… after two hundred years. I am Oswin, the last keeper of this chapel. Forgive me for not rising; I have been dead some time.',
+          objectives: [{ id: 'o1', kind: 'visit', target: 'loc_lost_chapel', text: 'Reach the drowned village of Old Brindle' }, { id: 'o2', kind: 'talk', target: 'npc_oswin', text: 'Find out who still keeps the chapel' }],
+          rewards: [{ type: 'xp', xp: 150 }] },
+        // C3
+        { id: 'q_drowned_light', title: 'The Drowned Light', giverPersonId: 'npc_oswin', turninPersonId: 'npc_oswin', prerequisites: { quests: ['q_into_mere'] }, ui: { x: 540, y: 1260 },
+          description: 'Mother Reedwater waits in the sanctum behind the bronze doors, which only the Lantern opens. Sir Aldric, the knight who guarded the chapel, guards the crypt for her now.',
+          offerText: 'She keeps my people from their rest, and Sir Aldric — our knight, who died holding the doors — she bound to her in the crypt. Free him if you can. Then open the sanctum with the Lantern and face her. Do not let her touch the light.',
+          progressText: 'She is still there. I can feel her.', completionText: 'She is gone. The water is only water again. …Now the Lantern. Its flame is the drowned light — while it burns, my people cannot sleep, but Lanternport has loved it for two hundred years. That choice is yours, not mine.',
+          objectives: [{ id: 'o1', kind: 'kill', target: 'Wight', count: 1, text: 'Free Sir Aldric in the crypt' }, { id: 'o2', kind: 'kill', target: 'Green Hag', count: 1, text: 'Defeat Mother Reedwater in the sanctum' }],
+          rewards: [{ type: 'xp', xp: 400 }, { type: 'gold', gold: 100 }] },
+        // the choice: put out the drowned light, or carry it home burning
+        { id: 'q_light_rest', title: 'Let the Light Rest', giverPersonId: 'npc_oswin', turninPersonId: 'npc_oswin', prerequisites: { quests: ['q_drowned_light'], notFlags: ['choice_home'] }, ui: { x: 620, y: 1220 },
+          description: 'Put out the Founders\' Lantern on the altar with the Still Water\'s last prayer, so the drowned of Old Brindle can sleep. Lanternport will lose its burning relic.',
+          offerText: 'Lay it on the altar and say the last prayer with me — it is in the book in the vestry, if you do not know it. The light goes out; my people sleep; so do I. Lanternport will have a lantern that is only a lantern.',
+          progressText: 'The prayer is short. The hard part is meaning it.', completionText: 'The light is out. Listen… the bell. It is ringing us home. Thank you. Tell Lanternport it was the kindest thing their Lantern ever did.',
+          objectives: [{ id: 'o1', kind: 'check', skill: 'religion', dc: 12, at: 'lc_sanctum', text: 'Say the Still Water\'s last prayer at the altar' }, { id: 'o2', kind: 'collect', target: "Founders' Lantern", count: 1, consume: true, text: 'Lay the Lantern on the altar' }],
+          rewards: [{ type: 'xp', xp: 200 }, { type: 'reputation', factionId: 'fac_brindlewick', amount: 150 }, { type: 'reputation', factionId: 'fac_lanternport', amount: -100 }] },
+        { id: 'q_light_home', title: 'Carry the Light Home', giverPersonId: 'npc_oswin', turninPersonId: 'npc_varga', prerequisites: { quests: ['q_drowned_light'], notFlags: ['choice_rest'] }, ui: { x: 620, y: 1300 },
+          description: 'Take the Founders\' Lantern back to Lanternport still burning. Nothing will wake the drowned now that the hag is gone — but they will not sleep either.',
+          offerText: 'Then take it home burning. With her gone, no one can wake them; we will only… wait, as we always have. Go on. Lanternport has loved that light longer than I was alive.',
+          progressText: 'You have the Lantern?', completionText: 'It is still burning. …You could have put it out, and you did not. Lanternport will not forget that — and I will make sure Brindlewick hears who brought it home.',
+          objectives: [{ id: 'o1', kind: 'collect', target: "Founders' Lantern", count: 1, consume: true, text: 'Bring the Lantern back to Mayor Varga, still burning' }],
+          rewards: [{ type: 'xp', xp: 200 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 250 }] },
+        // C4
+        { id: 'q_home', title: 'Home', giverPersonId: 'npc_maren', turninPersonId: 'npc_maren', prerequisites: { flags: ['chapel_done'] }, ui: { x: 700, y: 1260 },
+          description: 'The hag is gone and the Lantern\'s fate decided. Brindlewick and Lanternport should hear it from you — together.',
+          offerText: 'The whole lake is talking. Go to Lanternport, tell Isolde Varga what you told me, and tell her Brindlewick will be at her fair next spring — with grain, not accusations. I\'ll write it down so she believes you.',
+          progressText: 'Did Isolde listen?', completionText: 'She wrote back. She WROTE BACK — a whole page, and most of it polite. The road is ours again, both ways. …Sit down. Ada is bringing supper, and nobody in this village will let you pay for anything ever again.',
+          objectives: [{ id: 'o1', kind: 'talk', target: 'npc_varga', text: 'Tell Mayor Varga what happened under the lake' }],
+          rewards: [{ type: 'xp', xp: 400 }, { type: 'gold', gold: 100 }, { type: 'reputation', factionId: 'fac_brindlewick', amount: 200 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 200 },
+                    { type: 'choice', options: [{ item: 'Ring of Protection', qty: 1 }, { item: 'Cloak of Elvenkind', qty: 1 }, { item: 'Potion of Healing', qty: 5 }] }] },
+        // side quests
+        { id: 'q_honest_work', title: 'Honest Work', giverPersonId: 'npc_brisco', turninPersonId: 'npc_brisco', prerequisites: { quests: ['q_reedcloak_cave'] }, ui: { x: 200, y: 1260 },
+          description: 'With their captain gone, some of the Reedcloaks want out. Brisco asks whether anyone would give smugglers honest work.',
+          offerText: 'Half of us only ever wanted to row boats and eat. The Outpost always needs hands — would Hedda Morrow take on men who used to steal her carts? Would you ask her? …Pell would have asked. Pell always did the brave, stupid thing.',
+          progressText: 'Did she laugh?', completionText: 'She said yes? She said YES. Oars and onions, then. You have saved more of us than you killed, friend.',
+          objectives: [{ id: 'o1', kind: 'talk', target: 'npc_hedda', text: 'Ask Hedda Morrow to hire the Reedcloaks who want out' }],
+          rewards: [{ type: 'xp', xp: 100 }, { type: 'reputation', factionId: 'fac_reedcloaks', amount: 400 }, { type: 'reputation', factionId: 'fac_outpost', amount: 50 }] },
+        { id: 'q_lights', title: 'Lights on the Lake', giverPersonId: 'npc_ines', turninPersonId: 'npc_ines', prerequisites: { quests: ['q_hire_boat'] }, ui: { x: 2100, y: 380 },
+          description: 'Pale lights over the south shore at night lure boats onto the rocks. Ines has lost a friend to them.',
+          offerText: 'There are lights over the south shore at night — not lanterns. They bob and beckon, and boats that follow them end up on the rocks. Old Gudrun followed one last month. Row over after dark and put them out, whatever they are.',
+          progressText: 'The lights still dance.', completionText: 'Dark over the south shore last night, for the first time in a year. Gudrun would have bought you a drink. I will have to do.',
+          objectives: [{ id: 'o1', kind: 'kill', target: 'Will-o’-Wisp', count: 1, text: 'Put out the lights over the hidden beach at night' }],
+          rewards: [{ type: 'xp', xp: 150 }, { type: 'gold', gold: 30 }, { type: 'reputation', factionId: 'fac_lanternport', amount: 50 }] },
+    );
+    w.encounters.push(
+        { id: 'enc_lc_street', name: 'The drowned in the street', monsters: [{ key: 'zombie', count: 4 }], personIds: [], locationId: 'lc_street', start: 'auto', factionId: 'fac_drowned' },
+        { id: 'enc_lc_mill', name: 'Ghouls in the old mill', monsters: [{ key: 'ghoul', count: 2 }], personIds: [], locationId: 'lc_mill', start: 'auto', factionId: 'fac_drowned' },
+        { id: 'enc_lc_houses', name: 'Supper guests', monsters: [{ key: 'ghoul', count: 1 }, { key: 'zombie', count: 2 }], personIds: [], locationId: 'lc_houses', start: 'auto', factionId: 'fac_drowned' },
+        { id: 'enc_lc_nave', name: 'Specters in the nave', monsters: [{ key: 'specter', count: 2 }], personIds: [], locationId: 'lc_nave', start: 'auto', factionId: 'fac_drowned' },
+        { id: 'enc_lc_ossuary', name: 'Ghouls in the ossuary', monsters: [{ key: 'ghoul', count: 2 }], personIds: [], locationId: 'lc_ossuary', start: 'auto', factionId: 'fac_drowned' },
+        { id: 'enc_lc_cistern', name: 'The drowned in the cistern', monsters: [{ key: 'zombie', count: 3 }], personIds: [], start: 'near', factionId: 'fac_drowned' },
+        { id: 'enc_lc_aldric', name: 'Sir Aldric', monsters: [{ key: 'wight', count: 1 }, { key: 'zombie', count: 2 }], personIds: [], start: 'auto', factionId: 'fac_drowned' },
+        { id: 'enc_lc_hag', name: 'Mother Reedwater', monsters: [{ key: 'green-hag', count: 1 }, { key: 'ghoul', count: 2 }], personIds: [], start: 'auto', factionId: 'fac_drowned' },
+        { id: 'enc_lights', name: 'Lights on the lake', monsters: [{ key: 'will-o-wisp', count: 1 }], personIds: [], start: 'near' },
+    );
+    w.events.push(
+        { id: 'ev_long_swim', name: 'The monks\' way', description: 'Brother Aurelio\'s records show the old keepers\' way under the lake: from the flooded passage of the cave below the south cliffs, a long swim up into the chapel\'s cistern.',
+          triggers: [{ type: 'onQuestState', questId: 'q_hag_wants', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'reveal', id: 'ex_sc_flooded_cistern' }, { type: 'flag', key: 'lantern_lent', value: true }], repeatable: false, ui: { x: 300, y: 1340 } },
+        { id: 'ev_low_water', name: 'The water goes out', description: 'The sluice gates grind open. By nightfall the Mere has dropped by a man\'s height; the Brindle runs thin below the dam, and a causeway of old road stones rises from the hidden beach towards the roofs of Old Brindle.',
+          triggers: [{ type: 'onQuestState', questId: 'q_low_water', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'flag', key: 'low_water', value: true }, { type: 'reveal', id: 'ex_lc_causeway_beach' }, { type: 'reputation', factionId: 'fac_brindlewick', amount: -150 }], repeatable: false, ui: { x: 380, y: 1340 } },
+        { id: 'ev_cistern', name: 'Up from the long swim', description: 'You come up gasping into black water and cold air — and the drowned standing in the cistern turn their heads towards you.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'lc_cistern' }], conditions: [],
+          effects: [{ type: 'encounter', value: 'enc_lc_cistern' }], repeatable: false, ui: { x: 460, y: 1340 } },
+        { id: 'ev_aldric', name: 'Sir Aldric rises', description: 'The knight on the bier sits up. His eyes are pale lights; his sword is already in his hand. "The chapel is closed," he says, in a voice like water in a pipe.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'lc_crypt' }], conditions: [],
+          effects: [{ type: 'encounter', value: 'enc_lc_aldric' }], repeatable: false, ui: { x: 540, y: 1340 } },
+        { id: 'ev_hag', name: 'Mother Reedwater', description: 'The face in the wall of water smiles, and steps through: tall, green, draped in weed, with hands like roots. "The Lantern," Mother Reedwater says sweetly. "How kind of you to bring it all the way down."',
+          triggers: [{ type: 'onEnterLocation', locationId: 'lc_sanctum' }], conditions: [],
+          effects: [{ type: 'encounter', value: 'enc_lc_hag' }], repeatable: false, ui: { x: 620, y: 1380 } },
+        { id: 'ev_choice_rest', name: 'Chose rest', description: 'You will put out the drowned light.',
+          triggers: [{ type: 'onQuestState', questId: 'q_light_rest', state: 'active' }], conditions: [],
+          effects: [{ type: 'flag', key: 'choice_rest', value: true }], repeatable: false, ui: { x: 700, y: 1180 } },
+        { id: 'ev_choice_home', name: 'Chose home', description: 'You will carry the Lantern home burning.',
+          triggers: [{ type: 'onQuestState', questId: 'q_light_home', state: 'active' }], conditions: [],
+          effects: [{ type: 'flag', key: 'choice_home', value: true }], repeatable: false, ui: { x: 700, y: 1340 } },
+        { id: 'ev_light_out', name: 'The drowned light goes out', description: 'The Founders\' Lantern goes dark on the altar. Far above, the chapel bell rings once, and the drowned of Old Brindle lie down to sleep. Lanternport\'s relic is only a lantern now.',
+          triggers: [{ type: 'onQuestState', questId: 'q_light_rest', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'flag', key: 'lantern_doused', value: true }, { type: 'flag', key: 'chapel_done', value: true }], repeatable: false, ui: { x: 780, y: 1220 } },
+        { id: 'ev_light_home', name: 'The Lantern comes home', description: 'The Founders\' Lantern is back on its plinth in the guildhall, still burning with its pale, steady flame.',
+          triggers: [{ type: 'onQuestState', questId: 'q_light_home', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'flag', key: 'lantern_home', value: true }, { type: 'flag', key: 'chapel_done', value: true }], repeatable: false, ui: { x: 780, y: 1300 } },
+        { id: 'ev_recruited', name: 'Oars and onions', description: 'The Reedcloaks who wanted out now row for the Outpost.',
+          triggers: [{ type: 'onQuestState', questId: 'q_honest_work', state: 'turnedin' }], conditions: [],
+          effects: [{ type: 'flag', key: 'reedcloaks_recruited', value: true }], repeatable: false, ui: { x: 200, y: 1340 } },
+        { id: 'ev_lights', name: 'Lights over the shore', description: 'A pale light bobs over the rocks at the end of the beach, beckoning — and when you come close it flares cold and blue.',
+          triggers: [{ type: 'onEnterLocation', locationId: 'loc_hidden_beach' }, { type: 'onTime' }], conditions: [questIs('q_lights', 'active'), { field: 'time', op: '==', value: 'night' }, { field: 'location', op: '==', value: 'loc_hidden_beach' }],
+          effects: [{ type: 'encounter', value: 'enc_lights' }], repeatable: false, ui: { x: 2100, y: 300 } },
+    );
+    w.globalLore.push(
+        { id: 'gl_reedwater', label: 'Mother Reedwater', content: 'Old stories around the Mere tell of Mother Reedwater, a green woman of the deep water who trades in drowned things and wants what shines. Children are told not to lean over the side of boats, or she will take their faces.', keys: ['Reedwater', 'Mother R', 'hag'] },
+        { id: 'gl_aldric', label: 'Sir Aldric', content: 'Sir Aldric was the knight who guarded Old Brindle\'s chapel. When the water came he held the doors while the keepers carried the Lantern out, and he was never seen again.', keys: ['Aldric', 'knight'] },
+    );
+    return w;
+}
+
+export const OPENING = [
+    'Mist lies over Stillwater Mere this spring morning, and it creeps up the lane into Brindlewick, beading on the thatch of the Tipsy Heron.',
+    'Inside, the fire crackles, Ada Fenn is slicing bread faster than anyone can eat it, and the stuffed heron over the bar leans a little further to the left than yesterday.',
+    'The door bangs open. Elder Maren Holt comes in out of the mist, ledger under one arm, and looks around the common room at the villagers and the handful of travellers at the long tables.',
+    '"Another cart," she says, to no one and everyone. "Liu Wen\'s, with the seed grain. The mule came home alone." Her eyes settle on you. "You look like someone who can walk a road without losing it. Can I buy you breakfast and a question?"',
+].join('\n\n');
+
+// ---- the package ----------------------------------------------------------------------------
+export function drownedLantern() {
+    return {
+        format: 'rpmod-adventure', version: VERSION, id: ID,
+        title: 'The Drowned Lantern',
+        summary: 'Supply carts keep vanishing between the village of Brindlewick and the lakeside town of Lanternport. Follow the trail from goblin raiders to smugglers on Stillwater Mere, and to what lies under the lake. A starter adventure for one character and a companion.',
+        levels: [1, 5],
+        credits: [SRD.attribution],
+        world: layer5(layer4(layer3(layer2(world())))),
+        characters: PREGENS.map(pregenCard),
+        start: { view: 'player', pregens: PREGENS.map(p => p.id), opening: OPENING },
+    };
+}
