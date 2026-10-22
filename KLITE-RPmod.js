@@ -523,6 +523,9 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-inv-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 1px; border: 1px solid var(--rpm-border-hi); font-size: 10px; color: var(--rpm-fg-hi); cursor: grab; overflow: hidden; touch-action: none; }
 .rpm-inv-slot.rpm-full, .rpm-inv-chip { touch-action: none; }
 .rpm-inv-qty { position: absolute; right: 2px; bottom: 0; font-size: 10px; font-weight: bold; }
+.rpm-inv-small { font-size: 9px; line-height: 1.05; }
+.rpm-inv-two { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: clip; }
+.rpm-inv-tip { position: fixed; z-index: 11; pointer-events: none; max-width: 260px; padding: 3px 7px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); background: var(--rpm-bg); color: var(--rpm-fg-hi); font-size: var(--rpm-fs-sm); box-shadow: var(--rpm-shadow); }
 .rpm-inv-ghost { pointer-events: none; border: 2px dashed var(--rpm-success); }
 .rpm-inv-ghost[data-ok="0"] { border-color: var(--rpm-danger); }
 .rpm-inv-item.rpm-sel, .rpm-inv-slot.rpm-sel, .rpm-inv-chip.rpm-sel { outline: 2px solid var(--rpm-accent-fg-hi); outline-offset: -1px; }
@@ -37250,6 +37253,9 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
   var KIND_ICON = { weapon: "sword", armor: "shirt", shield: "shield", ammo: "move-up", potion: "flask-conical", bag: "backpack", gear: "package" };
   var KIND_NAME = { weapon: "Weapon", armor: "Armor", shield: "Shield", ammo: "Ammunition", potion: "Potion", bag: "Bag", gear: "Item" };
   var lb = (n) => Math.round(n * 10) / 10 + " lb";
+  function hideTip() {
+    for (const t of document.querySelectorAll(".rpm-inv-tip")) t.remove();
+  }
   var DOLL = [
     ["Hands", ["main", "off"]],
     ["Body", ["armor", "back", "slung", "slungShield"]],
@@ -37402,7 +37408,6 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     }
     function tile(it) {
       const [w, h] = footprint(it), kind = itemKind(it);
-      const big = w * h > 1;
       const t = el("button", {
         type: "button",
         class: "rpm-inv-item" + (it === sel2 ? " rpm-sel" : ""),
@@ -37410,7 +37415,6 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         "data-id": it.id,
         "data-kind": kind,
         style: `--x:${it.at.x};--y:${it.at.y};--w:${w};--h:${h}`,
-        title: `${it.name}${it.qty > 1 ? " ×" + it.qty : ""} · ${lb(totalWeight(s, it))}`,
         "aria-label": `${it.name}${it.qty > 1 ? ", " + it.qty : ""}`,
         onclick: (e) => {
           e.stopPropagation();
@@ -37423,9 +37427,38 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
           }
           pick2(it);
         }
-      }, [icon(KIND_ICON[kind], big ? 16 : 14), big ? el("span", { class: "rpm-inv-name", text: it.name }) : null, it.qty > 1 ? el("span", { class: "rpm-inv-qty", text: String(it.qty) }) : null]);
+      }, [
+        // one row high (owner): the name only, no icon — a 1×1 tile on two small lines; the colour still tells the kind
+        h > 1 ? icon(KIND_ICON[kind], 16) : null,
+        el("span", { class: "rpm-inv-name" + (h === 1 ? w === 1 ? " rpm-inv-small rpm-inv-two" : " rpm-inv-small" : ""), text: it.name }),
+        it.qty > 1 ? el("span", { class: "rpm-inv-qty", text: String(it.qty) }) : null
+      ]);
+      tip(t, it);
       dragSource(t, it, w, h);
       return t;
+    }
+    function tip(node, it) {
+      const where = () => it.at ? it.at.slot ? SLOT_NAMES[it.at.slot] : it.at.bag === OVER ? "Overweight" : it.at.bag === POCKETS ? "Pockets" : (byId2(it.at.bag) || {}).name || "" : "not packed";
+      const text = () => `${it.name}${it.qty > 1 ? " ×" + it.qty : ""} · ${lb(totalWeight(s, it))}${unitWeight(it).guess ? " (a guess)" : ""} · ${where()}`;
+      const show = () => {
+        if (st.drag) return;
+        hideTip();
+        const r = node.getBoundingClientRect();
+        const t = el("div", { class: "rpm-themed rpm-inv-tip", role: "tooltip", text: text() });
+        document.body.appendChild(t);
+        const tw = t.offsetWidth || 120, th = t.offsetHeight || 20;
+        const x = Math.max(4, Math.min(window.innerWidth - tw - 4, r.left + r.width / 2 - tw / 2));
+        const y = r.top - th - 6 >= 4 ? r.top - th - 6 : r.bottom + 6;
+        t.style.left = x + "px";
+        t.style.top = y + "px";
+      };
+      node.addEventListener("pointerenter", (e) => {
+        if (e.pointerType !== "touch") show();
+      });
+      node.addEventListener("pointerleave", hideTip);
+      node.addEventListener("focus", show);
+      node.addEventListener("blur", hideTip);
+      node.addEventListener("pointerdown", hideTip);
     }
     function cellAt(grid, cx, cy, spec) {
       const r = grid.getBoundingClientRect();
@@ -37659,6 +37692,7 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     function button(ic, text, onclick, title) {
       return el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-btn-icon", title, onclick }, [icon(ic, 14), el("span", { text })]);
     }
+    hideTip();
     root.addEventListener("keydown", (e) => {
       if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
       if ((e.key === "r" || e.key === "R") && sel2) {

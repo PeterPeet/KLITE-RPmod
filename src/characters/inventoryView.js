@@ -17,6 +17,7 @@ import * as EQ from './equipment-rules.js';
 const KIND_ICON = { weapon: 'sword', armor: 'shirt', shield: 'shield', ammo: 'move-up', potion: 'flask-conical', bag: 'backpack', gear: 'package' };
 const KIND_NAME = { weapon: 'Weapon', armor: 'Armor', shield: 'Shield', ammo: 'Ammunition', potion: 'Potion', bag: 'Bag', gear: 'Item' };
 const lb = (n) => (Math.round(n * 10) / 10) + ' lb';
+function hideTip() { for (const t of document.querySelectorAll('.rpm-inv-tip')) t.remove(); }
 const DOLL = [
     ['Hands', ['main', 'off']],
     ['Body', ['armor', 'back', 'slung', 'slungShield']],
@@ -140,10 +141,9 @@ export function inventoryView(opts) {
     }
     function tile(it) {
         const [w, h] = IR.footprint(it), kind = IR.itemKind(it);
-        const big = w * h > 1;
         const t = el('button', { type: 'button', class: 'rpm-inv-item' + (it === sel ? ' rpm-sel' : ''), 'data-item': it.name, 'data-id': it.id, 'data-kind': kind,
             style: `--x:${it.at.x};--y:${it.at.y};--w:${w};--h:${h}`,
-            title: `${it.name}${it.qty > 1 ? ' ×' + it.qty : ''} · ${lb(IR.totalWeight(s, it))}`, 'aria-label': `${it.name}${it.qty > 1 ? ', ' + it.qty : ''}`,
+            'aria-label': `${it.name}${it.qty > 1 ? ', ' + it.qty : ''}`,
             onclick: (e) => {
                 e.stopPropagation();
                 if (sel && it !== sel && IR.isBag(it)) return intoBag(it);
@@ -153,9 +153,36 @@ export function inventoryView(opts) {
                     if (p && !IR.canPlace(s, sel, { bag: grid.getAttribute('data-grid'), x: p.x, y: p.y, rot: !!sel.rot })) return putTo({ bag: grid.getAttribute('data-grid'), x: p.x, y: p.y, rot: !!sel.rot });
                 }
                 pick(it);
-            } }, [icon(KIND_ICON[kind], big ? 16 : 14), big ? el('span', { class: 'rpm-inv-name', text: it.name }) : null, it.qty > 1 ? el('span', { class: 'rpm-inv-qty', text: String(it.qty) }) : null]);
+            } }, [
+                // one row high (owner): the name only, no icon — a 1×1 tile on two small lines; the colour still tells the kind
+                h > 1 ? icon(KIND_ICON[kind], 16) : null,
+                el('span', { class: 'rpm-inv-name' + (h === 1 ? (w === 1 ? ' rpm-inv-small rpm-inv-two' : ' rpm-inv-small') : ''), text: it.name }),
+                it.qty > 1 ? el('span', { class: 'rpm-inv-qty', text: String(it.qty) }) : null]);
+        tip(t, it);
         dragSource(t, it, w, h);
         return t;
+    }
+    // UI play test 2026-10-22: a one-tile item could not be read. An instant tooltip on hover and keyboard
+    // focus (name, quantity, weight, where), fixed above the item so the grid's edge does not cut it.
+    function tip(node, it) {
+        const where = () => it.at ? (it.at.slot ? IR.SLOT_NAMES[it.at.slot] : it.at.bag === IR.OVER ? 'Overweight' : it.at.bag === IR.POCKETS ? 'Pockets' : (byId(it.at.bag) || {}).name || '') : 'not packed';
+        const text = () => `${it.name}${it.qty > 1 ? ' ×' + it.qty : ''} · ${lb(IR.totalWeight(s, it))}${IR.unitWeight(it).guess ? ' (a guess)' : ''} · ${where()}`;
+        const show = () => {
+            if (st.drag) return;
+            hideTip();
+            const r = node.getBoundingClientRect();
+            const t = el('div', { class: 'rpm-themed rpm-inv-tip', role: 'tooltip', text: text() });
+            document.body.appendChild(t);
+            const tw = t.offsetWidth || 120, th = t.offsetHeight || 20;
+            const x = Math.max(4, Math.min(window.innerWidth - tw - 4, r.left + r.width / 2 - tw / 2));
+            const y = r.top - th - 6 >= 4 ? r.top - th - 6 : r.bottom + 6;
+            t.style.left = x + 'px'; t.style.top = y + 'px';
+        };
+        node.addEventListener('pointerenter', (e) => { if (e.pointerType !== 'touch') show(); });
+        node.addEventListener('pointerleave', hideTip);
+        node.addEventListener('focus', show);
+        node.addEventListener('blur', hideTip);
+        node.addEventListener('pointerdown', hideTip);
     }
     function cellAt(grid, cx, cy, spec) {
         const r = grid.getBoundingClientRect(); if (!r.width) return null;
@@ -307,6 +334,7 @@ export function inventoryView(opts) {
         return el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-btn-icon', title, onclick }, [icon(ic, 14), el('span', { text })]);
     }
 
+    hideTip();   // a redraw removes the tooltip of the item it replaced
     // keyboard: R turns, Esc puts back (only while this view is in the page)
     root.addEventListener('keydown', (e) => {
         if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;

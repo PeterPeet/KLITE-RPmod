@@ -332,6 +332,14 @@ test('inventory screen: paper doll and bags, add with Enter, into a bag, turn, s
     // split the 40 arrows
     click([...q('[data-inv-details]').querySelectorAll('button')].find(b => /Split/.test(b.textContent)), w); await sleep(20);
     assert.deepEqual(plain(C.cachedSheet('Pip').inventory.filter(i => i.name === 'Arrow').map(i => i.qty)), [20, 20]);
+    // a one-tile item: the name on two small lines, no icon; an instant tooltip on hover / focus
+    const ar = q('.rpm-inv-item[data-item="Arrow"]');
+    assert.equal(ar.querySelector('.rpm-inv-name.rpm-inv-two').textContent, 'Arrow', 'the name, no icon (one row high)');
+    assert.equal(ar.querySelector('svg'), null);
+    ar.dispatchEvent(new w.Event('focus')); await sleep(5);
+    assert.match(doc.querySelector('.rpm-inv-tip').textContent, /^Arrow ×20 · 1 lb · Backpack$/);
+    ar.dispatchEvent(new w.Event('blur'));
+    assert.equal(doc.querySelector('.rpm-inv-tip'), null);
     q('.rpm-inv').dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await sleep(20);
     assert.equal(q('[data-inv-details]'), null, 'Esc puts it back');
     // too much: a barrel (70 lb) does not fit the backpack (50 lb) → dragged along, the 5 ft warning

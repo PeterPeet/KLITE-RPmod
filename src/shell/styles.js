@@ -518,6 +518,9 @@ button.rpm-chip, .rpm-chip[role=button] { cursor: pointer; }
 .rpm-inv-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 1px; border: 1px solid var(--rpm-border-hi); font-size: 10px; color: var(--rpm-fg-hi); cursor: grab; overflow: hidden; touch-action: none; }
 .rpm-inv-slot.rpm-full, .rpm-inv-chip { touch-action: none; }
 .rpm-inv-qty { position: absolute; right: 2px; bottom: 0; font-size: 10px; font-weight: bold; }
+.rpm-inv-small { font-size: 9px; line-height: 1.05; }
+.rpm-inv-two { white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: clip; }
+.rpm-inv-tip { position: fixed; z-index: 11; pointer-events: none; max-width: 260px; padding: 3px 7px; border: 1px solid var(--rpm-border-hi); border-radius: var(--rpm-radius); background: var(--rpm-bg); color: var(--rpm-fg-hi); font-size: var(--rpm-fs-sm); box-shadow: var(--rpm-shadow); }
 .rpm-inv-ghost { pointer-events: none; border: 2px dashed var(--rpm-success); }
 .rpm-inv-ghost[data-ok="0"] { border-color: var(--rpm-danger); }
 .rpm-inv-item.rpm-sel, .rpm-inv-slot.rpm-sel, .rpm-inv-chip.rpm-sel { outline: 2px solid var(--rpm-accent-fg-hi); outline-offset: -1px; }
