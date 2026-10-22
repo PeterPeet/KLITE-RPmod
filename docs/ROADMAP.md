@@ -11,8 +11,9 @@
 ## Current state
 
 **Now: R9 — inventory** (owner, 2026-10-22, after v0.10.1): a Diablo-like inventory where an item's size comes from its
-SRD weight. Phases 1–3 are done (rules and SRD weights, the Inventory tab, the game hooks), docs written; next: a play
-test with a real model (loot, shop, dropping and picking up, an overloaded fight). Details under **R9** below.
+SRD weight. Phases 1–4 are done (rules and SRD weights, the Inventory tab, the game hooks, docs, a play test with GLM
+5.3 and its fixes: `<drop>`, the [Items] note, the AI's weights, Speed 5 ft in zone combat). Next: PR into development,
+then a release. Details under **R9** below.
 
 **Now: features.** Done 2026-09-25: R1 cleanup steps 1–3 (step 4, top-bar icons / known issue 6,
 is a check for the next browser session) and the R2 carry-overs (known issues 4 and 15). R5 is done
@@ -1296,8 +1297,22 @@ belt — the SRD's own equipment packs overfill a 30 lb backpack); **Backpack 50
 - [x] Bugs found on the way: drag and drop did nothing (the drop used the item picked before), a Greatsword in the off
   hand, a stack growing past its bag's weight, "Arrows (20)" weighed as one arrow, Pell's quiver on the back and
   backpack on the belt, a stack of pouches as one bag.
-- [ ] **Phase 4:** play test with a real model (owner sets up the AI): loot, a buy, drop and pick up, a fight while
-  overloaded; the left panel's Inventory (still a plain list; known item above).
+- [x] **Phase 4 — docs and play test** (2026-10-22, GLM 5.3 on Novita, reasoning none, Max Output 16,000; Oona, a
+  fresh start): dropping the rope and picking it up in the chat (`<give>` from the ground), buying Leather Armor from
+  Oskar (into Overweight, Speed 5 ft, the AI sees "Speed 5 ft (overloaded)" and later narrates "her pace is down to a
+  trudge"), a heavy axle with the AI's weight (`<give>Broken cart axle (40 lb)</give>`), a goblin ambush while overloaded
+  (no zone move; she throws the load down with `<drop>`, back to 30 ft, wins in round 5), picking both up again after the
+  fight (Here row and `<give>`) — all correct after these fixes:
+  - [x] the AI was never told how `<give>`/`<take>` work and wrote `<take>` for "picks up the axle" → [Items] note
+  - [x] "throws down the axle and the armour" became `<take>` (gone) → new `<drop>` tag and `/drop`, onto the ground
+  - [x] things the SRD does not know weighed 1 lb → the AI adds a weight in `<give>` ("(40 lb)")
+  - [x] Speed 5 ft still moved a zone in zone combat → below 10 ft no zone move, fleeing one; Speed 0 is 0 (was 30)
+  - [x] arrows went into the backpack, not the quiver → a bag made for an item first
+  - [x] picking up through `<give>` was not logged
+- [ ] World findings from this test (not inventory): the AI does not see the wares of a vendor elsewhere (it said Oskar
+  has no armour; he sells a Chain Shirt); GLM gave the three travellers (Tove, Kasimir, Pell) other names (Marta, Fen,
+  Silla) — their names are not in the Tipsy Heron's prompt.
+- [ ] The left panel's Inventory is still a plain list (known item above).
 - [ ] Later: a holy symbol worn on the shield; dropping a full bag with its contents; swapping two items by dropping one
   onto the other; more icons.
 
