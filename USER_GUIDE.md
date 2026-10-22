@@ -70,7 +70,9 @@ Flash models are fast but slip more often. Set **Max Output to 16,000** (Setting
 slider stops at 2048) and **Context Size to 32,768** first: Esolite keeps Max Output below 85% of the Context Size.
 Keep the Context Size at or a little below the model's limit at your provider — prompt and reply together must fit,
 and Esolite only estimates the prompt's length.
-Reasoning off or low is enough. The full comparison is in the [README](README.md); the Guide has it as the chapter
+Reasoning off or low is enough. Larger models (Claude, GPT, Gemini, Grok) will probably work but are not tested yet; the
+**AI Horde is not suitable** (most of its models have 4,000 tokens of context or less). With your own Esobold server,
+Esolite opened from it takes the Context Size from the loaded model. The full comparison is in the [README](README.md); the Guide has it as the chapter
 *Which AI model? Settings that matter*, and the **New here?** card warns while Max Output is below 16,000.
 
 ---
