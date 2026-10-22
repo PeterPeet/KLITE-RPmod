@@ -140,10 +140,14 @@ test('carrying: Str × 15 (Goliath × 30), coins 50 per lb, the Overweight bag a
     assert.equal(pot.item.at.bag, s.inventory[0].id);
     const crow = R.addItem(s, 'Crowbar', 1);                                          // 5 lb, 3x2: still room
     assert.equal(crow.item.at.bag, s.inventory[0].id);
-    const bed = R.addItem(s, 'Bedroll', 1);                                           // 7 lb, 3x3: no room left → Overweight
-    assert.equal(bed.item.at.bag, R.OVER);
+    const bed = R.addItem(s, 'Bedroll', 1);                                           // 7 lb, 3x3: no room left → a strap
+    assert.equal(bed.item.at.slot, 'strap1');
+    assert.equal(R.addItem(s, 'Tent', 1).item.at.slot, 'strap2');                     // 20 lb
+    assert.equal(R.carried(s).slowed, true, 'over Str × 15: Speed 5 ft');
+    const chain = R.addItem(s, 'Chain', 1);                                           // 10 lb, 4x3: no room, no strap → Overweight
+    assert.equal(chain.item.at.bag, R.OVER);
     assert.equal(R.carried(s).slowed, true, 'something is dragged along: Speed 5 ft');
-    assert.match(R.carryLine(s), /^Carrying 29 of 30 lb — overloaded: Speed at most 5 ft/);
+    assert.match(R.carryLine(s), /^Carrying 59 of 30 lb — overloaded: Speed at most 5 ft/);
 });
 
 test('organize: older sheets keep every item, held things go to the slots, invalid places are cleared, idempotent', () => {
@@ -205,3 +209,42 @@ test('addItem stacks where it still fits; removeItem repacks a bag\'s contents; 
     assert.ok(s.inventory.includes(rope), 'the rope stays');
     assert.equal(rope.at.bag, R.OVER, 'no other bag: dragged along');
 });
+
+test('straps, sheaths, slung on the back: an SRD fighter start nearly fits, the Explorer\'s Pack fits', () => {
+    const f = sheet([{ name: 'Chain Mail', qty: 1, inHand: true }, { name: 'Greatsword', qty: 1 }, { name: 'Flail', qty: 1 }, { name: 'Javelin', qty: 8 },
+        { name: "Dungeoneer's Pack", qty: 1 }], { abilities: { str: 15 }, coins: { gp: 4 } });
+    R.organize(f);
+    const at = (s, n) => (s.inventory.find(i => i.name === n) || {}).at || {};
+    assert.equal(at(f, 'Flail').slot, 'sheath1');
+    assert.equal(at(f, 'Javelin').slot, 'slung');
+    assert.equal(at(f, 'Waterskin').slot, 'belt1');
+    assert.ok(['strap1', 'strap2'].includes(at(f, 'Torch').slot));
+    assert.ok(R.load(f, R.OVER) <= 6, 'a small leftover only: ' + R.load(f, R.OVER) + ' lb');
+    assert.match(R.carryLine(f), /^Carrying 134\.1 of 225 lb/);
+    const e = sheet([{ name: "Explorer's Pack", qty: 1 }]);
+    R.organize(e);
+    assert.equal(R.load(e, R.OVER), 0, 'the whole Explorer\'s Pack is carried');
+    assert.equal(R.carried(e).slowed, false);
+    // slot rules
+    R.ensureIds(f);
+    const gs = f.inventory.find(i => i.name === 'Greatsword'), rope = f.inventory.find(i => i.name === 'Rope');
+    assert.match(R.canPlace(f, gs, { slot: 'sheath2' }), /too big for a sheath: sling it/);
+    assert.match(R.canPlace(f, rope, { slot: 'sheath2' }), /only a weapon/);
+    const worn = sheet([{ name: 'Backpack', qty: 1, id: 'p', at: { slot: 'back' } }, { name: 'Greatsword', qty: 1, id: 'g' }]);
+    assert.match(R.canPlace(worn, worn.inventory[1], { slot: 'strap1' }), /sheath or on the back/);
+    // the back carries one weapon and one shield together
+    worn.inventory.push({ name: 'Shield', qty: 1, id: 's' });
+    assert.deepEqual(R.findSpot(worn, worn.inventory[1]), { slot: 'slung' });
+    assert.deepEqual(R.findSpot(worn, worn.inventory[2]), { slot: 'slungShield' });
+    assert.match(R.canPlace(worn, worn.inventory[2], { slot: 'slung' }), /own place on the back/);
+    assert.match(R.canPlace(worn, worn.inventory[1], { slot: 'slungShield' }), /only a shield/);
+    const bare = sheet([{ name: 'Bedroll', qty: 1, id: 'b' }]);
+    assert.match(R.canPlace(bare, bare.inventory[0], { slot: 'strap1' }), /wear a backpack/);
+    // taking the backpack off: what was strapped to it is packed again, nothing lost
+    const before = tally(e.inventory);
+    R.removeItem(e, e.inventory.find(i => i.name === 'Backpack'));
+    delete before.Backpack;
+    assert.deepEqual(tally(e.inventory), before);
+    assert.ok(!e.inventory.some(i => i.at && /^strap/.test(i.at.slot || '')), 'no straps without the backpack');
+});
+

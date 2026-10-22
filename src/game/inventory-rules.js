@@ -11,7 +11,8 @@
 //
 // Data (additive on the sheet's inventory items, older sheets have none of it):
 //   id     'it7'                              stable id (bags are found by it)
-//   at     { bag: id | 'over', x, y } | { slot: 'main'|'off'|'armor'|'back'|'belt1'|'belt2' }
+//   at     { bag: id | 'over', x, y } | { slot: 'main'|'off'|'armor'|'back'|'belt1'|'belt2'|
+//          'strap1'|'strap2'|'sheath1'|'sheath2'|'slung'|'slungShield' }
 //          missing = not packed (shown in its own strip, never lost)
 //   rot    true: footprint turned by 90°
 //   weight number (lb per piece) — set by the player for items the SRD does not know
@@ -26,8 +27,15 @@ const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; 
 const round = (n) => Math.round(n * 100) / 100;
 
 export const OVER = 'over';
-export const SLOTS = ['main', 'off', 'armor', 'back', 'belt1', 'belt2'];
-export const SLOT_NAMES = { main: 'Main hand', off: 'Off hand', armor: 'Armor', back: 'Back', belt1: 'Belt', belt2: 'Belt' };
+// Where things are carried outside the bags (owner, R9: the SRD's own packs overfill a Backpack, so
+// bulky gear is strapped to it and weapons are sheathed at the belt or slung on the back):
+// straps exist only while a Backpack (or Handy Haversack) is worn; one item or stack per slot; the
+// back carries one weapon and one shield together (owner).
+export const SLOTS = ['main', 'off', 'armor', 'back', 'belt1', 'belt2', 'strap1', 'strap2', 'sheath1', 'sheath2', 'slung', 'slungShield'];
+export const SLOT_NAMES = { main: 'Main hand', off: 'Off hand', armor: 'Armor', back: 'Back', belt1: 'Belt', belt2: 'Belt',
+    strap1: 'Strapped to the pack', strap2: 'Strapped to the pack', sheath1: 'Sheath', sheath2: 'Sheath', slung: 'Weapon on the back', slungShield: 'Shield on the back' };
+export const STRAP_LB = 20, SHEATH_LB = 10, SLUNG_LB = 20;
+const STRAPS = /^(backpack|handy haversack)$/;
 export const DEFAULT_WEIGHT = 1;          // an item the SRD does not know (AI loot, a custom name)
 export const COINS_PER_LB = 50;           // SRD: fifty coins weigh a pound
 
@@ -238,9 +246,11 @@ export function bagOrder(sheet) {
 }
 
 // ---- placing -------------------------------------------------------------------------------
-const isTwoHanded = (item) => { const w = SRD.weapons[weaponName(low(item.name))]; return !!w && /Two-Handed/.test(w.properties || ''); };
+const weaponOf = (item) => SRD.weapons[weaponName(low(item.name))] || null;
+const isTwoHanded = (item) => { const w = weaponOf(item); return !!w && /Two-Handed/.test(w.properties || ''); };
+const isHeavy = (item) => { const w = weaponOf(item); return !!w && /Heavy/.test(w.properties || ''); };
 const inSlot = (sheet, slot, skip) => ofSheet(sheet).find(i => i !== skip && i.at && i.at.slot === slot) || null;
-const BELT_OK = /component pouch/;
+const BELT_OK = /component pouch|waterskin/;   // hung on the belt besides the bags
 // '' when `item` may go to `target`, else the reason (for the player). `adding`: it comes from
 // outside the inventory (loot, a buy), so the carrying limit counts it too.
 export function canPlace(sheet, item, target, opts) {
@@ -257,7 +267,24 @@ export function canPlace(sheet, item, target, opts) {
         if (s === 'armor') return kind === 'armor' ? '' : 'only armor is worn there';
         if (kind === 'armor') return 'armor is worn in the armor slot';
         if (s === 'back') return kind === 'bag' ? '' : 'only a bag goes on the back';
-        if (s === 'belt1' || s === 'belt2') return kind === 'bag' || BELT_OK.test(low(item.name)) ? '' : 'only a pouch, a quiver or a case goes on the belt';
+        if (s === 'belt1' || s === 'belt2') return kind === 'bag' || BELT_OK.test(low(item.name)) ? '' : 'only a pouch, a quiver, a case or a waterskin goes on the belt';
+        const w = totalWeight(sheet, item);
+        if (s === 'strap1' || s === 'strap2') {
+            const back = inSlot(sheet, 'back', item);
+            if (!back || !STRAPS.test(low(back.name))) return 'wear a backpack to strap things to it';
+            if (kind === 'weapon' || kind === 'shield' || kind === 'bag') return kind === 'weapon' ? 'weapons go in a sheath or on the back' : 'that does not go on a strap';
+            return w <= STRAP_LB + 1e-9 ? '' : `too heavy to strap on (more than ${STRAP_LB} lb)`;
+        }
+        if (s === 'sheath1' || s === 'sheath2') {
+            if (kind !== 'weapon') return 'only a weapon goes in a sheath';
+            if (isTwoHanded(item) || isHeavy(item)) return `${item.name} is too big for a sheath: sling it on the back`;
+            return w <= SHEATH_LB + 1e-9 ? '' : `too heavy for a sheath (more than ${SHEATH_LB} lb)`;
+        }
+        if (s === 'slung') {
+            if (kind !== 'weapon') return kind === 'shield' ? 'the shield has its own place on the back' : 'only a weapon is slung on the back';
+            return w <= SLUNG_LB + 1e-9 ? '' : `too heavy to sling (more than ${SLUNG_LB} lb)`;
+        }
+        if (s === 'slungShield') return kind === 'shield' ? '' : 'only a shield goes there';
         const main = inSlot(sheet, 'main', item);
         if (s === 'off' && main && isTwoHanded(main)) return `${main.name} needs both hands`;
         if (s === 'main' && isTwoHanded(item) && inSlot(sheet, 'off', item)) return `${item.name} needs both hands: free the off hand first`;
@@ -309,10 +336,15 @@ export function spotIn(sheet, item, bagId, opts) {
     }
     return null;
 }
-// Where a new or unpacked item goes: a free hand for nothing, the bags in order, then the
-// Overweight bag. null: nowhere (too heavy even to drag, or no room).
+// Where a new or unpacked item goes (never into a hand): a weapon to a sheath or slung on the
+// back first, then the bags in order, then gear onto the straps, then the Overweight bag.
+// null: nowhere (no room, or too heavy even to drag).
 export function findSpot(sheet, item, opts) {
+    const kind = itemKind(item), slot = (list) => list.find(sl => !canPlace(sheet, item, { slot: sl }, opts));
+    if (BELT_OK.test(low(item.name))) { const sl = slot(['belt1', 'belt2']); if (sl) return { slot: sl }; }
+    if (kind === 'weapon' || kind === 'shield') { const sl = slot(kind === 'shield' ? ['slungShield'] : ['sheath1', 'sheath2', 'slung']); if (sl) return { slot: sl }; }
     for (const id of bagOrder(sheet)) { const t = spotIn(sheet, item, id, opts); if (t) return t; }
+    if (kind === 'gear' || kind === 'potion' || kind === 'ammo') { const sl = slot(['strap1', 'strap2']); if (sl) return { slot: sl }; }
     if (!(opts && opts.noOver)) return spotIn(sheet, item, OVER, opts);
     return null;
 }
@@ -335,7 +367,7 @@ export function organize(sheet) {
     for (const it of inv) { delete it.at; }
     // slots first (in list order), then bags from the outside in, so a bag exists before its contents
     const order = inv.map((it, i) => i).sort((a, b) => rank(want[a]) - rank(want[b]) || a - b);
-    function rank(t) { return !t ? 9 : t.slot ? 0 : t.bag === OVER ? 1 : 2 + depthOf(t.bag); }
+    function rank(t) { return !t ? 9 : t.slot === 'back' ? 0 : t.slot ? 0.5 : t.bag === OVER ? 1 : 2 + depthOf(t.bag); }   // straps need the backpack
     function depthOf(id) { let d = 0, t = want[inv.findIndex(x => x.id === id)]; while (t && t.bag && t.bag !== OVER && d < 20) { d++; t = want[inv.findIndex(x => x.id === t.bag)]; } return d; }
     for (const i of order) {
         const it = inv[i], t = want[i];
@@ -418,6 +450,6 @@ export function splitStack(sheet, item, n) {
 }
 // One line for the AI and the sheet: "Carrying 42 of 210 lb" (+ the 5 ft rule when slowed).
 export function carryLine(sheet) {
-    const c = carried(sheet);
-    return `Carrying ${c.total} of ${c.capacity} lb` + (c.slowed ? ` — overloaded: Speed at most 5 ft (can drag up to ${c.limit} lb)` : '');
+    const c = carried(sheet), lb = (n) => Math.round(n * 10) / 10;
+    return `Carrying ${lb(c.total)} of ${c.capacity} lb` + (c.slowed ? ` — overloaded: Speed at most 5 ft (can drag up to ${c.limit} lb)` : '');
 }
