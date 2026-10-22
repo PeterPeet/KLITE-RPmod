@@ -24,7 +24,7 @@ export const CHAPTERS = [
         blocks: [
             { p: 'RPmod runs inside Esolite, which does the talking to the AI. Three Esolite buttons get you started:' },
             { list: [
-                'AI — choose where the AI runs. AI Horde (free, community-run) works without setup; your own KoboldCpp or an online provider is faster.',
+                'AI — choose where the AI runs: an online provider (an OpenAI-compatible API) or your own Esobold/KoboldCpp. The free AI Horde is not enough for RPmod — most of its models have 4,000 tokens of context or less (see the next chapter).',
                 'Library — your characters, saves and lorebooks. Import character cards (PNG or JSON) here.',
                 'Quick Start — pick a character, a player character, lorebooks and an RPmod world, then Confirm to begin.',
             ] },
@@ -41,7 +41,7 @@ export const CHAPTERS = [
         id: 'models', title: 'Which AI model? Settings that matter',
         blocks: [
             { p: 'RPmod is a game with rules, and the AI is its narrator: RPmod rolls the dice and keeps the world, the AI tells what happened and writes short tags (such as <go>, <encounter>, <cast>) that RPmod checks. A model that follows instructions well plays a much better game master.' },
-            { p: 'From our play tests (October 2026, the same scenes for every model):' },
+            { p: 'From our play tests (October 2026, the same scenes for every model, via an online provider):' },
             { table: [
                 ['Model', 'How it played'],
                 ['GLM 5.3, reasoning off', 'Best value: fast (6–14 s), never cut off, fights and spells right, good writing.'],
@@ -50,10 +50,11 @@ export const CHAPTERS = [
                 ['DeepSeek V4 Flash', 'Fast and cheap, but sometimes invents hits or walks through rooms without telling RPmod.'],
                 ['Gemma 4 31B', 'Works with reasoning on; without it, it invents dice results.'],
             ] },
+            { p: 'Larger models such as Claude, GPT, Gemini or Grok will probably work well, but we could not test them yet. The AI Horde does not work for RPmod: most of its models have 4,000 tokens of context or less, too little for the game state and the story.' },
             { p: 'Settings that matter:' },
             { list: [
                 'Max Output: 16,000 tokens (Settings → Samplers → Max Output; the slider stops at 2048 — type the number into the field). Models that think need room for it: a reply cut off while thinking changes nothing in the game, and you have to press Generate More or Retry.',
-                'Context Size: 32,768 (Settings → Samplers, next to Max Output). Set it first — Esolite keeps Max Output below 85% of the Context Size, so with a small context your 16,000 quietly becomes less. Never set it above what the model offers at your provider, better a little below: the prompt and the reply together must fit, and Esolite only estimates the prompt\'s length, so a provider may reject a request that is just over its limit. A large context also helps the AI remember the story.',
+                'Context Size: 32,768 (Settings → Samplers, next to Max Output). Set it first — Esolite keeps Max Output below 85% of the Context Size, so with a small context your 16,000 quietly becomes less. Never set it above what the model offers at your provider, better a little below: the prompt and the reply together must fit, and Esolite only estimates the prompt\'s length, so a provider may reject a request that is just over its limit. A large context also helps the AI remember the story. With your own Esobold server, Esolite opened from that server takes the Context Size from the loaded model; set Max Output yourself.',
                 'Reasoning: off or low is enough for most models. Off is fastest; more reasoning makes replies slower, not always better.',
                 'World Info "Before A/N" with the Author\'s Note "Turn based", 1 user turn: RPmod asks once and keeps it set — say Yes.',
             ] },

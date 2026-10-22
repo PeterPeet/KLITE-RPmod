@@ -57,9 +57,11 @@ npm run icons        # after changing the icon list: regenerates src/shell/icons
 - Branches: `main` ← `development` ← feature branches (now `FeatureImplementation`). Feature work
   starts from and merges (PR) into `development`; keep a feature branch current with
   `git rebase origin/development` (then `git push --force-with-lease`).
-- **`main` is frozen:** it holds the legacy `Guided_RPmod_esolite.js` and `KLITE-RPmod_ALPHA.js`,
-  which users fetch directly from `main` (no pinned commit). Never merge into, push to or
-  overwrite `main` until the owner says that fetch has moved.
+- **`main` = the released state** (since v0.10.0, 2026-10-22; the legacy ALPHA/Guided files are retired — Esolite's
+  mod manager loads RPmod from rp-lite.koboldai.net, branch `redirect`). A release is a PR `development` → `main`, only
+  when the owner says so. Both branches are protected: no force-push, and the `license` check must pass
+  (`.github/workflows/license.yml`: `LICENSE.md` = AGPL-3.0 unchanged, `package.json` license `AGPL-3.0-only`).
+- **License: AGPL-3.0** (owner, 2026-10-22; the host's license). Keep `LICENSE.md` unchanged.
 
 ## Esolite host constraints (details: ARCHITECTURE.md §2)
 - Hook generation via `window.prepare_submit_generation`; `submit_generation` is a

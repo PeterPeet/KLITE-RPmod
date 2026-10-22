@@ -58,6 +58,10 @@ several rooms):
   belong to the narrator) GLM 5.3 without thinking walks one room with `<go>` and stops; what lies behind the exits is
   now given to the narrator as well (not yet re-measured).
 
+**Not tested:** larger models such as Claude, GPT, Gemini or Grok will probably work well, but we had no access to
+test them yet. **Not suitable:** the AI Horde — most of its models offer 4,000 tokens of context or less (anonymous use
+also caps the output at 512), too little for RPmod's game state and the story.
+
 The numbers come from one day of testing on the same scenes; settings and some prompt fixes changed between runs, so
 read the table as a trend, not a benchmark. Details: [docs/ROADMAP.md](docs/ROADMAP.md) (R8 step 8).
 
@@ -66,7 +70,8 @@ read the table as a trend, not a benchmark. Details: [docs/ROADMAP.md](docs/ROAD
   set the context first: Esolite keeps Max Output below 85% of the Context Size, so with a small context 16,000
   quietly becomes less. Keep the Context Size at or a little below the model's limit at your provider: prompt and
   output together must fit, and Esolite trims the prompt by an estimate (characters per token), so a request just over
-  the limit can be rejected. The "New here?" card warns while Max Output is below 16,000.
+  the limit can be rejected. With your own Esobold/KoboldCpp server, Esolite opened from that server takes the Context
+  Size from the loaded model; set Max Output yourself. The "New here?" card warns while Max Output is below 16,000.
 - **Reasoning** off or low.
 - **World Info "Before A/N"** with the Author's Note "Turn based", 1 user turn (RPmod asks once and keeps it set).
 
