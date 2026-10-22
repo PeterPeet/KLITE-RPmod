@@ -43,7 +43,9 @@ export const COINS_PER_LB = 50;           // SRD: fifty coins weigh a pound
 // cap: pounds it holds; cols × rows: its grid; accepts: only this kind of thing (quiver, case);
 // fixed: it always weighs this much, whatever is inside; extra: extradimensional (never nest two).
 const BAGS = {
-    'backpack': { cap: 30, cols: 6, rows: 5 },
+    // Backpack 50 lb (owner, R9; the SRD says 30 lb, but its own equipment packs put ~50 lb of gear
+    // into one): a fresh character's starting pack fits.
+    'backpack': { cap: 50, cols: 8, rows: 6 },
     'sack': { cap: 30, cols: 6, rows: 5 },
     'pouch': { cap: 6, cols: 3, rows: 2 },
     'quiver': { cap: 1, cols: 1, rows: 1, accepts: /arrow/ },

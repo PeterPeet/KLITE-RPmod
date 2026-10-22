@@ -87,7 +87,7 @@ test('slots: armor is worn, bags on the back and the belt, two-handed weapons ne
 });
 
 test('bags: pounds, grid, overlap, quiver, nesting, the Astral Plane', () => {
-    const s = sheet([{ name: 'Backpack', qty: 1, at: { slot: 'back' } }, { name: 'Pouch', qty: 1 }, { name: 'Bedroll', qty: 1 },
+    const s = sheet([{ name: 'Sack', qty: 1, at: { slot: 'back' } }, { name: 'Pouch', qty: 1 }, { name: 'Bedroll', qty: 1 },
         { name: 'Rope', qty: 1 }, { name: 'Quiver', qty: 1 }, { name: 'Arrow', qty: 20 }, { name: 'Dagger', qty: 1 },
         { name: 'Bag of Holding', qty: 1 }, { name: 'Handy Haversack', qty: 1 }], { abilities: { str: 14 } });
     R.ensureIds(s);
@@ -112,7 +112,7 @@ test('bags: pounds, grid, overlap, quiver, nesting, the Astral Plane', () => {
     put(get('la'), { bag: bp.id, x: 3, y: 0 });                                       // 1 lb: 28
     put(get('lh'), { bag: bp.id, x: 3, y: 1 });                                       // 2 lb (1x2): 30 of 30
     assert.equal(R.load(s, bp.id), 30);
-    assert.match(R.canPlace(s, dagger, { bag: bp.id, x: 3, y: 4 }), /too heavy for the backpack \(30 of 30 lb\)/);
+    assert.match(R.canPlace(s, dagger, { bag: bp.id, x: 3, y: 4 }), /too heavy for the sack \(30 of 30 lb\)/);
     assert.match(R.canPlace(s, bp, { bag: po.id, x: 1, y: 0 }), /inside itself/);
     assert.match(R.canPlace(s, dagger, { bag: qv.id, x: 0, y: 0 }), /only holds arrows/);
     assert.equal(R.canPlace(s, arrows, { bag: qv.id, x: 0, y: 0 }), '');
@@ -126,28 +126,30 @@ test('bags: pounds, grid, overlap, quiver, nesting, the Astral Plane', () => {
 test('carrying: Str × 15 (Goliath × 30), coins 50 per lb, the Overweight bag and Speed 5 ft, nothing beyond twice', () => {
     assert.equal(R.capacity(sheet([], { abilities: { str: 14 } })), 210);
     assert.equal(R.capacity(sheet([], { abilities: { str: 14 }, species: 'Goliath' })), 420);
-    const s = sheet([{ name: 'Backpack', qty: 1, at: { slot: 'back' } }], { abilities: { str: 2 }, coins: { gp: 100 } });   // 30 lb
+    const s = sheet([{ name: 'Sack', qty: 1, at: { slot: 'back' } }], { abilities: { str: 2 }, coins: { gp: 100 } });   // carry 30 lb
     R.ensureIds(s);
     assert.equal(R.coinWeight(s), 2);
-    assert.equal(R.carried(s).total, 7);
+    assert.equal(R.carried(s).total, 2.5);
     assert.equal(R.carried(s).slowed, false);
     assert.deepEqual([R.overSpec(s).cap, R.overSpec(s).cols], [30, 10]);
-    const r = R.addItem(s, 'Chain Mail', 1);                                          // 55 lb: 62 > 60
+    const r = R.addItem(s, 'Plate Armor', 1);                                         // 65 lb: 67.5 > 60
     assert.equal(r.placed, false);
     assert.match(r.reason, /too heavy: you can drag at most 60 lb/);
     assert.equal(s.inventory.length, 1, 'refused: nothing added');
-    const pot = R.addItem(s, 'Iron Pot', 1);                                          // 10 lb: backpack
+    const pot = R.addItem(s, 'Iron Pot', 1);                                          // 10 lb: the sack
     assert.equal(pot.item.at.bag, s.inventory[0].id);
     const crow = R.addItem(s, 'Crowbar', 1);                                          // 5 lb, 3x2: still room
     assert.equal(crow.item.at.bag, s.inventory[0].id);
-    const bed = R.addItem(s, 'Bedroll', 1);                                           // 7 lb, 3x3: no room left → a strap
-    assert.equal(bed.item.at.slot, 'strap1');
-    assert.equal(R.addItem(s, 'Tent', 1).item.at.slot, 'strap2');                     // 20 lb
-    assert.equal(R.carried(s).slowed, true, 'over Str × 15: Speed 5 ft');
-    const chain = R.addItem(s, 'Chain', 1);                                           // 10 lb, 4x3: no room, no strap → Overweight
-    assert.equal(chain.item.at.bag, R.OVER);
+    assert.equal(R.carried(s).slowed, false);
+    const bed = R.addItem(s, 'Bedroll', 1);                                           // 7 lb, 3x3: no room, a sack has no straps → Overweight
+    assert.equal(bed.item.at.bag, R.OVER);
     assert.equal(R.carried(s).slowed, true, 'something is dragged along: Speed 5 ft');
-    assert.match(R.carryLine(s), /^Carrying 59 of 30 lb — overloaded: Speed at most 5 ft/);
+    assert.match(R.carryLine(s), /^Carrying 24\.5 of 30 lb — overloaded: Speed at most 5 ft/);
+    assert.equal(R.addItem(s, 'Tent', 1).item.at.bag, R.OVER);                        // 20 lb: 27 of 30 lb overweight
+    const chain = R.addItem(s, 'Chain', 1);                                           // 10 lb, 4x3: not in the sack, 37 > 30 overweight
+    assert.equal(chain.placed, false);
+    assert.match(chain.reason, /no room/);
+    assert.equal(R.carried(s).total, 44.5, 'refused: nothing added');
 });
 
 test('organize: older sheets keep every item, held things go to the slots, invalid places are cleared, idempotent', () => {
@@ -210,7 +212,7 @@ test('addItem stacks where it still fits; removeItem repacks a bag\'s contents; 
     assert.equal(rope.at.bag, R.OVER, 'no other bag: dragged along');
 });
 
-test('straps, sheaths, slung on the back: an SRD fighter start nearly fits, the Explorer\'s Pack fits', () => {
+test('Backpack 50 lb, straps, sheaths, weapon and shield on the back: SRD starting equipment fits', () => {
     const f = sheet([{ name: 'Chain Mail', qty: 1, inHand: true }, { name: 'Greatsword', qty: 1 }, { name: 'Flail', qty: 1 }, { name: 'Javelin', qty: 8 },
         { name: "Dungeoneer's Pack", qty: 1 }], { abilities: { str: 15 }, coins: { gp: 4 } });
     R.organize(f);
@@ -218,8 +220,12 @@ test('straps, sheaths, slung on the back: an SRD fighter start nearly fits, the 
     assert.equal(at(f, 'Flail').slot, 'sheath1');
     assert.equal(at(f, 'Javelin').slot, 'slung');
     assert.equal(at(f, 'Waterskin').slot, 'belt1');
-    assert.ok(['strap1', 'strap2'].includes(at(f, 'Torch').slot));
-    assert.ok(R.load(f, R.OVER) <= 6, 'a small leftover only: ' + R.load(f, R.OVER) + ' lb');
+    assert.equal(R.load(f, R.OVER), 0, 'an SRD fighter start fits: nothing dragged along');
+    assert.equal(R.carried(f).slowed, false);
+    for (const pack of ["Entertainer's Pack", "Burglar's Pack", "Dungeoneer's Pack", "Priest's Pack", "Scholar's Pack"]) {
+        const p = sheet([{ name: pack, qty: 1 }], { abilities: { str: 10 } }); R.organize(p);
+        assert.equal(R.load(p, R.OVER), 0, pack + ' fits');
+    }
     assert.match(R.carryLine(f), /^Carrying 134\.1 of 225 lb/);
     const e = sheet([{ name: "Explorer's Pack", qty: 1 }]);
     R.organize(e);
