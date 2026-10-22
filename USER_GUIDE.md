@@ -63,6 +63,14 @@ loads a ready-to-play world (a village, a tavern, a guarded frontier road, quest
 givers, an event chain, and a bandit encounter), enables it, and drops you in. Just start
 chatting. Everything below explains how to build your own.
 
+**Which AI model, and the settings that matter.** RPmod needs a model that follows its rules (narrate only what RPmod
+rolled, write the tags). From the play tests (October 2026): **GLM 5.3 with reasoning off** is the best value (fast,
+never cut off, fights and spells right); **DeepSeek V4 Pro** with reasoning low is the most reliable but slow; the
+Flash models are fast but slip more often. Set **Max Output to 16,000** (Settings → Samplers; type the number — the
+slider stops at 2048) and **Context Size to 32,768** first: Esolite keeps Max Output below 85% of the Context Size.
+Reasoning off or low is enough. The full comparison is in the [README](README.md); the Guide has it as the chapter
+*Which AI model? Settings that matter*, and the **New here?** card warns while Max Output is below 16,000.
+
 ---
 
 ## 2. What you get

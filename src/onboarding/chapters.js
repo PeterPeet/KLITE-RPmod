@@ -36,6 +36,31 @@ export const CHAPTERS = [
             { label: 'Open Quick Start', run: (c) => c.hostCall('showQuickStartPopup') },
         ],
     },
+    // Owner, 2026-10-22: players do not read the README — the model requirements from the play tests belong here.
+    {
+        id: 'models', title: 'Which AI model? Settings that matter',
+        blocks: [
+            { p: 'RPmod is a game with rules, and the AI is its narrator: RPmod rolls the dice and keeps the world, the AI tells what happened and writes short tags (such as <go>, <encounter>, <cast>) that RPmod checks. A model that follows instructions well plays a much better game master.' },
+            { p: 'From our play tests (October 2026, the same scenes for every model):' },
+            { table: [
+                ['Model', 'How it played'],
+                ['GLM 5.3, reasoning off', 'Best value: fast (6–14 s), never cut off, fights and spells right, good writing.'],
+                ['DeepSeek V4 Pro, reasoning low', 'The most reliable game master, but slow (20–60 s); needs plenty of output.'],
+                ['GLM 5.3 Flash', 'Writes well and keeps the rules, but thinks long (30–100 s).'],
+                ['DeepSeek V4 Flash', 'Fast and cheap, but sometimes invents hits or walks through rooms without telling RPmod.'],
+                ['Gemma 4 31B', 'Works with reasoning on; without it, it invents dice results.'],
+            ] },
+            { p: 'Settings that matter:' },
+            { list: [
+                'Max Output: 16,000 tokens (Settings → Samplers → Max Output; the slider stops at 2048 — type the number into the field). Models that think need room for it: a reply cut off while thinking changes nothing in the game, and you have to press Generate More or Retry.',
+                'Context Size: 32,768 (Settings → Samplers, next to Max Output). Set it first — Esolite keeps Max Output below 85% of the Context Size, so with a small context your 16,000 quietly becomes less. A large context also helps the AI remember the story.',
+                'Reasoning: off or low is enough for most models. Off is fastest; more reasoning makes replies slower, not always better.',
+                'World Info "Before A/N" with the Author\'s Note "Turn based", 1 user turn: RPmod asks once and keeps it set — say Yes.',
+            ] },
+            { tip: 'If the AI narrates something RPmod did not roll (a hit after a miss, a room that is not there), RPmod tells it to set the story straight in its next reply. Retry takes a reply back, with everything it changed in the game.' },
+        ],
+        show: [{ label: 'Where do I choose the AI?', run: (c) => c.highlight(c.navLink('AI'), 'Choose the AI provider and model') }],
+    },
     {
         id: 'panels', title: 'The RPmod panels',
         blocks: [

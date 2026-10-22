@@ -61,8 +61,12 @@ several rooms):
 The numbers come from one day of testing on the same scenes; settings and some prompt fixes changed between runs, so
 read the table as a trend, not a benchmark. Details: [docs/ROADMAP.md](docs/ROADMAP.md) (R8 step 8).
 
-**Recommended Esolite settings:** World Info "Before A/N" with the Author's Note "Turn based", 1 user turn (RPmod asks
-once and keeps it set); reasoning off or low; enough max output for the reasoning you choose.
+**Recommended Esolite settings** (also in the Guide: RPmod → "Which AI model? Settings that matter"):
+- **Max Output 16,000** (Settings → Samplers; type the number, the slider stops at 2048) and **Context Size 32,768** —
+  set the context first: Esolite keeps Max Output below 85% of the Context Size, so with a small context 16,000
+  quietly becomes less. The "New here?" card warns while Max Output is below 16,000.
+- **Reasoning** off or low.
+- **World Info "Before A/N"** with the Author's Note "Turn based", 1 user turn (RPmod asks once and keeps it set).
 
 ## Install it yourself
 
