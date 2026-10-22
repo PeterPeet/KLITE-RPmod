@@ -8238,10 +8238,10 @@ ${s.text}` : s.text : `[${s.title}]`;
         return parts;
       },
       generateMemory() {
-        const contextSize = document.getElementById("tools-memory-context")?.value || "recent";
+        const contextSize2 = document.getElementById("tools-memory-context")?.value || "recent";
         const outputType = document.getElementById("tools-memory-type")?.value || "summary";
         const outputArea = document.getElementById("tools-memory-output");
-        KLITE_RPMod.log("panels", `Generating memory: ${outputType} from ${contextSize}`);
+        KLITE_RPMod.log("panels", `Generating memory: ${outputType} from ${contextSize2}`);
         if (!outputArea || !window.gametext_arr) return;
         if (this.memoryGenerationState?.active) {
           alert("Memory generation already in progress");
@@ -8253,7 +8253,7 @@ ${s.text}` : s.text : `[${s.title}]`;
           "last50": 50,
           "recent": 10,
           "last3": 3
-        }[contextSize] || 10;
+        }[contextSize2] || 10;
         const selectedMessages = messages.slice(-numMessages);
         const contextText = selectedMessages.join("\n\n");
         if (!contextText) {
@@ -33661,6 +33661,32 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         { label: "Open Quick Start", run: (c) => c.hostCall("showQuickStartPopup") }
       ]
     },
+    // Owner, 2026-10-22: players do not read the README — the model requirements from the play tests belong here.
+    {
+      id: "models",
+      title: "Which AI model? Settings that matter",
+      blocks: [
+        { p: "RPmod is a game with rules, and the AI is its narrator: RPmod rolls the dice and keeps the world, the AI tells what happened and writes short tags (such as <go>, <encounter>, <cast>) that RPmod checks. A model that follows instructions well plays a much better game master." },
+        { p: "From our play tests (October 2026, the same scenes for every model):" },
+        { table: [
+          ["Model", "How it played"],
+          ["GLM 5.3, reasoning off", "Best value: fast (6–14 s), never cut off, fights and spells right, good writing."],
+          ["DeepSeek V4 Pro, reasoning low", "The most reliable game master, but slow (20–60 s); needs plenty of output."],
+          ["GLM 5.3 Flash", "Writes well and keeps the rules, but thinks long (30–100 s)."],
+          ["DeepSeek V4 Flash", "Fast and cheap, but sometimes invents hits or walks through rooms without telling RPmod."],
+          ["Gemma 4 31B", "Works with reasoning on; without it, it invents dice results."]
+        ] },
+        { p: "Settings that matter:" },
+        { list: [
+          "Max Output: 16,000 tokens (Settings → Samplers → Max Output; the slider stops at 2048 — type the number into the field). Models that think need room for it: a reply cut off while thinking changes nothing in the game, and you have to press Generate More or Retry.",
+          "Context Size: 32,768 (Settings → Samplers, next to Max Output). Set it first — Esolite keeps Max Output below 85% of the Context Size, so with a small context your 16,000 quietly becomes less. A large context also helps the AI remember the story.",
+          "Reasoning: off or low is enough for most models. Off is fastest; more reasoning makes replies slower, not always better.",
+          `World Info "Before A/N" with the Author's Note "Turn based", 1 user turn: RPmod asks once and keeps it set — say Yes.`
+        ] },
+        { tip: "If the AI narrates something RPmod did not roll (a hit after a miss, a room that is not there), RPmod tells it to set the story straight in its next reply. Retry takes a reply back, with everything it changed in the game." }
+      ],
+      show: [{ label: "Where do I choose the AI?", run: (c) => c.highlight(c.navLink("AI"), "Choose the AI provider and model") }]
+    },
     {
       id: "panels",
       title: "The RPmod panels",
@@ -34625,6 +34651,44 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
     if (ok) window.eso.extensions.register(new GuideExtension(ZONES_TAB, "Zone combat", toHost(ZONE_CHAPTERS)));
     return ok;
   }
+  var MIN_OUTPUT = 16e3;
+  function maxOutput() {
+    try {
+      const n = Number(window.localsettings && window.localsettings.max_length);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  var MIN_CONTEXT = Math.ceil(MIN_OUTPUT / 0.85);
+  function contextSize() {
+    try {
+      const n = Number(window.localsettings && window.localsettings.max_context_length);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function contextTooSmall() {
+    const c = contextSize();
+    return c != null && c < MIN_CONTEXT;
+  }
+  function openSamplers() {
+    try {
+      const ds = hostGet("display_settings");
+      if (typeof ds === "function") ds();
+      const tab = hostGet("display_settings_tab");
+      if (typeof tab === "function") tab(2);
+    } catch (_) {
+    }
+    const ctxFirst = contextTooSmall();
+    setTimeout(() => {
+      try {
+        ctxFirst ? highlight("#max_context_length", "First: Context Size 32768 (Max Output stays below 85% of it), then Max Output 16000, then OK") : highlight("#max_length", "Type 16000 here, then OK");
+      } catch (_) {
+      }
+    }, 150);
+  }
   function welcomeDismissed() {
     try {
       return localStorage.getItem(WELCOME_KEY) === "dismissed";
@@ -34653,6 +34717,36 @@ Cancel = add its entries to the active world.`) : false : A.activeWorld() ? conf
         };
         showAdventure();
         window.addEventListener("klite:adventures-change", showAdventure);
+        const outSlot = el("div", { "data-welcome": "max-output" });
+        box.appendChild(outSlot);
+        let seen = false;
+        const checkOutput = () => {
+          if (box.isConnected) seen = true;
+          else if (seen) {
+            clearInterval(timer);
+            return;
+          }
+          const n = maxOutput();
+          const low3 = n != null && n < MIN_OUTPUT;
+          if (!low3) {
+            outSlot.replaceChildren();
+            return;
+          }
+          const key = `${n}/${contextSize()}`;
+          if (outSlot.getAttribute("data-n") === key && outSlot.firstChild) return;
+          outSlot.setAttribute("data-n", key);
+          const how = contextTooSmall() ? `Settings → Samplers: first set Context Size to 32768 (Esolite keeps Max Output below 85% of it — your context is ${contextSize()}), then Max Output to ${MIN_OUTPUT} (type the number; the slider stops at 2048).` : "Settings → Samplers → Max Output (type the number; the slider stops at 2048).";
+          outSlot.replaceChildren(el("div", { role: "note", style: "margin-top:8px;padding:6px 8px;border:1px solid var(--rpm-danger);border-radius:6px" }, [
+            el("strong", { text: `Max Output is ${n} tokens` }),
+            el("div", { style: "margin:3px 0 6px", text: `RPmod works best with ${MIN_OUTPUT.toLocaleString("en-US")}: models that think need room for it, and a reply cut off while thinking changes nothing in the game. ${how}` }),
+            el("div", { class: "rpm-row", style: "flex-wrap:wrap" }, [
+              el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-grow", "data-welcome": "open-samplers", text: "Open the setting", onclick: openSamplers }),
+              el("button", { type: "button", class: "btn btn-primary rpm-btn rpm-grow", text: "Which model? (Guide)", onclick: () => api.openGuide("models") })
+            ])
+          ]));
+        };
+        const timer = setInterval(checkOutput, 2e3);
+        checkOutput();
         box.appendChild(el("button", {
           type: "button",
           class: "btn btn-primary rpm-btn rpm-block",

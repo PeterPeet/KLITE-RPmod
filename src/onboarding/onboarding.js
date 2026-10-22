@@ -113,6 +113,19 @@ function registerEsoGuide() {
 }
 
 // ---- "New here?" card (left dock, top) ------------------------------------------
+export const MIN_OUTPUT = 16000;
+// Esolite's Max Output (localsettings.max_length); null when the host has none
+function maxOutput() { try { const n = Number(window.localsettings && window.localsettings.max_length); return Number.isFinite(n) && n > 0 ? n : null; } catch (_) { return null; } }
+// Esolite keeps Max Output at most 85% of the Context Size (klite.embd: "clamp to max 85% of max ctx") — live test
+// 2026-10-22: 16000 with a 6144 context became 5222. 16k output needs a context of 18,824 or more.
+export const MIN_CONTEXT = Math.ceil(MIN_OUTPUT / 0.85);
+function contextSize() { try { const n = Number(window.localsettings && window.localsettings.max_context_length); return Number.isFinite(n) && n > 0 ? n : null; } catch (_) { return null; } }
+function contextTooSmall() { const c = contextSize(); return c != null && c < MIN_CONTEXT; }
+function openSamplers() {
+    try { const ds = hostGet('display_settings'); if (typeof ds === 'function') ds(); const tab = hostGet('display_settings_tab'); if (typeof tab === 'function') tab(2); } catch (_) {}   // 2 = Samplers
+    const ctxFirst = contextTooSmall();
+    setTimeout(() => { try { ctxFirst ? highlight('#max_context_length', 'First: Context Size 32768 (Max Output stays below 85% of it), then Max Output 16000, then OK') : highlight('#max_length', 'Type 16000 here, then OK'); } catch (_) {} }, 150);
+}
 function welcomeDismissed() { try { return localStorage.getItem(WELCOME_KEY) === 'dismissed'; } catch (_) { return false; } }
 
 function welcomeView(sh, api) {
@@ -134,6 +147,32 @@ function welcomeView(sh, api) {
             };
             showAdventure();
             window.addEventListener('klite:adventures-change', showAdventure);
+            // Max Output below 16k (owner, 2026-10-22): models that think need the room, and a reply cut off while
+            // thinking changes nothing in the game. Shown while this card is (a fresh start); gone once it is set.
+            const outSlot = el('div', { 'data-welcome': 'max-output' });
+            box.appendChild(outSlot);
+            let seen = false;   // the card is mounted before it is in the page: stop only once it was there and left
+            const checkOutput = () => {
+                if (box.isConnected) seen = true; else if (seen) { clearInterval(timer); return; }
+                const n = maxOutput(); const low = n != null && n < MIN_OUTPUT;
+                if (!low) { outSlot.replaceChildren(); return; }
+                const key = `${n}/${contextSize()}`;
+                if (outSlot.getAttribute('data-n') === key && outSlot.firstChild) return;
+                outSlot.setAttribute('data-n', key);
+                const how = contextTooSmall()
+                    ? `Settings → Samplers: first set Context Size to 32768 (Esolite keeps Max Output below 85% of it — your context is ${contextSize()}), then Max Output to ${MIN_OUTPUT} (type the number; the slider stops at 2048).`
+                    : 'Settings → Samplers → Max Output (type the number; the slider stops at 2048).';
+                outSlot.replaceChildren(el('div', { role: 'note', style: 'margin-top:8px;padding:6px 8px;border:1px solid var(--rpm-danger);border-radius:6px' }, [
+                    el('strong', { text: `Max Output is ${n} tokens` }),
+                    el('div', { style: 'margin:3px 0 6px', text: `RPmod works best with ${MIN_OUTPUT.toLocaleString('en-US')}: models that think need room for it, and a reply cut off while thinking changes nothing in the game. ${how}` }),
+                    el('div', { class: 'rpm-row', style: 'flex-wrap:wrap' }, [
+                        el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-grow', 'data-welcome': 'open-samplers', text: 'Open the setting', onclick: openSamplers }),
+                        el('button', { type: 'button', class: 'btn btn-primary rpm-btn rpm-grow', text: 'Which model? (Guide)', onclick: () => api.openGuide('models') }),
+                    ]),
+                ]));
+            };
+            const timer = setInterval(checkOutput, 2000);
+            checkOutput();
             box.appendChild(el('button', {
                 type: 'button', class: 'btn btn-primary rpm-btn rpm-block', style: 'margin-top:6px', text: 'Got it — hide this',
                 onclick: () => { try { localStorage.setItem(WELCOME_KEY, 'dismissed'); } catch (_) {} sh.unregisterView('welcome'); }

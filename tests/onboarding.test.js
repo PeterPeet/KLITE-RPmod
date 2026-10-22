@@ -3,7 +3,12 @@
 // the "New here?" card, and the GuidedRP save passthrough.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createHost, click, findButton, texts, sleep } = require('./helpers/host');
+const { createHost, click, findButton, texts, sleep, ROOT } = require('./helpers/host');
+const { CHAPTERS } = (() => {
+    const esbuild = require('esbuild'); const path = require('path');
+    const out = esbuild.buildSync({ entryPoints: [path.join(ROOT, 'src/onboarding/chapters.js')], bundle: true, format: 'cjs', platform: 'neutral', write: false, logLevel: 'error' });
+    const m = { exports: {} }; new Function('module', 'exports', out.outputFiles[0].text)(m, m.exports); return m.exports;
+})();
 
 // The exact attribution statement, from the generated SRD data file (line 2).
 function srdAttribution() {
@@ -216,7 +221,7 @@ test('Guide: chapters, navigation, remembered chapter, Show me opens and highlig
     assert.equal(win().querySelector('article').dataset.chapter, 'quests');
     const toc = [...win().querySelectorAll('.rpm-guide-toc-item')];
     assert.ok(toc.length >= 10, 'table of contents');
-    assert.equal(toc.find(b => b.getAttribute('aria-current') === 'page').textContent, '6. Quests');
+    assert.equal(toc.find(b => b.getAttribute('aria-current') === 'page').textContent, '7. Quests');
     // all chapter text is rendered as text (no markup injection)
     click(toc.find(b => /Changing the world/.test(b.textContent)), w);
     assert.ok([...win().querySelectorAll('code')].some(c => c.textContent === '<move>Forest Road</move>'));
@@ -299,4 +304,33 @@ test('Guide: own window — book tabs RPmod / Zone combat, remembered, opened fr
     click($(h, '[data-window="combat"] [data-cb="zone-help"]'), w);
     await until(() => win());
     assert.equal(win().querySelector('article').dataset.chapter, 'zones-idea');
+});
+
+// Owner, 2026-10-22: players do not read the README — the model requirements are a Guide chapter, and the "New here?"
+// card warns while Max Output is below 16k (models that think need the room; a cut-off reply changes nothing).
+test('Guide: a chapter on the AI model and the settings that matter', () => {
+    const ch = CHAPTERS.find(c => c.id === 'models');
+    assert.ok(ch, 'chapter "models"');
+    assert.equal(CHAPTERS.indexOf(ch), CHAPTERS.findIndex(c => c.id === 'esolite') + 1, 'right after the first steps');
+    const text = JSON.stringify(ch.blocks);
+    assert.match(text, /GLM 5\.3, reasoning off/);
+    assert.match(text, /Max Output: 16,000 tokens \(Settings → Samplers → Max Output/);
+    assert.match(text, /Before A\/N/);
+    assert.match(text, /Context Size: 32,768 .*85% of the Context Size/);
+});
+
+test('"New here?" warns while Max Output is below 16,000 and stops once it is set', async (t) => {
+    const h = await fullHost(t, { before: (h) => { h.window.localsettings = Object.assign(h.window.localsettings || {}, { max_length: 4096, max_context_length: 6144 }); } });
+    const w = h.window;
+    const note = () => $(h, '[data-section="welcome"] [data-welcome="max-output"]');
+    await until(() => note() && /Max Output is 4096 tokens/.test(note().textContent));
+    assert.match(note().textContent, /RPmod works best with 16,000/);
+    assert.match(note().textContent, /first set Context Size to 32768 .*your context is 6144/, 'a small context comes first (Esolite clamps Max Output to 85% of it)');
+    w.localsettings.max_context_length = 32768;
+    assert.ok(await until(() => /Settings → Samplers → Max Output \(type/.test(note().textContent)), 'with a large context: only Max Output');
+    assert.ok(findButton(note(), /Which model\?/), 'a way to the Guide chapter');
+    w.localsettings.max_length = 16000;
+    assert.ok(await until(() => note().textContent === ''), 'gone once Max Output is 16k');
+    w.localsettings.max_length = 2048;   // still watching while the card shows
+    assert.ok(await until(() => /Max Output is 2048 tokens/.test(note().textContent)));
 });

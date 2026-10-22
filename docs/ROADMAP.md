@@ -25,14 +25,13 @@ round trip; design `docs/design/R6-chat-power.md`). All phases R1–R7 are done;
 
 Baseline tag: **`worlds-baseline-2026-07`** (commit `99d4370`, 2026-07-08).
 Supported host: **current Esobold** (esolithe/esobold `remoteManagement`), run from the local
-clone `../esobold` via `npm run build:host` (2026-09-24; ARCHITECTURE §2). The mod is not
-public, so it may rely on our unmerged Esobold PRs. The repo's Esolite 1.35.0 copy was
-removed (git history; 1.32.0 is archived in `BackupData/`). Esobold has mod hooks
-contributed by RPmod — Quick Start (esolithe/esobold#65, merged), settings tabs (#66) and a
-top-bar Guide with mod tabs (#67, both open); RPmod uses them and keeps fallbacks for hosts
-without them (live-checked against a build of #67 and against 1.35.0 on 2026-09-24).
-Also open: **#68** — character downloads as V2 cards and two "Upload all" data-loss fixes (found
-during R2's SillyTavern round trip; tested with backup/restore cycles in a build of the branch).
+clone `../esobold` via `npm run build:host` (2026-09-24; ARCHITECTURE §2; since 2026-10-21 the clone tracks
+`remoteManagement`). The repo's Esolite 1.35.0 copy was removed (git history; 1.32.0 is archived in `BackupData/`).
+Esobold has mod hooks contributed by RPmod — Quick Start (esolithe/esobold#65), settings tabs (#66), a top-bar Guide with
+mod tabs (#67) and V2 character downloads with two "Upload all" data-loss fixes (#68): **all merged** into
+`remoteManagement` and part of the release; RPmod keeps fallbacks for hosts without them.
+**License (owner, 2026-10-22): AGPL-3.0** (`LICENSE.md`, the host's license; before: GPL-3.0, whose file was lost in
+2025-11), README restored with the model comparison.
 
 **2026-09-26 (this session):** the owner's play-test items are fixed (connections, town travel, regional map,
 inspector, persona on start, New Session, Reset ALL), the panels are split into play (left) and build (right, three
@@ -1033,7 +1032,7 @@ Text quality: the best of the cheap models (owner). Weak spots: slow on "medium"
 |---|---|
 | Start, quest, join | both tags right, 52 s, 14,700 chars of thinking (16k) |
 | Ambush from the log | correct and vivid (the hit on Oona, ends on Tove's turn), 91 s, 27,000 chars (16k) |
-| Missed attack ×4 (2× 16k, 2× 4096) | **4 of 4 correct misses**, 19–47 s, 5,000–12,000 chars. Max output does **not** steer the thinking length (owner's question): 4096 gave 5,200 and 11,800 chars, 16k 10,300 and 11,400 |
+| Missed attack ×4 (2× 16k, 2× 4096) | **4 of 4 correct misses**, 19–47 s, 5,000–12,000 chars. On `reasoning_effort: "low"`, max output does **not** scale GLM's thinking (owner's question): at 4k vs. 16k the thinking was about the same length — 4096 gave 5,200 and 11,800 chars, 16k 10,300 and 11,400 ("high" not measured) |
 | `<cast>` after the fight | `<cast>Cure Wounds = Oona</cast>` by itself, healing and slot applied, 43 s |
 | Trap (4096) | cut off while thinking; Generate More: a fresh short think and a whole reply (14 s), trap credited to Tove |
 | Waiting encounter (4096) | cut off twice (75 s each), a Retry fitted (35 s, wolves asleep — right); on the attack `<encounter>Goblin wolves</encounter>` by exact name (22 s), but it narrated **four** wolves for two (the prompt gave no count → fixed) |
