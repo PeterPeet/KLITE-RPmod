@@ -72,7 +72,7 @@ test('slots: armor is worn, bags on the back and the belt, two-handed weapons ne
     assert.equal(R.canPlace(s, la, { slot: 'armor' }), '');
     assert.match(R.canPlace(s, gs, { slot: 'armor' }), /only armor/);
     assert.match(R.canPlace(s, la, { slot: 'main' }), /armor slot/);
-    assert.match(R.canPlace(s, rope, { slot: 'back' }), /only a bag/);
+    assert.match(R.canPlace(s, rope, { slot: 'back' }), /only a backpack or a sack/);
     assert.equal(R.canPlace(s, po, { slot: 'belt1' }), '');
     R.place(s, gs, { slot: 'main' });
     assert.equal(gs.inHand, true, 'hands and armor set inHand (combat)');
@@ -84,7 +84,8 @@ test('slots: armor is worn, bags on the back and the belt, two-handed weapons ne
     assert.match(R.canPlace(s, gs, { slot: 'main' }), /free the off hand/);
     R.place(s, bp, { slot: 'back' });
     assert.equal(bp.inHand, undefined, 'a worn bag is not held');
-    assert.match(R.canPlace(s, la, { slot: 'back' }), /Back is taken/);
+    assert.match(R.canPlace(s, la, { slot: 'back' }), /armor slot/, 'what may go there is said first');
+    assert.match(R.canPlace(s, { name: 'Sack', qty: 1, id: 'sk' }, { slot: 'back' }), /Back is taken \(Backpack\)/);
 });
 
 test('bags: pounds, grid, overlap, quiver, nesting, the Astral Plane', () => {
@@ -253,6 +254,32 @@ test('Backpack 50 lb, straps, sheaths, weapon and shield on the back: SRD starti
     delete before.Backpack;
     assert.deepEqual(tally(e.inventory), before);
     assert.ok(!e.inventory.some(i => i.at && /^strap/.test(i.at.slot || '')), 'no straps without the backpack');
+});
+
+test('bags are worn where they belong (backpack on the back, pouch and quiver on the belt); a stack of bags becomes single bags', () => {
+    const s = sheet([{ name: 'Quiver', qty: 1 }, { name: 'Pouch', qty: 2 }, { name: 'Backpack', qty: 1 }]);
+    R.organize(s);
+    const at = (n) => s.inventory.filter(i => i.name === n).map(i => i.at.slot || 'bag:' + (s.inventory.find(b => b.id === i.at.bag) || { name: i.at.bag }).name);
+    assert.deepEqual(at('Backpack'), ['back']);
+    assert.deepEqual(at('Quiver'), ['belt1']);
+    assert.deepEqual(at('Pouch'), ['belt2', 'bag:Backpack'], 'two pouches: one on the belt, one packed');
+    R.ensureIds(s);
+    const q = s.inventory.find(i => i.name === 'Quiver'); R.place(s, q, { bag: s.inventory.find(i => i.name === 'Backpack').id, x: 0, y: 0 });
+    assert.match(R.canPlace(s, s.inventory.find(i => i.name === 'Backpack'), { slot: 'belt1' }), /goes on the back/);
+    assert.match(R.canPlace(s, s.inventory.find(i => i.name === 'Quiver'), { slot: 'back' }), /goes on the belt/);
+});
+
+test('The Drowned Lantern: every pregen starts at full speed, nothing dragged along or unpacked', () => {
+    const DL = requireSrc('src/adventures/content/drowned-lantern.js'), SH = requireSrc('src/characters/sheet.js');
+    for (const c of DL.drownedLantern().characters) {
+        const s = SH.readSheet(c.data);
+        assert.equal(R.load(s, R.OVER), 0, c.data.name + ': nothing in Overweight');
+        assert.equal(R.unpacked(s).length, 0, c.data.name + ': everything packed');
+        assert.equal(R.carried(s).slowed, false, c.data.name + ': full speed');
+        assert.equal((s.inventory.find(i => i.at && i.at.slot === 'back') || {}).name, 'Backpack', c.data.name + ': backpack on the back');
+    }
+    const oona = SH.readSheet(DL.drownedLantern().characters.find(c => /Oona/.test(c.data.name)).data);
+    assert.equal(oona.inventory.find(i => i.name === 'Greatsword').at.slot, 'main', 'Oona carries her greatsword');
 });
 
 test('inventory screen: paper doll and bags, add with Enter, into a bag, turn, split, overweight, remove — saved at once', async (t) => {

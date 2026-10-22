@@ -22448,13 +22448,13 @@ ${char.mes_example}
   var BAGS = {
     // Backpack 50 lb (owner, R9; the SRD says 30 lb, but its own equipment packs put ~50 lb of gear
     // into one): a fresh character's starting pack fits.
-    "backpack": { cap: 50, cols: 8, rows: 6 },
-    "sack": { cap: 30, cols: 6, rows: 5 },
-    "pouch": { cap: 6, cols: 3, rows: 2 },
-    "quiver": { cap: 1, cols: 1, rows: 1, accepts: /arrow/ },
-    "case, crossbow bolt": { cap: 1.5, cols: 1, rows: 1, accepts: /\bbolt/ },
-    "bag of holding": { cap: 500, cols: 10, rows: 10, fixed: 5, extra: true },
-    "handy haversack": { cap: 900, cols: 12, rows: 10, fixed: 5, extra: true }
+    "backpack": { cap: 50, cols: 8, rows: 6, wear: "back" },
+    "sack": { cap: 30, cols: 6, rows: 5, wear: "back" },
+    "pouch": { cap: 6, cols: 3, rows: 2, wear: "belt" },
+    "quiver": { cap: 1, cols: 1, rows: 1, wear: "belt", accepts: /arrow/ },
+    "case, crossbow bolt": { cap: 1.5, cols: 1, rows: 1, wear: "belt", accepts: /\bbolt/ },
+    "bag of holding": { cap: 500, cols: 10, rows: 10, wear: "back", fixed: 5 },
+    "handy haversack": { cap: 900, cols: 12, rows: 10, wear: "back", fixed: 5 }
   };
   var BAG_ALIASES = { "crossbow bolt case": "case, crossbow bolt", "bolt case": "case, crossbow bolt" };
   var EXTRADIMENSIONAL = /bag of holding|handy haversack|portable hole/;
@@ -22674,11 +22674,15 @@ ${char.mes_example}
     if (target.slot) {
       const s = target.slot, other = inSlot(sheet, s, item);
       if (!SLOTS.includes(s)) return "no such slot";
-      if (other) return `${SLOT_NAMES[s]} is taken (${other.name})`;
+      const why = slotRule(s);
+      return why || (other ? `${SLOT_NAMES[s]} is taken (${other.name})` : "");
+    }
+    function slotRule(s) {
       if (s === "armor") return kind === "armor" ? "" : "only armor is worn there";
       if (kind === "armor") return "armor is worn in the armor slot";
-      if (s === "back") return kind === "bag" ? "" : "only a bag goes on the back";
-      if (s === "belt1" || s === "belt2") return kind === "bag" || BELT_OK.test(low2(item.name)) ? "" : "only a pouch, a quiver, a case or a waterskin goes on the belt";
+      const wear = kind === "bag" ? bagSpec(item).wear : "";
+      if (s === "back") return wear === "back" ? "" : kind === "bag" ? `the ${item.name} goes on the belt` : "only a backpack or a sack goes on the back";
+      if (s === "belt1" || s === "belt2") return wear === "belt" || BELT_OK.test(low2(item.name)) ? "" : wear === "back" ? `the ${item.name} goes on the back` : "only a pouch, a quiver, a case or a waterskin goes on the belt";
       const w2 = totalWeight(sheet, item);
       if (s === "strap1" || s === "strap2") {
         const back = inSlot(sheet, "back", item);
@@ -22785,6 +22789,12 @@ ${char.mes_example}
       if (!kit) continue;
       const q = qtyOf(inv[i]);
       inv.splice(i, 1, ...kit.map((k2) => ({ name: k2.name, qty: k2.qty * q, notes: "" })));
+    }
+    for (let i = inv.length - 1; i >= 0; i--) {
+      const it = inv[i], q = qtyOf(it);
+      if (q < 2 || !isBag(it)) continue;
+      it.qty = 1;
+      inv.splice(i + 1, 0, ...Array.from({ length: q - 1 }, () => ({ name: it.name, qty: 1, notes: it.notes || "" })));
     }
     ensureIds(sheet);
     const want = inv.map((i) => i.at ? Object.assign({}, i.at, i.rot ? { rot: true } : {}) : null);
@@ -41091,6 +41101,7 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
       id: "oona",
       pronouns: "she/her",
       line: "Orc Fighter, Soldier · steady veteran with a prosthetic leg",
+      hold: ["Greatsword"],
       choices: {
         name: "Oona Greycairn",
         class: "fighter",
@@ -41192,6 +41203,16 @@ ${g.lines.join("\n")}`).join("\n\n") + "\n\nSeveral commands and a message in on
   function pregenCard(p) {
     const sheet = buildSheet(p.choices);
     sheet.notes = p.notes;
+    if (p.hold) {
+      for (const it of sheet.inventory) {
+        delete it.at;
+        delete it.rot;
+      }
+      for (const n of p.hold) {
+        const it = sheet.inventory.find((i) => i.name === n);
+        if (it) it.inHand = true;
+      }
+    }
     const data = writeSheet({
       name: p.choices.name,
       description: p.description,

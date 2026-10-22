@@ -120,7 +120,7 @@ test('Features tab: the SRD features of a built character, level-appropriate, wi
     const ADV = w.KLITE_RPMod_Adventures; for (let i = 0; i < 40 && !ADV.list().length; i++) await sleep(25);
     await ADV.installPregens('drowned-lantern');
     const oona = await C.loadSheet('Oona Greycairn');
-    assert.deepEqual(plain(oona.inventory.filter(i => i.inHand).map(i => i.name)), ['Chain Mail'], 'a new character wears the armor its AC counts; weapons start in the backpack');
+    assert.deepEqual(plain(oona.inventory.filter(i => i.inHand).map(i => i.name)), ['Chain Mail', 'Greatsword'], 'a new character wears the armor its AC counts; Oona carries her greatsword (R9)');
     C.open('Oona Greycairn'); await sleep(40);
     await tab(w, doc, 'features');
     const text = win(doc).querySelector('[data-features="srd"]').textContent;

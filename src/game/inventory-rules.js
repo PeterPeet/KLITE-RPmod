@@ -42,18 +42,18 @@ export const DEFAULT_WEIGHT = 1;          // an item the SRD does not know (AI l
 export const COINS_PER_LB = 50;           // SRD: fifty coins weigh a pound
 
 // ---- bags ----------------------------------------------------------------------------------
-// cap: pounds it holds; cols × rows: its grid; accepts: only this kind of thing (quiver, case);
-// fixed: it always weighs this much, whatever is inside; extra: extradimensional (never nest two).
+// cap: pounds it holds; cols × rows: its grid; wear: where it is worn (back or belt); accepts: only
+// this kind of thing (quiver, case); fixed: it always weighs this much, whatever is inside.
 const BAGS = {
     // Backpack 50 lb (owner, R9; the SRD says 30 lb, but its own equipment packs put ~50 lb of gear
     // into one): a fresh character's starting pack fits.
-    'backpack': { cap: 50, cols: 8, rows: 6 },
-    'sack': { cap: 30, cols: 6, rows: 5 },
-    'pouch': { cap: 6, cols: 3, rows: 2 },
-    'quiver': { cap: 1, cols: 1, rows: 1, accepts: /arrow/ },
-    'case, crossbow bolt': { cap: 1.5, cols: 1, rows: 1, accepts: /\bbolt/ },
-    'bag of holding': { cap: 500, cols: 10, rows: 10, fixed: 5, extra: true },
-    'handy haversack': { cap: 900, cols: 12, rows: 10, fixed: 5, extra: true },
+    'backpack': { cap: 50, cols: 8, rows: 6, wear: 'back' },
+    'sack': { cap: 30, cols: 6, rows: 5, wear: 'back' },
+    'pouch': { cap: 6, cols: 3, rows: 2, wear: 'belt' },
+    'quiver': { cap: 1, cols: 1, rows: 1, wear: 'belt', accepts: /arrow/ },
+    'case, crossbow bolt': { cap: 1.5, cols: 1, rows: 1, wear: 'belt', accepts: /\bbolt/ },
+    'bag of holding': { cap: 500, cols: 10, rows: 10, wear: 'back', fixed: 5 },
+    'handy haversack': { cap: 900, cols: 12, rows: 10, wear: 'back', fixed: 5 },
 };
 const BAG_ALIASES = { 'crossbow bolt case': 'case, crossbow bolt', 'bolt case': 'case, crossbow bolt' };
 const EXTRADIMENSIONAL = /bag of holding|handy haversack|portable hole/;
@@ -266,13 +266,18 @@ export function canPlace(sheet, item, target, opts) {
         if (c.total + w > c.limit + 1e-9) return `too heavy: you can drag at most ${c.limit} lb`;
     }
     if (target.slot) {
+        // what may go there first (the more useful reason), then whether it is free
         const s = target.slot, other = inSlot(sheet, s, item);
         if (!SLOTS.includes(s)) return 'no such slot';
-        if (other) return `${SLOT_NAMES[s]} is taken (${other.name})`;
+        const why = slotRule(s);
+        return why || (other ? `${SLOT_NAMES[s]} is taken (${other.name})` : '');
+    }
+    function slotRule(s) {
         if (s === 'armor') return kind === 'armor' ? '' : 'only armor is worn there';
         if (kind === 'armor') return 'armor is worn in the armor slot';
-        if (s === 'back') return kind === 'bag' ? '' : 'only a bag goes on the back';
-        if (s === 'belt1' || s === 'belt2') return kind === 'bag' || BELT_OK.test(low(item.name)) ? '' : 'only a pouch, a quiver, a case or a waterskin goes on the belt';
+        const wear = kind === 'bag' ? bagSpec(item).wear : '';
+        if (s === 'back') return wear === 'back' ? '' : kind === 'bag' ? `the ${item.name} goes on the belt` : 'only a backpack or a sack goes on the back';
+        if (s === 'belt1' || s === 'belt2') return wear === 'belt' || BELT_OK.test(low(item.name)) ? '' : wear === 'back' ? `the ${item.name} goes on the back` : 'only a pouch, a quiver, a case or a waterskin goes on the belt';
         const w = totalWeight(sheet, item);
         if (s === 'strap1' || s === 'strap2') {
             const back = inSlot(sheet, 'back', item);
@@ -368,6 +373,11 @@ export function organize(sheet) {
         const kit = kitContents(inv[i].name); if (!kit) continue;
         const q = qtyOf(inv[i]);
         inv.splice(i, 1, ...kit.map(k => ({ name: k.name, qty: k.qty * q, notes: '' })));
+    }
+    for (let i = inv.length - 1; i >= 0; i--) {   // "2 Pouches": two bags, each with its own grid
+        const it = inv[i], q = qtyOf(it); if (q < 2 || !isBag(it)) continue;
+        it.qty = 1;
+        inv.splice(i + 1, 0, ...Array.from({ length: q - 1 }, () => ({ name: it.name, qty: 1, notes: it.notes || '' })));
     }
     ensureIds(sheet);
     const want = inv.map(i => i.at ? Object.assign({}, i.at, i.rot ? { rot: true } : {}) : null);
