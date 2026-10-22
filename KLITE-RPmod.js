@@ -22781,7 +22781,12 @@ ${char.mes_example}
       const sl = slot(kind === "shield" ? ["slungShield"] : ["sheath1", "sheath2", "slung"]);
       if (sl) return { slot: sl };
     }
-    for (const id of [...bagOrder(sheet), POCKETS]) {
+    const made = (id) => {
+      const sp = specOf(sheet, id);
+      return sp && sp.accepts && sp.accepts.test(low2(item.name)) ? 0 : 1;
+    };
+    const bags = bagOrder(sheet).map((id, i) => [id, i]).sort((a, b) => made(a[0]) - made(b[0]) || a[1] - b[1]).map((x) => x[0]);
+    for (const id of [...bags, POCKETS]) {
       const t = spotIn(sheet, item, id, opts);
       if (t) return t;
     }

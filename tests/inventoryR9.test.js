@@ -290,6 +290,8 @@ test('The Drowned Lantern: every pregen starts at full speed, nothing dragged al
     }
     const oona = SH.readSheet(DL.drownedLantern().characters.find(c => /Oona/.test(c.data.name)).data);
     assert.equal(oona.inventory.find(i => i.name === 'Greatsword').at.slot, 'main', 'Oona carries her greatsword');
+    const quiver = oona.inventory.find(i => i.name === 'Quiver');
+    assert.equal(oona.inventory.find(i => i.name === 'Arrow').at.bag, quiver.id, 'the arrows are in the quiver, not the backpack');
 });
 
 test('inventory screen: paper doll and bags, add with Enter, into a bag, turn, split, overweight, remove — saved at once', async (t) => {

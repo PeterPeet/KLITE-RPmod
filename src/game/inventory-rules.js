@@ -361,7 +361,10 @@ export function findSpot(sheet, item, opts) {
     const kind = itemKind(item), slot = (list) => list.find(sl => !canPlace(sheet, item, { slot: sl }, opts));
     if (BELT_OK.test(low(item.name))) { const sl = slot(['belt1', 'belt2']); if (sl) return { slot: sl }; }
     if (kind === 'weapon' || kind === 'shield') { const sl = slot(kind === 'shield' ? ['slungShield'] : ['sheath1', 'sheath2', 'slung']); if (sl) return { slot: sl }; }
-    for (const id of [...bagOrder(sheet), POCKETS]) { const t = spotIn(sheet, item, id, opts); if (t) return t; }
+    // a bag made for it first (arrows into the quiver, bolts into the case), then the others
+    const made = (id) => { const sp = specOf(sheet, id); return sp && sp.accepts && sp.accepts.test(low(item.name)) ? 0 : 1; };
+    const bags = bagOrder(sheet).map((id, i) => [id, i]).sort((a, b) => made(a[0]) - made(b[0]) || a[1] - b[1]).map(x => x[0]);
+    for (const id of [...bags, POCKETS]) { const t = spotIn(sheet, item, id, opts); if (t) return t; }
     if (kind === 'gear' || kind === 'potion' || kind === 'ammo') { const sl = slot(['strap1', 'strap2']); if (sl) return { slot: sl }; }
     if (!(opts && opts.noOver)) return spotIn(sheet, item, OVER, opts);
     return null;
