@@ -64,7 +64,9 @@ read the table as a trend, not a benchmark. Details: [docs/ROADMAP.md](docs/ROAD
 **Recommended Esolite settings** (also in the Guide: RPmod → "Which AI model? Settings that matter"):
 - **Max Output 16,000** (Settings → Samplers; type the number, the slider stops at 2048) and **Context Size 32,768** —
   set the context first: Esolite keeps Max Output below 85% of the Context Size, so with a small context 16,000
-  quietly becomes less. The "New here?" card warns while Max Output is below 16,000.
+  quietly becomes less. Keep the Context Size at or a little below the model's limit at your provider: prompt and
+  output together must fit, and Esolite trims the prompt by an estimate (characters per token), so a request just over
+  the limit can be rejected. The "New here?" card warns while Max Output is below 16,000.
 - **Reasoning** off or low.
 - **World Info "Before A/N"** with the Author's Note "Turn based", 1 user turn (RPmod asks once and keeps it set).
 
